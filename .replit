@@ -1,4 +1,4 @@
-run = "npm run dev"
+run = "cd agui-starter && npm run dev"
 entrypoint = "index.js"
 hidden = [".config", "package-lock.json", ".next", ".swc"]
 modules = ["nodejs-22"]
@@ -17,6 +17,14 @@ deploymentTarget = "cloudrun"
 [[ports]]
 localPort = 3000
 externalPort = 80
+
+[[ports]]
+localPort = 3001
+externalPort = 3001
+
+[[ports]]
+localPort = 3002
+externalPort = 3002
 
 [agent]
 expertMode = true
