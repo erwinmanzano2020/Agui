@@ -1,15 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { useParams } from "next/navigation";
+import EditEmployeeDrawer from "../_components/EditEmployeeDrawer";
 
 type Shift = {
   id: string;
   code: string;
   name: string;
-  start_time?: string;
-  end_time?: string;
+  start_time?: string | null;
+  end_time?: string | null;
+};
+
+type Employee = {
+  code: string;
+  full_name: string;
+  rate_per_day: number;
 };
 
 const UI_DAYS = [
@@ -23,16 +30,12 @@ const UI_DAYS = [
 ] as const;
 
 export default function EmployeeSchedulePage() {
-  const params = useParams();
-  const employeeId = params?.id as string;
+  const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const employeeId = params?.id ?? "";
 
-  const [emp, setEmp] = useState<{
-    code: string;
-    full_name: string;
-    rate_per_day: number;
-  } | null>(null);
+  const [emp, setEmp] = useState<Employee | null>(null);
   const [shifts, setShifts] = useState<Shift[]>([]);
-  // map by day value (1..7)
   const [weekly, setWeekly] = useState<Record<number, string | null>>({
     1: null,
     2: null,
@@ -42,33 +45,45 @@ export default function EmployeeSchedulePage() {
     6: null,
     7: null,
   });
+
   const [overrides, setOverrides] = useState<
     Array<{ date: string; shift_name: string | null }>
   >([]);
   const [ovrDate, setOvrDate] = useState("");
-  const [ovrShift, setOvrShift] = useState<string>(""); // '' = Rest Day
+  const [ovrShift, setOvrShift] = useState<string>("");
+
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerTab, setDrawerTab] = useState<
+    "profile" | "compensation" | "audit"
+  >("profile");
+
   const load = async () => {
+    if (!employeeId) return;
     setErr(null);
+
     const empRes = await supabase
       .from("employees")
       .select("code, full_name, rate_per_day")
       .eq("id", employeeId)
       .maybeSingle();
+    if (empRes.error) setErr(empRes.error.message);
     setEmp(empRes.data ?? null);
 
     const shiftRes = await supabase
       .from("shifts")
       .select("id, code, name, start_time, end_time")
       .order("start_time", { ascending: true });
+    if (shiftRes.error) setErr((p) => p ?? shiftRes.error?.message ?? null);
     setShifts(shiftRes.data ?? []);
 
     const weekRes = await supabase
       .from("employee_shift_weekly")
       .select("day_of_week, shift_id")
       .eq("employee_id", employeeId);
+    if (weekRes.error) setErr((p) => p ?? weekRes.error?.message ?? null);
     const map: Record<number, string | null> = {
       1: null,
       2: null,
@@ -88,6 +103,7 @@ export default function EmployeeSchedulePage() {
       .select("date, shift_id, shifts(name)")
       .eq("employee_id", employeeId)
       .order("date", { ascending: true });
+    if (ovrRes.error) setErr((p) => p ?? ovrRes.error?.message ?? null);
     const ov = (ovrRes.data ?? []).map((r: any) => ({
       date: r.date,
       shift_name: r.shifts?.name ?? null,
@@ -96,83 +112,162 @@ export default function EmployeeSchedulePage() {
   };
 
   useEffect(() => {
-    if (employeeId) load();
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [employeeId]);
+
+  // Auto-open drawer via query: ?edit=1&tab=comp
+  useEffect(() => {
+    if (searchParams?.get("edit") === "1") {
+      const tab = (searchParams.get("tab") || "").toLowerCase();
+      if (tab === "comp" || tab === "compensation")
+        setDrawerTab("compensation");
+      else if (tab === "audit") setDrawerTab("audit");
+      else setDrawerTab("profile");
+      setDrawerOpen(true);
+    }
+  }, [searchParams]);
+
+  // Hotkey: "E" → open on Profile
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (
+        (e.key === "e" || e.key === "E") &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
+        const el = e.target as HTMLElement | null;
+        const tag = el?.tagName;
+        const isEditable =
+          tag === "INPUT" ||
+          tag === "TEXTAREA" ||
+          (el as any)?.isContentEditable === true;
+        if (!isEditable) {
+          e.preventDefault();
+          setDrawerTab("profile");
+          setDrawerOpen(true);
+        }
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
 
   const saveDay = async (dayValue: number, shiftId: string | null) => {
     setBusy(true);
     setErr(null);
-    const { error } = await supabase.from("employee_shift_weekly").upsert(
-      {
-        employee_id: employeeId,
-        day_of_week: dayValue, // 1..7; 7 = Sunday
-        shift_id: shiftId,
-      },
-      { onConflict: "employee_id,day_of_week" },
-    );
-    setBusy(false);
-    if (error) {
-      setErr(error.message);
-      return;
+    try {
+      const { error } = await supabase
+        .from("employee_shift_weekly")
+        .upsert(
+          { employee_id: employeeId, day_of_week: dayValue, shift_id: shiftId },
+          { onConflict: "employee_id,day_of_week" },
+        );
+      if (error) throw error;
+      await load();
+    } catch (e: any) {
+      setErr(e?.message ?? "Failed to save day.");
+    } finally {
+      setBusy(false);
     }
-    await load();
   };
 
   const saveOverride = async () => {
     if (!ovrDate) return;
     setBusy(true);
     setErr(null);
-    const shiftId = ovrShift || null; // '' means Rest Day
-    const { error } = await supabase.from("employee_shift_overrides").upsert(
-      {
-        employee_id: employeeId,
-        date: ovrDate,
-        shift_id: shiftId,
-      },
-      { onConflict: "employee_id,date" },
-    );
-    setBusy(false);
-    if (error) {
-      setErr(error.message);
-      return;
+    try {
+      const shiftId = ovrShift || null;
+      const { error } = await supabase
+        .from("employee_shift_overrides")
+        .upsert(
+          { employee_id: employeeId, date: ovrDate, shift_id: shiftId },
+          { onConflict: "employee_id,date" },
+        );
+      if (error) throw error;
+
+      setOvrDate("");
+      setOvrShift("");
+      await load();
+    } catch (e: any) {
+      setErr(e?.message ?? "Failed to save override.");
+    } finally {
+      setBusy(false);
     }
-    setOvrDate("");
-    setOvrShift("");
-    await load();
   };
 
   const removeOverride = async (date: string) => {
     setBusy(true);
     setErr(null);
-    const { error } = await supabase
-      .from("employee_shift_overrides")
-      .delete()
-      .eq("employee_id", employeeId)
-      .eq("date", date);
-    setBusy(false);
-    if (error) {
-      setErr(error.message);
-      return;
+    try {
+      const { error } = await supabase
+        .from("employee_shift_overrides")
+        .delete()
+        .eq("employee_id", employeeId)
+        .eq("date", date);
+      if (error) throw error;
+      await load();
+    } catch (e: any) {
+      setErr(e?.message ?? "Failed to remove override.");
+    } finally {
+      setBusy(false);
     }
-    await load();
   };
 
   return (
     <div className="max-w-3xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold mb-4">Schedule</h1>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-semibold">Employee</h1>
+        <div className="flex gap-2">
+          <button
+            className="px-3 py-2 rounded border"
+            onClick={() => {
+              setDrawerTab("profile");
+              setDrawerOpen(true);
+            }}
+          >
+            Edit Profile
+          </button>
+          <button
+            className="px-3 py-2 rounded border"
+            onClick={() => {
+              setDrawerTab("compensation");
+              setDrawerOpen(true);
+            }}
+          >
+            ₱ Compensation
+          </button>
+        </div>
+      </div>
 
+      {/* Drawer */}
+      <EditEmployeeDrawer
+        employeeId={employeeId}
+        open={drawerOpen}
+        onOpenChange={setDrawerOpen}
+        initialTab={drawerTab}
+        onDataChanged={load} // <-- THIS refreshes the page data immediately
+      />
+
+      {/* Employee Card */}
       {!emp ? (
-        <div>Loading employee…</div>
+        <div className="border rounded p-3 mb-6">
+          {err ? "Employee not found or failed to load." : "Loading employee…"}
+        </div>
       ) : (
         <div className="border rounded p-3 mb-6">
-          <div className="text-sm">
-            Code: <b>{emp.code}</b>
-          </div>
-          <div className="text-sm">
-            Name: <b>{emp.full_name}</b>
-          </div>
-          <div className="text-sm">
-            Rate/Day: <b>₱{Number(emp.rate_per_day).toFixed(2)}</b>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+            <div>
+              Code: <b>{emp.code}</b>
+            </div>
+            <div>
+              Name: <b>{emp.full_name}</b>
+            </div>
+            <div>
+              Rate/Day: <b>₱{Number(emp.rate_per_day).toFixed(2)}</b>
+            </div>
           </div>
         </div>
       )}
@@ -195,9 +290,9 @@ export default function EmployeeSchedulePage() {
                 <option value="">Rest Day</option>
                 {shifts.map((s) => (
                   <option key={s.id} value={s.id}>
-                    {s.name}{" "}
+                    {s.name}
                     {s.start_time && s.end_time
-                      ? `(${s.start_time}–${s.end_time})`
+                      ? ` (${s.start_time}–${s.end_time})`
                       : ""}
                   </option>
                 ))}
@@ -233,7 +328,7 @@ export default function EmployeeSchedulePage() {
           <button
             className="bg-green-600 text-white rounded px-3 py-1"
             onClick={saveOverride}
-            disabled={busy}
+            disabled={busy || !ovrDate}
           >
             Save Override
           </button>
