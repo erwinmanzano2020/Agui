@@ -1,26 +1,116 @@
+/* --- Tailwind v4 core --- */
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* --- Our CSS variables (Step 1) --- */
+@import "../styles/foundations.css";
+
+/* --- Map variables to Tailwind tokens via @theme (v4 way) --- */
+@theme {
+  /* Colors */
+  --color-brand: hsl(var(--brand));
+  --color-brand-foreground: hsl(var(--brand-foreground));
+
+  --color-background: hsl(var(--bg));
+  --color-foreground: hsl(var(--fg));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --color-success: hsl(var(--success));
+  --color-warning: hsl(var(--warning));
+  --color-danger: hsl(var(--danger));
+
+  /* Radii */
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+  --radius-2xl: var(--radius-2xl);
+
+  /* Container width */
+  --container-2xl: 1200px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* --- Base defaults using our tokens --- */
+@layer base {
+  html, body { @apply bg-background text-foreground antialiased; }
+  h1 { @apply text-2xl font-semibold; }
+  h2 { @apply text-xl font-semibold; }
+  a  { @apply text-brand underline-offset-2 hover:underline; }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* --- Utilities for shadows (custom, v4-safe) --- */
+@layer utilities {
+  .shadow-soft   { box-shadow: var(--shadow-soft); }
+  .shadow-lifted { box-shadow: var(--shadow-lifted); }
+}
+
+/* --- Components --- */
+@layer components {
+  .card {
+    background: var(--color-card);
+    color: var(--color-card-foreground);
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-soft);  
+  }
+  /* === Form primitives (refined) === */
+  .field  { @apply space-y-1.5; }
+  .label  { @apply text-sm font-medium; }
+  .help   { @apply text-xs text-muted-foreground; }
+  .error  { @apply text-xs text-danger; }
+
+  /* Inputs: clear background, border, focus */
+  .input,
+  .select,
+  .textarea {
+    @apply w-full rounded-2xl px-3 py-2 outline-none
+           bg-background
+           border border-border
+           placeholder:text-muted-foreground
+           focus-visible:ring-2 focus-visible:ring-ring
+           focus-visible:border-ring;
+  }
+  .checkbox { @apply h-4 w-4 rounded border border-border align-middle; }
+
+  /* Two-column layout on desktop, stack on mobile */
+  .form-row { @apply grid gap-2; grid-template-columns: 220px 1fr; }
+  @media (max-width: 640px) { .form-row { grid-template-columns: 1fr; } }
+
+
+  /* Base button */
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 font-medium transition
+           disabled:opacity-60 disabled:pointer-events-none;
+    border-radius: var(--radius-2xl);
+    box-shadow: var(--shadow-soft);
+  }
+
+  /* Variants (use together with .btn) */
+  .btn-primary {
+    @apply bg-brand text-brand-foreground;
+  }
+  .btn-primary:hover {
+    box-shadow: var(--shadow-lifted);
+  }
+
+  .btn-ghost {
+    @apply bg-transparent hover:bg-muted;
+  }
+
+  /* Centered container with padding and 2xl cap */
+  .container-2xl {
+    @apply mx-auto px-4;
+    max-width: var(--container-2xl);
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* Global focus ring */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
 }

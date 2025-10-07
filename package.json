@@ -1,5 +1,10 @@
 {
   "dependencies": {
     "html2pdf.js": "^0.12.1"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.25",
+    "@types/react-dom": "^18.3.7",
+    "typescript": "^5.9.3"
   }
 }

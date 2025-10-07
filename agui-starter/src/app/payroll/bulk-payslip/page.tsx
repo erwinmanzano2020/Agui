@@ -52,6 +52,14 @@ function monthRange(ym: string) {
   return { from, toNext };
 }
 
+function monthEnd(ym: string) {
+  // ym = "YYYY-MM"
+  const { toNext } = monthRange(ym);
+  const d = new Date(toNext);
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10); // inclusive last day
+}
+
 function fmtHM(ts: string | null) {
   if (!ts) return "--";
   const d = new Date(ts);
@@ -198,27 +206,66 @@ export default function PayslipBulkPage() {
   }
 
   // Compute a payslip summary for an employee (present-only)
+  // Basic Pay comes from mixed-rate API (as-of daily rates). OT & late/UT keep your existing logic.
   async function computeSlip(e: Emp, rows: Dtr[]) {
-    const present = rows.filter(
+    // Present dates (any minutes)
+    const presentRows = rows.filter(
       (r) => (r.minutes_regular || 0) > 0 || (r.minutes_ot || 0) > 0,
     );
+    const presentDates: string[] = [];
+    {
+      const seen = new Set<string>();
+      for (const r of presentRows) {
+        if (!seen.has(r.work_date)) {
+          seen.add(r.work_date);
+          presentDates.push(r.work_date);
+        }
+      }
+    }
 
-    let presentDays = 0,
-      regSum = 0,
+    // Call the mixed-rate API to get daily basic pay for the period
+    const from = `${month}-01`;
+    const to = monthEnd(month);
+    let basicPayMixed = 0;
+    let mixedDaysPresent = 0;
+
+    try {
+      const r = await fetch("/api/payslip/daily", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          employeeId: e.id,
+          from,
+          to,
+          presentDays: presentDates,
+        }),
+      });
+      const json = await r.json();
+      if (!r.ok) throw new Error(json?.error || "Request failed");
+      basicPayMixed = Number(json?.gross || 0);
+      mixedDaysPresent = Number(json?.daysPresent || presentDates.length);
+    } catch (err) {
+      console.error("Mixed-rate API error:", err);
+      // Fallback: use your old flat daily rate per present day
+      basicPayMixed = presentDates.length * Number(e.rate_per_day || 0);
+      mixedDaysPresent = presentDates.length;
+    }
+
+    // Keep your original OT + late/UT computations
+    let regSum = 0,
       otSum = 0,
-      basicPay = 0,
       otPay = 0,
       shortMins = 0,
       shortVal = 0;
 
-    for (const r of present) {
+    for (const r of presentRows) {
       const reg = Math.max(0, Number(r.minutes_regular || 0));
       const ot = Math.max(0, Number(r.minutes_ot || 0));
 
-      presentDays += 1;
       regSum += reg;
       otSum += ot;
 
+      // per-minute derived from current employee.rate_per_day (your existing approach)
       const eff = await resolveEffectiveShift(e.id, r.work_date);
       const perDayStandard = eff?.standard_minutes ?? standard;
       const perMinute = e.rate_per_day / perDayStandard;
@@ -226,28 +273,32 @@ export default function PayslipBulkPage() {
       const capped = Math.min(reg, perDayStandard);
       const shortfall = Math.max(0, perDayStandard - capped);
 
-      if (attMode === "PRORATE") {
-        basicPay += perMinute * capped;
-      } else {
-        basicPay += e.rate_per_day;
+      // DEDUCTION mode: add late/UT as a separate deduction (your current behavior)
+      if (attMode === "DEDUCTION") {
         shortMins += shortfall;
         shortVal += perMinute * shortfall;
+      } else {
+        // PRORATE mode: we already got basic pay from mixed-rate API (presence-based),
+        // so we do NOT additional-prorate here to avoid double-penalizing.
+        // (If you prefer true per-minute proration by rate history, we can add that later.)
       }
+
+      // OT pay (based on your current per-minute and multiplier)
       otPay += perMinute * ot * otMult;
     }
 
     const empDeds = dedsByEmp.get(e.id) || [];
     const otherDeds = empDeds.reduce((s, d) => s + Number(d.amount || 0), 0);
-    const gross = basicPay + otPay;
+    const gross = basicPayMixed + otPay;
     const totalDeductions =
       (attMode === "DEDUCTION" ? shortVal : 0) + otherDeds;
     const net = Math.max(0, gross - totalDeductions);
 
     return {
-      presentDays,
+      presentDays: mixedDaysPresent,
       regSum,
       otSum,
-      basicPay,
+      basicPay: basicPayMixed,
       otPay,
       shortMins,
       shortVal,
@@ -413,10 +464,23 @@ function PayslipCard(props: {
   }>;
   groupDeds: () => { label: string; total: number; count: number }[];
   dayLabel: (iso: string) => string;
-  rowSegments: (r: Dtr) => { in1: string; out1: string; in2: string; out2: string };
+  rowSegments: (r: Dtr) => {
+    in1: string;
+    out1: string;
+    in2: string;
+    out2: string;
+  };
 }) {
-  const { emp, rows, month, computeSlip, groupDeds, dayLabel, rowSegments, attMode } =
-    props;
+  const {
+    emp,
+    rows,
+    month,
+    computeSlip,
+    groupDeds,
+    dayLabel,
+    rowSegments,
+    attMode,
+  } = props;
   const [summary, setSummary] = useState<null | Awaited<
     ReturnType<typeof computeSlip>
   >>(null);
@@ -527,7 +591,8 @@ function PayslipCard(props: {
               </tr>
               <tr>
                 <td className="border p-2">
-                  OT – <span className="text-gray-600">{summary.otSum} mins</span>
+                  OT –{" "}
+                  <span className="text-gray-600">{summary.otSum} mins</span>
                 </td>
                 <td className="border p-2 text-right">{peso(summary.otPay)}</td>
               </tr>

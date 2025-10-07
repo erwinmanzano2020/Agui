@@ -1,3 +1,4 @@
+// agui-starter/src/app/payroll/payslip/page.tsx
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -54,23 +55,37 @@ type Summary = {
   totalOT: number;
 };
 
+type RateBucket = {
+  rate: number;
+  days: number;
+  total: number;
+  from?: string | null; // inclusive YYYY-MM-DD
+  to?: string | null; // inclusive YYYY-MM-DD
+};
+
 type PayslipBundle = {
   emp: Emp;
   month: string;
   dtrs: Dtr[];
   segs: Seg[];
   dedGroups: DedGroup[];
+  rateBreakdown: RateBucket[];
   summary: Summary;
 };
 
 /* ========= HELPERS ========= */
 function peso(n: number) {
-  return `₱${(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `₱${(n || 0).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 function fmtHM(ts: string | null) {
   if (!ts) return "--";
   const d = new Date(ts);
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return `${String(d.getHours()).padStart(2, "0")}:${String(
+    d.getMinutes(),
+  ).padStart(2, "0")}`;
 }
 function daysInMonth(ym: string) {
   const [y, m] = ym.split("-").map(Number);
@@ -84,9 +99,21 @@ function monthRange(ym: string) {
   const to = `${nextY}-${String(nextM).padStart(2, "0")}-01`; // exclusive
   return { from, to };
 }
+function monthEnd(ym: string) {
+  const { to } = monthRange(ym); // exclusive next-month day 1
+  const d = new Date(to);
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10); // inclusive last day
+}
 const pad2 = (n: number) => String(n).padStart(2, "0");
 const wkdShort = (iso: string) =>
   new Date(iso).toLocaleDateString(undefined, { weekday: "short" });
+const fmtLong = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, {
+    month: "long",
+    day: "numeric",
+    year: "numeric",
+  });
 
 /* ========= THEME ========= */
 const C = {
@@ -234,11 +261,30 @@ function PayslipCard({
   bundle: PayslipBundle;
   attMode: AttMode;
 }) {
-  const { emp, month, dedGroups, summary, dtrs, segs } = bundle;
+  const { emp, month, dedGroups, summary, dtrs, segs, rateBreakdown } = bundle;
+
+  // detect mixed: >= 2 distinct nonzero rates
+  const distinctRates = Array.from(
+    new Set(
+      rateBreakdown.filter((b) => b.days > 0).map((b) => b.rate.toFixed(2)),
+    ),
+  ).length;
+  const mixed = distinctRates > 1;
+
+  // chronological sort by "from" if available, else by rate
+  const rbSorted = [...rateBreakdown]
+    .filter((b) => b.days > 0)
+    .sort((a, b) => {
+      const af = a.from || "";
+      const bf = b.from || "";
+      if (af && bf && af !== bf) return af < bf ? -1 : 1;
+      if (a.rate !== b.rate) return a.rate - b.rate;
+      return 0;
+    });
 
   return (
     <section className="sheet">
-      {/* Head (left: Payslip, right: company & date) */}
+      {/* Head */}
       <header className="head">
         <div className="h-left">Payslip</div>
         <div className="h-right">
@@ -266,7 +312,7 @@ function PayslipCard({
         </div>
       </section>
 
-      {/* Computation – split columns */}
+      {/* Computation */}
       <section className="panel">
         <div className="panel-h centered">Payroll Computation</div>
 
@@ -284,18 +330,34 @@ function PayslipCard({
                 <td className="td">Days Present</td>
                 <td className="td right">{summary.presentDays}</td>
               </tr>
-              <tr>
-                <td className="td">Rate (Daily)</td>
-                <td className="td right">{peso(emp.rate_per_day)}</td>
-              </tr>
-              <tr>
-                <td className="td">Basic Pay</td>
-                <td className="td right">{peso(summary.basic)}</td>
-              </tr>
-              <tr>
-                <td className="td">OT — {summary.totalOT} mins</td>
-                <td className="td right">{peso(summary.otPay)}</td>
-              </tr>
+
+              {/* Mixed-rate itemization (each on one row with a small date-range note under it) */}
+              {rbSorted.map((b, i) => (
+                <tr key={`rb-${i}`}>
+                  <td className="td">
+                    <div>
+                      ₱{b.rate.toLocaleString()} × {b.days}{" "}
+                      {b.days === 1 ? "day" : "days"}
+                    </div>
+                    {(b.from || b.to) && (
+                      <div className="rate-desc">
+                        {b.from ? fmtLong(b.from) : "—"} to{" "}
+                        {b.to ? fmtLong(b.to) : "—"}
+                      </div>
+                    )}
+                  </td>
+                  <td className="td right">{peso(b.total)}</td>
+                </tr>
+              ))}
+
+              {/* Hide OT row completely when zero */}
+              {summary.totalOT > 0 && summary.otPay > 0 && (
+                <tr>
+                  <td className="td">OT — {summary.totalOT} mins</td>
+                  <td className="td right">{peso(summary.otPay)}</td>
+                </tr>
+              )}
+
               <tr className="gross">
                 <td className="td strong">Gross</td>
                 <td className="td right strong">{peso(summary.gross)}</td>
@@ -350,7 +412,7 @@ function PayslipCard({
         </table>
       </section>
 
-      {/* DTR split (full width) */}
+      {/* DTR split */}
       <section className="panel">
         <div className="panel-h">DTR</div>
         <div className="pad">
@@ -382,19 +444,18 @@ function PayslipCard({
         .sheet {
           width: 210mm;
           min-height: 297mm;
-          box-sizing: border-box;
-          padding: 12mm 12mm 13mm; /* more bottom room for signatures */
+          box-sizing: border-box; /* border included in 210×297 */
+          padding: 8mm 8mm 10mm; /* tighter top/bottom & sides */
           background: ${C.surface};
           color: ${C.text};
           border: 1px solid ${C.line};
           border-radius: 10px;
-          margin: 8px auto;
-          page-break-after: always;
+          margin: 0 auto; /* center, no extra outer gaps */
         }
 
         .head {
           display: grid;
-          grid-template-columns: 1fr auto;
+          grid-template-columns: 1fr 1fr;
           align-items: end;
           margin-bottom: 6px;
         }
@@ -503,6 +564,12 @@ function PayslipCard({
         .net {
           background: ${C.netRow};
         }
+        .rate-desc {
+          margin-top: 2px;
+          font-size: 9pt;
+          color: ${C.mute};
+          line-height: 1.2;
+        }
 
         .ack {
           font-size: 9.5pt;
@@ -510,22 +577,30 @@ function PayslipCard({
           border: 1px solid ${C.line};
           border-radius: 8px;
           background: ${C.surface};
-          padding: 10px;
-          margin: 10px 0 16px;
+          padding: 8px;
+          margin: 6px 0 8px; /* smaller vertical footprint */
         }
 
         .signs {
           display: grid;
           grid-template-columns: 1fr 1fr;
-          gap: 32px;
+          gap: 24px;
           font-size: 9.5pt;
           align-items: end;
+          min-height: 56px; /* even shorter */
+          padding-top: 2px;
+        }
+        .sig {
+          display: flex;
+          flex-direction: column;
+          justify-content: flex-end;
         }
         .sig .line {
+          margin: 10px 0 6px 0; /* less gap above the line */
           height: 1px;
           background: ${C.text};
-          margin: 0 0 6px 0;
         }
+
         .sig.right {
           text-align: right;
         }
@@ -536,13 +611,11 @@ function PayslipCard({
           }
           .h1 {
             display: none !important;
-          } /* hide wild title on cover */
-          /* keep backgrounds in print */
+          }
           * {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-          /* avoid extra blank pages by removing outer margins on sheets */
           .sheet {
             margin: 0 auto !important;
           }
@@ -573,7 +646,6 @@ function CoverPage({ month }: { month: string }) {
           width: 210mm;
           min-height: 297mm;
           padding: 0;
-          page-break-after: always;
           display: grid;
           place-items: center;
           border: 1px solid ${C.line};
@@ -684,7 +756,6 @@ function SummaryPage({ bundles }: { bundles: PayslipBundle[] }) {
           border: 1px solid ${C.line};
           border-radius: 10px;
           margin: 8px auto;
-          page-break-after: always;
         }
         .head {
           display: grid;
@@ -783,6 +854,33 @@ export default function PayslipPage() {
     })();
   }, []);
 
+  // Safe JSON fetch to avoid "Unexpected token '<'" when API returns HTML/error
+  async function safeJsonFetch(url: string, init?: RequestInit) {
+    const resp = await fetch(url, init);
+    const contentType = resp.headers.get("content-type") || "";
+    const text = await resp.text();
+    let json: any = null;
+
+    if (contentType.includes("application/json")) {
+      try {
+        json = JSON.parse(text);
+      } catch (e) {
+        throw new Error(`Invalid JSON from ${url}: ${String(e)}`);
+      }
+    } else {
+      // Return a descriptive error with first chars of HTML/text
+      const snippet = text.slice(0, 200);
+      throw new Error(
+        `Non-JSON response ${resp.status} from ${url}. Snippet: ${snippet}`,
+      );
+    }
+
+    if (!resp.ok) {
+      throw new Error(json?.error || `HTTP ${resp.status} from ${url}`);
+    }
+    return json;
+  }
+
   async function run() {
     setLoading(true);
     setBundles([]);
@@ -851,10 +949,17 @@ export default function PayslipPage() {
       const segs = segByEmp.get(id) || [];
       const deds = dedByEmp.get(id) || [];
 
-      const present = dtrs.filter(
-        (r) =>
-          Number(r.minutes_regular || 0) > 0 || Number(r.minutes_ot || 0) > 0,
-      );
+      // dates that have at least one segment (presence fallback)
+      const segDates = new Set((segs || []).map((s) => s.work_date));
+
+      // presence: minutes>0 OR (has in/out) OR (has segments)
+      const present = dtrs.filter((r) => {
+        const hasMins =
+          Number(r.minutes_regular || 0) > 0 || Number(r.minutes_ot || 0) > 0;
+        const hasTimes = !!r.time_in && !!r.time_out;
+        const hasSegs = segDates.has(r.work_date);
+        return hasMins || hasTimes || hasSegs;
+      });
 
       // group deductions
       const m = new Map<string, { total: number; count: number }>();
@@ -875,34 +980,173 @@ export default function PayslipPage() {
         }))
         .filter((g) => g.total > 0);
 
-      // compute
-      let presentDays = 0,
-        totalOT = 0,
+      // === compute using mixed-rate (as-of rates) ===
+      let totalOT = 0,
         basic = 0,
         otPay = 0,
         shortMins = 0,
-        shortVal = 0;
+        shortVal = 0,
+        presentDays = 0;
+      let rateBreakdown: RateBucket[] = [];
 
+      // Unique present dates (YYYY-MM-DD)
+      const presentDates: string[] = [];
+      {
+        const seen = new Set<string>();
+        for (const r of present) {
+          if (!seen.has(r.work_date)) {
+            seen.add(r.work_date);
+            presentDates.push(r.work_date);
+          }
+        }
+      }
+
+      /* --- client-side fallback breakdown from dtr_with_rates --- */
+      let fallbackBreakdown: RateBucket[] = [];
+      try {
+        if (presentDates.length > 0) {
+          const { data: rateRows } = await supabase
+            .from("dtr_with_rates")
+            .select("work_date,daily_rate")
+            .eq("employee_id", id)
+            .in("work_date", presentDates)
+            .order("work_date", { ascending: true });
+
+          // group by rate -> list of dates
+          const map = new Map<number, string[]>();
+          (rateRows || []).forEach((row: any) => {
+            const rate = Number(row?.daily_rate ?? emp.rate_per_day ?? 0);
+            if (!map.has(rate)) map.set(rate, []);
+            map.get(rate)!.push(row.work_date);
+          });
+
+          fallbackBreakdown = Array.from(map.entries()).map(([rate, dates]) => {
+            const sorted = dates.sort((a, b) => (a < b ? -1 : 1));
+            const days = sorted.length;
+            const total = rate * days;
+            return {
+              rate,
+              days,
+              total,
+              from: sorted[0],
+              to: sorted[sorted.length - 1],
+            };
+          });
+        }
+      } catch (e) {
+        console.warn("fallback breakdown error:", e);
+      }
+
+      // 1) Ask API for gross & (if provided) spans/byRate (safe parser)
+      let apiOk = false;
+      try {
+        const json = await safeJsonFetch("/api/payslip/daily", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            employeeId: id,
+            from: `${month}-01`,
+            to: monthEnd(month),
+            presentDays: presentDates,
+          }),
+        });
+
+        basic = Number(json?.gross || 0);
+        presentDays = Number(json?.daysPresent || 0);
+
+        if (Array.isArray(json?.spans)) {
+          rateBreakdown = json.spans.map((s: any) => ({
+            rate: Number(s.rate || 0),
+            days: Number(s.days || s.count || 0),
+            total: Number(
+              s.total || Number(s.rate || 0) * Number(s.days || s.count || 0),
+            ),
+            from: s.from || null,
+            to: s.to || null,
+          }));
+        } else if (fallbackBreakdown.length > 0) {
+          rateBreakdown = fallbackBreakdown;
+        } else if (Array.isArray(json?.byRate)) {
+          rateBreakdown = json.byRate.map((b: any) => ({
+            rate: Number(b.rate || 0),
+            days: Number(b.days || 0),
+            total: Number(b.total || Number(b.rate || 0) * Number(b.days || 0)),
+          }));
+        } else {
+          rateBreakdown = [
+            {
+              rate: Number(emp.rate_per_day || 0),
+              days: presentDays,
+              total: basic,
+            },
+          ];
+        }
+        apiOk = true;
+      } catch (e) {
+        console.error("Mixed-rate API error (safe):", e);
+      }
+
+      if (!apiOk) {
+        // full fallback if API not reachable / returned HTML
+        basic = presentDates.length * Number(emp.rate_per_day || 0);
+        presentDays = presentDates.length;
+        rateBreakdown = fallbackBreakdown.length
+          ? fallbackBreakdown
+          : [
+              {
+                rate: Number(emp.rate_per_day || 0),
+                days: presentDays,
+                total: basic,
+              },
+            ];
+      }
+
+      // 2) OT & late/UT logic with fallback when minutes_* are missing
       for (const r of present) {
-        const reg = Math.max(0, Number(r.minutes_regular || 0));
-        const ot = Math.max(0, Number(r.minutes_ot || 0));
-        totalOT += ot;
-        presentDays += 1;
-
         const eff = await resolveEffectiveShift(id, r.work_date);
         const perDayStd = eff?.standard_minutes ?? fallbackStd;
-        const perMinute = emp.rate_per_day / perDayStd;
+        const perMinute = perDayStd > 0 ? emp.rate_per_day / perDayStd : 0;
+
+        let reg = Math.max(0, Number(r.minutes_regular ?? 0));
+        let ot = Math.max(0, Number(r.minutes_ot ?? 0));
+
+        if (reg + ot === 0) {
+          // derive worked minutes from segments (preferred) or time_in/out
+          let worked = 0;
+
+          const daySegs = segs.filter((s) => s.work_date === r.work_date);
+          if (daySegs.length) {
+            for (const s of daySegs) {
+              if (s.start_at && s.end_at) {
+                worked += Math.max(
+                  0,
+                  (new Date(s.end_at).getTime() -
+                    new Date(s.start_at).getTime()) /
+                    60000,
+                );
+              }
+            }
+          } else if (r.time_in && r.time_out) {
+            worked = Math.max(
+              0,
+              (new Date(r.time_out).getTime() - new Date(r.time_in).getTime()) /
+                60000,
+            );
+          }
+
+          reg = Math.min(worked, perDayStd);
+          ot = Math.max(0, worked - perDayStd);
+        }
+
+        totalOT += ot;
 
         const capped = Math.min(reg, perDayStd);
         const shortfall = Math.max(0, perDayStd - capped);
 
-        if (attMode === "PRORATE") basic += perMinute * capped;
-        else {
-          basic += emp.rate_per_day;
+        if (attMode === "DEDUCTION") {
           shortMins += shortfall;
           shortVal += perMinute * shortfall;
         }
-
         otPay += perMinute * ot * otMultiplier;
       }
 
@@ -912,7 +1156,6 @@ export default function PayslipPage() {
         (attMode === "DEDUCTION" ? shortVal : 0) + otherDeds;
       const net = Math.max(0, gross - totalDeductions);
 
-      // Exclude if bulk & empty
       const hasDTR = presentDays > 0;
       const hasDed = otherDeds > 0;
       if (employeeId === "ALL" && !hasDTR && !hasDed) continue;
@@ -923,6 +1166,7 @@ export default function PayslipPage() {
         dtrs,
         segs,
         dedGroups,
+        rateBreakdown,
         summary: {
           basic,
           otPay,
@@ -1063,21 +1307,37 @@ export default function PayslipPage() {
           background: ${C.mintSoft};
         }
 
-        /* Print setup for A4 */
         @page {
           size: A4;
-          margin: 8mm;
+          margin: 0;
         }
+
         @media print {
           .no-print {
             display: none !important;
           }
           .h1 {
             display: none !important;
-          } /* hide title to avoid on cover */
+          }
+
+          html,
           body {
-            -webkit-print-color-adjust: exact;
-            print-color-adjust: exact;
+            margin: 0 !important;
+            padding: 0 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+
+          .wrap {
+            padding: 0 !important;
+          }
+
+          .sheet {
+            box-shadow: none !important;
+            break-inside: avoid;
+          }
+          .sheet:not(:last-child) {
+            break-after: page;
           }
         }
       `}</style>
