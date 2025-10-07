@@ -4,6 +4,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { resolveEffectiveShift } from "@/lib/shifts";
+import { isPresent } from "@/lib/dtr";
 
 /* ========= CONFIG ========= */
 const COMPANY_NAME = "Vangie Store";
@@ -253,7 +254,7 @@ function DTRSplit({
   );
 }
 
-/* ========= PAYSLIP CARD (1 A4 page) ========= */
+/* ========= PAYSLIP CARD ========= */
 function PayslipCard({
   bundle,
   attMode,
@@ -263,15 +264,6 @@ function PayslipCard({
 }) {
   const { emp, month, dedGroups, summary, dtrs, segs, rateBreakdown } = bundle;
 
-  // detect mixed: >= 2 distinct nonzero rates
-  const distinctRates = Array.from(
-    new Set(
-      rateBreakdown.filter((b) => b.days > 0).map((b) => b.rate.toFixed(2)),
-    ),
-  ).length;
-  const mixed = distinctRates > 1;
-
-  // chronological sort by "from" if available, else by rate
   const rbSorted = [...rateBreakdown]
     .filter((b) => b.days > 0)
     .sort((a, b) => {
@@ -284,13 +276,12 @@ function PayslipCard({
 
   return (
     <section className="sheet">
-      {/* Head */}
       <header className="head">
         <div className="h-left">Payslip</div>
         <div className="h-right">
           <div className="company">{COMPANY_NAME}</div>
           <div className="period">
-            {new Date(`${month}-01`).toLocaleString(undefined, {
+            {new Date(month + "-01").toLocaleString(undefined, {
               month: "long",
               year: "numeric",
             })}
@@ -298,7 +289,6 @@ function PayslipCard({
         </div>
       </header>
 
-      {/* Info */}
       <section className="info">
         <div className="info-grid">
           <div className="pair">
@@ -312,12 +302,10 @@ function PayslipCard({
         </div>
       </section>
 
-      {/* Computation */}
       <section className="panel">
         <div className="panel-h centered">Payroll Computation</div>
 
         <div className="comp-grid">
-          {/* Earnings */}
           <table className="tbl">
             <thead>
               <tr>
@@ -331,7 +319,6 @@ function PayslipCard({
                 <td className="td right">{summary.presentDays}</td>
               </tr>
 
-              {/* Mixed-rate itemization (each on one row with a small date-range note under it) */}
               {rbSorted.map((b, i) => (
                 <tr key={`rb-${i}`}>
                   <td className="td">
@@ -350,7 +337,6 @@ function PayslipCard({
                 </tr>
               ))}
 
-              {/* Hide OT row completely when zero */}
               {summary.totalOT > 0 && summary.otPay > 0 && (
                 <tr>
                   <td className="td">OT — {summary.totalOT} mins</td>
@@ -365,7 +351,6 @@ function PayslipCard({
             </tbody>
           </table>
 
-          {/* Deductions */}
           <table className="tbl">
             <thead>
               <tr>
@@ -401,7 +386,6 @@ function PayslipCard({
           </table>
         </div>
 
-        {/* Net row (full width) */}
         <table className="tbl net-only">
           <tbody>
             <tr className="net">
@@ -412,23 +396,20 @@ function PayslipCard({
         </table>
       </section>
 
-      {/* DTR split */}
       <section className="panel">
         <div className="panel-h">DTR</div>
         <div className="pad">
-          <DTRSplit month={month} dtrs={dtrs} segs={segs} />
+          <DTRSplit month={bundle.month} dtrs={dtrs} segs={segs} />
           <div className="legend">* Sundays are lightly highlighted.</div>
         </div>
       </section>
 
-      {/* Acknowledgement */}
       <section className="ack">
         I acknowledge that the information stated in this payslip is true and
         correct, and I accept the computations of my compensation and deductions
         for the period indicated.
       </section>
 
-      {/* Signatures */}
       <section className="signs">
         <div className="sig">
           <div className="line" />
@@ -444,15 +425,14 @@ function PayslipCard({
         .sheet {
           width: 210mm;
           min-height: 297mm;
-          box-sizing: border-box; /* border included in 210×297 */
-          padding: 8mm 8mm 10mm; /* tighter top/bottom & sides */
+          box-sizing: border-box;
+          padding: 8mm 8mm 10mm;
           background: ${C.surface};
           color: ${C.text};
           border: 1px solid ${C.line};
           border-radius: 10px;
-          margin: 0 auto; /* center, no extra outer gaps */
+          margin: 0 auto;
         }
-
         .head {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -476,7 +456,6 @@ function PayslipCard({
           color: ${C.mute};
           font-size: 10pt;
         }
-
         .info {
           border: 1px solid ${C.line};
           border-radius: 8px;
@@ -497,7 +476,6 @@ function PayslipCard({
           font-size: 11pt;
           font-weight: 600;
         }
-
         .panel {
           border: 1px solid ${C.line};
           border-radius: 8px;
@@ -523,7 +501,6 @@ function PayslipCard({
           color: ${C.mute};
           margin-top: 4px;
         }
-
         .comp-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -570,7 +547,6 @@ function PayslipCard({
           color: ${C.mute};
           line-height: 1.2;
         }
-
         .ack {
           font-size: 9.5pt;
           color: ${C.mute};
@@ -578,16 +554,15 @@ function PayslipCard({
           border-radius: 8px;
           background: ${C.surface};
           padding: 8px;
-          margin: 6px 0 8px; /* smaller vertical footprint */
+          margin: 6px 0 8px;
         }
-
         .signs {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: 24px;
           font-size: 9.5pt;
           align-items: end;
-          min-height: 56px; /* even shorter */
+          min-height: 56px;
           padding-top: 2px;
         }
         .sig {
@@ -596,15 +571,13 @@ function PayslipCard({
           justify-content: flex-end;
         }
         .sig .line {
-          margin: 10px 0 6px 0; /* less gap above the line */
+          margin: 10px 0 6px 0;
           height: 1px;
           background: ${C.text};
         }
-
         .sig.right {
           text-align: right;
         }
-
         @media print {
           .no-print {
             display: none !important;
@@ -633,7 +606,7 @@ function CoverPage({ month }: { month: string }) {
         <div className="brand">{COMPANY_NAME}</div>
         <div className="subtitle">Monthly Payslips</div>
         <div className="sub">
-          {new Date(`${month}-01`).toLocaleString(undefined, {
+          {new Date(month + "-01").toLocaleString(undefined, {
             month: "long",
             year: "numeric",
           })}
@@ -775,7 +748,6 @@ function SummaryPage({ bundles }: { bundles: PayslipBundle[] }) {
           color: ${C.brandDark};
           font-weight: 700;
         }
-
         .sum {
           width: 100%;
           border-collapse: collapse;
@@ -813,7 +785,7 @@ function SummaryPage({ bundles }: { bundles: PayslipBundle[] }) {
 /* ========= PAGE ========= */
 export default function PayslipPage() {
   const [emps, setEmps] = useState<Emp[]>([]);
-  const [employeeId, setEmployeeId] = useState<string>("ALL");
+  const [employeeId, setEmployeeId] = useState<"ALL" | string>("ALL");
   const [month, setMonth] = useState(() =>
     new Date().toISOString().slice(0, 7),
   );
@@ -854,33 +826,6 @@ export default function PayslipPage() {
     })();
   }, []);
 
-  // Safe JSON fetch to avoid "Unexpected token '<'" when API returns HTML/error
-  async function safeJsonFetch(url: string, init?: RequestInit) {
-    const resp = await fetch(url, init);
-    const contentType = resp.headers.get("content-type") || "";
-    const text = await resp.text();
-    let json: any = null;
-
-    if (contentType.includes("application/json")) {
-      try {
-        json = JSON.parse(text);
-      } catch (e) {
-        throw new Error(`Invalid JSON from ${url}: ${String(e)}`);
-      }
-    } else {
-      // Return a descriptive error with first chars of HTML/text
-      const snippet = text.slice(0, 200);
-      throw new Error(
-        `Non-JSON response ${resp.status} from ${url}. Snippet: ${snippet}`,
-      );
-    }
-
-    if (!resp.ok) {
-      throw new Error(json?.error || `HTTP ${resp.status} from ${url}`);
-    }
-    return json;
-  }
-
   async function run() {
     setLoading(true);
     setBundles([]);
@@ -891,7 +836,8 @@ export default function PayslipPage() {
       return;
     }
 
-    const { from, to } = monthRange(month);
+    const { from } = monthRange(month);
+    const end = monthEnd(month); // inclusive
 
     const [{ data: dtrData }, { data: segData }, { data: dedData }] =
       await Promise.all([
@@ -902,14 +848,14 @@ export default function PayslipPage() {
           )
           .in("employee_id", ids)
           .gte("work_date", from)
-          .lt("work_date", to)
+          .lte("work_date", end)
           .order("work_date", { ascending: true }),
         supabase
           .from("dtr_segments")
           .select("employee_id, work_date, start_at, end_at")
           .in("employee_id", ids)
           .gte("work_date", from)
-          .lt("work_date", to)
+          .lte("work_date", end)
           .order("work_date", { ascending: true })
           .order("start_at", { ascending: true }),
         supabase
@@ -917,7 +863,7 @@ export default function PayslipPage() {
           .select("employee_id, effective_date, amount, type")
           .in("employee_id", ids)
           .gte("effective_date", from)
-          .lt("effective_date", to),
+          .lte("effective_date", end),
       ]);
 
     const allDTR = (dtrData || []) as Dtr[];
@@ -949,17 +895,52 @@ export default function PayslipPage() {
       const segs = segByEmp.get(id) || [];
       const deds = dedByEmp.get(id) || [];
 
-      // dates that have at least one segment (presence fallback)
-      const segDates = new Set((segs || []).map((s) => s.work_date));
+      // maps
+      const segsByDate = new Map<string, Seg[]>();
+      for (const s of segs) {
+        if (!s.work_date) continue;
+        const arr = segsByDate.get(s.work_date) || [];
+        arr.push(s);
+        segsByDate.set(s.work_date, arr);
+      }
+      const dtrByDate = new Map<string, Dtr>();
+      for (const r of dtrs) dtrByDate.set(r.work_date, r);
 
-      // presence: minutes>0 OR (has in/out) OR (has segments)
-      const present = dtrs.filter((r) => {
-        const hasMins =
-          Number(r.minutes_regular || 0) > 0 || Number(r.minutes_ot || 0) > 0;
-        const hasTimes = !!r.time_in && !!r.time_out;
-        const hasSegs = segDates.has(r.work_date);
-        return hasMins || hasTimes || hasSegs;
-      });
+      // utils to compute minutes worked per day
+      function diffMinutes(aIso: string, bIso: string) {
+        const a = new Date(aIso).getTime();
+        const b = new Date(bIso).getTime();
+        if (!isFinite(a) || !isFinite(b)) return 0;
+        return Math.max(0, Math.round((b - a) / 60000));
+      }
+      function workedMinutesFor(date: string): number {
+        const segs = segsByDate.get(date) || [];
+        let mins = 0;
+        for (const s of segs) {
+          if (s.start_at && s.end_at) mins += diffMinutes(s.start_at, s.end_at);
+        }
+        if (mins > 0) return mins;
+        const r = dtrByDate.get(date);
+        if (r?.time_in && r?.time_out)
+          return diffMinutes(r.time_in, r.time_out);
+        return 0;
+      }
+
+      // All relevant dates = union of dtr rows + segments
+      const allDatesSet = new Set<string>();
+      for (const r of dtrs) allDatesSet.add(r.work_date);
+      for (const s of segs) allDatesSet.add(s.work_date);
+      const presentDates = Array.from(allDatesSet)
+        .filter((d) => {
+          const r = dtrByDate.get(d);
+          return (
+            workedMinutesFor(d) > 0 ||
+            (r
+              ? isPresent({ time_in: r.time_in, time_out: r.time_out })
+              : false)
+          );
+        })
+        .sort();
 
       // group deductions
       const m = new Map<string, { total: number; count: number }>();
@@ -980,31 +961,11 @@ export default function PayslipPage() {
         }))
         .filter((g) => g.total > 0);
 
-      // === compute using mixed-rate (as-of rates) ===
-      let totalOT = 0,
-        basic = 0,
-        otPay = 0,
-        shortMins = 0,
-        shortVal = 0,
-        presentDays = 0;
+      // mixed-rate breakdown (client fallback) + date->rate map
       let rateBreakdown: RateBucket[] = [];
-
-      // Unique present dates (YYYY-MM-DD)
-      const presentDates: string[] = [];
-      {
-        const seen = new Set<string>();
-        for (const r of present) {
-          if (!seen.has(r.work_date)) {
-            seen.add(r.work_date);
-            presentDates.push(r.work_date);
-          }
-        }
-      }
-
-      /* --- client-side fallback breakdown from dtr_with_rates --- */
-      let fallbackBreakdown: RateBucket[] = [];
-      try {
-        if (presentDates.length > 0) {
+      const dateRate = new Map<string, number>();
+      if (presentDates.length > 0) {
+        try {
           const { data: rateRows } = await supabase
             .from("dtr_with_rates")
             .select("work_date,daily_rate")
@@ -1012,15 +973,15 @@ export default function PayslipPage() {
             .in("work_date", presentDates)
             .order("work_date", { ascending: true });
 
-          // group by rate -> list of dates
           const map = new Map<number, string[]>();
           (rateRows || []).forEach((row: any) => {
             const rate = Number(row?.daily_rate ?? emp.rate_per_day ?? 0);
+            dateRate.set(row.work_date, rate);
             if (!map.has(rate)) map.set(rate, []);
             map.get(rate)!.push(row.work_date);
           });
 
-          fallbackBreakdown = Array.from(map.entries()).map(([rate, dates]) => {
+          rateBreakdown = Array.from(map.entries()).map(([rate, dates]) => {
             const sorted = dates.sort((a, b) => (a < b ? -1 : 1));
             const days = sorted.length;
             const total = rate * days;
@@ -1032,122 +993,105 @@ export default function PayslipPage() {
               to: sorted[sorted.length - 1],
             };
           });
+        } catch {
+          // ignore; we'll fallback to single rate if needed
         }
-      } catch (e) {
-        console.warn("fallback breakdown error:", e);
       }
 
-      // 1) Ask API for gross & (if provided) spans/byRate (safe parser)
-      let apiOk = false;
+      // Try API, but parse defensively and allow fallback
+      let basic = 0;
+      let apiUsed = false;
       try {
-        const json = await safeJsonFetch("/api/payslip/daily", {
+        const resp = await fetch("/api/payslip/daily", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             employeeId: id,
-            from: `${month}-01`,
-            to: monthEnd(month),
+            from: month + "-01",
+            to: end,
             presentDays: presentDates,
           }),
         });
 
-        basic = Number(json?.gross || 0);
-        presentDays = Number(json?.daysPresent || 0);
+        let json: any = {};
+        const raw = await resp.text();
+        try {
+          json = raw ? JSON.parse(raw) : {};
+        } catch {
+          // non-JSON -> fallback
+        }
 
-        if (Array.isArray(json?.spans)) {
-          rateBreakdown = json.spans.map((s: any) => ({
-            rate: Number(s.rate || 0),
-            days: Number(s.days || s.count || 0),
-            total: Number(
-              s.total || Number(s.rate || 0) * Number(s.days || s.count || 0),
-            ),
-            from: s.from || null,
-            to: s.to || null,
-          }));
-        } else if (fallbackBreakdown.length > 0) {
-          rateBreakdown = fallbackBreakdown;
-        } else if (Array.isArray(json?.byRate)) {
-          rateBreakdown = json.byRate.map((b: any) => ({
-            rate: Number(b.rate || 0),
-            days: Number(b.days || 0),
-            total: Number(b.total || Number(b.rate || 0) * Number(b.days || 0)),
-          }));
-        } else {
+        if (resp.ok && json && json.gross != null) {
+          apiUsed = true;
+          basic = Number(json.gross || 0);
+          if (Array.isArray(json.spans)) {
+            rateBreakdown = json.spans.map((s: any) => ({
+              rate: Number(s.rate || 0),
+              days: Number(s.days || s.count || 0),
+              total: Number(
+                s.total || Number(s.rate || 0) * Number(s.days || s.count || 0),
+              ),
+              from: s.from || null,
+              to: s.to || null,
+            }));
+          } else if (Array.isArray(json.byRate)) {
+            rateBreakdown = json.byRate.map((b: any) => ({
+              rate: Number(b.rate || 0),
+              days: Number(b.days || 0),
+              total: Number(
+                b.total || Number(b.rate || 0) * Number(b.days || 0),
+              ),
+            }));
+          }
+        }
+      } catch {
+        // swallow; fallback below
+      }
+
+      // ✅ Canonicalize basic: if breakdown totals > 0, prefer the sum (fixes "gross=0" API bug)
+      const basicFromBreakdown = rateBreakdown.reduce(
+        (s, b) =>
+          s + (Number(b.total) || Number(b.rate || 0) * Number(b.days || 0)),
+        0,
+      );
+      if (!apiUsed || basicFromBreakdown > 0) {
+        basic =
+          basicFromBreakdown ||
+          presentDates.length * Number(emp.rate_per_day || 0);
+        if (rateBreakdown.length === 0) {
           rateBreakdown = [
             {
               rate: Number(emp.rate_per_day || 0),
-              days: presentDays,
+              days: presentDates.length,
               total: basic,
             },
           ];
         }
-        apiOk = true;
-      } catch (e) {
-        console.error("Mixed-rate API error (safe):", e);
       }
 
-      if (!apiOk) {
-        // full fallback if API not reachable / returned HTML
-        basic = presentDates.length * Number(emp.rate_per_day || 0);
-        presentDays = presentDates.length;
-        rateBreakdown = fallbackBreakdown.length
-          ? fallbackBreakdown
-          : [
-              {
-                rate: Number(emp.rate_per_day || 0),
-                days: presentDays,
-                total: basic,
-              },
-            ];
-      }
+      // OT & Late/UT
+      let totalOT = 0,
+        otPay = 0,
+        shortMins = 0,
+        shortVal = 0;
 
-      // 2) OT & late/UT logic with fallback when minutes_* are missing
-      for (const r of present) {
-        const eff = await resolveEffectiveShift(id, r.work_date);
+      for (const d of presentDates) {
+        const eff = await resolveEffectiveShift(id, d);
         const perDayStd = eff?.standard_minutes ?? fallbackStd;
-        const perMinute = perDayStd > 0 ? emp.rate_per_day / perDayStd : 0;
 
-        let reg = Math.max(0, Number(r.minutes_regular ?? 0));
-        let ot = Math.max(0, Number(r.minutes_ot ?? 0));
+        const dayRate = dateRate.get(d) ?? emp.rate_per_day;
+        const perMinute = perDayStd > 0 ? dayRate / perDayStd : 0;
 
-        if (reg + ot === 0) {
-          // derive worked minutes from segments (preferred) or time_in/out
-          let worked = 0;
+        const worked = workedMinutesFor(d);
+        const regCapped = Math.min(worked, perDayStd);
+        const shortfall = Math.max(0, perDayStd - regCapped);
+        const otMins = Math.max(0, worked - perDayStd);
 
-          const daySegs = segs.filter((s) => s.work_date === r.work_date);
-          if (daySegs.length) {
-            for (const s of daySegs) {
-              if (s.start_at && s.end_at) {
-                worked += Math.max(
-                  0,
-                  (new Date(s.end_at).getTime() -
-                    new Date(s.start_at).getTime()) /
-                    60000,
-                );
-              }
-            }
-          } else if (r.time_in && r.time_out) {
-            worked = Math.max(
-              0,
-              (new Date(r.time_out).getTime() - new Date(r.time_in).getTime()) /
-                60000,
-            );
-          }
+        shortMins += shortfall;
+        shortVal += perMinute * shortfall;
 
-          reg = Math.min(worked, perDayStd);
-          ot = Math.max(0, worked - perDayStd);
-        }
-
-        totalOT += ot;
-
-        const capped = Math.min(reg, perDayStd);
-        const shortfall = Math.max(0, perDayStd - capped);
-
-        if (attMode === "DEDUCTION") {
-          shortMins += shortfall;
-          shortVal += perMinute * shortfall;
-        }
-        otPay += perMinute * ot * otMultiplier;
+        totalOT += otMins;
+        otPay += perMinute * otMins * otMultiplier;
       }
 
       const otherDeds = dedGroups.reduce((s, g) => s + g.total, 0);
@@ -1156,6 +1100,7 @@ export default function PayslipPage() {
         (attMode === "DEDUCTION" ? shortVal : 0) + otherDeds;
       const net = Math.max(0, gross - totalDeductions);
 
+      const presentDays = presentDates.length;
       const hasDTR = presentDays > 0;
       const hasDed = otherDeds > 0;
       if (employeeId === "ALL" && !hasDTR && !hasDed) continue;
@@ -1201,7 +1146,7 @@ export default function PayslipPage() {
         <select
           className="inp"
           value={employeeId}
-          onChange={(e) => setEmployeeId(e.target.value)}
+          onChange={(e) => setEmployeeId(e.target.value as any)}
         >
           <option value="ALL">All employees</option>
           {emps.map((e) => (
@@ -1311,7 +1256,6 @@ export default function PayslipPage() {
           size: A4;
           margin: 0;
         }
-
         @media print {
           .no-print {
             display: none !important;
@@ -1319,7 +1263,6 @@ export default function PayslipPage() {
           .h1 {
             display: none !important;
           }
-
           html,
           body {
             margin: 0 !important;
@@ -1327,11 +1270,9 @@ export default function PayslipPage() {
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
           }
-
           .wrap {
             padding: 0 !important;
           }
-
           .sheet {
             box-shadow: none !important;
             break-inside: avoid;
