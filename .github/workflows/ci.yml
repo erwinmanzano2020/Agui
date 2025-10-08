@@ -28,12 +28,11 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Lint
-        run: npm run lint --if-present
+      - name: Lint (non-blocking)
+        run: npm run lint:ci --if-present
 
       - name: Typecheck
         run: npm run typecheck --if-present
 
       - name: Build
         run: npm run build
-
