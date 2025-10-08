@@ -2,10 +2,7 @@
 export const dynamic = "force-dynamic";
 
 import { Suspense } from "react";
-import dynamic from "next/dynamic";
-
-// Load the client component only on the client
-const DtrBulkClient = dynamic(() => import("./DtrBulkClient"), { ssr: false });
+import DtrBulkClient from "./DtrBulkClient";
 
 export default function Page() {
   return (
