@@ -49,7 +49,7 @@ function useGridNav(ref: React.RefObject<HTMLTableSectionElement>) {
       const col = Number(target.getAttribute("data-col") || "0");
 
       function focusCell(r: number, c: number) {
-        // ✅ Guard: el can be null between renders
+        // Guard: el can theoretically be null if the section unmounted
         if (!el) return;
         const next = el.querySelector<HTMLElement>(
           `[data-row="${r}"][data-col="${c}"][data-cell="1"]`,
@@ -80,10 +80,15 @@ function useGridNav(ref: React.RefObject<HTMLTableSectionElement>) {
           break;
         case "End":
           e.preventDefault();
-          const last =
-            (el.querySelectorAll(`[data-row="${row}"][data-cell="1"]`) || [])
-              .length - 1;
-          focusCell(row, last);
+          // Guard here too before using el directly
+          if (!el) return;
+          {
+            const count = el.querySelectorAll(
+              `[data-row="${row}"][data-cell="1"]`,
+            ).length;
+            const last = Math.max(0, count - 1);
+            focusCell(row, last);
+          }
           break;
       }
     }
@@ -280,6 +285,7 @@ export function DataTable<T extends Record<string, unknown>>(props: Props<T>) {
 
           <div className="ml-2 hidden sm:flex items-center gap-1 text-sm">
             <span className="text-muted-foreground">Density:</span>
+            {/* callers can just change `state.density`, this is a static label */}
             <span className="px-2 py-1 rounded-lg bg-muted">
               {state.density ?? "comfortable"}
             </span>
