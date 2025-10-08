@@ -1,6 +1,5 @@
 "use client";
 export const dynamic = "force-dynamic";
-
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "../../../components/ui/page-header";
@@ -885,9 +884,7 @@ export default function DtrBulkPage() {
                               <TimeInput
                                 value={cell.out1}
                                 placeholder="17:00"
-                                onChange={(v) =>
-                                  updateCell(e.id, d, "out1", v)
-                                }
+                                onChange={(v) => updateCell(e.id, d, "out1", v)}
                                 onKeyDown={(ev) =>
                                   handleMove(ev, r, baseCol + 1)
                                 }
@@ -1105,7 +1102,9 @@ function MonthSingleTable({
                       onKeyDown={(ev) => onKey(ev, r, 0, d, "in1")}
                       className={`w-36 rounded-xl ${inputPad} bg-background border border-border
                                       focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring ${
-                                        disabled ? "opacity-50 pointer-events-none" : ""
+                                        disabled
+                                          ? "opacity-50 pointer-events-none"
+                                          : ""
                                       }`}
                       inputMode="numeric"
                       data-r={r}
@@ -1134,7 +1133,9 @@ function MonthSingleTable({
                       }
                       className={`w-36 rounded-xl ${inputPad} bg-background border border-border
                                       focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring ${
-                                        disabled ? "opacity-50 pointer-events-none" : ""
+                                        disabled
+                                          ? "opacity-50 pointer-events-none"
+                                          : ""
                                       }`}
                       inputMode="numeric"
                       data-r={r}
@@ -1163,7 +1164,9 @@ function MonthSingleTable({
                           onKeyDown={(ev) => onKey(ev, r, 2, d, "in2")}
                           className={`w-36 rounded-xl ${inputPad} bg-background border border-border
                                           focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring ${
-                                            disabled ? "opacity-50 pointer-events-none" : ""
+                                            disabled
+                                              ? "opacity-50 pointer-events-none"
+                                              : ""
                                           }`}
                           inputMode="numeric"
                           data-r={r}
@@ -1190,7 +1193,9 @@ function MonthSingleTable({
                           onKeyDown={(ev) => onKey(ev, r, 3, d, "out2")}
                           className={`w-36 rounded-xl ${inputPad} bg-background border border-border
                                           focus-visible:ring-2 focus-visible:ring-ring focus-visible:border-ring ${
-                                            disabled ? "opacity-50 pointer-events-none" : ""
+                                            disabled
+                                              ? "opacity-50 pointer-events-none"
+                                              : ""
                                           }`}
                           inputMode="numeric"
                           data-r={r}
