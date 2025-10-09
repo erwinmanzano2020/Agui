@@ -1,10 +1,11 @@
 name: Build & Typecheck
 
 on:
-  pull_request:
-    branches: [ develop, main ]
   push:
-    branches: [ develop ]
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
 
 jobs:
   ci:
