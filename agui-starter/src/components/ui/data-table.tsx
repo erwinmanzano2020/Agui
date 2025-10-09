@@ -49,6 +49,8 @@ function useGridNav(ref: React.RefObject<HTMLTableSectionElement>) {
       const col = Number(target.getAttribute("data-col") || "0");
 
       function focusCell(r: number, c: number) {
+        // Guard: el can theoretically be null if the section unmounted
+        if (!el) return;
         const next = el.querySelector<HTMLElement>(
           `[data-row="${r}"][data-col="${c}"][data-cell="1"]`,
         );
@@ -78,10 +80,13 @@ function useGridNav(ref: React.RefObject<HTMLTableSectionElement>) {
           break;
         case "End":
           e.preventDefault();
+          // Guard here too before using el directly
+          if (!el) return;
           {
-            const last =
-              (el.querySelectorAll(`[data-row="${row}"][data-cell="1"]`) || [])
-                .length - 1;
+            const count = el.querySelectorAll(
+              `[data-row="${row}"][data-cell="1"]`,
+            ).length;
+            const last = Math.max(0, count - 1);
             focusCell(row, last);
           }
           break;
@@ -94,7 +99,7 @@ function useGridNav(ref: React.RefObject<HTMLTableSectionElement>) {
 }
 
 /* ========= Component ========= */
-export function DataTable<T extends Record<string, any>>(props: Props<T>) {
+export function DataTable<T extends Record<string, unknown>>(props: Props<T>) {
   const {
     columns,
     rows,
