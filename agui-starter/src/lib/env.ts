@@ -1,20 +1,18 @@
 // agui-starter/src/lib/env.ts
-const requiredPublic = [
-  "NEXT_PUBLIC_SUPABASE_URL",
-  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-] as const;
+// Public envs must be referenced statically so Next.js inlines them in the client bundle.
 
-type PublicKey = typeof requiredPublic[number];
+export const NEXT_PUBLIC_SUPABASE_URL =
+  process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
 
-function read(k: PublicKey): string {
-  const v = process.env[k];
-  if (!v || !v.trim()) {
-    throw new Error(`Missing required environment variable: ${k}`);
+export const NEXT_PUBLIC_SUPABASE_ANON_KEY =
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string | undefined;
+
+// Validate only on the server (build/runtime). Do NOT do dynamic access on the client.
+if (typeof window === "undefined") {
+  const missing: string[] = [];
+  if (!NEXT_PUBLIC_SUPABASE_URL) missing.push("NEXT_PUBLIC_SUPABASE_URL");
+  if (!NEXT_PUBLIC_SUPABASE_ANON_KEY) missing.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  if (missing.length) {
+    throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
   }
-  return v;
 }
-
-export const NEXT_PUBLIC_SUPABASE_URL = read("NEXT_PUBLIC_SUPABASE_URL");
-export const NEXT_PUBLIC_SUPABASE_ANON_KEY = read(
-  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-);
