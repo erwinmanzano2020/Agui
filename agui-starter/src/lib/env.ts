@@ -1,18 +1,27 @@
 // agui-starter/src/lib/env.ts
-// Public envs must be referenced statically so Next.js inlines them in the client bundle.
+// Single source of truth for PUBLIC envs. Never crash the *browser* at import time.
 
-export const NEXT_PUBLIC_SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL as string | undefined;
+type PublicKey = 'NEXT_PUBLIC_SUPABASE_URL' | 'NEXT_PUBLIC_SUPABASE_ANON_KEY';
 
-export const NEXT_PUBLIC_SUPABASE_ANON_KEY =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY as string | undefined;
+function read(k: PublicKey): string | undefined {
+  // Next inlines NEXT_PUBLIC_* at build time. In the browser, missing values
+  // would be `undefined` literals. Don’t throw here to avoid client crashes.
+  // On the server/build, we *do* want to fail fast, but not at import time.
+  return process.env[k];
+}
 
-// Validate only on the server (build/runtime). Do NOT do dynamic access on the client.
-if (typeof window === "undefined") {
+export const ENV = {
+  NEXT_PUBLIC_SUPABASE_URL: read('NEXT_PUBLIC_SUPABASE_URL'),
+  NEXT_PUBLIC_SUPABASE_ANON_KEY: read('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+};
+
+// Helper to assert on the server when we actually need the values.
+export function assertPublicEnvOnServer() {
+  if (typeof window !== 'undefined') return; // never throw in browser
   const missing: string[] = [];
-  if (!NEXT_PUBLIC_SUPABASE_URL) missing.push("NEXT_PUBLIC_SUPABASE_URL");
-  if (!NEXT_PUBLIC_SUPABASE_ANON_KEY) missing.push("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+  if (!ENV.NEXT_PUBLIC_SUPABASE_URL) missing.push('NEXT_PUBLIC_SUPABASE_URL');
+  if (!ENV.NEXT_PUBLIC_SUPABASE_ANON_KEY) missing.push('NEXT_PUBLIC_SUPABASE_ANON_KEY');
   if (missing.length) {
-    throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
+    throw new Error(`Missing required environment variable(s): ${missing.join(', ')}`);
   }
 }
