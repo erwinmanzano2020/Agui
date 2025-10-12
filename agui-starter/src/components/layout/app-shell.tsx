@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode, useEffect, useMemo, useState } from "react";
 
+import { Button } from "@/components/ui/button";
+
 /* Inline SVG icons (no extra deps) */
 function Icon({ name, className }: { name: string; className?: string }) {
   const paths: Record<string, string> = {
@@ -67,26 +69,29 @@ export function AppShell({ children }: { children: ReactNode }) {
   const nav = useMemo(() => NAV, []);
 
   return (
-    <div className="min-h-screen flex bg-muted">
+    <div className="min-h-screen flex bg-[var(--agui-surface)] text-[var(--agui-on-surface)] transition-colors">
       {/* Sidebar (desktop) */}
       <aside
-        className={`hidden md:flex bg-card text-card-foreground shadow-soft flex-col transition-all duration-200 ${
-          collapsed ? "w-16" : "w-56"
+        className={`hidden md:flex flex-col transition-all duration-200 shadow-soft border-r border-[color:var(--agui-surface-border)] bg-[var(--agui-surface-elevated)] ${
+          collapsed ? "w-16" : "w-60"
         }`}
       >
         <div className="h-14 flex items-center justify-between px-3">
           <div className="flex items-center gap-2">
-            <div className="h-7 w-7 rounded-xl bg-brand text-brand-foreground flex items-center justify-center font-bold">
+            <div className="h-7 w-7 rounded-[var(--agui-radius)] bg-[var(--agui-primary)] text-[var(--agui-on-primary)] flex items-center justify-center font-bold">
               A
             </div>
             {!collapsed && (
-              <div className="font-bold text-brand text-lg leading-none">
+              <div className="font-bold text-[var(--agui-on-surface)] text-lg leading-none">
                 Agui
               </div>
             )}
           </div>
-          <button
-            className="btn btn-ghost px-2 py-1"
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="px-2 py-1"
             title={collapsed ? "Expand" : "Collapse"}
             onClick={() => setCollapsed((v) => !v)}
           >
@@ -94,7 +99,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               name={collapsed ? "chevronRight" : "chevronLeft"}
               className="h-4 w-4"
             />
-          </button>
+          </Button>
         </div>
 
         <nav className="flex-1 px-2 py-2 space-y-1">
@@ -104,10 +109,10 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${
+                className={`group flex items-center gap-3 rounded-[var(--agui-radius)] px-3 py-2 text-sm font-medium transition-colors ${
                   active
-                    ? "bg-brand text-white"
-                    : "text-foreground hover:bg-muted"
+                    ? "bg-[var(--agui-primary)] text-[var(--agui-on-primary)] shadow-soft"
+                    : "text-[color-mix(in_srgb,_var(--agui-on-surface)_70%,_var(--agui-surface)_30%)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)] hover:text-[var(--agui-on-surface)]"
                 }`}
               >
                 <Icon name={item.icon} className="h-4 w-4 opacity-80" />
@@ -118,10 +123,16 @@ export function AppShell({ children }: { children: ReactNode }) {
         </nav>
 
         <div className="p-2 mt-auto">
-          <button className="btn btn-ghost w-full" onClick={toggleDark}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-full"
+            onClick={toggleDark}
+          >
             <Icon name={dark ? "sun" : "moon"} className="h-4 w-4 mr-2" />
             {!collapsed && (dark ? "Light mode" : "Dark mode")}
-          </button>
+          </Button>
         </div>
       </aside>
 
@@ -136,22 +147,25 @@ export function AppShell({ children }: { children: ReactNode }) {
             className="absolute inset-0 bg-black/30"
             onClick={() => setSidebarOpen(false)}
           />
-          <div className="absolute left-0 top-0 bottom-0 w-64 bg-card text-card-foreground shadow-lifted p-3">
+          <div className="absolute left-0 top-0 bottom-0 w-64 bg-[var(--agui-surface-elevated)] text-[var(--agui-on-surface)] shadow-lifted p-3 border-r border-[color:var(--agui-surface-border)]">
             <div className="h-12 flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="h-7 w-7 rounded-xl bg-brand text-brand-foreground flex items-center justify-center font-bold">
+                <div className="h-7 w-7 rounded-[var(--agui-radius)] bg-[var(--agui-primary)] text-[var(--agui-on-primary)] flex items-center justify-center font-bold">
                   A
                 </div>
-                <div className="font-bold text-brand text-lg leading-none">
+                <div className="font-bold text-[var(--agui-on-surface)] text-lg leading-none">
                   Agui
                 </div>
               </div>
-              <button
-                className="btn btn-ghost px-2 py-1"
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="px-2 py-1"
                 onClick={() => setSidebarOpen(false)}
               >
                 ✕
-              </button>
+              </Button>
             </div>
             <nav className="mt-3 space-y-1">
               {nav.map((item) => {
@@ -161,10 +175,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                     key={item.href}
                     href={item.href}
                     onClick={() => setSidebarOpen(false)}
-                    className={`flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${
+                    className={`flex items-center gap-3 rounded-[var(--agui-radius)] px-3 py-2 text-sm font-medium transition-colors ${
                       active
-                        ? "bg-brand text-white"
-                        : "text-foreground hover:bg-muted"
+                        ? "bg-[var(--agui-primary)] text-[var(--agui-on-primary)] shadow-soft"
+                        : "text-[color-mix(in_srgb,_var(--agui-on-surface)_70%,_var(--agui-surface)_30%)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)] hover:text-[var(--agui-on-surface)]"
                     }`}
                   >
                     <Icon name={item.icon} className="h-4 w-4 opacity-80" />
@@ -174,10 +188,16 @@ export function AppShell({ children }: { children: ReactNode }) {
               })}
             </nav>
             <div className="mt-4">
-              <button className="btn btn-ghost w-full" onClick={toggleDark}>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                onClick={toggleDark}
+              >
                 <Icon name={dark ? "sun" : "moon"} className="h-4 w-4 mr-2" />
                 {dark ? "Light mode" : "Dark mode"}
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -186,16 +206,19 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Main Area */}
       <div className="flex-1 flex flex-col">
         {/* Topbar */}
-        <header className="h-14 border-b border-border bg-card text-card-foreground flex items-center justify-between px-3 md:px-6 shadow-soft">
+        <header className="h-14 border-b border-[color:var(--agui-surface-border)] bg-[var(--agui-surface-elevated)] text-[var(--agui-on-surface)] flex items-center justify-between px-3 md:px-6 shadow-soft">
           {/* Left: mobile menu */}
           <div className="flex items-center gap-2">
-            <button
-              className="btn btn-ghost px-2 py-1 md:hidden"
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="px-2 py-1 md:hidden"
               onClick={() => setSidebarOpen(true)}
               aria-label="Open menu"
             >
               <Icon name="menu" className="h-5 w-5" />
-            </button>
+            </Button>
             <span className="font-semibold text-sm text-muted-foreground hidden md:inline">
               Agui Dashboard
             </span>
@@ -203,21 +226,25 @@ export function AppShell({ children }: { children: ReactNode }) {
 
           {/* Right: user stub */}
           <div className="flex items-center gap-2">
-            <button
-              className="btn btn-ghost"
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
               onClick={toggleDark}
               title="Toggle theme"
             >
               <Icon name={dark ? "sun" : "moon"} className="h-4 w-4" />
-            </button>
-            <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-sm">
+            </Button>
+            <div className="h-8 w-8 rounded-full bg-[color-mix(in_srgb,_var(--agui-on-surface)_12%,_transparent)] flex items-center justify-center text-sm text-[var(--agui-on-surface)]">
               U
             </div>
           </div>
         </header>
 
         {/* Content */}
-        <main className="flex-1 overflow-y-auto bg-background">{children}</main>
+        <main className="flex-1 overflow-y-auto bg-[color-mix(in_srgb,_var(--agui-surface)_96%,_white_4%)]">
+          {children}
+        </main>
       </div>
     </div>
   );

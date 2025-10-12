@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { ThemedLink } from "@/components/ui/themed-link";
 import { getSupabase } from "@/lib/supabase";
 
 type EmployeeRow = {
@@ -62,20 +64,31 @@ export default function EmployeesPageClient() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold mb-4">Employees</h1>
+    <div className="mx-auto max-w-4xl space-y-4 p-6">
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold">Employees</h1>
+        <p className="text-sm text-[var(--agui-muted-foreground)]">
+          View and manage the people that make your town thrive.
+        </p>
+      </header>
 
-      {err && <div className="mb-3 text-sm text-red-600">Error: {err}</div>}
+      {err && (
+        <div className="rounded-[var(--agui-radius)] border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+          Error: {err}
+        </div>
+      )}
 
-      <div className="border rounded p-3">
+      <Card className="overflow-x-auto p-4">
         {loading ? (
-          <div className="text-sm text-gray-600">Loading…</div>
+          <div className="text-sm text-[var(--agui-muted-foreground)]">Loading…</div>
         ) : rows.length === 0 ? (
-          <div className="text-sm text-gray-600">No employees found.</div>
+          <div className="text-sm text-[var(--agui-muted-foreground)]">
+            No employees found.
+          </div>
         ) : (
-          <table className="w-full text-sm border-collapse">
+          <table className="w-full border-collapse text-sm">
             <thead>
-              <tr className="text-left border-b">
+              <tr className="text-left text-[color-mix(in_srgb,_var(--agui-on-surface)_85%,_var(--agui-surface)_15%)]">
                 <th className="p-2 font-medium">Code</th>
                 <th className="p-2 font-medium">Name</th>
                 <th className="p-2 font-medium">Rate/Day</th>
@@ -85,45 +98,49 @@ export default function EmployeesPageClient() {
             </thead>
             <tbody>
               {rows.map((r) => (
-                <tr key={r.id} className="border-t">
-                  <td className="p-2">{r.code}</td>
+                <tr
+                  key={r.id}
+                  className="border-t border-[color:color-mix(in_srgb,_var(--agui-card-border)_60%,_transparent)]"
+                >
+                  <td className="p-2 font-medium text-[color-mix(in_srgb,_var(--agui-on-surface)_90%,_var(--agui-surface)_10%)]">
+                    {r.code}
+                  </td>
                   <td className="p-2">
-                    {/* Name is now a link to the employee page */}
-                    <Link href={`/employees/${r.id}`} className="underline">
+                    <ThemedLink href={`/employees/${r.id}`} className="text-sm">
                       {r.full_name}
-                    </Link>
+                    </ThemedLink>
                   </td>
                   <td className="p-2">
                     {r.rate_per_day != null
                       ? `₱${Number(r.rate_per_day).toFixed(2)}`
                       : "—"}
                   </td>
-                  <td className="p-2">{r.status ?? "active"}</td>
-                  {/* All actions must be inside a <td> */}
+                  <td className="p-2 capitalize">{r.status ?? "active"}</td>
                   <td className="p-2">
-                    <div className="flex items-center gap-3">
-                      <Link
-                        className="text-xs underline"
+                    <div className="flex items-center gap-2">
+                      <ThemedLink
+                        className="text-xs font-medium"
                         href={`/employees/${r.id}`}
                       >
                         Open
-                      </Link>
-                      {/* Direct-to-drawer edit */}
-                      <Link
-                        className="text-xs underline"
+                      </ThemedLink>
+                      <ThemedLink
+                        className="text-xs font-medium"
                         href={`/employees/${r.id}?edit=1`}
                       >
                         Edit
-                      </Link>
+                      </ThemedLink>
                       {r.status !== "archived" && (
-                        <button
+                        <Button
                           type="button"
+                          variant="link"
+                          size="xs"
+                          className="text-xs"
                           onClick={() => archive(r.id)}
-                          className="text-xs underline disabled:opacity-60"
                           disabled={busy}
                         >
                           Archive
-                        </button>
+                        </Button>
                       )}
                     </div>
                   </td>
@@ -132,7 +149,7 @@ export default function EmployeesPageClient() {
             </tbody>
           </table>
         )}
-      </div>
+      </Card>
     </div>
   );
 }
