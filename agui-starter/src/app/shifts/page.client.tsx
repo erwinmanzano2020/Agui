@@ -1,5 +1,7 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { getSupabase } from "@/lib/supabase";
 
 type Shift = {
@@ -138,90 +140,101 @@ export default function ShiftsPageClient() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
-      <h1 className="text-2xl font-semibold mb-4">Shift Templates</h1>
+    <div className="mx-auto max-w-5xl space-y-4 p-6">
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold">Shift Templates</h1>
+        <p className="text-sm text-[var(--agui-muted-foreground)]">
+          Define reusable schedules and tweak them as your team evolves.
+        </p>
+      </header>
 
-      <form onSubmit={add} className="mb-6 grid grid-cols-6 gap-2">
-        <input
-          className="border rounded px-3 py-2 col-span-2"
-          placeholder="Code"
-          value={f.code}
-          onChange={(e) => setF({ ...f, code: e.target.value })}
-          required
-        />
-        <input
-          className="border rounded px-3 py-2 col-span-4"
-          placeholder="Name"
-          value={f.name}
-          onChange={(e) => setF({ ...f, name: e.target.value })}
-          required
-        />
-        <input
-          className="border rounded px-3 py-2"
-          type="time"
-          value={f.start_time}
-          onChange={(e) => setF({ ...f, start_time: e.target.value })}
-          required
-        />
-        <input
-          className="border rounded px-3 py-2"
-          type="time"
-          value={f.end_time}
-          onChange={(e) => setF({ ...f, end_time: e.target.value })}
-          required
-        />
-        <input
-          className="border rounded px-3 py-2"
-          type="number"
-          min={0}
-          value={f.ot_grace_min}
-          onChange={(e) =>
-            setF({ ...f, ot_grace_min: parseInt(e.target.value || "0", 10) })
-          }
-          required
-        />
-        <input
-          className="border rounded px-3 py-2"
-          type="number"
-          min={0}
-          value={f.standard_minutes ?? 0}
-          onChange={(e) =>
-            setF({
-              ...f,
-              standard_minutes: parseInt(e.target.value || "0", 10),
-            })
-          }
-        />
-        <button
-          className="col-span-6 bg-green-600 text-white rounded px-4 py-2 disabled:opacity-50"
-          disabled={busy}
-        >
-          Add Shift
-        </button>
-      </form>
+      <Card className="p-4">
+        <form onSubmit={add} className="grid grid-cols-6 gap-3">
+          <input
+            className="col-span-2 rounded-[var(--agui-radius)] border border-[color:color-mix(in_srgb,_var(--agui-surface-border)_70%,_transparent)] bg-transparent px-3 py-2 text-sm focus-visible:border-[var(--agui-accent)] focus-visible:outline-none"
+            placeholder="Code"
+            value={f.code}
+            onChange={(e) => setF({ ...f, code: e.target.value })}
+            required
+          />
+          <input
+            className="col-span-4 rounded-[var(--agui-radius)] border border-[color:color-mix(in_srgb,_var(--agui-surface-border)_70%,_transparent)] bg-transparent px-3 py-2 text-sm focus-visible:border-[var(--agui-accent)] focus-visible:outline-none"
+            placeholder="Name"
+            value={f.name}
+            onChange={(e) => setF({ ...f, name: e.target.value })}
+            required
+          />
+          <input
+            className="rounded-[var(--agui-radius)] border border-[color:color-mix(in_srgb,_var(--agui-surface-border)_70%,_transparent)] bg-transparent px-3 py-2 text-sm focus-visible:border-[var(--agui-accent)] focus-visible:outline-none"
+            type="time"
+            value={f.start_time}
+            onChange={(e) => setF({ ...f, start_time: e.target.value })}
+            required
+          />
+          <input
+            className="rounded-[var(--agui-radius)] border border-[color:color-mix(in_srgb,_var(--agui-surface-border)_70%,_transparent)] bg-transparent px-3 py-2 text-sm focus-visible:border-[var(--agui-accent)] focus-visible:outline-none"
+            type="time"
+            value={f.end_time}
+            onChange={(e) => setF({ ...f, end_time: e.target.value })}
+            required
+          />
+          <input
+            className="rounded-[var(--agui-radius)] border border-[color:color-mix(in_srgb,_var(--agui-surface-border)_70%,_transparent)] bg-transparent px-3 py-2 text-sm focus-visible:border-[var(--agui-accent)] focus-visible:outline-none"
+            type="number"
+            min={0}
+            value={f.ot_grace_min}
+            onChange={(e) =>
+              setF({ ...f, ot_grace_min: parseInt(e.target.value || "0", 10) })
+            }
+            required
+          />
+          <input
+            className="rounded-[var(--agui-radius)] border border-[color:color-mix(in_srgb,_var(--agui-surface-border)_70%,_transparent)] bg-transparent px-3 py-2 text-sm focus-visible:border-[var(--agui-accent)] focus-visible:outline-none"
+            type="number"
+            min={0}
+            value={f.standard_minutes ?? 0}
+            onChange={(e) =>
+              setF({
+                ...f,
+                standard_minutes: parseInt(e.target.value || "0", 10),
+              })
+            }
+          />
+          <Button type="submit" className="col-span-6" disabled={busy}>
+            Add Shift
+          </Button>
+        </form>
+      </Card>
 
-      {err && <div className="text-sm text-red-600 mb-3">Error: {err}</div>}
+      {err && (
+        <div className="rounded-[var(--agui-radius)] border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+          Error: {err}
+        </div>
+      )}
 
-      <div className="border rounded overflow-x-auto">
+      <Card className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-[color-mix(in_srgb,_var(--agui-surface)_88%,_var(--agui-primary)_12%)] text-[color-mix(in_srgb,_var(--agui-on-surface)_90%,_var(--agui-surface)_10%)]">
             <tr>
-              <th className="p-2 text-left">Code</th>
-              <th className="p-2 text-left">Name</th>
-              <th className="p-2 text-left">Start</th>
-              <th className="p-2 text-left">End</th>
-              <th className="p-2 text-right">Grace (m)</th>
-              <th className="p-2 text-right">Std mins</th>
-              <th className="p-2">Actions</th>
+              <th className="p-3 text-left">Code</th>
+              <th className="p-3 text-left">Name</th>
+              <th className="p-3 text-left">Start</th>
+              <th className="p-3 text-left">End</th>
+              <th className="p-3 text-right">Grace (m)</th>
+              <th className="p-3 text-right">Std mins</th>
+              <th className="p-3 text-center">Actions</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((r) => (
-              <tr key={r.id} className="border-t">
-                <td className="p-2">
+              <tr
+                key={r.id}
+                className="border-t border-[color:color-mix(in_srgb,_var(--agui-card-border)_60%,_transparent)]"
+              >
+                <td className="p-3">
                   {editingId === r.id ? (
                     <input
-                      className="border rounded px-2 py-1 w-full"
+                      className="w-full rounded-[var(--agui-radius)] border border-[color:color-mix(in_srgb,_var(--agui-surface-border)_70%,_transparent)] bg-transparent px-2 py-1 text-sm focus-visible:border-[var(--agui-accent)] focus-visible:outline-none"
                       value={edit.code as string}
                       onChange={(e) =>
                         setEdit({ ...edit, code: e.target.value })
@@ -231,10 +244,10 @@ export default function ShiftsPageClient() {
                     r.code
                   )}
                 </td>
-                <td className="p-2">
+                <td className="p-3">
                   {editingId === r.id ? (
                     <input
-                      className="border rounded px-2 py-1 w-full"
+                      className="w-full rounded-[var(--agui-radius)] border border-[color:color-mix(in_srgb,_var(--agui-surface-border)_70%,_transparent)] bg-transparent px-2 py-1 text-sm focus-visible:border-[var(--agui-accent)] focus-visible:outline-none"
                       value={edit.name as string}
                       onChange={(e) =>
                         setEdit({ ...edit, name: e.target.value })
@@ -244,10 +257,10 @@ export default function ShiftsPageClient() {
                     r.name
                   )}
                 </td>
-                <td className="p-2">
+                <td className="p-3">
                   {editingId === r.id ? (
                     <input
-                      className="border rounded px-2 py-1"
+                      className="rounded-[var(--agui-radius)] border border-[color:color-mix(in_srgb,_var(--agui-surface-border)_70%,_transparent)] bg-transparent px-2 py-1 text-sm focus-visible:border-[var(--agui-accent)] focus-visible:outline-none"
                       type="time"
                       value={edit.start_time as string}
                       onChange={(e) =>
@@ -258,10 +271,10 @@ export default function ShiftsPageClient() {
                     r.start_time
                   )}
                 </td>
-                <td className="p-2">
+                <td className="p-3">
                   {editingId === r.id ? (
                     <input
-                      className="border rounded px-2 py-1"
+                      className="rounded-[var(--agui-radius)] border border-[color:color-mix(in_srgb,_var(--agui-surface-border)_70%,_transparent)] bg-transparent px-2 py-1 text-sm focus-visible:border-[var(--agui-accent)] focus-visible:outline-none"
                       type="time"
                       value={edit.end_time as string}
                       onChange={(e) =>
@@ -272,10 +285,10 @@ export default function ShiftsPageClient() {
                     r.end_time
                   )}
                 </td>
-                <td className="p-2 text-right">
+                <td className="p-3 text-right">
                   {editingId === r.id ? (
                     <input
-                      className="border rounded px-2 py-1 w-24 text-right"
+                      className="w-24 rounded-[var(--agui-radius)] border border-[color:color-mix(in_srgb,_var(--agui-surface-border)_70%,_transparent)] bg-transparent px-2 py-1 text-right text-sm focus-visible:border-[var(--agui-accent)] focus-visible:outline-none"
                       type="number"
                       min={0}
                       value={(edit.ot_grace_min as number) ?? 10}
@@ -290,10 +303,10 @@ export default function ShiftsPageClient() {
                     r.ot_grace_min
                   )}
                 </td>
-                <td className="p-2 text-right">
+                <td className="p-3 text-right">
                   {editingId === r.id ? (
                     <input
-                      className="border rounded px-2 py-1 w-24 text-right"
+                      className="w-24 rounded-[var(--agui-radius)] border border-[color:color-mix(in_srgb,_var(--agui-surface-border)_70%,_transparent)] bg-transparent px-2 py-1 text-right text-sm focus-visible:border-[var(--agui-accent)] focus-visible:outline-none"
                       type="number"
                       min={0}
                       value={(edit.standard_minutes as number) ?? 0}
@@ -308,54 +321,66 @@ export default function ShiftsPageClient() {
                     (r.standard_minutes ?? "")
                   )}
                 </td>
-                <td className="p-2 text-center">
+                <td className="p-3 text-center">
                   {editingId === r.id ? (
-                    <>
-                      <button
-                        className="text-xs underline mr-2"
+                    <div className="flex items-center justify-center gap-2">
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="xs"
+                        className="text-xs"
                         onClick={saveEdit}
                         disabled={busy}
                       >
                         Save
-                      </button>
-                      <button
-                        className="text-xs underline"
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="xs"
+                        className="text-xs"
                         onClick={cancelEdit}
                         disabled={busy}
                       >
                         Cancel
-                      </button>
-                    </>
+                      </Button>
+                    </div>
                   ) : (
-                    <>
-                      <button
-                        className="text-xs underline mr-2"
+                    <div className="flex items-center justify-center gap-2">
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="xs"
+                        className="text-xs"
                         onClick={() => startEdit(r)}
                       >
                         Edit
-                      </button>
-                      <button
-                        className="text-xs underline text-red-700"
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="link"
+                        size="xs"
+                        className="text-xs text-red-300 hover:text-red-200"
                         onClick={() => remove(r.id)}
                         disabled={busy}
                       >
                         Delete
-                      </button>
-                    </>
+                      </Button>
+                    </div>
                   )}
                 </td>
               </tr>
             ))}
             {rows.length === 0 && (
               <tr>
-                <td className="p-2" colSpan={7}>
+                <td className="p-4 text-center text-sm text-[var(--agui-muted-foreground)]" colSpan={7}>
                   No shifts yet.
                 </td>
               </tr>
             )}
           </tbody>
         </table>
-      </div>
+      </Card>
     </div>
   );
 }
