@@ -20,7 +20,12 @@ export async function fetchDtrRange(opts: {
 
   const sb = getSupabase();
   if (!sb) {
-    throw new Error("Supabase not configured");
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "Supabase client not available when fetching DTR range. Returning empty list.",
+      );
+    }
+    return [];
   }
 
   // IMPORTANT: inclusive range (>= start AND <= end)

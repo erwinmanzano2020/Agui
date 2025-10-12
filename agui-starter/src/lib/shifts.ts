@@ -15,7 +15,19 @@ export async function resolveEffectiveShift(
 ): Promise<EffectiveShift> {
   const sb = getSupabase();
   if (!sb) {
-    throw new Error("Supabase not configured");
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "Supabase client not available when resolving effective shift. Returning empty shift.",
+      );
+    }
+    return {
+      shift_id: null,
+      name: null,
+      start_time: null,
+      end_time: null,
+      ot_grace_min: null,
+      standard_minutes: null,
+    } satisfies EffectiveShift;
   }
 
   // 1) Override first
