@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { DataTable, type Column } from "@/components/ui/data-table";
 
@@ -73,8 +74,10 @@ export default function PayrollPageClient() {
       subtitle="Manage employee pay and records"
       actions={
         <>
-          <button className="btn btn-primary">Add Payroll</button>
-          <button className="btn btn-ghost">Export</button>
+          <Button type="button">Add Payroll</Button>
+          <Button type="button" variant="ghost">
+            Export
+          </Button>
         </>
       }
     >
