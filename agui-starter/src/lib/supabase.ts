@@ -1,24 +1,38 @@
+// agui-starter/src/lib/supabase.ts
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
-import {
-  NEXT_PUBLIC_SUPABASE_URL,
-  NEXT_PUBLIC_SUPABASE_ANON_KEY,
-} from "./env";
+import { ENV, assertPublicEnvOnServer } from "./env";
 
-let client: SupabaseClient | null = null;
+let _client: SupabaseClient | null = null;
 
+/**
+ * Returns a singleton Supabase client.
+ * - In the **browser**, if envs are missing, log a helpful message and return `null`
+ *   so pages can fail gracefully (no hard crash).
+ * - On the **server/build**, assert and throw early if envs are missing.
+ */
 export function getSupabase(): SupabaseClient | null {
-  if (client) return client;
-  if (!NEXT_PUBLIC_SUPABASE_URL || !NEXT_PUBLIC_SUPABASE_ANON_KEY) {
-    if (process.env.NODE_ENV !== "production") {
-      console.warn("Supabase client not configured. Check environment variables.");
+  const url = ENV.NEXT_PUBLIC_SUPABASE_URL;
+  const anon = ENV.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!url || !anon) {
+    if (typeof window !== "undefined") {
+      console.error(
+        "Supabase not configured. Missing NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY."
+      );
+      return null;
     }
+    // server/build: fail fast
+    assertPublicEnvOnServer();
+    // ^ throws with a clear message; return is only for type satisfaction
     return null;
   }
 
-  client = createClient(
-    NEXT_PUBLIC_SUPABASE_URL,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
+  if (_client) return _client;
+  _client = createClient(url, anon);
+  return _client;
+}
 
-  return client;
+/** Test-only helper to reset the cached client. */
+export function __resetSupabaseForTests() {
+  _client = null;
 }
