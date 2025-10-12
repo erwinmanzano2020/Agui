@@ -114,3 +114,18 @@
   outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
 }
+
+:root {
+  --agui-primary: #3c7cae;
+  --agui-surface: #0b0b0b;
+  --agui-accent: #06b6d4;
+  --agui-radius: 12px;
+}
+
+/* example usage */
+body { background: var(--agui-surface); }
+
+/* lightweight utility hooks for now */
+.agui-primary-bg { background: var(--agui-primary); }
+.agui-accent-border { border-color: var(--agui-accent); }
+.agui-rounded { border-radius: var(--agui-radius); }
