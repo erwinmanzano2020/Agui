@@ -2,9 +2,16 @@
 export const dynamic = "force-dynamic";
 
 import { Suspense } from "react";
+import { ModuleOffMessage } from "@/components/ui/module-off-message";
+import { isFeatureOn } from "@/lib/feature";
 import DtrBulkClient from "./DtrBulkClient";
 
-export default function Page() {
+export default async function Page() {
+  const enabled = await isFeatureOn("payroll");
+  if (!enabled) {
+    return <ModuleOffMessage moduleName="Payroll" />;
+  }
+
   return (
     <Suspense
       fallback={
