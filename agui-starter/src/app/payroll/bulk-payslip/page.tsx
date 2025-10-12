@@ -95,6 +95,7 @@ export default function PayslipBulkPage() {
   const [dtrRows, setDtrRows] = useState<Dtr[]>([]);
   const [segments, setSegments] = useState<Seg[]>([]);
   const [deds, setDeds] = useState<Ded[]>([]);
+  const [err, setErr] = useState<string | null>(null);
 
   // Derived maps
   const dtrByEmp = useMemo(() => {
@@ -139,84 +140,138 @@ export default function PayslipBulkPage() {
 
   // Load employees + settings once
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
       const sb = getSupabase();
       if (!sb) {
-        console.error("Supabase not configured");
-        setEmps([]);
+        if (!cancelled) {
+          setErr("Supabase is not configured. Check environment variables.");
+          setEmps([]);
+        }
         return;
       }
 
-      const [{ data: empData }, { data: setData }] = await Promise.all([
-        sb
-          .from("employees")
-          .select("id, code, full_name, rate_per_day, status")
-          .neq("status", "archived")
-          .order("full_name"),
-        sb
-          .from("settings_payroll")
-          .select("standard_minutes_per_day, ot_multiplier, attendance_mode")
-          .eq("id", 1)
-          .maybeSingle(),
-      ]);
-      setEmps(empData || []);
-      if (setData) {
-        setStandard(Number(setData.standard_minutes_per_day ?? 630));
-        setOtMult(Number(setData.ot_multiplier ?? 1.0));
-        setAttMode(
-          String(setData.attendance_mode || "")
-            .toUpperCase()
-            .startsWith("PRO")
-            ? "PRORATE"
-            : "DEDUCTION",
-        );
+      try {
+        if (!cancelled) setErr(null);
+
+        const [
+          { data: empData, error: empError },
+          { data: setData, error: setError },
+        ] = await Promise.all([
+          sb
+            .from("employees")
+            .select("id, code, full_name, rate_per_day, status")
+            .neq("status", "archived")
+            .order("full_name"),
+          sb
+            .from("settings_payroll")
+            .select("standard_minutes_per_day, ot_multiplier, attendance_mode")
+            .eq("id", 1)
+            .maybeSingle(),
+        ]);
+
+        if (cancelled) return;
+
+        if (empError) {
+          setErr(empError.message);
+          setEmps([]);
+        } else {
+          setEmps((empData || []) as Emp[]);
+        }
+
+        if (setError) {
+          setErr((prev) => prev ?? setError.message);
+        } else if (setData) {
+          setStandard(Number(setData.standard_minutes_per_day ?? 630));
+          setOtMult(Number(setData.ot_multiplier ?? 1.0));
+          setAttMode(
+            String(setData.attendance_mode || "")
+              .toUpperCase()
+              .startsWith("PRO")
+              ? "PRORATE"
+              : "DEDUCTION",
+          );
+        }
+      } catch (error) {
+        if (!cancelled)
+          setErr(
+            error instanceof Error
+              ? error.message
+              : "Failed to load payslip data.",
+          );
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function run() {
+    setErr(null);
     setLoading(true);
     const { from, toNext } = monthRange(month);
 
     const sb = getSupabase();
     if (!sb) {
-      console.error("Supabase not configured");
+      setErr("Supabase is not configured. Check environment variables.");
       setLoading(false);
       return;
     }
 
-    // Pull all rows for the month (for all active employees)
-    const [dtrQ, segQ, dedQ] = await Promise.all([
-      sb
-        .from("dtr_entries")
-        .select(
-          "employee_id, work_date, time_in, time_out, minutes_regular, minutes_ot",
-        )
-        .gte("work_date", from)
-        .lt("work_date", toNext)
-        .order("employee_id")
-        .order("work_date"),
-      sb
-        .from("dtr_segments")
-        .select("employee_id, work_date, start_at, end_at")
-        .gte("work_date", from)
-        .lt("work_date", toNext)
-        .order("employee_id")
-        .order("work_date")
-        .order("start_at", { ascending: true }),
-      sb
-        .from("payroll_deductions")
-        .select("employee_id, effective_date, amount, note, type")
-        .gte("effective_date", from)
-        .lt("effective_date", toNext)
-        .order("employee_id")
-        .order("effective_date"),
-    ]);
+    try {
+      // Pull all rows for the month (for all active employees)
+      const [
+        { data: dtrData, error: dtrError },
+        { data: segData, error: segError },
+        { data: dedData, error: dedError },
+      ] = await Promise.all([
+        sb
+          .from("dtr_entries")
+          .select(
+            "employee_id, work_date, time_in, time_out, minutes_regular, minutes_ot",
+          )
+          .gte("work_date", from)
+          .lt("work_date", toNext)
+          .order("employee_id")
+          .order("work_date"),
+        sb
+          .from("dtr_segments")
+          .select("employee_id, work_date, start_at, end_at")
+          .gte("work_date", from)
+          .lt("work_date", toNext)
+          .order("employee_id")
+          .order("work_date")
+          .order("start_at", { ascending: true }),
+        sb
+          .from("payroll_deductions")
+          .select("employee_id, effective_date, amount, note, type")
+          .gte("effective_date", from)
+          .lt("effective_date", toNext)
+          .order("employee_id")
+          .order("effective_date"),
+      ]);
 
-    setDtrRows((dtrQ.data || []) as Dtr[]);
-    setSegments((segQ.data || []) as Seg[]);
-    setDeds((dedQ.data || []) as Ded[]);
-    setLoading(false);
+      if (dtrError || segError || dedError) {
+        throw new Error(
+          dtrError?.message ??
+            segError?.message ??
+            dedError?.message ??
+            "Failed to load payroll data.",
+        );
+      }
+
+      setDtrRows((dtrData || []) as Dtr[]);
+      setSegments((segData || []) as Seg[]);
+      setDeds((dedData || []) as Ded[]);
+    } catch (error) {
+      setErr(
+        error instanceof Error ? error.message : "Failed to load payroll data.",
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   // Compute a payslip summary for an employee (present-only)
@@ -378,6 +433,10 @@ export default function PayslipBulkPage() {
     <div className="max-w-6xl mx-auto p-6 print:p-4">
       <h1 className="text-2xl font-semibold mb-1">Payslip (Bulk Export)</h1>
       <div className="text-sm text-gray-700 mb-4">{COMPANY_NAME}</div>
+
+      {err && (
+        <div className="mb-3 text-sm text-red-600 print:hidden">{err}</div>
+      )}
 
       {/* Controls */}
       <div className="flex flex-wrap gap-2 mb-4 print:hidden">
