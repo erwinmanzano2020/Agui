@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import EditEmployeeDrawer from "../_components/EditEmployeeDrawer";
 
 type Shift = {
@@ -64,7 +64,17 @@ export default function EmployeeSchedulePage() {
     if (!employeeId) return;
     setErr(null);
 
-    const empRes = await supabase
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase not configured");
+      setEmp(null);
+      setShifts([]);
+      setWeekly({ 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 7: null });
+      setOverrides([]);
+      return;
+    }
+
+    const empRes = await sb
       .from("employees")
       .select("code, full_name, rate_per_day")
       .eq("id", employeeId)
@@ -72,14 +82,14 @@ export default function EmployeeSchedulePage() {
     if (empRes.error) setErr(empRes.error.message);
     setEmp(empRes.data ?? null);
 
-    const shiftRes = await supabase
+    const shiftRes = await sb
       .from("shifts")
       .select("id, code, name, start_time, end_time")
       .order("start_time", { ascending: true });
     if (shiftRes.error) setErr((p) => p ?? shiftRes.error?.message ?? null);
     setShifts(shiftRes.data ?? []);
 
-    const weekRes = await supabase
+    const weekRes = await sb
       .from("employee_shift_weekly")
       .select("day_of_week, shift_id")
       .eq("employee_id", employeeId);
@@ -98,7 +108,7 @@ export default function EmployeeSchedulePage() {
     });
     setWeekly(map);
 
-    const ovrRes = await supabase
+    const ovrRes = await sb
       .from("employee_shift_overrides")
       .select("date, shift_id, shifts(name)")
       .eq("employee_id", employeeId)
@@ -158,7 +168,12 @@ export default function EmployeeSchedulePage() {
     setBusy(true);
     setErr(null);
     try {
-      const { error } = await supabase
+      const sb = getSupabase();
+      if (!sb) {
+        throw new Error("Supabase not configured");
+      }
+
+      const { error } = await sb
         .from("employee_shift_weekly")
         .upsert(
           { employee_id: employeeId, day_of_week: dayValue, shift_id: shiftId },
@@ -179,7 +194,12 @@ export default function EmployeeSchedulePage() {
     setErr(null);
     try {
       const shiftId = ovrShift || null;
-      const { error } = await supabase
+      const sb = getSupabase();
+      if (!sb) {
+        throw new Error("Supabase not configured");
+      }
+
+      const { error } = await sb
         .from("employee_shift_overrides")
         .upsert(
           { employee_id: employeeId, date: ovrDate, shift_id: shiftId },
@@ -201,7 +221,12 @@ export default function EmployeeSchedulePage() {
     setBusy(true);
     setErr(null);
     try {
-      const { error } = await supabase
+      const sb = getSupabase();
+      if (!sb) {
+        throw new Error("Supabase not configured");
+      }
+
+      const { error } = await sb
         .from("employee_shift_overrides")
         .delete()
         .eq("employee_id", employeeId)

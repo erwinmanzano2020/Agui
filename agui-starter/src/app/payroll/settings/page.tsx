@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 type AttendanceMode = "PRORATE" | "DEDUCTION";
 
@@ -16,7 +16,13 @@ export default function PayrollSettingsPage() {
 
   useEffect(() => {
     (async () => {
-      const { data, error } = await supabase
+      const sb = getSupabase();
+      if (!sb) {
+        setMsg("Supabase not configured");
+        return;
+      }
+
+      const { data, error } = await sb
         .from("settings_payroll")
         .select("standard_minutes_per_day, ot_multiplier, attendance_mode")
         .eq("id", 1)
@@ -44,7 +50,14 @@ export default function PayrollSettingsPage() {
     setSaving(true);
     setMsg(null);
 
-    const { error } = await supabase.from("settings_payroll").upsert({
+    const sb = getSupabase();
+    if (!sb) {
+      setMsg("Supabase not configured");
+      setSaving(false);
+      return;
+    }
+
+    const { error } = await sb.from("settings_payroll").upsert({
       id: 1,
       standard_minutes_per_day: std,
       ot_multiplier: ot,

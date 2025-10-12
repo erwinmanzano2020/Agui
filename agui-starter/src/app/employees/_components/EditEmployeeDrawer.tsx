@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 type DrawerTab = "profile" | "compensation" | "audit";
 
@@ -71,8 +71,14 @@ export default function EditEmployeeDrawer({
     const load = async () => {
       setErr(null);
 
+      const sb = getSupabase();
+      if (!sb) {
+        setErr("Supabase not configured");
+        return;
+      }
+
       // Employee
-      const empRes = await supabase
+      const empRes = await sb
         .from("employees")
         .select("id, code, full_name, rate_per_day, status")
         .eq("id", employeeId)
@@ -92,7 +98,7 @@ export default function EditEmployeeDrawer({
       );
 
       // Rates
-      const rateRes = await supabase
+      const rateRes = await sb
         .from("employee_rate_history")
         .select("id, basis, amount, effective_date, note, created_at")
         .eq("employee_id", employeeId)
@@ -123,7 +129,14 @@ export default function EditEmployeeDrawer({
       // rate_per_day is managed via Compensation
     };
 
-    const { error } = await supabase
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase not configured");
+      setBusy(false);
+      return;
+    }
+
+    const { error } = await sb
       .from("employees")
       .update(payload)
       .eq("id", emp.id);
@@ -134,7 +147,13 @@ export default function EditEmployeeDrawer({
   };
 
   const reloadRates = async () => {
-    const rateRes = await supabase
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase not configured");
+      return;
+    }
+
+    const rateRes = await sb
       .from("employee_rate_history")
       .select("id, basis, amount, effective_date, note, created_at")
       .eq("employee_id", employeeId)
@@ -161,7 +180,14 @@ export default function EditEmployeeDrawer({
     const amountNum = Number(cAmount);
 
     // 1) Insert into rate history
-    const { error } = await supabase.from("employee_rate_history").insert({
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase not configured");
+      setBusy(false);
+      return;
+    }
+
+    const { error } = await sb.from("employee_rate_history").insert({
       employee_id: employeeId,
       basis: cBasis || "daily",
       amount: amountNum,
@@ -177,7 +203,7 @@ export default function EditEmployeeDrawer({
 
     // 2) If basis is Daily, mirror to employees.rate_per_day so outer page reflects immediately
     if (cBasis === "daily") {
-      const { error: upErr } = await supabase
+      const { error: upErr } = await sb
         .from("employees")
         .update({ rate_per_day: amountNum })
         .eq("id", employeeId);
@@ -203,7 +229,14 @@ export default function EditEmployeeDrawer({
     setBusy(true);
     setErr(null);
 
-    const { error } = await supabase
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase not configured");
+      setBusy(false);
+      return;
+    }
+
+    const { error } = await sb
       .from("employee_rate_history")
       .delete()
       .eq("id", id);

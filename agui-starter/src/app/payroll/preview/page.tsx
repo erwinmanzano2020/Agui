@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { resolveEffectiveShift } from "@/lib/shifts";
 
 type Emp = {
@@ -47,14 +47,21 @@ export default function PayrollPreviewPage() {
 
   useEffect(() => {
     (async () => {
-      const { data: empsData } = await supabase
+      const sb = getSupabase();
+      if (!sb) {
+        console.error("Supabase not configured");
+        setEmps([]);
+        return;
+      }
+
+      const { data: empsData } = await sb
         .from("employees")
         .select("id, code, full_name, rate_per_day")
         .neq("status", "archived")
         .order("full_name");
       setEmps(empsData || []);
 
-      const { data: setData } = await supabase
+      const { data: setData } = await sb
         .from("settings_payroll")
         .select("standard_minutes_per_day, ot_multiplier, attendance_mode")
         .eq("id", 1)
@@ -85,8 +92,15 @@ export default function PayrollPreviewPage() {
 
     const toNext = nextDayISO(to); // exclusive upper bound
 
+    const sb = getSupabase();
+    if (!sb) {
+      console.error("Supabase not configured");
+      setLoading(false);
+      return;
+    }
+
     const [{ data: dtrData }, { data: dedData }] = await Promise.all([
-      supabase
+      sb
         .from("dtr_entries")
         .select(
           "employee_id, work_date, minutes_regular, minutes_ot, minutes_late, minutes_undertime",
@@ -94,7 +108,7 @@ export default function PayrollPreviewPage() {
         .in("employee_id", empIds)
         .gte("work_date", from)
         .lt("work_date", toNext), // [from, next)
-      supabase
+      sb
         .from("payroll_deductions")
         .select("employee_id, effective_date, amount")
         .in("employee_id", empIds)
