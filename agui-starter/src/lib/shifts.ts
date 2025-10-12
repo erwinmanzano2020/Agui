@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 export type EffectiveShift = {
   shift_id: string | null;
@@ -13,8 +13,25 @@ export async function resolveEffectiveShift(
   employeeId: string,
   date: string,
 ): Promise<EffectiveShift> {
+  const sb = getSupabase();
+  if (!sb) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "Supabase client not available when resolving effective shift. Returning empty shift.",
+      );
+    }
+    return {
+      shift_id: null,
+      name: null,
+      start_time: null,
+      end_time: null,
+      ot_grace_min: null,
+      standard_minutes: null,
+    } satisfies EffectiveShift;
+  }
+
   // 1) Override first
-  const ovrRes = await supabase
+  const ovrRes = await sb
     .from("employee_shift_overrides")
     .select(
       `
@@ -42,7 +59,7 @@ export async function resolveEffectiveShift(
   const jsDow = new Date(date).getDay(); // 0..6
   const dbDow = jsDow === 0 ? 7 : jsDow; // 7..6,1..6
 
-  const weekRes = await supabase
+  const weekRes = await sb
     .from("employee_shift_weekly")
     .select(
       `

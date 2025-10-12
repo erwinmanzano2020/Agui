@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 type Emp = { id: string; full_name: string; code: string };
 type Ded = {
@@ -37,6 +37,7 @@ export default function DeductionsPage() {
   ); // YYYY-MM
   const [rows, setRows] = useState<Ded[]>([]);
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   // form state
   const [dateIn, setDateIn] = useState(() =>
@@ -52,34 +53,87 @@ export default function DeductionsPage() {
   );
 
   useEffect(() => {
-    (async () => {
-      const { data } = await supabase
-        .from("employees")
-        .select("id, full_name, code")
-        .neq("status", "archived")
-        .order("full_name");
+    let cancelled = false;
 
-      setEmps((data || []) as Emp[]);
-      if (data && data[0]) setEmpId(data[0].id);
+    (async () => {
+      const sb = getSupabase();
+      if (!sb) {
+        if (!cancelled) {
+          setErr("Supabase is not configured. Check environment variables.");
+          setEmps([]);
+        }
+        return;
+      }
+
+      try {
+        if (!cancelled) setErr(null);
+
+        const { data, error } = await sb
+          .from("employees")
+          .select("id, full_name, code")
+          .neq("status", "archived")
+          .order("full_name");
+
+        if (cancelled) return;
+
+        if (error) {
+          setErr(error.message);
+          setEmps([]);
+        } else {
+          setEmps((data || []) as Emp[]);
+          if (data && data[0]) setEmpId(data[0].id);
+        }
+      } catch (error) {
+        if (!cancelled)
+          setErr(
+            error instanceof Error
+              ? error.message
+              : "Failed to load employees.",
+          );
+      }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function load() {
     if (!empId) return;
+    setErr(null);
     setLoading(true);
     const { from, to } = monthRange(monthISO);
 
-    const { data, error } = await supabase
-      .from("payroll_deductions")
-      .select("id, employee_id, effective_date, type, note, amount")
-      .eq("employee_id", empId)
-      .gte("effective_date", from) // inclusive
-      .lt("effective_date", to) // exclusive next-month start
-      .order("effective_date", { ascending: true })
-      .order("id", { ascending: true });
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase is not configured. Check environment variables.");
+      setRows([]);
+      setLoading(false);
+      return;
+    }
 
-    if (!error) setRows((data || []) as Ded[]);
-    setLoading(false);
+    try {
+      const { data, error } = await sb
+        .from("payroll_deductions")
+        .select("id, employee_id, effective_date, type, note, amount")
+        .eq("employee_id", empId)
+        .gte("effective_date", from) // inclusive
+        .lt("effective_date", to) // exclusive next-month start
+        .order("effective_date", { ascending: true })
+        .order("id", { ascending: true });
+
+      if (error) throw error;
+      setRows((data || []) as Ded[]);
+    } catch (error) {
+      setErr(
+        error instanceof Error
+          ? error.message
+          : "Failed to load deductions.",
+      );
+      setRows([]);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -90,42 +144,90 @@ export default function DeductionsPage() {
     if (!empId) return;
     const amt = Number(amountIn || 0);
     if (Number.isNaN(amt) || amt <= 0) return;
+    setErr(null);
 
-    const { error } = await supabase.from("payroll_deductions").insert([
-      {
-        employee_id: empId,
-        effective_date: dateIn, // YYYY-MM-DD
-        type: typeIn || "other",
-        amount: amt,
-        note: noteIn || null,
-      },
-    ]);
-    if (!error) {
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase is not configured. Check environment variables.");
+      return;
+    }
+
+    try {
+      const { error } = await sb.from("payroll_deductions").insert([
+        {
+          employee_id: empId,
+          effective_date: dateIn, // YYYY-MM-DD
+          type: typeIn || "other",
+          amount: amt,
+          note: noteIn || null,
+        },
+      ]);
+      if (error) throw error;
       setAmountIn("0");
       setNoteIn("");
       await load();
+    } catch (error) {
+      setErr(
+        error instanceof Error
+          ? error.message
+          : "Failed to add deduction.",
+      );
     }
   }
 
   async function editDed(id: string, patch: Partial<Ded>) {
-    const { error } = await supabase
-      .from("payroll_deductions")
-      .update(patch)
-      .eq("id", id);
-    if (!error) await load();
+    setErr(null);
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase is not configured. Check environment variables.");
+      return;
+    }
+
+    try {
+      const { error } = await sb
+        .from("payroll_deductions")
+        .update(patch)
+        .eq("id", id);
+      if (error) throw error;
+      await load();
+    } catch (error) {
+      setErr(
+        error instanceof Error
+          ? error.message
+          : "Failed to update deduction.",
+      );
+    }
   }
 
   async function deleteDed(id: string) {
-    const { error } = await supabase
-      .from("payroll_deductions")
-      .delete()
-      .eq("id", id);
-    if (!error) await load();
+    setErr(null);
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase is not configured. Check environment variables.");
+      return;
+    }
+
+    try {
+      const { error } = await sb
+        .from("payroll_deductions")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+      await load();
+    } catch (error) {
+      setErr(
+        error instanceof Error
+          ? error.message
+          : "Failed to delete deduction.",
+      );
+    }
   }
 
   return (
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-2xl font-semibold mb-4">Deductions</h1>
+
+      {err && <div className="mb-3 text-sm text-red-600">{err}</div>}
 
       <div className="flex gap-3 items-center mb-3">
         <select

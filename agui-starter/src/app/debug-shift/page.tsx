@@ -2,7 +2,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { resolveEffectiveShift, EffectiveShift } from "@/lib/shifts";
 
 export default function DebugShiftPage() {
@@ -18,7 +18,14 @@ export default function DebugShiftPage() {
     setError(null);
     setResult(null);
     try {
-      const emp = await supabase
+      const sb = getSupabase();
+      if (!sb) {
+        setError("Supabase not configured");
+        setLoading(false);
+        return;
+      }
+
+      const emp = await sb
         .from("employees")
         .select("id")
         .eq("code", code)

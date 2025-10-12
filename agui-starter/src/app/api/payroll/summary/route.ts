@@ -2,7 +2,7 @@
 import { NextResponse } from "next/server";
 import { summarizeRange } from "@/lib/payroll/index";
 import type { PrimaryBasis } from "@/lib/payroll/index";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -26,7 +26,15 @@ export async function GET(req: Request) {
   const hoursPerDay = hoursPerDayParam ? Number(hoursPerDayParam) : undefined;
 
   try {
-    const summary = await summarizeRange(supabase, {
+    const sb = getSupabase();
+    if (!sb) {
+      return NextResponse.json(
+        { error: "Supabase not configured" },
+        { status: 500 },
+      );
+    }
+
+    const summary = await summarizeRange(sb, {
       from,
       to,
       employeeId,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { resolveEffectiveShift } from "@/lib/shifts";
 
 type Emp = {
@@ -44,36 +44,81 @@ export default function PayrollPreviewPage() {
 
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
-      const { data: empsData } = await supabase
-        .from("employees")
-        .select("id, code, full_name, rate_per_day")
-        .neq("status", "archived")
-        .order("full_name");
-      setEmps(empsData || []);
+      const sb = getSupabase();
+      if (!sb) {
+        if (!cancelled) {
+          setErr("Supabase is not configured. Check environment variables.");
+          setEmps([]);
+        }
+        return;
+      }
 
-      const { data: setData } = await supabase
-        .from("settings_payroll")
-        .select("standard_minutes_per_day, ot_multiplier, attendance_mode")
-        .eq("id", 1)
-        .maybeSingle();
+      try {
+        if (!cancelled) setErr(null);
 
-      if (setData?.standard_minutes_per_day)
-        setFallbackStd(setData.standard_minutes_per_day);
-      if (setData?.ot_multiplier != null)
-        setOtMultiplier(Number(setData.ot_multiplier));
-      if (setData?.attendance_mode)
-        setAttMode(
-          String(setData.attendance_mode).toUpperCase() === "PRORATE"
-            ? "PRORATE"
-            : "DEDUCTION",
-        );
+        const [
+          { data: empsData, error: empsError },
+          { data: setData, error: settingsError },
+        ] = await Promise.all([
+          sb
+            .from("employees")
+            .select("id, code, full_name, rate_per_day")
+            .neq("status", "archived")
+            .order("full_name"),
+          sb
+            .from("settings_payroll")
+            .select("standard_minutes_per_day, ot_multiplier, attendance_mode")
+            .eq("id", 1)
+            .maybeSingle(),
+        ]);
+
+        if (cancelled) return;
+
+        if (empsError) {
+          setErr(empsError.message);
+          setEmps([]);
+        } else {
+          setEmps((empsData || []) as Emp[]);
+        }
+
+        if (settingsError) {
+          setErr((prev) => prev ?? settingsError.message);
+        } else if (setData) {
+          if (setData.standard_minutes_per_day)
+            setFallbackStd(setData.standard_minutes_per_day);
+          if (setData.ot_multiplier != null)
+            setOtMultiplier(Number(setData.ot_multiplier));
+          if (setData.attendance_mode) {
+            setAttMode(
+              String(setData.attendance_mode).toUpperCase() === "PRORATE"
+                ? "PRORATE"
+                : "DEDUCTION",
+            );
+          }
+        }
+      } catch (error) {
+        if (!cancelled)
+          setErr(
+            error instanceof Error
+              ? error.message
+              : "Failed to load payroll preview data.",
+          );
+      }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function run() {
+    setErr(null);
     setLoading(true);
     setRows([]);
 
@@ -85,114 +130,135 @@ export default function PayrollPreviewPage() {
 
     const toNext = nextDayISO(to); // exclusive upper bound
 
-    const [{ data: dtrData }, { data: dedData }] = await Promise.all([
-      supabase
-        .from("dtr_entries")
-        .select(
-          "employee_id, work_date, minutes_regular, minutes_ot, minutes_late, minutes_undertime",
-        )
-        .in("employee_id", empIds)
-        .gte("work_date", from)
-        .lt("work_date", toNext), // [from, next)
-      supabase
-        .from("payroll_deductions")
-        .select("employee_id, effective_date, amount")
-        .in("employee_id", empIds)
-        .gte("effective_date", from)
-        .lt("effective_date", toNext), // [from, next)
-    ]);
-
-    const dtr = (dtrData || []) as Dtr[];
-    const deds = (dedData || []) as Ded[];
-
-    // group DTR by employee
-    const dtrByEmp = new Map<string, Dtr[]>();
-    for (const id of empIds) dtrByEmp.set(id, []);
-    for (const r of dtr) {
-      if (!dtrByEmp.has(r.employee_id)) dtrByEmp.set(r.employee_id, []);
-      dtrByEmp.get(r.employee_id)!.push(r);
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase is not configured. Check environment variables.");
+      setLoading(false);
+      return;
     }
 
-    // sum Deductions by employee
-    const dedByEmp = new Map<string, number>();
-    for (const id of empIds) dedByEmp.set(id, 0);
-    for (const r of deds) {
-      dedByEmp.set(
-        r.employee_id,
-        (dedByEmp.get(r.employee_id) || 0) + Number(r.amount || 0),
-      );
-    }
+    try {
+      const [{ data: dtrData, error: dtrError }, { data: dedData, error: dedError }]
+        = await Promise.all([
+          sb
+            .from("dtr_entries")
+            .select(
+              "employee_id, work_date, minutes_regular, minutes_ot, minutes_late, minutes_undertime",
+            )
+            .in("employee_id", empIds)
+            .gte("work_date", from)
+            .lt("work_date", toNext), // [from, next)
+          sb
+            .from("payroll_deductions")
+            .select("employee_id, effective_date, amount")
+            .in("employee_id", empIds)
+            .gte("effective_date", from)
+            .lt("effective_date", toNext), // [from, next)
+        ]);
 
-    // Presence-aware compute
-    const out: any[] = [];
-
-    for (const eId of empIds) {
-      const emp = emps.find((e) => e.id === eId);
-      if (!emp) continue;
-
-      const entriesAll = dtrByEmp.get(eId) ?? [];
-      const entries = entriesAll.filter(
-        (r) =>
-          Number(r.minutes_regular || 0) > 0 || Number(r.minutes_ot || 0) > 0,
-      );
-
-      let totalReg = 0;
-      let totalOT = 0;
-      let basicPay = 0;
-      let otPay = 0;
-      let lateUTMins = 0;
-      let lateUTValue = 0;
-
-      for (const r of entries) {
-        const reg = Math.max(0, Number(r.minutes_regular || 0));
-        const ot = Math.max(0, Number(r.minutes_ot || 0));
-        totalReg += reg;
-        totalOT += ot;
-
-        // Per-day context
-        const eff = await resolveEffectiveShift(eId, r.work_date);
-        const standard = eff.standard_minutes ?? fallbackStd;
-        const perMinute = emp.rate_per_day / standard;
-
-        // Derived shortfall (present days only)
-        const capped = Math.min(reg, standard);
-        const shortfall = Math.max(0, standard - capped);
-
-        if (attMode === "PRORATE") {
-          basicPay += perMinute * capped;
-        } else {
-          basicPay += emp.rate_per_day;
-          lateUTMins += shortfall;
-          lateUTValue += perMinute * shortfall;
-        }
-
-        otPay += perMinute * ot * otMultiplier;
+      if (dtrError || dedError) {
+        throw new Error(dtrError?.message ?? dedError?.message ?? "Failed to load payroll preview data.");
       }
 
-      const otherDeds = dedByEmp.get(eId) || 0;
-      const gross = basicPay + otPay;
-      const totalDeductions =
-        otherDeds + (attMode === "DEDUCTION" ? lateUTValue : 0);
-      const net = Math.max(0, gross - totalDeductions);
+      const dtr = (dtrData || []) as Dtr[];
+      const deds = (dedData || []) as Ded[];
 
-      out.push({
-        employee_id: eId,
-        name: `${emp.full_name} (${emp.code})`,
-        reg: totalReg,
-        ot: totalOT,
-        lateUTMins,
-        lateUTValue,
-        basicPay,
-        otPay,
-        gross,
-        otherDeductions: otherDeds,
-        deductions: totalDeductions,
-        net,
-      });
+      // group DTR by employee
+      const dtrByEmp = new Map<string, Dtr[]>();
+      for (const id of empIds) dtrByEmp.set(id, []);
+      for (const r of dtr) {
+        if (!dtrByEmp.has(r.employee_id)) dtrByEmp.set(r.employee_id, []);
+        dtrByEmp.get(r.employee_id)!.push(r);
+      }
+
+      // sum Deductions by employee
+      const dedByEmp = new Map<string, number>();
+      for (const id of empIds) dedByEmp.set(id, 0);
+      for (const r of deds) {
+        dedByEmp.set(
+          r.employee_id,
+          (dedByEmp.get(r.employee_id) || 0) + Number(r.amount || 0),
+        );
+      }
+
+      // Presence-aware compute
+      const out: any[] = [];
+
+      for (const eId of empIds) {
+        const emp = emps.find((e) => e.id === eId);
+        if (!emp) continue;
+
+        const entriesAll = dtrByEmp.get(eId) ?? [];
+        const entries = entriesAll.filter(
+          (r) =>
+            Number(r.minutes_regular || 0) > 0 || Number(r.minutes_ot || 0) > 0,
+        );
+
+        let totalReg = 0;
+        let totalOT = 0;
+        let basicPay = 0;
+        let otPay = 0;
+        let lateUTMins = 0;
+        let lateUTValue = 0;
+
+        for (const r of entries) {
+          const reg = Math.max(0, Number(r.minutes_regular || 0));
+          const ot = Math.max(0, Number(r.minutes_ot || 0));
+          totalReg += reg;
+          totalOT += ot;
+
+          // Per-day context
+          const eff = await resolveEffectiveShift(eId, r.work_date);
+          const standard = eff.standard_minutes ?? fallbackStd;
+          const perMinute = emp.rate_per_day / standard;
+
+          // Derived shortfall (present days only)
+          const capped = Math.min(reg, standard);
+          const shortfall = Math.max(0, standard - capped);
+
+          if (attMode === "PRORATE") {
+            basicPay += perMinute * capped;
+          } else {
+            basicPay += emp.rate_per_day;
+            lateUTMins += shortfall;
+            lateUTValue += perMinute * shortfall;
+          }
+
+          otPay += perMinute * ot * otMultiplier;
+        }
+
+        const otherDeds = dedByEmp.get(eId) || 0;
+        const gross = basicPay + otPay;
+        const totalDeductions =
+          otherDeds + (attMode === "DEDUCTION" ? lateUTValue : 0);
+        const net = Math.max(0, gross - totalDeductions);
+
+        out.push({
+          employee_id: eId,
+          name: `${emp.full_name} (${emp.code})`,
+          reg: totalReg,
+          ot: totalOT,
+          lateUTMins,
+          lateUTValue,
+          basicPay,
+          otPay,
+          gross,
+          otherDeductions: otherDeds,
+          deductions: totalDeductions,
+          net,
+        });
+      }
+
+      setRows(out);
+    } catch (error) {
+      setErr(
+        error instanceof Error
+          ? error.message
+          : "Failed to generate payroll preview.",
+      );
+    } finally {
+      setLoading(false);
     }
-
-    setRows(out);
-    setLoading(false);
   }
 
   const totals = useMemo(() => {
@@ -224,6 +290,10 @@ export default function PayrollPreviewPage() {
   return (
     <div className="max-w-6xl mx-auto p-6">
       <h1 className="text-2xl font-semibold mb-4">Payroll Preview</h1>
+
+      {err && (
+        <div className="mb-3 text-sm text-red-600">{err}</div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
         <select

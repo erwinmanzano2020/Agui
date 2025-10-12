@@ -1,6 +1,6 @@
 "use client";
 import { FormEvent, useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 type Shift = {
   id: string;
@@ -29,7 +29,12 @@ export default function ShiftsPage() {
 
   const load = async () => {
     setErr(null);
-    const { data, error } = await supabase
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase not configured");
+      return;
+    }
+    const { data, error } = await sb
       .from("shifts")
       .select(
         "id, code, name, start_time, end_time, ot_grace_min, standard_minutes",
@@ -46,7 +51,13 @@ export default function ShiftsPage() {
     e.preventDefault();
     setBusy(true);
     setErr(null);
-    const { error } = await supabase.from("shifts").insert(f as any);
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase not configured");
+      setBusy(false);
+      return;
+    }
+    const { error } = await sb.from("shifts").insert(f as any);
     setBusy(false);
     if (error) {
       setErr(error.message);
@@ -87,7 +98,13 @@ export default function ShiftsPage() {
           ? null
           : Number(edit.standard_minutes),
     };
-    const { error } = await supabase
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase not configured");
+      setBusy(false);
+      return;
+    }
+    const { error } = await sb
       .from("shifts")
       .update(update)
       .eq("id", editingId);
@@ -105,7 +122,13 @@ export default function ShiftsPage() {
     if (!confirm("Delete this shift?")) return;
     setBusy(true);
     setErr(null);
-    const { error } = await supabase.from("shifts").delete().eq("id", id);
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase not configured");
+      setBusy(false);
+      return;
+    }
+    const { error } = await sb.from("shifts").delete().eq("id", id);
     setBusy(false);
     if (error) {
       setErr(error.message);

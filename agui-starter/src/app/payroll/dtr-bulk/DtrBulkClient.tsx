@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "../../../components/ui/page-header";
 import { Toast } from "../../../components/ui/toast";
-import { supabase } from "../../../lib/supabase";
+import { getSupabase } from "../../../lib/supabase";
 
 /** ===== Types ===== */
 type Emp = { id: string; code?: string | null; full_name: string };
@@ -213,7 +213,16 @@ export default function DtrBulkClient() {
     let cancelled = false;
     (async () => {
       setLoadingEmps(true);
-      const { data, error } = await supabase
+      const sb = getSupabase();
+      if (!sb) {
+        if (!cancelled) {
+          setToast({ kind: "error", msg: "Supabase not configured" });
+          setLoadingEmps(false);
+        }
+        return;
+      }
+
+      const { data, error } = await sb
         .from("employees")
         .select("id, code, full_name")
         .order("full_name", { ascending: true });
@@ -260,9 +269,18 @@ export default function DtrBulkClient() {
       const from = days[0];
       const to = days[days.length - 1];
 
+      const sb = getSupabase();
+      if (!sb) {
+        if (!cancelled) {
+          setToast({ kind: "error", msg: "Supabase not configured" });
+          setLoadingDtr(false);
+        }
+        return;
+      }
+
       if (mode === "single" && selectedEmpId) {
         // Load up to TWO segments per day for the selected employee
-        const { data, error } = await supabase
+        const { data, error } = await sb
           .from("dtr_segments")
           .select("employee_id, work_date, start_at, end_at")
           .eq("employee_id", selectedEmpId)
@@ -314,7 +332,7 @@ export default function DtrBulkClient() {
       }
 
       // Weekly "all employees": keep IN/OUT (first-in/last-out) from dtr_entries
-      const q = supabase
+      const q = sb
         .from("dtr_entries")
         .select("employee_id, work_date, time_in, time_out")
         .gte("work_date", from)
@@ -353,8 +371,13 @@ export default function DtrBulkClient() {
 
   /** ===== Save (bulk) ===== */
   async function handleSave() {
+    setSaving(true);
     try {
-      setSaving(true);
+      const sb = getSupabase();
+      if (!sb) {
+        setToast({ kind: "error", msg: "Supabase not configured" });
+        return;
+      }
 
       if (mode === "single" && scopedEmployees[0]) {
         // Delete+insert segments per day (up to two), and also upsert dtr_entries time_in/out
@@ -368,7 +391,7 @@ export default function DtrBulkClient() {
           };
 
           // Wipe existing segments for that day
-          const del = await supabase
+          const del = await sb
             .from("dtr_segments")
             .delete()
             .eq("employee_id", e.id)
@@ -406,7 +429,7 @@ export default function DtrBulkClient() {
           }
 
           if (inserts.length > 0) {
-            const ins = await supabase.from("dtr_segments").insert(inserts);
+            const ins = await sb.from("dtr_segments").insert(inserts);
             if (ins.error) throw ins.error;
           }
 
@@ -416,7 +439,7 @@ export default function DtrBulkClient() {
             ? inserts[inserts.length - 1].end_at
             : null;
 
-          const up = await supabase.from("dtr_entries").upsert(
+          const up = await sb.from("dtr_entries").upsert(
             {
               employee_id: e.id,
               work_date: d,
@@ -459,7 +482,7 @@ export default function DtrBulkClient() {
           }
         }
       }
-      const { error } = await supabase
+      const { error } = await sb
         .from("dtr_entries")
         .upsert(payload, { onConflict: "employee_id,work_date" });
 
@@ -557,7 +580,13 @@ export default function DtrBulkClient() {
         return;
       }
 
-      const { error } = await supabase
+      const sb = getSupabase();
+      if (!sb) {
+        setToast({ kind: "error", msg: "Supabase not configured" });
+        return;
+      }
+
+      const { error } = await sb
         .from("dtr_entries")
         .upsert(payload, { onConflict: "employee_id,work_date" });
 

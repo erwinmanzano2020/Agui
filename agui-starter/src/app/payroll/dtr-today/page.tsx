@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { resolveEffectiveShift } from "@/lib/shifts";
 import { computeMinutes } from "@/lib/payroll";
 import { sumFinishedMinutes, latestOut, Segment } from "@/lib/segments";
@@ -37,7 +37,14 @@ export default function DtrTodayPage() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
+      const sb = getSupabase();
+      if (!sb) {
+        setMsg("Supabase not configured");
+        setEmps([]);
+        return;
+      }
+
+      const { data } = await sb
         .from("employees")
         .select("id, code, full_name")
         .neq("status", "archived")
@@ -52,7 +59,15 @@ export default function DtrTodayPage() {
   }, [employeeId, date]);
 
   async function loadSegments() {
-    const { data } = await supabase
+    const sb = getSupabase();
+    if (!sb) {
+      setMsg("Supabase not configured");
+      setSegments([]);
+      setHasOpen(false);
+      return;
+    }
+
+    const { data } = await sb
       .from("dtr_segments")
       .select("start_at, end_at")
       .eq("employee_id", employeeId)
@@ -75,7 +90,13 @@ export default function DtrTodayPage() {
     const startAt = new Date(
       `${date}T${now.toTimeString().slice(0, 8)}`,
     ).toISOString();
-    const { error } = await supabase.from("dtr_segments").insert({
+    const sb = getSupabase();
+    if (!sb) {
+      setMsg("Supabase not configured");
+      return;
+    }
+
+    const { error } = await sb.from("dtr_segments").insert({
       employee_id: employeeId,
       work_date: date,
       start_at: startAt,
@@ -88,7 +109,13 @@ export default function DtrTodayPage() {
   async function clockOut() {
     setMsg(null);
     // find latest open
-    const { data } = await supabase
+    const sb = getSupabase();
+    if (!sb) {
+      setMsg("Supabase not configured");
+      return;
+    }
+
+    const { data } = await sb
       .from("dtr_segments")
       .select("id")
       .eq("employee_id", employeeId)
@@ -108,7 +135,7 @@ export default function DtrTodayPage() {
       `${date}T${now.toTimeString().slice(0, 8)}`,
     ).toISOString();
 
-    const { error } = await supabase
+    const { error } = await sb
       .from("dtr_segments")
       .update({ end_at: endAt })
       .eq("id", (data as any).id);
@@ -138,7 +165,13 @@ export default function DtrTodayPage() {
     setPreview(res);
 
     if (saveAfter) {
-      await supabase.from("dtr_entries").upsert(
+      const sb = getSupabase();
+      if (!sb) {
+        setMsg("Supabase not configured");
+        return;
+      }
+
+      await sb.from("dtr_entries").upsert(
         {
           employee_id: employeeId,
           work_date: date,
@@ -228,7 +261,13 @@ export default function DtrTodayPage() {
     const lastOutISO =
       segs.filter((s) => !!s.end_at).slice(-1)[0]?.end_at ?? firstInISO;
 
-    await supabase.from("dtr_entries").upsert(
+    const sb = getSupabase();
+    if (!sb) {
+      setMsg("Supabase not configured");
+      return;
+    }
+
+    await sb.from("dtr_entries").upsert(
       {
         employee_id: employeeId,
         work_date: date,

@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { resolveEffectiveShift } from "@/lib/shifts";
 import { isPresent } from "@/lib/dtr";
 
@@ -795,38 +795,82 @@ export default function PayslipPage() {
 
   const [bundles, setBundles] = useState<PayslipBundle[]>([]);
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
   const pdfRootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     (async () => {
-      const { data: empData } = await supabase
-        .from("employees")
-        .select("id, code, full_name, rate_per_day")
-        .neq("status", "archived")
-        .order("full_name");
-      setEmps(empData || []);
+      const sb = getSupabase();
+      if (!sb) {
+        if (!cancelled) {
+          setErr("Supabase is not configured. Check environment variables.");
+          setEmps([]);
+        }
+        return;
+      }
 
-      const { data: setData } = await supabase
-        .from("settings_payroll")
-        .select("standard_minutes_per_day, ot_multiplier, attendance_mode")
-        .eq("id", 1)
-        .maybeSingle();
+      try {
+        if (!cancelled) setErr(null);
 
-      if (setData?.standard_minutes_per_day)
-        setFallbackStd(setData.standard_minutes_per_day);
-      if (setData?.ot_multiplier != null)
-        setOtMultiplier(Number(setData.ot_multiplier));
-      if (setData?.attendance_mode) {
-        setAttMode(
-          String(setData.attendance_mode).toUpperCase() === "PRORATE"
-            ? "PRORATE"
-            : "DEDUCTION",
-        );
+        const [
+          { data: empData, error: empError },
+          { data: setData, error: settingsError },
+        ] = await Promise.all([
+          sb
+            .from("employees")
+            .select("id, code, full_name, rate_per_day")
+            .neq("status", "archived")
+            .order("full_name"),
+          sb
+            .from("settings_payroll")
+            .select("standard_minutes_per_day, ot_multiplier, attendance_mode")
+            .eq("id", 1)
+            .maybeSingle(),
+        ]);
+
+        if (cancelled) return;
+
+        if (empError) {
+          setErr(empError.message);
+          setEmps([]);
+        } else {
+          setEmps((empData || []) as Emp[]);
+        }
+
+        if (settingsError) {
+          setErr((prev) => prev ?? settingsError.message);
+        } else if (setData) {
+          if (setData.standard_minutes_per_day)
+            setFallbackStd(setData.standard_minutes_per_day);
+          if (setData.ot_multiplier != null)
+            setOtMultiplier(Number(setData.ot_multiplier));
+          if (setData.attendance_mode) {
+            setAttMode(
+              String(setData.attendance_mode).toUpperCase() === "PRORATE"
+                ? "PRORATE"
+                : "DEDUCTION",
+            );
+          }
+        }
+      } catch (error) {
+        if (!cancelled)
+          setErr(
+            error instanceof Error
+              ? error.message
+              : "Failed to load payslip data.",
+          );
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function run() {
+    setErr(null);
     setLoading(true);
     setBundles([]);
 
@@ -839,9 +883,20 @@ export default function PayslipPage() {
     const { from } = monthRange(month);
     const end = monthEnd(month); // inclusive
 
-    const [{ data: dtrData }, { data: segData }, { data: dedData }] =
-      await Promise.all([
-        supabase
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase is not configured. Check environment variables.");
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const [
+        { data: dtrData, error: dtrError },
+        { data: segData, error: segError },
+        { data: dedData, error: dedError },
+      ] = await Promise.all([
+        sb
           .from("dtr_entries")
           .select(
             "employee_id, work_date, time_in, time_out, minutes_regular, minutes_ot",
@@ -850,7 +905,7 @@ export default function PayslipPage() {
           .gte("work_date", from)
           .lte("work_date", end)
           .order("work_date", { ascending: true }),
-        supabase
+        sb
           .from("dtr_segments")
           .select("employee_id, work_date, start_at, end_at")
           .in("employee_id", ids)
@@ -858,7 +913,7 @@ export default function PayslipPage() {
           .lte("work_date", end)
           .order("work_date", { ascending: true })
           .order("start_at", { ascending: true }),
-        supabase
+        sb
           .from("payroll_deductions")
           .select("employee_id, effective_date, amount, type")
           .in("employee_id", ids)
@@ -866,269 +921,284 @@ export default function PayslipPage() {
           .lte("effective_date", end),
       ]);
 
-    const allDTR = (dtrData || []) as Dtr[];
-    const allSeg = (segData || []) as Seg[];
-    const allDed = (dedData || []) as Ded[];
-
-    const dtrByEmp = new Map<string, Dtr[]>(),
-      segByEmp = new Map<string, Seg[]>(),
-      dedByEmp = new Map<string, Ded[]>();
-
-    for (const id of ids) {
-      dtrByEmp.set(id, []);
-      segByEmp.set(id, []);
-      dedByEmp.set(id, []);
-    }
-    for (const r of allDTR) dtrByEmp.get(r.employee_id)!.push(r);
-    for (const s of allSeg) segByEmp.get(String(s.employee_id))!.push(s);
-    for (const d of allDed) dedByEmp.get(d.employee_id)!.push(d);
-
-    const out: PayslipBundle[] = [];
-
-    for (const id of ids) {
-      const emp = emps.find((e) => e.id === id);
-      if (!emp) continue;
-
-      const dtrs = (dtrByEmp.get(id) || []).sort((a, b) =>
-        a.work_date.localeCompare(b.work_date),
-      );
-      const segs = segByEmp.get(id) || [];
-      const deds = dedByEmp.get(id) || [];
-
-      // maps
-      const segsByDate = new Map<string, Seg[]>();
-      for (const s of segs) {
-        if (!s.work_date) continue;
-        const arr = segsByDate.get(s.work_date) || [];
-        arr.push(s);
-        segsByDate.set(s.work_date, arr);
+      if (dtrError || segError || dedError) {
+        throw new Error(
+          dtrError?.message ??
+            segError?.message ??
+            dedError?.message ??
+            "Failed to load payslip data.",
+        );
       }
-      const dtrByDate = new Map<string, Dtr>();
-      for (const r of dtrs) dtrByDate.set(r.work_date, r);
 
-      // utils to compute minutes worked per day
-      function diffMinutes(aIso: string, bIso: string) {
-        const a = new Date(aIso).getTime();
-        const b = new Date(bIso).getTime();
-        if (!isFinite(a) || !isFinite(b)) return 0;
-        return Math.max(0, Math.round((b - a) / 60000));
+      const allDTR = (dtrData || []) as Dtr[];
+      const allSeg = (segData || []) as Seg[];
+      const allDed = (dedData || []) as Ded[];
+
+      const dtrByEmp = new Map<string, Dtr[]>(),
+        segByEmp = new Map<string, Seg[]>(),
+        dedByEmp = new Map<string, Ded[]>();
+
+      for (const id of ids) {
+        dtrByEmp.set(id, []);
+        segByEmp.set(id, []);
+        dedByEmp.set(id, []);
       }
-      function workedMinutesFor(date: string): number {
-        const segs = segsByDate.get(date) || [];
-        let mins = 0;
+      for (const r of allDTR) dtrByEmp.get(r.employee_id)!.push(r);
+      for (const s of allSeg) segByEmp.get(String(s.employee_id))!.push(s);
+      for (const d of allDed) dedByEmp.get(d.employee_id)!.push(d);
+
+      const out: PayslipBundle[] = [];
+
+      for (const id of ids) {
+        const emp = emps.find((e) => e.id === id);
+        if (!emp) continue;
+
+        const dtrs = (dtrByEmp.get(id) || []).sort((a, b) =>
+          a.work_date.localeCompare(b.work_date),
+        );
+        const segs = segByEmp.get(id) || [];
+        const deds = dedByEmp.get(id) || [];
+
+        // maps
+        const segsByDate = new Map<string, Seg[]>();
         for (const s of segs) {
-          if (s.start_at && s.end_at) mins += diffMinutes(s.start_at, s.end_at);
+          if (!s.work_date) continue;
+          const arr = segsByDate.get(s.work_date) || [];
+          arr.push(s);
+          segsByDate.set(s.work_date, arr);
         }
-        if (mins > 0) return mins;
-        const r = dtrByDate.get(date);
-        if (r?.time_in && r?.time_out)
-          return diffMinutes(r.time_in, r.time_out);
-        return 0;
-      }
+        const dtrByDate = new Map<string, Dtr>();
+        for (const r of dtrs) dtrByDate.set(r.work_date, r);
 
-      // All relevant dates = union of dtr rows + segments
-      const allDatesSet = new Set<string>();
-      for (const r of dtrs) allDatesSet.add(r.work_date);
-      for (const s of segs) allDatesSet.add(s.work_date);
-      const presentDates = Array.from(allDatesSet)
-        .filter((d) => {
-          const r = dtrByDate.get(d);
-          return (
-            workedMinutesFor(d) > 0 ||
-            (r
-              ? isPresent({ time_in: r.time_in, time_out: r.time_out })
-              : false)
-          );
-        })
-        .sort();
-
-      // group deductions
-      const m = new Map<string, { total: number; count: number }>();
-      for (const d of deds) {
-        const key = (d.type || "other").toLowerCase();
-        const cur = m.get(key) || { total: 0, count: 0 };
-        cur.total += Number(d.amount || 0);
-        cur.count += 1;
-        m.set(key, cur);
-      }
-      const labelFor = (k: string) =>
-        k === "loan" ? "Loan" : k === "goods" ? "Goods" : "Other";
-      const dedGroups: DedGroup[] = Array.from(m.entries())
-        .map(([k, v]) => ({
-          label: labelFor(k),
-          total: v.total,
-          count: v.count,
-        }))
-        .filter((g) => g.total > 0);
-
-      // mixed-rate breakdown (client fallback) + date->rate map
-      let rateBreakdown: RateBucket[] = [];
-      const dateRate = new Map<string, number>();
-      if (presentDates.length > 0) {
-        try {
-          const { data: rateRows } = await supabase
-            .from("dtr_with_rates")
-            .select("work_date,daily_rate")
-            .eq("employee_id", id)
-            .in("work_date", presentDates)
-            .order("work_date", { ascending: true });
-
-          const map = new Map<number, string[]>();
-          (rateRows || []).forEach((row: any) => {
-            const rate = Number(row?.daily_rate ?? emp.rate_per_day ?? 0);
-            dateRate.set(row.work_date, rate);
-            if (!map.has(rate)) map.set(rate, []);
-            map.get(rate)!.push(row.work_date);
-          });
-
-          rateBreakdown = Array.from(map.entries()).map(([rate, dates]) => {
-            const sorted = dates.sort((a, b) => (a < b ? -1 : 1));
-            const days = sorted.length;
-            const total = rate * days;
-            return {
-              rate,
-              days,
-              total,
-              from: sorted[0],
-              to: sorted[sorted.length - 1],
-            };
-          });
-        } catch {
-          // ignore; we'll fallback to single rate if needed
+        // utils to compute minutes worked per day
+        function diffMinutes(aIso: string, bIso: string) {
+          const a = new Date(aIso).getTime();
+          const b = new Date(bIso).getTime();
+          if (!isFinite(a) || !isFinite(b)) return 0;
+          return Math.max(0, Math.round((b - a) / 60000));
         }
-      }
-
-      // Try API, but parse defensively and allow fallback
-      let basic = 0;
-      let apiUsed = false;
-      try {
-        const resp = await fetch("/api/payslip/daily", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            employeeId: id,
-            from: month + "-01",
-            to: end,
-            presentDays: presentDates,
-          }),
-        });
-
-        let json: any = {};
-        const raw = await resp.text();
-        try {
-          json = raw ? JSON.parse(raw) : {};
-        } catch {
-          // non-JSON -> fallback
+        function workedMinutesFor(date: string): number {
+          const segs = segsByDate.get(date) || [];
+          let mins = 0;
+          for (const s of segs) {
+            if (s.start_at && s.end_at) mins += diffMinutes(s.start_at, s.end_at);
+          }
+          if (mins > 0) return mins;
+          const r = dtrByDate.get(date);
+          if (r?.time_in && r?.time_out)
+            return diffMinutes(r.time_in, r.time_out);
+          return 0;
         }
 
-        if (resp.ok && json && json.gross != null) {
-          apiUsed = true;
-          basic = Number(json.gross || 0);
-          if (Array.isArray(json.spans)) {
-            rateBreakdown = json.spans.map((s: any) => ({
-              rate: Number(s.rate || 0),
-              days: Number(s.days || s.count || 0),
-              total: Number(
-                s.total || Number(s.rate || 0) * Number(s.days || s.count || 0),
-              ),
-              from: s.from || null,
-              to: s.to || null,
-            }));
-          } else if (Array.isArray(json.byRate)) {
-            rateBreakdown = json.byRate.map((b: any) => ({
-              rate: Number(b.rate || 0),
-              days: Number(b.days || 0),
-              total: Number(
-                b.total || Number(b.rate || 0) * Number(b.days || 0),
-              ),
-            }));
+        // All relevant dates = union of dtr rows + segments
+        const allDatesSet = new Set<string>();
+        for (const r of dtrs) allDatesSet.add(r.work_date);
+        for (const s of segs) allDatesSet.add(s.work_date);
+        const presentDates = Array.from(allDatesSet)
+          .filter((d) => {
+            const r = dtrByDate.get(d);
+            return (
+              workedMinutesFor(d) > 0 ||
+              (r
+                ? isPresent({ time_in: r.time_in, time_out: r.time_out })
+                : false)
+            );
+          })
+          .sort();
+
+        // group deductions
+        const m = new Map<string, { total: number; count: number }>();
+        for (const d of deds) {
+          const key = (d.type || "other").toLowerCase();
+          const cur = m.get(key) || { total: 0, count: 0 };
+          cur.total += Number(d.amount || 0);
+          cur.count += 1;
+          m.set(key, cur);
+        }
+        const labelFor = (k: string) =>
+          k === "loan" ? "Loan" : k === "goods" ? "Goods" : "Other";
+        const dedGroups: DedGroup[] = Array.from(m.entries())
+          .map(([k, v]) => ({
+            label: labelFor(k),
+            total: v.total,
+            count: v.count,
+          }))
+          .filter((g) => g.total > 0);
+
+        // mixed-rate breakdown (client fallback) + date->rate map
+        let rateBreakdown: RateBucket[] = [];
+        const dateRate = new Map<string, number>();
+        if (presentDates.length > 0) {
+          try {
+            const { data: rateRows } = await sb
+              .from("dtr_with_rates")
+              .select("work_date,daily_rate")
+              .eq("employee_id", id)
+              .in("work_date", presentDates)
+              .order("work_date", { ascending: true });
+
+            const map = new Map<number, string[]>();
+            (rateRows || []).forEach((row: any) => {
+              const rate = Number(row?.daily_rate ?? emp.rate_per_day ?? 0);
+              dateRate.set(row.work_date, rate);
+              if (!map.has(rate)) map.set(rate, []);
+              map.get(rate)!.push(row.work_date);
+            });
+
+            rateBreakdown = Array.from(map.entries()).map(([rate, dates]) => {
+              const sorted = dates.sort((a, b) => (a < b ? -1 : 1));
+              const days = sorted.length;
+              const total = rate * days;
+              return {
+                rate,
+                days,
+                total,
+                from: sorted[0],
+                to: sorted[sorted.length - 1],
+              };
+            });
+          } catch {
+            // ignore; we'll fallback to single rate if needed
           }
         }
-      } catch {
-        // swallow; fallback below
-      }
 
-      // ✅ Canonicalize basic: if breakdown totals > 0, prefer the sum (fixes "gross=0" API bug)
-      const basicFromBreakdown = rateBreakdown.reduce(
-        (s, b) =>
-          s + (Number(b.total) || Number(b.rate || 0) * Number(b.days || 0)),
-        0,
-      );
-      if (!apiUsed || basicFromBreakdown > 0) {
-        basic =
-          basicFromBreakdown ||
-          presentDates.length * Number(emp.rate_per_day || 0);
-        if (rateBreakdown.length === 0) {
-          rateBreakdown = [
-            {
-              rate: Number(emp.rate_per_day || 0),
-              days: presentDates.length,
-              total: basic,
-            },
-          ];
+        // Try API, but parse defensively and allow fallback
+        let basic = 0;
+        let apiUsed = false;
+        try {
+          const resp = await fetch("/api/payslip/daily", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              employeeId: id,
+              from: month + "-01",
+              to: end,
+              presentDays: presentDates,
+            }),
+          });
+
+          let json: any = {};
+          const raw = await resp.text();
+          try {
+            json = raw ? JSON.parse(raw) : {};
+          } catch {
+            // non-JSON -> fallback
+          }
+
+          if (resp.ok && json && json.gross != null) {
+            apiUsed = true;
+            basic = Number(json.gross || 0);
+            if (Array.isArray(json.spans)) {
+              rateBreakdown = json.spans.map((s: any) => ({
+                rate: Number(s.rate || 0),
+                days: Number(s.days || s.count || 0),
+                total: Number(
+                  s.total || Number(s.rate || 0) * Number(s.days || s.count || 0),
+                ),
+                from: s.from || null,
+                to: s.to || null,
+              }));
+            } else if (Array.isArray(json.byRate)) {
+              rateBreakdown = json.byRate.map((b: any) => ({
+                rate: Number(b.rate || 0),
+                days: Number(b.days || 0),
+                total: Number(
+                  b.total || Number(b.rate || 0) * Number(b.days || 0),
+                ),
+              }));
+            }
+          }
+        } catch {
+          // swallow; fallback below
         }
+
+        // ✅ Canonicalize basic: if breakdown totals > 0, prefer the sum (fixes "gross=0" API bug)
+        const basicFromBreakdown = rateBreakdown.reduce(
+          (s, b) =>
+            s + (Number(b.total) || Number(b.rate || 0) * Number(b.days || 0)),
+          0,
+        );
+        if (!apiUsed || basicFromBreakdown > 0) {
+          basic =
+            basicFromBreakdown ||
+            presentDates.length * Number(emp.rate_per_day || 0);
+          if (rateBreakdown.length === 0) {
+            rateBreakdown = [
+              {
+                rate: Number(emp.rate_per_day || 0),
+                days: presentDates.length,
+                total: basic,
+              },
+            ];
+          }
+        }
+
+        // OT & Late/UT
+        let totalOT = 0,
+          otPay = 0,
+          shortMins = 0,
+          shortVal = 0;
+
+        for (const d of presentDates) {
+          const eff = await resolveEffectiveShift(id, d);
+          const perDayStd = eff?.standard_minutes ?? fallbackStd;
+
+          const dayRate = dateRate.get(d) ?? emp.rate_per_day;
+          const perMinute = perDayStd > 0 ? dayRate / perDayStd : 0;
+
+          const worked = workedMinutesFor(d);
+          const regCapped = Math.min(worked, perDayStd);
+          const shortfall = Math.max(0, perDayStd - regCapped);
+          const otMins = Math.max(0, worked - perDayStd);
+
+          shortMins += shortfall;
+          shortVal += perMinute * shortfall;
+
+          totalOT += otMins;
+          otPay += perMinute * otMins * otMultiplier;
+        }
+
+        const otherDeds = dedGroups.reduce((s, g) => s + g.total, 0);
+        const gross = basic + otPay;
+        const totalDeductions =
+          (attMode === "DEDUCTION" ? shortVal : 0) + otherDeds;
+        const net = Math.max(0, gross - totalDeductions);
+
+        const presentDays = presentDates.length;
+        const hasDTR = presentDays > 0;
+        const hasDed = otherDeds > 0;
+        if (employeeId === "ALL" && !hasDTR && !hasDed) continue;
+
+        out.push({
+          emp,
+          month,
+          dtrs,
+          segs,
+          dedGroups,
+          rateBreakdown,
+          summary: {
+            basic,
+            otPay,
+            gross,
+            shortMins,
+            shortVal,
+            otherDeds,
+            totalDeductions,
+            net,
+            presentDays,
+            totalOT,
+          },
+        });
       }
 
-      // OT & Late/UT
-      let totalOT = 0,
-        otPay = 0,
-        shortMins = 0,
-        shortVal = 0;
-
-      for (const d of presentDates) {
-        const eff = await resolveEffectiveShift(id, d);
-        const perDayStd = eff?.standard_minutes ?? fallbackStd;
-
-        const dayRate = dateRate.get(d) ?? emp.rate_per_day;
-        const perMinute = perDayStd > 0 ? dayRate / perDayStd : 0;
-
-        const worked = workedMinutesFor(d);
-        const regCapped = Math.min(worked, perDayStd);
-        const shortfall = Math.max(0, perDayStd - regCapped);
-        const otMins = Math.max(0, worked - perDayStd);
-
-        shortMins += shortfall;
-        shortVal += perMinute * shortfall;
-
-        totalOT += otMins;
-        otPay += perMinute * otMins * otMultiplier;
-      }
-
-      const otherDeds = dedGroups.reduce((s, g) => s + g.total, 0);
-      const gross = basic + otPay;
-      const totalDeductions =
-        (attMode === "DEDUCTION" ? shortVal : 0) + otherDeds;
-      const net = Math.max(0, gross - totalDeductions);
-
-      const presentDays = presentDates.length;
-      const hasDTR = presentDays > 0;
-      const hasDed = otherDeds > 0;
-      if (employeeId === "ALL" && !hasDTR && !hasDed) continue;
-
-      out.push({
-        emp,
-        month,
-        dtrs,
-        segs,
-        dedGroups,
-        rateBreakdown,
-        summary: {
-          basic,
-          otPay,
-          gross,
-          shortMins,
-          shortVal,
-          otherDeds,
-          totalDeductions,
-          net,
-          presentDays,
-          totalOT,
-        },
-      });
+      setBundles(out);
+    } catch (error) {
+      setErr(
+        error instanceof Error ? error.message : "Failed to build payslips.",
+      );
+    } finally {
+      setLoading(false);
     }
-
-    setBundles(out);
-    setLoading(false);
   }
 
   function downloadPDF() {
@@ -1141,6 +1211,10 @@ export default function PayslipPage() {
   return (
     <div className="wrap">
       <h1 className="h1">Payslip</h1>
+
+      {err && (
+        <div className="alert">{err}</div>
+      )}
 
       <div className="controls no-print">
         <select
@@ -1238,6 +1312,13 @@ export default function PayslipPage() {
           background: ${C.surface};
           color: ${C.brandDark};
           border: 1px solid ${C.brand};
+        }
+        .alert {
+          margin-bottom: 12px;
+          padding: 8px 12px;
+          border-radius: 8px;
+          background: #fee2e2;
+          color: #991b1b;
         }
         .note {
           margin-left: auto;

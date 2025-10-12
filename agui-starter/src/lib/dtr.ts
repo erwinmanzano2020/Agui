@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 /** Row shape we care about from dtr_entries */
 export type DtrRow = {
@@ -18,8 +18,18 @@ export async function fetchDtrRange(opts: {
 }): Promise<DtrRow[]> {
   const { employeeId, start, end } = opts;
 
+  const sb = getSupabase();
+  if (!sb) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn(
+        "Supabase client not available when fetching DTR range. Returning empty list.",
+      );
+    }
+    return [];
+  }
+
   // IMPORTANT: inclusive range (>= start AND <= end)
-  const { data, error } = await supabase
+  const { data, error } = await sb
     .from("dtr_entries")
     .select(
       "employee_id, work_date, time_in, time_out, minutes_regular, minutes_ot",
