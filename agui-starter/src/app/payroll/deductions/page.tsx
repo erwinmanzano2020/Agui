@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 type Emp = { id: string; full_name: string; code: string };
 type Ded = {
@@ -53,7 +53,14 @@ export default function DeductionsPage() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
+      const sb = getSupabase();
+      if (!sb) {
+        console.error("Supabase not configured");
+        setEmps([]);
+        return;
+      }
+
+      const { data } = await sb
         .from("employees")
         .select("id, full_name, code")
         .neq("status", "archived")
@@ -69,7 +76,14 @@ export default function DeductionsPage() {
     setLoading(true);
     const { from, to } = monthRange(monthISO);
 
-    const { data, error } = await supabase
+    const sb = getSupabase();
+    if (!sb) {
+      console.error("Supabase not configured");
+      setLoading(false);
+      return;
+    }
+
+    const { data, error } = await sb
       .from("payroll_deductions")
       .select("id, employee_id, effective_date, type, note, amount")
       .eq("employee_id", empId)
@@ -91,7 +105,13 @@ export default function DeductionsPage() {
     const amt = Number(amountIn || 0);
     if (Number.isNaN(amt) || amt <= 0) return;
 
-    const { error } = await supabase.from("payroll_deductions").insert([
+    const sb = getSupabase();
+    if (!sb) {
+      console.error("Supabase not configured");
+      return;
+    }
+
+    const { error } = await sb.from("payroll_deductions").insert([
       {
         employee_id: empId,
         effective_date: dateIn, // YYYY-MM-DD
@@ -108,7 +128,13 @@ export default function DeductionsPage() {
   }
 
   async function editDed(id: string, patch: Partial<Ded>) {
-    const { error } = await supabase
+    const sb = getSupabase();
+    if (!sb) {
+      console.error("Supabase not configured");
+      return;
+    }
+
+    const { error } = await sb
       .from("payroll_deductions")
       .update(patch)
       .eq("id", id);
@@ -116,7 +142,13 @@ export default function DeductionsPage() {
   }
 
   async function deleteDed(id: string) {
-    const { error } = await supabase
+    const sb = getSupabase();
+    if (!sb) {
+      console.error("Supabase not configured");
+      return;
+    }
+
+    const { error } = await sb
       .from("payroll_deductions")
       .delete()
       .eq("id", id);

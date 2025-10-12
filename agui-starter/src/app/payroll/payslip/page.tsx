@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { resolveEffectiveShift } from "@/lib/shifts";
 import { isPresent } from "@/lib/dtr";
 
@@ -799,14 +799,21 @@ export default function PayslipPage() {
 
   useEffect(() => {
     (async () => {
-      const { data: empData } = await supabase
+      const sb = getSupabase();
+      if (!sb) {
+        console.error("Supabase not configured");
+        setEmps([]);
+        return;
+      }
+
+      const { data: empData } = await sb
         .from("employees")
         .select("id, code, full_name, rate_per_day")
         .neq("status", "archived")
         .order("full_name");
       setEmps(empData || []);
 
-      const { data: setData } = await supabase
+      const { data: setData } = await sb
         .from("settings_payroll")
         .select("standard_minutes_per_day, ot_multiplier, attendance_mode")
         .eq("id", 1)
@@ -839,9 +846,16 @@ export default function PayslipPage() {
     const { from } = monthRange(month);
     const end = monthEnd(month); // inclusive
 
+    const sb = getSupabase();
+    if (!sb) {
+      console.error("Supabase not configured");
+      setLoading(false);
+      return;
+    }
+
     const [{ data: dtrData }, { data: segData }, { data: dedData }] =
       await Promise.all([
-        supabase
+        sb
           .from("dtr_entries")
           .select(
             "employee_id, work_date, time_in, time_out, minutes_regular, minutes_ot",
@@ -850,7 +864,7 @@ export default function PayslipPage() {
           .gte("work_date", from)
           .lte("work_date", end)
           .order("work_date", { ascending: true }),
-        supabase
+        sb
           .from("dtr_segments")
           .select("employee_id, work_date, start_at, end_at")
           .in("employee_id", ids)
@@ -858,7 +872,7 @@ export default function PayslipPage() {
           .lte("work_date", end)
           .order("work_date", { ascending: true })
           .order("start_at", { ascending: true }),
-        supabase
+        sb
           .from("payroll_deductions")
           .select("employee_id, effective_date, amount, type")
           .in("employee_id", ids)
@@ -966,7 +980,7 @@ export default function PayslipPage() {
       const dateRate = new Map<string, number>();
       if (presentDates.length > 0) {
         try {
-          const { data: rateRows } = await supabase
+          const { data: rateRows } = await sb
             .from("dtr_with_rates")
             .select("work_date,daily_rate")
             .eq("employee_id", id)

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 
 type EmployeeRow = {
   id: string;
@@ -21,7 +21,14 @@ export default function EmployeesPage() {
   const load = async () => {
     setErr(null);
     setLoading(true);
-    const { data, error } = await supabase
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase not configured");
+      setRows([]);
+      setLoading(false);
+      return;
+    }
+    const { data, error } = await sb
       .from("employees")
       .select("id, code, full_name, status, rate_per_day")
       .order("full_name", { ascending: true });
@@ -38,7 +45,13 @@ export default function EmployeesPage() {
   const archive = async (id: string) => {
     setBusy(true);
     setErr(null);
-    const { error } = await supabase
+    const sb = getSupabase();
+    if (!sb) {
+      setErr("Supabase not configured");
+      setBusy(false);
+      return;
+    }
+    const { error } = await sb
       .from("employees")
       .update({ status: "archived" })
       .eq("id", id);

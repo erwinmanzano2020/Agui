@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { resolveEffectiveShift } from "@/lib/shifts";
 
 /** ======= EDIT THIS TO CHANGE HEADER NAME ======= */
@@ -140,13 +140,20 @@ export default function PayslipBulkPage() {
   // Load employees + settings once
   useEffect(() => {
     (async () => {
+      const sb = getSupabase();
+      if (!sb) {
+        console.error("Supabase not configured");
+        setEmps([]);
+        return;
+      }
+
       const [{ data: empData }, { data: setData }] = await Promise.all([
-        supabase
+        sb
           .from("employees")
           .select("id, code, full_name, rate_per_day, status")
           .neq("status", "archived")
           .order("full_name"),
-        supabase
+        sb
           .from("settings_payroll")
           .select("standard_minutes_per_day, ot_multiplier, attendance_mode")
           .eq("id", 1)
@@ -171,9 +178,16 @@ export default function PayslipBulkPage() {
     setLoading(true);
     const { from, toNext } = monthRange(month);
 
+    const sb = getSupabase();
+    if (!sb) {
+      console.error("Supabase not configured");
+      setLoading(false);
+      return;
+    }
+
     // Pull all rows for the month (for all active employees)
     const [dtrQ, segQ, dedQ] = await Promise.all([
-      supabase
+      sb
         .from("dtr_entries")
         .select(
           "employee_id, work_date, time_in, time_out, minutes_regular, minutes_ot",
@@ -182,7 +196,7 @@ export default function PayslipBulkPage() {
         .lt("work_date", toNext)
         .order("employee_id")
         .order("work_date"),
-      supabase
+      sb
         .from("dtr_segments")
         .select("employee_id, work_date, start_at, end_at")
         .gte("work_date", from)
@@ -190,7 +204,7 @@ export default function PayslipBulkPage() {
         .order("employee_id")
         .order("work_date")
         .order("start_at", { ascending: true }),
-      supabase
+      sb
         .from("payroll_deductions")
         .select("employee_id, effective_date, amount, note, type")
         .gte("effective_date", from)

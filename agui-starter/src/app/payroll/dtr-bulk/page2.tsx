@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { getSupabase } from "@/lib/supabase";
 import { resolveEffectiveShift } from "@/lib/shifts";
 import {
   computeMinutes,
@@ -39,7 +39,14 @@ export default function DtrBulkPage() {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
+      const sb = getSupabase();
+      if (!sb) {
+        setMsg("Supabase not configured");
+        setEmps([]);
+        return;
+      }
+
+      const { data } = await sb
         .from("employees")
         .select("id, code, full_name")
         .neq("status", "archived")
@@ -68,7 +75,14 @@ export default function DtrBulkPage() {
 
     const first = isoDate(ym, 1);
     const last = isoDate(ym, maxDay);
-    const { data: segs, error } = await supabase
+    const sb = getSupabase();
+    if (!sb) {
+      setLoading(false);
+      setMsg("Supabase not configured");
+      return;
+    }
+
+    const { data: segs, error } = await sb
       .from("dtr_segments")
       .select("work_date, start_at, end_at")
       .eq("employee_id", empId)
@@ -139,13 +153,20 @@ export default function DtrBulkPage() {
     const dayErrors: string[] = [];
     let savedCount = 0;
 
+    const sb = getSupabase();
+    if (!sb) {
+      setMsg("Supabase not configured");
+      setLoading(false);
+      return;
+    }
+
     for (let d = 1; d <= maxDay; d += 1) {
       const cell = grid[d];
       const date = isoDate(ym, d);
 
       try {
         // Replace that day's segments: delete then insert up to two finished segments
-        const del = await supabase
+        const del = await sb
           .from("dtr_segments")
           .delete()
           .eq("employee_id", empId)
@@ -170,12 +191,12 @@ export default function DtrBulkPage() {
           });
         }
         if (inserts.length > 0) {
-          const ins = await supabase.from("dtr_segments").insert(inserts);
+          const ins = await sb.from("dtr_segments").insert(inserts);
           if (ins.error) throw ins.error;
         }
 
         // Read back segments we just saved
-        const { data: segs2, error: segErr } = await supabase
+        const { data: segs2, error: segErr } = await sb
           .from("dtr_segments")
           .select("start_at, end_at")
           .eq("employee_id", empId)
@@ -191,7 +212,7 @@ export default function DtrBulkPage() {
           segList.filter((s) => !!s.end_at).slice(-1)[0]?.end_at ?? null;
 
         if (!firstInISO || !lastOutISO) {
-          const up0 = await supabase.from("dtr_entries").upsert(
+          const up0 = await sb.from("dtr_entries").upsert(
             {
               employee_id: empId,
               work_date: date,
@@ -219,7 +240,7 @@ export default function DtrBulkPage() {
         const late = computeLateMinutes(date, timeIn, shift);
         const und = computeUndertimeMinutes(date, timeOut, shift);
 
-        const up = await supabase.from("dtr_entries").upsert(
+        const up = await sb.from("dtr_entries").upsert(
           {
             employee_id: empId,
             work_date: date,
