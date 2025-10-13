@@ -1,33 +1,33 @@
+// agui-starter/src/app/layout.tsx
 import "./globals.css";
-import type { Metadata } from "next";
+import type { CSSProperties, ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
-import { AppShell } from "../components/layout/app-shell";
+import { AppShell } from "@/components/layout/app-shell";
+import ThemeProvider from "@/app/providers/theme-provider";
+import { loadUiConfig } from "@/lib/ui-config";
+import { themeToCssVars } from "@/lib/theme-css";
 
 const geistSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
-const geistMono = Geist_Mono({
-  subsets: ["latin"],
-  variable: "--font-geist-mono",
-});
+const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "Agui",
-  description: "Agui ERP",
+  description: "Agui — Open-World RPG ERP",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default async function RootLayout({ children }: { children: ReactNode }) {
+  const { theme } = await loadUiConfig();
+  const styleVars = themeToCssVars(theme) as CSSProperties;
+
   return (
-    <html lang="en">
-      {/* Grammarly and some extensions add attributes to <body> pre-hydration.
-          This prevents mismatch warnings in dev. */}
+    <html lang="en" style={styleVars}>
       <body
         suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <AppShell>{children}</AppShell>
+        <ThemeProvider theme={theme}>
+          <AppShell>{children}</AppShell>
+        </ThemeProvider>
       </body>
     </html>
   );

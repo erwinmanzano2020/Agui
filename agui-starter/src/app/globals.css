@@ -38,10 +38,24 @@
 
 /* --- Base defaults using our tokens --- */
 @layer base {
-  html, body { @apply bg-background text-foreground antialiased; }
+  html,
+  body {
+    background-color: var(--agui-surface);
+    color: var(--agui-on-surface);
+    font-feature-settings: "liga" 1, "kern" 1;
+    -webkit-font-smoothing: antialiased;
+  }
   h1 { @apply text-2xl font-semibold; }
   h2 { @apply text-xl font-semibold; }
-  a  { @apply text-brand underline-offset-2 hover:underline; }
+  a {
+    color: var(--agui-accent);
+    text-decoration: none;
+    text-underline-offset: 0.25em;
+    transition: color 0.2s ease;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
 }
 
 /* --- Utilities for shadows (custom, v4-safe) --- */
@@ -86,20 +100,29 @@
   .btn {
     @apply inline-flex items-center justify-center px-4 py-2 font-medium transition
            disabled:opacity-60 disabled:pointer-events-none;
-    border-radius: var(--radius-2xl);
+    border-radius: var(--agui-radius);
     box-shadow: var(--shadow-soft);
+    color: inherit;
   }
 
   /* Variants (use together with .btn) */
   .btn-primary {
-    @apply bg-brand text-brand-foreground;
+    background: var(--agui-primary);
+    color: var(--agui-on-primary);
   }
   .btn-primary:hover {
     box-shadow: var(--shadow-lifted);
+    filter: brightness(0.95);
   }
 
   .btn-ghost {
-    @apply bg-transparent hover:bg-muted;
+    background: color-mix(in srgb, var(--agui-surface) 90%, var(--agui-on-surface) 10%);
+    border: 1px solid
+      color-mix(in srgb, var(--agui-surface-border) 60%, transparent);
+    color: var(--agui-on-surface);
+  }
+  .btn-ghost:hover {
+    background: color-mix(in srgb, var(--agui-surface) 82%, var(--agui-on-surface) 18%);
   }
 
   /* Centered container with padding and 2xl cap */
@@ -113,4 +136,20 @@
 *:focus-visible {
   outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
+}
+
+:root {
+  --agui-primary: #3c7cae;
+  --agui-surface: #0b0b0b;
+  --agui-accent: #06b6d4;
+  --agui-radius: 12px;
+  --agui-on-primary: #f8fafc;
+  --agui-on-surface: #f8fafc;
+  --agui-on-accent: #022c36;
+  --agui-card: #111827;
+  --agui-card-border: rgba(255, 255, 255, 0.12);
+  --agui-card-foreground: #f8fafc;
+  --agui-surface-elevated: #141e2a;
+  --agui-surface-border: rgba(255, 255, 255, 0.16);
+  --agui-muted-foreground: #94a3b8;
 }
