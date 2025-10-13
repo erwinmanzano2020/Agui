@@ -1,58 +1,67 @@
-import { loadUiConfig } from "@/lib/ui-config";
-import { ModuleCard } from "@/components/ui/module-card";
+"use client";
 
-export const metadata = {
-  title: "Agui Hub",
+import { useEffect, useState } from "react";
+
+type UiModule = { key: string; label?: string; enabled: boolean };
+type UiConfig = {
+  theme?: { brand?: string };
+  modules?: UiModule[];
 };
 
-export default async function AguiHub() {
-  const { theme, toggles } = await loadUiConfig();
+export default function AguiPage() {
+  const [cfg, setCfg] = useState<UiConfig | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch("/api/ui/config")
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data) => setCfg(data))
+      .catch((e) => setErr(String(e)));
+  }, []);
 
   return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Agui Hub</h1>
-        <p className="text-sm opacity-75">
-          Your open-world RPG ERP. Theme & toggles are live from Supabase.
-        </p>
-        <div className="text-xs opacity-70">
-          Primary: <code>{theme.primary_hex}</code> • Accent:{" "}
-          <code>{theme.accent}</code> • Radius: <code>{theme.radius}px</code>
-        </div>
+    <main className="p-6 space-y-6">
+      <header className="flex items-baseline justify-between">
+        <h1 className="text-3xl font-bold">Agui</h1>
+        {cfg?.theme?.brand && (
+          <span className="text-sm opacity-70">Theme: {cfg.theme.brand}</span>
+        )}
       </header>
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <ModuleCard
-          name="Employees"
-          subtitle="Guild roster"
-          href="/employees"
-          enabled={!!toggles.employees}
-        />
-        <ModuleCard
-          name="Shifts"
-          subtitle="Shift templates"
-          href="/shifts"
-          enabled={!!toggles.shifts}
-        />
-        <ModuleCard
-          name="Payroll"
-          subtitle="Payslip & preview"
-          href="/payroll"
-          enabled={!!toggles.payroll}
-        />
-        <ModuleCard
-          name="POS"
-          subtitle="Point of sale"
-          href="/pos"
-          enabled={!!toggles.pos}
-        />
-        <ModuleCard
-          name="Settings"
-          subtitle="Theme & modules"
-          href="/settings"
-          enabled={true}
-        />
-      </section>
-    </div>
+      {err && (
+        <p className="text-red-600">
+          Failed to load UI config: <span className="font-mono">{err}</span>
+        </p>
+      )}
+
+      {!cfg && !err && <p className="opacity-70">Loading…</p>}
+
+      {cfg && (
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {(cfg.modules ?? [])
+            .filter((m) => m.enabled)
+            .map((m) => (
+              <div
+                key={m.key}
+                className="rounded-2xl border p-4 shadow-sm hover:shadow-md transition"
+              >
+                <h2 className="font-semibold text-lg">
+                  {m.label ?? m.key.replace(/[-_]/g, " ")}
+                </h2>
+                <p className="text-sm opacity-70">Module enabled</p>
+              </div>
+            ))}
+
+          {(cfg.modules ?? []).every((m) => !m.enabled) && (
+            <p className="opacity-70">
+              No modules enabled. Go to <span className="font-mono">/settings</span> to turn modules on.
+            </p>
+          )}
+        </section>
+      )}
+    </main>
   );
 }

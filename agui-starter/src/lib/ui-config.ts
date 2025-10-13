@@ -8,6 +8,12 @@ export type UiTheme = {
   radius: number;
 };
 
+<<<<<<< HEAD
+// ✅ Add this alias so theme-provider’s import works
+export type ThemeConfig = UiTheme;
+
+=======
+>>>>>>> origin/develop
 export type UiToggles = {
   payroll: boolean;
   employees: boolean;
