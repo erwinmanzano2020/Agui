@@ -1,63 +1,36 @@
-// agui-starter/src/lib/ui-config.ts
-import { getSupabase } from "./supabase";
-
-export type UiTheme = {
-  primary_hex: string;
-  surface: string;
-  accent: string;
-  radius: number;
-};
-
-<<<<<<< HEAD
-// ✅ Add this alias so theme-provider’s import works
-export type ThemeConfig = UiTheme;
-
-=======
->>>>>>> origin/develop
-export type UiToggles = {
-  payroll: boolean;
-  employees: boolean;
-  shifts: boolean;
-  pos: boolean;
-};
+export type UiModuleKey =
+  | "payroll"
+  | "employees"
+  | "dtrBulk"
+  | "payslip"
+  | "preview"
+  | "summary"
+  | "shifts";
 
 export type UiConfig = {
-  theme: UiTheme;
-  toggles: UiToggles;
+  theme: {
+    name: string; // e.g., "pastel-green"
+    primary: string; // hex
+  };
+  modules: Record<UiModuleKey, { enabled: boolean; experimental?: boolean }>;
 };
 
-const DEFAULT: UiConfig = {
-  theme: {
-    primary_hex: "#3c7cae",
-    surface: "#0b0b0b",
-    accent: "#06b6d4",
-    radius: 12,
+export const uiConfig: UiConfig = {
+  theme: { name: "pastel-green", primary: "#c8e1cc" },
+  modules: {
+    payroll: { enabled: true },
+    employees: { enabled: true },
+    dtrBulk: { enabled: true },
+    payslip: { enabled: true },
+    preview: { enabled: true },
+    summary: { enabled: true },
+    shifts: { enabled: true },
   },
-  toggles: { payroll: true, employees: true, shifts: true, pos: false },
 };
+
+export type ThemeConfig = UiConfig["theme"];
+export type UiModules = UiConfig["modules"];
 
 export async function loadUiConfig(): Promise<UiConfig> {
-  const sb = getSupabase();
-  if (!sb) {
-    console.warn("Supabase not available; using default UI config.");
-    return DEFAULT;
-  }
-
-  const [{ data: themeRows, error: tErr }, { data: toggleRows, error: gErr }] =
-    await Promise.all([
-      sb.from("agui_theme_view").select("primary_hex,surface,accent,radius").limit(1),
-      sb.from("agui_toggles").select("payroll,employees,shifts,pos").eq("id", 1).limit(1),
-    ]);
-
-  if (tErr || gErr) {
-    console.warn("UI config query error:", tErr ?? gErr);
-    return DEFAULT;
-  }
-
-  const theme = themeRows?.[0];
-  const toggles = toggleRows?.[0];
-
-  if (!theme || !toggles) return DEFAULT;
-
-  return { theme, toggles };
+  return uiConfig;
 }

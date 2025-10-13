@@ -40,8 +40,8 @@ export default function DebugShiftPage() {
 
       const eff = await resolveEffectiveShift(empId, date);
       setResult(eff);
-    } catch (e: any) {
-      setError(e?.message || "Unknown error");
+    } catch (error: unknown) {
+      setError(error instanceof Error ? error.message : "Unknown error");
     } finally {
       setLoading(false);
     }

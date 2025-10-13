@@ -14,9 +14,11 @@ type Shift = {
   standard_minutes: number | null;
 };
 
+type ShiftForm = Omit<Shift, "id">;
+
 export default function ShiftsPageClient() {
   const [rows, setRows] = useState<Shift[]>([]);
-  const [f, setF] = useState({
+  const [f, setF] = useState<ShiftForm>({
     code: "",
     name: "",
     start_time: "07:00",
@@ -59,7 +61,7 @@ export default function ShiftsPageClient() {
       setBusy(false);
       return;
     }
-    const { error } = await sb.from("shifts").insert(f as any);
+    const { error } = await sb.from("shifts").insert(f);
     setBusy(false);
     if (error) {
       setErr(error.message);

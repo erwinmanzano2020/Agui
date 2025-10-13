@@ -31,7 +31,7 @@ export async function addEmployeeRate(
   },
 ): Promise<void> {
   const { error } = await db.from("employee_rate_history").insert({
-    employee_id: input.employee_id as any, // keep type-flexible (uuid/int)
+    employee_id: input.employee_id,
     effective_date: input.effective_date,
     basis: input.basis,
     amount: input.amount,

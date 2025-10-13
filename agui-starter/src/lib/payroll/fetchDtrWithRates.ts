@@ -22,7 +22,7 @@ export async function fetchDtrWithRates(
     .order("work_date", { ascending: true });
 
   if (params.employeeId !== undefined) {
-    q = q.eq("employee_id", params.employeeId as any);
+    q = q.eq("employee_id", params.employeeId);
   }
 
   const { data, error } = await q;

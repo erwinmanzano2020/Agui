@@ -1,6 +1,4 @@
 "use client";
-import PayslipDailyBlock from "@/app/(components)/PayslipDailyBlock";
-
 import React from "react";
 
 type Row = {
@@ -15,6 +13,25 @@ type ApiRes = {
   gross: number;
   breakdown: Row[];
 };
+
+function isApiRes(value: unknown): value is ApiRes {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return (
+    record.basis === "daily" &&
+    typeof record.daysPresent === "number" &&
+    typeof record.gross === "number" &&
+    Array.isArray(record.breakdown) &&
+    record.breakdown.every((row) =>
+      row &&
+      typeof row === "object" &&
+      typeof (row as Record<string, unknown>).date === "string" &&
+      typeof (row as Record<string, unknown>).rate === "number" &&
+      typeof (row as Record<string, unknown>).isPresent === "boolean" &&
+      typeof (row as Record<string, unknown>).pay === "number",
+    )
+  );
+}
 
 export default function DebugPayslipDaily() {
   const [employeeId, setEmployeeId] = React.useState<string>("");
@@ -45,14 +62,24 @@ export default function DebugPayslipDaily() {
         body: JSON.stringify({ employeeId, from, to, presentDays: pd }),
       });
 
-      const json = await r.json().catch(() => null);
+      const json: unknown = await r.json().catch(() => null);
       if (!r.ok) {
-        const msg = json?.error || json?.detail || `HTTP ${r.status}`;
+        const message =
+          typeof json === "object" && json && "error" in json
+            ? String((json as Record<string, unknown>).error)
+            : typeof json === "object" && json && "detail" in json
+              ? String((json as Record<string, unknown>).detail)
+              : `HTTP ${r.status}`;
+        const msg = message || `HTTP ${r.status}`;
         throw new Error(msg);
       }
-      setRes(json as any);
-    } catch (e: any) {
-      setErr(e?.message ?? "Failed");
+      if (isApiRes(json)) {
+        setRes(json);
+      } else {
+        throw new Error("Invalid response payload");
+      }
+    } catch (error: unknown) {
+      setErr(error instanceof Error ? error.message : "Failed");
     } finally {
       setLoading(false);
     }

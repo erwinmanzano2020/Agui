@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 
 type Emp = { id: string; full_name: string; code: string };
@@ -83,7 +83,7 @@ export default function PayrollDeductionsPageClient() {
           setEmps((data || []) as Emp[]);
           if (data && data[0]) setEmpId(data[0].id);
         }
-      } catch (error) {
+      } catch (error: unknown) {
         if (!cancelled)
           setErr(
             error instanceof Error
@@ -98,7 +98,7 @@ export default function PayrollDeductionsPageClient() {
     };
   }, []);
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!empId) return;
     setErr(null);
     setLoading(true);
@@ -124,7 +124,7 @@ export default function PayrollDeductionsPageClient() {
 
       if (error) throw error;
       setRows((data || []) as Ded[]);
-    } catch (error) {
+    } catch (error: unknown) {
       setErr(
         error instanceof Error
           ? error.message
@@ -134,11 +134,11 @@ export default function PayrollDeductionsPageClient() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [empId, monthISO]);
 
   useEffect(() => {
     void load();
-  }, [empId, monthISO]);
+  }, [load]);
 
   async function addDed() {
     if (!empId) return;
@@ -166,7 +166,7 @@ export default function PayrollDeductionsPageClient() {
       setAmountIn("0");
       setNoteIn("");
       await load();
-    } catch (error) {
+    } catch (error: unknown) {
       setErr(
         error instanceof Error
           ? error.message
@@ -190,7 +190,7 @@ export default function PayrollDeductionsPageClient() {
         .eq("id", id);
       if (error) throw error;
       await load();
-    } catch (error) {
+    } catch (error: unknown) {
       setErr(
         error instanceof Error
           ? error.message
@@ -214,7 +214,7 @@ export default function PayrollDeductionsPageClient() {
         .eq("id", id);
       if (error) throw error;
       await load();
-    } catch (error) {
+    } catch (error: unknown) {
       setErr(
         error instanceof Error
           ? error.message

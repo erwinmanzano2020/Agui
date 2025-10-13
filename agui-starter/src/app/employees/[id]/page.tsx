@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
 import EditEmployeeDrawer from "../_components/EditEmployeeDrawer";
+
+import type { Employee as EmployeeRecord } from "@/lib/types";
 
 type Shift = {
   id: string;
@@ -13,10 +15,23 @@ type Shift = {
   end_time?: string | null;
 };
 
-type Employee = {
-  code: string;
-  full_name: string;
-  rate_per_day: number;
+type Employee = Pick<EmployeeRecord, "code" | "full_name" | "rate_per_day">;
+
+type WeeklyShiftRow = { day_of_week: number; shift_id: string | null };
+type OverrideRow = {
+  date: string;
+  shift_id: string | null;
+  shifts: { name: string | null } | { name: string | null }[] | null;
+};
+
+const EMPTY_WEEK: Record<number, string | null> = {
+  1: null,
+  2: null,
+  3: null,
+  4: null,
+  5: null,
+  6: null,
+  7: null,
 };
 
 const UI_DAYS = [
@@ -36,15 +51,9 @@ export default function EmployeeSchedulePage() {
 
   const [emp, setEmp] = useState<Employee | null>(null);
   const [shifts, setShifts] = useState<Shift[]>([]);
-  const [weekly, setWeekly] = useState<Record<number, string | null>>({
-    1: null,
-    2: null,
-    3: null,
-    4: null,
-    5: null,
-    6: null,
-    7: null,
-  });
+  const [weekly, setWeekly] = useState<Record<number, string | null>>(
+    () => ({ ...EMPTY_WEEK }),
+  );
 
   const [overrides, setOverrides] = useState<
     Array<{ date: string; shift_name: string | null }>
@@ -60,7 +69,7 @@ export default function EmployeeSchedulePage() {
     "profile" | "compensation" | "audit"
   >("profile");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     if (!employeeId) return;
     setErr(null);
 
@@ -69,7 +78,7 @@ export default function EmployeeSchedulePage() {
       setErr("Supabase not configured");
       setEmp(null);
       setShifts([]);
-      setWeekly({ 1: null, 2: null, 3: null, 4: null, 5: null, 6: null, 7: null });
+      setWeekly({ ...EMPTY_WEEK });
       setOverrides([]);
       return;
     }
@@ -94,17 +103,10 @@ export default function EmployeeSchedulePage() {
       .select("day_of_week, shift_id")
       .eq("employee_id", employeeId);
     if (weekRes.error) setErr((p) => p ?? weekRes.error?.message ?? null);
-    const map: Record<number, string | null> = {
-      1: null,
-      2: null,
-      3: null,
-      4: null,
-      5: null,
-      6: null,
-      7: null,
-    };
-    (weekRes.data ?? []).forEach((r: any) => {
-      map[r.day_of_week] = r.shift_id;
+    const weeklyRows = (weekRes.data ?? []) as WeeklyShiftRow[];
+    const map: Record<number, string | null> = { ...EMPTY_WEEK };
+    weeklyRows.forEach((row) => {
+      map[row.day_of_week] = row.shift_id ?? null;
     });
     setWeekly(map);
 
@@ -114,17 +116,20 @@ export default function EmployeeSchedulePage() {
       .eq("employee_id", employeeId)
       .order("date", { ascending: true });
     if (ovrRes.error) setErr((p) => p ?? ovrRes.error?.message ?? null);
-    const ov = (ovrRes.data ?? []).map((r: any) => ({
-      date: r.date,
-      shift_name: r.shifts?.name ?? null,
-    }));
+    const overrideRows = (ovrRes.data ?? []) as OverrideRow[];
+    const ov = overrideRows.map((row) => {
+      const shift = Array.isArray(row.shifts) ? row.shifts[0] : row.shifts;
+      return {
+        date: row.date,
+        shift_name: shift?.name ?? null,
+      };
+    });
     setOverrides(ov);
-  };
+  }, [employeeId]);
 
   useEffect(() => {
-    load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [employeeId]);
+    void load();
+  }, [load]);
 
   // Auto-open drawer via query: ?edit=1&tab=comp
   useEffect(() => {
@@ -147,12 +152,12 @@ export default function EmployeeSchedulePage() {
         !e.metaKey &&
         !e.altKey
       ) {
-        const el = e.target as HTMLElement | null;
-        const tag = el?.tagName;
+        const target = e.target;
         const isEditable =
-          tag === "INPUT" ||
-          tag === "TEXTAREA" ||
-          (el as any)?.isContentEditable === true;
+          target instanceof HTMLElement &&
+          (target.tagName === "INPUT" ||
+            target.tagName === "TEXTAREA" ||
+            target.isContentEditable);
         if (!isEditable) {
           e.preventDefault();
           setDrawerTab("profile");
@@ -181,8 +186,8 @@ export default function EmployeeSchedulePage() {
         );
       if (error) throw error;
       await load();
-    } catch (e: any) {
-      setErr(e?.message ?? "Failed to save day.");
+    } catch (error: unknown) {
+      setErr(error instanceof Error ? error.message : "Failed to save day.");
     } finally {
       setBusy(false);
     }
@@ -210,8 +215,10 @@ export default function EmployeeSchedulePage() {
       setOvrDate("");
       setOvrShift("");
       await load();
-    } catch (e: any) {
-      setErr(e?.message ?? "Failed to save override.");
+    } catch (error: unknown) {
+      setErr(
+        error instanceof Error ? error.message : "Failed to save override.",
+      );
     } finally {
       setBusy(false);
     }
@@ -233,8 +240,10 @@ export default function EmployeeSchedulePage() {
         .eq("date", date);
       if (error) throw error;
       await load();
-    } catch (e: any) {
-      setErr(e?.message ?? "Failed to remove override.");
+    } catch (error: unknown) {
+      setErr(
+        error instanceof Error ? error.message : "Failed to remove override.",
+      );
     } finally {
       setBusy(false);
     }

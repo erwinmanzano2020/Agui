@@ -1037,8 +1037,12 @@ export default function PayrollPayslipPageClient() {
               .order("work_date", { ascending: true });
 
             const map = new Map<number, string[]>();
-            (rateRows || []).forEach((row: any) => {
-              const rate = Number(row?.daily_rate ?? emp.rate_per_day ?? 0);
+            const rateRowsData = (rateRows ?? []) as Array<{
+              work_date: string;
+              daily_rate: number | null;
+            }>;
+            rateRowsData.forEach((row) => {
+              const rate = Number(row.daily_rate ?? emp.rate_per_day ?? 0);
               dateRate.set(row.work_date, rate);
               if (!map.has(rate)) map.set(rate, []);
               map.get(rate)!.push(row.work_date);
@@ -1076,35 +1080,59 @@ export default function PayrollPayslipPageClient() {
             }),
           });
 
-          let json: any = {};
+          let json: Record<string, unknown> | null = null;
           const raw = await resp.text();
           try {
-            json = raw ? JSON.parse(raw) : {};
+            json = raw ? (JSON.parse(raw) as Record<string, unknown>) : {};
           } catch {
             // non-JSON -> fallback
           }
 
-          if (resp.ok && json && json.gross != null) {
+          if (resp.ok && json && "gross" in json && json.gross != null) {
             apiUsed = true;
-            basic = Number(json.gross || 0);
-            if (Array.isArray(json.spans)) {
-              rateBreakdown = json.spans.map((s: any) => ({
-                rate: Number(s.rate || 0),
-                days: Number(s.days || s.count || 0),
-                total: Number(
-                  s.total || Number(s.rate || 0) * Number(s.days || s.count || 0),
-                ),
-                from: s.from || null,
-                to: s.to || null,
-              }));
-            } else if (Array.isArray(json.byRate)) {
-              rateBreakdown = json.byRate.map((b: any) => ({
-                rate: Number(b.rate || 0),
-                days: Number(b.days || 0),
-                total: Number(
-                  b.total || Number(b.rate || 0) * Number(b.days || 0),
-                ),
-              }));
+            const grossInput = json.gross;
+            basic = Number(
+              typeof grossInput === "number" || typeof grossInput === "string"
+                ? grossInput
+                : 0,
+            );
+            const spans = Array.isArray(json.spans as unknown[])
+              ? (json.spans as unknown[])
+              : null;
+            const byRate = Array.isArray(json.byRate as unknown[])
+              ? (json.byRate as unknown[])
+              : null;
+            if (spans) {
+              rateBreakdown = spans
+                .filter((span): span is Record<string, unknown> =>
+                  !!span && typeof span === "object",
+                )
+                .map((span) => {
+                  const rate = Number(span.rate ?? 0);
+                  const days = Number(span.days ?? span.count ?? 0);
+                  const total = Number(
+                    span.total ?? Number(span.rate ?? 0) * Number(span.days ?? span.count ?? 0),
+                  );
+                  return {
+                    rate,
+                    days,
+                    total,
+                    from: (span.from as string | null | undefined) ?? null,
+                    to: (span.to as string | null | undefined) ?? null,
+                  };
+                });
+            } else if (byRate) {
+              rateBreakdown = byRate
+                .filter((bucket): bucket is Record<string, unknown> =>
+                  !!bucket && typeof bucket === "object",
+                )
+                .map((bucket) => ({
+                  rate: Number(bucket.rate ?? 0),
+                  days: Number(bucket.days ?? 0),
+                  total: Number(
+                    bucket.total ?? Number(bucket.rate ?? 0) * Number(bucket.days ?? 0),
+                  ),
+                }));
             }
           }
         } catch {
@@ -1219,7 +1247,7 @@ export default function PayrollPayslipPageClient() {
         <select
           className="inp"
           value={employeeId}
-          onChange={(e) => setEmployeeId(e.target.value as any)}
+          onChange={(e) => setEmployeeId(e.target.value)}
         >
           <option value="ALL">All employees</option>
           {emps.map((e) => (
