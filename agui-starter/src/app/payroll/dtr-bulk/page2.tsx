@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { resolveEffectiveShift } from "@/lib/shifts";
 import {
@@ -9,6 +9,8 @@ import {
   computeUndertimeMinutes,
 } from "@/lib/payroll";
 import { Segment, toLocalHHMM, weekdayShort } from "@/lib/segments";
+
+type SegmentRow = { work_date: string; start_at: string | null; end_at: string | null };
 
 type Emp = { id: string; code: string; full_name: string };
 
@@ -51,19 +53,13 @@ export default function DtrBulkPage() {
         .select("id, code, full_name")
         .neq("status", "archived")
         .order("full_name");
-      setEmps(data || []);
-      if (data?.[0]) setEmpId(data[0].id);
+      const employees = (data ?? []) as Emp[];
+      setEmps(employees);
+      if (employees[0]) setEmpId(employees[0].id);
     })();
   }, []);
 
-  useEffect(() => {
-    if (empId) {
-      loadMonth();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [empId, ym]);
-
-  async function loadMonth() {
+  const loadMonth = useCallback(async () => {
     setLoading(true);
     // DO NOT clear the banner here; saveAll() already manages msg visibility.
     // setMsg(null);
@@ -97,10 +93,11 @@ export default function DtrBulkPage() {
     }
 
     const byDate = new Map<string, Segment[]>();
-    (segs || []).forEach((r: any) => {
-      const k = r.work_date as string;
-      if (!byDate.has(k)) byDate.set(k, []);
-      byDate.get(k)!.push({ start_at: r.start_at, end_at: r.end_at });
+    const segmentRows = (segs ?? []) as SegmentRow[];
+    segmentRows.forEach((row) => {
+      const key = row.work_date;
+      if (!byDate.has(key)) byDate.set(key, []);
+      byDate.get(key)!.push({ start_at: row.start_at ?? "", end_at: row.end_at });
     });
 
     for (let d = 1; d <= maxDay; d += 1) {
@@ -118,7 +115,13 @@ export default function DtrBulkPage() {
 
     setGrid(m);
     setLoading(false);
-  }
+  }, [empId, maxDay, ym]);
+
+  useEffect(() => {
+    if (empId) {
+      void loadMonth();
+    }
+  }, [empId, loadMonth]);
 
   function setCell(day: number, key: keyof DayPunch, val: string) {
     setGrid((g) => ({
@@ -173,7 +176,12 @@ export default function DtrBulkPage() {
           .eq("work_date", date);
         if (del.error) throw del.error;
 
-        const inserts: any[] = [];
+        const inserts: Array<{
+          employee_id: string;
+          work_date: string;
+          start_at: string;
+          end_at: string | null;
+        }> = [];
         if (cell?.in1 && cell?.out1) {
           inserts.push({
             employee_id: empId,
@@ -257,8 +265,10 @@ export default function DtrBulkPage() {
         if (up.error) throw up.error;
 
         savedCount += 1;
-      } catch (e: any) {
-        dayErrors.push(`${date}: ${e?.message || String(e)}`);
+      } catch (error: unknown) {
+        const message =
+          error instanceof Error ? error.message : String(error ?? "unknown error");
+        dayErrors.push(`${date}: ${message}`);
       }
     }
 

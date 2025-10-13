@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "../../../components/ui/page-header";
 import { Toast } from "../../../components/ui/toast";
 import { getSupabase } from "../../../lib/supabase";
+import type { ShiftSegment } from "@/lib/types";
 
 /** ===== Types ===== */
 type Emp = { id: string; code?: string | null; full_name: string };
@@ -184,7 +185,6 @@ export default function DtrBulkClient() {
     kind: "success" | "error";
     msg: string;
   } | null>(null);
-  const [activeRow, setActiveRow] = useState<number | null>(null);
 
   /** ===== Data state ===== */
   const [employees, setEmployees] = useState<Emp[]>([]);
@@ -305,10 +305,11 @@ export default function DtrBulkClient() {
             string,
             Array<{ start_at: string | null; end_at: string | null }>
           >();
-          (data ?? []).forEach((r: any) => {
-            const d = String(r.work_date);
+          const segmentRows = (data ?? []) as ShiftSegment[];
+          segmentRows.forEach((row) => {
+            const d = String(row.work_date);
             if (!byDay.has(d)) byDay.set(d, []);
-            byDay.get(d)!.push({ start_at: r.start_at, end_at: r.end_at });
+            byDay.get(d)!.push({ start_at: row.start_at, end_at: row.end_at });
           });
 
           const eid = selectedEmpId;
@@ -488,8 +489,10 @@ export default function DtrBulkClient() {
 
       if (error) throw error;
       setToast({ kind: "success", msg: "Saved!" });
-    } catch (err: any) {
-      setToast({ kind: "error", msg: `Save failed: ${err.message ?? err}` });
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : String(error ?? "unknown error");
+      setToast({ kind: "error", msg: `Save failed: ${message}` });
     } finally {
       setSaving(false);
     }
@@ -597,54 +600,10 @@ export default function DtrBulkClient() {
       // Reload current scope after import
       setWeekStart((w) => w);
       setYm((m) => m);
-    } catch (e: any) {
-      setToast({ kind: "error", msg: `Import failed: ${e.message ?? e}` });
-    }
-  }
-
-  /** ===== Keyboard nav for weekly table ===== */
-  const tableRef = useRef<HTMLDivElement>(null);
-  const COLS_PER_DAY = 2;
-  const totalCols = 1 + days.length * COLS_PER_DAY;
-  function focusCell(row: number, col: number) {
-    const el = tableRef.current?.querySelector<HTMLInputElement>(
-      `[data-row="${row}"][data-col="${col}"] input`,
-    );
-    el?.focus();
-    el?.select();
-  }
-  function handleMove(e: React.KeyboardEvent, row: number, col: number) {
-    const key = e.key;
-    if (key === "Enter") {
-      e.preventDefault();
-      focusCell(Math.min(row + 1, scopedEmployees.length - 1), col);
-      return;
-    }
-    if (key === "Tab") {
-      e.preventDefault();
-      const next = Math.min(col + 1, totalCols - 1);
-      focusCell(row, Math.max(1, next));
-      return;
-    }
-    if (key === "ArrowRight") {
-      e.preventDefault();
-      focusCell(row, Math.min(col + 1, totalCols - 1));
-      return;
-    }
-    if (key === "ArrowLeft") {
-      e.preventDefault();
-      focusCell(row, Math.max(1, col - 1));
-      return;
-    }
-    if (key === "ArrowDown") {
-      e.preventDefault();
-      focusCell(Math.min(row + 1, scopedEmployees.length - 1), col);
-      return;
-    }
-    if (key === "ArrowUp") {
-      e.preventDefault();
-      focusCell(Math.max(0, row - 1), col);
-      return;
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error ? error.message : String(error ?? "unknown error");
+      setToast({ kind: "error", msg: `Import failed: ${message}` });
     }
   }
 
@@ -798,14 +757,13 @@ export default function DtrBulkClient() {
           />
         ) : (
           <div className="card p-3">
-            <DtrWeeklyTable
-              days={days}
-              employees={scopedEmployees}
-              density={density}
-              grid={grid}
-              setActiveRow={setActiveRow}
-              updateCell={updateCell}
-            />
+          <DtrWeeklyTable
+            days={days}
+            employees={scopedEmployees}
+            density={density}
+            grid={grid}
+            updateCell={updateCell}
+          />
           </div>
         )}
       </PageHeader>
@@ -827,14 +785,12 @@ function DtrWeeklyTable({
   employees,
   density,
   grid,
-  setActiveRow,
   updateCell,
 }: {
   days: string[];
   employees: Emp[];
   density: "comfortable" | "dense";
   grid: Record<string, Record<string, DayCell>>;
-  setActiveRow: (r: number | null) => void;
   updateCell: (
     empId: string,
     day: string,
@@ -963,7 +919,6 @@ function DtrWeeklyTable({
                           placeholder="08:00"
                           onChange={(v) => updateCell(e.id, d, "in1", v)}
                           onKeyDown={(ev) => handleMove(ev, r, baseCol)}
-                          onFocus={() => setActiveRow(r)}
                           data-row={r}
                           data-col={baseCol}
                           dense={density === "dense"}
@@ -973,7 +928,6 @@ function DtrWeeklyTable({
                           placeholder="17:00"
                           onChange={(v) => updateCell(e.id, d, "out1", v)}
                           onKeyDown={(ev) => handleMove(ev, r, baseCol + 1)}
-                          onFocus={() => setActiveRow(r)}
                           data-row={r}
                           data-col={baseCol + 1}
                           dense={density === "dense"}

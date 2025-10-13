@@ -4,11 +4,15 @@ type ThemeVars = Record<string, string>;
 
 type RGB = { r: number; g: number; b: number };
 
+const DEFAULT_SURFACE = "#0b0b0b";
+const DEFAULT_ACCENT_LIGHTEN = 0.24;
+const DEFAULT_RADIUS = 12;
+
 export function themeToCssVars(theme: ThemeConfig): ThemeVars {
-  const radius = theme.radius ?? 12;
-  const primary = normalizeHex(theme.primary_hex);
-  const surface = normalizeHex(theme.surface);
-  const accent = normalizeHex(theme.accent);
+  const radius = DEFAULT_RADIUS;
+  const primary = normalizeHex(theme.primary);
+  const surface = normalizeHex(DEFAULT_SURFACE);
+  const accent = mixColors(primary, "#ffffff", DEFAULT_ACCENT_LIGHTEN);
 
   const surfaceIsDark = isDark(surface);
   const primaryOn = getReadableText(primary);

@@ -1,10 +1,10 @@
 // agui-starter/src/app/api/payroll/summary/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { summarizeRange } from "@/lib/payroll/index";
-import type { PrimaryBasis } from "@/lib/payroll/index";
+import type { PrimaryBasis, RangeSummary } from "@/lib/payroll/index";
 import { getSupabase } from "@/lib/supabase";
 
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
   const url = new URL(req.url);
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");
@@ -44,11 +44,10 @@ export async function GET(req: Request) {
       },
     });
 
-    return NextResponse.json(summary, { status: 200 });
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message ?? "Failed to summarize range" },
-      { status: 500 },
-    );
+    return NextResponse.json<RangeSummary>(summary, { status: 200 });
+  } catch (error: unknown) {
+    const message =
+      error instanceof Error ? error.message : "Failed to summarize range";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

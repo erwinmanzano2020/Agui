@@ -1,10 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
 import { resolveEffectiveShift } from "@/lib/shifts";
 import { computeMinutes } from "@/lib/payroll";
 import { sumFinishedMinutes, latestOut, Segment } from "@/lib/segments";
+
+type SegmentRecord = { start_at: string; end_at: string | null };
 
 type Emp = { id: string; code: string; full_name: string };
 
@@ -49,16 +51,14 @@ export default function PayrollDtrTodayPageClient() {
         .select("id, code, full_name")
         .neq("status", "archived")
         .order("full_name");
-      setEmps(data || []);
-      if (data?.[0]) setEmployeeId(data[0].id);
+      const employees = (data ?? []) as Emp[];
+      setEmps(employees);
+      if (employees[0]) setEmployeeId(employees[0].id);
     })();
   }, []);
 
-  useEffect(() => {
-    if (employeeId && date) loadSegments();
-  }, [employeeId, date]);
-
-  async function loadSegments() {
+  const loadSegments = useCallback(async () => {
+    if (!employeeId || !date) return;
     const sb = getSupabase();
     if (!sb) {
       setMsg("Supabase not configured");
@@ -73,10 +73,14 @@ export default function PayrollDtrTodayPageClient() {
       .eq("employee_id", employeeId)
       .eq("work_date", date)
       .order("start_at", { ascending: true });
-    const rows = (data || []) as Segment[];
+    const rows = (data ?? []) as SegmentRecord[];
     setSegments(rows);
-    setHasOpen(rows.some((r) => r.end_at === null));
-  }
+    setHasOpen(rows.some((row) => row.end_at === null));
+  }, [date, employeeId]);
+
+  useEffect(() => {
+    void loadSegments();
+  }, [loadSegments]);
 
   async function clockIn() {
     setMsg(null);
@@ -115,7 +119,7 @@ export default function PayrollDtrTodayPageClient() {
       return;
     }
 
-    const { data } = await sb
+    const { data: openSegment, error } = await sb
       .from("dtr_segments")
       .select("id")
       .eq("employee_id", employeeId)
@@ -123,9 +127,14 @@ export default function PayrollDtrTodayPageClient() {
       .is("end_at", null)
       .order("start_at", { ascending: false })
       .limit(1)
-      .maybeSingle();
+      .maybeSingle<{ id: string }>();
 
-    if (!data) {
+    if (error) {
+      setMsg(error.message);
+      return;
+    }
+
+    if (!openSegment) {
       setMsg("No open segment to close.");
       return;
     }
@@ -135,12 +144,12 @@ export default function PayrollDtrTodayPageClient() {
       `${date}T${now.toTimeString().slice(0, 8)}`,
     ).toISOString();
 
-    const { error } = await sb
+    const { error: updateError } = await sb
       .from("dtr_segments")
       .update({ end_at: endAt })
-      .eq("id", (data as any).id);
+      .eq("id", openSegment.id);
 
-    if (error) setMsg(error.message);
+    if (updateError) setMsg(updateError.message);
     await loadSegments();
   }
 

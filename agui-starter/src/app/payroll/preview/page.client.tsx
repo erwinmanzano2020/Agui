@@ -24,6 +24,27 @@ type Ded = { employee_id: string; effective_date: string; amount: number };
 
 type AttMode = "PRORATE" | "DEDUCTION";
 
+type PreviewRow = {
+  employee_id: string;
+  name: string;
+  reg: number;
+  ot: number;
+  lateUTMins: number;
+  lateUTValue: number;
+  basicPay: number;
+  otPay: number;
+  gross: number;
+  otherDeductions: number;
+  deductions: number;
+  net: number;
+};
+
+type PayrollSettingsRow = {
+  standard_minutes_per_day?: number | null;
+  ot_multiplier?: number | null;
+  attendance_mode?: string | null;
+};
+
 // advance a YYYY-MM-DD date by 1 day (UTC-safe)
 function nextDayISO(d: string) {
   const [y, m, day] = d.split("-").map(Number);
@@ -42,7 +63,7 @@ export default function PayrollPreviewPageClient() {
   const [otMultiplier, setOtMultiplier] = useState<number>(1.0);
   const [attMode, setAttMode] = useState<AttMode>("DEDUCTION");
 
-  const [rows, setRows] = useState<any[]>([]);
+  const [rows, setRows] = useState<PreviewRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -90,19 +111,20 @@ export default function PayrollPreviewPageClient() {
         if (settingsError) {
           setErr((prev) => prev ?? settingsError.message);
         } else if (setData) {
-          if (setData.standard_minutes_per_day)
-            setFallbackStd(setData.standard_minutes_per_day);
-          if (setData.ot_multiplier != null)
-            setOtMultiplier(Number(setData.ot_multiplier));
-          if (setData.attendance_mode) {
+          const settings = setData as PayrollSettingsRow;
+          if (settings.standard_minutes_per_day)
+            setFallbackStd(settings.standard_minutes_per_day);
+          if (settings.ot_multiplier != null)
+            setOtMultiplier(Number(settings.ot_multiplier));
+          if (settings.attendance_mode) {
             setAttMode(
-              String(setData.attendance_mode).toUpperCase() === "PRORATE"
+              String(settings.attendance_mode).toUpperCase() === "PRORATE"
                 ? "PRORATE"
                 : "DEDUCTION",
             );
           }
         }
-      } catch (error) {
+      } catch (error: unknown) {
         if (!cancelled)
           setErr(
             error instanceof Error
@@ -160,8 +182,8 @@ export default function PayrollPreviewPageClient() {
         throw new Error(dtrError?.message ?? dedError?.message ?? "Failed to load payroll preview data.");
       }
 
-      const dtr = (dtrData || []) as Dtr[];
-      const deds = (dedData || []) as Ded[];
+      const dtr = (dtrData ?? []) as Dtr[];
+      const deds = (dedData ?? []) as Ded[];
 
       // group DTR by employee
       const dtrByEmp = new Map<string, Dtr[]>();
@@ -182,7 +204,7 @@ export default function PayrollPreviewPageClient() {
       }
 
       // Presence-aware compute
-      const out: any[] = [];
+      const out: PreviewRow[] = [];
 
       for (const eId of empIds) {
         const emp = emps.find((e) => e.id === eId);
@@ -250,7 +272,7 @@ export default function PayrollPreviewPageClient() {
       }
 
       setRows(out);
-    } catch (error) {
+    } catch (error: unknown) {
       setErr(
         error instanceof Error
           ? error.message
