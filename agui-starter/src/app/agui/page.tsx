@@ -1,178 +1,67 @@
-<<<<<<< HEAD
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
-import { getSupabase } from "@/lib/supabase";
 
-type Theme = {
-  primary?: string;
-  surface?: string;
-  accent?: string;
-  radius?: number;
-};
-type Toggles = {
-  payroll?: boolean;
-  employees?: boolean;
-  shifts?: boolean;
-  pos?: boolean;
+type UiModule = { key: string; label?: string; enabled: boolean };
+type UiConfig = {
+  theme?: { brand?: string };
+  modules?: UiModule[];
 };
 
-export default function AguiHubPage() {
-  const [theme, setTheme] = useState<Theme>({});
-  const [toggles, setToggles] = useState<Toggles>({});
-  const [loading, setLoading] = useState(true);
+export default function AguiPage() {
+  const [cfg, setCfg] = useState<UiConfig | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    const sb = getSupabase();
-    if (!sb) return;
-
-    (async () => {
-      const [{ data: t1 }, { data: t2 }] = await Promise.all([
-        sb.from("agui_theme").select("primary,surface,accent,radius").single(),
-        sb.from("agui_toggles").select("payroll,employees,shifts,pos").single(),
-      ]);
-
-      if (t1) setTheme(t1 as Theme);
-      if (t2) setToggles(t2 as Toggles);
-      setLoading(false);
-    })();
+    fetch("/api/ui/config")
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then((data) => setCfg(data))
+      .catch((e) => setErr(String(e)));
   }, []);
 
-  // Apply CSS custom props (minimal)
-  useEffect(() => {
-    const root = document.documentElement;
-    if (theme.primary) root.style.setProperty("--agui-primary", theme.primary);
-    if (theme.surface) root.style.setProperty("--agui-surface", theme.surface);
-    if (theme.accent) root.style.setProperty("--agui-accent", theme.accent);
-    if (typeof theme.radius === "number") {
-      root.style.setProperty("--agui-radius", `${theme.radius}px`);
-    }
-  }, [theme]);
-
   return (
-    <div className="p-6">
-      <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-2xl font-semibold">Agui Hub</h1>
-        <Link className="btn btn-ghost" href="/settings">
-          Settings
-        </Link>
-      </div>
-
-      {loading ? (
-        <div className="card p-6">Loading…</div>
-      ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <ModuleCard
-            title="Payroll"
-            enabled={!!toggles.payroll}
-            href="/payroll"
-          />
-          <ModuleCard
-            title="Employees"
-            enabled={!!toggles.employees}
-            href="/employees"
-          />
-          <ModuleCard title="Shifts" enabled={!!toggles.shifts} href="/shifts" />
-          <ModuleCard title="POS" enabled={!!toggles.pos} href="/pos" />
-        </div>
-      )}
-    </div>
-  );
-}
-
-function ModuleCard({
-  title,
-  enabled,
-  href,
-}: {
-  title: string;
-  enabled: boolean;
-  href: string;
-}) {
-  return (
-    <div
-      className="rounded-2xl border p-4"
-      style={{
-        background: "var(--agui-surface,#0b0b0b)",
-        borderColor: "var(--border)",
-      }}
-    >
-      <div className="mb-2 flex items-center justify-between">
-        <div className="font-medium">{title}</div>
-        <span
-          className={
-            "px-2 py-0.5 rounded text-xs " +
-            (enabled ? "bg-green-500/15 text-green-500" : "bg-zinc-500/15 text-zinc-400")
-          }
-        >
-          {enabled ? "Enabled" : "Disabled"}
-        </span>
-      </div>
-      <Link
-        href={enabled ? href : "#"}
-        className={"btn " + (enabled ? "btn-primary" : "btn-ghost pointer-events-none opacity-50")}
-        style={{ borderRadius: "var(--agui-radius, 12px)" }}
-      >
-        Open
-      </Link>
-=======
-import { loadUiConfig } from "@/lib/ui-config";
-import { ModuleCard } from "@/components/ui/module-card";
-
-export const metadata = {
-  title: "Agui Hub",
-};
-
-export default async function AguiHub() {
-  const { theme, toggles } = await loadUiConfig();
-
-  return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Agui Hub</h1>
-        <p className="text-sm opacity-75">
-          Your open-world RPG ERP. Theme & toggles are live from Supabase.
-        </p>
-        <div className="text-xs opacity-70">
-          Primary: <code>{theme.primary_hex}</code> • Accent:{" "}
-          <code>{theme.accent}</code> • Radius: <code>{theme.radius}px</code>
-        </div>
+    <main className="p-6 space-y-6">
+      <header className="flex items-baseline justify-between">
+        <h1 className="text-3xl font-bold">Agui</h1>
+        {cfg?.theme?.brand && (
+          <span className="text-sm opacity-70">Theme: {cfg.theme.brand}</span>
+        )}
       </header>
 
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        <ModuleCard
-          name="Employees"
-          subtitle="Guild roster"
-          href="/employees"
-          enabled={!!toggles.employees}
-        />
-        <ModuleCard
-          name="Shifts"
-          subtitle="Shift templates"
-          href="/shifts"
-          enabled={!!toggles.shifts}
-        />
-        <ModuleCard
-          name="Payroll"
-          subtitle="Payslip & preview"
-          href="/payroll"
-          enabled={!!toggles.payroll}
-        />
-        <ModuleCard
-          name="POS"
-          subtitle="Point of sale"
-          href="/pos"
-          enabled={!!toggles.pos}
-        />
-        <ModuleCard
-          name="Settings"
-          subtitle="Theme & modules"
-          href="/settings"
-          enabled={true}
-        />
-      </section>
->>>>>>> origin/develop
-    </div>
+      {err && (
+        <p className="text-red-600">
+          Failed to load UI config: <span className="font-mono">{err}</span>
+        </p>
+      )}
+
+      {!cfg && !err && <p className="opacity-70">Loading…</p>}
+
+      {cfg && (
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {(cfg.modules ?? [])
+            .filter((m) => m.enabled)
+            .map((m) => (
+              <div
+                key={m.key}
+                className="rounded-2xl border p-4 shadow-sm hover:shadow-md transition"
+              >
+                <h2 className="font-semibold text-lg">
+                  {m.label ?? m.key.replace(/[-_]/g, " ")}
+                </h2>
+                <p className="text-sm opacity-70">Module enabled</p>
+              </div>
+            ))}
+
+          {(cfg.modules ?? []).every((m) => !m.enabled) && (
+            <p className="opacity-70">
+              No modules enabled. Go to <span className="font-mono">/settings</span> to turn modules on.
+            </p>
+          )}
+        </section>
+      )}
+    </main>
   );
 }
