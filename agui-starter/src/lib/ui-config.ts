@@ -9,7 +9,7 @@ export type UiModuleKey =
 
 export type UiConfig = {
   theme: {
-    name: string; // e.g., "pastel-green"
+    name: string;   // e.g., "pastel-green"
     primary: string; // hex
   };
   modules: Record<UiModuleKey, { enabled: boolean; experimental?: boolean }>;
@@ -28,9 +28,7 @@ export const uiConfig: UiConfig = {
   },
 };
 
-export type ThemeConfig = UiConfig["theme"];
-export type UiModules = UiConfig["modules"];
-
+// Keep an async accessor so API routes can evolve later (e.g., DB-backed config)
 export async function loadUiConfig(): Promise<UiConfig> {
   return uiConfig;
 }
