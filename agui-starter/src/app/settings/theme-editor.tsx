@@ -110,7 +110,7 @@ export default function ThemeEditor({ initial }: Props) {
       await setTheme(payload);
       toast.success("Theme saved ✔");
     } catch (err: unknown) {
-      // eslint-disable-next-line no-console
+      
       console.error(err);
       toast.error("Failed to save theme");
     }
