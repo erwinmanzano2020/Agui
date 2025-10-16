@@ -1,32 +1,44 @@
 "use server";
 
 import { getSupabase } from "@/lib/supabase";
-import { DEFAULT_THEME, ThemeConfig } from "@/lib/theme";
+import { DEFAULT_THEME, type ThemeConfig } from "@/lib/theme";
 
 const ROW_ID = "default";
 
 export async function getTheme(): Promise<ThemeConfig> {
   const supabase = getSupabase();
+  if (!supabase) {
+    // Supabase not configured — fall back to defaults
+    return DEFAULT_THEME;
+  }
+
   const { data, error } = await supabase
     .from("agui_theme")
     .select("primary_hsl, accent_hsl, radius_px")
     .eq("id", ROW_ID)
     .maybeSingle();
 
-  if (error) {
-    console.error("[agui_theme] getTheme error:", error);
+  if (error || !data) {
     return DEFAULT_THEME;
   }
-  if (!data) return DEFAULT_THEME;
+
   return {
     primary_hsl: data.primary_hsl ?? DEFAULT_THEME.primary_hsl,
     accent_hsl: data.accent_hsl ?? DEFAULT_THEME.accent_hsl,
-    radius_px: Number.isFinite(data.radius_px) ? data.radius_px : DEFAULT_THEME.radius_px,
+    radius_px:
+      typeof data.radius_px === "number" && Number.isFinite(data.radius_px)
+        ? data.radius_px
+        : DEFAULT_THEME.radius_px,
   };
 }
 
 export async function setTheme(next: ThemeConfig) {
   const supabase = getSupabase();
+  if (!supabase) {
+    // No Supabase → skip persistence; UI already applied optimistically
+    return;
+  }
+
   const { error } = await supabase
     .from("agui_theme")
     .upsert({
@@ -38,7 +50,7 @@ export async function setTheme(next: ThemeConfig) {
     });
 
   if (error) {
-    console.error("[agui_theme] setTheme error:", error);
+    // surface as a proper error so the caller can toast
     throw new Error(error.message);
   }
 }
