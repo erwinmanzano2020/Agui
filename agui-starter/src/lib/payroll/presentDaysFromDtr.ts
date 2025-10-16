@@ -8,7 +8,7 @@ export async function presentDaysFromDtr(
   const { data, error } = await db
     .from("dtr_entries")
     .select("work_date")
-    .eq("employee_id", args.employeeId as any)
+    .eq("employee_id", args.employeeId)
     .gte("work_date", args.from)
     .lte("work_date", args.to)
     .order("work_date", { ascending: true });
@@ -17,10 +17,12 @@ export async function presentDaysFromDtr(
   // Distinct + keep order
   const seen = new Set<string>();
   const out: string[] = [];
-  (data ?? []).forEach((r: any) => {
-    if (!seen.has(r.work_date)) {
-      seen.add(r.work_date);
-      out.push(r.work_date);
+  const rows = (data ?? []) as Array<{ work_date: string | null }>;
+  rows.forEach((row) => {
+    const date = row.work_date;
+    if (date && !seen.has(date)) {
+      seen.add(date);
+      out.push(date);
     }
   });
   return out;

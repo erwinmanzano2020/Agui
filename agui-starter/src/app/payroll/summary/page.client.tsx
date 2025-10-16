@@ -25,6 +25,35 @@ type Summary = {
   };
 };
 
+function isRow(value: unknown): value is Row {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  return (
+    (typeof record.dtr_id === "string" || typeof record.dtr_id === "number") &&
+    (typeof record.employee_id === "string" ||
+      typeof record.employee_id === "number") &&
+    typeof record.work_date === "string" &&
+    (record.basis === "hourly" ||
+      record.basis === "daily" ||
+      record.basis === "semi_monthly" ||
+      record.basis === "monthly") &&
+    typeof record.pay === "number"
+  );
+}
+
+function isSummary(value: unknown): value is Summary {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  const totals = record.totals as Record<string, unknown> | undefined;
+  return (
+    Array.isArray(record.rows) &&
+    record.rows.every(isRow) &&
+    totals != null &&
+    typeof totals.gross === "number" &&
+    typeof totals.count === "number"
+  );
+}
+
 function fmt(n: number | null | undefined) {
   if (n == null) return "—";
   return `₱${Number(n).toFixed(2)}`;
@@ -47,7 +76,7 @@ export default function PayrollSummaryPageClient() {
   const [loading, setLoading] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
-  const run = async () => {
+  const run = React.useCallback(async () => {
     setLoading(true);
     setErr(null);
     setData(null);
@@ -60,20 +89,30 @@ export default function PayrollSummaryPageClient() {
       if (employeeId.trim()) params.set("employeeId", employeeId.trim());
       if (preferBasis) params.set("preferBasis", preferBasis);
       const res = await fetch(`/api/payroll/summary?${params.toString()}`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json?.error || "Failed to fetch summary");
-      setData(json as Summary);
-    } catch (e: any) {
-      setErr(e?.message ?? "Failed to fetch summary");
+      const json: unknown = await res.json();
+      if (!res.ok) {
+        const message =
+          typeof json === "object" && json && "error" in json
+            ? String((json as Record<string, unknown>).error)
+            : "Failed to fetch summary";
+        throw new Error(message);
+      }
+      if (!isSummary(json)) {
+        throw new Error("Invalid summary payload");
+      }
+      setData(json);
+    } catch (error: unknown) {
+      setErr(
+        error instanceof Error ? error.message : "Failed to fetch summary",
+      );
     } finally {
       setLoading(false);
     }
-  };
+  }, [employeeId, from, hoursPerDay, preferBasis, to]);
 
   React.useEffect(() => {
-    run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    void run();
+  }, [run]);
 
   return (
     <div className="max-w-5xl mx-auto p-6 space-y-4">
@@ -116,7 +155,9 @@ export default function PayrollSummaryPageClient() {
             <select
               className="border rounded px-2 py-1 w-full"
               value={preferBasis}
-              onChange={(e) => setPreferBasis(e.target.value as any)}
+              onChange={(e) =>
+                setPreferBasis(e.target.value as PrimaryBasis | "")
+              }
             >
               <option value="">auto (monthly → hourly)</option>
               <option value="daily">daily</option>
@@ -179,7 +220,7 @@ export default function PayrollSummaryPageClient() {
                   <div key={b} className="flex justify-between">
                     <span className="capitalize">{b.replace("_", " ")}</span>
                     <span className="font-medium">
-                      {fmt((data.totals.by_basis as any)?.[b] ?? 0)}
+                      {fmt(data.totals.by_basis?.[b] ?? 0)}
                     </span>
                   </div>
                 ))}

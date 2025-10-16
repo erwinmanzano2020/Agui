@@ -1,63 +1,39 @@
-// agui-starter/src/lib/ui-config.ts
-import { getSupabase } from "./supabase";
+export type UiModuleKey =
+  | "payroll"
+  | "employees"
+  | "dtrBulk"
+  | "payslip"
+  | "preview"
+  | "summary"
+  | "shifts";
 
-export type UiTheme = {
-  primary_hex: string;
-  surface: string;
-  accent: string;
-  radius: number;
+/** Exported for theme-provider & theme-css */
+export type ThemeConfig = {
+  name: string;   // e.g., "pastel-green"
+  primary: string; // hex
 };
 
-<<<<<<< HEAD
-// ✅ Add this alias so theme-provider’s import works
-export type ThemeConfig = UiTheme;
-
-=======
->>>>>>> origin/develop
-export type UiToggles = {
-  payroll: boolean;
-  employees: boolean;
-  shifts: boolean;
-  pos: boolean;
-};
+export type ModuleToggle = { enabled: boolean; experimental?: boolean };
 
 export type UiConfig = {
-  theme: UiTheme;
-  toggles: UiToggles;
+  theme: ThemeConfig;
+  modules: Record<UiModuleKey, ModuleToggle>;
 };
 
-const DEFAULT: UiConfig = {
-  theme: {
-    primary_hex: "#3c7cae",
-    surface: "#0b0b0b",
-    accent: "#06b6d4",
-    radius: 12,
+export const uiConfig: UiConfig = {
+  theme: { name: "pastel-green", primary: "#c8e1cc" },
+  modules: {
+    payroll: { enabled: true },
+    employees: { enabled: true },
+    dtrBulk: { enabled: true },
+    payslip: { enabled: true },
+    preview: { enabled: true },
+    summary: { enabled: true },
+    shifts: { enabled: true },
   },
-  toggles: { payroll: true, employees: true, shifts: true, pos: false },
 };
 
+// Async accessor for future DB-backed config
 export async function loadUiConfig(): Promise<UiConfig> {
-  const sb = getSupabase();
-  if (!sb) {
-    console.warn("Supabase not available; using default UI config.");
-    return DEFAULT;
-  }
-
-  const [{ data: themeRows, error: tErr }, { data: toggleRows, error: gErr }] =
-    await Promise.all([
-      sb.from("agui_theme_view").select("primary_hex,surface,accent,radius").limit(1),
-      sb.from("agui_toggles").select("payroll,employees,shifts,pos").eq("id", 1).limit(1),
-    ]);
-
-  if (tErr || gErr) {
-    console.warn("UI config query error:", tErr ?? gErr);
-    return DEFAULT;
-  }
-
-  const theme = themeRows?.[0];
-  const toggles = toggleRows?.[0];
-
-  if (!theme || !toggles) return DEFAULT;
-
-  return { theme, toggles };
+  return uiConfig;
 }

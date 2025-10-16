@@ -2,14 +2,14 @@
 "use server";
 import "server-only";
 import { cache } from "react";
-import { loadUiConfig, type UiToggles } from "@/lib/ui-config";
+import { loadUiConfig, type UiModuleKey } from "@/lib/ui-config";
 
-export const getFeatureToggles = cache(async () => {
+export const getFeatureModules = cache(async () => {
   const cfg = await loadUiConfig();
-  return cfg.toggles;
+  return cfg.modules;
 });
 
-export async function isFeatureOn<K extends keyof UiToggles>(k: K) {
-  const toggles = await getFeatureToggles();
-  return !!toggles[k];
+export async function isFeatureOn(k: UiModuleKey) {
+  const modules = await getFeatureModules();
+  return modules[k]?.enabled ?? false;
 }
