@@ -6,11 +6,8 @@ export async function GET() {
     const config = await loadUiConfig();
     return NextResponse.json(config, { status: 200 });
   } catch (error: unknown) {
-    // Strongly-typed catch + safe client message
-    const message =
-      error instanceof Error ? error.message : "Failed to load UI config";
+    // typed catch + no client info leak
     console.error("GET /api/ui/config failed:", error);
-    // Return generic message to clients (avoid leaking internals)
     return NextResponse.json({ error: "Failed to load UI config" }, { status: 500 });
   }
 }

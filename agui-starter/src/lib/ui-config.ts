@@ -7,12 +7,17 @@ export type UiModuleKey =
   | "summary"
   | "shifts";
 
+/** Exported for theme-provider & theme-css */
+export type ThemeConfig = {
+  name: string;   // e.g., "pastel-green"
+  primary: string; // hex
+};
+
+export type ModuleToggle = { enabled: boolean; experimental?: boolean };
+
 export type UiConfig = {
-  theme: {
-    name: string;   // e.g., "pastel-green"
-    primary: string; // hex
-  };
-  modules: Record<UiModuleKey, { enabled: boolean; experimental?: boolean }>;
+  theme: ThemeConfig;
+  modules: Record<UiModuleKey, ModuleToggle>;
 };
 
 export const uiConfig: UiConfig = {
@@ -28,7 +33,7 @@ export const uiConfig: UiConfig = {
   },
 };
 
-// Keep an async accessor so API routes can evolve later (e.g., DB-backed config)
+// Async accessor for future DB-backed config
 export async function loadUiConfig(): Promise<UiConfig> {
   return uiConfig;
 }
