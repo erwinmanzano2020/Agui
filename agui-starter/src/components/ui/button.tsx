@@ -1,60 +1,45 @@
-"use client";
+import * as React from "react";
+import { cn } from "@/lib/utils";
 
-import { forwardRef } from "react";
-import type { ButtonHTMLAttributes } from "react";
+export type ButtonVariant = "solid" | "outline" | "ghost" | "link";
+export type ButtonSize = "xs" | "sm" | "md" | "lg";
 
-type ButtonVariant = "primary" | "ghost" | "link" | "danger";
-type ButtonSize = "xs" | "sm" | "md" | "lg";
-
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
+export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
 };
 
-const cx = (...classes: Array<string | false | null | undefined>) =>
-  classes.filter(Boolean).join(" ");
+const base =
+  "inline-flex items-center justify-center gap-2 font-medium rounded-[calc(var(--agui-radius))] transition-[background-color,color,border,box-shadow,transform] focus-visible:outline-none";
 
-export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = "primary", size = "md", className, ...props }, ref) => {
-    const sizes: Record<ButtonSize, string> = {
-      xs: "px-2 py-1 text-xs",
-      sm: "px-3 py-1.5 text-sm",
-      md: "px-4 py-2 text-sm",
-      lg: "px-5 py-3 text-base",
-    };
+const sizes: Record<ButtonSize, string> = {
+  xs: "h-8 px-2.5 text-xs",
+  sm: "h-9 px-3 text-sm",
+  md: "h-10 px-4 text-sm",
+  lg: "h-11 px-5 text-base",
+};
 
-    const base =
-      "inline-flex items-center justify-center font-medium transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agui-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:var(--agui-surface)] disabled:opacity-60 disabled:pointer-events-none";
-    const radius = "rounded-[var(--agui-radius)]";
+const variants: Record<ButtonVariant, string> = {
+  solid:
+    "text-white border border-transparent bg-[hsl(var(--agui-primary-hsl))] hover:bg-[color-mix(in_hsl,_hsl(var(--agui-accent-hsl))_50%,_hsl(var(--agui-primary-hsl)))] active:scale-[0.99] focus-visible:shadow-[0_0_0_3px] focus-visible:shadow-[color-mix(in_hsl,_hsl(var(--agui-ring-hsl))_35%,_transparent)]",
+  outline:
+    "border text-[hsl(var(--agui-fg-hsl))] border-[hsl(var(--agui-border-hsl))] bg-[hsl(var(--agui-card-hsl))] hover:border-[color-mix(in_hsl,_hsl(var(--agui-accent-hsl))_55%,_hsl(var(--agui-border-hsl)))] hover:bg-[color-mix(in_hsl,_hsl(var(--agui-accent-hsl))_10%,_transparent)] active:scale-[0.99]",
+  ghost:
+    "border border-transparent text-[hsl(var(--agui-fg-hsl))] hover:bg-[color-mix(in_hsl,_hsl(var(--agui-accent-hsl))_10%,_transparent)] active:scale-[0.99]",
+  link:
+    "border border-transparent bg-transparent h-auto p-0 text-[hsl(var(--agui-primary-hsl))] underline-offset-4 hover:underline focus-visible:shadow-[0_0_0_3px] focus-visible:shadow-[color-mix(in_hsl,_hsl(var(--agui-ring-hsl))_35%,_transparent)]",
+};
 
-    const variantClass: Record<ButtonVariant, string> = {
-      primary:
-        "bg-[var(--agui-primary)] text-[var(--agui-on-primary)] shadow-soft hover:shadow-lifted",
-      ghost: cx(
-        "border",
-        "border-[color:color-mix(in_srgb,_var(--agui-surface-border)_60%,_transparent)]",
-        "bg-[color-mix(in_srgb,_var(--agui-surface)_92%,_var(--agui-on-surface)_8%)]",
-        "text-[var(--agui-on-surface)]",
-        "hover:bg-[color-mix(in_srgb,_var(--agui-surface)_86%,_var(--agui-on-surface)_14%)]",
-      ),
-      link:
-        "bg-transparent px-0 py-0 text-[var(--agui-accent)] underline underline-offset-4 focus-visible:ring-0 focus-visible:ring-offset-0 hover:opacity-80",
-      danger:
-        "bg-[#dc2626] text-white hover:bg-[#b91c1c] focus-visible:ring-[#fecaca]",
-    };
-
-    const sizeClass = variant === "link" ? "text-sm" : sizes[size];
-
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant = "solid", size = "md", ...props }, ref) => {
+    const sizeClasses = variant === "link" ? "" : sizes[size];
     return (
       <button
         ref={ref}
-        className={cx(base, radius, sizeClass, variantClass[variant], className)}
+        className={cn(base, sizeClasses, variants[variant], className)}
         {...props}
       />
     );
-  },
+  }
 );
-
 Button.displayName = "Button";
-
-export default Button;
