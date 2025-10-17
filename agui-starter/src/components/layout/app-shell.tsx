@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import ThemeToggle from "@/components/ui/theme-toggle";
 
 /* Inline SVG icons (no extra deps) */
 function Icon({ name, className }: { name: string; className?: string }) {
@@ -15,8 +16,6 @@ function Icon({ name, className }: { name: string; className?: string }) {
     table: "M3 6h18M3 12h18M3 18h18M6 6v12M12 6v12M18 6v12",
     payroll: "M4 6h16v12H4zM8 6V4h8v2M8 10h8M8 14h5",
     menu: "M4 6h16M4 12h16M4 18h16",
-    sun: "M12 4V2m0 20v-2M4.93 4.93 3.51 3.51m16.98 16.98-1.42-1.42M4 12H2m20 0h-2M4.93 19.07 3.51 20.49M19.07 4.93l1.42-1.42M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8",
-    moon: "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z",
     chevronLeft: "M15 18l-6-6 6-6",
     chevronRight: "M9 6l6 6-6 6",
   };
@@ -51,20 +50,6 @@ export function AppShell({ children }: { children: ReactNode }) {
   // responsive + collapsible
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile
   const [collapsed, setCollapsed] = useState(false); // desktop collapse
-
-  // dark mode: persist on <html data-theme="dark">
-  const [dark, setDark] = useState(false);
-  useEffect(() => {
-    const root = document.documentElement;
-    const isDark = root.dataset.theme === "dark";
-    setDark(isDark);
-  }, []);
-  const toggleDark = () => {
-    const root = document.documentElement;
-    const next = !dark;
-    root.dataset.theme = next ? "dark" : "";
-    setDark(next);
-  };
 
   const nav = useMemo(() => NAV, []);
 
@@ -122,18 +107,8 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="p-2 mt-auto">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="w-full"
-            onClick={toggleDark}
-          >
-            <Icon name={dark ? "sun" : "moon"} className="h-4 w-4 mr-2" />
-            {!collapsed && (dark ? "Light mode" : "Dark mode")}
-          </Button>
-        </div>
+        {/* removed legacy theme toggle in sidebar to avoid duplicates */}
+        {/* Use the global ThemeToggle in layout instead */}
       </aside>
 
       {/* Sidebar (mobile drawer) */}
@@ -187,18 +162,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 );
               })}
             </nav>
-            <div className="mt-4">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="w-full"
-                onClick={toggleDark}
-              >
-                <Icon name={dark ? "sun" : "moon"} className="h-4 w-4 mr-2" />
-                {dark ? "Light mode" : "Dark mode"}
-              </Button>
-            </div>
+            {/* removed legacy mobile toggle; use the shared ThemeToggle in layout/header instead */}
           </div>
         </div>
       )}
@@ -224,17 +188,10 @@ export function AppShell({ children }: { children: ReactNode }) {
             </span>
           </div>
 
-          {/* Right: user stub */}
+          {/* Right: actions (theme + user) */}
           <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={toggleDark}
-              title="Toggle theme"
-            >
-              <Icon name={dark ? "sun" : "moon"} className="h-4 w-4" />
-            </Button>
+            {/* icon-only shared toggle */}
+            <ThemeToggle className="h-9 w-9 p-0 rounded-2xl" />
             <div className="h-8 w-8 rounded-full bg-[color-mix(in_srgb,_var(--agui-on-surface)_12%,_transparent)] flex items-center justify-center text-sm text-[var(--agui-on-surface)]">
               U
             </div>
