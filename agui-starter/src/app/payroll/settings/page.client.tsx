@@ -76,7 +76,7 @@ export default function PayrollSettingsPageClient() {
       <h1 className="text-2xl font-semibold mb-4">Payroll Settings</h1>
 
       {msg && (
-        <div className="mb-3 p-3 rounded bg-green-50 border border-green-200 text-green-800">
+        <div className="mb-3 p-3 rounded bg-success/10 border border-success/30 text-success">
           {msg}
         </div>
       )}
@@ -84,7 +84,7 @@ export default function PayrollSettingsPageClient() {
       {/* Attendance mode selector */}
       <label className="text-sm block mb-1">Attendance mode</label>
       <select
-        className="border rounded px-3 py-2 w-full mb-4"
+        className="border border-border rounded px-3 py-2 w-full mb-4 bg-background text-foreground"
         value={mode}
         onChange={(e) => setMode(e.target.value as AttendanceMode)}
       >
@@ -100,7 +100,7 @@ export default function PayrollSettingsPageClient() {
       <label className="text-sm block mb-1">Standard minutes per day</label>
       <input
         type="number"
-        className="border rounded px-3 py-2 w-full mb-4"
+        className="border border-border rounded px-3 py-2 w-full mb-4 bg-background text-foreground"
         value={std}
         onChange={(e) => setStd(parseInt(e.target.value || "0", 10))}
       />
@@ -111,13 +111,13 @@ export default function PayrollSettingsPageClient() {
         type="number"
         step="0.01"
         min="0"
-        className="border rounded px-3 py-2 w-full mb-4"
+        className="border border-border rounded px-3 py-2 w-full mb-4 bg-background text-foreground"
         value={ot}
         onChange={(e) => setOt(parseFloat(e.target.value || "0"))}
       />
 
       <button
-        className="bg-green-600 text-white rounded px-4 py-2"
+        className="bg-success text-success-foreground rounded px-4 py-2"
         disabled={saving}
         onClick={save}
       >

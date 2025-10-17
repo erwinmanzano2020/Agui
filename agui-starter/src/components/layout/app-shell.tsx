@@ -69,10 +69,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const nav = useMemo(() => NAV, []);
 
   return (
-    <div className="min-h-screen flex bg-[var(--agui-surface)] text-[var(--agui-on-surface)] transition-colors">
+    <div className="min-h-screen flex bg-background text-foreground transition-colors">
       {/* Sidebar (desktop) */}
       <aside
-        className={`hidden md:flex flex-col transition-all duration-200 shadow-soft border-r border-[color:var(--agui-surface-border)] bg-[var(--agui-surface-elevated)] ${
+        className={`hidden md:flex flex-col transition-all duration-200 shadow-soft border-r border-border bg-card text-card-foreground ${
           collapsed ? "w-16" : "w-60"
         }`}
       >
@@ -82,7 +82,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               A
             </div>
             {!collapsed && (
-              <div className="font-bold text-[var(--agui-on-surface)] text-lg leading-none">
+              <div className="font-bold text-card-foreground text-lg leading-none">
                 Agui
               </div>
             )}
@@ -147,13 +147,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             className="absolute inset-0 bg-black/30"
             onClick={() => setSidebarOpen(false)}
           />
-          <div className="absolute left-0 top-0 bottom-0 w-64 bg-[var(--agui-surface-elevated)] text-[var(--agui-on-surface)] shadow-lifted p-3 border-r border-[color:var(--agui-surface-border)]">
+          <div className="absolute left-0 top-0 bottom-0 w-64 bg-card text-card-foreground shadow-lifted p-3 border-r border-border">
             <div className="h-12 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="h-7 w-7 rounded-[var(--agui-radius)] bg-[var(--agui-primary)] text-[var(--agui-on-primary)] flex items-center justify-center font-bold">
                   A
                 </div>
-                <div className="font-bold text-[var(--agui-on-surface)] text-lg leading-none">
+                <div className="font-bold text-card-foreground text-lg leading-none">
                   Agui
                 </div>
               </div>
@@ -206,7 +206,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Main Area */}
       <div className="flex-1 flex flex-col">
         {/* Topbar */}
-        <header className="h-14 border-b border-[color:var(--agui-surface-border)] bg-[var(--agui-surface-elevated)] text-[var(--agui-on-surface)] flex items-center justify-between px-3 md:px-6 shadow-soft">
+        <header className="h-14 border-b border-border bg-card text-card-foreground flex items-center justify-between px-3 md:px-6 shadow-soft">
           {/* Left: mobile menu */}
           <div className="flex items-center gap-2">
             <Button

@@ -73,7 +73,7 @@ export default function EmployeesPageClient() {
       </header>
 
       {err && (
-        <div className="rounded-[var(--agui-radius)] border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+        <div className="rounded-[var(--agui-radius)] border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
           Error: {err}
         </div>
       )}

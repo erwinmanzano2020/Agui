@@ -227,7 +227,7 @@ export default function PayrollDeductionsPageClient() {
     <div className="max-w-4xl mx-auto p-6">
       <h1 className="text-2xl font-semibold mb-4">Deductions</h1>
 
-      {err && <div className="mb-3 text-sm text-red-600">{err}</div>}
+      {err && <div className="mb-3 text-sm text-danger">{err}</div>}
 
       <div className="flex gap-3 items-center mb-3">
         <select
@@ -243,17 +243,17 @@ export default function PayrollDeductionsPageClient() {
         </select>
 
         <input
-          className="border rounded px-3 py-2"
+          className="border border-border rounded px-3 py-2 bg-background text-foreground"
           type="month"
           value={monthISO}
           onChange={(e) => setMonthISO(e.target.value)}
         />
-        <div className="text-sm text-gray-600">Filter by employee & month</div>
+        <div className="text-sm text-muted-foreground">Filter by employee & month</div>
       </div>
 
-      <div className="border rounded overflow-x-auto">
+      <div className="border border-border rounded overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-muted">
             <tr>
               <th className="p-2 text-left">Date</th>
               <th className="p-2 text-left">Type</th>
@@ -268,7 +268,7 @@ export default function PayrollDeductionsPageClient() {
                 <td className="p-2">
                   <input
                     type="date"
-                    className="border rounded px-2 py-1"
+                    className="border border-border rounded px-2 py-1 bg-background text-foreground"
                     value={r.effective_date}
                     onChange={(e) =>
                       void editDed(r.id, { effective_date: e.target.value })
@@ -277,7 +277,7 @@ export default function PayrollDeductionsPageClient() {
                 </td>
                 <td className="p-2">
                   <select
-                    className="border rounded px-2 py-1"
+                    className="border border-border rounded px-2 py-1 bg-background text-foreground"
                     value={r.type || "other"}
                     onChange={(e) =>
                       void editDed(r.id, { type: e.target.value })
@@ -295,7 +295,7 @@ export default function PayrollDeductionsPageClient() {
                     type="number"
                     step="0.01"
                     min="0"
-                    className="border rounded px-2 py-1 w-32"
+                    className="border border-border rounded px-2 py-1 w-32 bg-background text-foreground"
                     value={String(r.amount ?? 0)}
                     onChange={(e) =>
                       void editDed(r.id, {
@@ -307,7 +307,7 @@ export default function PayrollDeductionsPageClient() {
                 <td className="p-2">
                   <input
                     type="text"
-                    className="border rounded px-2 py-1 w-64"
+                    className="border border-border rounded px-2 py-1 w-64 bg-background text-foreground"
                     value={r.note || ""}
                     onChange={(e) =>
                       void editDed(r.id, { note: e.target.value })
@@ -316,7 +316,7 @@ export default function PayrollDeductionsPageClient() {
                 </td>
                 <td className="p-2">
                   <button
-                    className="text-red-600 hover:underline"
+                    className="text-danger hover:underline"
                     onClick={() => void deleteDed(r.id)}
                   >
                     Delete
@@ -333,7 +333,7 @@ export default function PayrollDeductionsPageClient() {
             )}
           </tbody>
           <tfoot>
-            <tr className="bg-gray-50 border-t">
+            <tr className="bg-muted border-t border-border">
               <td className="p-2 font-medium" colSpan={2}>
                 Total
               </td>
@@ -369,20 +369,20 @@ export default function PayrollDeductionsPageClient() {
             type="number"
             min="0"
             step="0.01"
-            className="border rounded px-3 py-2"
+            className="border border-border rounded px-3 py-2 bg-background text-foreground"
             value={amountIn}
             onChange={(e) => setAmountIn(e.target.value)}
           />
           <input
             type="text"
             placeholder="Note"
-            className="border rounded px-3 py-2"
+            className="border border-border rounded px-3 py-2 bg-background text-foreground"
             value={noteIn}
             onChange={(e) => setNoteIn(e.target.value)}
           />
         </div>
         <button
-          className="mt-4 bg-green-600 text-white rounded px-4 py-2"
+          className="mt-4 bg-success text-success-foreground rounded px-4 py-2"
           onClick={() => void addDed()}
         >
           Add

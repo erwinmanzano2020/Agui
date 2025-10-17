@@ -300,7 +300,7 @@ export default function DtrBulkPage() {
       </h1>
 
       {msg && (
-        <div className="mb-4 p-3 rounded bg-green-50 border border-green-200 text-green-800 whitespace-pre-wrap">
+        <div className="mb-4 p-3 rounded bg-success/10 border border-success/30 text-success whitespace-pre-wrap">
           {msg}
         </div>
       )}
@@ -327,7 +327,7 @@ export default function DtrBulkPage() {
 
         <div className="flex gap-2 flex-wrap">
           <input
-            className="border rounded px-2 py-2 w-28"
+            className="border border-border rounded px-2 py-2 w-28 bg-background text-foreground"
             placeholder="Fill IN1 (e.g. 07:00)"
             onBlur={(e) => {
               if (e.target.value) fillDown(["in1"], e.target.value);
@@ -365,14 +365,14 @@ export default function DtrBulkPage() {
           />
         </div>
 
-        <div className="text-sm text-gray-600 self-center md:col-span-4">
+        <div className="text-sm text-muted-foreground self-center md:col-span-4">
           Tip: type then blur (leave the box) to fill down
         </div>
       </div>
 
-      <div className="border rounded overflow-x-auto">
+      <div className="border border-border rounded overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-muted">
             <tr>
               <th className="p-2 text-left">Day</th>
               <th className="p-2 text-left">IN 1</th>
@@ -387,7 +387,7 @@ export default function DtrBulkPage() {
                 <td className="p-2">{weekdayLabel(day)}</td>
                 <td className="p-2">
                   <input
-                    className="border rounded px-2 py-1 w-28"
+                    className="border border-border rounded px-2 py-1 w-28 bg-background text-foreground"
                     type="time"
                     value={grid[day]?.in1 || ""}
                     onChange={(e) => setCell(day, "in1", e.target.value)}
@@ -395,7 +395,7 @@ export default function DtrBulkPage() {
                 </td>
                 <td className="p-2">
                   <input
-                    className="border rounded px-2 py-1 w-28"
+                    className="border border-border rounded px-2 py-1 w-28 bg-background text-foreground"
                     type="time"
                     value={grid[day]?.out1 || ""}
                     onChange={(e) => setCell(day, "out1", e.target.value)}
@@ -403,7 +403,7 @@ export default function DtrBulkPage() {
                 </td>
                 <td className="p-2">
                   <input
-                    className="border rounded px-2 py-1 w-28"
+                    className="border border-border rounded px-2 py-1 w-28 bg-background text-foreground"
                     type="time"
                     value={grid[day]?.in2 || ""}
                     onChange={(e) => setCell(day, "in2", e.target.value)}
@@ -411,7 +411,7 @@ export default function DtrBulkPage() {
                 </td>
                 <td className="p-2">
                   <input
-                    className="border rounded px-2 py-1 w-28"
+                    className="border border-border rounded px-2 py-1 w-28 bg-background text-foreground"
                     type="time"
                     value={grid[day]?.out2 || ""}
                     onChange={(e) => setCell(day, "out2", e.target.value)}
@@ -426,7 +426,7 @@ export default function DtrBulkPage() {
       <div className="flex gap-3 mt-3">
         <button
           type="button" /* prevent accidental form submit */
-          className="bg-blue-600 text-white rounded px-4 py-2"
+          className="bg-success text-success-foreground rounded px-4 py-2"
           onClick={saveAll}
           disabled={loading}
         >

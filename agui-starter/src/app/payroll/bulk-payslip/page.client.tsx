@@ -432,22 +432,22 @@ export default function BulkPayslipPageClient() {
   return (
     <div className="max-w-6xl mx-auto p-6 print:p-4">
       <h1 className="text-2xl font-semibold mb-1">Payslip (Bulk Export)</h1>
-      <div className="text-sm text-gray-700 mb-4">{COMPANY_NAME}</div>
+      <div className="text-sm text-muted-foreground mb-4">{COMPANY_NAME}</div>
 
       {err && (
-        <div className="mb-3 text-sm text-red-600 print:hidden">{err}</div>
+        <div className="mb-3 text-sm text-danger print:hidden">{err}</div>
       )}
 
       {/* Controls */}
       <div className="flex flex-wrap gap-2 mb-4 print:hidden">
         <input
           type="month"
-          className="border rounded px-3 py-2"
+          className="border border-border rounded px-3 py-2 bg-background text-foreground"
           value={month}
           onChange={(e) => setMonth(e.target.value)}
         />
         <button
-          className="bg-green-600 text-white rounded px-3 py-2"
+          className="bg-success text-success-foreground rounded px-3 py-2"
           onClick={run}
           disabled={loading}
         >
@@ -455,13 +455,13 @@ export default function BulkPayslipPageClient() {
         </button>
         {employeesWithData.length > 0 && (
           <button
-            className="bg-gray-700 text-white rounded px-3 py-2"
+            className="bg-card text-card-foreground border border-border rounded px-3 py-2"
             onClick={() => window.print()}
           >
             Print All
           </button>
         )}
-        <div className="text-sm text-gray-600 ml-auto">
+        <div className="text-sm text-muted-foreground ml-auto">
           {employeesWithData.length > 0
             ? `Ready: ${employeesWithData.length} payslip(s)`
             : "No payslips for this month yet"}
@@ -488,7 +488,7 @@ export default function BulkPayslipPageClient() {
         })}
 
         {employeesWithData.length === 0 && (
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-muted-foreground">
             Run for a month that has DTR or deductions.
           </div>
         )}
@@ -577,7 +577,7 @@ function PayslipCard(props: {
       {/* Heading */}
       <div className="mb-2">
         <div className="text-lg font-semibold">Payslip</div>
-        <div className="text-xs text-gray-600">
+        <div className="text-xs text-muted-foreground">
           {new Date(`${month}-01`).toLocaleString(undefined, {
             month: "long",
             year: "numeric",
@@ -586,7 +586,7 @@ function PayslipCard(props: {
       </div>
 
       <div className="flex justify-between mb-3">
-        <div className="text-sm text-gray-700">{/* left blank */}</div>
+        <div className="text-sm text-muted-foreground">{/* left blank */}</div>
         <div className="text-right text-sm">
           <div>
             <span className="font-medium">Employee:</span> {emp.full_name}
@@ -601,14 +601,14 @@ function PayslipCard(props: {
         {/* DTR */}
         <div>
           <div className="font-medium mb-2">DTR</div>
-          <table className="w-full text-xs border">
+          <table className="w-full text-xs border border-border">
             <thead>
-              <tr className="bg-gray-100">
-                <th className="border p-1 w-16">Day</th>
-                <th className="border p-1 text-center">IN 1</th>
-                <th className="border p-1 text-center">OUT 1</th>
-                <th className="border p-1 text-center">IN 2</th>
-                <th className="border p-1 text-center">OUT 2</th>
+              <tr className="bg-muted">
+                <th className="border border-border p-1 w-16">Day</th>
+                <th className="border border-border p-1 text-center">IN 1</th>
+                <th className="border border-border p-1 text-center">OUT 1</th>
+                <th className="border border-border p-1 text-center">IN 2</th>
+                <th className="border border-border p-1 text-center">OUT 2</th>
               </tr>
             </thead>
             <tbody>
@@ -618,21 +618,21 @@ function PayslipCard(props: {
                 return (
                   <tr
                     key={`${r.employee_id}-${r.work_date}`}
-                    className={isSun ? "bg-red-50 text-red-700" : ""}
+                    className={isSun ? "bg-danger/10 text-danger" : ""}
                   >
-                    <td className="border p-1 text-center">
+                    <td className="border border-border p-1 text-center">
                       {dayLabel(r.work_date)}
                     </td>
-                    <td className="border p-1 text-center">{segs.in1}</td>
-                    <td className="border p-1 text-center">{segs.out1}</td>
-                    <td className="border p-1 text-center">{segs.in2}</td>
-                    <td className="border p-1 text-center">{segs.out2}</td>
+                    <td className="border border-border p-1 text-center">{segs.in1}</td>
+                    <td className="border border-border p-1 text-center">{segs.out1}</td>
+                    <td className="border border-border p-1 text-center">{segs.in2}</td>
+                    <td className="border border-border p-1 text-center">{segs.out2}</td>
                   </tr>
                 );
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td className="border p-2 text-center" colSpan={5}>
+                  <td className="border border-border p-2 text-center" colSpan={5}>
                     No DTR entries in this month.
                   </td>
                 </tr>
@@ -644,81 +644,81 @@ function PayslipCard(props: {
         {/* Payroll computation */}
         <div>
           <div className="font-medium mb-2">Payroll Computation</div>
-          <table className="w-full text-sm border">
+          <table className="w-full text-sm border border-border">
             <tbody>
               <tr>
-                <td className="border p-2">Days Present</td>
-                <td className="border p-2 text-right">{summary.presentDays}</td>
+                <td className="border border-border p-2">Days Present</td>
+                <td className="border border-border p-2 text-right">{summary.presentDays}</td>
               </tr>
               <tr>
-                <td className="border p-2">Rate</td>
-                <td className="border p-2 text-right">
+                <td className="border border-border p-2">Rate</td>
+                <td className="border border-border p-2 text-right">
                   Daily – {peso(emp.rate_per_day)}
                 </td>
               </tr>
               <tr>
-                <td className="border p-2">Basic Pay</td>
-                <td className="border p-2 text-right">
+                <td className="border border-border p-2">Basic Pay</td>
+                <td className="border border-border p-2 text-right">
                   {peso(summary.basicPay)}
                 </td>
               </tr>
               <tr>
-                <td className="border p-2">
+                <td className="border border-border p-2">
                   OT –{" "}
-                  <span className="text-gray-600">{summary.otSum} mins</span>
+                  <span className="text-muted-foreground">{summary.otSum} mins</span>
                 </td>
-                <td className="border p-2 text-right">{peso(summary.otPay)}</td>
+                <td className="border border-border p-2 text-right">{peso(summary.otPay)}</td>
               </tr>
-              <tr className="font-semibold bg-yellow-50">
-                <td className="border p-2">Gross</td>
-                <td className="border p-2 text-right">{peso(summary.gross)}</td>
+              <tr className="font-semibold bg-warning/20 text-warning-foreground">
+                <td className="border border-border p-2">Gross</td>
+                <td className="border border-border p-2 text-right">{peso(summary.gross)}</td>
               </tr>
 
               <tr>
-                <td className="border p-2 font-medium" colSpan={2}>
+                <td className="border border-border p-2 font-medium" colSpan={2}>
                   Deductions
                 </td>
               </tr>
               {attMode === "DEDUCTION" && summary.shortVal > 0 && (
                 <tr>
-                  <td className="border p-2 pl-6">
+                  <td className="border border-border p-2 pl-6">
                     Late/UT –{" "}
-                    <span className="text-gray-600">
+                    <span className="text-muted-foreground">
                       {summary.shortMins} mins
                     </span>
                   </td>
-                  <td className="border p-2 text-right">
+                  <td className="border border-border p-2 text-right">
                     {peso(summary.shortVal)}
                   </td>
                 </tr>
               )}
               {dGroups.map((g) => (
                 <tr key={g.label}>
-                  <td className="border p-2 pl-6">
+                  <td className="border border-border p-2 pl-6">
                     {g.label}
                     {g.count > 1 ? (
-                      <span className="text-gray-500"> (×{g.count})</span>
+                      <span className="text-muted-foreground"> (×{g.count})</span>
                     ) : null}
                   </td>
-                  <td className="border p-2 text-right">{peso(g.total)}</td>
+                  <td className="border border-border p-2 text-right">{peso(g.total)}</td>
                 </tr>
               ))}
 
-              <tr className="font-semibold bg-yellow-50">
-                <td className="border p-2">Total Deductions</td>
-                <td className="border p-2 text-right">
+              <tr className="font-semibold bg-warning/20 text-warning-foreground">
+                <td className="border border-border p-2">Total Deductions</td>
+                <td className="border border-border p-2 text-right">
                   {peso(summary.totalDeductions)}
                 </td>
               </tr>
-              <tr className="font-semibold bg-gray-100">
-                <td className="border p-2">Net Pay</td>
-                <td className="border p-2 text-right">{peso(summary.net)}</td>
+              <tr className="font-semibold bg-muted">
+                <td className="border border-border p-2">Net Pay</td>
+                <td className="border border-border p-2 text-right">{peso(summary.net)}</td>
               </tr>
             </tbody>
           </table>
 
           {/* Acknowledgement */}
-          <div className="mt-6 text-xs text-gray-700 leading-relaxed">
+          <div className="mt-6 text-xs text-muted-foreground leading-relaxed">
             I acknowledge that the information stated in this payslip is true
             and correct, and I accept the computations of my compensation and
             deductions for the period indicated.

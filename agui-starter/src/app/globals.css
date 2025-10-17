@@ -36,12 +36,89 @@
   --container-2xl: 1200px;
 }
 
+:root {
+  color-scheme: light;
+
+  --bg: 0 0% 100%;
+  --fg: 222 47% 11%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+
+  --muted: 210 20% 96%;
+  --muted-foreground: 215 16% 46%;
+
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 152 48% 40%;
+
+  --success: 142 72% 29%;
+  --success-foreground: 0 0% 98%;
+  --warning: 38 92% 50%;
+  --warning-foreground: 26 83% 18%;
+  --danger: 0 84% 60%;
+  --danger-foreground: 0 0% 100%;
+
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+
+  --agui-primary: #3c7cae;
+  --agui-accent: #06b6d4;
+  --agui-ring: #0ea5e9;
+  --agui-radius: 12px;
+  --agui-on-primary: #f8fafc;
+  --agui-on-surface: hsl(var(--fg));
+  --agui-on-accent: #022c36;
+  --agui-card: hsl(var(--card));
+  --agui-card-border: hsl(var(--border));
+  --agui-card-foreground: hsl(var(--card-foreground));
+  --agui-surface: hsl(var(--bg));
+  --agui-surface-elevated: hsl(var(--card));
+  --agui-surface-border: hsl(var(--border));
+  --agui-muted-foreground: hsl(var(--muted-foreground));
+}
+
+.dark,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: 222 47% 10%;
+  --fg: 210 40% 98%;
+
+  --card: 222 25% 16%;
+  --card-foreground: 210 40% 98%;
+
+  --muted: 218 22% 17%;
+  --muted-foreground: 215 18% 70%;
+
+  --border: 220 16% 28%;
+  --input: 220 16% 28%;
+  --ring: 152 48% 50%;
+
+  --success: 142 72% 40%;
+  --success-foreground: 0 0% 98%;
+  --warning: 38 92% 55%;
+  --warning-foreground: 26 83% 18%;
+  --danger: 0 84% 60%;
+  --danger-foreground: 0 0% 100%;
+
+  --agui-on-surface: hsl(var(--fg));
+  --agui-card: hsl(var(--card));
+  --agui-card-border: hsl(var(--border));
+  --agui-card-foreground: hsl(var(--card-foreground));
+  --agui-surface: hsl(var(--bg));
+  --agui-surface-elevated: hsl(var(--card));
+  --agui-surface-border: hsl(var(--border));
+  --agui-muted-foreground: hsl(var(--muted-foreground));
+}
+
 /* --- Base defaults using our tokens --- */
 @layer base {
   html,
   body {
-    background-color: var(--agui-surface);
-    color: var(--agui-on-surface);
+    background-color: hsl(var(--bg));
+    color: hsl(var(--fg));
     font-feature-settings: "liga" 1, "kern" 1;
     -webkit-font-smoothing: antialiased;
   }
@@ -138,18 +215,3 @@
   outline-offset: 2px;
 }
 
-:root {
-  --agui-primary: #3c7cae;
-  --agui-surface: #0b0b0b;
-  --agui-accent: #06b6d4;
-  --agui-radius: 12px;
-  --agui-on-primary: #f8fafc;
-  --agui-on-surface: #f8fafc;
-  --agui-on-accent: #022c36;
-  --agui-card: #111827;
-  --agui-card-border: rgba(255, 255, 255, 0.12);
-  --agui-card-foreground: #f8fafc;
-  --agui-surface-elevated: #141e2a;
-  --agui-surface-border: rgba(255, 255, 255, 0.16);
-  --agui-muted-foreground: #94a3b8;
-}

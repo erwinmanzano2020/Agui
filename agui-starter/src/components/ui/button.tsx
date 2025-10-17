@@ -32,7 +32,6 @@ const variants: Record<ButtonVariant, string> = {
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant = "solid", size = "md", ...props }, ref) => {
-    // For link-style, ignore the height/padding from sizes unless the caller overrides via className
     const sizeClasses = variant === "link" ? "" : sizes[size];
     return (
       <button
