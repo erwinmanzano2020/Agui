@@ -32,7 +32,7 @@ export default function AguiPage() {
       </header>
 
       {err && (
-        <p className="text-red-600">
+        <p className="text-danger">
           Failed to load UI config: <span className="font-mono">{err}</span>
         </p>
       )}
@@ -46,7 +46,7 @@ export default function AguiPage() {
             .map((m) => (
               <div
                 key={m.key}
-                className="rounded-2xl border p-4 shadow-sm hover:shadow-md transition"
+                className="rounded-2xl border border-border bg-card text-card-foreground p-4 shadow-sm hover:shadow-md transition"
               >
                 <h2 className="font-semibold text-lg">
                   {m.label ?? m.key.replace(/[-_]/g, " ")}

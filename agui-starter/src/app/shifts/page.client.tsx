@@ -209,7 +209,7 @@ export default function ShiftsPageClient() {
       </Card>
 
       {err && (
-        <div className="rounded-[var(--agui-radius)] border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+        <div className="rounded-[var(--agui-radius)] border border-danger/40 bg-danger/10 px-3 py-2 text-sm text-danger">
           Error: {err}
         </div>
       )}
@@ -362,7 +362,7 @@ export default function ShiftsPageClient() {
                         type="button"
                         variant="link"
                         size="xs"
-                        className="text-xs text-red-300 hover:text-red-200"
+                        className="text-xs text-danger/70 hover:text-danger"
                         onClick={() => remove(r.id)}
                         disabled={busy}
                       >

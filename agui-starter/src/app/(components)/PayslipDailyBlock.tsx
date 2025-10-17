@@ -29,9 +29,9 @@ export default async function PayslipDailyBlock(props: {
       </div>
 
       {(props.showTable ?? true) && (
-        <div className="border rounded overflow-hidden">
+        <div className="border border-border rounded overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+            <thead className="bg-muted">
               <tr>
                 <th className="text-left p-2">Date</th>
                 <th className="text-right p-2">As-of Rate</th>
@@ -60,7 +60,7 @@ export default async function PayslipDailyBlock(props: {
               ))}
               {res.breakdown.length === 0 && (
                 <tr>
-                  <td className="p-3 text-gray-500" colSpan={4}>
+                  <td className="p-3 text-muted-foreground" colSpan={4}>
                     No DTR rows in range.
                   </td>
                 </tr>

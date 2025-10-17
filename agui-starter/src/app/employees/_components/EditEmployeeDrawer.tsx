@@ -268,7 +268,7 @@ export default function EditEmployeeDrawer({
       />
       {/* Panel */}
       <div
-        className="absolute right-0 top-0 h-full w-full max-w-xl bg-white shadow-xl p-4 overflow-y-auto"
+        className="absolute right-0 top-0 h-full w-full max-w-xl bg-card text-card-foreground shadow-xl p-4 overflow-y-auto"
         role="dialog"
         aria-modal="true"
         aria-labelledby="edit-employee-title"
@@ -287,25 +287,25 @@ export default function EditEmployeeDrawer({
           </button>
         </div>
 
-        {err && <div className="mb-3 text-sm text-red-600">Error: {err}</div>}
+        {err && <div className="mb-3 text-sm text-danger">Error: {err}</div>}
 
         {/* Tabs */}
         <div className="border-b mb-4">
           <nav className="flex gap-4 text-sm">
             <button
-              className={`pb-2 ${tab === "profile" ? "border-b-2 border-black font-medium" : "text-gray-600"}`}
+              className={`pb-2 ${tab === "profile" ? "border-b-2 border-black font-medium" : "text-muted-foreground"}`}
               onClick={() => setTab("profile")}
             >
               Profile
             </button>
             <button
-              className={`pb-2 ${tab === "compensation" ? "border-b-2 border-black font-medium" : "text-gray-600"}`}
+              className={`pb-2 ${tab === "compensation" ? "border-b-2 border-black font-medium" : "text-muted-foreground"}`}
               onClick={() => setTab("compensation")}
             >
               Compensation
             </button>
             <button
-              className={`pb-2 ${tab === "audit" ? "border-b-2 border-black font-medium" : "text-gray-600"}`}
+              className={`pb-2 ${tab === "audit" ? "border-b-2 border-black font-medium" : "text-muted-foreground"}`}
               onClick={() => setTab("audit")}
             >
               Audit
@@ -317,7 +317,7 @@ export default function EditEmployeeDrawer({
         {tab === "profile" && (
           <div className="space-y-3">
             {!emp ? (
-              <div className="text-sm text-gray-600">Loading…</div>
+              <div className="text-sm text-muted-foreground">Loading…</div>
             ) : (
               <>
                 <div>
@@ -358,7 +358,7 @@ export default function EditEmployeeDrawer({
                   </select>
                 </div>
 
-                <div className="text-xs text-gray-600">
+                <div className="text-xs text-muted-foreground">
                   <div className="mb-1">
                     <b>Rate/Day (read-only):</b>{" "}
                     {emp.rate_per_day != null
@@ -376,7 +376,7 @@ export default function EditEmployeeDrawer({
                     type="button"
                     onClick={saveProfile}
                     disabled={busy}
-                    className="bg-green-600 text-white rounded px-3 py-1 disabled:opacity-60"
+                    className="bg-success text-success-foreground rounded px-3 py-1 disabled:opacity-60"
                   >
                     Save Profile
                   </button>
@@ -446,7 +446,7 @@ export default function EditEmployeeDrawer({
                   type="button"
                   onClick={addRate}
                   disabled={busy}
-                  className="bg-green-600 text-white rounded px-3 py-1 disabled:opacity-60"
+                  className="bg-success text-success-foreground rounded px-3 py-1 disabled:opacity-60"
                 >
                   Save Rate
                 </button>
@@ -456,7 +456,7 @@ export default function EditEmployeeDrawer({
             <div className="rounded border p-3">
               <h3 className="font-medium mb-3">Rate History</h3>
               {rates.length === 0 ? (
-                <div className="text-sm text-gray-600">No entries yet.</div>
+                <div className="text-sm text-muted-foreground">No entries yet.</div>
               ) : (
                 <table className="w-full text-sm border-collapse">
                   <thead>
@@ -496,7 +496,7 @@ export default function EditEmployeeDrawer({
               )}
             </div>
 
-            <div className="text-xs text-gray-600">
+            <div className="text-xs text-muted-foreground">
               Payroll will later use the <b>as-of</b> rate based on the payout
               period.
             </div>
@@ -504,7 +504,7 @@ export default function EditEmployeeDrawer({
         )}
 
         {tab === "audit" && (
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-muted-foreground">
             Coming soon: change logs & approvals.
           </div>
         )}
