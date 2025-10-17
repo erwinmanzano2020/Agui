@@ -4,6 +4,8 @@ import type { CSSProperties, ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/layout/app-shell";
 import ThemeProvider from "@/app/providers/theme-provider";
+import { ToasterMount } from "@/components/ui/toaster";
+import ThemeToggle from "@/components/ui/theme-toggle";
 import { loadUiConfig } from "@/lib/ui-config";
 import { themeToCssVars } from "@/lib/theme-css";
 
@@ -27,6 +29,8 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       >
         <ThemeProvider theme={theme}>
           <AppShell>{children}</AppShell>
+          <ToasterMount />
+          <ThemeToggle />
         </ThemeProvider>
       </body>
     </html>
