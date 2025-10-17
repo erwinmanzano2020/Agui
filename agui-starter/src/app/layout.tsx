@@ -1,13 +1,12 @@
 // agui-starter/src/app/layout.tsx
 import "./globals.css";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/layout/app-shell";
 import ThemeProvider from "@/app/providers/theme-provider";
 import { ToasterMount } from "@/components/ui/toaster";
 import ThemeToggle from "@/components/ui/theme-toggle";
 import { loadUiConfig } from "@/lib/ui-config";
-import { themeToCssVars } from "@/lib/theme-css";
 
 const geistSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
@@ -19,10 +18,9 @@ export const metadata = {
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
   const { theme } = await loadUiConfig();
-  const styleVars = themeToCssVars(theme) as CSSProperties;
 
   return (
-    <html lang="en" style={styleVars}>
+    <html lang="en">
       <body
         suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}

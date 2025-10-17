@@ -11,11 +11,26 @@ type ThemeProviderProps = {
 
 export function ThemeProvider({ theme, children }: ThemeProviderProps) {
   useEffect(() => {
+    if (!theme) return;
+
     const root = document.documentElement;
     const vars = themeToCssVars(theme);
-    Object.entries(vars).forEach(([key, value]) => {
-      root.style.setProperty(key, value);
-    });
+
+    const ALLOW = new Set([
+      "--agui-primary",
+      "--agui-primary-hsl",
+      "--agui-accent",
+      "--agui-accent-hsl",
+      "--agui-ring",
+      "--agui-ring-hsl",
+      "--agui-radius",
+    ]);
+
+    for (const [key, value] of Object.entries(vars)) {
+      if (ALLOW.has(key)) {
+        root.style.setProperty(key, String(value));
+      }
+    }
   }, [theme]);
 
   return <>{children}</>;
