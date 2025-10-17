@@ -1,4 +1,3 @@
-// agui-starter/src/app/providers/theme-provider.tsx
 "use client";
 
 import type { PropsWithChildren } from "react";
@@ -29,16 +28,13 @@ export function setThemeMode(mode: ThemeMode) {
   applyMode(mode);
 }
 
-/** Props for the provider: children + optional theme */
-type ThemeProviderProps = PropsWithChildren<{
-  theme?: ThemeConfig;
-}>;
+type ThemeProviderProps = PropsWithChildren<{ theme?: ThemeConfig }>;
 
 /**
  * ThemeProvider:
  * - applies dark/light class using persisted preference
  * - listens to storage changes across tabs
- * - writes CSS vars from optional ThemeConfig
+ * - writes **brand** CSS vars from optional ThemeConfig (not base palette)
  */
 export default function ThemeProvider({ theme, children }: ThemeProviderProps) {
   // Dark/light bootstrap + cross-tab sync
@@ -53,13 +49,25 @@ export default function ThemeProvider({ theme, children }: ThemeProviderProps) {
     return () => window.removeEventListener("storage", onStorage);
   }, []);
 
-  // Apply CSS variables from ThemeConfig (if provided)
+  // Apply **brand** variables from ThemeConfig (safe across light/dark)
   useEffect(() => {
     if (!theme) return;
+
     const root = document.documentElement;
     const vars = themeToCssVars(theme);
+
+    const ALLOW = new Set([
+      "--agui-primary",
+      "--agui-primary-hsl",
+      "--agui-accent",
+      "--agui-accent-hsl",
+      "--agui-ring",
+      "--agui-ring-hsl",
+      "--agui-radius",
+    ]);
+
     for (const [k, v] of Object.entries(vars)) {
-      root.style.setProperty(k, String(v));
+      if (ALLOW.has(k)) root.style.setProperty(k, String(v));
     }
   }, [theme]);
 
