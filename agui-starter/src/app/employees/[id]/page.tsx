@@ -306,10 +306,10 @@ export default function EmployeeSchedulePage() {
         </div>
       )}
 
-      {err && <div className="mb-3 text-sm text-red-600">Error: {err}</div>}
+      {err && <div className="mb-3 text-sm text-danger">Error: {err}</div>}
 
       {/* Weekly Map */}
-      <div className="border rounded p-3 mb-6">
+      <div className="border border-border rounded p-3 mb-6">
         <h2 className="font-medium mb-3">Weekly Map</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {UI_DAYS.map((d) => (
@@ -342,12 +342,12 @@ export default function EmployeeSchedulePage() {
         <div className="flex flex-col md:flex-row gap-2 mb-3">
           <input
             type="date"
-            className="border rounded px-2 py-1"
+            className="border border-border rounded px-2 py-1 bg-background text-foreground"
             value={ovrDate}
             onChange={(e) => setOvrDate(e.target.value)}
           />
           <select
-            className="border rounded px-2 py-1"
+            className="border border-border rounded px-2 py-1 bg-background text-foreground"
             value={ovrShift}
             onChange={(e) => setOvrShift(e.target.value)}
             disabled={busy}
@@ -360,7 +360,7 @@ export default function EmployeeSchedulePage() {
             ))}
           </select>
           <button
-            className="bg-green-600 text-white rounded px-3 py-1"
+            className="bg-success text-success-foreground rounded px-3 py-1"
             onClick={saveOverride}
             disabled={busy || !ovrDate}
           >
@@ -369,7 +369,7 @@ export default function EmployeeSchedulePage() {
         </div>
 
         {overrides.length === 0 ? (
-          <div className="text-sm text-gray-600">No overrides</div>
+          <div className="text-sm text-muted-foreground">No overrides</div>
         ) : (
           <ul className="text-sm list-disc ml-5">
             {overrides.map((o) => (

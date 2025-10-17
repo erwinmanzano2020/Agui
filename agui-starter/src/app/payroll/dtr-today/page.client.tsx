@@ -338,27 +338,27 @@ export default function PayrollDtrTodayPageClient() {
       <div className="border rounded p-3 mb-4">
         <div className="flex gap-2 mb-3">
           <button
-            className="bg-gray-800 text-white rounded px-3 py-2"
+            className="bg-muted text-foreground rounded px-3 py-2"
             onClick={clockIn}
             disabled={hasOpen}
           >
             Clock In
           </button>
           <button
-            className="bg-gray-600 text-white rounded px-3 py-2"
+            className="bg-muted text-foreground rounded px-3 py-2"
             onClick={clockOut}
             disabled={!hasOpen}
           >
             Clock Out
           </button>
           <button
-            className="bg-blue-600 text-white rounded px-3 py-2"
+            className="bg-card text-card-foreground border border-border rounded px-3 py-2"
             onClick={() => rollupSegments(false)}
           >
             Preview Rollup
           </button>
           <button
-            className="bg-green-600 text-white rounded px-3 py-2"
+            className="bg-success text-success-foreground rounded px-3 py-2"
             onClick={() => rollupSegments(true)}
           >
             Save Rollup
@@ -393,7 +393,7 @@ export default function PayrollDtrTodayPageClient() {
         <div>
           <div className="text-xs mb-1">Time In (manual)</div>
           <input
-            className="border rounded px-3 py-2 w-full"
+            className="border border-border rounded px-3 py-2 w-full bg-background text-foreground"
             type="time"
             value={timeIn}
             onChange={(e) => setTimeIn(e.target.value)}
@@ -402,20 +402,20 @@ export default function PayrollDtrTodayPageClient() {
         <div>
           <div className="text-xs mb-1">Time Out (manual)</div>
           <input
-            className="border rounded px-3 py-2 w-full"
+            className="border border-border rounded px-3 py-2 w-full bg-background text-foreground"
             type="time"
             value={timeOut}
             onChange={(e) => setTimeOut(e.target.value)}
           />
         </div>
         <button
-          className="bg-blue-500 text-white rounded px-3 py-2"
+          className="bg-card text-card-foreground border border-border rounded px-3 py-2"
           onClick={() => runManualPreview(false)}
         >
           Preview
         </button>
         <button
-          className="bg-green-500 text-white rounded px-3 py-2"
+          className="bg-success text-success-foreground rounded px-3 py-2"
           onClick={() => runManualPreview(true)}
         >
           Save
@@ -423,9 +423,9 @@ export default function PayrollDtrTodayPageClient() {
       </div>
 
       {/* Results */}
-      {msg && <div className="text-green-700 text-sm mb-2">{msg}</div>}
+      {msg && <div className="text-success text-sm mb-2">{msg}</div>}
       {preview && (
-        <div className="border rounded p-3 text-sm">
+        <div className="border border-border rounded p-3 text-sm">
           <div>
             <b>Regular mins:</b> {preview.regular}
           </div>
