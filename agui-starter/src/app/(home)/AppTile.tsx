@@ -131,23 +131,23 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
           onPointerLeave={handlePointerLeave}
           onKeyDown={handleKeyDown}
           className={cn(
-            "group relative flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-border/60 bg-card/80 px-6 py-8 text-center text-sm shadow-soft transition-transform duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agui-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color-mix(in_srgb,_var(--agui-surface)_92%,_black_8%)] hover:-translate-y-1 hover:shadow-lifted active:scale-95",
+            "group relative flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card px-6 py-8 text-center text-sm text-card-foreground shadow-soft transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agui-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color-mix(in_srgb,_var(--agui-surface)_92%,_black_8%)] hover:shadow-lifted active:scale-95 motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-reduce:transition-none motion-reduce:active:scale-100",
             className
           )}
         >
           <span
             className={cn(
-              "flex h-14 w-14 items-center justify-center rounded-2xl text-2xl text-[var(--agui-primary)] transition-transform duration-150 group-hover:scale-105",
+              "flex h-14 w-14 items-center justify-center rounded-2xl text-2xl text-[var(--agui-primary)] motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-safe:group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100",
               accent ?? "bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)]"
             )}
           >
             {icon}
           </span>
-          <span className="w-full truncate text-base font-semibold text-[var(--agui-on-surface)]">
+          <span className="w-full truncate text-base font-semibold text-card-foreground">
             {label}
           </span>
           {description ? (
-            <span className="text-xs text-[var(--agui-muted-foreground)]">{description}</span>
+            <span className="text-xs text-muted-foreground">{description}</span>
           ) : null}
         </Link>
 
@@ -157,7 +157,7 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
             role="tooltip"
             aria-hidden={!isTooltipVisible}
             className={cn(
-              "pointer-events-none absolute left-1/2 top-full z-50 mt-3 w-max max-w-xs -translate-x-1/2 rounded-xl border border-border/70 bg-[color-mix(in_srgb,_var(--agui-surface)_90%,_black_10%)] px-3 py-2 text-xs text-[var(--agui-on-surface)] shadow-soft transition-opacity duration-150",
+              "pointer-events-none absolute left-1/2 top-full z-50 mt-3 w-max max-w-xs -translate-x-1/2 rounded-xl border border-border bg-card px-3 py-2 text-xs text-card-foreground shadow-soft transition-opacity duration-150 motion-reduce:transition-none",
               isTooltipVisible ? "opacity-100" : "opacity-0"
             )}
           >
