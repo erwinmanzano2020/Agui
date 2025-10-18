@@ -14,6 +14,7 @@ import {
   useState,
 } from "react";
 
+import { LUCIDE_STROKE_WIDTH } from "@/components/icons/lucide";
 import { cn } from "@/lib/utils";
 
 export type AppTileVariant = "black" | "pearl" | "charcoal" | "white";
@@ -103,11 +104,14 @@ function enhanceIcon(icon: ReactNode): ReactNode {
   const element = icon as ReactElement<{ className?: string; strokeWidth?: number; color?: string }>;
 
   return cloneElement(element, {
-    className: cn("h-10 w-10", element.props.className),
+    className: cn("h-6 w-6", element.props.className),
     strokeWidth:
       typeof element.props.strokeWidth === "number"
-        ? Math.min(Math.max(element.props.strokeWidth, 1.8), 2)
-        : 1.8,
+        ? Math.min(
+            Math.max(element.props.strokeWidth, LUCIDE_STROKE_WIDTH - 0.2),
+            LUCIDE_STROKE_WIDTH
+          )
+        : LUCIDE_STROKE_WIDTH,
     color: element.props.color ?? "currentColor",
   });
 }
@@ -202,7 +206,7 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
             </span>
           </div>
           <div className="flex flex-col gap-1">
-            <p className={cn("text-lg font-semibold", styles.label)}>{label}</p>
+            <p className={cn("text-lg font-medium", styles.label)}>{label}</p>
             <p className={cn("text-sm", styles.description)}>
               {description ? description : "Open app"}
             </p>
