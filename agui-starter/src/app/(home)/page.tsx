@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { SplashScreen } from "@/app/(components)/SplashScreen";
 import { Dock, type DockItem } from "@/app/(home)/Dock";
 import { AppTile } from "@/app/(home)/AppTile";
@@ -17,6 +17,8 @@ const DOCK_APPS = dock
 export default function HomePage() {
   const gridRef = useRef<HTMLDivElement>(null);
   const tileRefs = useRef<(HTMLAnchorElement | null)[]>([]);
+  const [focusIndex, setFocusIndex] = useState(0);
+  const [columnCount, setColumnCount] = useState(1);
 
   const dockItems = useMemo<DockItem[]>(() => {
     return DOCK_APPS.map((app) => ({
@@ -49,10 +51,33 @@ export default function HomePage() {
     return Math.min(columns, GRID_APPS.length);
   }, []);
 
+  useEffect(() => {
+    const updateColumnCount = () => {
+      setColumnCount(getColumnCount());
+    };
+
+    updateColumnCount();
+
+    window.addEventListener("resize", updateColumnCount);
+
+    return () => {
+      window.removeEventListener("resize", updateColumnCount);
+    };
+  }, [getColumnCount]);
+
   const handleTileKeyDown = useCallback(
     (index: number) => (event: KeyboardEvent<HTMLAnchorElement>) => {
       const { key } = event;
-      if (![`ArrowRight`, `ArrowLeft`, `ArrowUp`, `ArrowDown`].includes(key)) {
+      if (
+        ![
+          "ArrowRight",
+          "ArrowLeft",
+          "ArrowUp",
+          "ArrowDown",
+          "Home",
+          "End",
+        ].includes(key)
+      ) {
         return;
       }
 
@@ -75,6 +100,16 @@ export default function HomePage() {
         case "ArrowUp":
           nextIndex = Math.max(index - columns, 0);
           break;
+        case "Home":
+          nextIndex = 0;
+          break;
+        case "End":
+          nextIndex = maxIndex;
+          break;
+      }
+
+      if (nextIndex !== index) {
+        setFocusIndex(nextIndex);
       }
 
       const target = tileRefs.current[nextIndex];
@@ -83,6 +118,15 @@ export default function HomePage() {
       }
     },
     [getColumnCount]
+  );
+
+  const handleTileFocus = useCallback(
+    (index: number) => () => {
+      if (focusIndex !== index) {
+        setFocusIndex(index);
+      }
+    },
+    [focusIndex]
   );
 
   return (
@@ -107,21 +151,35 @@ export default function HomePage() {
               <h2 className="text-sm font-medium text-[var(--agui-muted-foreground)]">Apps</h2>
               <div
                 ref={gridRef}
+                role="grid"
+                aria-label="App launcher"
+                aria-colcount={columnCount}
+                aria-rowcount={Math.ceil(GRID_APPS.length / columnCount)}
                 className="mt-4 grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
               >
                 {GRID_APPS.map((app, index) => (
-                  <AppTile
+                  <div
                     key={app.id}
-                    href={app.href}
-                    label={app.label}
-                    description={app.description}
-                    icon={app.icon}
-                    accent={app.accent}
-                    onKeyDown={handleTileKeyDown(index)}
-                    ref={(element) => {
-                      tileRefs.current[index] = element;
-                    }}
-                  />
+                    role="gridcell"
+                    aria-rowindex={Math.floor(index / columnCount) + 1}
+                    aria-colindex={(index % columnCount) + 1}
+                    className="flex"
+                  >
+                    <AppTile
+                      href={app.href}
+                      label={app.label}
+                      description={app.description}
+                      icon={app.icon}
+                      accent={app.accent}
+                      tabIndex={focusIndex === index ? 0 : -1}
+                      onFocus={handleTileFocus(index)}
+                      onKeyDown={handleTileKeyDown(index)}
+                      className="w-full"
+                      ref={(element) => {
+                        tileRefs.current[index] = element;
+                      }}
+                    />
+                  </div>
                 ))}
               </div>
             </section>
