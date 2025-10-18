@@ -3,318 +3,204 @@
 import Link from "next/link";
 import {
   CSSProperties,
-  PointerEvent as ReactPointerEvent,
+  cloneElement,
+  isValidElement,
+  type ReactElement,
   type ReactNode,
-  useEffect,
-  useId,
   useMemo,
-  useRef,
   useState,
 } from "react";
 
 import { cn } from "@/lib/utils";
-import { resolveAccentPair } from "@/lib/color";
 
-const HOVER_DELAY = 200;
-const LONG_PRESS_DELAY = 350;
+type AppTileVariant = "black" | "pearl" | "charcoal" | "white";
 
 export interface AppTileProps {
   icon: ReactNode;
   label: string;
   href: string;
-  description: string;
-  accent?: string;
+  description?: string;
+  variant?: AppTileVariant;
   className?: string;
 }
 
-function usePrefersReducedMotion() {
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+const VARIANT_STYLES: Record<
+  AppTileVariant,
+  {
+    tile: string;
+    icon: string;
+    badge: string;
+    label: string;
+    description: string;
+    tooltip: string;
+    tooltipText: string;
+    ring: string;
+    ringOffset: string;
+  }
+> = {
+  black: {
+    tile:
+      "border-white/10 bg-neutral-950 text-white shadow-[0_20px_45px_-30px_rgba(0,0,0,0.75)] hover:border-white/20",
+    icon: "bg-white/10 text-white",
+    badge: "bg-white/12 text-white",
+    label: "text-white",
+    description: "text-white/70",
+    tooltip: "bg-white border-white/60",
+    tooltipText: "text-neutral-900",
+    ring: "rgba(255,255,255,0.55)",
+    ringOffset: "#0b0b0f",
+  },
+  pearl: {
+    tile:
+      "border-white/60 bg-[#f5f5f7] text-neutral-900 shadow-[0_16px_35px_-32px_rgba(36,36,36,0.75)] hover:border-white/80",
+    icon: "bg-white text-neutral-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]",
+    badge: "bg-neutral-900/10 text-neutral-900",
+    label: "text-neutral-900",
+    description: "text-neutral-600",
+    tooltip: "bg-neutral-900 border-black/30",
+    tooltipText: "text-white",
+    ring: "rgba(28,28,28,0.45)",
+    ringOffset: "#f5f5f7",
+  },
+  charcoal: {
+    tile:
+      "border-white/10 bg-[#1f1f23] text-white shadow-[0_24px_55px_-35px_rgba(0,0,0,0.85)] hover:border-white/15",
+    icon: "bg-white/10 text-white",
+    badge: "bg-white/12 text-white",
+    label: "text-white",
+    description: "text-white/65",
+    tooltip: "bg-white border-white/50",
+    tooltipText: "text-neutral-900",
+    ring: "rgba(255,255,255,0.45)",
+    ringOffset: "#1f1f23",
+  },
+  white: {
+    tile:
+      "border-neutral-200 bg-white text-neutral-900 shadow-[0_22px_50px_-32px_rgba(36,36,36,0.18)] hover:border-neutral-300",
+    icon: "bg-neutral-950/5 text-neutral-900",
+    badge: "bg-neutral-900/10 text-neutral-900",
+    label: "text-neutral-900",
+    description: "text-neutral-600",
+    tooltip: "bg-neutral-900 border-black/20",
+    tooltipText: "text-white",
+    ring: "rgba(28,28,28,0.45)",
+    ringOffset: "#ffffff",
+  },
+};
 
-  useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setPrefersReducedMotion(mediaQuery.matches);
+function enhanceIcon(icon: ReactNode): ReactNode {
+  if (!isValidElement(icon)) {
+    return icon;
+  }
 
-    update();
-    if (typeof mediaQuery.addEventListener === "function") {
-      mediaQuery.addEventListener("change", update);
-    } else if (typeof mediaQuery.addListener === "function") {
-      // Safari < 14 fallback
-      mediaQuery.addListener(update);
-    }
+  const element = icon as ReactElement<{ className?: string; strokeWidth?: number; color?: string }>;
 
-    return () => {
-      if (typeof mediaQuery.removeEventListener === "function") {
-        mediaQuery.removeEventListener("change", update);
-      } else if (typeof mediaQuery.removeListener === "function") {
-        mediaQuery.removeListener(update);
-      }
-    };
-  }, []);
-
-  return prefersReducedMotion;
+  return cloneElement(element, {
+    className: cn("h-10 w-10", element.props.className),
+    strokeWidth:
+      typeof element.props.strokeWidth === "number"
+        ? Math.min(Math.max(element.props.strokeWidth, 1.8), 2)
+        : 1.8,
+    color: element.props.color ?? "currentColor",
+  });
 }
 
-export function AppTile(props: AppTileProps) {
-  const { icon, label, href, description, accent, className } = props;
+export function AppTile({
+  icon,
+  label,
+  href,
+  description,
+  variant = "black",
+  className,
+}: AppTileProps) {
+  const styles = VARIANT_STYLES[variant];
   const [isTooltipVisible, setTooltipVisible] = useState(false);
-  const [isPopoverVisible, setPopoverVisible] = useState(false);
-  const [isFocused, setFocused] = useState(false);
-  const prefersReducedMotion = usePrefersReducedMotion();
-  const tooltipId = useId();
-  const popoverLabelId = useId();
-  const popoverDescriptionId = useId();
-  const containerRef = useRef<HTMLDivElement>(null);
-  const hoverTimeoutRef = useRef<number>();
-  const longPressTimeoutRef = useRef<number>();
-  const longPressTriggeredRef = useRef(false);
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
 
-  useEffect(() => {
-    if (!isPopoverVisible) {
-      return;
-    }
+  const enhancedIcon = useMemo(() => enhanceIcon(icon), [icon]);
+  const tooltipId = description
+    ? `${label.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase()}-tooltip`
+    : undefined;
 
-    const handlePointerDown = (event: PointerEvent) => {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setPopoverVisible(false);
-      }
-    };
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setPopoverVisible(false);
-      }
-    };
-
-    window.addEventListener("pointerdown", handlePointerDown);
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      window.removeEventListener("pointerdown", handlePointerDown);
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isPopoverVisible]);
-
-  useEffect(() => {
-    if (isPopoverVisible) {
-      setTooltipVisible(false);
-    }
-  }, [isPopoverVisible]);
-
-  useEffect(() => () => {
-    if (hoverTimeoutRef.current) {
-      window.clearTimeout(hoverTimeoutRef.current);
-    }
-    if (longPressTimeoutRef.current) {
-      window.clearTimeout(longPressTimeoutRef.current);
-    }
-  }, []);
-
-  const scheduleTooltip = () => {
-    if (hoverTimeoutRef.current) {
-      window.clearTimeout(hoverTimeoutRef.current);
-    }
-    hoverTimeoutRef.current = window.setTimeout(() => {
-      hoverTimeoutRef.current = undefined;
-      setTooltipVisible(true);
-    }, HOVER_DELAY);
+  const showTooltip = () => {
+    if (!description) return;
+    setTooltipVisible(true);
   };
 
-  const cancelTooltip = (immediate = false) => {
-    if (hoverTimeoutRef.current) {
-      window.clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = undefined;
-    }
-    if (immediate) {
-      setTooltipVisible(false);
-    }
-  };
-
-  const handlePointerEnter = (event: ReactPointerEvent<HTMLAnchorElement>) => {
-    if (event.pointerType === "touch") {
-      return;
-    }
-    scheduleTooltip();
-  };
-
-  const handlePointerLeave = (event: ReactPointerEvent<HTMLAnchorElement>) => {
-    if (event.pointerType === "touch") {
-      clearLongPressTimer();
-      touchStartRef.current = null;
-    }
-    if (!isFocused) {
-      cancelTooltip(true);
-    }
-  };
-
-  const handleFocus = () => {
-    setFocused(true);
-    scheduleTooltip();
-  };
-
-  const handleBlur = () => {
-    setFocused(false);
-    cancelTooltip(true);
-    setPopoverVisible(false);
-  };
-
-  const handlePointerDown = (event: ReactPointerEvent<HTMLAnchorElement>) => {
-    if (event.pointerType === "touch") {
-      setTooltipVisible(false);
-      longPressTriggeredRef.current = false;
-      if (longPressTimeoutRef.current) {
-        window.clearTimeout(longPressTimeoutRef.current);
-      }
-      longPressTimeoutRef.current = window.setTimeout(() => {
-        longPressTimeoutRef.current = undefined;
-        longPressTriggeredRef.current = true;
-        setPopoverVisible(true);
-        touchStartRef.current = null;
-      }, LONG_PRESS_DELAY);
-      touchStartRef.current = { x: event.clientX, y: event.clientY };
-    }
-  };
-
-  const clearLongPressTimer = () => {
-    if (longPressTimeoutRef.current) {
-      window.clearTimeout(longPressTimeoutRef.current);
-      longPressTimeoutRef.current = undefined;
-    }
-  };
-
-  const handlePointerUp = (event: ReactPointerEvent<HTMLAnchorElement>) => {
-    if (event.pointerType === "touch") {
-      clearLongPressTimer();
-      touchStartRef.current = null;
-    }
-  };
-
-  const handlePointerCancel = (event: ReactPointerEvent<HTMLAnchorElement>) => {
-    if (event.pointerType === "touch") {
-      clearLongPressTimer();
-      touchStartRef.current = null;
-    }
-  };
-
-  const handlePointerMove = (event: ReactPointerEvent<HTMLAnchorElement>) => {
-    if (event.pointerType !== "touch") {
-      return;
-    }
-    if (!touchStartRef.current) {
-      return;
-    }
-    const dx = Math.abs(event.clientX - touchStartRef.current.x);
-    const dy = Math.abs(event.clientY - touchStartRef.current.y);
-    if (dx > 12 || dy > 12) {
-      clearLongPressTimer();
-      touchStartRef.current = null;
-    }
-  };
-
-  const handleClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
-    if (longPressTriggeredRef.current) {
-      event.preventDefault();
-      longPressTriggeredRef.current = false;
-    }
+  const hideTooltip = () => {
     setTooltipVisible(false);
-    setPopoverVisible(false);
   };
-
-  const { accent: accentValue, contrast: accentContrast } = useMemo(
-    () => resolveAccentPair(accent, "var(--agui-ring)", "var(--agui-on-primary)"),
-    [accent]
-  );
-  const motionClasses = prefersReducedMotion
-    ? ""
-    : "transition-all duration-150 ease-out";
-  const tooltipHiddenState = prefersReducedMotion
-    ? "opacity-0"
-    : "opacity-0 translate-y-1";
-  const tooltipVisibleState = prefersReducedMotion
-    ? "opacity-100"
-    : "opacity-100 -translate-y-1";
-  const popoverHiddenState = prefersReducedMotion
-    ? "opacity-0"
-    : "opacity-0 translate-y-1";
-  const popoverVisibleState = prefersReducedMotion
-    ? "opacity-100"
-    : "opacity-100 translate-y-0";
 
   return (
-    <div ref={containerRef} className="relative block w-full">
+    <div className="relative inline-block">
       <Link
         href={href}
-        onPointerEnter={handlePointerEnter}
-        onPointerLeave={handlePointerLeave}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerCancel}
-        onFocus={handleFocus}
-        onBlur={handleBlur}
-        onClick={handleClick}
-        aria-describedby={isTooltipVisible ? tooltipId : undefined}
         className={cn(
-          "group flex w-full flex-col gap-3 rounded-2xl border border-border/80 bg-card/80 p-4 text-left shadow-soft transition-colors hover:border-border/60 hover:bg-card/90 motion-reduce:transition-none",
-          "focus-visible:[outline:0] focus-visible:[box-shadow:0_0_0_3px_color-mix(in_srgb,var(--app-tile-accent, var(--agui-ring))_65%,transparent)]",
+          "group flex min-h-[132px] w-full flex-col gap-4 rounded-[28px] border px-5 py-6 transition duration-200 ease-out hover:brightness-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:[--tw-ring-color:var(--tile-ring)] focus-visible:[--tw-ring-offset-color:var(--tile-ring-offset)] active:scale-[0.97]",
+          styles.tile,
           className,
         )}
-        style={{
-          "--app-tile-accent": accentValue,
-          "--app-tile-accent-contrast": accentContrast,
-        } as CSSProperties}
+        style={
+          {
+            "--tile-ring": styles.ring,
+            "--tile-ring-offset": styles.ringOffset,
+          } as CSSProperties
+        }
+        onPointerEnter={(event) => {
+          if (event.pointerType === "touch") return;
+          showTooltip();
+        }}
+        onPointerLeave={(event) => {
+          if (event.pointerType === "touch") return;
+          hideTooltip();
+        }}
+        onFocus={showTooltip}
+        onBlur={hideTooltip}
+        onPointerDown={hideTooltip}
+        aria-describedby={tooltipId}
       >
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-2xl text-[color:var(--app-tile-accent-contrast)]">
-            {icon}
-          </div>
-          <span className="rounded-full bg-foreground/[0.08] px-2 py-1 text-xs font-medium text-foreground/70">
+        <div className="flex items-center justify-between">
+          <span
+            className={cn(
+              "flex h-14 w-14 items-center justify-center rounded-[22px] text-[color:inherit] transition duration-200",
+              styles.icon,
+            )}
+            aria-hidden
+          >
+            <span className="text-current">{enhancedIcon}</span>
+          </span>
+          <span
+            className={cn(
+              "rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide transition duration-200",
+              styles.badge,
+            )}
+          >
             App
           </span>
         </div>
         <div className="flex flex-col gap-1">
-          <div className="text-base font-semibold text-foreground">{label}</div>
-          <div className="text-sm text-muted-foreground">Tap to open</div>
+          <p className={cn("text-lg font-semibold", styles.label)}>{label}</p>
+          <p className={cn("text-sm", styles.description)}>
+            {description ? description : "Open app"}
+          </p>
         </div>
       </Link>
-
-      <div
-        id={tooltipId}
-        role="tooltip"
-        aria-hidden={!isTooltipVisible}
-        className={cn(
-          "pointer-events-none absolute left-1/2 top-0 z-50 w-max max-w-xs -translate-x-1/2 rounded-xl border border-border/80 bg-background/95 px-3 py-2 text-xs text-muted-foreground shadow-lg motion-reduce:transition-none",
-          motionClasses,
-          isTooltipVisible ? tooltipVisibleState : tooltipHiddenState,
-        )}
-        style={{
-          transformOrigin: "center bottom",
-          marginTop: "-0.75rem",
-        }}
-      >
-        {description}
-      </div>
-
-      <div
-        role="dialog"
-        aria-modal="false"
-        aria-hidden={!isPopoverVisible}
-        aria-labelledby={popoverLabelId}
-        aria-describedby={popoverDescriptionId}
-        className={cn(
-          "pointer-events-none absolute left-1/2 top-full z-50 mt-3 w-64 max-w-sm -translate-x-1/2 rounded-2xl border border-border/70 bg-background/98 p-4 text-sm text-foreground shadow-lg motion-reduce:transition-none",
-          motionClasses,
-          isPopoverVisible ? popoverVisibleState : popoverHiddenState,
-          isPopoverVisible ? "pointer-events-auto" : "",
-        )}
-      >
-        <div id={popoverLabelId} className="text-sm font-medium text-foreground">
-          {label}
-        </div>
-        <p id={popoverDescriptionId} className="mt-1 text-sm text-muted-foreground">
+      {description ? (
+        <div
+          id={tooltipId}
+          role="tooltip"
+          className={cn(
+            "pointer-events-none absolute left-1/2 top-full z-50 mt-3 w-max max-w-xs -translate-x-1/2 rounded-2xl border px-4 py-2 text-sm shadow-2xl transition-all duration-150",
+            styles.tooltip,
+            styles.tooltipText,
+            isTooltipVisible
+              ? "translate-y-0 opacity-100"
+              : "-translate-y-1 opacity-0",
+          )}
+          aria-hidden={!isTooltipVisible}
+        >
           {description}
-        </p>
-      </div>
+        </div>
+      ) : null}
     </div>
   );
 }
