@@ -147,7 +147,7 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
           ref={ref}
           tabIndex={tabIndex}
           className={cn(
-            "group flex min-h-[132px] w-full flex-col gap-4 rounded-[28px] border px-5 py-6 transition duration-200 ease-out hover:brightness-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:[--tw-ring-color:var(--tile-ring)] focus-visible:[--tw-ring-offset-color:var(--tile-ring-offset)] active:scale-[0.97]",
+            "group flex min-h-[132px] w-full flex-col gap-4 rounded-[28px] border px-5 py-6 transition duration-200 ease-out hover:brightness-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:[--tw-ring-color:var(--tile-ring)] focus-visible:[--tw-ring-offset-color:var(--tile-ring-offset)] active:scale-[0.97] motion-reduce:transition-none motion-reduce:duration-0 motion-reduce:transform-none motion-reduce:hover:brightness-100 motion-reduce:active:scale-100",
             styles.tile,
             className,
           )}
@@ -184,12 +184,12 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
           onKeyDown={(event) => {
             onKeyDown?.(event);
           }}
-          aria-describedby={tooltipId}
+          aria-describedby={isTooltipVisible ? tooltipId : undefined}
         >
           <div className="flex items-center justify-between">
             <span
               className={cn(
-                "flex h-14 w-14 items-center justify-center rounded-[22px] text-[color:inherit] transition duration-200",
+                "flex h-14 w-14 items-center justify-center rounded-[22px] text-[color:inherit] transition duration-200 motion-reduce:transition-none motion-reduce:duration-0",
                 styles.icon,
               )}
               aria-hidden
@@ -198,7 +198,7 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
             </span>
             <span
               className={cn(
-                "rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide transition duration-200",
+                "rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide transition duration-200 motion-reduce:transition-none motion-reduce:duration-0",
                 styles.badge,
               )}
             >
@@ -217,7 +217,7 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
             id={tooltipId}
             role="tooltip"
             className={cn(
-              "pointer-events-none absolute left-1/2 top-full z-50 mt-3 w-max max-w-xs -translate-x-1/2 rounded-2xl border px-4 py-2 text-sm shadow-2xl transition-all duration-150",
+              "pointer-events-none absolute left-1/2 top-full z-50 mt-3 w-max max-w-xs -translate-x-1/2 rounded-2xl border px-4 py-2 text-sm shadow-2xl transition-all duration-150 motion-reduce:translate-y-0 motion-reduce:transition-none motion-reduce:duration-0",
               styles.tooltip,
               styles.tooltipText,
               isTooltipVisible
