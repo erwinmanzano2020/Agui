@@ -216,7 +216,7 @@ export default function ShiftsPageClient() {
 
       <Card className="overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-[color-mix(in_srgb,_var(--agui-surface)_88%,_var(--agui-primary)_12%)] text-[color-mix(in_srgb,_var(--agui-on-surface)_90%,_var(--agui-surface)_10%)]">
+          <thead className="bg-[color-mix(in_srgb,_var(--agui-surface)_88%,_var(--agui-primary)_12%)] text-[color:var(--agui-on-primary)]">
             <tr>
               <th className="p-3 text-left">Code</th>
               <th className="p-3 text-left">Name</th>
