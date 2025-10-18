@@ -5,7 +5,6 @@ import { SplashScreen } from "@/app/(components)/SplashScreen";
 import { Dock, type DockItem } from "@/app/(home)/Dock";
 import { AppTile } from "@/app/(home)/AppTile";
 import { apps, dock, type AppMeta } from "@/config/apps";
-import { StatusHud } from "@/components/ui/status-hud";
 
 const APPS = apps;
 const APPS_BY_ID = new Map<string, AppMeta>(APPS.map((app) => [app.id, app]));
@@ -135,8 +134,6 @@ export default function HomePage() {
       <div className="relative flex min-h-dvh flex-col bg-[color-mix(in_srgb,_var(--agui-surface)_96%,_white_4%)] text-foreground">
         <div className="flex-1 pb-36">
           <div className="mx-auto flex w-full max-w-[1200px] flex-col items-center gap-12 px-6 pt-12">
-            <StatusHud className="w-full" />
-
             <header className="text-center">
               <p className="text-sm uppercase tracking-[0.3em] text-[var(--agui-muted-foreground)]">Welcome back</p>
               <h1 className="mt-3 text-3xl font-semibold text-[var(--agui-on-surface)]">
