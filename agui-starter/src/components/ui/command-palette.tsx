@@ -8,17 +8,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useRouter } from "next/navigation";
-
-export type Command = {
-  id: string;
-  label: string;
-  hint?: string;
-  shortcut?: string;  // e.g., "G E"
-  run?: () => void;
-  href?: string;
-  section?: string;
-  keywords?: string;  // extra tokens for search
-};
+import type { Command } from "@/config/commands";
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -152,17 +142,23 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
                   onClick={() => onRun(c)}
                   onMouseEnter={() => setActiveIndex(idx)}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-4">
                     <div className="font-medium">{c.label}</div>
-                    {c.shortcut && (
-                      <div className="text-xs text-muted-foreground">
-                        {c.shortcut.split(" ").map((k, i) => (
-                          <kbd key={i} className="ml-1 inline-block rounded bg-muted px-1.5 py-0.5">{k}</kbd>
-                        ))}
+                    {(c.shortcut || c.hint) && (
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        {c.shortcut
+                          ? c.shortcut.split(" ").map((k, i) => (
+                              <kbd
+                                key={i}
+                                className="inline-block rounded bg-muted px-1.5 py-0.5"
+                              >
+                                {k}
+                              </kbd>
+                            ))
+                          : c.hint && <span className="whitespace-nowrap">{c.hint}</span>}
                       </div>
                     )}
                   </div>
-                  {c.hint && <div className="text-xs text-muted-foreground mt-0.5">{c.hint}</div>}
                 </button>
               );
             })

@@ -1,11 +1,58 @@
-import type { Command } from "../components/ui/command-palette";
+export type Command = {
+  id: string;
+  label: string;
+  hint?: string;
+  shortcut?: string;
+  run?: () => void;
+  href?: string;
+  section?: string;
+  keywords?: string;
+};
 
 export const commands: Command[] = [
-  { id: "emp",   label: "Go to Employees",    href: "/employees", keywords: "people staff list" },
-  { id: "dtr",   label: "Open DTR Bulk",      href: "/payroll/dtr-bulk", keywords: "time logs roster" },
-  { id: "pay",   label: "Go to Payroll",      href: "/payroll", keywords: "payslip run" },
-  { id: "newEmp",label: "New Employee",       href: "/employees/new", shortcut: "N E" },
-  { id: "newPay",label: "New Payroll",        href: "/payroll/new", shortcut: "N P" },
-  // example client actions:
-  { id: "theme", label: "Toggle Dark/Light",  hint: "Switch theme", run: () => document.querySelector<HTMLButtonElement>('[data-theme-toggle]')?.click(), keywords: "night light" },
+  {
+    id: "employees",
+    label: "Employees",
+    href: "/employees",
+    shortcut: "G E",
+    keywords: "people staff list directory",
+  },
+  {
+    id: "dtr-bulk",
+    label: "DTR Bulk",
+    href: "/payroll/dtr-bulk",
+    shortcut: "G D",
+    keywords: "time logs roster timesheet",
+  },
+  {
+    id: "payroll",
+    label: "Payroll",
+    href: "/payroll",
+    shortcut: "G P",
+    keywords: "payslip run salary",
+  },
+  {
+    id: "new-employee",
+    label: "New Employee",
+    href: "/employees/new",
+    shortcut: "N E",
+    keywords: "add staff onboarding",
+  },
+  {
+    id: "new-payroll",
+    label: "New Payroll",
+    href: "/payroll/new",
+    shortcut: "N P",
+    keywords: "create payrun",
+  },
+  {
+    id: "toggle-theme",
+    label: "Toggle Theme",
+    hint: "Switch theme",
+    run: () =>
+      document
+        .querySelector<HTMLButtonElement>("[data-theme-toggle]")
+        ?.click(),
+    keywords: "dark light mode night",
+  },
 ];
