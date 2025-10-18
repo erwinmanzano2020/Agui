@@ -161,9 +161,6 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
           <span className="w-full truncate text-base font-semibold text-card-foreground">
             {label}
           </span>
-          {description ? (
-            <span className="text-xs text-muted-foreground/90">{description}</span>
-          ) : null}
         </Link>
 
         {description ? (
