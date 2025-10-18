@@ -1,0 +1,140 @@
+/* iOS-inspired launcher tiles */
+.agui-tile {
+  --agui-tile-bg: color-mix(in srgb, var(--agui-card, var(--surface)) 96%, #020617 4%);
+  --agui-tile-border: color-mix(in srgb, var(--agui-tile-bg) 88%, rgba(15, 23, 42, 0.24));
+  --agui-tile-fg: var(--agui-on-surface, var(--text, #0f172a));
+  --agui-icon-bg: color-mix(in srgb, var(--agui-tile-fg) 10%, transparent);
+  --agui-tip-bg: color-mix(in srgb, var(--agui-tile-bg) 85%, rgba(15, 23, 42, 0.75));
+  --agui-tip-fg: var(--agui-tile-fg);
+
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.65rem;
+  min-width: 12rem;
+  padding: clamp(1.1rem, 2vw, 1.4rem);
+  border-radius: var(--radius-2xl, 1.25rem);
+  border: 1px solid var(--agui-tile-border);
+  background: var(--agui-tile-bg);
+  color: var(--agui-tile-fg);
+  box-shadow: var(--shadow-soft, 0 1px 2px rgba(15, 23, 42, 0.12));
+  transition:
+    transform 160ms ease,
+    box-shadow 200ms ease,
+    border-color 200ms ease,
+    background 200ms ease;
+  will-change: transform;
+}
+
+.agui-tile:hover {
+  box-shadow: var(--shadow-lifted, 0 12px 24px rgba(15, 23, 42, 0.18));
+}
+
+.agui-tile:active,
+.agui-tile[data-pressed="true"] {
+  transform: scale(0.97);
+  box-shadow: var(--shadow-soft, 0 1px 2px rgba(15, 23, 42, 0.12));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .agui-tile {
+    transition: none;
+  }
+  .agui-tile:active,
+  .agui-tile[data-pressed="true"] {
+    transform: none;
+  }
+}
+
+.agui-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 1rem;
+  background: var(--agui-icon-bg);
+  color: inherit;
+  font-size: 1.75rem;
+  font-variation-settings: "wght" 600;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.agui-tile--black {
+  --agui-tile-bg: linear-gradient(145deg, #111114 0%, #050506 100%);
+  --agui-tile-border: rgba(255, 255, 255, 0.08);
+  --agui-tile-fg: #f4f4f5;
+  --agui-icon-bg: rgba(255, 255, 255, 0.08);
+  --agui-tip-bg: rgba(17, 17, 20, 0.92);
+  --agui-tip-fg: #f9fafb;
+}
+
+.agui-tile--pearl {
+  --agui-tile-bg: linear-gradient(150deg, #f8f7f4 0%, #ebe9e1 100%);
+  --agui-tile-border: rgba(15, 23, 42, 0.08);
+  --agui-tile-fg: #27272a;
+  --agui-icon-bg: rgba(15, 23, 42, 0.08);
+  --agui-tip-bg: rgba(31, 41, 55, 0.92);
+  --agui-tip-fg: #f8fafc;
+}
+
+.agui-tile--charcoal {
+  --agui-tile-bg: linear-gradient(150deg, #2b2d31 0%, #1f2125 100%);
+  --agui-tile-border: rgba(255, 255, 255, 0.06);
+  --agui-tile-fg: #f7f8fb;
+  --agui-icon-bg: rgba(255, 255, 255, 0.12);
+  --agui-tip-bg: rgba(23, 25, 32, 0.96);
+  --agui-tip-fg: #f5f5f8;
+}
+
+.agui-tile--white {
+  --agui-tile-bg: linear-gradient(140deg, #ffffff 0%, #f4f6fb 100%);
+  --agui-tile-border: rgba(15, 23, 42, 0.06);
+  --agui-tile-fg: #111827;
+  --agui-icon-bg: rgba(17, 24, 39, 0.08);
+  --agui-tip-bg: rgba(17, 24, 39, 0.92);
+  --agui-tip-fg: #f8fafc;
+}
+
+.agui-tip {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.85rem);
+  transform: translateX(-50%);
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: var(--agui-tip-bg);
+  color: var(--agui-tip-fg);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  max-width: min(18rem, calc(100vw - 2rem));
+  text-align: center;
+  overflow-wrap: anywhere;
+  box-shadow: var(--shadow-soft, 0 8px 16px rgba(15, 23, 42, 0.16));
+  pointer-events: none;
+  z-index: 10;
+}
+
+.agui-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0.6rem;
+  height: 0.35rem;
+  background: var(--agui-tip-bg);
+  clip-path: polygon(50% 100%, 0 0, 100% 0);
+}
+
+.agui-tip[data-align="start"] {
+  left: 1.1rem;
+  transform: translateX(0);
+}
+
+.agui-tip[data-align="end"] {
+  left: calc(100% - 1.1rem);
+  transform: translateX(-100%);
+}
