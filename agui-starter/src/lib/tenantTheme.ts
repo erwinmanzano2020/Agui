@@ -11,6 +11,11 @@ export type TenantTheme = {
   shape: TenantThemeShape;
 };
 
+type TenantUserLike = {
+  app_metadata?: Record<string, unknown>;
+  user_metadata?: Record<string, unknown>;
+} | null | undefined;
+
 const DEFAULT_ACCENT = "#0ea5e9";
 const DEFAULT_BACKGROUND: TenantThemeBackground = "system";
 const DEFAULT_SHAPE: TenantThemeShape = "rounded";
@@ -23,6 +28,9 @@ export const TENANT_THEME_DEFAULTS: Pick<TenantTheme, "accent" | "background" | 
   background: DEFAULT_BACKGROUND,
   shape: DEFAULT_SHAPE,
 };
+
+let systemMediaQuery: MediaQueryList | null = null;
+let systemMediaListener: ((event: MediaQueryListEvent) => void) | null = null;
 
 function normalizeHexColor(value: string): string | null {
   let next = value.trim();
@@ -113,6 +121,65 @@ function writeCachedTheme(theme: TenantTheme): void {
   } catch (error) {
     console.warn("Failed to cache tenant theme", error);
   }
+}
+
+function applyPreferredTheme(root: HTMLElement, prefersDark: boolean) {
+  root.dataset.theme = prefersDark ? "dark" : "light";
+}
+
+function cleanupSystemThemeListener() {
+  if (!systemMediaQuery || !systemMediaListener) {
+    systemMediaQuery = null;
+    systemMediaListener = null;
+    return;
+  }
+
+  if (typeof systemMediaQuery.removeEventListener === "function") {
+    systemMediaQuery.removeEventListener("change", systemMediaListener);
+  } else if (typeof systemMediaQuery.removeListener === "function") {
+    // Support older Safari versions
+    systemMediaQuery.removeListener(systemMediaListener);
+  }
+
+  systemMediaQuery = null;
+  systemMediaListener = null;
+}
+
+function ensureSystemThemeListener(root: HTMLElement) {
+  if (systemMediaQuery && systemMediaListener) {
+    applyPreferredTheme(root, systemMediaQuery.matches);
+    return;
+  }
+
+  const query = typeof window.matchMedia === "function" ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+  if (!query) {
+    root.dataset.theme = "light";
+    return;
+  }
+
+  const listener: (event: MediaQueryListEvent) => void = (event) => {
+    applyPreferredTheme(root, event.matches);
+  };
+
+  applyPreferredTheme(root, query.matches);
+
+  if (typeof query.addEventListener === "function") {
+    query.addEventListener("change", listener);
+  } else if (typeof query.addListener === "function") {
+    // Support older Safari versions
+    query.addListener(listener);
+  }
+
+  systemMediaQuery = query;
+  systemMediaListener = listener;
+}
+
+export function resolveTenantId(user: TenantUserLike): string | null {
+  if (!user) return null;
+  const fromApp = typeof user.app_metadata?.tenant_id === "string" ? (user.app_metadata.tenant_id as string) : null;
+  if (fromApp) return fromApp;
+  const fromMeta = typeof user.user_metadata?.tenant_id === "string" ? (user.user_metadata.tenant_id as string) : null;
+  return fromMeta;
 }
 
 function mergeTheme(
@@ -217,10 +284,12 @@ export function applyTenantTheme(theme: Pick<TenantTheme, "accent" | "background
   const background = normalizeBackground(theme.background);
   const root = document.documentElement;
 
+  root.dataset.background = background;
+
   if (background === "system") {
-    const prefersDark = window.matchMedia?.("(prefers-color-scheme: dark)").matches;
-    root.dataset.theme = prefersDark ? "dark" : "light";
+    ensureSystemThemeListener(root);
   } else {
+    cleanupSystemThemeListener();
     root.dataset.theme = background;
   }
 
