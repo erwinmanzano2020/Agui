@@ -6,6 +6,7 @@ import {
   cloneElement,
   forwardRef,
   isValidElement,
+  memo,
   type FocusEventHandler,
   type KeyboardEventHandler,
   type ReactElement,
@@ -116,7 +117,7 @@ function enhanceIcon(icon: ReactNode): ReactNode {
   });
 }
 
-export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
+const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
   (
     {
       icon,
@@ -230,6 +231,25 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
           </div>
         ) : null}
       </div>
+    );
+  }
+);
+
+AppTileBase.displayName = "AppTile";
+
+export const AppTile = memo(
+  AppTileBase,
+  (prev, next) => {
+    return (
+      prev.href === next.href &&
+      prev.label === next.label &&
+      prev.description === next.description &&
+      prev.variant === next.variant &&
+      prev.className === next.className &&
+      prev.tabIndex === next.tabIndex &&
+      prev.onFocus === next.onFocus &&
+      prev.onBlur === next.onBlur &&
+      prev.onKeyDown === next.onKeyDown
     );
   }
 );
