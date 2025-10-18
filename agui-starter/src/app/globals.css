@@ -7,6 +7,9 @@
 /* --- Structural foundations (radius, shadows, print) --- */
 @import "../styles/foundations.css";
 
+/* --- Launcher tile styles --- */
+@import "../styles/launcher.css";
+
 /* --- Map variables to Tailwind tokens via @theme (v4 way) --- */
 @theme {
   /* Colors */
