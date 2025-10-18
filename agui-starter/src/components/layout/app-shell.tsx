@@ -53,6 +53,10 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   const nav = useMemo(() => NAV, []);
 
+  if (pathname === "/") {
+    return <>{children}</>;
+  }
+
   return (
     <div className="min-h-screen flex bg-background text-foreground transition-colors">
       {/* Sidebar (desktop) */}
