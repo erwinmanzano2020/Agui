@@ -10,7 +10,7 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const base =
-  "inline-flex items-center justify-center gap-2 font-medium rounded-[calc(var(--agui-radius))] transition-[background-color,color,border,box-shadow,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
+  "inline-flex items-center justify-center gap-2 font-medium rounded-[calc(var(--agui-radius))] transition-[background-color,color,border,box-shadow,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none motion-reduce:transform-none";
 
 const sizes: Record<ButtonSize, string> = {
   xs: "h-8 px-2.5 text-xs",
@@ -21,13 +21,13 @@ const sizes: Record<ButtonSize, string> = {
 
 const variants: Record<ButtonVariant, string> = {
   solid:
-    "border border-transparent bg-[var(--agui-primary)] text-[var(--agui-on-primary)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_88%,_black_12%)] active:scale-[0.99] focus-visible:shadow-[0_0_0_3px] focus-visible:shadow-[color-mix(in_srgb,_var(--ring)_35%,_transparent)]",
+    "border border-transparent bg-[var(--agui-primary)] text-[var(--agui-on-primary)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_88%,_black_12%)] active:scale-[0.99] focus-visible:shadow-[0_0_0_3px] focus-visible:shadow-[color-mix(in_srgb,_var(--ring)_35%,_transparent)] motion-reduce:active:scale-100",
   outline:
-    "border text-[var(--agui-on-surface)] border-[color-mix(in_srgb,_var(--agui-card-border)_90%,_transparent)] bg-[var(--agui-card)] hover:border-[color-mix(in_srgb,_var(--agui-primary)_45%,_var(--agui-card-border)_55%)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_10%,_var(--agui-card)_90%)] active:scale-[0.99]",
+    "border text-[var(--agui-on-surface)] border-[color-mix(in_srgb,_var(--agui-card-border)_90%,_transparent)] bg-[var(--agui-card)] hover:border-[color-mix(in_srgb,_var(--agui-primary)_45%,_var(--agui-card-border)_55%)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_10%,_var(--agui-card)_90%)] active:scale-[0.99] motion-reduce:active:scale-100",
   ghost:
-    "border border-transparent text-[var(--agui-on-surface)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)] active:scale-[0.99]",
+    "border border-transparent text-[var(--agui-on-surface)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)] active:scale-[0.99] motion-reduce:active:scale-100",
   link:
-    "border border-transparent bg-transparent h-auto p-0 text-[var(--agui-primary)] underline-offset-4 hover:underline focus-visible:shadow-[0_0_0_3px] focus-visible:shadow-[color-mix(in_srgb,_var(--ring)_35%,_transparent)]",
+    "border border-transparent bg-transparent h-auto p-0 text-[var(--agui-primary)] underline-offset-4 hover:underline focus-visible:shadow-[0_0_0_3px] focus-visible:shadow-[color-mix(in_srgb,_var(--ring)_35%,_transparent)] motion-reduce:underline-offset-4",
 };
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(

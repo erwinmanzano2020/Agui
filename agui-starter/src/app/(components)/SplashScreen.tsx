@@ -6,6 +6,7 @@ import type { User } from "@supabase/supabase-js";
 
 import { cn } from "@/lib/utils";
 import { getSupabase } from "@/lib/supabase";
+import { usePrefersReducedMotion } from "@/hooks/use-prefers-reduced-motion";
 
 const SPLASH_STORAGE_KEY = "agui.sawSplash";
 const AUTO_DISMISS_DELAY = 1400;
@@ -25,6 +26,7 @@ export function SplashScreen() {
   const [shouldRender, setShouldRender] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const [playerName, setPlayerName] = useState<string>("Player");
+  const prefersReducedMotion = usePrefersReducedMotion();
 
   const exitTimeoutRef = useRef<number>();
   const autoDismissTimeoutRef = useRef<number>();
@@ -40,8 +42,8 @@ export function SplashScreen() {
     setIsVisible(false);
     exitTimeoutRef.current = window.setTimeout(() => {
       setShouldRender(false);
-    }, EXIT_ANIMATION_DURATION);
-  }, []);
+    }, prefersReducedMotion ? 0 : EXIT_ANIMATION_DURATION);
+  }, [prefersReducedMotion]);
 
   useEffect(() => {
     return () => {
@@ -90,9 +92,9 @@ export function SplashScreen() {
     if (!shouldRender) return;
     const id = window.setTimeout(() => {
       setIsVisible(true);
-    }, 20);
+    }, prefersReducedMotion ? 0 : 20);
     return () => window.clearTimeout(id);
-  }, [shouldRender]);
+  }, [prefersReducedMotion, shouldRender]);
 
   useEffect(() => {
     if (!shouldRender) return;
@@ -126,8 +128,16 @@ export function SplashScreen() {
       onClick={finish}
       className={cn(
         "fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-background",
-        "transition-all duration-500 ease-out",
-        isVisible ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-6 pointer-events-none"
+        prefersReducedMotion
+          ? "transition-none"
+          : "transition-all duration-500 ease-out",
+        prefersReducedMotion
+          ? isVisible
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none"
+          : isVisible
+          ? "opacity-100 translate-y-0 pointer-events-auto"
+          : "opacity-0 translate-y-6 pointer-events-none"
       )}
     >
       <div className="space-y-3 text-center">
@@ -145,7 +155,9 @@ export function SplashScreen() {
         <span
           className={cn(
             "block h-full w-full origin-left bg-primary",
-            "transition-transform duration-[1400ms] ease-out",
+            prefersReducedMotion
+              ? "transition-none"
+              : "transition-transform duration-[1400ms] ease-out",
             isVisible ? "scale-x-100" : "scale-x-0"
           )}
           aria-hidden
