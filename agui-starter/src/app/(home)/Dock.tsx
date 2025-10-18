@@ -3,10 +3,13 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { cn } from "@/lib/utils";
+
 export type DockItem = {
   href: string;
   icon: ReactNode;
   label: string;
+  accent?: string;
 };
 
 export function Dock({ items }: { items: DockItem[] }) {
@@ -29,7 +32,10 @@ export function Dock({ items }: { items: DockItem[] }) {
             <Link
               href={item.href}
               aria-label={item.label}
-              className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)] text-[var(--agui-primary)] transition-transform duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--agui-primary)] hover:scale-105 active:scale-95"
+              className={cn(
+                "flex h-14 w-14 items-center justify-center rounded-2xl text-2xl text-[var(--agui-primary)] transition-transform duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--agui-primary)] hover:scale-105 active:scale-95",
+                item.accent ?? "bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)]"
+              )}
             >
               {item.icon}
             </Link>
