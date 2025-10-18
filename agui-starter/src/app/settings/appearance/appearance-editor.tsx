@@ -11,6 +11,7 @@ import {
   applyTenantTheme,
   getTenantTheme,
   saveTenantTheme,
+  resolveTenantId,
   type TenantThemeBackground,
   type TenantThemeShape,
 } from "@/lib/tenantTheme";
@@ -30,13 +31,6 @@ type TenantResolution = {
   tenantId: string | null;
   message: string | null;
 };
-
-function resolveTenantId(user: { app_metadata?: Record<string, unknown>; user_metadata?: Record<string, unknown> } | null) {
-  const fromApp = typeof user?.app_metadata?.tenant_id === "string" ? (user?.app_metadata?.tenant_id as string) : null;
-  if (fromApp) return fromApp;
-  const fromMeta = typeof user?.user_metadata?.tenant_id === "string" ? (user?.user_metadata?.tenant_id as string) : null;
-  return fromMeta;
-}
 
 function formatHexCandidate(value: string): string {
   const trimmed = value.replace(/[^0-9a-fA-F#]/g, "");
