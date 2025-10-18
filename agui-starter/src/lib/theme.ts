@@ -112,6 +112,30 @@ export function getReadableText(hex: string): "#000000" | "#ffffff" {
   return contrastWithWhite >= contrastWithBlack ? "#ffffff" : "#000000";
 }
 
+export type AccentContrastInfo = {
+  recommendedText: "#000000" | "#ffffff";
+  contrastRatio: number;
+  passesAa: boolean;
+};
+
+export function getAccentContrastInfo(accent: string): AccentContrastInfo {
+  const normalized = normalizeHex(accent);
+  if (!normalized) {
+    return { recommendedText: "#000000", contrastRatio: 21, passesAa: true };
+  }
+
+  const recommendedText = getReadableText(normalized);
+  const accentLuminance = relativeLuminance(normalized);
+  const textLuminance = recommendedText === "#ffffff" ? 1 : 0;
+  const ratio = contrastRatio(accentLuminance, textLuminance);
+
+  return {
+    recommendedText,
+    contrastRatio: Number.isFinite(ratio) ? ratio : 21,
+    passesAa: ratio >= 4.5,
+  };
+}
+
 export function applyTheme(tokens: ThemeTokens) {
   if (typeof document === "undefined") return;
 

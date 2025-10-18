@@ -16,11 +16,36 @@ const DEFAULT_BACKGROUND: TenantThemeBackground = "system";
 const DEFAULT_SHAPE: TenantThemeShape = "rounded";
 const STORAGE_PREFIX = "agui:tenant-theme:";
 
+const HEX_PATTERN = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+export const TENANT_THEME_DEFAULTS: Pick<TenantTheme, "accent" | "background" | "shape"> = {
+  accent: DEFAULT_ACCENT,
+  background: DEFAULT_BACKGROUND,
+  shape: DEFAULT_SHAPE,
+};
+
+function normalizeHexColor(value: string): string | null {
+  let next = value.trim();
+  if (!next) return null;
+  if (!next.startsWith("#")) {
+    next = `#${next}`;
+  }
+  if (!HEX_PATTERN.test(next)) {
+    return null;
+  }
+  if (next.length === 4) {
+    const [, r, g, b] = next;
+    next = `#${r}${r}${g}${g}${b}${b}`;
+  }
+  return `#${next.slice(1).toLowerCase()}`;
+}
+
 function normalizeAccent(value: unknown): string {
-  if (typeof value !== "string" || value.trim() === "") {
+  if (typeof value !== "string") {
     return DEFAULT_ACCENT;
   }
-  return value.trim();
+  const normalized = normalizeHexColor(value);
+  return normalized ?? DEFAULT_ACCENT;
 }
 
 function normalizeBackground(value: unknown): TenantThemeBackground {
