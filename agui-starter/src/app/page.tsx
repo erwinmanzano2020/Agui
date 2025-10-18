@@ -5,6 +5,7 @@ import React from "react";
 import { Card } from "@/components/ui/card";
 import { StatusHud } from "@/components/ui/status-hud";
 import { ThemedLink } from "@/components/ui/themed-link";
+import { SplashScreen } from "@/app/(components)/SplashScreen";
 
 const MODULE_LINKS = [
   { title: "Employees", href: "/employees", description: "Manage profiles, rates, and employee status." },
@@ -48,67 +49,70 @@ function handleHomeEnter(e: React.KeyboardEvent<HTMLInputElement>) {
 
 export default function Home() {
   return (
-    <main className="min-h-[calc(100dvh-4rem)] p-6 flex flex-col gap-8">
-      <StatusHud className="mx-auto w-full max-w-4xl" />
+    <>
+      <SplashScreen />
+      <main className="min-h-[calc(100dvh-4rem)] p-6 flex flex-col gap-8">
+        <StatusHud className="mx-auto w-full max-w-4xl" />
 
-      {/* Centered hero like Brave NTP */}
-      <section className="flex-1 flex items-center justify-center">
-        <div className="w-full max-w-3xl">
-          <h1 className="sr-only">Agui Starter Town</h1>
+        {/* Centered hero like Brave NTP */}
+        <section className="flex-1 flex items-center justify-center">
+          <div className="w-full max-w-3xl">
+            <h1 className="sr-only">Agui Starter Town</h1>
 
-          {/* Big pill search */}
-          <div className="relative">
-            <input
-              type="text"
-              placeholder="Search commands, pages, or actions… then press Enter"
-              className="w-full rounded-full border bg-background/80 backdrop-blur px-6 py-4 text-lg shadow-md outline-none focus:ring-2 focus:ring-primary/40"
-              onKeyDown={handleHomeEnter}
-              aria-label="Home launcher search"
-              autoFocus
-            />
-            <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--agui-muted-foreground)] hidden sm:flex gap-1">
-              <kbd className="px-2 py-1 border rounded">Ctrl</kbd>
-              <span>+</span>
-              <kbd className="px-2 py-1 border rounded">K</kbd>
-            </div>
-          </div>
-
-          {/* Small hint */}
-          <p className="mt-3 text-center text-sm text-[var(--agui-muted-foreground)]">
-            Tip: Press <span className="font-medium">Ctrl/Cmd + K</span> anytime to open the Command Palette.
-          </p>
-        </div>
-      </section>
-
-      {/* Launcher tiles */}
-      <section className="mt-8">
-        <h2 className="text-sm font-medium text-[var(--agui-muted-foreground)] mb-3">
-          Quick modules
-        </h2>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {MODULE_LINKS.map((module) => (
-            <Card
-              key={module.href}
-              className="p-5 transition-transform duration-200 hover:-translate-y-1 hover:shadow-lifted"
-            >
-              <div className="flex h-full flex-col justify-between gap-4">
-                <div className="space-y-1.5">
-                  <h3 className="text-lg font-semibold text-[var(--agui-on-surface)]">
-                    {module.title}
-                  </h3>
-                  <p className="text-sm text-[var(--agui-muted-foreground)]">
-                    {module.description}
-                  </p>
-                </div>
-                <ThemedLink href={module.href} className="w-fit">
-                  Open module →
-                </ThemedLink>
+            {/* Big pill search */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Search commands, pages, or actions… then press Enter"
+                className="w-full rounded-full border bg-background/80 backdrop-blur px-6 py-4 text-lg shadow-md outline-none focus:ring-2 focus:ring-primary/40"
+                onKeyDown={handleHomeEnter}
+                aria-label="Home launcher search"
+                autoFocus
+              />
+              <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--agui-muted-foreground)] hidden sm:flex gap-1">
+                <kbd className="px-2 py-1 border rounded">Ctrl</kbd>
+                <span>+</span>
+                <kbd className="px-2 py-1 border rounded">K</kbd>
               </div>
-            </Card>
-          ))}
-        </div>
-      </section>
-    </main>
+            </div>
+
+            {/* Small hint */}
+            <p className="mt-3 text-center text-sm text-[var(--agui-muted-foreground)]">
+              Tip: Press <span className="font-medium">Ctrl/Cmd + K</span> anytime to open the Command Palette.
+            </p>
+          </div>
+        </section>
+
+        {/* Launcher tiles */}
+        <section className="mt-8">
+          <h2 className="text-sm font-medium text-[var(--agui-muted-foreground)] mb-3">
+            Quick modules
+          </h2>
+
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {MODULE_LINKS.map((module) => (
+              <Card
+                key={module.href}
+                className="p-5 transition-transform duration-200 hover:-translate-y-1 hover:shadow-lifted"
+              >
+                <div className="flex h-full flex-col justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <h3 className="text-lg font-semibold text-[var(--agui-on-surface)]">
+                      {module.title}
+                    </h3>
+                    <p className="text-sm text-[var(--agui-muted-foreground)]">
+                      {module.description}
+                    </p>
+                  </div>
+                  <ThemedLink href={module.href} className="w-fit">
+                    Open module →
+                  </ThemedLink>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </section>
+      </main>
+    </>
   );
 }
