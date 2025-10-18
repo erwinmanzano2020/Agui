@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { SplashScreen } from "@/app/(components)/SplashScreen";
-import { Dock, type DockItem } from "@/app/(home)/Dock";
+import { Dock, type DockItem } from "@/components/ui/dock";
 import { AppTile } from "@/components/ui/app-tile";
 import { apps, dock, type AppMeta } from "@/config/apps";
 
