@@ -35,17 +35,15 @@ function usePrefersReducedMotion() {
     update();
     if (typeof mediaQuery.addEventListener === "function") {
       mediaQuery.addEventListener("change", update);
-    } else {
+    } else if (typeof mediaQuery.addListener === "function") {
       // Safari < 14 fallback
-      // @ts-expect-error addListener is deprecated but still required for support.
       mediaQuery.addListener(update);
     }
 
     return () => {
       if (typeof mediaQuery.removeEventListener === "function") {
         mediaQuery.removeEventListener("change", update);
-      } else {
-        // @ts-expect-error removeListener is deprecated but still required for support.
+      } else if (typeof mediaQuery.removeListener === "function") {
         mediaQuery.removeListener(update);
       }
     };
