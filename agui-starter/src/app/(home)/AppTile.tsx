@@ -5,6 +5,7 @@ import {
   forwardRef,
   useCallback,
   useId,
+  useMemo,
   useState,
   type CSSProperties,
   type FocusEventHandler,
@@ -15,6 +16,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { useTooltipPosition } from "@/hooks/use-tooltip-position";
+import { resolveAccentPair } from "@/lib/color";
 
 export type AppTileProps = {
   href: string;
@@ -123,9 +125,13 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
 
     const ariaLabel = description ? `${label}. ${description}` : label;
 
-    const accentColorValue = accentColor ?? "var(--agui-primary)";
+    const { accent: accentColorValue, contrast: accentContrastValue } = useMemo(
+      () => resolveAccentPair(accentColor, "var(--agui-primary)", "var(--agui-on-primary)"),
+      [accentColor]
+    );
     const accentStyle = {
       "--tile-accent": accentColorValue,
+      "--tile-accent-contrast": accentContrastValue,
     } as CSSProperties;
 
     return (
@@ -143,17 +149,17 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
           onKeyDown={handleKeyDown}
           style={accentStyle}
           className={cn(
-            "group relative flex flex-1 flex-col items-center justify-center gap-4 overflow-hidden rounded-[28px] border border-white/10 bg-[color-mix(in_srgb,_var(--agui-surface)_88%,_white_12%)]/90 px-6 py-8 text-center text-sm text-card-foreground shadow-[0_30px_60px_-40px_rgba(15,23,42,0.65)] backdrop-blur-2xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--tile-accent)] focus-visible:ring-offset-4 focus-visible:ring-offset-[rgba(15,23,42,0.08)] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none",
+            "group relative flex flex-1 flex-col items-center justify-center gap-4 overflow-hidden rounded-[28px] border border-white/10 bg-[color-mix(in_srgb,_var(--agui-surface)_88%,_white_12%)]/90 px-6 py-8 text-center text-sm text-card-foreground shadow-[0_30px_60px_-40px_rgba(15,23,42,0.65)] backdrop-blur-2xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--tile-accent)] focus-visible:ring-offset-4 focus-visible:ring-offset-[color:color-mix(in_srgb,var(--agui-surface)_88%,var(--agui-on-surface)_12%)] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none",
             "before:pointer-events-none before:absolute before:inset-px before:rounded-[26px] before:bg-[linear-gradient(150deg,rgba(255,255,255,0.22),rgba(255,255,255,0.04))] before:opacity-75 before:transition-opacity before:duration-200 motion-reduce:before:transition-none",
-            "hover:-translate-y-1 hover:shadow-[0_32px_70px_-40px_color-mix(in_srgb,var(--tile-accent)_55%,_black_45%)] hover:before:opacity-100 active:translate-y-0",
+            "hover:-translate-y-1 hover:shadow-[0_32px_70px_-40px_color-mix(in_srgb,var(--tile-accent)_55%,_black_45%)] hover:before:opacity-100 active:translate-y-0 motion-reduce:hover:translate-y-0 motion-reduce:hover:shadow-[0_30px_60px_-40px_rgba(15,23,42,0.65)]",
             className
           )}
         >
           <span
             className={cn(
-              "relative flex h-16 w-16 items-center justify-center rounded-full border border-white/15 bg-[radial-gradient(circle_at_30%_20%,_color-mix(in_srgb,var(--tile-accent)_35%,_transparent)_0%,_color-mix(in_srgb,var(--tile-accent)_5%,_transparent)_70%)] text-[color-mix(in_srgb,var(--tile-accent)_88%,_var(--agui-on-surface)_12%)] shadow-[0_26px_40px_-32px_color-mix(in_srgb,var(--tile-accent)_65%,_transparent)] motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none",
+              "relative flex h-16 w-16 items-center justify-center rounded-full border border-white/15 bg-[radial-gradient(circle_at_30%_20%,_color-mix(in_srgb,var(--tile-accent)_35%,_transparent)_0%,_color-mix(in_srgb,var(--tile-accent)_5%,_transparent)_70%)] text-[var(--tile-accent-contrast)] shadow-[0_26px_40px_-32px_color-mix(in_srgb,var(--tile-accent)_65%,_transparent)] motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none",
               "after:pointer-events-none after:absolute after:inset-0 after:rounded-full after:bg-[radial-gradient(circle,_rgba(255,255,255,0.25)_0%,_rgba(255,255,255,0)_65%)] after:opacity-0 after:transition-opacity after:duration-200 motion-reduce:after:transition-none",
-              "group-hover:scale-[1.04] group-hover:after:opacity-100"
+              "group-hover:scale-[1.04] group-hover:after:opacity-100 motion-reduce:group-hover:scale-100 motion-reduce:group-hover:after:opacity-0"
             )}
           >
             {icon}

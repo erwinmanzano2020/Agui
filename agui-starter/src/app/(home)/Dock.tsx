@@ -3,6 +3,8 @@
 import Link from "next/link";
 import {
   useCallback,
+  useId,
+  useMemo,
   useState,
   type CSSProperties,
   type FocusEventHandler,
@@ -12,6 +14,7 @@ import {
 
 import { cn } from "@/lib/utils";
 import { useTooltipPosition } from "@/hooks/use-tooltip-position";
+import { resolveAccentPair } from "@/lib/color";
 
 export type DockItem = {
   href: string;
@@ -26,6 +29,7 @@ type DockButtonProps = {
 
 function DockButton({ item }: DockButtonProps) {
   const [open, setOpen] = useState(false);
+  const tooltipId = useId();
   const { ref: tooltipRef, inlineOffset } = useTooltipPosition<HTMLSpanElement>({
     open,
     contentKey: item.label,
@@ -67,9 +71,13 @@ function DockButton({ item }: DockButtonProps) {
     hide();
   }, [hide]);
 
-  const accentColor = item.accentColor ?? "var(--agui-primary)";
+  const { accent: accentColor, contrast: accentContrast } = useMemo(
+    () => resolveAccentPair(item.accentColor, "var(--agui-primary)", "var(--agui-on-primary)"),
+    [item.accentColor]
+  );
   const accentStyle = {
     "--dock-accent": accentColor,
+    "--dock-accent-contrast": accentContrast,
   } as CSSProperties;
 
   return (
@@ -77,11 +85,12 @@ function DockButton({ item }: DockButtonProps) {
       <Link
         href={item.href}
         aria-label={item.label}
+        aria-describedby={open ? tooltipId : undefined}
         style={accentStyle}
         className={cn(
-          "flex h-14 w-14 items-center justify-center rounded-full border border-white/12 bg-[color-mix(in_srgb,_var(--agui-surface)_85%,_white_15%)]/90 text-[color-mix(in_srgb,var(--dock-accent)_85%,_var(--agui-on-surface)_15%)] shadow-[0_20px_50px_-30px_color-mix(in_srgb,var(--dock-accent)_60%,_transparent)] backdrop-blur-xl transition-all",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--dock-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[rgba(15,23,42,0.12)]",
-          "hover:-translate-y-1 hover:shadow-[0_26px_60px_-36px_color-mix(in_srgb,var(--dock-accent)_60%,_black_40%)] active:translate-y-0"
+          "flex h-14 w-14 items-center justify-center rounded-full border border-white/12 bg-[color-mix(in_srgb,_var(--agui-surface)_85%,_white_15%)]/90 text-[var(--dock-accent-contrast)] shadow-[0_20px_50px_-30px_color-mix(in_srgb,var(--dock-accent)_60%,_transparent)] backdrop-blur-xl transition-all",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--dock-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:color-mix(in_srgb,var(--agui-surface)_90%,var(--agui-on-surface)_10%)]",
+          "hover:-translate-y-1 hover:shadow-[0_26px_60px_-36px_color-mix(in_srgb,var(--dock-accent)_60%,_black_40%)] active:translate-y-0 motion-reduce:hover:translate-y-0 motion-reduce:hover:shadow-[0_20px_50px_-30px_color-mix(in_srgb,var(--dock-accent)_60%,_transparent)] motion-reduce:transition-none"
         )}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
@@ -92,12 +101,13 @@ function DockButton({ item }: DockButtonProps) {
       </Link>
 
       <span
+        id={tooltipId}
         role="tooltip"
         aria-hidden={!open}
         ref={tooltipRef}
         style={{ marginLeft: inlineOffset }}
         className={cn(
-          "pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/10 bg-[color-mix(in_srgb,_var(--agui-surface)_90%,_white_10%)]/95 px-3 py-1 text-xs font-medium text-[var(--agui-on-surface)] opacity-0 shadow-[0_18px_32px_-28px_rgba(15,23,42,0.6)] backdrop-blur-xl transition-opacity duration-150",
+          "pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/10 bg-[color-mix(in_srgb,_var(--agui-surface)_90%,_white_10%)]/95 px-3 py-1 text-xs font-medium text-[var(--agui-on-surface)] opacity-0 shadow-[0_18px_32px_-28px_rgba(15,23,42,0.6)] backdrop-blur-xl transition-opacity duration-150 motion-reduce:transition-none",
           open ? "opacity-100" : "opacity-0"
         )}
       >
