@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from "react";
 import { useRouter } from "next/navigation";
 
 export type Command = {
@@ -13,6 +19,18 @@ export type Command = {
   section?: string;
   keywords?: string;  // extra tokens for search
 };
+
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) return false;
+  const tag = target.tagName;
+  return (
+    target.isContentEditable ||
+    tag === "INPUT" ||
+    tag === "TEXTAREA" ||
+    tag === "SELECT" ||
+    (target as HTMLInputElement).type === "search"
+  );
+}
 
 function useKeybind(combo: (e: KeyboardEvent) => boolean, handler: () => void) {
   useEffect(() => {
@@ -35,7 +53,13 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
 
   // open with ⌘/Ctrl+K — also '/' like Brave
   useKeybind(
-    (e) => (e.key.toLowerCase() === "k" && (e.metaKey || e.ctrlKey)) || (e.key === "/" && !e.metaKey && !e.ctrlKey),
+    (e) => {
+      if (isEditableTarget(e.target)) return false;
+      const key = e.key.toLowerCase();
+      if (key === "k" && (e.metaKey || e.ctrlKey)) return true;
+      if (key === "/" && !e.metaKey && !e.ctrlKey && !e.altKey) return true;
+      return false;
+    },
     () => setOpen(true)
   );
   // close with Esc
@@ -65,10 +89,31 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
       .map((x) => x.cmd);
   }, [q, commands]);
 
+  const [activeIndex, setActiveIndex] = useState(0);
+
+  useEffect(() => {
+    setActiveIndex(0);
+  }, [q, results.length]);
+
   function onRun(c: Command) {
     setOpen(false);
     if (c.run) c.run();
     if (c.href) router.push(c.href);
+  }
+
+  function handleKeyNavigation(e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (!results.length) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % results.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => (i - 1 + results.length) % results.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const chosen = results[activeIndex];
+      if (chosen) onRun(chosen);
+    }
   }
 
   if (!open) return null;
@@ -85,6 +130,7 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
             ref={inputRef}
             value={q}
             onChange={(e) => setQ(e.target.value)}
+            onKeyDown={handleKeyNavigation}
             placeholder="Type a command or search…"
             className="flex-1 bg-transparent outline-none"
           />
@@ -95,25 +141,31 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
           {results.length === 0 ? (
             <div className="px-4 py-6 text-sm text-muted-foreground">No results</div>
           ) : (
-            results.map((c) => (
-              <button
-                key={c.id}
-                className="w-full text-left px-4 py-3 hover:bg-muted/60 border-b border-border/60"
-                onClick={() => onRun(c)}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="font-medium">{c.label}</div>
-                  {c.shortcut && (
-                    <div className="text-xs text-muted-foreground">
-                      {c.shortcut.split(" ").map((k, i) => (
-                        <kbd key={i} className="ml-1 inline-block rounded bg-muted px-1.5 py-0.5">{k}</kbd>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                {c.hint && <div className="text-xs text-muted-foreground mt-0.5">{c.hint}</div>}
-              </button>
-            ))
+            results.map((c, idx) => {
+              const isActive = idx === activeIndex;
+              return (
+                <button
+                  key={c.id}
+                  className={`w-full text-left px-4 py-3 border-b border-border/60 transition-colors ${
+                    isActive ? "bg-muted/80" : "hover:bg-muted/60"
+                  }`}
+                  onClick={() => onRun(c)}
+                  onMouseEnter={() => setActiveIndex(idx)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="font-medium">{c.label}</div>
+                    {c.shortcut && (
+                      <div className="text-xs text-muted-foreground">
+                        {c.shortcut.split(" ").map((k, i) => (
+                          <kbd key={i} className="ml-1 inline-block rounded bg-muted px-1.5 py-0.5">{k}</kbd>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  {c.hint && <div className="text-xs text-muted-foreground mt-0.5">{c.hint}</div>}
+                </button>
+              );
+            })
           )}
         </div>
       </div>
