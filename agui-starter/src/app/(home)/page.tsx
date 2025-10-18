@@ -1,6 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent,
+} from "react";
 import { SplashScreen } from "@/app/(components)/SplashScreen";
 import { Dock, type DockItem } from "@/components/ui/dock";
 import { AppTile } from "@/components/ui/app-tile";
@@ -12,6 +19,11 @@ const GRID_APPS = APPS;
 const DOCK_APPS = dock
   .map((id) => APPS_BY_ID.get(id))
   .filter((entry): entry is AppMeta => Boolean(entry));
+
+type TileHandlers = {
+  onFocus: () => void;
+  onKeyDown: (event: KeyboardEvent<HTMLAnchorElement>) => void;
+};
 
 export default function HomePage() {
   const gridRef = useRef<HTMLDivElement>(null);
@@ -51,82 +63,107 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) {
+      return;
+    }
+
     const updateColumnCount = () => {
       setColumnCount(getColumnCount());
     };
 
+    if (typeof ResizeObserver === "undefined") {
+      updateColumnCount();
+      window.addEventListener("resize", updateColumnCount);
+      return () => {
+        window.removeEventListener("resize", updateColumnCount);
+      };
+    }
+
+    const observer = new ResizeObserver(updateColumnCount);
+    observer.observe(grid);
     updateColumnCount();
 
-    window.addEventListener("resize", updateColumnCount);
-
     return () => {
-      window.removeEventListener("resize", updateColumnCount);
+      observer.disconnect();
     };
   }, [getColumnCount]);
 
-  const handleTileKeyDown = useCallback(
-    (index: number) => (event: KeyboardEvent<HTMLAnchorElement>) => {
-      const { key } = event;
-      if (
-        ![
-          "ArrowRight",
-          "ArrowLeft",
-          "ArrowUp",
-          "ArrowDown",
-          "Home",
-          "End",
-        ].includes(key)
-      ) {
-        return;
-      }
+  const tileHandlers: TileHandlers[] = useMemo(() => {
+    return GRID_APPS.map((_, index) => {
+      const moveFocus = (nextIndex: number) => {
+        const maxIndex = GRID_APPS.length - 1;
+        const targetIndex = Math.min(Math.max(nextIndex, 0), maxIndex);
 
-      event.preventDefault();
+        setFocusIndex((current) => (current === targetIndex ? current : targetIndex));
 
-      const columns = getColumnCount();
-      const maxIndex = GRID_APPS.length - 1;
-      let nextIndex = index;
+        const target = tileRefs.current[targetIndex];
+        if (!target) {
+          return;
+        }
 
-      switch (key) {
-        case "ArrowRight":
-          nextIndex = Math.min(index + 1, maxIndex);
-          break;
-        case "ArrowLeft":
-          nextIndex = Math.max(index - 1, 0);
-          break;
-        case "ArrowDown":
-          nextIndex = Math.min(index + columns, maxIndex);
-          break;
-        case "ArrowUp":
-          nextIndex = Math.max(index - columns, 0);
-          break;
-        case "Home":
-          nextIndex = 0;
-          break;
-        case "End":
-          nextIndex = maxIndex;
-          break;
-      }
+        const activeElement = typeof document === "undefined" ? null : document.activeElement;
+        if (activeElement === target) {
+          return;
+        }
 
-      if (nextIndex !== index) {
-        setFocusIndex(nextIndex);
-      }
+        if (typeof window !== "undefined" && typeof window.requestAnimationFrame === "function") {
+          window.requestAnimationFrame(() => {
+            target.focus();
+          });
+        } else {
+          target.focus();
+        }
+      };
 
-      const target = tileRefs.current[nextIndex];
-      if (target) {
-        target.focus();
-      }
-    },
-    [getColumnCount]
-  );
+      const onFocus = () => {
+        setFocusIndex((current) => (current === index ? current : index));
+      };
 
-  const handleTileFocus = useCallback(
-    (index: number) => () => {
-      if (focusIndex !== index) {
-        setFocusIndex(index);
-      }
-    },
-    [focusIndex]
-  );
+      const onKeyDown = (event: KeyboardEvent<HTMLAnchorElement>) => {
+        const { key } = event;
+        if (
+          ![
+            "ArrowRight",
+            "ArrowLeft",
+            "ArrowUp",
+            "ArrowDown",
+            "Home",
+            "End",
+          ].includes(key)
+        ) {
+          return;
+        }
+
+        event.preventDefault();
+
+        const columns = getColumnCount();
+
+        switch (key) {
+          case "ArrowRight":
+            moveFocus(index + 1);
+            break;
+          case "ArrowLeft":
+            moveFocus(index - 1);
+            break;
+          case "ArrowDown":
+            moveFocus(index + columns);
+            break;
+          case "ArrowUp":
+            moveFocus(index - columns);
+            break;
+          case "Home":
+            moveFocus(0);
+            break;
+          case "End":
+            moveFocus(GRID_APPS.length - 1);
+            break;
+        }
+      };
+
+      return { onFocus, onKeyDown } satisfies TileHandlers;
+    });
+  }, [getColumnCount]);
 
   return (
     <>
@@ -169,8 +206,8 @@ export default function HomePage() {
                       icon={app.icon}
                       variant={app.variant}
                       tabIndex={focusIndex === index ? 0 : -1}
-                      onFocus={handleTileFocus(index)}
-                      onKeyDown={handleTileKeyDown(index)}
+                      onFocus={tileHandlers[index]?.onFocus}
+                      onKeyDown={tileHandlers[index]?.onKeyDown}
                       className="w-full"
                       ref={(element) => {
                         tileRefs.current[index] = element;
