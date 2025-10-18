@@ -8,9 +8,9 @@ import type { StatusHudApiResponse } from "@/lib/types/status";
 
 export async function POST(
   _req: Request,
-  context: { params: { questId: string } }
+  context: { params: Promise<{ questId: string }> }
 ) {
-  const questId = context.params.questId;
+  const { questId } = await context.params;
   if (!questId) {
     const body: StatusHudApiResponse = {
       ok: false,
