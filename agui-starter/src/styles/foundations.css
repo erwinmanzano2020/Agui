@@ -1,35 +1,11 @@
 :root{
-  --brand: 152 48% 40%;
-  --brand-foreground: 0 0% 100%;
-  --bg: 0 0% 100%;
-  --fg: 222 47% 11%;
-  --muted: 210 20% 96%;
-  --muted-foreground: 215 16% 46%;
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 152 48% 40%;
-  --success: 142 72% 29%;
-  --warning: 38 92% 50%;
-  --danger: 0 84% 60%;
-  --radius-lg: .75rem; --radius-xl: 1rem; --radius-2xl: 1.25rem;
+  --radius-lg: .75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
   --shadow-soft: 0 1px 2px 0 rgb(0 0 0 / .06), 0 1px 1px -1px rgb(0 0 0 / .04);
   --shadow-lifted: 0 10px 15px -3px rgb(0 0 0 / .10), 0 4px 6px -4px rgb(0 0 0 / .10);
-  --print-bg: 0 0% 100%; --print-fg: 223 47% 11%; --print-accent: 151 48% 40%;
+  --print-bg: #ffffff;
+  --print-fg: #0f172a;
+  --print-accent: var(--accent);
 }
-[data-theme="dark"] {
-  --bg: 222 47% 10%;              /* page background */
-  --fg: 210 40% 98%;              /* text */
-
-  --muted: 218 22% 17%;           /* subtle surfaces */
-  --muted-foreground: 215 18% 70%;
-
-  --card: 222 25% 16%;            /* panels/cards (lighter than bg) */
-  --card-foreground: 210 40% 98%;
-
-  --border: 220 16% 28%;          /* stronger borders for clarity */
-  --input: 220 16% 28%;
-  --ring: 152 48% 50%;
-}
-*:focus-visible{ outline:2px solid hsl(var(--ring)); outline-offset:2px; }
+*:focus-visible{ outline:2px solid var(--ring); outline-offset:2px; }

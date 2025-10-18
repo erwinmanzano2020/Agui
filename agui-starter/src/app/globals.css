@@ -1,31 +1,34 @@
 /* --- Tailwind v4 core --- */
 @import "tailwindcss";
 
-/* --- Our CSS variables (Step 1) --- */
+/* --- Design tokens (colors, light/dark, runtime) --- */
+@import "../styles/tokens.css";
+
+/* --- Structural foundations (radius, shadows, print) --- */
 @import "../styles/foundations.css";
 
 /* --- Map variables to Tailwind tokens via @theme (v4 way) --- */
 @theme {
   /* Colors */
-  --color-brand: hsl(var(--brand));
-  --color-brand-foreground: hsl(var(--brand-foreground));
+  --color-brand: var(--accent);
+  --color-brand-foreground: var(--accent-contrast);
 
-  --color-background: hsl(var(--bg));
-  --color-foreground: hsl(var(--fg));
+  --color-background: var(--surface);
+  --color-foreground: var(--text);
 
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted: color-mix(in srgb, var(--surface) 78%, var(--text) 22%);
+  --color-muted-foreground: var(--muted);
 
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card: var(--card);
+  --color-card-foreground: var(--text);
 
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--ring);
 
-  --color-success: hsl(var(--success));
-  --color-warning: hsl(var(--warning));
-  --color-danger: hsl(var(--danger));
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
 
   /* Radii */
   --radius-lg: var(--radius-lg);
@@ -37,95 +40,57 @@
 }
 
 :root {
-  color-scheme: light;
+  --success: #16a34a;
+  --success-foreground: #ecfdf5;
+  --warning: #f59e0b;
+  --warning-foreground: #422006;
+  --danger: #ef4444;
+  --danger-foreground: #ffffff;
 
-  --bg: 0 0% 100%;
-  --fg: 222 47% 11%;
-
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-
-  --muted: 210 20% 96%;
-  --muted-foreground: 215 16% 46%;
-
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 152 48% 40%;
-
-  --success: 142 72% 29%;
-  --success-foreground: 0 0% 98%;
-  --warning: 38 92% 50%;
-  --warning-foreground: 26 83% 18%;
-  --danger: 0 84% 60%;
-  --danger-foreground: 0 0% 100%;
-
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
-  --radius-2xl: 1.25rem;
-
-  --agui-primary: #3c7cae;
-  --agui-accent: #06b6d4;
-  --agui-ring: #0ea5e9;
+  --agui-primary: var(--accent);
+  --agui-accent: var(--accent);
+  --agui-ring: var(--ring);
   --agui-radius: 12px;
-  --agui-on-primary: #f8fafc;
-  --agui-on-surface: hsl(var(--fg));
-  --agui-on-accent: #022c36;
-  --agui-card: hsl(var(--card));
-  --agui-card-border: hsl(var(--border));
-  --agui-card-foreground: hsl(var(--card-foreground));
-  --agui-surface: hsl(var(--bg));
-  --agui-surface-elevated: hsl(var(--card));
-  --agui-surface-border: hsl(var(--border));
-  --agui-muted-foreground: hsl(var(--muted-foreground));
+
+  --agui-on-primary: var(--accent-contrast);
+  --agui-on-surface: var(--text);
+  --agui-on-accent: var(--accent-contrast);
+
+  --agui-card: var(--card);
+  --agui-card-border: var(--border);
+  --agui-card-foreground: var(--text);
+
+  --agui-surface: var(--surface);
+  --agui-surface-elevated: color-mix(in srgb, var(--card) 96%, #000000 4%);
+  --agui-surface-border: var(--border);
+  --agui-muted-foreground: var(--muted);
 }
 
 .dark,
 [data-theme="dark"] {
-  color-scheme: dark;
-
-  --bg: 222 47% 10%;
-  --fg: 210 40% 98%;
-
-  --card: 222 25% 16%;
-  --card-foreground: 210 40% 98%;
-
-  --muted: 218 22% 17%;
-  --muted-foreground: 215 18% 70%;
-
-  --border: 220 16% 28%;
-  --input: 220 16% 28%;
-  --ring: 152 48% 50%;
-
-  --success: 142 72% 40%;
-  --success-foreground: 0 0% 98%;
-  --warning: 38 92% 55%;
-  --warning-foreground: 26 83% 18%;
-  --danger: 0 84% 60%;
-  --danger-foreground: 0 0% 100%;
-
-  --agui-on-surface: hsl(var(--fg));
-  --agui-card: hsl(var(--card));
-  --agui-card-border: hsl(var(--border));
-  --agui-card-foreground: hsl(var(--card-foreground));
-  --agui-surface: hsl(var(--bg));
-  --agui-surface-elevated: hsl(var(--card));
-  --agui-surface-border: hsl(var(--border));
-  --agui-muted-foreground: hsl(var(--muted-foreground));
+  --agui-on-surface: var(--text);
+  --agui-card: var(--card);
+  --agui-card-border: color-mix(in srgb, var(--border) 85%, transparent);
+  --agui-card-foreground: var(--text);
+  --agui-surface: var(--surface);
+  --agui-surface-elevated: color-mix(in srgb, var(--card) 92%, #ffffff 8%);
+  --agui-surface-border: color-mix(in srgb, var(--border) 70%, transparent);
+  --agui-muted-foreground: color-mix(in srgb, var(--muted) 85%, var(--text) 15%);
 }
 
 /* --- Base defaults using our tokens --- */
 @layer base {
   html,
   body {
-    background-color: hsl(var(--bg));
-    color: hsl(var(--fg));
+    background-color: var(--surface);
+    color: var(--text);
     font-feature-settings: "liga" 1, "kern" 1;
     -webkit-font-smoothing: antialiased;
   }
   h1 { @apply text-2xl font-semibold; }
   h2 { @apply text-xl font-semibold; }
   a {
-    color: var(--agui-accent);
+    color: var(--accent);
     text-decoration: none;
     text-underline-offset: 0.25em;
     transition: color 0.2s ease;
@@ -138,7 +103,7 @@
     outline-offset: 2px;
   }
   :where(button):focus-visible {
-    outline: 3px solid color-mix(in srgb, hsl(var(--ring)) 65%, transparent);
+    outline: 3px solid color-mix(in srgb, var(--ring) 65%, transparent);
   }
 }
 
@@ -218,7 +183,7 @@
 
 /* Global focus ring */
 *:focus-visible {
-  outline: 2px solid hsl(var(--ring));
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 

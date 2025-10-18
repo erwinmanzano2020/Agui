@@ -21,13 +21,13 @@ const sizes: Record<ButtonSize, string> = {
 
 const variants: Record<ButtonVariant, string> = {
   solid:
-    "text-white border border-transparent bg-[hsl(var(--agui-primary-hsl))] hover:bg-[color-mix(in_hsl,_hsl(var(--agui-accent-hsl))_50%,_hsl(var(--agui-primary-hsl)))] active:scale-[0.99] focus-visible:shadow-[0_0_0_3px] focus-visible:shadow-[color-mix(in_hsl,_hsl(var(--agui-ring-hsl))_35%,_transparent)]",
+    "border border-transparent bg-[var(--agui-primary)] text-[var(--agui-on-primary)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_88%,_black_12%)] active:scale-[0.99] focus-visible:shadow-[0_0_0_3px] focus-visible:shadow-[color-mix(in_srgb,_var(--ring)_35%,_transparent)]",
   outline:
-    "border text-[hsl(var(--agui-fg-hsl))] border-[hsl(var(--agui-border-hsl))] bg-[hsl(var(--agui-card-hsl))] hover:border-[color-mix(in_hsl,_hsl(var(--agui-accent-hsl))_55%,_hsl(var(--agui-border-hsl)))] hover:bg-[color-mix(in_hsl,_hsl(var(--agui-accent-hsl))_10%,_transparent)] active:scale-[0.99]",
+    "border text-[var(--agui-on-surface)] border-[color-mix(in_srgb,_var(--agui-card-border)_90%,_transparent)] bg-[var(--agui-card)] hover:border-[color-mix(in_srgb,_var(--agui-primary)_45%,_var(--agui-card-border)_55%)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_10%,_var(--agui-card)_90%)] active:scale-[0.99]",
   ghost:
-    "border border-transparent text-[hsl(var(--agui-fg-hsl))] hover:bg-[color-mix(in_hsl,_hsl(var(--agui-accent-hsl))_10%,_transparent)] active:scale-[0.99]",
+    "border border-transparent text-[var(--agui-on-surface)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)] active:scale-[0.99]",
   link:
-    "border border-transparent bg-transparent h-auto p-0 text-[hsl(var(--agui-primary-hsl))] underline-offset-4 hover:underline focus-visible:shadow-[0_0_0_3px] focus-visible:shadow-[color-mix(in_hsl,_hsl(var(--agui-ring-hsl))_35%,_transparent)]",
+    "border border-transparent bg-transparent h-auto p-0 text-[var(--agui-primary)] underline-offset-4 hover:underline focus-visible:shadow-[0_0_0_3px] focus-visible:shadow-[color-mix(in_srgb,_var(--ring)_35%,_transparent)]",
 };
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
