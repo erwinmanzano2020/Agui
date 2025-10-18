@@ -84,7 +84,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`group flex items-center gap-3 rounded-[var(--agui-radius)] px-3 py-2 text-sm font-medium transition-colors ${
+                className={`group flex items-center gap-3 rounded-[var(--agui-radius)] px-3 py-2 text-sm transition-colors ${
                   active
                     ? "bg-[var(--agui-primary)] text-[var(--agui-on-primary)] shadow-soft"
                     : "text-[color-mix(in_srgb,_var(--agui-on-surface)_70%,_var(--agui-surface)_30%)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)] hover:text-[var(--agui-on-surface)]"
@@ -140,7 +140,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     key={item.href}
                     href={item.href}
                     onClick={() => setSidebarOpen(false)}
-                    className={`flex items-center gap-3 rounded-[var(--agui-radius)] px-3 py-2 text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-3 rounded-[var(--agui-radius)] px-3 py-2 text-sm transition-colors ${
                       active
                         ? "bg-[var(--agui-primary)] text-[var(--agui-on-primary)] shadow-soft"
                         : "text-[color-mix(in_srgb,_var(--agui-on-surface)_70%,_var(--agui-surface)_30%)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)] hover:text-[var(--agui-on-surface)]"
@@ -173,7 +173,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               <MenuIcon className="h-5 w-5" />
             </Button>
-            <span className="font-semibold text-sm text-muted-foreground hidden md:inline">
+            <span className="font-medium text-sm text-muted-foreground hidden md:inline">
               Agui Dashboard
             </span>
           </div>

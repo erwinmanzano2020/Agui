@@ -4,12 +4,14 @@ import { cn } from "@/lib/utils";
 
 type LucideIconProps = SVGProps<SVGSVGElement>;
 
+const DEFAULT_STROKE_WIDTH = 1.2;
+
 function createLucideIcon(displayName: string, children: ReactNode) {
   const Component = ({ className, ...props }: LucideIconProps) => (
     <svg
       aria-hidden="true"
       viewBox="0 0 24 24"
-      strokeWidth={1.8}
+      strokeWidth={DEFAULT_STROKE_WIDTH}
       stroke="currentColor"
       fill="none"
       strokeLinecap="round"
@@ -25,6 +27,8 @@ function createLucideIcon(displayName: string, children: ReactNode) {
 
   return Component;
 }
+
+export { DEFAULT_STROKE_WIDTH as LUCIDE_STROKE_WIDTH };
 
 export const UsersIcon = createLucideIcon(
   "Users",
