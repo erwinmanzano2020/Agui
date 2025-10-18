@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode } from "react";
+import type { AppTileVariant } from "@/components/ui/app-tile";
 
 export type AppMeta = {
   id: string;
@@ -7,6 +8,7 @@ export type AppMeta = {
   description?: string;
   icon: ReactNode;
   accentColor?: string;
+  variant?: AppTileVariant;
 };
 
 function createIcon(children: ReactNode): ReactElement {
@@ -80,6 +82,7 @@ export const apps: AppMeta[] = [
     description: "Manage staff records",
     icon: employeesIcon,
     accentColor: "#2563EB",
+    variant: "pearl",
   },
   {
     id: "dtr",
@@ -88,6 +91,7 @@ export const apps: AppMeta[] = [
     description: "Quick time entry",
     icon: dtrIcon,
     accentColor: "#F97316",
+    variant: "black",
   },
   {
     id: "payroll",
@@ -96,6 +100,7 @@ export const apps: AppMeta[] = [
     description: "Runs & payslips",
     icon: payrollIcon,
     accentColor: "#16A34A",
+    variant: "charcoal",
   },
   {
     id: "imports",
@@ -104,6 +109,7 @@ export const apps: AppMeta[] = [
     description: "Bulk upload",
     icon: importIcon,
     accentColor: "#0EA5E9",
+    variant: "white",
   },
   {
     id: "settings",
@@ -112,6 +118,7 @@ export const apps: AppMeta[] = [
     description: "Theme & app config",
     icon: settingsIcon,
     accentColor: "#A855F7",
+    variant: "charcoal",
   },
 ];
 

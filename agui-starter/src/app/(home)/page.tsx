@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { SplashScreen } from "@/app/(components)/SplashScreen";
 import { Dock, type DockItem } from "@/app/(home)/Dock";
-import { AppTile } from "@/app/(home)/AppTile";
+import { AppTile } from "@/components/ui/app-tile";
 import { apps, dock, type AppMeta } from "@/config/apps";
 
 const APPS = apps;
@@ -167,7 +167,7 @@ export default function HomePage() {
                       label={app.label}
                       description={app.description}
                       icon={app.icon}
-                      accentColor={app.accentColor}
+                      variant={app.variant}
                       tabIndex={focusIndex === index ? 0 : -1}
                       onFocus={handleTileFocus(index)}
                       onKeyDown={handleTileKeyDown(index)}
