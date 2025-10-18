@@ -4,7 +4,10 @@ import Link from "next/link";
 import {
   CSSProperties,
   cloneElement,
+  forwardRef,
   isValidElement,
+  type FocusEventHandler,
+  type KeyboardEventHandler,
   type ReactElement,
   type ReactNode,
   useMemo,
@@ -13,7 +16,7 @@ import {
 
 import { cn } from "@/lib/utils";
 
-type AppTileVariant = "black" | "pearl" | "charcoal" | "white";
+export type AppTileVariant = "black" | "pearl" | "charcoal" | "white";
 
 export interface AppTileProps {
   icon: ReactNode;
@@ -22,6 +25,10 @@ export interface AppTileProps {
   description?: string;
   variant?: AppTileVariant;
   className?: string;
+  tabIndex?: number;
+  onFocus?: FocusEventHandler<HTMLAnchorElement>;
+  onBlur?: FocusEventHandler<HTMLAnchorElement>;
+  onKeyDown?: KeyboardEventHandler<HTMLAnchorElement>;
 }
 
 const VARIANT_STYLES: Record<
@@ -105,102 +112,122 @@ function enhanceIcon(icon: ReactNode): ReactNode {
   });
 }
 
-export function AppTile({
-  icon,
-  label,
-  href,
-  description,
-  variant = "black",
-  className,
-}: AppTileProps) {
-  const styles = VARIANT_STYLES[variant];
-  const [isTooltipVisible, setTooltipVisible] = useState(false);
+export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
+  (
+    {
+      icon,
+      label,
+      href,
+      description,
+      variant = "black",
+      className,
+      tabIndex,
+      onFocus,
+      onBlur,
+      onKeyDown,
+    },
+    ref
+  ) => {
+    const styles = VARIANT_STYLES[variant];
+    const [isTooltipVisible, setTooltipVisible] = useState(false);
 
-  const enhancedIcon = useMemo(() => enhanceIcon(icon), [icon]);
-  const tooltipId = description
-    ? `${label.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase()}-tooltip`
-    : undefined;
+    const enhancedIcon = useMemo(() => enhanceIcon(icon), [icon]);
+    const tooltipId = description
+      ? `${label.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase()}-tooltip`
+      : undefined;
 
-  const showTooltip = () => {
-    if (!description) return;
-    setTooltipVisible(true);
-  };
-
-  const hideTooltip = () => {
-    setTooltipVisible(false);
-  };
-
-  return (
-    <div className="relative inline-block">
-      <Link
-        href={href}
-        className={cn(
-          "group flex min-h-[132px] w-full flex-col gap-4 rounded-[28px] border px-5 py-6 transition duration-200 ease-out hover:brightness-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:[--tw-ring-color:var(--tile-ring)] focus-visible:[--tw-ring-offset-color:var(--tile-ring-offset)] active:scale-[0.97]",
-          styles.tile,
-          className,
-        )}
-        style={
-          {
-            "--tile-ring": styles.ring,
-            "--tile-ring-offset": styles.ringOffset,
-          } as CSSProperties
-        }
-        onPointerEnter={(event) => {
-          if (event.pointerType === "touch") return;
-          showTooltip();
-        }}
-        onPointerLeave={(event) => {
-          if (event.pointerType === "touch") return;
-          hideTooltip();
-        }}
-        onFocus={showTooltip}
-        onBlur={hideTooltip}
-        onPointerDown={hideTooltip}
-        aria-describedby={tooltipId}
-      >
-        <div className="flex items-center justify-between">
-          <span
-            className={cn(
-              "flex h-14 w-14 items-center justify-center rounded-[22px] text-[color:inherit] transition duration-200",
-              styles.icon,
-            )}
-            aria-hidden
-          >
-            <span className="text-current">{enhancedIcon}</span>
-          </span>
-          <span
-            className={cn(
-              "rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide transition duration-200",
-              styles.badge,
-            )}
-          >
-            App
-          </span>
-        </div>
-        <div className="flex flex-col gap-1">
-          <p className={cn("text-lg font-semibold", styles.label)}>{label}</p>
-          <p className={cn("text-sm", styles.description)}>
-            {description ? description : "Open app"}
-          </p>
-        </div>
-      </Link>
-      {description ? (
-        <div
-          id={tooltipId}
-          role="tooltip"
+    return (
+      <div className="relative inline-block">
+        <Link
+          href={href}
+          ref={ref}
+          tabIndex={tabIndex}
           className={cn(
-            "pointer-events-none absolute left-1/2 top-full z-50 mt-3 w-max max-w-xs -translate-x-1/2 rounded-2xl border px-4 py-2 text-sm shadow-2xl transition-all duration-150",
-            styles.tooltip,
-            styles.tooltipText,
-            isTooltipVisible
-              ? "translate-y-0 opacity-100"
-              : "-translate-y-1 opacity-0",
+            "group flex min-h-[132px] w-full flex-col gap-4 rounded-[28px] border px-5 py-6 transition duration-200 ease-out hover:brightness-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:[--tw-ring-color:var(--tile-ring)] focus-visible:[--tw-ring-offset-color:var(--tile-ring-offset)] active:scale-[0.97]",
+            styles.tile,
+            className,
           )}
-          aria-hidden={!isTooltipVisible}
+          style={
+            {
+              "--tile-ring": styles.ring,
+              "--tile-ring-offset": styles.ringOffset,
+            } as CSSProperties
+          }
+          onPointerEnter={(event) => {
+            if (event.pointerType === "touch" || !description) return;
+            setTooltipVisible(true);
+          }}
+          onPointerLeave={(event) => {
+            if (event.pointerType === "touch") return;
+            if (event.currentTarget === document.activeElement) {
+              return;
+            }
+            setTooltipVisible(false);
+          }}
+          onFocus={(event) => {
+            if (description) {
+              setTooltipVisible(true);
+            }
+            onFocus?.(event);
+          }}
+          onBlur={(event) => {
+            setTooltipVisible(false);
+            onBlur?.(event);
+          }}
+          onPointerDown={() => {
+            setTooltipVisible(false);
+          }}
+          onKeyDown={(event) => {
+            onKeyDown?.(event);
+          }}
+          aria-describedby={tooltipId}
         >
-          {description}
-        </div>
-      ) : null}
-    </div>
-  );
-}
+          <div className="flex items-center justify-between">
+            <span
+              className={cn(
+                "flex h-14 w-14 items-center justify-center rounded-[22px] text-[color:inherit] transition duration-200",
+                styles.icon,
+              )}
+              aria-hidden
+            >
+              <span className="text-current">{enhancedIcon}</span>
+            </span>
+            <span
+              className={cn(
+                "rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide transition duration-200",
+                styles.badge,
+              )}
+            >
+              App
+            </span>
+          </div>
+          <div className="flex flex-col gap-1">
+            <p className={cn("text-lg font-semibold", styles.label)}>{label}</p>
+            <p className={cn("text-sm", styles.description)}>
+              {description ? description : "Open app"}
+            </p>
+          </div>
+        </Link>
+        {description ? (
+          <div
+            id={tooltipId}
+            role="tooltip"
+            className={cn(
+              "pointer-events-none absolute left-1/2 top-full z-50 mt-3 w-max max-w-xs -translate-x-1/2 rounded-2xl border px-4 py-2 text-sm shadow-2xl transition-all duration-150",
+              styles.tooltip,
+              styles.tooltipText,
+              isTooltipVisible
+                ? "translate-y-0 opacity-100"
+                : "-translate-y-1 opacity-0",
+            )}
+            aria-hidden={!isTooltipVisible}
+          >
+            {description}
+          </div>
+        ) : null}
+      </div>
+    );
+  }
+);
+
+AppTile.displayName = "AppTile";
