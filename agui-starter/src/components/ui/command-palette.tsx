@@ -2,6 +2,7 @@
 
 import {
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -40,6 +41,8 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
   const [q, setQ] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+  const baseId = useId();
+  const listId = `${baseId}-options`;
 
   // open with ⌘/Ctrl+K — also '/' like Brave
   useKeybind(
@@ -108,10 +111,20 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
 
   if (!open) return null;
 
+  const activeOption = results[activeIndex];
+  const activeOptionId = activeOption ? `${baseId}-option-${activeOption.id}` : undefined;
+
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/40" onClick={() => setOpen(false)}>
+    <div
+      className="fixed inset-0 z-[9999] bg-black/40"
+      role="presentation"
+      onClick={() => setOpen(false)}
+    >
       <div
         className="mx-auto mt-24 w-[min(780px,92vw)] rounded-2xl bg-card text-card-foreground shadow-2xl border border-border overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
@@ -122,12 +135,22 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
             onChange={(e) => setQ(e.target.value)}
             onKeyDown={handleKeyNavigation}
             placeholder="Type a command or search…"
-            className="flex-1 bg-transparent outline-none"
+            role="combobox"
+            aria-expanded={results.length > 0}
+            aria-controls={listId}
+            aria-activedescendant={activeOptionId}
+            aria-autocomplete="list"
+            className="flex-1 bg-transparent outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card"
           />
           <kbd className="text-xs text-muted-foreground">Esc</kbd>
         </div>
 
-        <div className="max-h-[60vh] overflow-auto">
+        <div
+          id={listId}
+          role="listbox"
+          className="max-h-[60vh] overflow-auto"
+          aria-label="Command results"
+        >
           {results.length === 0 ? (
             <div className="px-4 py-6 text-sm text-muted-foreground">No results</div>
           ) : (
@@ -136,11 +159,17 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
               return (
                 <button
                   key={c.id}
-                  className={`w-full text-left px-4 py-3 border-b border-border/60 transition-colors ${
+                  id={`${baseId}-option-${c.id}`}
+                  type="button"
+                  role="option"
+                  aria-selected={isActive}
+                  tabIndex={-1}
+                  className={`w-full text-left px-4 py-3 border-b border-border/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card ${
                     isActive ? "bg-muted/80" : "hover:bg-muted/60"
                   }`}
                   onClick={() => onRun(c)}
                   onMouseEnter={() => setActiveIndex(idx)}
+                  onFocus={() => setActiveIndex(idx)}
                 >
                   <div className="flex items-center justify-between gap-4">
                     <div className="font-medium">{c.label}</div>

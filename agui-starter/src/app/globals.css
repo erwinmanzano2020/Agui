@@ -133,6 +133,13 @@
   a:hover {
     text-decoration: underline;
   }
+  :where(button) {
+    outline: transparent;
+    outline-offset: 2px;
+  }
+  :where(button):focus-visible {
+    outline: 3px solid color-mix(in srgb, hsl(var(--ring)) 65%, transparent);
+  }
 }
 
 /* --- Utilities for shadows (custom, v4-safe) --- */

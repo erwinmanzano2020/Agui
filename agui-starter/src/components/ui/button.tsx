@@ -10,7 +10,7 @@ export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const base =
-  "inline-flex items-center justify-center gap-2 font-medium rounded-[calc(var(--agui-radius))] transition-[background-color,color,border,box-shadow,transform] focus-visible:outline-none";
+  "inline-flex items-center justify-center gap-2 font-medium rounded-[calc(var(--agui-radius))] transition-[background-color,color,border,box-shadow,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background";
 
 const sizes: Record<ButtonSize, string> = {
   xs: "h-8 px-2.5 text-xs",
