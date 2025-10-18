@@ -1,4 +1,5 @@
 import type { ReactElement, ReactNode } from "react";
+
 import type { AppTileVariant } from "@/components/ui/app-tile";
 
 export type AppMeta = {
@@ -11,7 +12,7 @@ export type AppMeta = {
   variant?: AppTileVariant;
 };
 
-function createIcon(children: ReactNode): ReactElement {
+function createLucideIcon(children: ReactNode): ReactElement {
   return (
     <svg
       aria-hidden="true"
@@ -28,7 +29,8 @@ function createIcon(children: ReactNode): ReactElement {
   );
 }
 
-const employeesIcon = createIcon(
+// Icon paths sourced from the Lucide outline icon set.
+const usersIcon = createLucideIcon(
   <>
     <path d="M18 21v-2a4 4 0 0 0-4-4h-4a4 4 0 0 0-4 4v2" />
     <circle cx="12" cy="7" r="4" />
@@ -37,7 +39,7 @@ const employeesIcon = createIcon(
   </>
 );
 
-const dtrIcon = createIcon(
+const calendarClockIcon = createLucideIcon(
   <>
     <path d="M21 7v10a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7" />
     <path d="M16 3v4" />
@@ -48,7 +50,7 @@ const dtrIcon = createIcon(
   </>
 );
 
-const payrollIcon = createIcon(
+const scrollTextIcon = createLucideIcon(
   <>
     <path d="M21 4H9a2 2 0 0 0-2 2v13" />
     <path d="M7 19a2 2 0 1 0 2 2h10a2 2 0 0 0 2-2V6" />
@@ -58,7 +60,7 @@ const payrollIcon = createIcon(
   </>
 );
 
-const importIcon = createIcon(
+const fileDownIcon = createLucideIcon(
   <>
     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" />
     <path d="M14 2v6h6" />
@@ -67,7 +69,7 @@ const importIcon = createIcon(
   </>
 );
 
-const settingsIcon = createIcon(
+const settingsIcon = createLucideIcon(
   <>
     <circle cx="12" cy="12" r="3" />
     <path d="M19.5 12a7.5 7.5 0 0 0-.18-1.63l2.05-1.49-2-3.46-2.43 1a7.52 7.52 0 0 0-2.82-1.63L14 2h-4l-.12 2.79a7.52 7.52 0 0 0-2.82 1.63l-2.43-1-2 3.46 2.05 1.49A7.5 7.5 0 0 0 4.5 12c0 .55.06 1.09.18 1.63l-2.05 1.49 2 3.46 2.43-1a7.52 7.52 0 0 0 2.82 1.63L10 22h4l.12-2.79a7.52 7.52 0 0 0 2.82-1.63l2.43 1 2-3.46-2.05-1.49A7.5 7.5 0 0 0 19.5 12Z" />
@@ -80,7 +82,7 @@ export const apps: AppMeta[] = [
     label: "Employees",
     href: "/employees",
     description: "Manage staff records",
-    icon: employeesIcon,
+    icon: usersIcon,
     accentColor: "#2563EB",
     variant: "pearl",
   },
@@ -89,7 +91,7 @@ export const apps: AppMeta[] = [
     label: "DTR Bulk",
     href: "/payroll/dtr-bulk",
     description: "Quick time entry",
-    icon: dtrIcon,
+    icon: calendarClockIcon,
     accentColor: "#F97316",
     variant: "black",
   },
@@ -98,7 +100,7 @@ export const apps: AppMeta[] = [
     label: "Payroll",
     href: "/payroll",
     description: "Runs & payslips",
-    icon: payrollIcon,
+    icon: scrollTextIcon,
     accentColor: "#16A34A",
     variant: "charcoal",
   },
@@ -107,7 +109,7 @@ export const apps: AppMeta[] = [
     label: "Import CSV",
     href: "/imports",
     description: "Bulk upload",
-    icon: importIcon,
+    icon: fileDownIcon,
     accentColor: "#0EA5E9",
     variant: "white",
   },
