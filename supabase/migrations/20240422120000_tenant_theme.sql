@@ -19,7 +19,8 @@ create policy tenant_theme_select
     tenant_id = nullif(
       coalesce(
         auth.jwt() ->> 'tenant_id',
-        auth.jwt() -> 'app_metadata' ->> 'tenant_id'
+        auth.jwt() -> 'app_metadata' ->> 'tenant_id',
+        auth.jwt() -> 'user_metadata' ->> 'tenant_id'
       ),
       ''
     )::uuid
@@ -32,7 +33,8 @@ create policy tenant_theme_insert
     tenant_id = nullif(
       coalesce(
         auth.jwt() ->> 'tenant_id',
-        auth.jwt() -> 'app_metadata' ->> 'tenant_id'
+        auth.jwt() -> 'app_metadata' ->> 'tenant_id',
+        auth.jwt() -> 'user_metadata' ->> 'tenant_id'
       ),
       ''
     )::uuid
@@ -45,7 +47,8 @@ create policy tenant_theme_update
     tenant_id = nullif(
       coalesce(
         auth.jwt() ->> 'tenant_id',
-        auth.jwt() -> 'app_metadata' ->> 'tenant_id'
+        auth.jwt() -> 'app_metadata' ->> 'tenant_id',
+        auth.jwt() -> 'user_metadata' ->> 'tenant_id'
       ),
       ''
     )::uuid
@@ -54,7 +57,8 @@ create policy tenant_theme_update
     tenant_id = nullif(
       coalesce(
         auth.jwt() ->> 'tenant_id',
-        auth.jwt() -> 'app_metadata' ->> 'tenant_id'
+        auth.jwt() -> 'app_metadata' ->> 'tenant_id',
+        auth.jwt() -> 'user_metadata' ->> 'tenant_id'
       ),
       ''
     )::uuid
