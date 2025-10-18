@@ -3,6 +3,7 @@
 
 import React from "react";
 import { Card } from "@/components/ui/card";
+import { StatusHud } from "@/components/ui/status-hud";
 import { ThemedLink } from "@/components/ui/themed-link";
 
 const MODULE_LINKS = [
@@ -47,7 +48,9 @@ function handleHomeEnter(e: React.KeyboardEvent<HTMLInputElement>) {
 
 export default function Home() {
   return (
-    <main className="min-h-[calc(100dvh-4rem)] p-6 flex flex-col">
+    <main className="min-h-[calc(100dvh-4rem)] p-6 flex flex-col gap-8">
+      <StatusHud className="mx-auto w-full max-w-4xl" />
+
       {/* Centered hero like Brave NTP */}
       <section className="flex-1 flex items-center justify-center">
         <div className="w-full max-w-3xl">
