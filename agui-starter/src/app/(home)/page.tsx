@@ -4,64 +4,28 @@ import { useCallback, useMemo, useRef, type KeyboardEvent } from "react";
 import { SplashScreen } from "@/app/(components)/SplashScreen";
 import { Dock, type DockItem } from "@/app/(home)/Dock";
 import { AppTile } from "@/app/(home)/AppTile";
-import {
-  HOME_MODULES,
-  getDockModules,
-  getGridModules,
-  type IconName,
-} from "@/app/(home)/config";
+import { apps, dock, type AppMeta } from "@/config/apps";
 import { StatusHud } from "@/components/ui/status-hud";
 
-const GRID_MODULES = getGridModules(HOME_MODULES);
-const DOCK_MODULES = getDockModules(HOME_MODULES);
-
-function HomeIcon({ name, className }: { name: IconName; className?: string }) {
-  const path = ICON_PATHS[name];
-  return (
-    <svg
-      aria-hidden
-      viewBox="0 0 24 24"
-      className={className ?? "h-7 w-7"}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.8}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {Array.isArray(path)
-        ? path.map((d, index) => <path key={`${name}-${index}`} d={d} />)
-        : path && <path d={path} />}
-    </svg>
-  );
-}
-
-const ICON_PATHS: Record<IconName, string | string[]> = {
-  employees:
-    "M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Zm8 14v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
-  shifts: ["M4 5h16M4 9h16M6 5v12M18 5v12M4 17h16"],
-  clock: ["M12 7v5l3 1.5", "M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0"],
-  settings:
-    "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm8.6-3a7 7 0 0 0-.1-1l2.1-1.6-1.5-2.6-2.5 1a7 7 0 0 0-1.7-1l-.4-2.7h-3l-.4 2.7a7 7 0 0 0-1.7 1l-2.5-1-1.5 2.6 2.1 1.6a7 7 0 0 0 0 2l-2.1 1.6 1.5 2.6 2.5-1a7 7 0 0 0 1.7 1l.4 2.7h3l.4-2.7a7 7 0 0 0 1.7-1l2.5 1 1.5-2.6-2.1-1.6c.06-.33.1-.66.1-1Z",
-  payroll: ["M4 6h16v12H4Z", "M8 6V4h8v2", "M8 11h8", "M8 15h5"],
-  table: ["M3 7h18", "M3 12h18", "M3 17h18", "M8 7v10", "M16 7v10"],
-  deductions: ["M5 5h14v14H5Z", "M9 9h6", "M9 13h3"],
-  payslip: ["M6 4h9l5 5v11H6Z", "M15 4v5h5", "M9 13h6", "M9 17h6"],
-  stack: ["M4 7 12 3l8 4-8 4-8-4Z", "m4 12 8 4 8-4", "m4 17 8 4 8-4"],
-};
+const APPS = apps;
+const APPS_BY_ID = new Map<string, AppMeta>(APPS.map((app) => [app.id, app]));
+const GRID_APPS = APPS;
+const DOCK_APPS = dock
+  .map((id) => APPS_BY_ID.get(id))
+  .filter((entry): entry is AppMeta => Boolean(entry));
 
 export default function HomePage() {
   const gridRef = useRef<HTMLDivElement>(null);
   const tileRefs = useRef<(HTMLAnchorElement | null)[]>([]);
 
-  const dockItems = useMemo<DockItem[]>(
-    () =>
-      DOCK_MODULES.map((module) => ({
-        href: module.dock?.href ?? module.href,
-        label: module.dock?.label ?? module.label,
-        icon: <HomeIcon name={module.icon} className="h-5 w-5" />,
-      })),
-    []
-  );
+  const dockItems = useMemo<DockItem[]>(() => {
+    return DOCK_APPS.map((app) => ({
+      href: app.href,
+      label: app.label,
+      icon: app.icon,
+      accent: app.accent,
+    }));
+  }, []);
 
   const getColumnCount = useCallback(() => {
     const grid = gridRef.current;
@@ -82,7 +46,7 @@ export default function HomePage() {
     }
 
     const columns = Math.max(1, Math.floor((gridWidth + gap) / (tileWidth + gap)));
-    return Math.min(columns, GRID_MODULES.length);
+    return Math.min(columns, GRID_APPS.length);
   }, []);
 
   const handleTileKeyDown = useCallback(
@@ -95,7 +59,7 @@ export default function HomePage() {
       event.preventDefault();
 
       const columns = getColumnCount();
-      const maxIndex = GRID_MODULES.length - 1;
+      const maxIndex = GRID_APPS.length - 1;
       let nextIndex = index;
 
       switch (key) {
@@ -145,12 +109,14 @@ export default function HomePage() {
                 ref={gridRef}
                 className="mt-4 grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
               >
-                {GRID_MODULES.map((module, index) => (
+                {GRID_APPS.map((app, index) => (
                   <AppTile
-                    key={module.id}
-                    href={module.href}
-                    label={module.label}
-                    icon={<HomeIcon name={module.icon} />}
+                    key={app.id}
+                    href={app.href}
+                    label={app.label}
+                    description={app.description}
+                    icon={app.icon}
+                    accent={app.accent}
                     onKeyDown={handleTileKeyDown(index)}
                     ref={(element) => {
                       tileRefs.current[index] = element;
