@@ -13,6 +13,7 @@ import {
 } from "react";
 
 import { cn } from "@/lib/utils";
+import { useTooltipPosition } from "@/hooks/use-tooltip-position";
 
 export type AppTileProps = {
   href: string;
@@ -45,6 +46,10 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
   ) => {
     const tooltipId = useId();
     const [isTooltipVisible, setTooltipVisible] = useState(false);
+    const { ref: tooltipRef, inlineOffset } = useTooltipPosition<HTMLDivElement>({
+      open: isTooltipVisible,
+      contentKey: description ?? label,
+    });
 
     const showTooltip = useCallback(() => {
       if (!description) {
@@ -160,6 +165,8 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
               "pointer-events-none absolute left-1/2 top-full z-50 mt-3 w-max max-w-xs -translate-x-1/2 rounded-xl border border-border bg-card px-3 py-2 text-xs text-card-foreground shadow-soft transition-opacity duration-150 motion-reduce:transition-none",
               isTooltipVisible ? "opacity-100" : "opacity-0"
             )}
+            ref={tooltipRef}
+            style={{ marginLeft: inlineOffset }}
           >
             {description}
           </div>
