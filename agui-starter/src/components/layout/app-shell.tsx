@@ -6,42 +6,27 @@ import { ReactNode, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ui/theme-toggle";
+import {
+  CalendarClockIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  LayoutDashboardIcon,
+  MenuIcon,
+  ScrollTextIcon,
+  UsersIcon,
+} from "@/components/icons/lucide";
 
-/* Inline SVG icons (no extra deps) */
-function Icon({ name, className }: { name: string; className?: string }) {
-  const paths: Record<string, string> = {
-    dashboard: "M3 12l8-9 8 9v8a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-8Z",
-    users:
-      "M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Zm8 14v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
-    table: "M3 6h18M3 12h18M3 18h18M6 6v12M12 6v12M18 6v12",
-    payroll: "M4 6h16v12H4zM8 6V4h8v2M8 10h8M8 14h5",
-    menu: "M4 6h16M4 12h16M4 18h16",
-    chevronLeft: "M15 18l-6-6 6-6",
-    chevronRight: "M9 6l6 6-6 6",
-  };
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={className ?? "h-4 w-4"}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d={paths[name] || ""} />
-    </svg>
-  );
-}
-
-type NavItem = { name: string; href: string; icon: string };
+type NavItem = { name: string; href: string; icon: ReactNode };
 
 const NAV: NavItem[] = [
-  { name: "Dashboard", href: "/", icon: "dashboard" },
-  { name: "Employees", href: "/employees", icon: "users" },
-  { name: "DTR Bulk", href: "/payroll/dtr-bulk", icon: "table" },
-  { name: "Payroll", href: "/payroll", icon: "payroll" },
+  { name: "Dashboard", href: "/", icon: <LayoutDashboardIcon className="h-5 w-5" /> },
+  { name: "Employees", href: "/employees", icon: <UsersIcon className="h-5 w-5" /> },
+  {
+    name: "DTR Bulk",
+    href: "/payroll/dtr-bulk",
+    icon: <CalendarClockIcon className="h-5 w-5" />,
+  },
+  { name: "Payroll", href: "/payroll", icon: <ScrollTextIcon className="h-5 w-5" /> },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -84,10 +69,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             title={collapsed ? "Expand" : "Collapse"}
             onClick={() => setCollapsed((v) => !v)}
           >
-            <Icon
-              name={collapsed ? "chevronRight" : "chevronLeft"}
-              className="h-4 w-4"
-            />
+            {collapsed ? (
+              <ChevronRightIcon className="h-4 w-4" />
+            ) : (
+              <ChevronLeftIcon className="h-4 w-4" />
+            )}
           </Button>
         </div>
 
@@ -104,7 +90,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     : "text-[color-mix(in_srgb,_var(--agui-on-surface)_70%,_var(--agui-surface)_30%)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)] hover:text-[var(--agui-on-surface)]"
                 }`}
               >
-                <Icon name={item.icon} className="h-4 w-4 opacity-80" />
+                <span className="text-current opacity-80">{item.icon}</span>
                 {!collapsed && <span className="truncate">{item.name}</span>}
               </Link>
             );
@@ -160,7 +146,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                         : "text-[color-mix(in_srgb,_var(--agui-on-surface)_70%,_var(--agui-surface)_30%)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)] hover:text-[var(--agui-on-surface)]"
                     }`}
                   >
-                    <Icon name={item.icon} className="h-4 w-4 opacity-80" />
+                    <span className="text-current opacity-80">{item.icon}</span>
                     <span>{item.name}</span>
                   </Link>
                 );
@@ -185,7 +171,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               onClick={() => setSidebarOpen(true)}
               aria-label="Open menu"
             >
-              <Icon name="menu" className="h-5 w-5" />
+              <MenuIcon className="h-5 w-5" />
             </Button>
             <span className="font-semibold text-sm text-muted-foreground hidden md:inline">
               Agui Dashboard

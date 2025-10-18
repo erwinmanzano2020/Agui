@@ -103,7 +103,7 @@ function enhanceIcon(icon: ReactNode): ReactNode {
   const element = icon as ReactElement<{ className?: string; strokeWidth?: number; color?: string }>;
 
   return cloneElement(element, {
-    className: cn("h-10 w-10", element.props.className),
+    className: cn("h-6 w-6", element.props.className),
     strokeWidth:
       typeof element.props.strokeWidth === "number"
         ? Math.min(Math.max(element.props.strokeWidth, 1.8), 2)
