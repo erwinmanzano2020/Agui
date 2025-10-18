@@ -4,37 +4,16 @@ import { useCallback, useMemo, useRef, type KeyboardEvent } from "react";
 import { SplashScreen } from "@/app/(components)/SplashScreen";
 import { Dock, type DockItem } from "@/app/(home)/Dock";
 import { AppTile } from "@/app/(home)/AppTile";
+import {
+  HOME_MODULES,
+  getDockModules,
+  getGridModules,
+  type IconName,
+} from "@/app/(home)/config";
 import { StatusHud } from "@/components/ui/status-hud";
 
-const TILE_DEFINITIONS = [
-  { label: "Employees", href: "/employees", icon: "employees" as const },
-  { label: "Shifts", href: "/shifts", icon: "shifts" as const },
-  { label: "DTR Today", href: "/payroll/dtr-today", icon: "clock" as const },
-  { label: "Payroll Settings", href: "/payroll/settings", icon: "settings" as const },
-  { label: "Payroll Preview", href: "/payroll/preview", icon: "payroll" as const },
-  { label: "Bulk DTR", href: "/payroll/dtr-bulk", icon: "table" as const },
-  { label: "Deductions", href: "/payroll/deductions", icon: "deductions" as const },
-  { label: "Payslip", href: "/payroll/payslip", icon: "payslip" as const },
-  { label: "Bulk Payslip", href: "/payroll/bulk-payslip", icon: "stack" as const },
-] satisfies { label: string; href: string; icon: IconName }[];
-
-const DOCK_ITEMS = [
-  { label: "People", href: "/employees", icon: "employees" as const },
-  { label: "Shifts", href: "/shifts", icon: "shifts" as const },
-  { label: "Payroll", href: "/payroll", icon: "payroll" as const },
-  { label: "Settings", href: "/settings", icon: "settings" as const },
-];
-
-type IconName =
-  | "employees"
-  | "shifts"
-  | "clock"
-  | "settings"
-  | "payroll"
-  | "table"
-  | "deductions"
-  | "payslip"
-  | "stack";
+const GRID_MODULES = getGridModules(HOME_MODULES);
+const DOCK_MODULES = getDockModules(HOME_MODULES);
 
 function HomeIcon({ name, className }: { name: IconName; className?: string }) {
   const path = ICON_PATHS[name];
@@ -76,9 +55,10 @@ export default function HomePage() {
 
   const dockItems = useMemo<DockItem[]>(
     () =>
-      DOCK_ITEMS.map((item) => ({
-        ...item,
-        icon: <HomeIcon name={item.icon} className="h-5 w-5" />,
+      DOCK_MODULES.map((module) => ({
+        href: module.dock?.href ?? module.href,
+        label: module.dock?.label ?? module.label,
+        icon: <HomeIcon name={module.icon} className="h-5 w-5" />,
       })),
     []
   );
@@ -102,7 +82,7 @@ export default function HomePage() {
     }
 
     const columns = Math.max(1, Math.floor((gridWidth + gap) / (tileWidth + gap)));
-    return Math.min(columns, TILE_DEFINITIONS.length);
+    return Math.min(columns, GRID_MODULES.length);
   }, []);
 
   const handleTileKeyDown = useCallback(
@@ -115,7 +95,7 @@ export default function HomePage() {
       event.preventDefault();
 
       const columns = getColumnCount();
-      const maxIndex = TILE_DEFINITIONS.length - 1;
+      const maxIndex = GRID_MODULES.length - 1;
       let nextIndex = index;
 
       switch (key) {
@@ -165,12 +145,12 @@ export default function HomePage() {
                 ref={gridRef}
                 className="mt-4 grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
               >
-                {TILE_DEFINITIONS.map((tile, index) => (
+                {GRID_MODULES.map((module, index) => (
                   <AppTile
-                    key={tile.href}
-                    href={tile.href}
-                    label={tile.label}
-                    icon={<HomeIcon name={tile.icon} />}
+                    key={module.id}
+                    href={module.href}
+                    label={module.label}
+                    icon={<HomeIcon name={module.icon} />}
                     onKeyDown={handleTileKeyDown(index)}
                     ref={(element) => {
                       tileRefs.current[index] = element;
