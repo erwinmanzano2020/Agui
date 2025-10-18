@@ -2,17 +2,23 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import type { User } from "@supabase/supabase-js";
+
 import { cn } from "@/lib/utils";
-import type { StatusHudApiResponse } from "@/lib/types/status";
+import { getSupabase } from "@/lib/supabase";
 
 const SPLASH_STORAGE_KEY = "agui.sawSplash";
 const AUTO_DISMISS_DELAY = 1400;
 const EXIT_ANIMATION_DURATION = 500;
 
-function extractPlayerName(response: StatusHudApiResponse): string | null {
-  if (!response.ok) return null;
-  const name = response.data?.user?.displayName?.trim();
-  return name ? name : null;
+function derivePlayerName(user: User | null | undefined): string {
+  const fullName = typeof user?.user_metadata?.full_name === "string" ? user.user_metadata.full_name.trim() : "";
+  if (fullName) return fullName;
+
+  const email = typeof user?.email === "string" ? user.email.trim() : "";
+  if (email) return email;
+
+  return "Player";
 }
 
 export function SplashScreen() {
@@ -60,17 +66,16 @@ export function SplashScreen() {
     if (!shouldRender) return;
 
     let isActive = true;
-    fetch("/api/status", { cache: "no-store" })
-      .then(async (res) => {
-        const json = (await res.json()) as StatusHudApiResponse;
-        return json;
-      })
-      .then((json) => {
+    const supabase = getSupabase();
+    if (!supabase) return;
+
+    supabase.auth
+      .getUser()
+      .then(({ data, error }) => {
         if (!isActive) return;
-        const extracted = json ? extractPlayerName(json) : null;
-        if (extracted) {
-          setPlayerName(extracted);
-        }
+        if (error) return;
+        const nextName = derivePlayerName(data.user);
+        setPlayerName(nextName);
       })
       .catch(() => {
         // Swallow errors – splash should still render with the fallback name.
