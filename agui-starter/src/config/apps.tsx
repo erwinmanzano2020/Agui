@@ -108,7 +108,7 @@ export const apps: AppMeta[] = [
   {
     id: "settings",
     label: "Settings",
-    href: "/settings",
+    href: "/settings/appearance",
     description: "Theme & app config",
     icon: settingsIcon,
     accentColor: "#A855F7",

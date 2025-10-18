@@ -66,6 +66,21 @@
   --agui-muted-foreground: var(--muted);
 }
 
+:root[data-shape="rounded"],
+:root:not([data-shape]) {
+  --agui-radius: 12px;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+}
+
+:root[data-shape="circle"] {
+  --agui-radius: 999px;
+  --radius-lg: 999px;
+  --radius-xl: 999px;
+  --radius-2xl: 999px;
+}
+
 .dark,
 [data-theme="dark"] {
   --agui-on-surface: var(--text);
