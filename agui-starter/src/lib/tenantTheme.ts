@@ -129,9 +129,25 @@ function mergeTheme(
   };
 }
 
-export async function getTenantTheme(tenantId: string): Promise<TenantTheme> {
+export type GetTenantThemeOptions = {
+  /** Apply the cached + fetched theme to the DOM as values resolve. */
+  apply?: boolean;
+};
+
+export async function getTenantTheme(
+  tenantId: string,
+  { apply = false }: GetTenantThemeOptions = {}
+): Promise<TenantTheme> {
   const cached = readCachedTheme(tenantId);
   const fallback = cached ?? buildDefaultTheme(tenantId);
+
+  if (apply) {
+    applyTenantTheme({
+      accent: fallback.accent,
+      background: fallback.background,
+      shape: fallback.shape,
+    });
+  }
 
   const supabase = getSupabase();
   if (!supabase) {
@@ -154,6 +170,15 @@ export async function getTenantTheme(tenantId: string): Promise<TenantTheme> {
 
     const normalized = mergeTheme(tenantId, data);
     writeCachedTheme(normalized);
+
+    if (apply) {
+      applyTenantTheme({
+        accent: normalized.accent,
+        background: normalized.background,
+        shape: normalized.shape,
+      });
+    }
+
     return normalized;
   } catch (error) {
     console.warn("Failed to fetch tenant theme", error);
@@ -200,4 +225,17 @@ export function applyTenantTheme(theme: Pick<TenantTheme, "accent" | "background
   }
 
   root.dataset.shape = normalizeShape(theme.shape);
+}
+
+export function bootstrapTenantTheme(tenantId: string): TenantTheme {
+  const cached = readCachedTheme(tenantId);
+  const fallback = cached ?? buildDefaultTheme(tenantId);
+
+  applyTenantTheme({
+    accent: fallback.accent,
+    background: fallback.background,
+    shape: fallback.shape,
+  });
+
+  return fallback;
 }
