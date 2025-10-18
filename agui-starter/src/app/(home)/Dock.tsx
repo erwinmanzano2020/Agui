@@ -10,27 +10,40 @@ export type DockItem = {
 };
 
 export function Dock({ items }: { items: DockItem[] }) {
+  if (items.length === 0) {
+    return null;
+  }
+
   return (
     <nav
       aria-label="Home dock"
-      className="pointer-events-none fixed inset-x-0 bottom-0 z-40 pb-5 pt-3"
+      className="fixed left-1/2 z-40 w-full max-w-[520px] -translate-x-1/2 px-4"
+      style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 1rem)" }}
     >
-      <div className="mx-auto w-full max-w-[520px] px-5">
-        <div className="pointer-events-auto flex items-center justify-between gap-2 rounded-2xl border border-border bg-card/80 p-2 shadow-soft backdrop-blur">
-          {items.map((item) => (
+      <ul className="flex items-center justify-center gap-2 rounded-3xl border border-border/70 bg-[color-mix(in_srgb,_var(--agui-surface)_82%,_transparent)] p-2 shadow-soft backdrop-blur">
+        {items.map((item) => (
+          <li
+            key={`${item.href}-${item.label}`}
+            className="group relative flex basis-0 flex-1 justify-center"
+          >
             <Link
-              key={item.href}
               href={item.href}
-              className="flex flex-1 flex-col items-center gap-1 rounded-2xl px-3 py-2 text-xs font-medium text-[var(--agui-muted-foreground)] transition-transform duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--agui-primary)] hover:text-[var(--agui-on-surface)] active:scale-95"
+              aria-label={item.label}
+              className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)] text-[var(--agui-primary)] transition-transform duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--agui-primary)] hover:scale-105 active:scale-95"
             >
-              <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)] text-[var(--agui-primary)]">
-                {item.icon}
-              </span>
-              <span className="truncate">{item.label}</span>
+              {item.icon}
             </Link>
-          ))}
-        </div>
-      </div>
+
+            <span
+              role="tooltip"
+              aria-hidden="true"
+              className="pointer-events-none absolute -top-11 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-[color-mix(in_srgb,_var(--agui-surface)_90%,_black_10%)] px-3 py-1 text-xs font-medium text-[var(--agui-on-surface)] opacity-0 shadow-soft transition-opacity duration-150 group-focus-within:opacity-100 group-hover:opacity-100"
+            >
+              {item.label}
+            </span>
+          </li>
+        ))}
+      </ul>
     </nav>
   );
 }
