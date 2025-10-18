@@ -24,7 +24,7 @@ export default function HomePage() {
       href: app.href,
       label: app.label,
       icon: app.icon,
-      accent: app.accent,
+      accentColor: app.accentColor,
     }));
   }, []);
 
@@ -132,7 +132,7 @@ export default function HomePage() {
     <>
       <SplashScreen />
       <div className="relative flex min-h-dvh flex-col bg-[color-mix(in_srgb,_var(--agui-surface)_96%,_white_4%)] text-foreground">
-        <div className="flex-1 pb-36">
+        <div className="flex-1 pb-44">
           <div className="mx-auto flex w-full max-w-[1200px] flex-col items-center gap-12 px-6 pt-12">
             <header className="text-center">
               <p className="text-sm uppercase tracking-[0.3em] text-[var(--agui-muted-foreground)]">Welcome back</p>
@@ -167,7 +167,7 @@ export default function HomePage() {
                       label={app.label}
                       description={app.description}
                       icon={app.icon}
-                      accent={app.accent}
+                      accentColor={app.accentColor}
                       tabIndex={focusIndex === index ? 0 : -1}
                       onFocus={handleTileFocus(index)}
                       onKeyDown={handleTileKeyDown(index)}

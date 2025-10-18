@@ -6,6 +6,7 @@ import {
   useCallback,
   useId,
   useState,
+  type CSSProperties,
   type FocusEventHandler,
   type KeyboardEventHandler,
   type PointerEventHandler,
@@ -20,7 +21,7 @@ export type AppTileProps = {
   icon: ReactNode;
   label: string;
   description?: string;
-  accent?: string;
+  accentColor?: string;
   tabIndex?: number;
   className?: string;
   onFocus?: FocusEventHandler<HTMLAnchorElement>;
@@ -35,7 +36,7 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
       icon,
       label,
       description,
-      accent,
+      accentColor,
       tabIndex,
       className,
       onFocus,
@@ -122,6 +123,11 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
 
     const ariaLabel = description ? `${label}. ${description}` : label;
 
+    const accentColorValue = accentColor ?? "var(--agui-primary)";
+    const accentStyle = {
+      "--tile-accent": accentColorValue,
+    } as CSSProperties;
+
     return (
       <div className="relative flex h-full w-full">
         <Link
@@ -135,15 +141,19 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
           onPointerEnter={handlePointerEnter}
           onPointerLeave={handlePointerLeave}
           onKeyDown={handleKeyDown}
+          style={accentStyle}
           className={cn(
-            "group relative flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-border bg-card px-6 py-8 text-center text-sm text-card-foreground shadow-soft transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agui-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color-mix(in_srgb,_var(--agui-surface)_92%,_black_8%)] hover:shadow-lifted active:scale-95 motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-reduce:transition-none motion-reduce:active:scale-100",
+            "group relative flex flex-1 flex-col items-center justify-center gap-4 overflow-hidden rounded-[28px] border border-white/10 bg-[color-mix(in_srgb,_var(--agui-surface)_88%,_white_12%)]/90 px-6 py-8 text-center text-sm text-card-foreground shadow-[0_30px_60px_-40px_rgba(15,23,42,0.65)] backdrop-blur-2xl transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--tile-accent)] focus-visible:ring-offset-4 focus-visible:ring-offset-[rgba(15,23,42,0.08)] motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none",
+            "before:pointer-events-none before:absolute before:inset-px before:rounded-[26px] before:bg-[linear-gradient(150deg,rgba(255,255,255,0.22),rgba(255,255,255,0.04))] before:opacity-75 before:transition-opacity before:duration-200 motion-reduce:before:transition-none",
+            "hover:-translate-y-1 hover:shadow-[0_32px_70px_-40px_color-mix(in_srgb,var(--tile-accent)_55%,_black_45%)] hover:before:opacity-100 active:translate-y-0",
             className
           )}
         >
           <span
             className={cn(
-              "flex h-14 w-14 items-center justify-center rounded-2xl text-2xl text-[var(--agui-primary)] motion-safe:transition-transform motion-safe:duration-150 motion-safe:ease-out motion-safe:group-hover:scale-105 motion-reduce:transition-none motion-reduce:group-hover:scale-100",
-              accent ?? "bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)]"
+              "relative flex h-16 w-16 items-center justify-center rounded-full border border-white/15 bg-[radial-gradient(circle_at_30%_20%,_color-mix(in_srgb,var(--tile-accent)_35%,_transparent)_0%,_color-mix(in_srgb,var(--tile-accent)_5%,_transparent)_70%)] text-[color-mix(in_srgb,var(--tile-accent)_88%,_var(--agui-on-surface)_12%)] shadow-[0_26px_40px_-32px_color-mix(in_srgb,var(--tile-accent)_65%,_transparent)] motion-safe:transition-transform motion-safe:duration-200 motion-safe:ease-out motion-reduce:transition-none",
+              "after:pointer-events-none after:absolute after:inset-0 after:rounded-full after:bg-[radial-gradient(circle,_rgba(255,255,255,0.25)_0%,_rgba(255,255,255,0)_65%)] after:opacity-0 after:transition-opacity after:duration-200 motion-reduce:after:transition-none",
+              "group-hover:scale-[1.04] group-hover:after:opacity-100"
             )}
           >
             {icon}
@@ -152,7 +162,7 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
             {label}
           </span>
           {description ? (
-            <span className="text-xs text-muted-foreground">{description}</span>
+            <span className="text-xs text-muted-foreground/90">{description}</span>
           ) : null}
         </Link>
 
@@ -162,7 +172,7 @@ export const AppTile = forwardRef<HTMLAnchorElement, AppTileProps>(
             role="tooltip"
             aria-hidden={!isTooltipVisible}
             className={cn(
-              "pointer-events-none absolute left-1/2 top-full z-50 mt-3 w-max max-w-xs -translate-x-1/2 rounded-xl border border-border bg-card px-3 py-2 text-xs text-card-foreground shadow-soft transition-opacity duration-150 motion-reduce:transition-none",
+              "pointer-events-none absolute left-1/2 top-full z-50 mt-3 w-max max-w-xs -translate-x-1/2 rounded-xl border border-white/15 bg-[color-mix(in_srgb,_var(--agui-surface)_92%,_white_8%)]/95 px-3 py-2 text-xs text-card-foreground shadow-[0_18px_40px_-28px_rgba(15,23,42,0.55)] backdrop-blur-xl transition-opacity duration-150 motion-reduce:transition-none",
               isTooltipVisible ? "opacity-100" : "opacity-0"
             )}
             ref={tooltipRef}
