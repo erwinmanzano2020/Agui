@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ThemeConfig } from "@/lib/theme";
+import { ThemeConfig, applyTheme, getReadableText } from "@/lib/theme";
 import { setTheme } from "./actions";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -93,9 +93,18 @@ export default function ThemeEditor({ initial }: Props) {
 
   // Optimistic apply to CSS vars on change
   React.useEffect(() => {
+    const normalize = (value: string) => (value.startsWith("#") ? value : `#${value}`);
+    const primary = normalize(primaryHex);
+    const accent = normalize(accentHex);
+
+    applyTheme({ accent: primary, ring: accent });
+
     const root = document.documentElement;
-    root.style.setProperty("--agui-primary", hexToHslTriplet(primaryHex));
-    root.style.setProperty("--agui-accent", hexToHslTriplet(accentHex));
+    root.style.setProperty("--agui-primary", primary);
+    root.style.setProperty("--agui-accent", accent);
+    root.style.setProperty("--agui-ring", accent);
+    root.style.setProperty("--agui-on-primary", getReadableText(primary));
+    root.style.setProperty("--agui-on-accent", getReadableText(accent));
     root.style.setProperty("--agui-radius", `${radius}px`);
   }, [primaryHex, accentHex, radius]);
 

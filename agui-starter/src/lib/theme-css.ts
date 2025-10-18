@@ -1,10 +1,11 @@
 import type { ThemeConfig } from "@/lib/ui-config";
+import { getReadableText } from "@/lib/theme";
 
 type ThemeVars = Record<string, string>;
 
 type RGB = { r: number; g: number; b: number };
 
-const DEFAULT_SURFACE = "#0b0b0b";
+const DEFAULT_SURFACE = "#f8fafc";
 const DEFAULT_ACCENT_LIGHTEN = 0.24;
 const DEFAULT_RADIUS = 12;
 
@@ -39,6 +40,14 @@ export function themeToCssVars(theme: ThemeConfig): ThemeVars {
     "--agui-surface-elevated": elevatedSurface,
     "--agui-surface-border": subtleBorder,
     "--agui-muted-foreground": mutedForeground,
+    "--accent": primary,
+    "--accent-contrast": primaryOn,
+    "--ring": accent,
+    "--surface": surface,
+    "--card": cardBg,
+    "--text": surfaceOn,
+    "--muted": mutedForeground,
+    "--border": subtleBorder,
   } satisfies ThemeVars;
 }
 
@@ -92,8 +101,4 @@ function relativeLuminance(hex: string): number {
 
 function isDark(hex: string): boolean {
   return relativeLuminance(hex) < 0.5;
-}
-
-function getReadableText(backgroundHex: string): string {
-  return isDark(backgroundHex) ? "#f8fafc" : "#0f172a";
 }
