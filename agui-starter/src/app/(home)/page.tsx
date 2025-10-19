@@ -30,6 +30,7 @@ export default function HomePage() {
   const tileRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const [focusIndex, setFocusIndex] = useState(0);
   const [columnCount, setColumnCount] = useState(1);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const dockItems = useMemo<DockItem[]>(() => {
     return DOCK_APPS.map((app) => ({
@@ -88,6 +89,40 @@ export default function HomePage() {
       observer.disconnect();
     };
   }, [getColumnCount]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const viewport = window.visualViewport;
+
+    if (!viewport) {
+      return;
+    }
+
+    const updateKeyboardVisibility = () => {
+      const heightDiff = window.innerHeight - viewport.height;
+      const isNarrowViewport = viewport.width <= 768;
+      setIsKeyboardVisible(isNarrowViewport && heightDiff > 120);
+    };
+
+    viewport.addEventListener("resize", updateKeyboardVisibility);
+    viewport.addEventListener("scroll", updateKeyboardVisibility);
+    updateKeyboardVisibility();
+
+    return () => {
+      viewport.removeEventListener("resize", updateKeyboardVisibility);
+      viewport.removeEventListener("scroll", updateKeyboardVisibility);
+    };
+  }, []);
+
+  const keyboardKeyClassName =
+    "inline-flex items-center justify-center rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[color:color-mix(in_srgb,var(--agui-muted-foreground)_92%,white_8%)]";
+
+  const safeAreaBottom = "env(safe-area-inset-bottom, 0px)";
+  const safeAreaInlineStart = "env(safe-area-inset-left, 0px)";
+  const safeAreaInlineEnd = "env(safe-area-inset-right, 0px)";
 
   const tileHandlers: TileHandlers[] = useMemo(() => {
     return GRID_APPS.map((_, index) => {
@@ -170,54 +205,78 @@ export default function HomePage() {
       <SplashScreen />
       <div className="relative flex min-h-dvh flex-col bg-[color-mix(in_srgb,_var(--agui-surface)_96%,_white_4%)] text-foreground">
         <div className="flex-1 pb-44">
-          <div className="mx-auto flex w-full max-w-[1200px] flex-col items-center gap-12 px-6 pt-12">
-            <header className="text-center space-y-3">
-              <h1 className="text-3xl font-semibold text-[var(--agui-on-surface)]">
-                Launch the tools you need in seconds
-              </h1>
-              <p className="max-w-xl text-sm text-muted-foreground">
-                Open a module below or use Ctrl/Cmd + K to jump directly to a workflow.
-              </p>
-            </header>
+          <div className="mx-auto flex h-full w-full max-w-[1200px] flex-col px-6 pt-12">
+            <div className="flex flex-1 flex-col items-center gap-12">
+              <header className="sr-only">
+                <h1>App launcher</h1>
+              </header>
 
-            <section className="w-full">
-              <h2 className="text-sm font-medium text-[var(--agui-muted-foreground)]">Apps</h2>
-              <div
-                ref={gridRef}
-                role="grid"
-                aria-label="App launcher"
-                aria-colcount={columnCount}
-                aria-rowcount={Math.ceil(GRID_APPS.length / columnCount)}
-                className="mt-4 grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
-              >
-                {GRID_APPS.map((app, index) => (
-                  <div
-                    key={app.id}
-                    role="gridcell"
-                    aria-rowindex={Math.floor(index / columnCount) + 1}
-                    aria-colindex={(index % columnCount) + 1}
-                    className="flex"
-                  >
-                    <AppTile
-                      href={app.href}
-                      label={app.label}
-                      description={app.description}
-                      icon={app.icon}
-                      variant={app.variant}
-                      tabIndex={focusIndex === index ? 0 : -1}
-                      onFocus={tileHandlers[index]?.onFocus}
-                      onKeyDown={tileHandlers[index]?.onKeyDown}
-                      className="w-full"
-                      ref={(element) => {
-                        tileRefs.current[index] = element;
-                      }}
-                    />
-                  </div>
-                ))}
-              </div>
-            </section>
+              <section className="w-full">
+                <h2 className="text-sm font-medium text-[var(--agui-muted-foreground)]">Apps</h2>
+                <div
+                  ref={gridRef}
+                  role="grid"
+                  aria-label="App launcher"
+                  aria-colcount={columnCount}
+                  aria-rowcount={Math.ceil(GRID_APPS.length / columnCount)}
+                  className="mt-4 grid grid-cols-3 gap-4 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
+                >
+                  {GRID_APPS.map((app, index) => (
+                    <div
+                      key={app.id}
+                      role="gridcell"
+                      aria-rowindex={Math.floor(index / columnCount) + 1}
+                      aria-colindex={(index % columnCount) + 1}
+                      className="flex"
+                    >
+                      <AppTile
+                        href={app.href}
+                        label={app.label}
+                        description={app.description}
+                        icon={app.icon}
+                        variant={app.variant}
+                        tabIndex={focusIndex === index ? 0 : -1}
+                        onFocus={tileHandlers[index]?.onFocus}
+                        onKeyDown={tileHandlers[index]?.onKeyDown}
+                        className="w-full"
+                        ref={(element) => {
+                          tileRefs.current[index] = element;
+                        }}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            </div>
           </div>
         </div>
+
+        {!isKeyboardVisible ? (
+          <div
+            className="pointer-events-none fixed left-1/2 z-30 w-full max-w-[560px] -translate-x-1/2 px-6"
+            style={{
+              bottom: `calc(${safeAreaBottom} + 7.25rem)`,
+              paddingLeft: `calc(${safeAreaInlineStart} + 1.5rem)`,
+              paddingRight: `calc(${safeAreaInlineEnd} + 1.5rem)`,
+            }}
+          >
+            <div className="pointer-events-auto rounded-full border border-white/6 bg-[color-mix(in_srgb,_var(--agui-surface)_86%,_white_14%)]/90 px-4 py-2 text-center text-xs text-muted-foreground shadow-[0_24px_60px_-42px_rgba(15,23,42,0.65)] backdrop-blur-xl sm:text-sm">
+              <span className="block font-medium text-[color:color-mix(in_srgb,var(--agui-muted-foreground)_88%,white_12%)] sm:inline">
+                Launch the tools you need in seconds.
+              </span>{" "}
+              <span className="inline-flex flex-wrap items-center justify-center gap-2 text-muted-foreground">
+                <span>Use</span>
+                <span className="inline-flex flex-wrap items-center gap-1">
+                  <kbd className={keyboardKeyClassName}>Ctrl</kbd>
+                  <span className="text-muted-foreground/70">/</span>
+                  <kbd className={keyboardKeyClassName}>Cmd</kbd>
+                </span>
+                <span>+</span>
+                <kbd className={keyboardKeyClassName}>K</kbd>
+              </span>
+            </div>
+          </div>
+        ) : null}
 
         <Dock items={dockItems} />
       </div>
