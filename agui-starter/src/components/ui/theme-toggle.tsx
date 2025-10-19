@@ -72,7 +72,7 @@ export function ThemeToggle({ iconOnly = true, className, ...btnProps }: ThemeTo
   const icon = (
     <span
       aria-hidden
-      className="relative inline-flex size-7 items-center justify-center"
+      className="relative inline-flex size-9 items-center justify-center"
       suppressHydrationWarning
     >
       <SunIcon
