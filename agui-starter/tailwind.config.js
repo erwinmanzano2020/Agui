@@ -1,39 +1,37 @@
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: "class",
-  content: [
-    "./src/**/*.{ts,tsx,js,jsx}",
-    "./src/app/**/*.{ts,tsx,js,jsx}",
-    "./src/components/**/*.{ts,tsx,js,jsx}",
-  ],
+  content: ["./src/**/*.{ts,tsx,js,jsx}"],
   theme: {
     extend: {
       colors: {
-        border: "hsl(var(--border) / <alpha-value>)",
-        input: "hsl(var(--input) / <alpha-value>)",
-        ring: "hsl(var(--ring) / <alpha-value>)",
-        background: "hsl(var(--bg) / <alpha-value>)",
-        foreground: "hsl(var(--fg) / <alpha-value>)",
+        background: "hsl(var(--bg-hsl))",
+        foreground: "hsl(var(--fg-hsl))",
+        border: "hsl(var(--border-hsl))",
+        ring: "hsl(var(--agui-accent-hsl) / var(--agui-ring-alpha))",
         card: {
-          DEFAULT: "hsl(var(--card) / <alpha-value>)",
-          foreground: "hsl(var(--card-foreground) / <alpha-value>)",
+          DEFAULT: "hsl(var(--card-hsl))",
+          foreground: "hsl(var(--fg-hsl))",
         },
         muted: {
-          DEFAULT: "hsl(var(--muted) / <alpha-value>)",
-          foreground: "hsl(var(--muted-foreground) / <alpha-value>)",
+          DEFAULT: "hsl(var(--muted-hsl))",
+          foreground: "hsl(var(--fg-hsl))",
         },
         success: {
-          DEFAULT: "hsl(var(--success) / <alpha-value>)",
-          foreground: "hsl(var(--success-foreground) / <alpha-value>)",
+          DEFAULT: "var(--success)",
+          foreground: "var(--success-foreground)",
         },
         warning: {
-          DEFAULT: "hsl(var(--warning) / <alpha-value>)",
-          foreground: "hsl(var(--warning-foreground) / <alpha-value>)",
+          DEFAULT: "var(--warning)",
+          foreground: "var(--warning-foreground)",
         },
         danger: {
-          DEFAULT: "hsl(var(--danger) / <alpha-value>)",
-          foreground: "hsl(var(--danger-foreground) / <alpha-value>)",
+          DEFAULT: "var(--danger)",
+          foreground: "var(--danger-foreground)",
         },
+      },
+      borderRadius: {
+        DEFAULT: "var(--agui-radius)",
       },
     },
   },

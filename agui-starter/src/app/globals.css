@@ -43,6 +43,34 @@
 }
 
 :root {
+  --bg-hsl: 210 40% 98%;
+  --card-hsl: 0 0% 100%;
+  --fg-hsl: 222 47% 11%;
+  --border-hsl: 214 32% 91%;
+  --muted-hsl: 215 16% 65%;
+
+  --agui-accent-hsl: 199 89% 48%;
+  --agui-accent: hsl(var(--agui-accent-hsl));
+  --agui-primary: hsl(var(--agui-accent-hsl));
+  --agui-primary-hsl: var(--agui-accent-hsl);
+  --agui-ring: hsl(var(--agui-accent-hsl));
+  --agui-ring-hsl: var(--agui-accent-hsl);
+  --agui-ring-alpha: 0.14;
+  --agui-ring-alpha-hover: 0.28;
+  --agui-radius: 12px;
+
+  --tile-bg: #eef1f6;
+  --tile-label: #1b1c1f;
+  --wallpaper-url: none;
+
+  --surface: hsl(var(--bg-hsl));
+  --card: hsl(var(--card-hsl));
+  --text: hsl(var(--fg-hsl));
+  --border: hsl(var(--border-hsl));
+  --muted: hsl(var(--muted-hsl));
+  --accent: var(--agui-accent);
+  --ring: var(--agui-ring);
+
   --success: #16a34a;
   --success-foreground: #ecfdf5;
   --warning: #f59e0b;
@@ -50,14 +78,9 @@
   --danger: #ef4444;
   --danger-foreground: #ffffff;
 
-  --agui-primary: var(--accent);
-  --agui-accent: var(--accent);
-  --agui-ring: var(--ring);
-  --agui-radius: 12px;
-
-  --agui-on-primary: var(--accent-contrast);
+  --agui-on-primary: #ffffff;
   --agui-on-surface: var(--text);
-  --agui-on-accent: var(--accent-contrast);
+  --agui-on-accent: #ffffff;
 
   --agui-card: var(--card);
   --agui-card-border: var(--border);
@@ -86,11 +109,17 @@
 
 .dark,
 [data-theme="dark"] {
-  --agui-on-surface: var(--text);
+  --bg-hsl: 222 47% 11%;
+  --card-hsl: 218 28% 20%;
+  --fg-hsl: 215 32% 92%;
+  --border-hsl: 220 19% 32%;
+  --muted-hsl: 215 16% 65%;
+  color-scheme: dark;
+
+  --agui-surface: var(--surface);
   --agui-card: var(--card);
   --agui-card-border: color-mix(in srgb, var(--border) 85%, transparent);
   --agui-card-foreground: var(--text);
-  --agui-surface: var(--surface);
   --agui-surface-elevated: color-mix(in srgb, var(--card) 92%, #ffffff 8%);
   --agui-surface-border: color-mix(in srgb, var(--border) 70%, transparent);
   --agui-muted-foreground: color-mix(in srgb, var(--muted) 85%, var(--text) 15%);
@@ -101,6 +130,10 @@
   html,
   body {
     background-color: var(--surface);
+    background-image: var(--wallpaper-url);
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
     color: var(--text);
     font-feature-settings: "liga" 1, "kern" 1;
     -webkit-font-smoothing: antialiased;
@@ -150,6 +183,33 @@
     --lucide-stroke-width: 1.35;
     width: 1.75rem;
     height: 1.75rem;
+  }
+
+  .icon-tile {
+    position: relative;
+    background: var(--tile-bg);
+    color: var(--tile-label);
+    border-radius: 18px;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.14);
+    transition: outline-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .icon-tile:hover {
+    outline: 2px solid color-mix(
+      in hsl,
+      hsl(var(--agui-accent-hsl)) calc(var(--agui-ring-alpha-hover) * 200%),
+      transparent
+    );
+    outline-offset: 2px;
+  }
+
+  .icon-tile:focus-visible {
+    outline: 3px solid color-mix(
+      in hsl,
+      hsl(var(--agui-accent-hsl)) calc(var(--agui-ring-alpha-hover) * 200%),
+      transparent
+    );
+    outline-offset: 3px;
   }
 
   :where(.lucide-icon) {
