@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 type LucideIconProps = SVGProps<SVGSVGElement>;
 
-const DEFAULT_STROKE_WIDTH = 1.2;
+const DEFAULT_STROKE_WIDTH = 1.35;
 
 function createLucideIcon(displayName: string, children: ReactNode) {
   const Component = ({ className, ...props }: LucideIconProps) => (
@@ -16,7 +16,7 @@ function createLucideIcon(displayName: string, children: ReactNode) {
       fill="none"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className={cn("h-6 w-6", className)}
+      className={cn("lucide-icon", className)}
       {...props}
     >
       {children}
@@ -29,6 +29,8 @@ function createLucideIcon(displayName: string, children: ReactNode) {
 }
 
 export { DEFAULT_STROKE_WIDTH as LUCIDE_STROKE_WIDTH };
+
+export const LAUNCHER_DOCK_ICON_CLASS = "launcher-dock-icon";
 
 export const UsersIcon = createLucideIcon(
   "Users",
