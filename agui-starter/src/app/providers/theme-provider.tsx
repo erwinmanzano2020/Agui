@@ -58,19 +58,15 @@ export default function ThemeProvider({ theme, children }: ThemeProviderProps) {
 
     const ALLOW = new Set([
       "--agui-primary",
+      "--agui-primary-hsl",
       "--agui-accent",
+      "--agui-accent-hsl",
       "--agui-ring",
-      "--agui-on-primary",
-      "--agui-on-accent",
+      "--agui-ring-hsl",
+      "--agui-ring-alpha",
       "--agui-radius",
-      "--accent",
-      "--accent-contrast",
-      "--ring",
-      "--surface",
-      "--card",
-      "--text",
-      "--muted",
-      "--border",
+      "--tile-bg",
+      "--tile-label",
     ]);
 
     for (const [k, v] of Object.entries(vars)) {

@@ -1,121 +1,110 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-
-import type { Session } from "@supabase/supabase-js";
+import { useEffect } from "react";
 
 import { getSupabase } from "@/lib/supabase";
-import {
-  TENANT_THEME_DEFAULTS,
-  applyTenantTheme,
-  bootstrapTenantTheme,
-  getTenantTheme,
-  resolveTenantId,
-  type TenantThemeBackground,
-  type TenantThemePreset,
-  type TenantThemeShape,
-} from "@/lib/tenantTheme";
+import { DEFAULT_PRESET, THEME_PRESETS, hexToHslTriplet } from "@/lib/theme-presets";
 
-function applyDefaultTheme() {
-  applyTenantTheme({
-    accent: TENANT_THEME_DEFAULTS.accent,
-    background: TENANT_THEME_DEFAULTS.background,
-    shape: TENANT_THEME_DEFAULTS.shape,
-    preset: TENANT_THEME_DEFAULTS.preset,
-  });
+const ROW_ID = "default";
+
+function applyWallpaper(slug: string | null | undefined) {
+  const root = document.documentElement;
+  if (slug) {
+    root.style.setProperty("--wallpaper-url", `url('/wallpapers/${slug}.svg')`);
+  } else {
+    root.style.setProperty("--wallpaper-url", "none");
+  }
 }
 
-async function hydrateTenantTheme(tenantId: string) {
-  bootstrapTenantTheme(tenantId);
-  try {
-    await getTenantTheme(tenantId, { apply: true });
-  } catch (error) {
-    console.warn("Failed to hydrate tenant theme", error);
+function applyAccent(hex: string | null | undefined) {
+  if (!hex) return;
+  const root = document.documentElement;
+  const hsl = hexToHslTriplet(hex);
+  const accent = `hsl(${hsl})`;
+
+  root.style.setProperty("--agui-accent-hsl", hsl);
+  root.style.setProperty("--agui-accent", accent);
+  root.style.setProperty("--agui-primary-hsl", hsl);
+  root.style.setProperty("--agui-primary", accent);
+  root.style.setProperty("--agui-ring-hsl", hsl);
+  root.style.setProperty("--agui-ring", accent);
+}
+
+function applyTokens(params: {
+  presetName: string | null | undefined;
+  iconContainerHex?: string | null;
+  labelHex?: string | null;
+  accentHex?: string | null;
+  ringOpacity?: number | null;
+  wallpaper?: string | null;
+}) {
+  const root = document.documentElement;
+
+  if (params.iconContainerHex) {
+    root.style.setProperty("--tile-bg", params.iconContainerHex);
+  }
+  if (params.labelHex) {
+    root.style.setProperty("--tile-label", params.labelHex);
+  }
+
+  applyAccent(params.accentHex ?? undefined);
+
+  if (typeof params.ringOpacity === "number") {
+    root.style.setProperty("--agui-ring-alpha", params.ringOpacity.toString());
+    root.style.setProperty("--agui-ring-alpha-hover", (params.ringOpacity * 2).toString());
+  }
+
+  applyWallpaper(params.wallpaper ?? null);
+
+  if (params.presetName) {
+    root.dataset.themePreset = params.presetName;
   }
 }
 
 export default function TenantThemeMount() {
-  const tenantRef = useRef<string | null>(null);
-  const [storageTenant, setStorageTenant] = useState<string | null>(null);
-
   useEffect(() => {
-    const supabase = getSupabase();
-    if (!supabase) {
-      applyDefaultTheme();
-      return;
+    const preset = THEME_PRESETS.find((entry) => entry.name === DEFAULT_PRESET);
+    if (preset?.wallpaper) {
+      applyWallpaper(preset.wallpaper);
     }
-
-    let isActive = true;
-
-    const syncFromSession = async (session: Session | null) => {
-      if (!isActive) return;
-
-      const tenantId = resolveTenantId(session?.user ?? null);
-
-      if (!tenantId) {
-        tenantRef.current = null;
-        setStorageTenant(null);
-        applyDefaultTheme();
-        return;
-      }
-
-      if (tenantRef.current === tenantId) {
-        return;
-      }
-
-      tenantRef.current = tenantId;
-      setStorageTenant(tenantId);
-      await hydrateTenantTheme(tenantId);
-    };
-
-    supabase.auth
-      .getSession()
-      .then(({ data }) => syncFromSession(data.session ?? null))
-      .catch((error) => {
-        console.warn("Failed to bootstrap tenant theme session", error);
-        applyDefaultTheme();
-      });
-
-    const { data: listener } = supabase.auth.onAuthStateChange((_, session) => {
-      void syncFromSession(session);
-    });
-
-    return () => {
-      isActive = false;
-      tenantRef.current = null;
-      setStorageTenant(null);
-      listener.subscription?.unsubscribe();
-    };
+    document.documentElement.dataset.themePreset = DEFAULT_PRESET;
   }, []);
 
   useEffect(() => {
-    if (!storageTenant) return;
+    const supabase = getSupabase();
+    if (!supabase) return;
 
-    const storageKey = `agui:tenant-theme:${storageTenant}`;
+    let cancelled = false;
 
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key !== storageKey || !event.newValue) return;
-      try {
-        const parsed = JSON.parse(event.newValue) as Partial<{
-          accent: string;
-          background: TenantThemeBackground;
-          shape: TenantThemeShape;
-          preset: string;
-        }>;
-        applyTenantTheme({
-          accent: parsed.accent ?? TENANT_THEME_DEFAULTS.accent,
-          background: parsed.background ?? TENANT_THEME_DEFAULTS.background,
-          shape: parsed.shape ?? TENANT_THEME_DEFAULTS.shape,
-          preset: (parsed.preset as TenantThemePreset | undefined) ?? TENANT_THEME_DEFAULTS.preset,
-        });
-      } catch (error) {
-        console.warn("Failed to read tenant theme from storage event", error);
+    const load = async () => {
+      const { data, error } = await supabase
+        .from("tenant_theme")
+        .select(
+          "preset_name, icon_container_hex, label_hex, accent_hex, ring_opacity, wallpaper_slug"
+        )
+        .eq("id", ROW_ID)
+        .maybeSingle();
+
+      if (cancelled || error || !data) {
+        return;
       }
+
+      applyTokens({
+        presetName: data.preset_name,
+        iconContainerHex: data.icon_container_hex,
+        labelHex: data.label_hex,
+        accentHex: data.accent_hex,
+        ringOpacity: typeof data.ring_opacity === "number" ? data.ring_opacity : undefined,
+        wallpaper: data.wallpaper_slug,
+      });
     };
 
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
-  }, [storageTenant]);
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   return null;
 }
