@@ -1,7 +1,7 @@
 "use server";
 
 import { getSupabase } from "@/lib/supabase";
-import { DEFAULT_PRESET, THEME_PRESETS, type PresetKey } from "@/lib/theme-presets";
+import { THEME_PRESETS, type PresetKey } from "@/lib/theme-presets";
 
 const ROW_ID = "default";
 
@@ -42,6 +42,3 @@ export async function applyPreset(name: string) {
   return { preset: presetName } as const;
 }
 
-export function getDefaultPreset() {
-  return DEFAULT_PRESET;
-}

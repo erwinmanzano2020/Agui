@@ -1,13 +1,13 @@
 import PresetSwatches from "@/components/settings/preset-swatch";
 import ThemePreview from "@/components/settings/theme-preview";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 
 export default async function AppearancePage() {
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-semibold">Preset Theme Swatches</CardTitle>
+          <h2 className="text-lg font-semibold">Preset Theme Swatches</h2>
         </CardHeader>
         <CardContent className="space-y-4">
           <PresetSwatches />
@@ -19,7 +19,7 @@ export default async function AppearancePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-lg font-semibold">Preview</CardTitle>
+          <h2 className="text-lg font-semibold">Preview</h2>
         </CardHeader>
         <CardContent>
           <ThemePreview />
