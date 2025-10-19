@@ -171,12 +171,11 @@ export default function HomePage() {
       <div className="relative flex min-h-dvh flex-col bg-[color-mix(in_srgb,_var(--agui-surface)_96%,_white_4%)] text-foreground">
         <div className="flex-1 pb-44">
           <div className="mx-auto flex w-full max-w-[1200px] flex-col items-center gap-12 px-6 pt-12">
-            <header className="text-center">
-              <p className="text-sm uppercase tracking-[0.3em] text-[var(--agui-muted-foreground)]">Welcome back</p>
-              <h1 className="mt-3 text-3xl font-semibold text-[var(--agui-on-surface)]">
+            <header className="text-center space-y-3">
+              <h1 className="text-3xl font-semibold text-[var(--agui-on-surface)]">
                 Launch the tools you need in seconds
               </h1>
-              <p className="mt-3 max-w-xl text-sm text-muted-foreground">
+              <p className="max-w-xl text-sm text-muted-foreground">
                 Open a module below or use Ctrl/Cmd + K to jump directly to a workflow.
               </p>
             </header>
