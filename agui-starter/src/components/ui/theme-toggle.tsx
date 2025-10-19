@@ -3,6 +3,8 @@
 
 import * as React from "react";
 import { Button, type ButtonProps } from "@/components/ui/button";
+import { MoonIcon, SunIcon } from "@/components/icons/lucide";
+import { cn } from "@/lib/utils";
 
 type Mode = "light" | "dark";
 
@@ -67,7 +69,30 @@ export function ThemeToggle({ iconOnly = true, className, ...btnProps }: ThemeTo
   // Keep SSR output stable; switch icon/label after mount
   const effective = mounted ? mode : "light";
   const label = effective === "dark" ? "Switch to light mode" : "Switch to dark mode";
-  const icon = effective === "dark" ? "☀️" : "🌙";
+  const icon = (
+    <span
+      aria-hidden
+      className="relative inline-flex h-5 w-5 items-center justify-center"
+      suppressHydrationWarning
+    >
+      <SunIcon
+        className={cn(
+          "transition-all duration-300",
+          effective === "dark"
+            ? "scale-0 opacity-0 rotate-90"
+            : "scale-100 opacity-100 rotate-0"
+        )}
+      />
+      <MoonIcon
+        className={cn(
+          "absolute transition-all duration-300",
+          effective === "dark"
+            ? "scale-100 opacity-100 rotate-0"
+            : "scale-0 opacity-0 -rotate-90"
+        )}
+      />
+    </span>
+  );
 
   return (
     <Button
@@ -80,7 +105,7 @@ export function ThemeToggle({ iconOnly = true, className, ...btnProps }: ThemeTo
       title={label}
       {...btnProps}
     >
-      <span aria-hidden suppressHydrationWarning>{icon}</span>
+      {icon}
       {!iconOnly && <span className="ml-2" suppressHydrationWarning>{label}</span>}
     </Button>
   );
