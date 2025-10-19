@@ -179,7 +179,7 @@ export function Dock({
     <nav
       aria-label={ariaLabel}
       className={cn(
-        "fixed left-1/2 z-40 w-full max-w-[540px] -translate-x-1/2 px-4",
+        "fixed inset-x-0 z-50 flex justify-center",
         className
       )}
       style={{
@@ -191,7 +191,7 @@ export function Dock({
     >
       <ul
         className={cn(
-          "flex items-center justify-center gap-3 rounded-[32px] border border-white/10 bg-[color-mix(in_srgb,_var(--agui-surface)_78%,_white_22%)]/92 p-3 shadow-[0_32px_70px_-45px_rgba(15,23,42,0.7)] backdrop-blur-2xl",
+          "flex h-20 w-full max-w-[540px] items-center justify-center gap-3 rounded-[32px] border border-white/10 bg-[color-mix(in_srgb,_var(--agui-surface)_78%,_white_22%)]/92 px-4 shadow-[0_32px_70px_-45px_rgba(15,23,42,0.7)] backdrop-blur-2xl",
           "ring-1 ring-inset ring-[color:color-mix(in_srgb,var(--agui-on-surface)_12%,transparent)]",
           contentClassName
         )}
