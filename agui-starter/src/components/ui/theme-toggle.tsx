@@ -72,12 +72,12 @@ export function ThemeToggle({ iconOnly = true, className, ...btnProps }: ThemeTo
   const icon = (
     <span
       aria-hidden
-      className="relative inline-flex h-5 w-5 items-center justify-center"
+      className="relative inline-flex size-7 items-center justify-center"
       suppressHydrationWarning
     >
       <SunIcon
         className={cn(
-          "transition-all duration-300",
+          "h-full w-full transition-all duration-300",
           effective === "dark"
             ? "scale-0 opacity-0 rotate-90"
             : "scale-100 opacity-100 rotate-0"
@@ -85,7 +85,7 @@ export function ThemeToggle({ iconOnly = true, className, ...btnProps }: ThemeTo
       />
       <MoonIcon
         className={cn(
-          "absolute transition-all duration-300",
+          "absolute h-full w-full transition-all duration-300",
           effective === "dark"
             ? "scale-100 opacity-100 rotate-0"
             : "scale-0 opacity-0 -rotate-90"

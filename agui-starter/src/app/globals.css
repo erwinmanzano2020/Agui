@@ -147,9 +147,17 @@
   }
 
   .launcher-dock-icon > * {
+    --lucide-stroke-width: 1.35;
     width: 1.75rem;
     height: 1.75rem;
-    stroke-width: 1.5;
+  }
+
+  :where(.lucide-icon) {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    stroke-width: var(--lucide-stroke-width, 1.35);
   }
   /* === Form primitives (refined) === */
   .field  { @apply space-y-1.5; }
