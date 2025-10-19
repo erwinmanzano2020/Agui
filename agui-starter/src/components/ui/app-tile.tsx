@@ -36,11 +36,8 @@ export interface AppTileProps {
 const VARIANT_STYLES: Record<
   AppTileVariant,
   {
-    tile: string;
     icon: string;
-    badge: string;
     label: string;
-    description: string;
     tooltip: string;
     tooltipText: string;
     ring: string;
@@ -48,48 +45,36 @@ const VARIANT_STYLES: Record<
   }
 > = {
   black: {
-    tile:
-      "border-white/10 bg-neutral-950 text-white shadow-[0_20px_45px_-30px_rgba(0,0,0,0.75)] hover:border-white/20",
-    icon: "bg-white/10 text-white",
-    badge: "bg-white/12 text-white",
+    icon:
+      "border border-white/10 bg-neutral-950 text-white shadow-[0_20px_40px_-26px_rgba(0,0,0,0.75)]",
     label: "text-white",
-    description: "text-white/70",
     tooltip: "bg-white border-white/60",
     tooltipText: "text-neutral-900",
     ring: "rgba(255,255,255,0.55)",
-    ringOffset: "#0b0b0f",
+    ringOffset: "rgba(11,11,15,0.9)",
   },
   pearl: {
-    tile:
-      "border-white/60 bg-[#f5f5f7] text-neutral-900 shadow-[0_16px_35px_-32px_rgba(36,36,36,0.75)] hover:border-white/80",
-    icon: "bg-white text-neutral-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.6)]",
-    badge: "bg-neutral-900/10 text-neutral-900",
+    icon:
+      "border border-neutral-200 bg-[#f5f5f7] text-neutral-900 shadow-[0_16px_30px_-24px_rgba(36,36,36,0.5)]",
     label: "text-neutral-900",
-    description: "text-neutral-600",
     tooltip: "bg-neutral-900 border-black/30",
     tooltipText: "text-white",
     ring: "rgba(28,28,28,0.45)",
     ringOffset: "#f5f5f7",
   },
   charcoal: {
-    tile:
-      "border-white/10 bg-[#1f1f23] text-white shadow-[0_24px_55px_-35px_rgba(0,0,0,0.85)] hover:border-white/15",
-    icon: "bg-white/10 text-white",
-    badge: "bg-white/12 text-white",
+    icon:
+      "border border-white/12 bg-[#1f1f23] text-white shadow-[0_22px_46px_-30px_rgba(0,0,0,0.85)]",
     label: "text-white",
-    description: "text-white/65",
     tooltip: "bg-white border-white/50",
     tooltipText: "text-neutral-900",
     ring: "rgba(255,255,255,0.45)",
     ringOffset: "#1f1f23",
   },
   white: {
-    tile:
-      "border-neutral-200 bg-white text-neutral-900 shadow-[0_22px_50px_-32px_rgba(36,36,36,0.18)] hover:border-neutral-300",
-    icon: "bg-neutral-950/5 text-neutral-900",
-    badge: "bg-neutral-900/10 text-neutral-900",
+    icon:
+      "border border-neutral-200 bg-white text-neutral-900 shadow-[0_22px_45px_-30px_rgba(36,36,36,0.24)]",
     label: "text-neutral-900",
-    description: "text-neutral-600",
     tooltip: "bg-neutral-900 border-black/20",
     tooltipText: "text-white",
     ring: "rgba(28,28,28,0.45)",
@@ -148,8 +133,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
           ref={ref}
           tabIndex={tabIndex}
           className={cn(
-            "group flex min-h-[132px] w-full flex-col gap-4 rounded-[28px] border px-5 py-6 transition duration-200 ease-out hover:brightness-[1.03] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:[--tw-ring-color:var(--tile-ring)] focus-visible:[--tw-ring-offset-color:var(--tile-ring-offset)] active:scale-[0.97] motion-reduce:transition-none motion-reduce:duration-0 motion-reduce:transform-none motion-reduce:hover:brightness-100 motion-reduce:active:scale-100",
-            styles.tile,
+            "group flex w-full flex-col items-center gap-3 text-center focus-visible:outline-none",
             className,
           )}
           style={
@@ -187,38 +171,46 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
           }}
           aria-describedby={isTooltipVisible ? tooltipId : undefined}
         >
-          <div className="flex items-center justify-between">
-            <span
-              className={cn(
-                "flex h-14 w-14 items-center justify-center rounded-[22px] text-[color:inherit] transition duration-200 motion-reduce:transition-none motion-reduce:duration-0",
-                styles.icon,
-              )}
-              aria-hidden
-            >
-              <span className="text-current">{enhancedIcon}</span>
+          <span
+            className={cn(
+              "flex h-16 w-16 items-center justify-center rounded-2xl text-[color:inherit] transition-transform duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0",
+              "group-hover:scale-[1.03] group-active:scale-95",
+              "group-focus-visible:ring-2 group-focus-visible:ring-[var(--tile-ring)] group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-[var(--tile-ring-offset)]",
+              styles.icon,
+            )}
+            style={
+              {
+                "--tile-ring": styles.ring,
+                "--tile-ring-offset": styles.ringOffset,
+              } as CSSProperties
+            }
+            aria-hidden
+          >
+            <span className="text-current transition-transform duration-200 group-hover:scale-[1.08] group-active:scale-95">
+              {enhancedIcon}
             </span>
-            <span
-              className={cn(
-                "rounded-full px-3 py-1 text-xs font-medium uppercase tracking-wide transition duration-200 motion-reduce:transition-none motion-reduce:duration-0",
-                styles.badge,
-              )}
-            >
-              App
-            </span>
-          </div>
-          <div className="flex flex-col gap-1">
-            <p className={cn("text-lg font-medium", styles.label)}>{label}</p>
-            <p className={cn("text-sm", styles.description)}>
-              {description ? description : "Open app"}
-            </p>
-          </div>
+          </span>
+          <span
+            className={cn(
+              "max-w-[8rem] text-sm font-medium leading-snug text-balance text-center text-[color:inherit]",
+              styles.label,
+            )}
+            style={{
+              WebkitLineClamp: 2,
+              WebkitBoxOrient: "vertical",
+              display: "-webkit-box",
+              overflow: "hidden",
+            }}
+          >
+            {label}
+          </span>
         </Link>
         {description ? (
           <div
             id={tooltipId}
             role="tooltip"
             className={cn(
-              "pointer-events-none absolute left-1/2 top-full z-50 mt-3 w-max max-w-xs -translate-x-1/2 rounded-2xl border px-4 py-2 text-sm shadow-2xl transition-all duration-150 motion-reduce:translate-y-0 motion-reduce:transition-none motion-reduce:duration-0",
+              "pointer-events-none absolute left-1/2 top-full z-50 mt-2 w-max max-w-xs -translate-x-1/2 rounded-xl border px-3 py-1.5 text-xs shadow-[0_12px_30px_-20px_rgba(15,23,42,0.55)] transition-all duration-150 motion-reduce:translate-y-0 motion-reduce:transition-none motion-reduce:duration-0",
               styles.tooltip,
               styles.tooltipText,
               isTooltipVisible
