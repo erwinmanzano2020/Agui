@@ -137,7 +137,19 @@
     background: var(--color-card);
     color: var(--color-card-foreground);
     border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-soft);  
+    box-shadow: var(--shadow-soft);
+  }
+  .launcher-dock-icon {
+    color: currentColor;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .launcher-dock-icon > * {
+    width: 1.75rem;
+    height: 1.75rem;
+    stroke-width: 1.5;
   }
   /* === Form primitives (refined) === */
   .field  { @apply space-y-1.5; }

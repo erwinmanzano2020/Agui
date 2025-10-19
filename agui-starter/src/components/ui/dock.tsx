@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { LAUNCHER_DOCK_ICON_CLASS } from "@/components/icons/lucide";
 import { cn } from "@/lib/utils";
 import { useTooltipPosition } from "@/hooks/use-tooltip-position";
 import { resolveAccentPair } from "@/lib/color";
@@ -135,7 +136,7 @@ function DockButton({ item, showTooltips }: DockButtonProps) {
         onFocus={handleFocus}
         onBlur={handleBlur}
       >
-        {item.icon}
+        <span className={LAUNCHER_DOCK_ICON_CLASS}>{item.icon}</span>
       </Link>
 
       {enableTooltip ? (

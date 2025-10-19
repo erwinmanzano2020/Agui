@@ -15,7 +15,10 @@ import {
   useState,
 } from "react";
 
-import { LUCIDE_STROKE_WIDTH } from "@/components/icons/lucide";
+import {
+  LAUNCHER_DOCK_ICON_CLASS,
+  LUCIDE_STROKE_WIDTH,
+} from "@/components/icons/lucide";
 import { cn } from "@/lib/utils";
 
 export type AppTileVariant = "black" | "pearl" | "charcoal" | "white";
@@ -90,13 +93,10 @@ function enhanceIcon(icon: ReactNode): ReactNode {
   const element = icon as ReactElement<{ className?: string; strokeWidth?: number; color?: string }>;
 
   return cloneElement(element, {
-    className: cn("h-6 w-6", element.props.className),
+    className: cn(element.props.className),
     strokeWidth:
       typeof element.props.strokeWidth === "number"
-        ? Math.min(
-            Math.max(element.props.strokeWidth, LUCIDE_STROKE_WIDTH - 0.2),
-            LUCIDE_STROKE_WIDTH
-          )
+        ? element.props.strokeWidth
         : LUCIDE_STROKE_WIDTH,
     color: element.props.color ?? "currentColor",
   });
@@ -186,7 +186,12 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
             }
             aria-hidden
           >
-            <span className="text-current transition-transform duration-200 group-hover:scale-[1.08] group-active:scale-95">
+            <span
+              className={cn(
+                LAUNCHER_DOCK_ICON_CLASS,
+                "transition-transform duration-200 group-hover:scale-[1.08] group-active:scale-95"
+              )}
+            >
               {enhancedIcon}
             </span>
           </span>
