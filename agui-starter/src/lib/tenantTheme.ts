@@ -1,14 +1,191 @@
 import { getSupabase } from "@/lib/supabase";
-import { applyTheme } from "@/lib/theme";
+import { applyTheme, type ThemeTokens } from "@/lib/theme";
 
 export type TenantThemeBackground = "system" | "light" | "dark";
 export type TenantThemeShape = "rounded" | "circle";
+
+export type TenantThemePresetDefinition = {
+  id: string;
+  label: string;
+  description: string;
+  background: TenantThemeBackground;
+  accent: string;
+  tokens: ThemeTokens;
+  preview: {
+    background: string;
+    iconBackground: string;
+    iconColor: string;
+    labelColor: string;
+    borderColor: string;
+  };
+};
+
+export const TENANT_THEME_PRESETS = {
+  black: {
+    id: "black",
+    label: "Black",
+    description: "Deep blacks with soft gray highlights.",
+    background: "dark",
+    accent: "#38bdf8",
+    tokens: {
+      surface: "#050506",
+      card: "#111114",
+      text: "#f4f4f5",
+      muted: "#a1a1aa",
+      border: "rgba(255,255,255,0.1)",
+      ring: "rgba(148,163,184,0.4)",
+    },
+    preview: {
+      background: "linear-gradient(145deg, #111114 0%, #050506 100%)",
+      iconBackground: "rgba(255,255,255,0.1)",
+      iconColor: "#f8fafc",
+      labelColor: "#f4f4f5",
+      borderColor: "rgba(255,255,255,0.08)",
+    },
+  },
+  charcoal: {
+    id: "charcoal",
+    label: "Charcoal",
+    description: "Satin charcoal with crisp highlights.",
+    background: "dark",
+    accent: "#38bdf8",
+    tokens: {
+      surface: "#1f2125",
+      card: "#2b2d31",
+      text: "#f7f8fb",
+      muted: "#cbd5f5",
+      border: "rgba(255,255,255,0.08)",
+      ring: "rgba(226,232,240,0.45)",
+    },
+    preview: {
+      background: "linear-gradient(150deg, #2b2d31 0%, #1f2125 100%)",
+      iconBackground: "rgba(255,255,255,0.12)",
+      iconColor: "#ffffff",
+      labelColor: "#f7f8fb",
+      borderColor: "rgba(255,255,255,0.08)",
+    },
+  },
+  pearl: {
+    id: "pearl",
+    label: "Pearl",
+    description: "Warm neutrals with soft contrast.",
+    background: "light",
+    accent: "#2563eb",
+    tokens: {
+      surface: "#f5f5f7",
+      card: "#ffffff",
+      text: "#27272a",
+      muted: "#4b5563",
+      border: "rgba(17,24,39,0.1)",
+      ring: "rgba(59,130,246,0.28)",
+    },
+    preview: {
+      background: "linear-gradient(150deg, #f8f7f4 0%, #ebe9e1 100%)",
+      iconBackground: "rgba(17,24,39,0.08)",
+      iconColor: "#27272a",
+      labelColor: "#27272a",
+      borderColor: "rgba(17,24,39,0.08)",
+    },
+  },
+  white: {
+    id: "white",
+    label: "White",
+    description: "Bright whites with airy depth.",
+    background: "light",
+    accent: "#2563eb",
+    tokens: {
+      surface: "#ffffff",
+      card: "#f8fafc",
+      text: "#111827",
+      muted: "#4b5563",
+      border: "rgba(15,23,42,0.08)",
+      ring: "rgba(30,64,175,0.25)",
+    },
+    preview: {
+      background: "linear-gradient(140deg, #ffffff 0%, #f4f6fb 100%)",
+      iconBackground: "rgba(17,24,39,0.08)",
+      iconColor: "#111827",
+      labelColor: "#111827",
+      borderColor: "rgba(15,23,42,0.06)",
+    },
+  },
+  emerald: {
+    id: "emerald",
+    label: "Emerald",
+    description: "Fresh green with pearl neutrals.",
+    background: "light",
+    accent: "#10b981",
+    tokens: {
+      surface: "#f4fbf7",
+      card: "#ffffff",
+      text: "#0f172a",
+      muted: "#0f766e",
+      border: "rgba(15,118,110,0.14)",
+      ring: "rgba(16,185,129,0.28)",
+    },
+    preview: {
+      background: "linear-gradient(145deg, #d3f6e6 0%, #9ae6c8 100%)",
+      iconBackground: "rgba(15,118,110,0.16)",
+      iconColor: "#065f46",
+      labelColor: "#0f172a",
+      borderColor: "rgba(16,185,129,0.2)",
+    },
+  },
+  royal: {
+    id: "royal",
+    label: "Royal",
+    description: "Midnight navy with regal glow.",
+    background: "dark",
+    accent: "#6366f1",
+    tokens: {
+      surface: "#121829",
+      card: "#1b2340",
+      text: "#f1f5f9",
+      muted: "#c7d2fe",
+      border: "rgba(148,163,184,0.18)",
+      ring: "rgba(99,102,241,0.35)",
+    },
+    preview: {
+      background: "linear-gradient(150deg, #1b2340 0%, #131b2f 100%)",
+      iconBackground: "rgba(99,102,241,0.18)",
+      iconColor: "#e0e7ff",
+      labelColor: "#f1f5f9",
+      borderColor: "rgba(99,102,241,0.25)",
+    },
+  },
+  "pearl-blue": {
+    id: "pearl-blue",
+    label: "Pearl Blue",
+    description: "Powder blue with cool accents.",
+    background: "light",
+    accent: "#2563eb",
+    tokens: {
+      surface: "#f0f5ff",
+      card: "#ffffff",
+      text: "#111827",
+      muted: "#475569",
+      border: "rgba(37,99,235,0.18)",
+      ring: "rgba(59,130,246,0.28)",
+    },
+    preview: {
+      background: "linear-gradient(150deg, #f4f7ff 0%, #dbe6ff 100%)",
+      iconBackground: "rgba(37,99,235,0.16)",
+      iconColor: "#1d4ed8",
+      labelColor: "#111827",
+      borderColor: "rgba(30,64,175,0.18)",
+    },
+  },
+} satisfies Record<string, TenantThemePresetDefinition>;
+
+export type TenantThemePreset = keyof typeof TENANT_THEME_PRESETS;
+export const TENANT_THEME_PRESET_LIST = Object.values(TENANT_THEME_PRESETS);
 
 export type TenantTheme = {
   tenant_id: string;
   accent: string;
   background: TenantThemeBackground;
   shape: TenantThemeShape;
+  preset: TenantThemePreset;
 };
 
 type TenantUserLike = {
@@ -16,17 +193,19 @@ type TenantUserLike = {
   user_metadata?: Record<string, unknown>;
 } | null | undefined;
 
-const DEFAULT_ACCENT = "#0ea5e9";
+const DEFAULT_PRESET: TenantThemePreset = "charcoal";
+const DEFAULT_ACCENT = TENANT_THEME_PRESETS[DEFAULT_PRESET].accent;
 const DEFAULT_BACKGROUND: TenantThemeBackground = "system";
 const DEFAULT_SHAPE: TenantThemeShape = "rounded";
 const STORAGE_PREFIX = "agui:tenant-theme:";
 
 const HEX_PATTERN = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
 
-export const TENANT_THEME_DEFAULTS: Pick<TenantTheme, "accent" | "background" | "shape"> = {
+export const TENANT_THEME_DEFAULTS: Pick<TenantTheme, "accent" | "background" | "shape" | "preset"> = {
   accent: DEFAULT_ACCENT,
   background: DEFAULT_BACKGROUND,
   shape: DEFAULT_SHAPE,
+  preset: DEFAULT_PRESET,
 };
 
 let systemMediaQuery: MediaQueryList | null = null;
@@ -70,12 +249,24 @@ function normalizeShape(value: unknown): TenantThemeShape {
   return DEFAULT_SHAPE;
 }
 
+function normalizePreset(value: unknown): TenantThemePreset {
+  if (typeof value === "string" && value in TENANT_THEME_PRESETS) {
+    return value as TenantThemePreset;
+  }
+  return DEFAULT_PRESET;
+}
+
+function getPreset(preset: TenantThemePreset) {
+  return TENANT_THEME_PRESETS[preset] ?? TENANT_THEME_PRESETS[DEFAULT_PRESET];
+}
+
 function buildDefaultTheme(tenantId: string): TenantTheme {
   return {
     tenant_id: tenantId,
     accent: DEFAULT_ACCENT,
     background: DEFAULT_BACKGROUND,
     shape: DEFAULT_SHAPE,
+    preset: DEFAULT_PRESET,
   };
 }
 
@@ -106,6 +297,7 @@ function readCachedTheme(tenantId: string): TenantTheme | null {
       accent: normalizeAccent(parsed.accent),
       background: normalizeBackground(parsed.background),
       shape: normalizeShape(parsed.shape),
+      preset: normalizePreset(parsed.preset),
     };
   } catch (error) {
     console.warn("Failed to read cached tenant theme", error);
@@ -193,6 +385,7 @@ function mergeTheme(
     accent: normalizeAccent(theme.accent),
     background: normalizeBackground(theme.background),
     shape: normalizeShape(theme.shape),
+    preset: normalizePreset(theme.preset),
   };
 }
 
@@ -213,6 +406,7 @@ export async function getTenantTheme(
       accent: fallback.accent,
       background: fallback.background,
       shape: fallback.shape,
+      preset: fallback.preset,
     });
   }
 
@@ -224,7 +418,7 @@ export async function getTenantTheme(
   try {
     const { data, error } = await supabase
       .from("tenant_theme")
-      .select("tenant_id, accent, background, shape")
+      .select("tenant_id, accent, background, shape, preset")
       .eq("tenant_id", tenantId)
       .maybeSingle();
 
@@ -243,6 +437,7 @@ export async function getTenantTheme(
         accent: normalized.accent,
         background: normalized.background,
         shape: normalized.shape,
+        preset: normalized.preset,
       });
     }
 
@@ -266,6 +461,7 @@ export async function saveTenantTheme(theme: TenantTheme): Promise<void> {
     accent: normalized.accent,
     background: normalized.background,
     shape: normalized.shape,
+    preset: normalized.preset,
   });
 
   if (error) {
@@ -275,16 +471,27 @@ export async function saveTenantTheme(theme: TenantTheme): Promise<void> {
   writeCachedTheme(normalized);
 }
 
-export function applyTenantTheme(theme: Pick<TenantTheme, "accent" | "background" | "shape">): void {
+export function applyTenantTheme(theme: Pick<TenantTheme, "accent" | "background" | "shape" | "preset">): void {
   if (typeof document === "undefined") return;
 
   const accent = normalizeAccent(theme.accent);
-  applyTheme({ accent });
+  const preset = getPreset(normalizePreset(theme.preset));
+
+  applyTheme({
+    accent,
+    surface: preset.tokens.surface,
+    card: preset.tokens.card,
+    text: preset.tokens.text,
+    muted: preset.tokens.muted,
+    border: preset.tokens.border,
+    ring: preset.tokens.ring ?? accent,
+  });
 
   const background = normalizeBackground(theme.background);
   const root = document.documentElement;
 
   root.dataset.background = background;
+  root.dataset.themePreset = preset.id;
 
   if (background === "system") {
     ensureSystemThemeListener(root);
@@ -304,6 +511,7 @@ export function bootstrapTenantTheme(tenantId: string): TenantTheme {
     accent: fallback.accent,
     background: fallback.background,
     shape: fallback.shape,
+    preset: fallback.preset,
   });
 
   return fallback;

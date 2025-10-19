@@ -8,11 +8,14 @@ import { useToast } from "@/components/ui/toaster";
 import { getSupabase } from "@/lib/supabase";
 import {
   TENANT_THEME_DEFAULTS,
+  TENANT_THEME_PRESET_LIST,
+  TENANT_THEME_PRESETS,
   applyTenantTheme,
   getTenantTheme,
   saveTenantTheme,
   resolveTenantId,
   type TenantThemeBackground,
+  type TenantThemePreset,
   type TenantThemeShape,
 } from "@/lib/tenantTheme";
 import { getAccentContrastInfo } from "@/lib/theme";
@@ -23,6 +26,7 @@ type FormState = {
   accent: string;
   background: TenantThemeBackground;
   shape: TenantThemeShape;
+  preset: TenantThemePreset;
 };
 
 type LoadState = "loading" | "ready";
@@ -47,6 +51,7 @@ function AppearanceEditor() {
     accent: TENANT_THEME_DEFAULTS.accent,
     background: TENANT_THEME_DEFAULTS.background,
     shape: TENANT_THEME_DEFAULTS.shape,
+    preset: TENANT_THEME_DEFAULTS.preset,
   });
   const [accentInput, setAccentInput] = React.useState<string>(TENANT_THEME_DEFAULTS.accent);
   const [initial, setInitial] = React.useState<FormState | null>(null);
@@ -57,7 +62,10 @@ function AppearanceEditor() {
   const accentIsValid = HEX_FULL.test(accentInput);
   const isDirty =
     initial !== null &&
-    (form.accent !== initial.accent || form.background !== initial.background || form.shape !== initial.shape);
+    (form.accent !== initial.accent ||
+      form.background !== initial.background ||
+      form.shape !== initial.shape ||
+      form.preset !== initial.preset);
   const canSave = !!tenantState.tenantId && accentIsValid && isDirty && !saving;
 
   const contrastInfo = React.useMemo(() => getAccentContrastInfo(form.accent), [form.accent]);
@@ -73,11 +81,13 @@ function AppearanceEditor() {
           accent: TENANT_THEME_DEFAULTS.accent,
           background: TENANT_THEME_DEFAULTS.background,
           shape: TENANT_THEME_DEFAULTS.shape,
+          preset: TENANT_THEME_DEFAULTS.preset,
         });
         setForm({
           accent: TENANT_THEME_DEFAULTS.accent,
           background: TENANT_THEME_DEFAULTS.background,
           shape: TENANT_THEME_DEFAULTS.shape,
+          preset: TENANT_THEME_DEFAULTS.preset,
         });
         setAccentInput(TENANT_THEME_DEFAULTS.accent);
         setTenantState({
@@ -97,11 +107,13 @@ function AppearanceEditor() {
             accent: TENANT_THEME_DEFAULTS.accent,
             background: TENANT_THEME_DEFAULTS.background,
             shape: TENANT_THEME_DEFAULTS.shape,
+            preset: TENANT_THEME_DEFAULTS.preset,
           });
           setForm({
             accent: TENANT_THEME_DEFAULTS.accent,
             background: TENANT_THEME_DEFAULTS.background,
             shape: TENANT_THEME_DEFAULTS.shape,
+            preset: TENANT_THEME_DEFAULTS.preset,
           });
           setAccentInput(TENANT_THEME_DEFAULTS.accent);
           setTenantState({
@@ -118,11 +130,13 @@ function AppearanceEditor() {
             accent: TENANT_THEME_DEFAULTS.accent,
             background: TENANT_THEME_DEFAULTS.background,
             shape: TENANT_THEME_DEFAULTS.shape,
+            preset: TENANT_THEME_DEFAULTS.preset,
           });
           setForm({
             accent: TENANT_THEME_DEFAULTS.accent,
             background: TENANT_THEME_DEFAULTS.background,
             shape: TENANT_THEME_DEFAULTS.shape,
+            preset: TENANT_THEME_DEFAULTS.preset,
           });
           setAccentInput(TENANT_THEME_DEFAULTS.accent);
           setTenantState({ tenantId: null, message: "This account is missing a tenant, so we can’t save changes." });
@@ -137,6 +151,7 @@ function AppearanceEditor() {
           accent: theme.accent,
           background: theme.background,
           shape: theme.shape,
+          preset: theme.preset,
         };
 
         setInitial(next);
@@ -151,11 +166,13 @@ function AppearanceEditor() {
           accent: TENANT_THEME_DEFAULTS.accent,
           background: TENANT_THEME_DEFAULTS.background,
           shape: TENANT_THEME_DEFAULTS.shape,
+          preset: TENANT_THEME_DEFAULTS.preset,
         });
         setForm({
           accent: TENANT_THEME_DEFAULTS.accent,
           background: TENANT_THEME_DEFAULTS.background,
           shape: TENANT_THEME_DEFAULTS.shape,
+          preset: TENANT_THEME_DEFAULTS.preset,
         });
         setAccentInput(TENANT_THEME_DEFAULTS.accent);
         setTenantState({ tenantId: null, message: "We couldn’t load your saved theme. Using defaults for now." });
@@ -171,8 +188,22 @@ function AppearanceEditor() {
   }, []);
 
   React.useEffect(() => {
-    applyTenantTheme({ accent: form.accent, background: form.background, shape: form.shape });
-  }, [form.accent, form.background, form.shape]);
+    applyTenantTheme({ accent: form.accent, background: form.background, shape: form.shape, preset: form.preset });
+  }, [form.accent, form.background, form.shape, form.preset]);
+
+  const onPresetSelect = React.useCallback(
+    (presetId: TenantThemePreset) => {
+      const preset = TENANT_THEME_PRESETS[presetId];
+      setForm((prev) => ({
+        ...prev,
+        preset: presetId,
+        background: preset.background,
+        accent: preset.accent,
+      }));
+      setAccentInput(preset.accent);
+    },
+    []
+  );
 
   const onAccentInputChange = React.useCallback((value: string) => {
     const formatted = formatHexCandidate(value);
@@ -192,6 +223,7 @@ function AppearanceEditor() {
       accent: TENANT_THEME_DEFAULTS.accent,
       background: TENANT_THEME_DEFAULTS.background,
       shape: TENANT_THEME_DEFAULTS.shape,
+      preset: TENANT_THEME_DEFAULTS.preset,
     });
     setAccentInput(TENANT_THEME_DEFAULTS.accent);
   }, []);
@@ -215,6 +247,7 @@ function AppearanceEditor() {
           accent: form.accent,
           background: form.background,
           shape: form.shape,
+          preset: form.preset,
         });
         setInitial({ ...form });
         toast.success("Appearance saved");
@@ -246,6 +279,67 @@ function AppearanceEditor() {
                   {tenantState.message}
                 </div>
               )}
+
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-[var(--agui-on-surface)]">Theme presets</label>
+                <p className="text-xs text-[var(--agui-muted-foreground)]">
+                  Pick a starting look. We’ll adjust surfaces, tiles, and dock instantly.
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {TENANT_THEME_PRESET_LIST.map((preset) => {
+                    const isSelected = preset.id === form.preset;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        onClick={() => onPresetSelect(preset.id as TenantThemePreset)}
+                        aria-pressed={isSelected}
+                        className="relative flex flex-col gap-3 rounded-[calc(var(--agui-radius)*0.95)] border bg-transparent p-3 text-left transition-shadow focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--agui-primary)] focus-visible:ring-offset-2"
+                        style={{
+                          background: preset.preview.background,
+                          borderColor: isSelected
+                            ? "color-mix(in srgb, var(--agui-primary) 65%, transparent)"
+                            : preset.preview.borderColor,
+                          boxShadow: isSelected
+                            ? "0 0 0 2px color-mix(in srgb, var(--agui-primary) 45%, transparent)"
+                            : undefined,
+                          color: preset.preview.labelColor,
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <span
+                            className="flex h-12 w-12 items-center justify-center rounded-2xl text-base font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.16)]"
+                            style={{
+                              background: preset.preview.iconBackground,
+                              color: preset.preview.iconColor,
+                            }}
+                            aria-hidden
+                          >
+                            Aa
+                          </span>
+                          <span
+                            className="h-6 w-6 rounded-full border"
+                            style={{
+                              background: preset.accent,
+                              borderColor: "color-mix(in srgb, currentColor 25%, transparent)",
+                            }}
+                            aria-hidden
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <span className="block text-sm font-semibold tracking-wide">{preset.label}</span>
+                          <span
+                            className="block text-xs font-medium"
+                            style={{ color: "color-mix(in srgb, currentColor 70%, transparent)" }}
+                          >
+                            {preset.description}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
               <div className="space-y-3">
                 <label className="block text-sm font-medium text-[var(--agui-on-surface)]">Accent color</label>

@@ -12,6 +12,7 @@ import {
   getTenantTheme,
   resolveTenantId,
   type TenantThemeBackground,
+  type TenantThemePreset,
   type TenantThemeShape,
 } from "@/lib/tenantTheme";
 
@@ -20,6 +21,7 @@ function applyDefaultTheme() {
     accent: TENANT_THEME_DEFAULTS.accent,
     background: TENANT_THEME_DEFAULTS.background,
     shape: TENANT_THEME_DEFAULTS.shape,
+    preset: TENANT_THEME_DEFAULTS.preset,
   });
 }
 
@@ -98,11 +100,13 @@ export default function TenantThemeMount() {
           accent: string;
           background: TenantThemeBackground;
           shape: TenantThemeShape;
+          preset: string;
         }>;
         applyTenantTheme({
           accent: parsed.accent ?? TENANT_THEME_DEFAULTS.accent,
           background: parsed.background ?? TENANT_THEME_DEFAULTS.background,
           shape: parsed.shape ?? TENANT_THEME_DEFAULTS.shape,
+          preset: (parsed.preset as TenantThemePreset | undefined) ?? TENANT_THEME_DEFAULTS.preset,
         });
       } catch (error) {
         console.warn("Failed to read tenant theme from storage event", error);
