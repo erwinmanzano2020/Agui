@@ -212,14 +212,13 @@ export default function HomePage() {
               </header>
 
               <section className="w-full flex flex-col items-center">
-                <h2 className="text-center text-sm font-medium text-[var(--agui-muted-foreground)]">Apps</h2>
                 <div
                   ref={gridRef}
                   role="grid"
                   aria-label="App launcher"
                   aria-colcount={columnCount}
                   aria-rowcount={Math.ceil(GRID_APPS.length / columnCount)}
-                  className="mt-5 grid grid-cols-3 justify-items-center gap-5 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
+                  className="grid grid-cols-3 justify-items-center gap-5 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
                 >
                   {GRID_APPS.map((app, index) => (
                     <div
