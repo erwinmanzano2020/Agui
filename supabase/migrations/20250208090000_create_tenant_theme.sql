@@ -1,6 +1,4 @@
-drop table if exists public.tenant_theme;
-
-create table public.tenant_theme (
+create table if not exists public.tenant_theme (
   id text primary key default 'default',
   preset_name text not null default 'Pearl',
   bg_hsl text not null default '210 40% 98%',
@@ -12,5 +10,6 @@ create table public.tenant_theme (
   label_hex text not null default '#1b1c1f',
   accent_hex text not null default '#0ea5e9',
   ring_opacity double precision not null default 0.14,
+  wallpaper_slug text default 'pearl',
   updated_at timestamptz not null default now()
 );
