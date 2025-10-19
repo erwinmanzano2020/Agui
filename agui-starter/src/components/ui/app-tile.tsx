@@ -197,11 +197,13 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
           </span>
           <span
             className={cn(
-              "max-w-[8rem] text-sm font-medium leading-snug text-balance text-center text-[color:inherit]",
+              "block max-w-[9rem] min-h-[2.75rem] text-[13px] font-[450] leading-[1.35] tracking-wide text-balance text-center text-[color:inherit] break-words",
+
               styles.label,
             )}
             style={{
               WebkitLineClamp: 2,
+              lineClamp: 2,
               WebkitBoxOrient: "vertical",
               display: "-webkit-box",
               overflow: "hidden",
