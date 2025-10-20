@@ -127,16 +127,16 @@ function DockButton({ item, showTooltips }: DockButtonProps) {
         aria-describedby={enableTooltip && open ? tooltipId : undefined}
         style={accentStyle}
         className={cn(
-          "flex h-14 w-14 items-center justify-center rounded-full border border-white/12 bg-[color-mix(in_srgb,_var(--agui-surface)_86%,_white_14%)]/90 text-[var(--dock-accent-contrast)] shadow-[0_18px_45px_-28px_color-mix(in_srgb,var(--dock-accent)_65%,_transparent)] backdrop-blur-xl transition-all",
-          "hover:-translate-y-1 hover:shadow-[0_26px_60px_-36px_color-mix(in_srgb,var(--dock-accent)_65%,_black_35%)] active:translate-y-0 motion-reduce:hover:translate-y-0 motion-reduce:transition-none",
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--dock-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:color-mix(in_srgb,var(--agui-surface)_90%,var(--agui-on-surface)_10%)]"
+          "flex h-14 w-14 items-center justify-center rounded-full border border-[rgba(15,17,23,0.08)] bg-[color:color-mix(in_srgb,_#ffffff_82%,_var(--dock-accent)_18%)] text-[color:color-mix(in_srgb,var(--dock-accent)_52%,_#0F1117_48%)] shadow-[0_18px_45px_-28px_rgba(15,23,42,0.45)] backdrop-blur-xl transition-all",
+          "hover:-translate-y-1 hover:shadow-[0_26px_60px_-36px_color-mix(in_srgb,var(--dock-accent)_65%,_rgba(15,17,23,0.45))] active:translate-y-0 motion-reduce:hover:translate-y-0 motion-reduce:transition-none",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--dock-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[color:rgba(238,241,246,0.92)]"
         )}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
         onFocus={handleFocus}
         onBlur={handleBlur}
       >
-        <span className={LAUNCHER_DOCK_ICON_CLASS}>{item.icon}</span>
+        <span className={cn(LAUNCHER_DOCK_ICON_CLASS, "drop-shadow-[0_1px_2px_rgba(15,17,23,0.22)]")}>{item.icon}</span>
       </Link>
 
       {enableTooltip ? (
@@ -191,8 +191,8 @@ export function Dock({
     >
       <ul
         className={cn(
-          "flex h-20 w-full max-w-[540px] items-center justify-center gap-3 rounded-[32px] border border-white/10 bg-[color-mix(in_srgb,_var(--agui-surface)_78%,_white_22%)]/92 px-4 shadow-[0_32px_70px_-45px_rgba(15,23,42,0.7)] backdrop-blur-2xl",
-          "ring-1 ring-inset ring-[color:color-mix(in_srgb,var(--agui-on-surface)_12%,transparent)]",
+          "flex min-h-[5.25rem] w-full max-w-[540px] flex-nowrap items-center justify-center gap-3 rounded-[32px] border border-white/40 bg-[rgba(238,241,246,0.8)] px-5 py-4 shadow-[0_32px_70px_-45px_rgba(15,23,42,0.7)] backdrop-blur-2xl",
+          "ring-1 ring-inset ring-[rgba(15,17,23,0.1)]",
           contentClassName
         )}
       >
