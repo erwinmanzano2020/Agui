@@ -221,7 +221,7 @@ export default function HomePage() {
                   aria-label="App launcher"
                   aria-colcount={columnCount}
                   aria-rowcount={Math.ceil(GRID_APPS.length / columnCount)}
-                  className="grid grid-cols-3 justify-items-center gap-5 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
+                  className="grid grid-cols-3 justify-items-center gap-x-5 gap-y-8 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
                 >
                   {GRID_APPS.map((app, index) => (
                     <div
@@ -229,7 +229,7 @@ export default function HomePage() {
                       role="gridcell"
                       aria-rowindex={Math.floor(index / columnCount) + 1}
                       aria-colindex={(index % columnCount) + 1}
-                      className="flex justify-center"
+                      className="flex justify-center items-start"
                     >
                       <AppTile
                         href={app.href}
