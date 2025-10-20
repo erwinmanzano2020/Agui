@@ -1,6 +1,5 @@
 import type { ReactNode } from "react";
 
-import type { AppTileVariant } from "@/components/ui/app-tile";
 import {
   CalendarClockIcon,
   FileDownIcon,
@@ -16,7 +15,6 @@ export type AppMeta = {
   description?: string;
   icon: ReactNode;
   accentColor?: string;
-  variant?: AppTileVariant;
 };
 
 export const apps: AppMeta[] = [
@@ -26,8 +24,6 @@ export const apps: AppMeta[] = [
     href: "/employees",
     description: "Manage staff records",
     icon: <UsersIcon />,
-    accentColor: "#2563EB",
-    variant: "pearl",
   },
   {
     id: "dtr",
@@ -35,8 +31,6 @@ export const apps: AppMeta[] = [
     href: "/payroll/dtr-bulk",
     description: "Quick time entry",
     icon: <CalendarClockIcon />,
-    accentColor: "#F97316",
-    variant: "black",
   },
   {
     id: "payroll",
@@ -44,8 +38,6 @@ export const apps: AppMeta[] = [
     href: "/payroll",
     description: "Runs & payslips",
     icon: <ScrollTextIcon />,
-    accentColor: "#16A34A",
-    variant: "charcoal",
   },
   {
     id: "imports",
@@ -53,8 +45,6 @@ export const apps: AppMeta[] = [
     href: "/imports",
     description: "Bulk upload",
     icon: <FileDownIcon />,
-    accentColor: "#0EA5E9",
-    variant: "white",
   },
   {
     id: "settings",
@@ -62,8 +52,6 @@ export const apps: AppMeta[] = [
     href: "/settings/appearance",
     description: "Theme & app config",
     icon: <SettingsIcon />,
-    accentColor: "#A855F7",
-    variant: "charcoal",
   },
 ];
 

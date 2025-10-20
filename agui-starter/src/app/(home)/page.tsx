@@ -236,7 +236,6 @@ export default function HomePage() {
                         label={app.label}
                         description={app.description}
                         icon={app.icon}
-                        variant={app.variant}
                         tabIndex={focusIndex === index ? 0 : -1}
                         onFocus={tileHandlers[index]?.onFocus}
                         onKeyDown={tileHandlers[index]?.onKeyDown}

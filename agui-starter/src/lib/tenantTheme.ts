@@ -193,9 +193,10 @@ type TenantUserLike = {
   user_metadata?: Record<string, unknown>;
 } | null | undefined;
 
-const DEFAULT_PRESET: TenantThemePreset = "charcoal";
+const DEFAULT_PRESET: TenantThemePreset = "pearl";
 const DEFAULT_ACCENT = TENANT_THEME_PRESETS[DEFAULT_PRESET].accent;
-const DEFAULT_BACKGROUND: TenantThemeBackground = "system";
+const DEFAULT_BACKGROUND: TenantThemeBackground =
+  TENANT_THEME_PRESETS[DEFAULT_PRESET].background;
 const DEFAULT_SHAPE: TenantThemeShape = "rounded";
 const STORAGE_PREFIX = "agui:tenant-theme:";
 
@@ -487,8 +488,34 @@ export function applyTenantTheme(theme: Pick<TenantTheme, "accent" | "background
     ring: preset.tokens.ring ?? accent,
   });
 
-  const background = normalizeBackground(theme.background);
   const root = document.documentElement;
+
+  const ringColor = preset.tokens.ring ?? accent;
+  const ringOffsetColor = preset.tokens.card ?? preset.tokens.surface ?? "transparent";
+
+  const previewUpdates: Array<[string, string | null]> = [
+    ["--launcher-tile-background", preset.preview.background],
+    ["--launcher-tile-border", preset.preview.borderColor],
+    ["--launcher-tile-foreground", preset.preview.labelColor],
+    ["--launcher-icon-background", preset.preview.iconBackground],
+    ["--launcher-icon-color", preset.preview.iconColor],
+    ["--launcher-icon-border", preset.preview.borderColor],
+    ["--launcher-tooltip-background", preset.preview.iconBackground],
+    ["--launcher-tooltip-border", preset.preview.borderColor],
+    ["--launcher-tooltip-color", preset.preview.labelColor],
+    ["--launcher-tile-ring", ringColor],
+    ["--launcher-tile-ring-offset", ringOffsetColor],
+  ];
+
+  for (const [property, value] of previewUpdates) {
+    if (value) {
+      root.style.setProperty(property, value);
+    } else {
+      root.style.removeProperty(property);
+    }
+  }
+
+  const background = normalizeBackground(theme.background);
 
   root.dataset.background = background;
   root.dataset.themePreset = preset.id;
