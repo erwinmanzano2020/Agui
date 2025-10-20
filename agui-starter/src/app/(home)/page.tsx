@@ -123,6 +123,9 @@ export default function HomePage() {
   const safeAreaBottom = "env(safe-area-inset-bottom, 0px)";
   const safeAreaInlineStart = "env(safe-area-inset-left, 0px)";
   const safeAreaInlineEnd = "env(safe-area-inset-right, 0px)";
+  const dockHeight = "5rem";
+  const dockHintGap = "2.5rem";
+  const hintBottomOffset = `calc(${safeAreaBottom} + ${dockHeight} + ${dockHintGap})`;
 
   const tileHandlers: TileHandlers[] = useMemo(() => {
     return GRID_APPS.map((_, index) => {
@@ -254,7 +257,7 @@ export default function HomePage() {
           <div
             className="pointer-events-none fixed left-1/2 z-30 w-full max-w-[560px] -translate-x-1/2 px-6"
             style={{
-              bottom: `calc(${safeAreaBottom} + 7.25rem)`,
+              bottom: hintBottomOffset,
               paddingLeft: `calc(${safeAreaInlineStart} + 1.5rem)`,
               paddingRight: `calc(${safeAreaInlineEnd} + 1.5rem)`,
             }}
