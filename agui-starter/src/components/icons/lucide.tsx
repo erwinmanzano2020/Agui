@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 
 type LucideIconProps = SVGProps<SVGSVGElement>;
 
-const DEFAULT_STROKE_WIDTH = 1.35;
+const DEFAULT_STROKE_WIDTH = 1.2;
 
 function createLucideIcon(displayName: string, children: ReactNode) {
   const Component = ({ className, ...props }: LucideIconProps) => (
