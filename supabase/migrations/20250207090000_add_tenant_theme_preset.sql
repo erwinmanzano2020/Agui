@@ -20,7 +20,7 @@ alter table public.tenant_theme
   );
 
 update public.tenant_theme
-set preset = coalesce(preset, 'charcoal');
+set preset = coalesce(preset, 'pearl');
 
 alter table public.tenant_theme
-  alter column preset set default 'charcoal';
+  alter column preset set default 'pearl';

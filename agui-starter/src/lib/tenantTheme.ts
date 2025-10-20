@@ -193,9 +193,10 @@ type TenantUserLike = {
   user_metadata?: Record<string, unknown>;
 } | null | undefined;
 
-const DEFAULT_PRESET: TenantThemePreset = "charcoal";
+const DEFAULT_PRESET: TenantThemePreset = "pearl";
 const DEFAULT_ACCENT = TENANT_THEME_PRESETS[DEFAULT_PRESET].accent;
-const DEFAULT_BACKGROUND: TenantThemeBackground = "system";
+const DEFAULT_BACKGROUND: TenantThemeBackground =
+  TENANT_THEME_PRESETS[DEFAULT_PRESET].background;
 const DEFAULT_SHAPE: TenantThemeShape = "rounded";
 const STORAGE_PREFIX = "agui:tenant-theme:";
 
