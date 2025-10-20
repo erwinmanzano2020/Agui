@@ -133,7 +133,8 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
           ref={ref}
           tabIndex={tabIndex}
           className={cn(
-            "group flex w-full flex-col items-center gap-3 text-center focus-visible:outline-none",
+            "group flex w-full flex-col items-center gap-3 rounded-2xl text-center focus-visible:outline-none",
+            "focus-visible:ring-2 focus-visible:ring-[color:var(--tile-ring)] focus-visible:ring-offset-4 focus-visible:ring-offset-[color:var(--tile-ring-offset)]",
             className,
           )}
           style={
@@ -175,7 +176,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
             className={cn(
               "flex h-16 w-16 items-center justify-center rounded-2xl text-[color:inherit] transition-transform duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0",
               "group-hover:scale-[1.03] group-active:scale-95",
-              "group-focus-visible:ring-2 group-focus-visible:ring-[var(--tile-ring)] group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-[var(--tile-ring-offset)]",
+              "motion-reduce:group-hover:scale-100 motion-reduce:group-active:scale-100",
               styles.icon,
             )}
             style={
@@ -189,7 +190,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
             <span
               className={cn(
                 LAUNCHER_DOCK_ICON_CLASS,
-                "transition-transform duration-200 group-hover:scale-[1.08] group-active:scale-95"
+                "transition-transform duration-200 group-hover:scale-[1.08] group-active:scale-95 motion-reduce:transition-none motion-reduce:group-hover:scale-100 motion-reduce:group-active:scale-100"
               )}
             >
               {enhancedIcon}
