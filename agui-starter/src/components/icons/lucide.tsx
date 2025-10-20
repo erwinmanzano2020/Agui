@@ -30,7 +30,8 @@ function createLucideIcon(displayName: string, children: ReactNode) {
 
 export { DEFAULT_STROKE_WIDTH as LUCIDE_STROKE_WIDTH };
 
-export const LAUNCHER_DOCK_ICON_CLASS = "launcher-dock-icon";
+export const LAUNCHER_DOCK_ICON_CLASS =
+  "[&>*]:w-7 [&>*]:h-7 [&>*]:stroke-[1.5] text-current";
 
 export const UsersIcon = createLucideIcon(
   "Users",

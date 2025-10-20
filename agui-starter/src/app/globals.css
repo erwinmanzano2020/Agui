@@ -172,19 +172,6 @@
     border-radius: var(--radius-2xl);
     box-shadow: var(--shadow-soft);
   }
-  .launcher-dock-icon {
-    color: currentColor;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .launcher-dock-icon > * {
-    --lucide-stroke-width: 1.35;
-    width: 1.75rem;
-    height: 1.75rem;
-  }
-
   .icon-tile {
     position: relative;
     background: var(--tile-bg);
