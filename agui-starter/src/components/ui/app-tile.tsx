@@ -235,7 +235,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
           ref={ref}
           tabIndex={tabIndex}
           className={cn(
-            "group flex w-full flex-col items-center gap-3 text-center focus-visible:outline-none",
+            "group flex w-full flex-col items-center text-center focus-visible:outline-none",
             "focus-visible:ring-2 focus-visible:ring-[color:var(--tile-ring)] focus-visible:ring-offset-4 focus-visible:ring-offset-[color:var(--tile-ring-offset)]",
             className,
           )}
@@ -277,7 +277,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
         >
           <span
             className={cn(
-              "flex h-[60px] w-[60px] items-center justify-center rounded-[20px] text-[color:inherit] transition-transform duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0",
+              "flex h-16 w-16 items-center justify-center rounded-[22px] text-[color:inherit] transition-transform duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0",
               "group-active:scale-[0.97] motion-reduce:group-active:scale-100",
               styles.icon,
             )}
@@ -287,7 +287,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
           </span>
           <span
             className={cn(
-              "block max-w-[9rem] min-h-[2.75rem] text-[13px] font-medium leading-[1.35] tracking-wide text-balance text-center break-words",
+              "mt-3 block max-w-[9rem] min-h-[2.75rem] text-[13px] font-medium leading-[1.35] tracking-wide text-balance text-center break-words",
               styles.label,
             )}
             style={{
