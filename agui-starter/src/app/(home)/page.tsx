@@ -124,7 +124,7 @@ export default function HomePage() {
   const safeAreaInlineStart = "env(safe-area-inset-left, 0px)";
   const safeAreaInlineEnd = "env(safe-area-inset-right, 0px)";
   const dockHeight = "5rem";
-  const dockHintGap = "2.5rem";
+  const dockHintGap = "1.5rem";
   const hintBottomOffset = `calc(${safeAreaBottom} + ${dockHeight} + ${dockHintGap})`;
 
   const tileHandlers: TileHandlers[] = useMemo(() => {
@@ -254,27 +254,15 @@ export default function HomePage() {
 
         {!isKeyboardVisible ? (
           <div
-            className="pointer-events-none fixed left-1/2 z-30 w-full max-w-[560px] -translate-x-1/2 px-6"
+            className="pointer-events-none fixed left-1/2 z-30 w-full max-w-[520px] -translate-x-1/2 px-6"
             style={{
               bottom: hintBottomOffset,
-              paddingLeft: `calc(${safeAreaInlineStart} + 1.5rem)`,
-              paddingRight: `calc(${safeAreaInlineEnd} + 1.5rem)`,
+              paddingLeft: `calc(${safeAreaInlineStart} + 1.25rem)`,
+              paddingRight: `calc(${safeAreaInlineEnd} + 1.25rem)`,
             }}
           >
-            <div className="pointer-events-auto rounded-full border border-white/6 bg-[color-mix(in_srgb,_var(--agui-surface)_86%,_white_14%)]/90 px-4 py-2 text-center text-xs text-muted-foreground shadow-[0_24px_60px_-42px_rgba(15,23,42,0.65)] backdrop-blur-xl sm:text-sm">
-              <span className="block font-medium text-[color:color-mix(in_srgb,var(--agui-muted-foreground)_88%,white_12%)] sm:inline">
-                Launch the tools you need in seconds.
-              </span>{" "}
-              <span className="inline-flex flex-wrap items-center justify-center gap-2 text-muted-foreground">
-                <span>Use</span>
-                <span className="inline-flex flex-wrap items-center gap-1">
-                  <kbd className={keyboardKeyClassName}>Ctrl</kbd>
-                  <span className="text-muted-foreground/70">/</span>
-                  <kbd className={keyboardKeyClassName}>Cmd</kbd>
-                </span>
-                <span>+</span>
-                <kbd className={keyboardKeyClassName}>K</kbd>
-              </span>
+            <div className="pointer-events-auto inline-flex w-full justify-center rounded-full border border-white/8 bg-[color-mix(in_srgb,_var(--agui-surface)_82%,_white_18%)]/80 px-4 py-1.5 text-center text-[0.75rem] font-medium leading-tight text-muted-foreground/80 shadow-[0_22px_48px_-40px_rgba(15,23,42,0.6)] backdrop-blur-xl">
+              <span>Launch the tools… Ctrl/Cmd+K</span>
             </div>
           </div>
         ) : null}
