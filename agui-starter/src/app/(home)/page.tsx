@@ -117,9 +117,6 @@ export default function HomePage() {
     };
   }, []);
 
-  const keyboardKeyClassName =
-    "inline-flex items-center justify-center rounded border border-white/10 bg-white/5 px-2 py-0.5 text-[0.65rem] font-semibold uppercase tracking-[0.2em] text-[color:color-mix(in_srgb,var(--agui-muted-foreground)_92%,white_8%)]";
-
   const safeAreaBottom = "env(safe-area-inset-bottom, 0px)";
   const safeAreaInlineStart = "env(safe-area-inset-left, 0px)";
   const safeAreaInlineEnd = "env(safe-area-inset-right, 0px)";
