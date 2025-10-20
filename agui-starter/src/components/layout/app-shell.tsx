@@ -7,7 +7,15 @@ import { ReactNode, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 
 /* Inline SVG icons (no extra deps) */
-function Icon({ name, className }: { name: string; className?: string }) {
+function Icon({
+  name,
+  className,
+  strokeWidth = 2,
+}: {
+  name: string;
+  className?: string;
+  strokeWidth?: number;
+}) {
   const paths: Record<string, string> = {
     dashboard: "M3 12l8-9 8 9v8a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-8Z",
     users:
@@ -26,7 +34,7 @@ function Icon({ name, className }: { name: string; className?: string }) {
       className={className ?? "h-4 w-4"}
       fill="none"
       stroke="currentColor"
-      strokeWidth="2"
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden
@@ -47,6 +55,7 @@ const NAV: NavItem[] = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const isHome = pathname === "/";
 
   // responsive + collapsible
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile
@@ -67,6 +76,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   };
 
   const nav = useMemo(() => NAV, []);
+  const activeNav = nav.find((item) => item.href === pathname);
+  const headerTitle = isHome ? "Home" : activeNav?.name ?? "Agui Dashboard";
 
   return (
     <div className="min-h-screen flex bg-[var(--agui-surface)] text-[var(--agui-on-surface)] transition-colors">
@@ -206,7 +217,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Main Area */}
       <div className="flex-1 flex flex-col">
         {/* Topbar */}
-        <header className="h-14 border-b border-[color:var(--agui-surface-border)] bg-[var(--agui-surface-elevated)] text-[var(--agui-on-surface)] flex items-center justify-between px-3 md:px-6 shadow-soft">
+        <header
+          className={`h-14 flex items-center justify-between px-3 md:px-6 text-[var(--agui-on-surface)] ${
+            isHome
+              ? "bg-[color-mix(in_srgb,_var(--agui-surface)_96%,_white_4%)]"
+              : "border-b border-[color:var(--agui-surface-border)] bg-[var(--agui-surface-elevated)] shadow-soft"
+          }`}
+        >
           {/* Left: mobile menu */}
           <div className="flex items-center gap-2">
             <Button
@@ -219,9 +236,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
               <Icon name="menu" className="h-5 w-5" />
             </Button>
-            <span className="font-semibold text-sm text-muted-foreground hidden md:inline">
-              Agui Dashboard
-            </span>
+            {headerTitle ? (
+              <span className="font-semibold text-sm text-muted-foreground hidden md:inline">
+                {headerTitle}
+              </span>
+            ) : null}
           </div>
 
           {/* Right: user stub */}
@@ -233,7 +252,11 @@ export function AppShell({ children }: { children: ReactNode }) {
               onClick={toggleDark}
               title="Toggle theme"
             >
-              <Icon name={dark ? "sun" : "moon"} className="h-4 w-4" />
+              <Icon
+                name={dark ? "sun" : "moon"}
+                className="h-4 w-4"
+                strokeWidth={1.5}
+              />
             </Button>
             <div className="h-8 w-8 rounded-full bg-[color-mix(in_srgb,_var(--agui-on-surface)_12%,_transparent)] flex items-center justify-center text-sm text-[var(--agui-on-surface)]">
               U
