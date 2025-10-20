@@ -21,7 +21,7 @@ import {
 } from "@/components/icons/lucide";
 import { cn } from "@/lib/utils";
 
-export type AppTileVariant = "black" | "pearl" | "charcoal" | "white";
+export type AppTileVariant = "auto" | "black" | "pearl" | "charcoal" | "white";
 
 export interface AppTileProps {
   icon: ReactNode;
@@ -36,17 +36,26 @@ export interface AppTileProps {
   onKeyDown?: KeyboardEventHandler<HTMLAnchorElement>;
 }
 
-const VARIANT_STYLES: Record<
-  AppTileVariant,
-  {
-    icon: string;
-    label: string;
-    tooltip: string;
-    tooltipText: string;
-    ring: string;
-    ringOffset: string;
-  }
-> = {
+type VariantStyles = {
+  icon: string;
+  label: string;
+  tooltip: string;
+  tooltipText: string;
+  ring: string;
+  ringOffset: string;
+};
+
+const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
+  auto: {
+    icon:
+      "border border-[color:color-mix(in_srgb,var(--agui-card-border,_rgba(15,23,42,0.12))_82%,transparent_18%)] bg-[color-mix(in_srgb,var(--agui-card,_#f5f5f7)_88%,white_12%)] text-[color:color-mix(in_srgb,var(--agui-on-surface,_#111827)_94%,white_6%)] shadow-[0_22px_48px_-32px_color-mix(in_srgb,var(--agui-on-surface,_#111827)_22%,transparent)]",
+    label: "text-[color:color-mix(in_srgb,var(--agui-on-surface,_#111827)_96%,white_4%)]",
+    tooltip:
+      "border border-[color:color-mix(in_srgb,var(--agui-card-border,_rgba(15,23,42,0.12))_80%,transparent_20%)] bg-[color-mix(in_srgb,var(--agui-surface,_#f8fafc)_90%,var(--agui-on-surface,_#111827)_10%)]",
+    tooltipText: "text-[color:color-mix(in_srgb,var(--agui-on-surface,_#111827)_97%,white_3%)]",
+    ring: "var(--agui-ring, rgba(59,130,246,0.38))",
+    ringOffset: "var(--agui-card, var(--agui-surface, #f5f5f7))",
+  },
   black: {
     icon:
       "border border-white/10 bg-neutral-950 text-white shadow-[0_20px_40px_-26px_rgba(0,0,0,0.75)]",
@@ -109,7 +118,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
       label,
       href,
       description,
-      variant = "black",
+      variant = "auto",
       className,
       tabIndex,
       onFocus,
@@ -118,7 +127,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
     },
     ref
   ) => {
-    const styles = VARIANT_STYLES[variant];
+    const styles = VARIANT_STYLES[variant] ?? VARIANT_STYLES.auto;
     const [isTooltipVisible, setTooltipVisible] = useState(false);
 
     const enhancedIcon = useMemo(() => enhanceIcon(icon), [icon]);
