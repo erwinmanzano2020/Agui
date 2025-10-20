@@ -37,7 +37,6 @@ export interface AppTileProps {
 }
 
 type VariantStyles = {
-  tile: string;
   icon: string;
   label: string;
   tooltip: string;
@@ -48,44 +47,31 @@ type VariantStyles = {
 };
 
 const AUTO_TILE_VARS: Record<string, string> = {
-  "--tile-border":
-    "var(--launcher-tile-border, color-mix(in_srgb,var(--agui-card-border,_rgba(15,23,42,0.12))_80%,transparent_20%))",
-  "--tile-background":
-    "var(--launcher-tile-background, color-mix(in_srgb,var(--agui-card,_#f5f5f7)_92%,white_8%))",
-  "--tile-foreground":
-    "var(--launcher-tile-foreground, color-mix(in_srgb,var(--agui-on-surface,_#111827)_94%,white_6%))",
-  "--tile-icon-border":
-    "var(--launcher-icon-border, color-mix(in_srgb,var(--agui-card-border,_rgba(15,23,42,0.12))_70%,transparent_30%))",
-  "--tile-icon-background":
-    "var(--launcher-icon-background, color-mix(in_srgb,var(--tile-background)_88%,var(--tile-foreground)_12%))",
-  "--tile-icon-color": "var(--launcher-icon-color, var(--tile-foreground))",
-  "--tile-tooltip-border":
-    "var(--launcher-tooltip-border, color-mix(in_srgb,var(--tile-border)_82%,transparent_18%))",
+  "--tile-foreground": "var(--launcher-tile-foreground, #1b1c1f)",
+  "--tile-icon-border": "var(--launcher-icon-border, rgba(15,17,23,0.1))",
+  "--tile-icon-background": "var(--launcher-icon-background, #eef1f6)",
+  "--tile-icon-color": "var(--launcher-icon-color, #1b1c1f)",
+  "--tile-tooltip-border": "var(--launcher-tooltip-border, rgba(15,23,42,0.12))",
   "--tile-tooltip-background":
-    "var(--launcher-tooltip-background, color-mix(in_srgb,var(--agui-surface,_#f8fafc)_92%,var(--tile-foreground)_8%))",
+    "var(--launcher-tooltip-background, color-mix(in_srgb,#f8fafc_92%,var(--tile-foreground)_8%))",
   "--tile-tooltip-color": "var(--launcher-tooltip-color, var(--tile-foreground))",
 };
 
 const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
   auto: {
-    tile:
-      "border border-[color:var(--tile-border)] bg-[color:var(--tile-background)] text-[color:var(--tile-foreground)] shadow-[0_22px_48px_-30px_color-mix(in_srgb,var(--tile-foreground)_20%,transparent)]",
     icon:
-      "border border-[color:var(--tile-icon-border)] bg-[color:var(--tile-icon-background)] text-[color:var(--tile-icon-color)] shadow-[0_20px_40px_-28px_color-mix(in_srgb,var(--tile-foreground)_20%,transparent)]",
+      "border border-[color:var(--tile-icon-border)] bg-[color:var(--tile-icon-background)] text-[color:var(--tile-icon-color)] shadow-[0_6px_20px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.65)]",
     label: "text-[color:var(--tile-foreground)]",
     tooltip:
       "border border-[color:var(--tile-tooltip-border)] bg-[color:var(--tile-tooltip-background)]",
     tooltipText: "text-[color:var(--tile-tooltip-color)]",
     ring: "var(--launcher-tile-ring, var(--agui-ring, rgba(59,130,246,0.32)))",
-    ringOffset:
-      "var(--launcher-tile-ring-offset, color-mix(in_srgb,var(--tile-background)_92%,white_8%))",
+    ringOffset: "var(--launcher-tile-ring-offset, #eef1f6)",
     cssVars: AUTO_TILE_VARS,
   },
   black: {
-    tile:
-      "border border-white/10 bg-neutral-950 text-white shadow-[0_22px_48px_-32px_rgba(0,0,0,0.75)]",
     icon:
-      "border border-white/10 bg-neutral-950 text-white shadow-[0_20px_40px_-26px_rgba(0,0,0,0.75)]",
+      "border border-white/10 bg-neutral-950 text-white shadow-[0_6px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]",
     label: "text-white",
     tooltip: "bg-white border-white/60",
     tooltipText: "text-neutral-900",
@@ -93,10 +79,8 @@ const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
     ringOffset: "rgba(11,11,15,0.9)",
   },
   pearl: {
-    tile:
-      "border border-neutral-200 bg-[#f5f5f7] text-neutral-900 shadow-[0_22px_45px_-30px_rgba(28,28,28,0.38)]",
     icon:
-      "border border-neutral-200 bg-[#f5f5f7] text-neutral-900 shadow-[0_16px_30px_-24px_rgba(36,36,36,0.5)]",
+      "border border-neutral-200 bg-[#f5f5f7] text-neutral-900 shadow-[0_6px_20px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.65)]",
     label: "text-neutral-900",
     tooltip: "bg-neutral-900 border-black/30",
     tooltipText: "text-white",
@@ -104,10 +88,8 @@ const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
     ringOffset: "#f5f5f7",
   },
   charcoal: {
-    tile:
-      "border border-white/12 bg-[#1f1f23] text-white shadow-[0_24px_52px_-34px_rgba(0,0,0,0.78)]",
     icon:
-      "border border-white/12 bg-[#1f1f23] text-white shadow-[0_22px_46px_-30px_rgba(0,0,0,0.85)]",
+      "border border-white/12 bg-[#1f1f23] text-white shadow-[0_6px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]",
     label: "text-white",
     tooltip: "bg-white border-white/50",
     tooltipText: "text-neutral-900",
@@ -115,10 +97,8 @@ const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
     ringOffset: "#1f1f23",
   },
   white: {
-    tile:
-      "border border-neutral-200 bg-white text-neutral-900 shadow-[0_22px_45px_-30px_rgba(36,36,36,0.24)]",
     icon:
-      "border border-neutral-200 bg-white text-neutral-900 shadow-[0_22px_45px_-30px_rgba(36,36,36,0.24)]",
+      "border border-neutral-200 bg-white text-neutral-900 shadow-[0_6px_20px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.65)]",
     label: "text-neutral-900",
     tooltip: "bg-neutral-900 border-black/20",
     tooltipText: "text-white",
@@ -175,8 +155,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
           ref={ref}
           tabIndex={tabIndex}
           className={cn(
-            "group flex w-full flex-col items-center gap-3 rounded-2xl text-center focus-visible:outline-none",
-            styles.tile,
+            "group flex w-full flex-col items-center gap-3 text-center text-[#1B1C1F] focus-visible:outline-none",
             "focus-visible:ring-2 focus-visible:ring-[color:var(--tile-ring)] focus-visible:ring-offset-4 focus-visible:ring-offset-[color:var(--tile-ring-offset)]",
             className,
           )}
@@ -218,26 +197,17 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
         >
           <span
             className={cn(
-              "flex h-16 w-16 items-center justify-center rounded-2xl text-[color:inherit] transition-transform duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0",
-              "group-hover:scale-[1.03] group-active:scale-95",
-              "motion-reduce:group-hover:scale-100 motion-reduce:group-active:scale-100",
+              "flex h-[60px] w-[60px] items-center justify-center rounded-[20px] text-[color:inherit] transition-transform duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0",
+              "group-active:scale-[0.97] motion-reduce:group-active:scale-100",
               styles.icon,
             )}
             aria-hidden
           >
-            <span
-              className={cn(
-                LAUNCHER_DOCK_ICON_CLASS,
-                "transition-transform duration-200 group-hover:scale-[1.08] group-active:scale-95 motion-reduce:transition-none motion-reduce:group-hover:scale-100 motion-reduce:group-active:scale-100"
-              )}
-            >
-              {enhancedIcon}
-            </span>
+            <span className={LAUNCHER_DOCK_ICON_CLASS}>{enhancedIcon}</span>
           </span>
           <span
             className={cn(
-              "block max-w-[9rem] min-h-[2.75rem] text-[13px] font-[450] leading-[1.35] tracking-wide text-balance text-center text-[color:inherit] break-words",
-
+              "block max-w-[9rem] min-h-[2.75rem] text-[13px] font-medium leading-[1.35] tracking-wide text-balance text-center text-[#1B1C1F] break-words",
               styles.label,
             )}
             style={{
