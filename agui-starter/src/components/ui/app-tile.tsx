@@ -11,7 +11,9 @@ import {
   type KeyboardEventHandler,
   type ReactElement,
   type ReactNode,
+  useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -51,10 +53,10 @@ const AUTO_TILE_VARS: Record<string, string> = {
   "--tile-icon-border": "var(--launcher-icon-border, rgba(15,17,23,0.1))",
   "--tile-icon-background": "var(--launcher-icon-background, #eef1f6)",
   "--tile-icon-color": "var(--launcher-icon-color, #1b1c1f)",
-  "--tile-tooltip-border": "var(--launcher-tooltip-border, rgba(15,23,42,0.12))",
+  "--tile-tooltip-border": "var(--launcher-tooltip-border, rgba(148,163,184,0.35))",
   "--tile-tooltip-background":
-    "var(--launcher-tooltip-background, color-mix(in_srgb,#f8fafc_92%,var(--tile-foreground)_8%))",
-  "--tile-tooltip-color": "var(--launcher-tooltip-color, var(--tile-foreground))",
+    "var(--launcher-tooltip-background, rgba(15,23,42,0.78))",
+  "--tile-tooltip-color": "var(--launcher-tooltip-color, #f8fafc)",
 };
 
 const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
@@ -73,8 +75,8 @@ const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
     icon:
       "border border-white/10 bg-neutral-950 text-white shadow-[0_6px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]",
     label: "text-white",
-    tooltip: "bg-white border-white/60",
-    tooltipText: "text-neutral-900",
+    tooltip: "border-white/20 bg-neutral-950/80",
+    tooltipText: "text-white",
     ring: "rgba(255,255,255,0.55)",
     ringOffset: "rgba(11,11,15,0.9)",
   },
@@ -82,7 +84,7 @@ const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
     icon:
       "border border-neutral-200 bg-[#f5f5f7] text-neutral-900 shadow-[0_6px_20px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.65)]",
     label: "text-neutral-900",
-    tooltip: "bg-neutral-900 border-black/30",
+    tooltip: "border-white/25 bg-neutral-950/80",
     tooltipText: "text-white",
     ring: "rgba(28,28,28,0.45)",
     ringOffset: "#f5f5f7",
@@ -91,8 +93,8 @@ const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
     icon:
       "border border-white/12 bg-[#1f1f23] text-white shadow-[0_6px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]",
     label: "text-white",
-    tooltip: "bg-white border-white/50",
-    tooltipText: "text-neutral-900",
+    tooltip: "border-white/20 bg-neutral-950/80",
+    tooltipText: "text-white",
     ring: "rgba(255,255,255,0.45)",
     ringOffset: "#1f1f23",
   },
@@ -100,7 +102,7 @@ const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
     icon:
       "border border-neutral-200 bg-white text-neutral-900 shadow-[0_6px_20px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.65)]",
     label: "text-neutral-900",
-    tooltip: "bg-neutral-900 border-black/20",
+    tooltip: "border-white/25 bg-neutral-950/80",
     tooltipText: "text-white",
     ring: "rgba(28,28,28,0.45)",
     ringOffset: "#ffffff",
@@ -142,6 +144,84 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
   ) => {
     const styles = VARIANT_STYLES[variant] ?? VARIANT_STYLES.auto;
     const [isTooltipVisible, setTooltipVisible] = useState(false);
+    const [isCoarsePointer, setIsCoarsePointer] = useState(() => {
+      if (typeof window === "undefined") {
+        return false;
+      }
+
+      return window.matchMedia("(pointer: coarse)").matches;
+    });
+    const showTimerRef = useRef<number | null>(null);
+
+    const shouldRenderTooltip = Boolean(description) && !isCoarsePointer;
+
+    const clearShowTimer = () => {
+      if (showTimerRef.current !== null) {
+        window.clearTimeout(showTimerRef.current);
+        showTimerRef.current = null;
+      }
+    };
+
+    const showTooltip = () => {
+      if (!shouldRenderTooltip) {
+        return;
+      }
+
+      clearShowTimer();
+      showTimerRef.current = window.setTimeout(() => {
+        setTooltipVisible(true);
+        showTimerRef.current = null;
+      }, 120);
+    };
+
+    const hideTooltip = () => {
+      clearShowTimer();
+      setTooltipVisible(false);
+    };
+
+    useEffect(() => {
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const mediaQuery = window.matchMedia("(pointer: coarse)");
+      const update = () => setIsCoarsePointer(mediaQuery.matches);
+
+      update();
+
+      if (typeof mediaQuery.addEventListener === "function") {
+        mediaQuery.addEventListener("change", update);
+        return () => {
+          mediaQuery.removeEventListener("change", update);
+        };
+      }
+
+      mediaQuery.addListener(update);
+      return () => {
+        mediaQuery.removeListener(update);
+      };
+    }, []);
+
+    useEffect(() => {
+      if (!isCoarsePointer) {
+        return;
+      }
+
+      if (showTimerRef.current !== null) {
+        window.clearTimeout(showTimerRef.current);
+        showTimerRef.current = null;
+      }
+
+      setTooltipVisible(false);
+    }, [isCoarsePointer]);
+
+    useEffect(() => {
+      return () => {
+        if (showTimerRef.current !== null) {
+          window.clearTimeout(showTimerRef.current);
+        }
+      };
+    }, []);
 
     const enhancedIcon = useMemo(() => enhanceIcon(icon), [icon]);
     const tooltipId = description
@@ -167,33 +247,33 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
             } as CSSProperties
           }
           onPointerEnter={(event) => {
-            if (event.pointerType === "touch" || !description) return;
-            setTooltipVisible(true);
+            if (event.pointerType === "touch") {
+              return;
+            }
+            showTooltip();
           }}
           onPointerLeave={(event) => {
             if (event.pointerType === "touch") return;
             if (event.currentTarget === document.activeElement) {
               return;
             }
-            setTooltipVisible(false);
+            hideTooltip();
           }}
           onFocus={(event) => {
-            if (description) {
-              setTooltipVisible(true);
-            }
+            showTooltip();
             onFocus?.(event);
           }}
           onBlur={(event) => {
-            setTooltipVisible(false);
+            hideTooltip();
             onBlur?.(event);
           }}
           onPointerDown={() => {
-            setTooltipVisible(false);
+            hideTooltip();
           }}
           onKeyDown={(event) => {
             onKeyDown?.(event);
           }}
-          aria-describedby={isTooltipVisible ? tooltipId : undefined}
+          aria-describedby={isTooltipVisible && shouldRenderTooltip ? tooltipId : undefined}
         >
           <span
             className={cn(
@@ -221,17 +301,17 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
             {label}
           </span>
         </Link>
-        {description ? (
+        {shouldRenderTooltip ? (
           <div
             id={tooltipId}
             role="tooltip"
             className={cn(
-              "pointer-events-none absolute left-1/2 top-full z-50 mt-2 w-max max-w-xs -translate-x-1/2 rounded-xl border px-3 py-1.5 text-xs shadow-[0_12px_30px_-20px_rgba(15,23,42,0.55)] transition-all duration-150 motion-reduce:translate-y-0 motion-reduce:transition-none motion-reduce:duration-0",
+              "pointer-events-none absolute left-1/2 bottom-full z-50 mb-2 w-max max-w-[220px] -translate-x-1/2 rounded-[10px] border px-3 py-1.5 text-xs shadow-[0_20px_45px_-25px_rgba(2,6,23,0.75)] backdrop-blur-lg transition-all duration-150 motion-reduce:translate-y-0 motion-reduce:transition-none motion-reduce:duration-0",
               styles.tooltip,
               styles.tooltipText,
               isTooltipVisible
                 ? "translate-y-0 opacity-100"
-                : "-translate-y-1 opacity-0",
+                : "translate-y-1 opacity-0",
             )}
             aria-hidden={!isTooltipVisible}
           >
