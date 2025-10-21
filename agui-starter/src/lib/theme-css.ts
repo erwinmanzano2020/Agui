@@ -5,7 +5,7 @@ type ThemeVars = Record<string, string>;
 
 type RGB = { r: number; g: number; b: number };
 
-const DEFAULT_SURFACE = "#f8fafc";
+const DEFAULT_SURFACE = "#f6f8fb";
 const DEFAULT_ACCENT_LIGHTEN = 0.24;
 const DEFAULT_RADIUS = 12;
 

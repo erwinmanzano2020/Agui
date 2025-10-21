@@ -50,13 +50,13 @@ type VariantStyles = {
 
 const AUTO_TILE_VARS: Record<string, string> = {
   "--tile-foreground": "var(--launcher-tile-foreground, #1b1c1f)",
-  "--tile-icon-border": "var(--launcher-icon-border, rgba(15,17,23,0.1))",
+  "--tile-icon-border": "var(--launcher-icon-border, rgba(27,28,31,0.1))",
   "--tile-icon-background": "var(--launcher-icon-background, #eef1f6)",
   "--tile-icon-color": "var(--launcher-icon-color, #1b1c1f)",
   "--tile-tooltip-border": "var(--launcher-tooltip-border, rgba(148,163,184,0.35))",
   "--tile-tooltip-background":
     "var(--launcher-tooltip-background, rgba(15,23,42,0.78))",
-  "--tile-tooltip-color": "var(--launcher-tooltip-color, #f8fafc)",
+  "--tile-tooltip-color": "var(--launcher-tooltip-color, #f6f8fb)",
 };
 
 const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
@@ -82,12 +82,12 @@ const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
   },
   pearl: {
     icon:
-      "border border-neutral-200 bg-[#f5f5f7] text-neutral-900 shadow-[0_6px_20px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.65)]",
-    label: "text-neutral-900",
+      "border border-[#d7dbe3] bg-[#f6f8fb] text-[#1b1c1f] shadow-[0_6px_20px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.65)]",
+    label: "text-[#1b1c1f]",
     tooltip: "border-white/25 bg-neutral-950/80",
-    tooltipText: "text-white",
-    ring: "rgba(28,28,28,0.45)",
-    ringOffset: "#f5f5f7",
+    tooltipText: "text-[#f6f8fb]",
+    ring: "rgba(27,28,31,0.45)",
+    ringOffset: "#f6f8fb",
   },
   charcoal: {
     icon:

@@ -2,7 +2,7 @@
 .agui-tile {
   --agui-tile-bg: color-mix(in srgb, var(--agui-card, var(--surface)) 96%, #020617 4%);
   --agui-tile-border: color-mix(in srgb, var(--agui-tile-bg) 88%, rgba(15, 23, 42, 0.24));
-  --agui-tile-fg: var(--agui-on-surface, var(--text, #0f172a));
+  --agui-tile-fg: var(--agui-on-surface, var(--text, #1b1c1f));
   --agui-icon-bg: color-mix(in srgb, var(--agui-tile-fg) 10%, transparent);
   --agui-tip-bg: color-mix(in srgb, var(--agui-tile-bg) 85%, rgba(15, 23, 42, 0.75));
   --agui-tip-fg: var(--agui-tile-fg);
@@ -70,12 +70,12 @@
 }
 
 .agui-tile--pearl {
-  --agui-tile-bg: linear-gradient(150deg, #f8f7f4 0%, #ebe9e1 100%);
-  --agui-tile-border: rgba(15, 23, 42, 0.08);
-  --agui-tile-fg: #27272a;
-  --agui-icon-bg: rgba(15, 23, 42, 0.08);
+  --agui-tile-bg: linear-gradient(150deg, #f6f8fb 0%, #e7ecf7 100%);
+  --agui-tile-border: rgba(27, 28, 31, 0.08);
+  --agui-tile-fg: #1b1c1f;
+  --agui-icon-bg: #eef1f6;
   --agui-tip-bg: rgba(31, 41, 55, 0.92);
-  --agui-tip-fg: #f8fafc;
+  --agui-tip-fg: #f6f8fb;
 }
 
 .agui-tile--charcoal {
