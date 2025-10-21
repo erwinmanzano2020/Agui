@@ -41,10 +41,10 @@ export interface AppTileProps {
 type VariantStyles = {
   icon: string;
   label: string;
-  tooltip: string;
-  tooltipText: string;
   ring: string;
   ringOffset: string;
+  tooltipBg?: string;
+  tooltipColor?: string;
   cssVars?: Record<string, string>;
 };
 
@@ -53,59 +53,54 @@ const AUTO_TILE_VARS: Record<string, string> = {
   "--tile-icon-border": "var(--launcher-icon-border, rgba(27,28,31,0.1))",
   "--tile-icon-background": "var(--launcher-icon-background, #eef1f6)",
   "--tile-icon-color": "var(--launcher-icon-color, #1b1c1f)",
-  "--tile-tooltip-border": "var(--launcher-tooltip-border, rgba(148,163,184,0.35))",
-  "--tile-tooltip-background":
-    "var(--launcher-tooltip-background, rgba(15,23,42,0.78))",
-  "--tile-tooltip-color": "var(--launcher-tooltip-color, #f6f8fb)",
 };
 
 const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
   auto: {
     icon:
-      "border border-[color:var(--tile-icon-border)] bg-[color:var(--tile-icon-background)] text-[color:var(--tile-icon-color)] shadow-[0_6px_20px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.65)]",
+      "border-[color:var(--tile-icon-border)] bg-[color:var(--tile-icon-background)] text-[color:var(--tile-icon-color)]",
     label: "text-[color:var(--tile-foreground)]",
-    tooltip:
-      "border border-[color:var(--tile-tooltip-border)] bg-[color:var(--tile-tooltip-background)]",
-    tooltipText: "text-[color:var(--tile-tooltip-color)]",
     ring: "var(--launcher-tile-ring, var(--agui-ring, rgba(59,130,246,0.32)))",
     ringOffset: "var(--launcher-tile-ring-offset, #eef1f6)",
+    tooltipBg: "var(--launcher-tooltip-background, rgba(15,23,42,0.78))",
+    tooltipColor: "var(--launcher-tooltip-color, #f6f8fb)",
     cssVars: AUTO_TILE_VARS,
   },
   black: {
     icon:
-      "border border-white/10 bg-neutral-950 text-white shadow-[0_6px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]",
+      "border-white/10 bg-neutral-950 text-white shadow-[0_6px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]",
     label: "text-white",
-    tooltip: "border-white/20 bg-neutral-950/80",
-    tooltipText: "text-white",
     ring: "rgba(255,255,255,0.55)",
     ringOffset: "rgba(11,11,15,0.9)",
+    tooltipBg: "rgba(17,17,20,0.92)",
+    tooltipColor: "#f9fafb",
   },
   pearl: {
     icon:
-      "border border-[#d7dbe3] bg-[#f6f8fb] text-[#1b1c1f] shadow-[0_6px_20px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.65)]",
-    label: "text-[#1b1c1f]",
-    tooltip: "border-white/25 bg-neutral-950/80",
-    tooltipText: "text-[#f6f8fb]",
+      "border-[#d7dbe3] bg-[#f6f8fb] text-[#1b1c1f] shadow-[0_6px_20px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.65)]",
+    label: "text-[#1b1c1f]/90",
     ring: "rgba(27,28,31,0.45)",
     ringOffset: "#f6f8fb",
+    tooltipBg: "rgba(31,41,55,0.92)",
+    tooltipColor: "#f6f8fb",
   },
   charcoal: {
     icon:
-      "border border-white/12 bg-[#1f1f23] text-white shadow-[0_6px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]",
+      "border-white/12 bg-[#1f1f23] text-white shadow-[0_6px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]",
     label: "text-white",
-    tooltip: "border-white/20 bg-neutral-950/80",
-    tooltipText: "text-white",
     ring: "rgba(255,255,255,0.45)",
     ringOffset: "#1f1f23",
+    tooltipBg: "rgba(23,25,32,0.96)",
+    tooltipColor: "#f5f5f8",
   },
   white: {
     icon:
-      "border border-neutral-200 bg-white text-neutral-900 shadow-[0_6px_20px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.65)]",
+      "border-neutral-200 bg-white text-neutral-900 shadow-[0_6px_20px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.65)]",
     label: "text-neutral-900",
-    tooltip: "border-white/25 bg-neutral-950/80",
-    tooltipText: "text-white",
     ring: "rgba(28,28,28,0.45)",
     ringOffset: "#ffffff",
+    tooltipBg: "rgba(17,24,39,0.92)",
+    tooltipColor: "#f8fafc",
   },
 };
 
@@ -143,6 +138,19 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
     ref
   ) => {
     const styles = VARIANT_STYLES[variant] ?? VARIANT_STYLES.auto;
+    const tooltipStyle = useMemo(() => {
+      const style: Record<string, string> = {};
+
+      if (styles.tooltipBg) {
+        style["--agui-tip-bg"] = styles.tooltipBg;
+      }
+
+      if (styles.tooltipColor) {
+        style["--agui-tip-fg"] = styles.tooltipColor;
+      }
+
+      return style;
+    }, [styles.tooltipBg, styles.tooltipColor]);
     const [isTooltipVisible, setTooltipVisible] = useState(false);
     const [isCoarsePointer, setIsCoarsePointer] = useState(() => {
       if (typeof window === "undefined") {
@@ -235,8 +243,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
           ref={ref}
           tabIndex={tabIndex}
           className={cn(
-            "group flex w-full flex-col items-center text-center focus-visible:outline-none",
-            "focus-visible:ring-2 focus-visible:ring-[color:var(--tile-ring)] focus-visible:ring-offset-4 focus-visible:ring-offset-[color:var(--tile-ring-offset)]",
+            "group inline-flex flex-col items-center gap-2 text-center outline-none",
             className,
           )}
           style={
@@ -277,26 +284,25 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
         >
           <span
             className={cn(
-              "flex h-16 w-16 items-center justify-center rounded-[22px] text-[color:inherit] transition-transform duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0",
-              "group-active:scale-[0.97] motion-reduce:group-active:scale-100",
+              "grid h-[60px] w-[60px] place-items-center rounded-2xl border text-[color:inherit] shadow-[inset_0_1px_0_rgba(255,255,255,.65),0_6px_20px_rgba(0,0,0,.12)]",
+              "transition-transform duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0",
+              "active:scale-95 motion-reduce:active:scale-100",
+              "group-focus-visible:ring-2 group-focus-visible:ring-[color:var(--tile-ring)] group-focus-visible:ring-offset-4 group-focus-visible:ring-offset-[color:var(--tile-ring-offset)]",
               styles.icon,
             )}
             aria-hidden
           >
-            <span className={LAUNCHER_DOCK_ICON_CLASS}>{enhancedIcon}</span>
+            <span className={cn("[&>*]:h-7 [&>*]:w-7 [&>*]:stroke-[1.5]", LAUNCHER_DOCK_ICON_CLASS)}>
+              {enhancedIcon}
+            </span>
           </span>
           <span
             className={cn(
-              "mt-3 block max-w-[9rem] min-h-[2.75rem] text-[13px] font-medium leading-[1.35] tracking-wide text-balance text-center break-words",
+              "max-w-[8.5rem] text-[13px] tracking-wide",
+              "text-balance text-center font-medium leading-[1.35]",
+              "[display:-webkit-box] min-h-[2.75rem] [overflow:hidden] [WebkitBoxOrient:vertical] [WebkitLineClamp:2]",
               styles.label,
             )}
-            style={{
-              WebkitLineClamp: 2,
-              lineClamp: 2,
-              WebkitBoxOrient: "vertical",
-              display: "-webkit-box",
-              overflow: "hidden",
-            }}
           >
             {label}
           </span>
@@ -306,13 +312,10 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
             id={tooltipId}
             role="tooltip"
             className={cn(
-              "pointer-events-none absolute left-1/2 bottom-full z-50 mb-2 w-max max-w-[220px] -translate-x-1/2 rounded-[10px] border px-3 py-1.5 text-xs shadow-[0_20px_45px_-25px_rgba(2,6,23,0.75)] backdrop-blur-lg transition-all duration-150 motion-reduce:translate-y-0 motion-reduce:transition-none motion-reduce:duration-0",
-              styles.tooltip,
-              styles.tooltipText,
-              isTooltipVisible
-                ? "translate-y-0 opacity-100"
-                : "translate-y-1 opacity-0",
+              "agui-tip translate-y-[-8px] transition-transform duration-150 motion-reduce:translate-y-0 motion-reduce:transition-none motion-reduce:duration-0",
+              isTooltipVisible ? "opacity-100" : "translate-y-[-4px] opacity-0",
             )}
+            style={Object.keys(tooltipStyle).length ? (tooltipStyle as CSSProperties) : undefined}
             aria-hidden={!isTooltipVisible}
           >
             {description}

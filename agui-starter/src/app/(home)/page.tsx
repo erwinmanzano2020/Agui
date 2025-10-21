@@ -251,16 +251,14 @@ export default function HomePage() {
 
         {!isKeyboardVisible ? (
           <div
-            className="pointer-events-none fixed left-1/2 z-30 w-full max-w-[520px] -translate-x-1/2 px-6"
+            className="fixed left-1/2 -translate-x-1/2 bottom-[112px] rounded-full border border-black/10 bg-white/40 px-3 py-1.5 text-xs text-[#1B1C1F]/60 backdrop-blur"
             style={{
               bottom: hintBottomOffset,
-              paddingLeft: `calc(${safeAreaInlineStart} + 1.25rem)`,
-              paddingRight: `calc(${safeAreaInlineEnd} + 1.25rem)`,
+              paddingLeft: `calc(${safeAreaInlineStart} + 0.75rem)`,
+              paddingRight: `calc(${safeAreaInlineEnd} + 0.75rem)`,
             }}
           >
-            <div className="pointer-events-auto inline-flex w-full justify-center rounded-full border border-white/8 bg-[color-mix(in_srgb,_var(--agui-surface)_82%,_white_18%)]/80 px-4 py-1.5 text-center text-[0.75rem] font-medium leading-tight text-muted-foreground/80 shadow-[0_22px_48px_-40px_rgba(15,23,42,0.6)] backdrop-blur-xl">
-              <span>Launch the tools… Ctrl/Cmd+K</span>
-            </div>
+            Launch the tools you need in seconds. Use <kbd>Ctrl</kbd>/<kbd>Cmd</kbd>+<kbd>K</kbd>
           </div>
         ) : null}
 
