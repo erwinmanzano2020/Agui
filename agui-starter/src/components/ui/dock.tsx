@@ -3,11 +3,13 @@
 import Link from "next/link";
 import {
   useCallback,
+  useEffect,
   useId,
   useMemo,
   useState,
   type CSSProperties,
   type FocusEventHandler,
+  type KeyboardEventHandler,
   type PointerEventHandler,
   type ReactNode,
 } from "react";
@@ -58,10 +60,12 @@ function DockButton({ item, showTooltips }: DockButtonProps) {
 
   const [open, setOpen] = useState(false);
   const tooltipId = useId();
-  const { ref: tooltipRef, inlineOffset } = useTooltipPosition<HTMLSpanElement>({
-    open: enableTooltip && open,
-    contentKey: enableTooltip ? (tooltipContent as string) : undefined,
-  });
+  const { ref: tooltipRef, inlineOffset, update: updateTooltipInlineOffset } =
+    useTooltipPosition<HTMLSpanElement>({
+      open: enableTooltip && open,
+      gap: 12,
+      contentKey: enableTooltip ? (tooltipContent as string) : undefined,
+    });
 
   const show = useCallback(() => {
     if (enableTooltip) {
@@ -101,13 +105,39 @@ function DockButton({ item, showTooltips }: DockButtonProps) {
     [enableTooltip, hide]
   );
 
-  const handleFocus = useCallback<FocusEventHandler<HTMLAnchorElement>>(() => {
-    show();
-  }, [show]);
+  const handleFocus = useCallback<FocusEventHandler<HTMLAnchorElement>>(
+    (event) => {
+      if (event.currentTarget.matches(":focus-visible")) {
+        show();
+      }
+    },
+    [show]
+  );
 
   const handleBlur = useCallback<FocusEventHandler<HTMLAnchorElement>>(() => {
     hide();
   }, [hide]);
+
+  const handlePointerDown = useCallback<PointerEventHandler<HTMLAnchorElement>>(() => {
+    hide();
+  }, [hide]);
+
+  const handleKeyDown = useCallback<KeyboardEventHandler<HTMLAnchorElement>>(
+    (event) => {
+      if (event.key === "Escape") {
+        hide();
+      }
+    },
+    [hide]
+  );
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    updateTooltipInlineOffset();
+  }, [open, updateTooltipInlineOffset]);
 
   const { accent: accentColor, contrast: accentContrast } = useMemo(
     () => resolveAccentPair(item.accentColor, "var(--agui-primary)", "var(--agui-on-primary)"),
@@ -133,8 +163,10 @@ function DockButton({ item, showTooltips }: DockButtonProps) {
         )}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
+        onPointerDown={handlePointerDown}
         onFocus={handleFocus}
         onBlur={handleBlur}
+        onKeyDown={handleKeyDown}
       >
         <span className={cn(LAUNCHER_DOCK_ICON_CLASS, "drop-shadow-[0_1px_2px_rgba(15,17,23,0.22)]")}>{item.icon}</span>
       </Link>
@@ -145,10 +177,15 @@ function DockButton({ item, showTooltips }: DockButtonProps) {
           role="tooltip"
           aria-hidden={!open}
           ref={tooltipRef}
-          style={{ marginLeft: inlineOffset }}
+          data-placement="top"
+          style={{
+            marginLeft: inlineOffset,
+            "--agui-tip-gap": "14px",
+          } as CSSProperties}
           className={cn(
-            "pointer-events-none absolute -top-12 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-white/10 bg-[color-mix(in_srgb,_var(--agui-surface)_88%,_white_12%)]/95 px-3 py-1 text-xs font-medium text-[var(--agui-on-surface)] opacity-0 shadow-[0_18px_32px_-28px_rgba(15,23,42,0.6)] backdrop-blur-xl transition-opacity duration-150 motion-reduce:transition-none",
-            open ? "opacity-100" : "opacity-0"
+            "agui-tip pointer-events-none absolute left-1/2 -translate-x-1/2 select-none",
+            "transition-[opacity,transform] duration-150 motion-reduce:transition-none",
+            open ? "opacity-100 translate-y-0" : "opacity-0 translate-y-[4px]"
           )}
         >
           {tooltipContent as string}
@@ -179,7 +216,7 @@ export function Dock({
     <nav
       aria-label={ariaLabel}
       className={cn(
-        "fixed inset-x-0 z-50 flex justify-center",
+        "fixed inset-x-0 z-[40] flex justify-center",
         className
       )}
       style={{

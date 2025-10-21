@@ -11,7 +11,9 @@ import {
   type KeyboardEventHandler,
   type ReactElement,
   type ReactNode,
+  useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -21,7 +23,12 @@ import {
   LAUNCHER_DOCK_ICON_CLASS,
   LUCIDE_STROKE_WIDTH,
 } from "@/components/icons/lucide";
+import { useTooltipPosition } from "@/hooks/use-tooltip-position";
 import { cn } from "@/lib/utils";
+import {
+  resolveTooltipPlacement,
+  type TooltipPlacement,
+} from "@/lib/tooltip-placement";
 
 export type AppTileVariant = "auto" | "black" | "pearl" | "charcoal" | "white";
 
@@ -162,6 +169,39 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
     const showTimerRef = useRef<number | null>(null);
 
     const shouldRenderTooltip = Boolean(description) && !isCoarsePointer;
+    const iconContainerRef = useRef<HTMLDivElement | null>(null);
+    const { ref: tooltipRef, inlineOffset, update: updateTooltipInlineOffset } =
+      useTooltipPosition<HTMLDivElement>({
+        open: isTooltipVisible && shouldRenderTooltip,
+        gap: 12,
+        contentKey: shouldRenderTooltip ? description : undefined,
+      });
+    const [placement, setPlacement] = useState<TooltipPlacement>("top");
+
+    const updatePlacement = useCallback(() => {
+      if (!shouldRenderTooltip || typeof window === "undefined") {
+        return;
+      }
+
+      const trigger = iconContainerRef.current;
+      const tooltipNode = tooltipRef.current;
+
+      if (!trigger || !tooltipNode) {
+        return;
+      }
+
+      const nextPlacement = resolveTooltipPlacement(trigger, tooltipNode, {
+        gap: 12,
+        viewportPadding: 12,
+      });
+
+      setPlacement((current) => (current === nextPlacement ? current : nextPlacement));
+    }, [shouldRenderTooltip, tooltipRef]);
+
+    const handleTooltipMetrics = useCallback(() => {
+      updatePlacement();
+      updateTooltipInlineOffset();
+    }, [updatePlacement, updateTooltipInlineOffset]);
 
     const clearShowTimer = () => {
       if (showTimerRef.current !== null) {
@@ -232,12 +272,40 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
     }, []);
 
     const enhancedIcon = useMemo(() => enhanceIcon(icon), [icon]);
+    const tooltipInlineStyles = useMemo(() => {
+      const style: Record<string, string | number> = {
+        "--agui-tip-gap": "12px",
+        marginLeft: inlineOffset,
+      };
+
+      for (const [key, value] of Object.entries(tooltipStyle)) {
+        style[key] = value;
+      }
+
+      return style as CSSProperties;
+    }, [inlineOffset, tooltipStyle]);
     const tooltipId = description
       ? `${label.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase()}-tooltip`
       : undefined;
 
+    useLayoutEffect(() => {
+      if (!isTooltipVisible || !shouldRenderTooltip) {
+        return;
+      }
+
+      handleTooltipMetrics();
+
+      window.addEventListener("resize", handleTooltipMetrics);
+      window.addEventListener("scroll", handleTooltipMetrics, true);
+
+      return () => {
+        window.removeEventListener("resize", handleTooltipMetrics);
+        window.removeEventListener("scroll", handleTooltipMetrics, true);
+      };
+    }, [description, handleTooltipMetrics, isTooltipVisible, shouldRenderTooltip]);
+
     return (
-      <div className="relative inline-block">
+      <div className="relative inline-block z-[30]">
         <Link
           href={href}
           ref={ref}
@@ -267,7 +335,9 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
             hideTooltip();
           }}
           onFocus={(event) => {
-            showTooltip();
+            if (event.currentTarget.matches(":focus-visible")) {
+              showTooltip();
+            }
             onFocus?.(event);
           }}
           onBlur={(event) => {
@@ -278,24 +348,50 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
             hideTooltip();
           }}
           onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              hideTooltip();
+            }
             onKeyDown?.(event);
           }}
           aria-describedby={isTooltipVisible && shouldRenderTooltip ? tooltipId : undefined}
         >
-          <span
-            className={cn(
-              "grid h-[60px] w-[60px] place-items-center rounded-2xl border text-[color:inherit] shadow-[inset_0_1px_0_rgba(255,255,255,.65),0_6px_20px_rgba(0,0,0,.12)]",
-              "transition-transform duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0",
-              "active:scale-95 motion-reduce:active:scale-100",
-              "group-focus-visible:ring-2 group-focus-visible:ring-[color:var(--tile-ring)] group-focus-visible:ring-offset-4 group-focus-visible:ring-offset-[color:var(--tile-ring-offset)]",
-              styles.icon,
-            )}
-            aria-hidden
-          >
-            <span className={cn("[&>*]:h-7 [&>*]:w-7 [&>*]:stroke-[1.5]", LAUNCHER_DOCK_ICON_CLASS)}>
-              {enhancedIcon}
+          <div ref={iconContainerRef} className="relative flex justify-center">
+            <span
+              className={cn(
+                "grid h-[60px] w-[60px] place-items-center rounded-2xl border text-[color:inherit] shadow-[inset_0_1px_0_rgba(255,255,255,.65),0_6px_20px_rgba(0,0,0,.12)]",
+                "transition-transform duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0",
+                "active:scale-95 motion-reduce:active:scale-100",
+                "group-focus-visible:ring-2 group-focus-visible:ring-[color:var(--tile-ring)] group-focus-visible:ring-offset-4 group-focus-visible:ring-offset-[color:var(--tile-ring-offset)]",
+                styles.icon,
+              )}
+              aria-hidden
+            >
+              <span className={cn("[&>*]:h-7 [&>*]:w-7 [&>*]:stroke-[1.5]", LAUNCHER_DOCK_ICON_CLASS)}>
+                {enhancedIcon}
+              </span>
             </span>
-          </span>
+            {shouldRenderTooltip ? (
+              <div
+                id={tooltipId}
+                role="tooltip"
+                ref={tooltipRef}
+                aria-hidden={!isTooltipVisible}
+                data-placement={placement}
+                className={cn(
+                  "agui-tip left-1/2 -translate-x-1/2 select-none",
+                  "absolute transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:duration-0",
+                  isTooltipVisible
+                    ? "opacity-100 translate-y-0"
+                    : placement === "top"
+                      ? "opacity-0 translate-y-[4px]"
+                      : "opacity-0 -translate-y-[4px]",
+                )}
+                style={tooltipInlineStyles}
+              >
+                {description}
+              </div>
+            ) : null}
+          </div>
           <span
             className={cn(
               "max-w-[8.5rem] text-[13px] tracking-wide",
@@ -307,20 +403,6 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
             {label}
           </span>
         </Link>
-        {shouldRenderTooltip ? (
-          <div
-            id={tooltipId}
-            role="tooltip"
-            className={cn(
-              "agui-tip translate-y-[-8px] transition-transform duration-150 motion-reduce:translate-y-0 motion-reduce:transition-none motion-reduce:duration-0",
-              isTooltipVisible ? "opacity-100" : "translate-y-[-4px] opacity-0",
-            )}
-            style={Object.keys(tooltipStyle).length ? (tooltipStyle as CSSProperties) : undefined}
-            aria-hidden={!isTooltipVisible}
-          >
-            {description}
-          </div>
-        ) : null}
       </div>
     );
   }
