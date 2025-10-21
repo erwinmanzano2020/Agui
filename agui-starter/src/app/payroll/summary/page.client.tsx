@@ -2,6 +2,8 @@
 
 import React from "react";
 
+import EmptyState from "@/components/ui/empty-state";
+
 type PrimaryBasis = "hourly" | "daily" | "semi_monthly" | "monthly";
 
 type Row = {
@@ -233,14 +235,19 @@ export default function PayrollSummaryPageClient() {
       {/* Rows */}
       {data && (
         <div className="border rounded p-3">
-          <h2 className="font-medium mb-2">Rows</h2>
+          <h2 className="font-medium">Rows</h2>
           {data.rows.length === 0 ? (
-            <div className="text-sm text-muted-foreground">No rows.</div>
+            <EmptyState
+              className="mt-3 border-dashed border-border bg-card/60"
+              icon="📋"
+              title="No payroll rows"
+              description="Run a summary to populate this table."
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
                 <thead>
-                  <tr className="text-left border-b">
+                  <tr className="border-b text-left">
                     <th className="p-2 font-medium">Date</th>
                     <th className="p-2 font-medium">Employee</th>
                     <th className="p-2 font-medium">Basis</th>

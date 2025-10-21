@@ -27,7 +27,7 @@ type Props<T> = {
   onPageChange?: (page: number) => void;
   onPageSizeChange?: (size: number) => void;
   getRowId?: (row: T, index: number) => string;
-  emptyMessage?: string;
+  emptyMessage?: ReactNode;
 };
 
 /* ========= Helpers ========= */
@@ -180,10 +180,7 @@ export function DataTable<T extends Record<string, unknown>>(props: Props<T>) {
           ) : rows.length === 0 ? (
             <tbody>
               <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-3 py-10 text-center text-muted-foreground"
-                >
+                <td colSpan={columns.length} className="px-3 py-10 text-center">
                   {emptyMessage}
                 </td>
               </tr>

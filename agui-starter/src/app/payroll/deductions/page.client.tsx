@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+import EmptyState from "@/components/ui/empty-state";
 import { getSupabase } from "@/lib/supabase";
 
 type Emp = { id: string; full_name: string; code: string };
@@ -326,8 +328,13 @@ export default function PayrollDeductionsPageClient() {
             ))}
             {rows.length === 0 && !loading && (
               <tr>
-                <td className="p-2" colSpan={5}>
-                  No deductions in this month.
+                <td className="p-4" colSpan={5}>
+                  <EmptyState
+                    className="border-dashed border-border bg-card/60"
+                    icon="💸"
+                    title="No deductions found"
+                    description="Adjust the filters or add a deduction to see it listed here."
+                  />
                 </td>
               </tr>
             )}
