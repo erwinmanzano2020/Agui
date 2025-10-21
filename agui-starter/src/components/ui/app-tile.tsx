@@ -62,12 +62,14 @@ const AUTO_TILE_VARS: Record<string, string> = {
   "--tile-icon-color": "var(--launcher-icon-color, #1b1c1f)",
 };
 
+const DEFAULT_RING_COLOR = "var(--launcher-tile-ring, hsl(var(--agui-accent-hsl) / 0.6))";
+
 const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
   auto: {
     icon:
       "border-[color:var(--tile-icon-border)] bg-[color:var(--tile-icon-background)] text-[color:var(--tile-icon-color)]",
     label: "text-[color:var(--tile-foreground)]",
-    ring: "var(--launcher-tile-ring, var(--agui-ring, rgba(59,130,246,0.32)))",
+    ring: DEFAULT_RING_COLOR,
     ringOffset: "var(--launcher-tile-ring-offset, #eef1f6)",
     tooltipBg: "var(--launcher-tooltip-background, rgba(15,23,42,0.78))",
     tooltipColor: "var(--launcher-tooltip-color, #f6f8fb)",
@@ -77,7 +79,7 @@ const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
     icon:
       "border-white/10 bg-neutral-950 text-white shadow-[0_6px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]",
     label: "text-white",
-    ring: "rgba(255,255,255,0.55)",
+    ring: DEFAULT_RING_COLOR,
     ringOffset: "rgba(11,11,15,0.9)",
     tooltipBg: "rgba(17,17,20,0.92)",
     tooltipColor: "#f9fafb",
@@ -86,7 +88,7 @@ const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
     icon:
       "border-[#d7dbe3] bg-[#f6f8fb] text-[#1b1c1f] shadow-[0_6px_20px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.65)]",
     label: "text-[#1b1c1f]/90",
-    ring: "rgba(27,28,31,0.45)",
+    ring: DEFAULT_RING_COLOR,
     ringOffset: "#f6f8fb",
     tooltipBg: "rgba(31,41,55,0.92)",
     tooltipColor: "#f6f8fb",
@@ -95,7 +97,7 @@ const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
     icon:
       "border-white/12 bg-[#1f1f23] text-white shadow-[0_6px_20px_rgba(0,0,0,0.4),inset_0_1px_0_rgba(255,255,255,0.08)]",
     label: "text-white",
-    ring: "rgba(255,255,255,0.45)",
+    ring: DEFAULT_RING_COLOR,
     ringOffset: "#1f1f23",
     tooltipBg: "rgba(23,25,32,0.96)",
     tooltipColor: "#f5f5f8",
@@ -104,7 +106,7 @@ const VARIANT_STYLES: Record<AppTileVariant, VariantStyles> = {
     icon:
       "border-neutral-200 bg-white text-neutral-900 shadow-[0_6px_20px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.65)]",
     label: "text-neutral-900",
-    ring: "rgba(28,28,28,0.45)",
+    ring: DEFAULT_RING_COLOR,
     ringOffset: "#ffffff",
     tooltipBg: "rgba(17,24,39,0.92)",
     tooltipColor: "#f8fafc",
@@ -311,7 +313,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
           ref={ref}
           tabIndex={tabIndex}
           className={cn(
-            "group inline-flex flex-col items-center gap-2 text-center outline-none",
+            "app-tile__link group inline-flex flex-col items-center gap-2 text-center outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:border-none",
             className,
           )}
           style={
@@ -355,13 +357,20 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
           }}
           aria-describedby={isTooltipVisible && shouldRenderTooltip ? tooltipId : undefined}
         >
-          <div ref={iconContainerRef} className="relative flex justify-center">
+          <div
+            ref={iconContainerRef}
+            className={cn(
+              "relative flex justify-center rounded-2xl ring-offset-2",
+              "ring-offset-[color:var(--tile-ring-offset)]",
+              "group-focus-visible:ring-2 group-focus-visible:ring-[color:var(--tile-ring)]",
+              "group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-[color:var(--tile-ring-offset)]",
+            )}
+          >
             <span
               className={cn(
-                "grid h-[60px] w-[60px] place-items-center rounded-2xl border text-[color:inherit] shadow-[inset_0_1px_0_rgba(255,255,255,.65),0_6px_20px_rgba(0,0,0,.12)]",
+                "app-tile__icon grid h-[60px] w-[60px] place-items-center rounded-2xl border text-[color:inherit] shadow-[inset_0_1px_0_rgba(255,255,255,.65),0_6px_20px_rgba(0,0,0,.12)]",
                 "transition-transform duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0",
                 "active:scale-95 motion-reduce:active:scale-100",
-                "group-focus-visible:ring-2 group-focus-visible:ring-[color:var(--tile-ring)] group-focus-visible:ring-offset-4 group-focus-visible:ring-offset-[color:var(--tile-ring-offset)]",
                 styles.icon,
               )}
               aria-hidden
@@ -394,9 +403,10 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
           </div>
           <span
             className={cn(
-              "max-w-[8.5rem] text-[13px] tracking-wide",
+              "app-tile__label max-w-[8.5rem] text-[13px] tracking-wide",
               "text-balance text-center font-medium leading-[1.35]",
               "[display:-webkit-box] min-h-[2.75rem] [overflow:hidden] [WebkitBoxOrient:vertical] [WebkitLineClamp:2]",
+              "focus-visible:outline-none group-focus-visible:outline-none",
               styles.label,
             )}
           >
