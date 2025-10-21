@@ -149,6 +149,20 @@
   transform: translateX(-50%) rotate(180deg);
 }
 
+@media (prefers-reduced-motion: reduce) {
+  .app-tile__icon {
+    transition: none !important;
+  }
+
+  .app-tile__icon:active {
+    transform: none !important;
+  }
+
+  .agui-tip {
+    transition: none !important;
+  }
+}
+
 @media (pointer: coarse) {
   .agui-tip {
     display: none !important;
