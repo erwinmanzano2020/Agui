@@ -63,11 +63,25 @@ function applyTokens(params: {
 
 export default function TenantThemeMount() {
   useEffect(() => {
+    const root = document.documentElement;
     const preset = THEME_PRESETS.find((entry) => entry.name === DEFAULT_PRESET);
-    if (preset?.wallpaper) {
-      applyWallpaper(preset.wallpaper);
+
+    if (preset) {
+      applyTokens({
+        presetName: preset.name,
+        iconContainerHex: preset.iconContainerHex ?? "#eef1f6",
+        labelHex: preset.labelHex ?? "#1b1c1f",
+        accentHex: preset.accentHex,
+        wallpaper: preset.wallpaper,
+      });
+
+      root.style.setProperty("--surface", "#f6f8fb");
+      root.style.setProperty("--agui-surface", "#f6f8fb");
+      root.style.setProperty("--text", preset.labelHex ?? "#1b1c1f");
+      root.style.setProperty("--agui-on-surface", preset.labelHex ?? "#1b1c1f");
+    } else {
+      root.dataset.themePreset = DEFAULT_PRESET;
     }
-    document.documentElement.dataset.themePreset = DEFAULT_PRESET;
   }, []);
 
   useEffect(() => {

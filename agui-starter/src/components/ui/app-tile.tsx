@@ -7,8 +7,7 @@ import {
   forwardRef,
   isValidElement,
   memo,
-  type FocusEventHandler,
-  type KeyboardEventHandler,
+  type ComponentPropsWithoutRef,
   type ReactElement,
   type ReactNode,
   useCallback,
@@ -32,17 +31,14 @@ import {
 
 export type AppTileVariant = "auto" | "black" | "pearl" | "charcoal" | "white";
 
-export interface AppTileProps {
+type LinkComponentProps = Omit<ComponentPropsWithoutRef<typeof Link>, "href" | "children">;
+
+export interface AppTileProps extends LinkComponentProps {
   icon: ReactNode;
   label: string;
   href: string;
   description?: string;
   variant?: AppTileVariant;
-  className?: string;
-  tabIndex?: number;
-  onFocus?: FocusEventHandler<HTMLAnchorElement>;
-  onBlur?: FocusEventHandler<HTMLAnchorElement>;
-  onKeyDown?: KeyboardEventHandler<HTMLAnchorElement>;
 }
 
 type VariantStyles = {
@@ -143,6 +139,8 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
       onFocus,
       onBlur,
       onKeyDown,
+      style: inlineStyle,
+      ...linkProps
     },
     ref
   ) => {
@@ -171,7 +169,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
     const showTimerRef = useRef<number | null>(null);
 
     const shouldRenderTooltip = Boolean(description) && !isCoarsePointer;
-    const iconContainerRef = useRef<HTMLDivElement | null>(null);
+    const iconContainerRef = useRef<HTMLSpanElement | null>(null);
     const { ref: tooltipRef, inlineOffset, update: updateTooltipInlineOffset } =
       useTooltipPosition<HTMLDivElement>({
         open: isTooltipVisible && shouldRenderTooltip,
@@ -307,134 +305,121 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
     }, [description, handleTooltipMetrics, isTooltipVisible, shouldRenderTooltip]);
 
     return (
-      <div className="relative inline-block z-[30]">
-        <Link
-          href={href}
-          ref={ref}
-          tabIndex={tabIndex}
-          className={cn(
-            "app-tile__link group inline-flex flex-col items-center gap-2 text-center outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:border-none",
-            className,
-          )}
-          style={
-            {
-              "--tile-ring": styles.ring,
-              "--tile-ring-offset": styles.ringOffset,
-              ...(styles.cssVars ?? {}),
-            } as CSSProperties
+      <Link
+        href={href}
+        ref={ref}
+        tabIndex={tabIndex}
+        className={cn(
+          "app-tile__link group inline-flex max-w-[7.25rem] flex-col items-center gap-2 text-center outline-none",
+          "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-none",
+          className,
+        )}
+        style={
+          {
+            "--tile-ring": styles.ring,
+            "--tile-ring-offset": styles.ringOffset,
+            ...(styles.cssVars ?? {}),
+            ...(inlineStyle ?? {}),
+          } as CSSProperties
+        }
+        onPointerEnter={(event) => {
+          if (event.pointerType === "touch") {
+            return;
           }
-          onPointerEnter={(event) => {
-            if (event.pointerType === "touch") {
-              return;
-            }
+          showTooltip();
+        }}
+        onPointerLeave={(event) => {
+          if (event.pointerType === "touch") return;
+          if (event.currentTarget === document.activeElement) {
+            return;
+          }
+          hideTooltip();
+        }}
+        onFocus={(event) => {
+          if (event.currentTarget.matches(":focus-visible")) {
             showTooltip();
-          }}
-          onPointerLeave={(event) => {
-            if (event.pointerType === "touch") return;
-            if (event.currentTarget === document.activeElement) {
-              return;
-            }
+          }
+          onFocus?.(event);
+        }}
+        onBlur={(event) => {
+          hideTooltip();
+          onBlur?.(event);
+        }}
+        onPointerDown={() => {
+          hideTooltip();
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Escape") {
             hideTooltip();
-          }}
-          onFocus={(event) => {
-            if (event.currentTarget.matches(":focus-visible")) {
-              showTooltip();
-            }
-            onFocus?.(event);
-          }}
-          onBlur={(event) => {
-            hideTooltip();
-            onBlur?.(event);
-          }}
-          onPointerDown={() => {
-            hideTooltip();
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Escape") {
-              hideTooltip();
-            }
-            onKeyDown?.(event);
-          }}
-          aria-describedby={isTooltipVisible && shouldRenderTooltip ? tooltipId : undefined}
+          }
+          onKeyDown?.(event);
+        }}
+        aria-describedby={isTooltipVisible && shouldRenderTooltip ? tooltipId : undefined}
+        {...linkProps}
+      >
+        <span
+          ref={iconContainerRef}
+          className={cn(
+            "relative flex h-[60px] w-[60px] items-center justify-center rounded-2xl ring-offset-2",
+            "ring-offset-[color:var(--tile-ring-offset)]",
+            "group-focus-visible:ring-2 group-focus-visible:ring-[color:var(--tile-ring)]",
+            "group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-[color:var(--tile-ring-offset)]",
+          )}
         >
-          <div
-            ref={iconContainerRef}
-            className={cn(
-              "relative flex justify-center rounded-2xl ring-offset-2",
-              "ring-offset-[color:var(--tile-ring-offset)]",
-              "group-focus-visible:ring-2 group-focus-visible:ring-[color:var(--tile-ring)]",
-              "group-focus-visible:ring-offset-2 group-focus-visible:ring-offset-[color:var(--tile-ring-offset)]",
-            )}
-          >
-            <span
-              className={cn(
-                "app-tile__icon grid h-[60px] w-[60px] place-items-center rounded-2xl border text-[color:inherit] shadow-[inset_0_1px_0_rgba(255,255,255,.65),0_6px_20px_rgba(0,0,0,.12)]",
-                "transition-transform duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0",
-                "active:scale-95 motion-reduce:active:scale-100",
-                styles.icon,
-              )}
-              aria-hidden
-            >
-              <span className={cn("[&>*]:h-7 [&>*]:w-7 [&>*]:stroke-[1.5]", LAUNCHER_DOCK_ICON_CLASS)}>
-                {enhancedIcon}
-              </span>
-            </span>
-            {shouldRenderTooltip ? (
-              <div
-                id={tooltipId}
-                role="tooltip"
-                ref={tooltipRef}
-                aria-hidden={!isTooltipVisible}
-                data-placement={placement}
-                className={cn(
-                  "agui-tip left-1/2 -translate-x-1/2 select-none",
-                  "absolute transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:duration-0",
-                  isTooltipVisible
-                    ? "opacity-100 translate-y-0"
-                    : placement === "top"
-                      ? "opacity-0 translate-y-[4px]"
-                      : "opacity-0 -translate-y-[4px]",
-                )}
-                style={tooltipInlineStyles}
-              >
-                {description}
-              </div>
-            ) : null}
-          </div>
           <span
             className={cn(
-              "app-tile__label max-w-[8.5rem] text-[13px] tracking-wide",
-              "text-balance text-center font-medium leading-[1.35]",
-              "[display:-webkit-box] min-h-[2.75rem] [overflow:hidden] [WebkitBoxOrient:vertical] [WebkitLineClamp:2]",
-              "focus-visible:outline-none group-focus-visible:outline-none",
-              styles.label,
+              "app-tile__icon grid h-full w-full place-items-center rounded-2xl border text-[color:inherit]",
+              "shadow-[inset_0_1px_0_rgba(255,255,255,.65),0_6px_18px_rgba(15,23,42,.12)]",
+              "transition-transform duration-200 ease-out motion-reduce:transition-none motion-reduce:duration-0",
+              "active:scale-95 motion-reduce:active:scale-100",
+              styles.icon,
             )}
+            aria-hidden
           >
-            {label}
+            <span className={cn("[&>*]:h-7 [&>*]:w-7 [&>*]:stroke-[1.5]", LAUNCHER_DOCK_ICON_CLASS)}>
+              {enhancedIcon}
+            </span>
           </span>
-        </Link>
-      </div>
+          {shouldRenderTooltip ? (
+            <div
+              id={tooltipId}
+              role="tooltip"
+              ref={tooltipRef}
+              aria-hidden={!isTooltipVisible}
+              data-placement={placement}
+              className={cn(
+                "agui-tip left-1/2 -translate-x-1/2 select-none",
+                "absolute transition-[opacity,transform] duration-150 motion-reduce:transition-none motion-reduce:duration-0",
+                isTooltipVisible
+                  ? "opacity-100 translate-y-0"
+                  : placement === "top"
+                    ? "opacity-0 translate-y-[4px]"
+                    : "opacity-0 -translate-y-[4px]",
+              )}
+              style={tooltipInlineStyles}
+            >
+              {description}
+            </div>
+          ) : null}
+        </span>
+        <span
+          className={cn(
+            "app-tile__label text-[13px] text-[color:var(--tile-foreground)]",
+            "text-balance text-center font-normal leading-[1.35]",
+            "[display:-webkit-box] min-h-[2.75rem] [overflow:hidden] [WebkitBoxOrient:vertical] [WebkitLineClamp:2]",
+            "focus-visible:outline-none group-focus-visible:outline-none",
+            styles.label,
+          )}
+        >
+          {label}
+        </span>
+      </Link>
     );
   }
 );
 
 AppTileBase.displayName = "AppTile";
 
-export const AppTile = memo(
-  AppTileBase,
-  (prev, next) => {
-    return (
-      prev.href === next.href &&
-      prev.label === next.label &&
-      prev.description === next.description &&
-      prev.variant === next.variant &&
-      prev.className === next.className &&
-      prev.tabIndex === next.tabIndex &&
-      prev.onFocus === next.onFocus &&
-      prev.onBlur === next.onBlur &&
-      prev.onKeyDown === next.onKeyDown
-    );
-  }
-);
+export const AppTile = memo(AppTileBase);
 
 AppTile.displayName = "AppTile";

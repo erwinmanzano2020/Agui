@@ -6,6 +6,9 @@ type ThemeVars = Record<string, string>;
 type RGB = { r: number; g: number; b: number };
 
 const DEFAULT_SURFACE = "#f6f8fb";
+const DEFAULT_SURFACE_FOREGROUND = "#1b1c1f";
+const DEFAULT_TILE_BACKGROUND = "#eef1f6";
+const DEFAULT_TILE_LABEL = "#1b1c1f";
 const DEFAULT_ACCENT_LIGHTEN = 0.24;
 const DEFAULT_RADIUS = 12;
 
@@ -17,8 +20,8 @@ export function themeToCssVars(theme: ThemeConfig): ThemeVars {
 
   const surfaceIsDark = isDark(surface);
   const primaryOn = getReadableText(primary);
-  const surfaceOn = getReadableText(surface);
   const accentOn = getReadableText(accent);
+  const surfaceOn = DEFAULT_SURFACE_FOREGROUND;
 
   const cardBg = mixColors(surface, surfaceIsDark ? "#ffffff" : "#000000", surfaceIsDark ? 0.14 : 0.06);
   const cardBorder = mixColors(surface, surfaceIsDark ? "#ffffff" : "#000000", surfaceIsDark ? 0.3 : 0.16);
@@ -48,6 +51,8 @@ export function themeToCssVars(theme: ThemeConfig): ThemeVars {
     "--text": surfaceOn,
     "--muted": mutedForeground,
     "--border": subtleBorder,
+    "--tile-bg": DEFAULT_TILE_BACKGROUND,
+    "--tile-label": DEFAULT_TILE_LABEL,
   } satisfies ThemeVars;
 }
 
