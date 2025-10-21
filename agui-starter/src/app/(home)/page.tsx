@@ -120,8 +120,8 @@ export default function HomePage() {
   const safeAreaBottom = "env(safe-area-inset-bottom, 0px)";
   const safeAreaInlineStart = "env(safe-area-inset-left, 0px)";
   const safeAreaInlineEnd = "env(safe-area-inset-right, 0px)";
-  const dockHeight = "5rem";
-  const dockHintGap = "1.5rem";
+  const dockHeight = "5.25rem";
+  const dockHintGap = "16px";
   const hintBottomOffset = `calc(${safeAreaBottom} + ${dockHeight} + ${dockHintGap})`;
 
   const tileHandlers: TileHandlers[] = useMemo(() => {
@@ -251,7 +251,7 @@ export default function HomePage() {
 
         {!isKeyboardVisible ? (
           <div
-            className="fixed left-1/2 -translate-x-1/2 bottom-[112px] rounded-full border border-black/10 bg-white/40 px-3 py-1.5 text-xs text-[#1B1C1F]/60 backdrop-blur"
+            className="fixed left-1/2 -translate-x-1/2 bottom-[112px] rounded-full border border-black/10 bg-white/40 px-3 py-1.5 text-xs text-[#1B1C1F]/60 backdrop-blur z-[39]"
             style={{
               bottom: hintBottomOffset,
               paddingLeft: `calc(${safeAreaInlineStart} + 0.75rem)`,
