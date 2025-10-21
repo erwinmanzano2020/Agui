@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { DataTable, type Column } from "@/components/ui/data-table";
+import EmptyState from "@/components/ui/empty-state";
 
 type Row = {
   id: string;
@@ -98,7 +100,13 @@ export default function PayrollPageClient() {
           setPage(1);
         }}
         getRowId={(r) => r.id}
-        emptyMessage="No payroll runs yet."
+        emptyMessage={
+          <EmptyState
+            icon="📄"
+            title="No payroll runs yet"
+            description="Create a payroll run to review totals and payouts here."
+          />
+        }
       />
     </PageHeader>
   );

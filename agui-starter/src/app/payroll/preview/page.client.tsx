@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+
+import EmptyState from "@/components/ui/empty-state";
 import { getSupabase } from "@/lib/supabase";
 import { resolveEffectiveShift } from "@/lib/shifts";
 
@@ -395,8 +397,13 @@ export default function PayrollPreviewPageClient() {
             ))}
             {rows.length === 0 && !loading && (
               <tr>
-                <td className="p-2" colSpan={11}>
-                  No data.
+                <td className="p-4" colSpan={11}>
+                  <EmptyState
+                    className="border-dashed border-border bg-card/60"
+                    icon="🧾"
+                    title="No preview rows"
+                    description="Run the preview to see time and pay breakdowns."
+                  />
                 </td>
               </tr>
             )}

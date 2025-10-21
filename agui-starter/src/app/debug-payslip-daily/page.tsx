@@ -1,6 +1,8 @@
 "use client";
 import React from "react";
 
+import EmptyState from "@/components/ui/empty-state";
+
 type Row = {
   date: string;
   rate: number;
@@ -197,8 +199,13 @@ export default function DebugPayslipDaily() {
                 ))}
                 {res.breakdown.length === 0 && (
                   <tr>
-                    <td className="p-3 text-muted-foreground" colSpan={4}>
-                      No DTR rows in range.
+                    <td className="p-4" colSpan={4}>
+                      <EmptyState
+                        className="border-dashed border-border bg-card/60"
+                        icon="🕒"
+                        title="No DTR rows"
+                        description="Adjust the filters to fetch attendance rows in range."
+                      />
                     </td>
                   </tr>
                 )}

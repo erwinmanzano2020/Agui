@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import EmptyState from "@/components/ui/empty-state";
+import { Badge } from "@/components/ui/badge";
 import { ThemedLink } from "@/components/ui/themed-link";
 import { getSupabase } from "@/lib/supabase";
 
@@ -14,11 +18,22 @@ type EmployeeRow = {
   rate_per_day: number | null;
 };
 
+const OFF_STATUSES = new Set(["archived", "inactive", "terminated", "offboarded"]);
+
 export default function EmployeesPageClient() {
   const [rows, setRows] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const router = useRouter();
+
+  const renderStatus = (status: string | null) => {
+    const raw = status ?? "active";
+    const normalized = raw.toLowerCase();
+    const tone = OFF_STATUSES.has(normalized) ? "off" : "on";
+    const label = raw.replace(/_/g, " ");
+    return <Badge tone={tone}>{label}</Badge>;
+  };
 
   const load = async () => {
     setErr(null);
@@ -82,9 +97,12 @@ export default function EmployeesPageClient() {
         {loading ? (
           <div className="text-sm text-[var(--agui-muted-foreground)]">Loading…</div>
         ) : rows.length === 0 ? (
-          <div className="text-sm text-[var(--agui-muted-foreground)]">
-            No employees found.
-          </div>
+          <EmptyState
+            title="No employees yet"
+            description="Add your first employee to get started."
+            actionLabel="Add employee"
+            onAction={() => router.push("/employees/new")}
+          />
         ) : (
           <table className="w-full border-collapse text-sm">
             <thead>
@@ -115,7 +133,7 @@ export default function EmployeesPageClient() {
                       ? `₱${Number(r.rate_per_day).toFixed(2)}`
                       : "—"}
                   </td>
-                  <td className="p-2 capitalize">{r.status ?? "active"}</td>
+                  <td className="p-2">{renderStatus(r.status)}</td>
                   <td className="p-2">
                     <div className="flex items-center gap-2">
                       <ThemedLink
