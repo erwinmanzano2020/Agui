@@ -6,6 +6,7 @@ import {
   useEffect,
   useId,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type FocusEventHandler,
@@ -202,7 +203,55 @@ export function Dock({
   contentClassName,
   showTooltips = true,
 }: DockProps) {
+  const containerRef = useRef<HTMLUListElement | null>(null);
   const visibleItems = items.slice(0, 6);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return;
+    }
+
+    const root = document.documentElement;
+    if (visibleItems.length === 0) {
+      root.style.removeProperty("--launcher-dock-height");
+      return;
+    }
+    const element = containerRef.current;
+
+    if (!element) {
+      root.style.removeProperty("--launcher-dock-height");
+      return;
+    }
+
+    const update = () => {
+      const height = element.getBoundingClientRect().height;
+      if (height > 0) {
+        root.style.setProperty("--launcher-dock-height", `${height}px`);
+      }
+    };
+
+    update();
+
+    if (typeof ResizeObserver === "function") {
+      const observer = new ResizeObserver(() => {
+        update();
+      });
+
+      observer.observe(element);
+
+      return () => {
+        observer.disconnect();
+        root.style.removeProperty("--launcher-dock-height");
+      };
+    }
+
+    window.addEventListener("resize", update);
+
+    return () => {
+      window.removeEventListener("resize", update);
+      root.style.removeProperty("--launcher-dock-height");
+    };
+  }, [visibleItems.length]);
 
   if (visibleItems.length === 0) {
     return null;
@@ -227,6 +276,7 @@ export function Dock({
       }}
     >
       <ul
+        ref={containerRef}
         className={cn(
           "flex min-h-[5.25rem] w-full max-w-[540px] flex-nowrap items-center justify-center gap-3 rounded-[32px] border border-white/40 bg-[rgba(238,241,246,0.8)] px-5 py-4 shadow-[0_32px_70px_-45px_rgba(15,23,42,0.7)] backdrop-blur-2xl",
           "ring-1 ring-inset ring-[rgba(15,17,23,0.1)]",

@@ -62,6 +62,14 @@
   --tile-bg: #eef1f6;
   --tile-label: #1b1c1f;
   --wallpaper-url: none;
+  --launcher-tile-foreground: #1b1c1f;
+  --launcher-icon-background: #eef1f6;
+  --launcher-icon-border: rgba(27, 28, 31, 0.12);
+  --launcher-icon-color: #1b1c1f;
+  --launcher-tooltip-background: rgba(31, 41, 55, 0.92);
+  --launcher-tooltip-color: #f6f8fb;
+  --launcher-tile-ring: hsl(var(--agui-accent-hsl) / 0.6);
+  --launcher-tile-ring-offset: #eef1f6;
 
   --surface: hsl(var(--bg-hsl));
   --card: hsl(var(--card-hsl));

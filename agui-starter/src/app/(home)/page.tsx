@@ -120,7 +120,7 @@ export default function HomePage() {
   const safeAreaBottom = "env(safe-area-inset-bottom, 0px)";
   const safeAreaInlineStart = "env(safe-area-inset-left, 0px)";
   const safeAreaInlineEnd = "env(safe-area-inset-right, 0px)";
-  const dockHeight = "5.25rem";
+  const dockHeight = "var(--launcher-dock-height, 5.25rem)";
   const dockHintGap = "16px";
   const hintBottomOffset = `calc(${safeAreaBottom} + ${dockHeight} + ${dockHintGap})`;
 
@@ -221,27 +221,22 @@ export default function HomePage() {
                   className="grid grid-cols-3 justify-items-center gap-x-5 gap-y-8 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
                 >
                   {GRID_APPS.map((app, index) => (
-                    <div
+                    <AppTile
                       key={app.id}
+                      href={app.href}
+                      label={app.label}
+                      description={app.description}
+                      icon={app.icon}
                       role="gridcell"
                       aria-rowindex={Math.floor(index / columnCount) + 1}
                       aria-colindex={(index % columnCount) + 1}
-                      className="flex justify-center items-start"
-                    >
-                      <AppTile
-                        href={app.href}
-                        label={app.label}
-                        description={app.description}
-                        icon={app.icon}
-                        tabIndex={focusIndex === index ? 0 : -1}
-                        onFocus={tileHandlers[index]?.onFocus}
-                        onKeyDown={tileHandlers[index]?.onKeyDown}
-                        className="w-full max-w-[9.5rem]"
-                        ref={(element) => {
-                          tileRefs.current[index] = element;
-                        }}
-                      />
-                    </div>
+                      tabIndex={focusIndex === index ? 0 : -1}
+                      onFocus={tileHandlers[index]?.onFocus}
+                      onKeyDown={tileHandlers[index]?.onKeyDown}
+                      ref={(element) => {
+                        tileRefs.current[index] = element;
+                      }}
+                    />
                   ))}
                 </div>
               </section>
@@ -251,7 +246,7 @@ export default function HomePage() {
 
         {!isKeyboardVisible ? (
           <div
-            className="fixed left-1/2 -translate-x-1/2 bottom-[112px] rounded-full border border-black/10 bg-white/40 px-3 py-1.5 text-xs text-[#1B1C1F]/60 backdrop-blur z-[39]"
+            className="fixed left-1/2 z-[39] -translate-x-1/2 rounded-full border border-[rgba(27,28,31,0.1)] bg-[color:color-mix(in_srgb,var(--surface)_82%,rgba(27,28,31,0.08)_18%)] px-3 py-1.5 text-xs text-[color:color-mix(in_srgb,var(--text)_62%,transparent)] shadow-[0_18px_48px_-34px_rgba(15,23,42,0.6)] backdrop-blur"
             style={{
               bottom: hintBottomOffset,
               paddingLeft: `calc(${safeAreaInlineStart} + 0.75rem)`,
