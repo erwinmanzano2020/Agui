@@ -221,22 +221,27 @@ export default function HomePage() {
                   className="grid grid-cols-3 justify-items-center gap-x-5 gap-y-8 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
                 >
                   {GRID_APPS.map((app, index) => (
-                    <AppTile
+                    <div
                       key={app.id}
-                      href={app.href}
-                      label={app.label}
-                      description={app.description}
-                      icon={app.icon}
                       role="gridcell"
                       aria-rowindex={Math.floor(index / columnCount) + 1}
                       aria-colindex={(index % columnCount) + 1}
-                      tabIndex={focusIndex === index ? 0 : -1}
-                      onFocus={tileHandlers[index]?.onFocus}
-                      onKeyDown={tileHandlers[index]?.onKeyDown}
-                      ref={(element) => {
-                        tileRefs.current[index] = element;
-                      }}
-                    />
+                      className="flex items-start justify-center"
+                    >
+                      <AppTile
+                        href={app.href}
+                        label={app.label}
+                        description={app.description}
+                        icon={app.icon}
+                        tabIndex={focusIndex === index ? 0 : -1}
+                        onFocus={tileHandlers[index]?.onFocus}
+                        onKeyDown={tileHandlers[index]?.onKeyDown}
+                        className="w-full max-w-[9.5rem]"
+                        ref={(element) => {
+                          tileRefs.current[index] = element;
+                        }}
+                      />
+                    </div>
                   ))}
                 </div>
               </section>
