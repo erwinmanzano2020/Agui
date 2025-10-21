@@ -149,6 +149,16 @@
   transform: translateX(-50%) rotate(180deg);
 }
 
+.app-tile__link:focus-visible {
+  outline: none !important;
+  outline-offset: 0;
+  box-shadow: none;
+}
+
+.app-tile__link:focus-visible .app-tile__label {
+  outline: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .app-tile__icon {
     transition: none !important;
