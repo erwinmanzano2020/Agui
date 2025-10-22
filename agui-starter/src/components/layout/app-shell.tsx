@@ -31,12 +31,15 @@ const NAV: NavItem[] = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const isHome = pathname === "/";
 
   // responsive + collapsible
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile
   const [collapsed, setCollapsed] = useState(false); // desktop collapse
 
   const nav = useMemo(() => NAV, []);
+  const activeNav = nav.find((item) => item.href === pathname);
+  const headerTitle = isHome ? "Home" : activeNav?.name ?? "Agui Dashboard";
 
   if (pathname === "/") {
     return <>{children}</>;
