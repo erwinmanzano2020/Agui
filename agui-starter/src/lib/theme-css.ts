@@ -1,10 +1,14 @@
 import type { ThemeConfig } from "@/lib/ui-config";
+import { getReadableText } from "@/lib/theme";
 
 type ThemeVars = Record<string, string>;
 
 type RGB = { r: number; g: number; b: number };
 
-const DEFAULT_SURFACE = "#0b0b0b";
+const DEFAULT_SURFACE = "#f6f8fb";
+const DEFAULT_SURFACE_FOREGROUND = "#1b1c1f";
+const DEFAULT_TILE_BACKGROUND = "#eef1f6";
+const DEFAULT_TILE_LABEL = "#1b1c1f";
 const DEFAULT_ACCENT_LIGHTEN = 0.24;
 const DEFAULT_RADIUS = 12;
 
@@ -16,8 +20,8 @@ export function themeToCssVars(theme: ThemeConfig): ThemeVars {
 
   const surfaceIsDark = isDark(surface);
   const primaryOn = getReadableText(primary);
-  const surfaceOn = getReadableText(surface);
   const accentOn = getReadableText(accent);
+  const surfaceOn = DEFAULT_SURFACE_FOREGROUND;
 
   const cardBg = mixColors(surface, surfaceIsDark ? "#ffffff" : "#000000", surfaceIsDark ? 0.14 : 0.06);
   const cardBorder = mixColors(surface, surfaceIsDark ? "#ffffff" : "#000000", surfaceIsDark ? 0.3 : 0.16);
@@ -39,6 +43,16 @@ export function themeToCssVars(theme: ThemeConfig): ThemeVars {
     "--agui-surface-elevated": elevatedSurface,
     "--agui-surface-border": subtleBorder,
     "--agui-muted-foreground": mutedForeground,
+    "--accent": primary,
+    "--accent-contrast": primaryOn,
+    "--ring": accent,
+    "--surface": surface,
+    "--card": cardBg,
+    "--text": surfaceOn,
+    "--muted": mutedForeground,
+    "--border": subtleBorder,
+    "--tile-bg": DEFAULT_TILE_BACKGROUND,
+    "--tile-label": DEFAULT_TILE_LABEL,
   } satisfies ThemeVars;
 }
 
@@ -92,8 +106,4 @@ function relativeLuminance(hex: string): number {
 
 function isDark(hex: string): boolean {
   return relativeLuminance(hex) < 0.5;
-}
-
-function getReadableText(backgroundHex: string): string {
-  return isDark(backgroundHex) ? "#f8fafc" : "#0f172a";
 }

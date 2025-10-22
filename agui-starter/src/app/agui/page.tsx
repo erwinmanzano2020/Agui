@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
+import EmptyState from "@/components/ui/empty-state";
+import { cn } from "@/lib/utils";
+
 type UiModule = { key: string; label?: string; enabled: boolean };
 type UiConfig = {
   theme?: { brand?: string };
@@ -32,7 +36,7 @@ export default function AguiPage() {
       </header>
 
       {err && (
-        <p className="text-red-600">
+        <p className="text-danger">
           Failed to load UI config: <span className="font-mono">{err}</span>
         </p>
       )}
@@ -40,27 +44,52 @@ export default function AguiPage() {
       {!cfg && !err && <p className="opacity-70">Loading…</p>}
 
       {cfg && (
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {(cfg.modules ?? [])
-            .filter((m) => m.enabled)
-            .map((m) => (
-              <div
-                key={m.key}
-                className="rounded-2xl border p-4 shadow-sm hover:shadow-md transition"
-              >
-                <h2 className="font-semibold text-lg">
-                  {m.label ?? m.key.replace(/[-_]/g, " ")}
-                </h2>
-                <p className="text-sm opacity-70">Module enabled</p>
-              </div>
-            ))}
+        (() => {
+          const modules = cfg.modules ?? [];
+          if (modules.length === 0) {
+            return (
+              <EmptyState
+                title="No modules configured"
+                description="Connect to your Agui instance to preview modules here."
+              />
+            );
+          }
 
-          {(cfg.modules ?? []).every((m) => !m.enabled) && (
-            <p className="opacity-70">
-              No modules enabled. Go to <span className="font-mono">/settings</span> to turn modules on.
-            </p>
-          )}
-        </section>
+          return (
+            <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {modules.map((m) => {
+                const label = m.label ?? m.key.replace(/[-_]/g, " ");
+                const enabled = Boolean(m.enabled);
+                return (
+                  <div
+                    key={m.key}
+                    className={cn(
+                      "rounded-2xl border border-border bg-card/60 p-4 text-card-foreground shadow-soft transition-all",
+                      enabled ? "hover:shadow-md" : "opacity-80"
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h2 className="text-lg font-semibold">{label}</h2>
+                        <p className="text-sm text-muted-foreground">
+                          {enabled ? "Module enabled" : "Module disabled"}
+                        </p>
+                      </div>
+                      <Badge tone={enabled ? "on" : "off"}>
+                        {enabled ? "Open" : "Off"}
+                      </Badge>
+                    </div>
+                    {!enabled && (
+                      <p className="mt-3 text-xs text-muted-foreground">
+                        Ask an admin to enable this in Settings → Modules.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </section>
+          );
+        })()
       )}
     </main>
   );

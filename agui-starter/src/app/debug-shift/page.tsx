@@ -60,12 +60,12 @@ export default function DebugShiftPage() {
         />
         <input
           type="date"
-          className="border rounded px-3 py-2"
+          className="border border-border rounded px-3 py-2 bg-background text-foreground"
           value={date}
           onChange={(e) => setDate(e.target.value)}
         />
         <button
-          className="bg-green-600 text-white rounded px-3 py-2 disabled:opacity-50"
+          className="bg-success text-success-foreground rounded px-3 py-2 disabled:opacity-50"
           onClick={run}
           disabled={loading}
         >
@@ -73,9 +73,9 @@ export default function DebugShiftPage() {
         </button>
       </div>
 
-      {error && <div className="text-red-600 text-sm mb-2">{error}</div>}
+      {error && <div className="text-danger text-sm mb-2">{error}</div>}
 
-      <pre className="text-sm border rounded p-3 bg-gray-50">
+      <pre className="text-sm border border-border rounded p-3 bg-muted">
         {JSON.stringify(result, null, 2)}
       </pre>
     </div>

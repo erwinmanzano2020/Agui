@@ -2,6 +2,8 @@
 
 import React from "react";
 
+import EmptyState from "@/components/ui/empty-state";
+
 type PrimaryBasis = "hourly" | "daily" | "semi_monthly" | "monthly";
 
 type Row = {
@@ -125,7 +127,7 @@ export default function PayrollSummaryPageClient() {
             <label className="block text-sm mb-1">From</label>
             <input
               type="date"
-              className="border rounded px-2 py-1 w-full"
+              className="border border-border rounded px-2 py-1 w-full bg-background text-foreground"
               value={from}
               onChange={(e) => setFrom(e.target.value)}
             />
@@ -134,7 +136,7 @@ export default function PayrollSummaryPageClient() {
             <label className="block text-sm mb-1">To</label>
             <input
               type="date"
-              className="border rounded px-2 py-1 w-full"
+              className="border border-border rounded px-2 py-1 w-full bg-background text-foreground"
               value={to}
               onChange={(e) => setTo(e.target.value)}
             />
@@ -142,7 +144,7 @@ export default function PayrollSummaryPageClient() {
           <div>
             <label className="block text-sm mb-1">Employee ID (optional)</label>
             <input
-              className="border rounded px-2 py-1 w-full"
+              className="border border-border rounded px-2 py-1 w-full bg-background text-foreground"
               placeholder="uuid or numeric id"
               value={employeeId}
               onChange={(e) => setEmployeeId(e.target.value)}
@@ -153,7 +155,7 @@ export default function PayrollSummaryPageClient() {
               Prefer Basis (optional)
             </label>
             <select
-              className="border rounded px-2 py-1 w-full"
+              className="border border-border rounded px-2 py-1 w-full bg-background text-foreground"
               value={preferBasis}
               onChange={(e) =>
                 setPreferBasis(e.target.value as PrimaryBasis | "")
@@ -172,7 +174,7 @@ export default function PayrollSummaryPageClient() {
               type="number"
               min={0}
               step="0.25"
-              className="border rounded px-2 py-1 w-full"
+              className="border border-border rounded px-2 py-1 w-full bg-background text-foreground"
               value={hoursPerDay}
               onChange={(e) => setHoursPerDay(Number(e.target.value))}
             />
@@ -181,7 +183,7 @@ export default function PayrollSummaryPageClient() {
 
         <div className="pt-3">
           <button
-            className="bg-green-600 text-white rounded px-3 py-1 disabled:opacity-60"
+            className="bg-success text-success-foreground rounded px-3 py-1 disabled:opacity-60"
             onClick={run}
             disabled={loading}
           >
@@ -191,23 +193,23 @@ export default function PayrollSummaryPageClient() {
       </div>
 
       {/* Error */}
-      {err && <div className="text-sm text-red-600">Error: {err}</div>}
+      {err && <div className="text-sm text-danger">Error: {err}</div>}
 
       {/* Totals */}
       {data && (
-        <div className="border rounded p-3">
+        <div className="border border-border rounded p-3">
           <h2 className="font-medium mb-2">Totals</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-sm">
             <div>
-              <div className="text-gray-600">Rows</div>
+              <div className="text-muted-foreground">Rows</div>
               <div className="font-medium">{data.totals.count}</div>
             </div>
             <div>
-              <div className="text-gray-600">Gross</div>
+              <div className="text-muted-foreground">Gross</div>
               <div className="font-medium">{fmt(data.totals.gross)}</div>
             </div>
             <div>
-              <div className="text-gray-600">By Basis</div>
+              <div className="text-muted-foreground">By Basis</div>
               <div className="space-y-1">
                 {(
                   [
@@ -233,14 +235,19 @@ export default function PayrollSummaryPageClient() {
       {/* Rows */}
       {data && (
         <div className="border rounded p-3">
-          <h2 className="font-medium mb-2">Rows</h2>
+          <h2 className="font-medium">Rows</h2>
           {data.rows.length === 0 ? (
-            <div className="text-sm text-gray-600">No rows.</div>
+            <EmptyState
+              className="mt-3 border-dashed border-border bg-card/60"
+              icon="📋"
+              title="No payroll rows"
+              description="Run a summary to populate this table."
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm border-collapse">
+            <div className="mt-2 overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
                 <thead>
-                  <tr className="text-left border-b">
+                  <tr className="border-b text-left">
                     <th className="p-2 font-medium">Date</th>
                     <th className="p-2 font-medium">Employee</th>
                     <th className="p-2 font-medium">Basis</th>

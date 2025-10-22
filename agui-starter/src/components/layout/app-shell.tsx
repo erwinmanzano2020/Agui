@@ -2,55 +2,31 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode, useEffect, useMemo, useState } from "react";
+import { ReactNode, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import ThemeToggle from "@/components/ui/theme-toggle";
+import {
+  CalendarClockIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  LayoutDashboardIcon,
+  MenuIcon,
+  ScrollTextIcon,
+  UsersIcon,
+} from "@/components/icons/lucide";
 
-/* Inline SVG icons (no extra deps) */
-function Icon({
-  name,
-  className,
-  strokeWidth = 2,
-}: {
-  name: string;
-  className?: string;
-  strokeWidth?: number;
-}) {
-  const paths: Record<string, string> = {
-    dashboard: "M3 12l8-9 8 9v8a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-8Z",
-    users:
-      "M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Zm8 14v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75",
-    table: "M3 6h18M3 12h18M3 18h18M6 6v12M12 6v12M18 6v12",
-    payroll: "M4 6h16v12H4zM8 6V4h8v2M8 10h8M8 14h5",
-    menu: "M4 6h16M4 12h16M4 18h16",
-    sun: "M12 4V2m0 20v-2M4.93 4.93 3.51 3.51m16.98 16.98-1.42-1.42M4 12H2m20 0h-2M4.93 19.07 3.51 20.49M19.07 4.93l1.42-1.42M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8",
-    moon: "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z",
-    chevronLeft: "M15 18l-6-6 6-6",
-    chevronRight: "M9 6l6 6-6 6",
-  };
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      className={className ?? "h-4 w-4"}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden
-    >
-      <path d={paths[name] || ""} />
-    </svg>
-  );
-}
-
-type NavItem = { name: string; href: string; icon: string };
+type NavItem = { name: string; href: string; icon: ReactNode };
 
 const NAV: NavItem[] = [
-  { name: "Dashboard", href: "/", icon: "dashboard" },
-  { name: "Employees", href: "/employees", icon: "users" },
-  { name: "DTR Bulk", href: "/payroll/dtr-bulk", icon: "table" },
-  { name: "Payroll", href: "/payroll", icon: "payroll" },
+  { name: "Dashboard", href: "/", icon: <LayoutDashboardIcon className="h-5 w-5" /> },
+  { name: "Employees", href: "/employees", icon: <UsersIcon className="h-5 w-5" /> },
+  {
+    name: "DTR Bulk",
+    href: "/payroll/dtr-bulk",
+    icon: <CalendarClockIcon className="h-5 w-5" />,
+  },
+  { name: "Payroll", href: "/payroll", icon: <ScrollTextIcon className="h-5 w-5" /> },
 ];
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -61,29 +37,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile
   const [collapsed, setCollapsed] = useState(false); // desktop collapse
 
-  // dark mode: persist on <html data-theme="dark">
-  const [dark, setDark] = useState(false);
-  useEffect(() => {
-    const root = document.documentElement;
-    const isDark = root.dataset.theme === "dark";
-    setDark(isDark);
-  }, []);
-  const toggleDark = () => {
-    const root = document.documentElement;
-    const next = !dark;
-    root.dataset.theme = next ? "dark" : "";
-    setDark(next);
-  };
-
   const nav = useMemo(() => NAV, []);
   const activeNav = nav.find((item) => item.href === pathname);
   const headerTitle = isHome ? "Home" : activeNav?.name ?? "Agui Dashboard";
 
+  if (pathname === "/") {
+    return <>{children}</>;
+  }
+
   return (
-    <div className="min-h-screen flex bg-[var(--agui-surface)] text-[var(--agui-on-surface)] transition-colors">
+    <div className="min-h-screen flex bg-background text-foreground transition-colors">
       {/* Sidebar (desktop) */}
       <aside
-        className={`hidden md:flex flex-col transition-all duration-200 shadow-soft border-r border-[color:var(--agui-surface-border)] bg-[var(--agui-surface-elevated)] ${
+        className={`hidden md:flex flex-col transition-all duration-200 shadow-soft border-r border-border bg-card text-card-foreground ${
           collapsed ? "w-16" : "w-60"
         }`}
       >
@@ -93,7 +59,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               A
             </div>
             {!collapsed && (
-              <div className="font-bold text-[var(--agui-on-surface)] text-lg leading-none">
+              <div className="font-bold text-card-foreground text-lg leading-none">
                 Agui
               </div>
             )}
@@ -106,10 +72,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             title={collapsed ? "Expand" : "Collapse"}
             onClick={() => setCollapsed((v) => !v)}
           >
-            <Icon
-              name={collapsed ? "chevronRight" : "chevronLeft"}
-              className="h-4 w-4"
-            />
+            {collapsed ? (
+              <ChevronRightIcon className="h-4 w-4" />
+            ) : (
+              <ChevronLeftIcon className="h-4 w-4" />
+            )}
           </Button>
         </div>
 
@@ -120,31 +87,21 @@ export function AppShell({ children }: { children: ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`group flex items-center gap-3 rounded-[var(--agui-radius)] px-3 py-2 text-sm font-medium transition-colors ${
+                className={`group flex items-center gap-3 rounded-[var(--agui-radius)] px-3 py-2 text-sm transition-colors ${
                   active
                     ? "bg-[var(--agui-primary)] text-[var(--agui-on-primary)] shadow-soft"
                     : "text-[color-mix(in_srgb,_var(--agui-on-surface)_70%,_var(--agui-surface)_30%)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)] hover:text-[var(--agui-on-surface)]"
                 }`}
               >
-                <Icon name={item.icon} className="h-4 w-4 opacity-80" />
+                <span className="text-current opacity-80">{item.icon}</span>
                 {!collapsed && <span className="truncate">{item.name}</span>}
               </Link>
             );
           })}
         </nav>
 
-        <div className="p-2 mt-auto">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="w-full"
-            onClick={toggleDark}
-          >
-            <Icon name={dark ? "sun" : "moon"} className="h-4 w-4 mr-2" />
-            {!collapsed && (dark ? "Light mode" : "Dark mode")}
-          </Button>
-        </div>
+        {/* removed legacy theme toggle in sidebar to avoid duplicates */}
+        {/* Use the global ThemeToggle in layout instead */}
       </aside>
 
       {/* Sidebar (mobile drawer) */}
@@ -158,13 +115,13 @@ export function AppShell({ children }: { children: ReactNode }) {
             className="absolute inset-0 bg-black/30"
             onClick={() => setSidebarOpen(false)}
           />
-          <div className="absolute left-0 top-0 bottom-0 w-64 bg-[var(--agui-surface-elevated)] text-[var(--agui-on-surface)] shadow-lifted p-3 border-r border-[color:var(--agui-surface-border)]">
+          <div className="absolute left-0 top-0 bottom-0 w-64 bg-card text-card-foreground shadow-lifted p-3 border-r border-border">
             <div className="h-12 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="h-7 w-7 rounded-[var(--agui-radius)] bg-[var(--agui-primary)] text-[var(--agui-on-primary)] flex items-center justify-center font-bold">
                   A
                 </div>
-                <div className="font-bold text-[var(--agui-on-surface)] text-lg leading-none">
+                <div className="font-bold text-card-foreground text-lg leading-none">
                   Agui
                 </div>
               </div>
@@ -186,30 +143,19 @@ export function AppShell({ children }: { children: ReactNode }) {
                     key={item.href}
                     href={item.href}
                     onClick={() => setSidebarOpen(false)}
-                    className={`flex items-center gap-3 rounded-[var(--agui-radius)] px-3 py-2 text-sm font-medium transition-colors ${
+                    className={`flex items-center gap-3 rounded-[var(--agui-radius)] px-3 py-2 text-sm transition-colors ${
                       active
                         ? "bg-[var(--agui-primary)] text-[var(--agui-on-primary)] shadow-soft"
                         : "text-[color-mix(in_srgb,_var(--agui-on-surface)_70%,_var(--agui-surface)_30%)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_12%,_transparent)] hover:text-[var(--agui-on-surface)]"
                     }`}
                   >
-                    <Icon name={item.icon} className="h-4 w-4 opacity-80" />
+                    <span className="text-current opacity-80">{item.icon}</span>
                     <span>{item.name}</span>
                   </Link>
                 );
               })}
             </nav>
-            <div className="mt-4">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="w-full"
-                onClick={toggleDark}
-              >
-                <Icon name={dark ? "sun" : "moon"} className="h-4 w-4 mr-2" />
-                {dark ? "Light mode" : "Dark mode"}
-              </Button>
-            </div>
+            {/* removed legacy mobile toggle; use the shared ThemeToggle in layout/header instead */}
           </div>
         </div>
       )}
@@ -217,13 +163,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* Main Area */}
       <div className="flex-1 flex flex-col">
         {/* Topbar */}
-        <header
-          className={`h-14 flex items-center justify-between px-3 md:px-6 text-[var(--agui-on-surface)] ${
-            isHome
-              ? "bg-[color-mix(in_srgb,_var(--agui-surface)_96%,_white_4%)]"
-              : "border-b border-[color:var(--agui-surface-border)] bg-[var(--agui-surface-elevated)] shadow-soft"
-          }`}
-        >
+        <header className="h-14 border-b border-border bg-card text-card-foreground flex items-center justify-between px-3 md:px-6 shadow-soft">
           {/* Left: mobile menu */}
           <div className="flex items-center gap-2">
             <Button
@@ -234,30 +174,17 @@ export function AppShell({ children }: { children: ReactNode }) {
               onClick={() => setSidebarOpen(true)}
               aria-label="Open menu"
             >
-              <Icon name="menu" className="h-5 w-5" />
+              <MenuIcon className="h-5 w-5" />
             </Button>
-            {headerTitle ? (
-              <span className="font-semibold text-sm text-muted-foreground hidden md:inline">
-                {headerTitle}
-              </span>
-            ) : null}
+            <span className="font-medium text-sm text-muted-foreground hidden md:inline">
+              Agui Dashboard
+            </span>
           </div>
 
-          {/* Right: user stub */}
+          {/* Right: actions (theme + user) */}
           <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={toggleDark}
-              title="Toggle theme"
-            >
-              <Icon
-                name={dark ? "sun" : "moon"}
-                className="h-4 w-4"
-                strokeWidth={1.5}
-              />
-            </Button>
+            {/* icon-only shared toggle */}
+            <ThemeToggle className="h-9 w-9 p-0 rounded-2xl" />
             <div className="h-8 w-8 rounded-full bg-[color-mix(in_srgb,_var(--agui-on-surface)_12%,_transparent)] flex items-center justify-center text-sm text-[var(--agui-on-surface)]">
               U
             </div>

@@ -1,6 +1,8 @@
 "use client";
 import React from "react";
 
+import EmptyState from "@/components/ui/empty-state";
+
 type Row = {
   date: string;
   rate: number;
@@ -93,7 +95,7 @@ export default function DebugPayslipDaily() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
         <div>
-          <label className="text-xs text-gray-600">Employee ID</label>
+          <label className="text-xs text-muted-foreground">Employee ID</label>
           <input
             className="w-full border rounded px-3 py-2"
             placeholder="uuid or numeric id"
@@ -102,7 +104,7 @@ export default function DebugPayslipDaily() {
           />
         </div>
         <div>
-          <label className="text-xs text-gray-600">From (YYYY-MM-DD)</label>
+          <label className="text-xs text-muted-foreground">From (YYYY-MM-DD)</label>
           <input
             type="date"
             className="w-full border rounded px-3 py-2"
@@ -111,7 +113,7 @@ export default function DebugPayslipDaily() {
           />
         </div>
         <div>
-          <label className="text-xs text-gray-600">To (YYYY-MM-DD)</label>
+          <label className="text-xs text-muted-foreground">To (YYYY-MM-DD)</label>
           <input
             type="date"
             className="w-full border rounded px-3 py-2"
@@ -120,7 +122,7 @@ export default function DebugPayslipDaily() {
           />
         </div>
         <div className="sm:col-span-2 lg:col-span-3">
-          <label className="text-xs text-gray-600">
+          <label className="text-xs text-muted-foreground">
             Present Days (comma-separated)
           </label>
           <input
@@ -129,7 +131,7 @@ export default function DebugPayslipDaily() {
             value={presentDays}
             onChange={(e) => setPresentDays(e.target.value)}
           />
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-muted-foreground mt-1">
             These are the days counted as present. The API pulls the as-of{" "}
             <b>daily_rate</b> per date from <code>dtr_with_rates</code>.
           </p>
@@ -144,7 +146,7 @@ export default function DebugPayslipDaily() {
         >
           {loading ? "Computing…" : "Compute"}
         </button>
-        {err && <div className="text-red-600 text-sm">{err}</div>}
+        {err && <div className="text-danger text-sm">{err}</div>}
       </div>
 
       {res && (
@@ -164,9 +166,9 @@ export default function DebugPayslipDaily() {
             </div>
           </div>
 
-          <div className="border rounded overflow-hidden">
+          <div className="border border-border rounded overflow-hidden">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50">
+              <thead className="bg-muted">
                 <tr>
                   <th className="text-left p-2">Date</th>
                   <th className="text-right p-2">As-of Rate</th>
@@ -197,8 +199,13 @@ export default function DebugPayslipDaily() {
                 ))}
                 {res.breakdown.length === 0 && (
                   <tr>
-                    <td className="p-3 text-gray-500" colSpan={4}>
-                      No DTR rows in range.
+                    <td className="p-4" colSpan={4}>
+                      <EmptyState
+                        className="border-dashed border-border bg-card/60"
+                        icon="🕒"
+                        title="No DTR rows"
+                        description="Adjust the filters to fetch attendance rows in range."
+                      />
                     </td>
                   </tr>
                 )}

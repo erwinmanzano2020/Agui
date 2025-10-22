@@ -1,4 +1,5 @@
 // Server Component
+import EmptyState from "@/components/ui/empty-state";
 import { getDailyPayslipForPeriod } from "@/lib/payroll/getDailyPayslipForPeriod";
 
 export default async function PayslipDailyBlock(props: {
@@ -29,9 +30,9 @@ export default async function PayslipDailyBlock(props: {
       </div>
 
       {(props.showTable ?? true) && (
-        <div className="border rounded overflow-hidden">
+        <div className="border border-border rounded overflow-hidden">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50">
+            <thead className="bg-muted">
               <tr>
                 <th className="text-left p-2">Date</th>
                 <th className="text-right p-2">As-of Rate</th>
@@ -60,8 +61,13 @@ export default async function PayslipDailyBlock(props: {
               ))}
               {res.breakdown.length === 0 && (
                 <tr>
-                  <td className="p-3 text-gray-500" colSpan={4}>
-                    No DTR rows in range.
+                  <td className="p-4" colSpan={4}>
+                    <EmptyState
+                      className="border-dashed border-border bg-card/60"
+                      icon="🕒"
+                      title="No DTR rows"
+                      description="There are no daily time records for this employee within the selected period."
+                    />
                   </td>
                 </tr>
               )}

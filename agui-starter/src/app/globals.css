@@ -1,31 +1,37 @@
 /* --- Tailwind v4 core --- */
 @import "tailwindcss";
 
-/* --- Our CSS variables (Step 1) --- */
+/* --- Design tokens (colors, light/dark, runtime) --- */
+@import "../styles/tokens.css";
+
+/* --- Structural foundations (radius, shadows, print) --- */
 @import "../styles/foundations.css";
+
+/* --- Launcher tile styles --- */
+@import "../styles/launcher.css";
 
 /* --- Map variables to Tailwind tokens via @theme (v4 way) --- */
 @theme {
   /* Colors */
-  --color-brand: hsl(var(--brand));
-  --color-brand-foreground: hsl(var(--brand-foreground));
+  --color-brand: var(--accent);
+  --color-brand-foreground: var(--accent-contrast);
 
-  --color-background: hsl(var(--bg));
-  --color-foreground: hsl(var(--fg));
+  --color-background: var(--surface);
+  --color-foreground: var(--text);
 
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-muted: color-mix(in srgb, var(--surface) 78%, var(--text) 22%);
+  --color-muted-foreground: var(--muted);
 
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
+  --color-card: var(--card);
+  --color-card-foreground: var(--text);
 
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--ring);
 
-  --color-success: hsl(var(--success));
-  --color-warning: hsl(var(--warning));
-  --color-danger: hsl(var(--danger));
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
 
   /* Radii */
   --radius-lg: var(--radius-lg);
@@ -36,25 +42,127 @@
   --container-2xl: 1200px;
 }
 
+:root {
+  --bg-hsl: 216 38.46% 97.45%;
+  --card-hsl: 0 0% 100%;
+  --fg-hsl: 225 6.9% 11.37%;
+  --border-hsl: 214 32% 91%;
+  --muted-hsl: 215 16% 65%;
+
+  --agui-accent-hsl: 199 89% 48%;
+  --agui-accent: hsl(var(--agui-accent-hsl));
+  --agui-primary: hsl(var(--agui-accent-hsl));
+  --agui-primary-hsl: var(--agui-accent-hsl);
+  --agui-ring: hsl(var(--agui-accent-hsl));
+  --agui-ring-hsl: var(--agui-accent-hsl);
+  --agui-ring-alpha: 0.14;
+  --agui-ring-alpha-hover: 0.28;
+  --agui-radius: 12px;
+
+  --tile-bg: #eef1f6;
+  --tile-label: #1b1c1f;
+  --wallpaper-url: none;
+  --launcher-tile-foreground: #1b1c1f;
+  --launcher-icon-background: #eef1f6;
+  --launcher-icon-border: rgba(27, 28, 31, 0.12);
+  --launcher-icon-color: #1b1c1f;
+  --launcher-tooltip-background: rgba(31, 41, 55, 0.92);
+  --launcher-tooltip-color: #f6f8fb;
+  --launcher-tile-ring: hsl(var(--agui-accent-hsl) / 0.6);
+  --launcher-tile-ring-offset: #eef1f6;
+
+  --surface: hsl(var(--bg-hsl));
+  --card: hsl(var(--card-hsl));
+  --text: hsl(var(--fg-hsl));
+  --border: hsl(var(--border-hsl));
+  --muted: hsl(var(--muted-hsl));
+  --accent: var(--agui-accent);
+  --ring: var(--agui-ring);
+
+  --success: #16a34a;
+  --success-foreground: #ecfdf5;
+  --warning: #f59e0b;
+  --warning-foreground: #422006;
+  --danger: #ef4444;
+  --danger-foreground: #ffffff;
+
+  --agui-on-primary: #ffffff;
+  --agui-on-surface: var(--text);
+  --agui-on-accent: #ffffff;
+
+  --agui-card: var(--card);
+  --agui-card-border: var(--border);
+  --agui-card-foreground: var(--text);
+
+  --agui-surface: var(--surface);
+  --agui-surface-elevated: color-mix(in srgb, var(--card) 96%, #000000 4%);
+  --agui-surface-border: var(--border);
+  --agui-muted-foreground: var(--muted);
+}
+
+:root[data-shape="rounded"],
+:root:not([data-shape]) {
+  --agui-radius: 12px;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+}
+
+:root[data-shape="circle"] {
+  --agui-radius: 999px;
+  --radius-lg: 999px;
+  --radius-xl: 999px;
+  --radius-2xl: 999px;
+}
+
+.dark,
+[data-theme="dark"] {
+  --bg-hsl: 222 47% 11%;
+  --card-hsl: 218 28% 20%;
+  --fg-hsl: 215 32% 92%;
+  --border-hsl: 220 19% 32%;
+  --muted-hsl: 215 16% 65%;
+  color-scheme: dark;
+
+  --agui-surface: var(--surface);
+  --agui-card: var(--card);
+  --agui-card-border: color-mix(in srgb, var(--border) 85%, transparent);
+  --agui-card-foreground: var(--text);
+  --agui-surface-elevated: color-mix(in srgb, var(--card) 92%, #ffffff 8%);
+  --agui-surface-border: color-mix(in srgb, var(--border) 70%, transparent);
+  --agui-muted-foreground: color-mix(in srgb, var(--muted) 85%, var(--text) 15%);
+}
+
 /* --- Base defaults using our tokens --- */
 @layer base {
   html,
   body {
-    background-color: var(--agui-surface);
-    color: var(--agui-on-surface);
+    background-color: var(--surface);
+    background-image: var(--wallpaper-url);
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    color: var(--text);
     font-feature-settings: "liga" 1, "kern" 1;
     -webkit-font-smoothing: antialiased;
   }
   h1 { @apply text-2xl font-semibold; }
   h2 { @apply text-xl font-semibold; }
   a {
-    color: var(--agui-accent);
+    color: var(--accent);
     text-decoration: none;
     text-underline-offset: 0.25em;
     transition: color 0.2s ease;
   }
   a:hover {
     text-decoration: underline;
+  }
+  :where(button) {
+    outline: transparent;
+    outline-offset: 2px;
+  }
+  :where(button):focus-visible {
+    outline: 3px solid color-mix(in srgb, var(--ring) 65%, transparent);
   }
 }
 
@@ -70,7 +178,41 @@
     background: var(--color-card);
     color: var(--color-card-foreground);
     border-radius: var(--radius-2xl);
-    box-shadow: var(--shadow-soft);  
+    box-shadow: var(--shadow-soft);
+  }
+  .icon-tile {
+    position: relative;
+    background: var(--tile-bg);
+    color: var(--tile-label);
+    border-radius: 18px;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.14);
+    transition: outline-color 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .icon-tile:hover {
+    outline: 2px solid color-mix(
+      in hsl,
+      hsl(var(--agui-accent-hsl)) calc(var(--agui-ring-alpha-hover) * 200%),
+      transparent
+    );
+    outline-offset: 2px;
+  }
+
+  .icon-tile:focus-visible {
+    outline: 3px solid color-mix(
+      in hsl,
+      hsl(var(--agui-accent-hsl)) calc(var(--agui-ring-alpha-hover) * 200%),
+      transparent
+    );
+    outline-offset: 3px;
+  }
+
+  :where(.lucide-icon) {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 1.5rem;
+    height: 1.5rem;
+    stroke-width: var(--lucide-stroke-width, 1.35);
   }
   /* === Form primitives (refined) === */
   .field  { @apply space-y-1.5; }
@@ -134,22 +276,7 @@
 
 /* Global focus ring */
 *:focus-visible {
-  outline: 2px solid hsl(var(--ring));
+  outline: 2px solid var(--ring);
   outline-offset: 2px;
 }
 
-:root {
-  --agui-primary: #3c7cae;
-  --agui-surface: #0b0b0b;
-  --agui-accent: #06b6d4;
-  --agui-radius: 12px;
-  --agui-on-primary: #f8fafc;
-  --agui-on-surface: #f8fafc;
-  --agui-on-accent: #022c36;
-  --agui-card: #111827;
-  --agui-card-border: rgba(255, 255, 255, 0.12);
-  --agui-card-foreground: #f8fafc;
-  --agui-surface-elevated: #141e2a;
-  --agui-surface-border: rgba(255, 255, 255, 0.16);
-  --agui-muted-foreground: #94a3b8;
-}

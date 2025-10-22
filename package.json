@@ -1,4 +1,7 @@
 {
   "private": "true",
-  "name": "agui-root"
+  "name": "agui-root",
+  "devDependencies": {
+    "@types/node": "^20.19.21"
+  }
 }

@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+
+import EmptyState from "@/components/ui/empty-state";
 import { getSupabase } from "@/lib/supabase";
 import { resolveEffectiveShift } from "@/lib/shifts";
 
@@ -314,7 +316,7 @@ export default function PayrollPreviewPageClient() {
       <h1 className="text-2xl font-semibold mb-4">Payroll Preview</h1>
 
       {err && (
-        <div className="mb-3 text-sm text-red-600">{err}</div>
+        <div className="mb-3 text-sm text-danger">{err}</div>
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-5 gap-3 mb-4">
@@ -331,19 +333,19 @@ export default function PayrollPreviewPageClient() {
           ))}
         </select>
         <input
-          className="border rounded px-3 py-2"
+          className="border border-border rounded px-3 py-2 bg-background text-foreground"
           type="date"
           value={from}
           onChange={(e) => setFrom(e.target.value)}
         />
         <input
-          className="border rounded px-3 py-2"
+          className="border border-border rounded px-3 py-2 bg-background text-foreground"
           type="date"
           value={to}
           onChange={(e) => setTo(e.target.value)}
         />
         <button
-          className="bg-green-600 text-white rounded px-3 py-2"
+          className="bg-success text-success-foreground rounded px-3 py-2"
           onClick={run}
           disabled={loading}
         >
@@ -351,14 +353,14 @@ export default function PayrollPreviewPageClient() {
         </button>
       </div>
 
-      <div className="text-xs text-gray-600 mb-3">
+      <div className="text-xs text-muted-foreground mb-3">
         Fallback standard mins: {fallbackStd} • OT multiplier:{" "}
         {otMultiplier.toFixed(2)}× • Attendance mode: {attMode}
       </div>
 
-      <div className="border rounded overflow-x-auto">
+      <div className="border border-border rounded overflow-x-auto">
         <table className="w-full text-sm">
-          <thead className="bg-gray-50">
+          <thead className="bg-muted">
             <tr>
               <th className="p-2 text-left">Employee</th>
               <th className="p-2 text-right">Regular mins</th>
@@ -395,15 +397,20 @@ export default function PayrollPreviewPageClient() {
             ))}
             {rows.length === 0 && !loading && (
               <tr>
-                <td className="p-2" colSpan={11}>
-                  No data.
+                <td className="p-4" colSpan={11}>
+                  <EmptyState
+                    className="border-dashed border-border bg-card/60"
+                    icon="🧾"
+                    title="No preview rows"
+                    description="Run the preview to see time and pay breakdowns."
+                  />
                 </td>
               </tr>
             )}
           </tbody>
           {rows.length > 0 && (
             <tfoot>
-              <tr className="bg-gray-50 border-t">
+              <tr className="bg-muted border-t border-border">
                 <td className="p-2 font-medium">Totals</td>
                 <td className="p-2 text-right font-medium">{totals.reg}</td>
                 <td className="p-2 text-right font-medium">{totals.ot}</td>

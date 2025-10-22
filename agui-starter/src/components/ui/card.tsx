@@ -1,23 +1,18 @@
-import type { HTMLAttributes } from "react";
+import * as React from "react";
+import { cn } from "@/lib/utils";
 
-const cx = (...classes: Array<string | false | null | undefined>) =>
-  classes.filter(Boolean).join(" ");
-
-export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cx(
-        "rounded-[var(--agui-radius)]",
-        "bg-[var(--agui-card)]",
-        "text-[var(--agui-card-foreground)]",
-        "border",
-        "border-[color:var(--agui-card-border)]",
-        "shadow-soft backdrop-blur-sm",
-        className,
-      )}
-      {...props}
-    />
-  );
+export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("agui-card", className)} {...props} />;
 }
 
-export default Card;
+export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("px-5 pt-5 pb-3 border-b agui-divider", className)} {...props} />;
+}
+
+export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("p-5", className)} {...props} />;
+}
+
+export function CardFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={cn("px-5 pb-5 pt-3 border-t agui-divider", className)} {...props} />;
+}
