@@ -13,12 +13,13 @@ import {
   LayoutDashboardIcon,
   MenuIcon,
   ScrollTextIcon,
+  StorefrontIcon,
   UsersIcon,
 } from "@/components/icons/lucide";
 
 type NavItem = { name: string; href: string; icon: ReactNode };
 
-const NAV: NavItem[] = [
+const BASE_NAV: NavItem[] = [
   { name: "Dashboard", href: "/", icon: <LayoutDashboardIcon className="h-5 w-5" /> },
   { name: "Employees", href: "/employees", icon: <UsersIcon className="h-5 w-5" /> },
   {
@@ -29,7 +30,13 @@ const NAV: NavItem[] = [
   { name: "Payroll", href: "/payroll", icon: <ScrollTextIcon className="h-5 w-5" /> },
 ];
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  posEnabled = false,
+}: {
+  children: ReactNode;
+  posEnabled?: boolean;
+}) {
   const pathname = usePathname();
   const isHome = pathname === "/";
 
@@ -37,7 +44,16 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile
   const [collapsed, setCollapsed] = useState(false); // desktop collapse
 
-  const nav = useMemo(() => NAV, []);
+  const nav = useMemo(() => {
+    if (!posEnabled) {
+      return BASE_NAV;
+    }
+
+    return [
+      ...BASE_NAV,
+      { name: "POS", href: "/pos", icon: <StorefrontIcon className="h-5 w-5" /> },
+    ];
+  }, [posEnabled]);
   const activeNav = nav.find((item) => item.href === pathname);
   const headerTitle = isHome ? "Home" : activeNav?.name ?? "Agui Dashboard";
 
@@ -177,7 +193,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <MenuIcon className="h-5 w-5" />
             </Button>
             <span className="font-medium text-sm text-muted-foreground hidden md:inline">
-              Agui Dashboard
+              {headerTitle}
             </span>
           </div>
 

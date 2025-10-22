@@ -94,6 +94,16 @@ export const LayoutDashboardIcon = createLucideIcon(
   </>
 );
 
+export const StorefrontIcon = createLucideIcon(
+  "Storefront",
+  <>
+    <rect width="18" height="5" x="3" y="3" rx="1" />
+    <rect width="16" height="13" x="4" y="8" rx="2" />
+    <path d="M9 14h6" />
+    <path d="M12 8v13" />
+  </>
+);
+
 export const MenuIcon = createLucideIcon(
   "Menu",
   <>

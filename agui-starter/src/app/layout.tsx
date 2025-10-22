@@ -21,7 +21,7 @@ export const metadata = {
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const { theme } = await loadUiConfig();
+  const { theme, flags } = await loadUiConfig();
   const styleVars = themeToCssVars(theme) as CSSProperties;
 
   return (
@@ -33,7 +33,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
       >
         <ThemeProvider theme={theme}>
           <TenantThemeMount />
-          <AppShell>{children}</AppShell>
+          <AppShell posEnabled={Boolean(flags?.pos_enabled)}>{children}</AppShell>
           <ToasterMount />
 
           {/* ⌨️ Global Command Palette mounted client-side */}
