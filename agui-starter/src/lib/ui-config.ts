@@ -47,7 +47,7 @@ export const uiConfig: UiConfig = {
 
 // Async accessor for future DB-backed config
 export async function loadUiConfig(): Promise<UiConfig> {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const cookieValue = cookieStore.get(POS_ENABLED_COOKIE)?.value;
 
   const parseBoolean = (value: string | undefined) => {
