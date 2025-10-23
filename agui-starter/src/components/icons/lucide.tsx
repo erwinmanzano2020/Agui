@@ -43,6 +43,17 @@ export const UsersIcon = createLucideIcon(
   </>
 );
 
+export const NetworkIcon = createLucideIcon(
+  "Network",
+  <>
+    <circle cx="6" cy="12" r="3" />
+    <circle cx="18" cy="6" r="3" />
+    <circle cx="18" cy="18" r="3" />
+    <path d="M8.5 10.5 15.5 7.5" />
+    <path d="M8.5 13.5 15.5 16.5" />
+  </>
+);
+
 export const CalendarClockIcon = createLucideIcon(
   "CalendarClock",
   <>
@@ -82,6 +93,11 @@ export const SettingsIcon = createLucideIcon(
     <circle cx="12" cy="12" r="3" />
     <path d="M19.5 12a7.5 7.5 0 0 0-.18-1.63l2.05-1.49-2-3.46-2.43 1a7.52 7.52 0 0 0-2.82-1.63L14 2h-4l-.12 2.79a7.52 7.52 0 0 0-2.82 1.63l-2.43-1-2 3.46 2.05 1.49A7.5 7.5 0 0 0 4.5 12c0 .55.06 1.09.18 1.63l-2.05 1.49 2 3.46 2.43-1a7.52 7.52 0 0 0 2.82 1.63L10 22h4l.12-2.79a7.52 7.52 0 0 0 2.82-1.63l2.43 1 2-3.46-2.05-1.49A7.5 7.5 0 0 0 19.5 12Z" />
   </>
+);
+
+export const ShieldIcon = createLucideIcon(
+  "Shield",
+  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
 );
 
 export const LayoutDashboardIcon = createLucideIcon(
