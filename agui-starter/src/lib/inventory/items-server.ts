@@ -230,17 +230,25 @@ export async function updateHouseItemDetails({
   houseItemId,
   sku,
   priceCents,
-  priceCurrency = "USD",
+  priceCurrency,
   stockQuantity,
 }: UpdateHouseItemDetailsOptions): Promise<HouseInventoryItem> {
   const client = resolveSupabaseClient(explicit);
 
-  const updates = {
+  const updates: {
+    sku: string | null;
+    price_cents: number | null;
+    stock_quantity: number;
+    price_currency?: string;
+  } = {
     sku,
     price_cents: priceCents,
-    price_currency: priceCurrency,
     stock_quantity: stockQuantity,
-  } as const;
+  };
+
+  if (typeof priceCurrency === "string") {
+    updates.price_currency = priceCurrency;
+  }
 
   const { data, error } = await client
     .from("house_items")

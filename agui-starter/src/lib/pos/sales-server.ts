@@ -470,6 +470,10 @@ export async function resumeSale(options: ResumeSaleOptions): Promise<ResumeSale
   }
 
   const saleId = ensureString(saleRow.id, "held sale id");
+  const saleStatus = ensureStatus((saleRow as { status?: unknown }).status, "sale status");
+  if (saleStatus !== "HELD") {
+    throw new Error("Held sale is no longer in HELD status");
+  }
 
   const rawLines = (saleRow as { lines?: unknown }).lines;
   const linesRaw = Array.isArray(rawLines)
@@ -480,26 +484,43 @@ export async function resumeSale(options: ResumeSaleOptions): Promise<ResumeSale
     ? (rawPayments as Record<string, unknown>[])
     : [];
 
-  const nextVersion =
-    ensurePositiveInteger(((saleRow as { version?: unknown }).version as number | undefined) ?? 1, "sale version") + 1;
+  const currentVersion = ensurePositiveInteger(
+    ((saleRow as { version?: unknown }).version as number | undefined) ?? 1,
+    "sale version",
+  );
+  const nextVersion = currentVersion + 1;
+  if (!Number.isSafeInteger(nextVersion)) {
+    throw new Error("sale version exceeds the safe integer range");
+  }
 
   const { data: updatedSale, error: updateSaleError } = await client
     .from("sales")
     .update({ status: "OPEN", version: nextVersion })
     .eq("id", saleId)
+    .eq("status", "HELD")
+    .eq("version", currentVersion)
     .select("*")
-    .single();
+    .maybeSingle();
 
   if (updateSaleError) {
     throw new Error(`Failed to reopen sale: ${updateSaleError.message}`);
   }
   if (!updatedSale) {
-    throw new Error("Failed to reopen sale");
+    throw new Error("Hold token not found or already resumed");
   }
 
-  const { error: deleteHoldError } = await client.from("sale_holds").delete().eq("id", holdRow.id);
+  const { error: deleteHoldError, data: deletedHold } = await client
+    .from("sale_holds")
+    .delete()
+    .eq("id", holdRow.id)
+    .eq("hold_token", holdToken)
+    .select("*")
+    .maybeSingle();
   if (deleteHoldError) {
     throw new Error(`Failed to clear hold token: ${deleteHoldError.message}`);
+  }
+  if (!deletedHold) {
+    throw new Error("Hold token not found or already resumed");
   }
 
   const sale = parseSale(updatedSale as Record<string, unknown>);
