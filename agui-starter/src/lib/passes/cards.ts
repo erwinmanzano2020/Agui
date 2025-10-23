@@ -3,7 +3,11 @@ import { createHash, randomBytes } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getSupabase } from "@/lib/supabase";
-import { isJsonObject, type JsonObject } from "@/lib/types/taxonomy";
+import {
+  isJsonObject,
+  type JsonObject,
+  type JsonValue,
+} from "@/lib/types/taxonomy";
 
 import type { LoyaltyScheme, LoyaltyScope } from "../loyalty/rules";
 import { parseLoyaltyScheme } from "../loyalty/rules";
@@ -11,9 +15,8 @@ import { parseLoyaltyScheme } from "../loyalty/rules";
 export type CardStatus = "active" | "suspended" | "revoked";
 export type CardTokenKind = "qr" | "barcode" | "nfc";
 
-export type CardFlags = {
+export type CardFlags = JsonObject & {
   incognito_default?: boolean;
-  [key: string]: unknown;
 };
 
 export type Card = {
@@ -188,7 +191,18 @@ export type IssueCardOptions = {
 const UNIQUE_VIOLATION = "23505";
 
 function buildFlagPayload(card: Card, updates: Partial<CardFlags>): JsonObject {
-  return { ...card.flags, ...updates };
+  const merged: JsonObject = { ...card.flags };
+
+  for (const key of Object.keys(updates)) {
+    const value = updates[key];
+    if (value === undefined) {
+      delete merged[key];
+    } else {
+      merged[key] = value as JsonValue;
+    }
+  }
+
+  return merged;
 }
 
 export async function loadCardsForEntity(
