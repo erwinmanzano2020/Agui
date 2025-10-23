@@ -52,7 +52,7 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function parseLoyaltyScheme(value: unknown): LoyaltyScheme {
+export function parseLoyaltyScheme(value: unknown): LoyaltyScheme {
   if (!isPlainObject(value)) {
     throw new Error("Invalid loyalty scheme payload");
   }
@@ -104,7 +104,7 @@ function parseLoyaltyScheme(value: unknown): LoyaltyScheme {
   } satisfies LoyaltyScheme;
 }
 
-function parseLoyaltyProfile(value: unknown): LoyaltyProfile {
+export function parseLoyaltyProfile(value: unknown): LoyaltyProfile {
   if (!isPlainObject(value)) {
     throw new Error("Invalid loyalty profile payload");
   }
@@ -225,4 +225,62 @@ export async function enrollLoyaltyProfile(
   }
 
   return parseLoyaltyProfile(data);
+}
+
+const UNIQUE_VIOLATION = "23505";
+
+export type EnsureLoyaltyProfileInput = Omit<EnrollLoyaltyProfileInput, "points" | "tier"> & {
+  points?: number;
+  tier?: string | null;
+};
+
+/** Ensure an entity has a loyalty profile for the given scheme. */
+export async function ensureLoyaltyProfile(
+  input: EnsureLoyaltyProfileInput,
+): Promise<LoyaltyProfile> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    throw new Error("Supabase client is not available");
+  }
+
+  const payload = {
+    scheme_id: input.schemeId,
+    entity_id: input.entityId,
+    account_no: input.accountNo,
+    points: input.points ?? 0,
+    tier: input.tier ?? null,
+  };
+
+  const { data, error } = await supabase
+    .from("loyalty_profiles")
+    .insert(payload)
+    .select("*")
+    .single();
+
+  if (!error && data) {
+    return parseLoyaltyProfile(data);
+  }
+
+  if (error && error.code === UNIQUE_VIOLATION) {
+    const { data: existing, error: lookupError } = await supabase
+      .from("loyalty_profiles")
+      .select("*")
+      .eq("scheme_id", input.schemeId)
+      .eq("entity_id", input.entityId)
+      .maybeSingle();
+
+    if (lookupError) {
+      throw new Error(`Failed to resolve existing loyalty profile: ${lookupError.message}`);
+    }
+
+    if (existing) {
+      return parseLoyaltyProfile(existing);
+    }
+  }
+
+  if (error) {
+    throw new Error(`Failed to ensure loyalty profile: ${error.message}`);
+  }
+
+  throw new Error("Failed to ensure loyalty profile: Unknown error");
 }
