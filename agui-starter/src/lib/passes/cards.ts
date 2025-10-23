@@ -339,7 +339,7 @@ export async function updateCardFlags(
   return parseCardWithScheme(data);
 }
 
-function hashToken(token: string): string {
+export function hashCardToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
@@ -366,7 +366,7 @@ export async function rotateCardToken(
   }
 
   const token = generateTokenString();
-  const tokenHash = hashToken(token);
+  const tokenHash = hashCardToken(token);
 
   const payload = {
     card_id: cardId,
