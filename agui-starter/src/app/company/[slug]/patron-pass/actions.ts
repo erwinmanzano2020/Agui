@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { getOrCreateEntityByIdentifier } from "@/lib/auth/entity";
+import { getCurrentEntity, getOrCreateEntityByIdentifier } from "@/lib/auth/entity";
 import { issueCard, loadCardsForEntity, updateCardFlags } from "@/lib/passes/cards";
 import { ensureHousePassScheme } from "@/lib/loyalty/schemes-server";
 import { ensureLoyaltyProfile } from "@/lib/loyalty/rules";
@@ -72,6 +72,71 @@ export async function issuePatronPass(
         ...INITIAL_PATRON_PASS_STATE,
         status: "error",
         message: "This company isn’t ready to issue passes yet.",
+      };
+    }
+
+    let currentEntity: Awaited<ReturnType<typeof getCurrentEntity>>;
+    try {
+      currentEntity = await getCurrentEntity({ supabase });
+    } catch (error) {
+      console.error("Failed to resolve current entity before issuing patron pass", error);
+      return {
+        ...INITIAL_PATRON_PASS_STATE,
+        status: "error",
+        message: "We couldn’t confirm who’s issuing this pass. Refresh and try again.",
+      };
+    }
+
+    if (!currentEntity) {
+      return {
+        ...INITIAL_PATRON_PASS_STATE,
+        status: "error",
+        message: "Sign in to issue patron passes for this company.",
+      };
+    }
+
+    const { data: houseRole, error: houseRoleError } = await supabase
+      .from("house_roles")
+      .select("id")
+      .eq("house_id", house.id)
+      .eq("entity_id", currentEntity.id)
+      .maybeSingle();
+
+    if (houseRoleError) {
+      console.error("Failed to verify house role before issuing patron pass", houseRoleError);
+      return {
+        ...INITIAL_PATRON_PASS_STATE,
+        status: "error",
+        message: "We couldn’t verify your role at this house. Try again later.",
+      };
+    }
+
+    let hasAccess = Boolean(houseRole);
+    if (!hasAccess && house.guild_id) {
+      const { data: guildRole, error: guildRoleError } = await supabase
+        .from("guild_roles")
+        .select("id")
+        .eq("guild_id", house.guild_id)
+        .eq("entity_id", currentEntity.id)
+        .maybeSingle();
+
+      if (guildRoleError) {
+        console.error("Failed to verify guild role before issuing patron pass", guildRoleError);
+        return {
+          ...INITIAL_PATRON_PASS_STATE,
+          status: "error",
+          message: "We couldn’t verify your guild role just now. Try again later.",
+        };
+      }
+
+      hasAccess = Boolean(guildRole);
+    }
+
+    if (!hasAccess) {
+      return {
+        ...INITIAL_PATRON_PASS_STATE,
+        status: "error",
+        message: "Only house or guild staff can issue patron passes.",
       };
     }
 
