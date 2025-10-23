@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { getOrCreateEntityByIdentifier } from "@/lib/auth/entity";
 import { getSupabase } from "@/lib/supabase";
+import { ensureGuildRecord } from "@/lib/taxonomy/guilds-server";
 import type { EntityIdentifierType } from "@/lib/types/taxonomy";
 
 import type { ApplyToGuildFormState } from "./state";
@@ -28,20 +29,6 @@ function parseIdentifierType(value: FormDataEntryValue | null): EntityIdentifier
 
   return null;
 }
-
-type OrgAsGuildRow = {
-  id: string;
-  name: string;
-  slug: string;
-  source: string | null;
-  guild_type: string | null;
-  motto: string | null;
-  profile: Record<string, unknown> | null;
-  theme: Record<string, unknown> | null;
-  modules: Record<string, unknown> | null;
-  payroll: Record<string, unknown> | null;
-  metadata: Record<string, unknown> | null;
-};
 
 export async function applyToGuild(
   _prevState: ApplyToGuildFormState,
@@ -74,76 +61,26 @@ export async function applyToGuild(
       };
     }
 
-    const { data: guildRow, error: guildError } = await supabase
-      .from("orgs_as_guilds")
-      .select(
-        "id,name,slug,source,guild_type,motto,profile,theme,modules,payroll,metadata",
-      )
-      .eq("slug", slug)
-      .maybeSingle<OrgAsGuildRow>();
-
-    if (guildError) {
-      console.error(`Failed to resolve guild with slug ${slug}`, guildError);
+    let guildRecord;
+    try {
+      guildRecord = await ensureGuildRecord(supabase, slug);
+    } catch (cause) {
+      console.error(`Failed to resolve guild with slug ${slug}`, cause);
       return {
         status: "error",
         message: "We couldn’t look up that guild right now. Please try again in a moment.",
       };
     }
 
-    if (!guildRow) {
+    if (!guildRecord) {
       return {
         status: "error",
         message: "This guild isn’t ready to accept new members yet.",
       };
     }
 
-    let guildId = guildRow.id;
-    let guildName = guildRow.name;
-
-    if (guildRow.source === "orgs") {
-      const { data: ensuredGuild, error: ensureGuildError } = await supabase
-        .from("guilds")
-        .upsert(
-          {
-            slug: guildRow.slug,
-            name: guildRow.name,
-            guild_type: guildRow.guild_type ?? "MERCHANT",
-            motto: guildRow.motto,
-            profile: guildRow.profile ?? {},
-            theme: guildRow.theme ?? {},
-            modules: guildRow.modules ?? {},
-            payroll: guildRow.payroll ?? {},
-            metadata: guildRow.metadata ?? {},
-          },
-          { onConflict: "slug" },
-        )
-        .select("id,name")
-        .single();
-
-      if (ensureGuildError) {
-        console.error(
-          `Failed to promote org slug ${slug} to a guild before granting membership`,
-          ensureGuildError,
-        );
-        return {
-          status: "error",
-          message: "We couldn’t finalize that guild for instant membership just yet. Please try again later.",
-        };
-      }
-
-      if (!ensuredGuild) {
-        console.error(
-          `Received no guild record after attempting to promote org slug ${slug} to a guild`,
-        );
-        return {
-          status: "error",
-          message: "We couldn’t finalize that guild for instant membership just yet. Please try again later.",
-        };
-      }
-
-      guildId = ensuredGuild.id;
-      guildName = ensuredGuild.name;
-    }
+    const guildId = guildRecord.id;
+    const guildName = guildRecord.name;
 
     let entityId = coerceString(formData.get("entity_id"));
     let identifierType: EntityIdentifierType | null = null;
