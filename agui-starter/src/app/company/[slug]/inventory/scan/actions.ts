@@ -7,6 +7,7 @@ import {
   adoptItemByBarcode,
   loadHouseInventory,
   updateHouseItemDetails,
+  type UpdateHouseItemDetailsOptions,
 } from "@/lib/inventory/items-server";
 import { getSupabase } from "@/lib/supabase";
 import { loadHouseBySlug } from "@/lib/taxonomy/houses-server";
@@ -259,16 +260,23 @@ export async function handleInventoryAction(
 
     const sku = coerceNullableString(formData.get("sku"));
 
+    const existingItem = prevState.items.find((item) => item.houseItemId === houseItemId);
+
     try {
-      await updateHouseItemDetails({
+      const updateOptions: UpdateHouseItemDetailsOptions = {
         supabase,
         houseId: house.id,
         houseItemId,
         sku,
         priceCents,
-        priceCurrency: "USD",
         stockQuantity,
-      });
+      };
+
+      if (existingItem?.priceCurrency) {
+        updateOptions.priceCurrency = existingItem.priceCurrency;
+      }
+
+      await updateHouseItemDetails(updateOptions);
       const inventory = await loadHouseInventory(supabase, house.id);
       const items = mapInventoryItems(inventory);
 
