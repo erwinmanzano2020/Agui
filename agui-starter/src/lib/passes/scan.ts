@@ -287,7 +287,11 @@ function buildResolution(
 ): ScanResolution {
   const incognitoDefault = card.flags.incognito_default ?? false;
   const higherCard = linkedCards
-    .filter((linked) => linked.scheme.precedence < card.scheme.precedence)
+    .filter(
+      (linked) =>
+        linked.status === "active" &&
+        linked.scheme.precedence < card.scheme.precedence,
+    )
     .sort((a, b) => a.scheme.precedence - b.scheme.precedence)[0] ?? null;
 
   return {
