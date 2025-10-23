@@ -13,10 +13,13 @@ import {
   ChevronRightIcon,
   LayoutDashboardIcon,
   MenuIcon,
+  NetworkIcon,
   ScrollTextIcon,
+  ShieldIcon,
   StorefrontIcon,
   UsersIcon,
 } from "@/components/icons/lucide";
+import { pluralize } from "@/lib/utils";
 
 type NavItem = { name: string; href: string; icon: ReactNode };
 
@@ -31,6 +34,16 @@ export function AppShell({
   const baseNav = useMemo<NavItem[]>(
     () => [
       { name: "Dashboard", href: "/", icon: <LayoutDashboardIcon className="h-5 w-5" /> },
+      {
+        name: pluralize(terms.alliance),
+        href: "/alliances",
+        icon: <NetworkIcon className="h-5 w-5" />,
+      },
+      {
+        name: pluralize(terms.guild),
+        href: "/guilds",
+        icon: <ShieldIcon className="h-5 w-5" />,
+      },
       { name: terms.team, href: "/employees", icon: <UsersIcon className="h-5 w-5" /> },
       {
         name: "DTR Bulk",
@@ -39,7 +52,7 @@ export function AppShell({
       },
       { name: "Payroll", href: "/payroll", icon: <ScrollTextIcon className="h-5 w-5" /> },
     ],
-    [terms.team]
+    [terms.alliance, terms.guild, terms.team]
   );
   const pathname = usePathname();
   const isHome = pathname === "/";
