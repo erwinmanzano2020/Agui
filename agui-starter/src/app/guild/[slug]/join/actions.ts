@@ -146,7 +146,7 @@ export async function applyToGuild(
     const { error: upsertError } = await supabase
       .from("guild_roles")
       .upsert(
-        { guild_id: guild.id, entity_id, role: "guild_member" },
+        { guild_id: guild.id, entity_id: entityId, role: "guild_member" },
         { onConflict: "guild_id,entity_id,role", ignoreDuplicates: true },
       );
 
