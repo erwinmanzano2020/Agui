@@ -11,14 +11,8 @@ import {
 import { SplashScreen } from "@/app/(components)/SplashScreen";
 import { Dock, type DockItem } from "@/components/ui/dock";
 import { AppTile } from "@/components/ui/app-tile";
-import { apps, dock, type AppMeta } from "@/config/apps";
-
-const APPS = apps;
-const APPS_BY_ID = new Map<string, AppMeta>(APPS.map((app) => [app.id, app]));
-const GRID_APPS = APPS;
-const DOCK_APPS = dock
-  .map((id) => APPS_BY_ID.get(id))
-  .filter((entry): entry is AppMeta => Boolean(entry));
+import { createApps, dockIds, type AppMeta } from "@/config/apps";
+import { useUiTerms } from "@/lib/ui-terms";
 
 type TileHandlers = {
   onFocus: () => void;
@@ -26,6 +20,20 @@ type TileHandlers = {
 };
 
 export default function HomePage() {
+  const terms = useUiTerms();
+  const apps = useMemo(() => createApps(terms), [terms]);
+  const appsById = useMemo(
+    () => new Map<string, AppMeta>(apps.map((app) => [app.id, app])),
+    [apps]
+  );
+  const gridApps = apps;
+  const dockApps = useMemo(
+    () =>
+      dockIds
+        .map((id) => appsById.get(id))
+        .filter((entry): entry is AppMeta => Boolean(entry)),
+    [appsById]
+  );
   const gridRef = useRef<HTMLDivElement>(null);
   const tileRefs = useRef<(HTMLAnchorElement | null)[]>([]);
   const [focusIndex, setFocusIndex] = useState(0);
@@ -33,13 +41,15 @@ export default function HomePage() {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const dockItems = useMemo<DockItem[]>(() => {
-    return DOCK_APPS.map((app) => ({
+    return dockApps.map((app) => ({
       href: app.href,
       label: app.label,
       icon: app.icon,
       accentColor: app.accentColor,
     }));
-  }, []);
+  }, [dockApps]);
+
+  const gridLength = gridApps.length;
 
   const getColumnCount = useCallback(() => {
     const grid = gridRef.current;
@@ -60,8 +70,8 @@ export default function HomePage() {
     }
 
     const columns = Math.max(1, Math.floor((gridWidth + gap) / (tileWidth + gap)));
-    return Math.min(columns, GRID_APPS.length);
-  }, []);
+    return Math.min(columns, gridLength || 1);
+  }, [gridLength]);
 
   useEffect(() => {
     const grid = gridRef.current;
@@ -125,9 +135,9 @@ export default function HomePage() {
   const hintBottomOffset = `calc(${safeAreaBottom} + ${dockHeight} + ${dockHintGap})`;
 
   const tileHandlers: TileHandlers[] = useMemo(() => {
-    return GRID_APPS.map((_, index) => {
+    return gridApps.map((_, index) => {
       const moveFocus = (nextIndex: number) => {
-        const maxIndex = GRID_APPS.length - 1;
+        const maxIndex = gridApps.length - 1;
         const targetIndex = Math.min(Math.max(nextIndex, 0), maxIndex);
 
         setFocusIndex((current) => (current === targetIndex ? current : targetIndex));
@@ -191,14 +201,14 @@ export default function HomePage() {
             moveFocus(0);
             break;
           case "End":
-            moveFocus(GRID_APPS.length - 1);
+            moveFocus(gridApps.length - 1);
             break;
         }
       };
 
       return { onFocus, onKeyDown } satisfies TileHandlers;
     });
-  }, [getColumnCount]);
+  }, [getColumnCount, gridApps]);
 
   return (
     <>
@@ -217,10 +227,10 @@ export default function HomePage() {
                   role="grid"
                   aria-label="App launcher"
                   aria-colcount={columnCount}
-                  aria-rowcount={Math.ceil(GRID_APPS.length / columnCount)}
+                  aria-rowcount={Math.ceil(gridApps.length / columnCount)}
                   className="grid grid-cols-3 justify-items-center gap-x-5 gap-y-8 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
                 >
-                  {GRID_APPS.map((app, index) => (
+                  {gridApps.map((app, index) => (
                     <div
                       key={app.id}
                       role="gridcell"

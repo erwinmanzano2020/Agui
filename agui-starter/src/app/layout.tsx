@@ -8,6 +8,7 @@ import TenantThemeMount from "@/app/providers/tenant-theme-mount";
 import { ToasterMount } from "@/components/ui/toaster";
 import { loadUiConfig } from "@/lib/ui-config";
 import { themeToCssVars } from "@/lib/theme-css";
+import { loadUiTerms, UiTermsProvider } from "@/lib/ui-terms";
 
 // ✅ Client-only palette mount (prevents server from serializing functions)
 import CommandPaletteMount from "@/components/ui/command-palette-mount";
@@ -21,7 +22,8 @@ export const metadata = {
 };
 
 export default async function RootLayout({ children }: { children: ReactNode }) {
-  const { theme, flags } = await loadUiConfig();
+  const [config, uiTerms] = await Promise.all([loadUiConfig(), loadUiTerms()]);
+  const { theme, flags } = config;
   const styleVars = themeToCssVars(theme) as CSSProperties;
 
   return (
@@ -31,14 +33,16 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         style={styleVars}
       >
-        <ThemeProvider theme={theme}>
-          <TenantThemeMount />
-          <AppShell posEnabled={Boolean(flags?.pos_enabled)}>{children}</AppShell>
-          <ToasterMount />
+        <UiTermsProvider terms={uiTerms}>
+          <ThemeProvider theme={theme}>
+            <TenantThemeMount />
+            <AppShell posEnabled={Boolean(flags?.pos_enabled)}>{children}</AppShell>
+            <ToasterMount />
 
-          {/* ⌨️ Global Command Palette mounted client-side */}
-          <CommandPaletteMount />
-        </ThemeProvider>
+            {/* ⌨️ Global Command Palette mounted client-side */}
+            <CommandPaletteMount />
+          </ThemeProvider>
+        </UiTermsProvider>
       </body>
     </html>
   );

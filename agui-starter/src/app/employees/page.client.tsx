@@ -9,6 +9,7 @@ import EmptyState from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { ThemedLink } from "@/components/ui/themed-link";
 import { getSupabase } from "@/lib/supabase";
+import { useUiTerms } from "@/lib/ui-terms";
 
 type EmployeeRow = {
   id: string;
@@ -26,6 +27,9 @@ export default function EmployeesPageClient() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const router = useRouter();
+  const terms = useUiTerms();
+  const teamLabel = terms.team;
+  const teamLower = teamLabel.toLowerCase();
 
   const renderStatus = (status: string | null) => {
     const raw = status ?? "active";
@@ -81,9 +85,9 @@ export default function EmployeesPageClient() {
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-6">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Employees</h1>
+        <h1 className="text-2xl font-semibold">{teamLabel}</h1>
         <p className="text-sm text-[var(--agui-muted-foreground)]">
-          View and manage the people that make your town thrive.
+          Manage your {teamLower} and keep everyone in sync.
         </p>
       </header>
 
@@ -98,9 +102,9 @@ export default function EmployeesPageClient() {
           <div className="text-sm text-[var(--agui-muted-foreground)]">Loading…</div>
         ) : rows.length === 0 ? (
           <EmptyState
-            title="No employees yet"
-            description="Add your first employee to get started."
-            actionLabel="Add employee"
+            title={`No ${teamLower} yet`}
+            description={`Add your first ${teamLower} to get started.`}
+            actionLabel={`Add ${teamLabel}`}
             onAction={() => router.push("/employees/new")}
           />
         ) : (
