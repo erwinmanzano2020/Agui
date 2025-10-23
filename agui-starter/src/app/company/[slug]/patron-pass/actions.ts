@@ -6,7 +6,7 @@ import { getCurrentEntity, getOrCreateEntityByIdentifier } from "@/lib/auth/enti
 import { issueCard, loadCardsForEntity, updateCardFlags } from "@/lib/passes/cards";
 import { ensureHousePassScheme } from "@/lib/loyalty/schemes-server";
 import { ensureLoyaltyProfile } from "@/lib/loyalty/rules";
-import { getSupabase } from "@/lib/supabase";
+import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { loadHouseBySlug } from "@/lib/taxonomy/houses-server";
 import type { EntityIdentifierType } from "@/lib/types/taxonomy";
 
@@ -50,13 +50,7 @@ export async function issuePatronPass(
     const forceIssue = coerceBoolean(formData.get("force_issue"));
     const overrideReason = coerceString(formData.get("override_reason"));
 
-    let supabase;
-    try {
-      supabase = getSupabase();
-    } catch (error) {
-      console.error("Supabase is not configured while issuing a patron pass", error);
-      supabase = null;
-    }
+    const supabase = await createServerSupabaseClient();
 
     if (!supabase) {
       return {
