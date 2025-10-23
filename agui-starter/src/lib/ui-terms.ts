@@ -1,5 +1,3 @@
-import { createContext, useContext, type ReactNode } from "react";
-
 import { getSupabase } from "@/lib/supabase";
 
 export const UI_TERM_KEYS = [
@@ -82,22 +80,6 @@ export async function loadUiTerms(): Promise<UiTerms> {
     console.warn("Failed to load UI terms", error);
     return DEFAULT_UI_TERMS;
   }
-}
-
-export const UiTermsContext = createContext<UiTerms>(DEFAULT_UI_TERMS);
-
-export function UiTermsProvider({
-  terms,
-  children,
-}: {
-  terms: UiTerms;
-  children: ReactNode;
-}) {
-  return <UiTermsContext.Provider value={terms}>{children}</UiTermsContext.Provider>;
-}
-
-export function useUiTerms(): UiTerms {
-  return useContext(UiTermsContext);
 }
 
 export function getUiTerm(key: UiTermKey, terms?: UiTerms): string {

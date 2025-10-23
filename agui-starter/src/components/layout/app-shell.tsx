@@ -6,7 +6,7 @@ import { ReactNode, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ui/theme-toggle";
-import { useUiTerms } from "@/lib/ui-terms";
+import { useUiTerms } from "@/lib/ui-terms-context";
 import {
   CalendarClockIcon,
   ChevronLeftIcon,

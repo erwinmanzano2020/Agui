@@ -4,7 +4,7 @@
 import dynamic from "next/dynamic";
 
 import { createCommands } from "@/config/commands";
-import { useUiTerms } from "@/lib/ui-terms";
+import { useUiTerms } from "@/lib/ui-terms-context";
 
 // Load the actual palette only on the client
 const Palette = dynamic(

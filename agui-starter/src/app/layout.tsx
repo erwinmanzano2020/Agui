@@ -8,7 +8,8 @@ import TenantThemeMount from "@/app/providers/tenant-theme-mount";
 import { ToasterMount } from "@/components/ui/toaster";
 import { loadUiConfig } from "@/lib/ui-config";
 import { themeToCssVars } from "@/lib/theme-css";
-import { loadUiTerms, UiTermsProvider } from "@/lib/ui-terms";
+import { loadUiTerms } from "@/lib/ui-terms";
+import { UiTermsProvider } from "@/lib/ui-terms-context";
 
 // ✅ Client-only palette mount (prevents server from serializing functions)
 import CommandPaletteMount from "@/components/ui/command-palette-mount";

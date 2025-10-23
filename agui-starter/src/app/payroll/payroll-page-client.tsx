@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import EmptyState from "@/components/ui/empty-state";
-import { useUiTerms } from "@/lib/ui-terms";
+import { useUiTerms } from "@/lib/ui-terms-context";
 
 type Row = {
   id: string;

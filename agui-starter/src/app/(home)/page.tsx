@@ -12,7 +12,7 @@ import { SplashScreen } from "@/app/(components)/SplashScreen";
 import { Dock, type DockItem } from "@/components/ui/dock";
 import { AppTile } from "@/components/ui/app-tile";
 import { createApps, dockIds, type AppMeta } from "@/config/apps";
-import { useUiTerms } from "@/lib/ui-terms";
+import { useUiTerms } from "@/lib/ui-terms-context";
 
 type TileHandlers = {
   onFocus: () => void;

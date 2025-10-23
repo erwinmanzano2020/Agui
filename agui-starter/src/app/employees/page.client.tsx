@@ -9,7 +9,7 @@ import EmptyState from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { ThemedLink } from "@/components/ui/themed-link";
 import { getSupabase } from "@/lib/supabase";
-import { useUiTerms } from "@/lib/ui-terms";
+import { useUiTerms } from "@/lib/ui-terms-context";
 
 type EmployeeRow = {
   id: string;
