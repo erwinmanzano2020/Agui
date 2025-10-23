@@ -2,7 +2,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { commands } from "@/config/commands";
+
+import { createCommands } from "@/config/commands";
+import { useUiTerms } from "@/lib/ui-terms-context";
 
 // Load the actual palette only on the client
 const Palette = dynamic(
@@ -11,5 +13,6 @@ const Palette = dynamic(
 );
 
 export default function CommandPaletteMount() {
-  return <Palette commands={commands} />;
+  const terms = useUiTerms();
+  return <Palette commands={createCommands(terms)} />;
 }

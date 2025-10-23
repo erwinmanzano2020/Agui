@@ -42,6 +42,25 @@ export default async function SettingsPage() {
           </Link>
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold text-foreground">Terminology</h2>
+            <p className="text-sm text-muted-foreground">
+              Rename alliances, guilds, companies, teams, and loyalty passes.
+            </p>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <Link
+            href="/settings/terms"
+            className="inline-flex h-9 items-center rounded-[calc(var(--agui-radius))] border border-[color-mix(in_srgb,_var(--agui-card-border)_90%,_transparent)] px-3 text-sm font-medium text-[var(--agui-on-surface)] transition-colors hover:border-[color-mix(in_srgb,_var(--agui-primary)_45%,_var(--agui-card-border)_55%)] hover:bg-[color-mix(in_srgb,_var(--agui-primary)_10%,_var(--agui-card)_90%)]"
+          >
+            Configure UI terms
+          </Link>
+        </CardContent>
+      </Card>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { ReactNode, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ui/theme-toggle";
+import { useUiTerms } from "@/lib/ui-terms-context";
 import {
   CalendarClockIcon,
   ChevronLeftIcon,
@@ -19,17 +20,6 @@ import {
 
 type NavItem = { name: string; href: string; icon: ReactNode };
 
-const BASE_NAV: NavItem[] = [
-  { name: "Dashboard", href: "/", icon: <LayoutDashboardIcon className="h-5 w-5" /> },
-  { name: "Employees", href: "/employees", icon: <UsersIcon className="h-5 w-5" /> },
-  {
-    name: "DTR Bulk",
-    href: "/payroll/dtr-bulk",
-    icon: <CalendarClockIcon className="h-5 w-5" />,
-  },
-  { name: "Payroll", href: "/payroll", icon: <ScrollTextIcon className="h-5 w-5" /> },
-];
-
 export function AppShell({
   children,
   posEnabled = false,
@@ -37,6 +27,20 @@ export function AppShell({
   children: ReactNode;
   posEnabled?: boolean;
 }) {
+  const terms = useUiTerms();
+  const baseNav = useMemo<NavItem[]>(
+    () => [
+      { name: "Dashboard", href: "/", icon: <LayoutDashboardIcon className="h-5 w-5" /> },
+      { name: terms.team, href: "/employees", icon: <UsersIcon className="h-5 w-5" /> },
+      {
+        name: "DTR Bulk",
+        href: "/payroll/dtr-bulk",
+        icon: <CalendarClockIcon className="h-5 w-5" />,
+      },
+      { name: "Payroll", href: "/payroll", icon: <ScrollTextIcon className="h-5 w-5" /> },
+    ],
+    [terms.team]
+  );
   const pathname = usePathname();
   const isHome = pathname === "/";
 
@@ -46,14 +50,14 @@ export function AppShell({
 
   const nav = useMemo(() => {
     if (!posEnabled) {
-      return BASE_NAV;
+      return baseNav;
     }
 
     return [
-      ...BASE_NAV,
+      ...baseNav,
       { name: "POS", href: "/pos", icon: <StorefrontIcon className="h-5 w-5" /> },
     ];
-  }, [posEnabled]);
+  }, [baseNav, posEnabled]);
   const activeNav = nav.find((item) => item.href === pathname);
   const headerTitle = isHome ? "Home" : activeNav?.name ?? "Agui Dashboard";
 

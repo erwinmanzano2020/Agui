@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { DataTable, type Column } from "@/components/ui/data-table";
 import EmptyState from "@/components/ui/empty-state";
+import { useUiTerms } from "@/lib/ui-terms-context";
 
 type Row = {
   id: string;
@@ -17,6 +18,9 @@ type Row = {
 };
 
 export default function PayrollPageClient() {
+  const terms = useUiTerms();
+  const teamLabel = terms.team;
+  const teamLower = teamLabel.toLowerCase();
   // Demo data — you’ll wire real data later
   const [rows] = useState<Row[]>([
     {
@@ -44,7 +48,7 @@ export default function PayrollPageClient() {
     () => [
       { key: "id", header: "Run ID", width: "140px" },
       { key: "period", header: "Period" },
-      { key: "employees", header: "Employees", width: "120px", align: "right" },
+      { key: "employees", header: teamLabel, width: "120px", align: "right" },
       {
         key: "gross",
         header: "Gross",
@@ -67,13 +71,13 @@ export default function PayrollPageClient() {
         render: (r) => <strong>{peso(r.net)}</strong>,
       },
     ],
-    [],
+    [teamLabel],
   );
 
   return (
     <PageHeader
       title="Payroll"
-      subtitle="Manage employee pay and records"
+      subtitle={`Manage ${teamLower} pay and records`}
       actions={
         <>
           <Button type="button">Add Payroll</Button>
