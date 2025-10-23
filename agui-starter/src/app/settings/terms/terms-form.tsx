@@ -11,11 +11,14 @@ import { type UiTermKey, type UiTerms } from "@/lib/ui-terms";
 
 import { updateUiTerms } from "./actions";
 
+const HOUSE_PASS_CHOICES = ["Patron Pass", "House Crest", "Trade Sigil", "ShopPass"] as const;
+
 const TERM_FIELDS: Array<{
   key: UiTermKey;
   label: string;
   description: string;
   placeholder: string;
+  choices?: readonly string[];
 }> = [
   {
     key: "alliance",
@@ -58,6 +61,7 @@ const TERM_FIELDS: Array<{
     label: "Patron Pass",
     description: "The loyalty pass for a single house or location.",
     placeholder: "Patron Pass",
+    choices: HOUSE_PASS_CHOICES,
   },
 ];
 
@@ -120,6 +124,29 @@ export function TermsForm({ initialTerms }: { initialTerms: UiTerms }) {
                 onChange={(event) => handleChange(field.key, event.target.value)}
                 disabled={pending}
               />
+              {field.choices ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-muted-foreground">Suggested names</p>
+                  <div className="flex flex-wrap gap-2">
+                    {field.choices.map((choice) => {
+                      const isActive = form[field.key] === choice;
+                      return (
+                        <Button
+                          key={choice}
+                          type="button"
+                          size="sm"
+                          variant={isActive ? "solid" : "outline"}
+                          aria-pressed={isActive}
+                          onClick={() => handleChange(field.key, choice)}
+                          disabled={pending}
+                        >
+                          {choice}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
               <div className="text-xs text-muted-foreground">
                 Preview: <strong>{optimisticTerms[field.key]}</strong>
               </div>
