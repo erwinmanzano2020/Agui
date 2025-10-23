@@ -14,7 +14,9 @@
     "src/lib/auth/roles.ts",
     "src/lib/auth/roles.test.ts",
     "src/lib/slug.ts",
-    "src/lib/slug.test.ts"
+    "src/lib/slug.test.ts",
+    "src/lib/loyalty/rules.ts",
+    "src/lib/loyalty/rules.test.ts"
   ],
   "exclude": [
     "node_modules"
