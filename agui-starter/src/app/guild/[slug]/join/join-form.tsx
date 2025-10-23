@@ -7,11 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-import {
-  applyToGuild,
-  INITIAL_APPLY_TO_GUILD_STATE,
-  type ApplyToGuildFormState,
-} from "./actions";
+import { applyToGuild } from "./actions";
+import { INITIAL_APPLY_TO_GUILD_STATE, type ApplyToGuildFormState } from "./state";
 
 function SubmitButton({ label }: { label: string }) {
   const { pending } = useFormStatus();

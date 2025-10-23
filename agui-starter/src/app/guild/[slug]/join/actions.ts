@@ -6,10 +6,7 @@ import { getOrCreateEntityByIdentifier } from "@/lib/auth/entity";
 import { getSupabase } from "@/lib/supabase";
 import type { EntityIdentifierType } from "@/lib/types/taxonomy";
 
-export type ApplyToGuildFormState =
-  | { status: "idle" }
-  | { status: "success"; message: string }
-  | { status: "error"; message: string };
+import type { ApplyToGuildFormState } from "./state";
 
 function coerceString(value: FormDataEntryValue | null): string | null {
   if (typeof value !== "string") {
@@ -31,6 +28,20 @@ function parseIdentifierType(value: FormDataEntryValue | null): EntityIdentifier
 
   return null;
 }
+
+type OrgAsGuildRow = {
+  id: string;
+  name: string;
+  slug: string;
+  source: string | null;
+  guild_type: string | null;
+  motto: string | null;
+  profile: Record<string, unknown> | null;
+  theme: Record<string, unknown> | null;
+  modules: Record<string, unknown> | null;
+  payroll: Record<string, unknown> | null;
+  metadata: Record<string, unknown> | null;
+};
 
 export async function applyToGuild(
   _prevState: ApplyToGuildFormState,
@@ -63,11 +74,13 @@ export async function applyToGuild(
       };
     }
 
-    const { data: guild, error: guildError } = await supabase
-      .from("guilds")
-      .select("id,name")
+    const { data: guildRow, error: guildError } = await supabase
+      .from("orgs_as_guilds")
+      .select(
+        "id,name,slug,source,guild_type,motto,profile,theme,modules,payroll,metadata",
+      )
       .eq("slug", slug)
-      .maybeSingle();
+      .maybeSingle<OrgAsGuildRow>();
 
     if (guildError) {
       console.error(`Failed to resolve guild with slug ${slug}`, guildError);
@@ -77,11 +90,59 @@ export async function applyToGuild(
       };
     }
 
-    if (!guild) {
+    if (!guildRow) {
       return {
         status: "error",
         message: "This guild isn’t ready to accept new members yet.",
       };
+    }
+
+    let guildId = guildRow.id;
+    let guildName = guildRow.name;
+
+    if (guildRow.source === "orgs") {
+      const { data: ensuredGuild, error: ensureGuildError } = await supabase
+        .from("guilds")
+        .upsert(
+          {
+            slug: guildRow.slug,
+            name: guildRow.name,
+            guild_type: guildRow.guild_type ?? "MERCHANT",
+            motto: guildRow.motto,
+            profile: guildRow.profile ?? {},
+            theme: guildRow.theme ?? {},
+            modules: guildRow.modules ?? {},
+            payroll: guildRow.payroll ?? {},
+            metadata: guildRow.metadata ?? {},
+          },
+          { onConflict: "slug" },
+        )
+        .select("id,name")
+        .single();
+
+      if (ensureGuildError) {
+        console.error(
+          `Failed to promote org slug ${slug} to a guild before granting membership`,
+          ensureGuildError,
+        );
+        return {
+          status: "error",
+          message: "We couldn’t finalize that guild for instant membership just yet. Please try again later.",
+        };
+      }
+
+      if (!ensuredGuild) {
+        console.error(
+          `Received no guild record after attempting to promote org slug ${slug} to a guild`,
+        );
+        return {
+          status: "error",
+          message: "We couldn’t finalize that guild for instant membership just yet. Please try again later.",
+        };
+      }
+
+      guildId = ensuredGuild.id;
+      guildName = ensuredGuild.name;
     }
 
     let entityId = coerceString(formData.get("entity_id"));
@@ -146,13 +207,13 @@ export async function applyToGuild(
     const { error: upsertError } = await supabase
       .from("guild_roles")
       .upsert(
-        { guild_id: guild.id, entity_id: entityId, role: "guild_member" },
+        { guild_id: guildId, entity_id: entityId, role: "guild_member" },
         { onConflict: "guild_id,entity_id,role", ignoreDuplicates: true },
       );
 
     if (upsertError) {
       console.error(
-        `Failed to grant guild membership for entity ${entityId} on guild ${guild.id}`,
+        `Failed to grant guild membership for entity ${entityId} on guild ${guildId}`,
         upsertError,
       );
       return {
@@ -166,7 +227,7 @@ export async function applyToGuild(
 
     return {
       status: "success",
-      message: `You’re now a member of ${guild.name}!`,
+      message: `You’re now a member of ${guildName}!`,
     };
   } catch (cause) {
     console.error("Unexpected error while applying to a guild", cause);
@@ -176,5 +237,3 @@ export async function applyToGuild(
     };
   }
 }
-
-export const INITIAL_APPLY_TO_GUILD_STATE: ApplyToGuildFormState = { status: "idle" };
