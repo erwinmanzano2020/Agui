@@ -1,19 +1,50 @@
-import { z } from "zod";
-
 import { getSupabase } from "@/lib/supabase";
-import { OrgAsGuildSchema } from "@/lib/types/taxonomy";
+import { guildTypeValues, type GuildType } from "@/lib/types/taxonomy";
 
 import { FALLBACK_GUILD_STATS, FALLBACK_GUILD_SUMMARIES } from "./fallback";
+type GuildSummaryInput = {
+  id: string;
+  slug: string;
+  name: string;
+  guild_type: GuildType;
+  motto: string | null;
+};
 
-export const GuildSummarySchema = OrgAsGuildSchema.pick({
-  id: true,
-  slug: true,
-  name: true,
-  guild_type: true,
-  motto: true,
-});
+export type GuildSummary = GuildSummaryInput;
 
-export type GuildSummary = z.infer<typeof GuildSummarySchema>;
+function isGuildType(value: unknown): value is GuildSummary["guild_type"] {
+  return typeof value === "string" && guildTypeValues.includes(value as GuildType);
+}
+
+export function parseGuildSummary(value: unknown): GuildSummary | null {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return null;
+  }
+
+  const record = value as Record<string, unknown>;
+  const { id, slug, name, guild_type, motto } = record;
+
+  if (
+    typeof id !== "string" ||
+    typeof slug !== "string" ||
+    typeof name !== "string" ||
+    !isGuildType(guild_type)
+  ) {
+    return null;
+  }
+
+  if (motto !== null && typeof motto !== "string" && typeof motto !== "undefined") {
+    return null;
+  }
+
+  return {
+    id,
+    slug,
+    name,
+    guild_type,
+    motto: typeof motto === "string" ? motto : null,
+  } satisfies GuildSummaryInput;
+}
 
 export type GuildStats = {
   memberCount: number;
@@ -47,13 +78,15 @@ const FALLBACK_SUMMARIES_BY_SLUG = new Map(
 
 const EMPTY_STATS: GuildStats = { memberCount: 0, houseCount: 0, partyCount: 0 };
 
+const FALLBACK_STATS_BY_SLUG: Record<string, GuildStats> = FALLBACK_GUILD_STATS;
+
 function getFallbackDetail(slug: string): GuildDetail | null {
   const summary = FALLBACK_SUMMARIES_BY_SLUG.get(slug);
   if (!summary) {
     return null;
   }
 
-  const stats = FALLBACK_GUILD_STATS[slug] ?? EMPTY_STATS;
+  const stats = FALLBACK_STATS_BY_SLUG[slug] ?? EMPTY_STATS;
   return { ...summary, stats };
 }
 
@@ -119,13 +152,17 @@ export async function loadGuildSummaries(): Promise<GuildSummary[]> {
       return FALLBACK_SUMMARIES;
     }
 
-    const parsed = GuildSummarySchema.array().safeParse(data);
-    if (!parsed.success) {
-      console.warn("Failed to parse guild summaries", parsed.error);
+    const rows = Array.isArray(data) ? data : [];
+    const parsed = rows
+      .map((entry) => parseGuildSummary(entry))
+      .filter((entry): entry is GuildSummary => entry !== null);
+
+    if (parsed.length !== rows.length) {
+      console.warn("Failed to parse guild summaries", data);
       return FALLBACK_SUMMARIES;
     }
 
-    return parsed.data;
+    return parsed;
   } catch (error) {
     console.warn("Failed to load guild summaries", error);
     return FALLBACK_SUMMARIES;
@@ -154,14 +191,14 @@ export async function loadGuildDetail(slug: string): Promise<GuildDetail | null>
       return getFallbackDetail(slug);
     }
 
-    const parsed = GuildSummarySchema.safeParse(data);
-    if (!parsed.success) {
-      console.warn(`Failed to parse guild detail for ${slug}`, parsed.error);
+    const parsed = parseGuildSummary(data);
+    if (!parsed) {
+      console.warn(`Failed to parse guild detail for ${slug}`, data);
       return getFallbackDetail(slug);
     }
 
-    const stats = await fetchGuildStats(supabase, parsed.data.id);
-    return { ...parsed.data, stats };
+    const stats = await fetchGuildStats(supabase, parsed.id);
+    return { ...parsed, stats };
   } catch (error) {
     console.warn(`Failed to load guild detail for ${slug}`, error);
     return getFallbackDetail(slug);

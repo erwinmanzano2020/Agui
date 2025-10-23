@@ -1,12 +1,7 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 import { getSupabase } from "../supabase";
-import {
-  EntitySchema,
-  type Entity,
-  type EntityIdentifierType,
-  type JsonValue,
-} from "../types/taxonomy";
+import { parseEntity, type Entity, type EntityIdentifierType, type JsonValue } from "../types/taxonomy";
 
 const UNIQUE_VIOLATION = "23505";
 
@@ -34,7 +29,7 @@ async function fetchEntityById(client: SupabaseClient, entityId: string): Promis
     throw new Error(`Failed to load entity ${entityId}: ${error.message}`);
   }
   if (!data) return null;
-  return EntitySchema.parse(data);
+  return parseEntity(data);
 }
 
 function extractEntityId(user: User): string | null {
@@ -118,7 +113,7 @@ async function lookupEntityByIdentifier(
   }
 
   return {
-    entity: EntitySchema.parse(data.entity),
+    entity: parseEntity(data.entity),
     identifierId: data.id,
     isPrimary: data.is_primary ?? false,
   };
@@ -166,7 +161,7 @@ export async function getOrCreateEntityByIdentifier({
     throw new Error(`Failed to create entity: ${insertEntityError.message}`);
   }
 
-  const entity = EntitySchema.parse(insertedEntity);
+  const entity = parseEntity(insertedEntity);
 
   const { error: identifierInsertError } = await client
     .from("entity_identifiers")
