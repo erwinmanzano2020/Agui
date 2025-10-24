@@ -1,122 +1,64 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { useFormState, useFormStatus } from "react-dom";
-
+import * as React from "react";
+import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { joinGuild } from "./actions";
 
-import { applyToGuild } from "./actions";
-import { INITIAL_APPLY_TO_GUILD_STATE, type ApplyToGuildFormState } from "./state";
+export default function JoinForm({ slug }: { slug: string }) {
+  const [kind, setKind] = React.useState<"email" | "phone">("phone");
+  const [value, setValue] = React.useState("");
+  const [pending, startTransition] = useTransition();
+  const [done, setDone] = React.useState<{ name: string } | null>(null);
 
-function SubmitButton({ label }: { label: string }) {
-  const { pending } = useFormStatus();
-  return (
-    <Button type="submit" disabled={pending} className="w-full sm:w-auto">
-      {pending ? "Joining…" : label}
-    </Button>
-  );
-}
-
-function StatusBanner({ state }: { state: ApplyToGuildFormState }) {
-  if (state.status === "success") {
-    return (
-      <div
-        role="status"
-        className="rounded-md border border-emerald-500/40 bg-emerald-500/10 px-3 py-2 text-sm text-emerald-600 dark:text-emerald-400"
-      >
-        {state.message}
-      </div>
-    );
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    startTransition(async () => {
+      const res = await joinGuild({ slug, kind, value });
+      if (res?.ok) setDone({ name: res.guild.name });
+    });
   }
 
-  if (state.status === "error") {
+  if (done) {
     return (
-      <div
-        role="alert"
-        className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
-      >
-        {state.message}
-      </div>
+      <Card>
+        <CardContent className="py-8 text-center space-y-2">
+          <div className="text-lg font-semibold">Welcome!</div>
+          <div className="text-sm text-muted-foreground">You’ve joined {done.name}.</div>
+        </CardContent>
+      </Card>
     );
   }
-
-  return null;
-}
-
-export function JoinGuildForm({
-  slug,
-  guildName,
-  guildLabel,
-}: {
-  slug: string;
-  guildName: string;
-  guildLabel: string;
-}) {
-  const [state, formAction] = useFormState(applyToGuild, INITIAL_APPLY_TO_GUILD_STATE);
-  const formRef = useRef<HTMLFormElement>(null);
-
-  useEffect(() => {
-    if (state.status === "success") {
-      formRef.current?.reset();
-    }
-  }, [state.status]);
 
   return (
     <Card>
-      <CardHeader className="space-y-2">
-        <h2 className="text-xl font-semibold text-foreground">Share a contact to join instantly</h2>
-        <p className="text-sm text-muted-foreground">
-          Enter an email or phone number and we’ll register you as a member of {guildName} right away.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <StatusBanner state={state} />
-
-        <form ref={formRef} action={formAction} className="space-y-6">
-          <input type="hidden" name="slug" value={slug} />
-
-          <div className="space-y-2">
-            <label htmlFor="join-email" className="text-sm font-medium text-foreground">
-              Email address
-            </label>
-            <Input
-              id="join-email"
-              name="email"
-              type="email"
-              inputMode="email"
-              placeholder="you@example.com"
-              autoComplete="email"
-            />
-            <p className="text-xs text-muted-foreground">
-              We’ll match this email to your existing account or create a new member record.
-            </p>
+      <CardContent className="space-y-4 py-6">
+        <form onSubmit={onSubmit} className="space-y-3">
+          <div className="text-lg font-semibold">Join this Guild</div>
+          <div className="grid grid-cols-[120px_1fr] items-center gap-3 text-sm">
+            <label className="text-muted-foreground">Identifier</label>
+            <div className="flex gap-2">
+              <select
+                value={kind}
+                onChange={(e) => setKind(e.target.value as "email" | "phone")}
+                className="h-9 px-2 rounded-[var(--agui-radius)] bg-card border border-border"
+              >
+                <option value="phone">Phone</option>
+                <option value="email">Email</option>
+              </select>
+              <input
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                placeholder={kind === "phone" ? "+63917…" : "you@example.com"}
+                className="h-9 flex-1 px-3 rounded-[var(--agui-radius)] bg-card border border-border"
+                required
+              />
+            </div>
           </div>
-
-          <div className="space-y-2">
-            <label htmlFor="join-phone" className="text-sm font-medium text-foreground">
-              Phone number
-            </label>
-            <Input
-              id="join-phone"
-              name="phone"
-              type="tel"
-              inputMode="tel"
-              placeholder="+63 900 000 0000"
-              autoComplete="tel"
-            />
-            <p className="text-xs text-muted-foreground">
-              Prefer SMS? Share a phone number instead. Only one contact method is required.
-            </p>
-          </div>
-
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-xs text-muted-foreground">
-              You’ll be added as a {guildLabel.toLowerCase()} member immediately — no approval queue.
-            </p>
-            <SubmitButton label={`Join ${guildName}`} />
-          </div>
+          <Button type="submit" disabled={pending}>
+            {pending ? "Joining…" : "Join Guild"}
+          </Button>
         </form>
       </CardContent>
     </Card>

@@ -1,176 +1,48 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
-
-import { getOrCreateEntityByIdentifier } from "@/lib/auth/entity";
 import { getSupabase } from "@/lib/supabase";
+import { getOrCreateEntityByIdentifier, type IdentifierKind } from "@/lib/auth/entity";
 import { ensureGuildRecord } from "@/lib/taxonomy/guilds-server";
-import type { EntityIdentifierType } from "@/lib/types/taxonomy";
 
-import type { ApplyToGuildFormState } from "./state";
-
-function coerceString(value: FormDataEntryValue | null): string | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : null;
-}
-
-function parseIdentifierType(value: FormDataEntryValue | null): EntityIdentifierType | null {
-  if (typeof value !== "string") {
+export async function loadGuild(slug: string) {
+  const db = getSupabase();
+  if (!db) return null;
+  const ensuredGuild = await ensureGuildRecord(db, slug);
+  if (!ensuredGuild) {
     return null;
   }
 
-  const normalized = value.trim().toUpperCase();
-  if (normalized === "EMAIL" || normalized === "PHONE") {
-    return normalized as EntityIdentifierType;
+  const { data } = await db
+    .from("guilds")
+    .select("id,slug,name,guild_type")
+    .eq("id", ensuredGuild.id)
+    .maybeSingle();
+
+  if (data) {
+    return data;
   }
 
-  return null;
+  return { ...ensuredGuild, guild_type: null };
 }
 
-export async function applyToGuild(
-  _prevState: ApplyToGuildFormState,
-  formData: FormData,
-): Promise<ApplyToGuildFormState> {
-  try {
-    const slug = coerceString(formData.get("slug"));
-    if (!slug) {
-      return {
-        status: "error",
-        message: "Missing guild information. Try applying again from the guild page.",
-      };
-    }
+export async function joinGuild(input: { slug: string; kind: IdentifierKind; value: string }) {
+  const db = getSupabase();
+  if (!db) throw new Error("DB unavailable");
+  const guild = await loadGuild(input.slug);
+  if (!guild) throw new Error("Guild not found");
 
-    let supabase;
-    try {
-      supabase = getSupabase();
-    } catch (cause) {
-      console.error("Supabase is not configured", cause);
-      return {
-        status: "error",
-        message: "Membership requires a Supabase connection. Please configure Supabase and try again.",
-      };
-    }
+  // resolve/create entity from email/phone
+  const entity = await getOrCreateEntityByIdentifier(input.kind, input.value);
 
-    if (!supabase) {
-      return {
-        status: "error",
-        message: "Membership is currently unavailable because Supabase is offline.",
-      };
-    }
+  // idempotent insert of role
+  const { error } = await db
+    .from("guild_roles")
+    .upsert(
+      { guild_id: guild.id, entity_id: entity.id, role: "guild_member" },
+      { onConflict: "guild_id,entity_id,role" },
+    );
 
-    let guildRecord;
-    try {
-      guildRecord = await ensureGuildRecord(supabase, slug);
-    } catch (cause) {
-      console.error(`Failed to resolve guild with slug ${slug}`, cause);
-      return {
-        status: "error",
-        message: "We couldn’t look up that guild right now. Please try again in a moment.",
-      };
-    }
+  if (error) throw new Error(error.message);
 
-    if (!guildRecord) {
-      return {
-        status: "error",
-        message: "This guild isn’t ready to accept new members yet.",
-      };
-    }
-
-    const guildId = guildRecord.id;
-    const guildName = guildRecord.name;
-
-    let entityId = coerceString(formData.get("entity_id"));
-    let identifierType: EntityIdentifierType | null = null;
-    let identifierValue: string | null = null;
-
-    if (!entityId) {
-      const explicitType = parseIdentifierType(formData.get("identifier_type"));
-      const explicitValue = coerceString(formData.get("identifier_value"));
-      if (explicitType && explicitValue) {
-        identifierType = explicitType;
-        identifierValue = explicitValue;
-      }
-    }
-
-    if (!entityId && !identifierValue) {
-      const email = coerceString(formData.get("email"));
-      if (email) {
-        identifierType = "EMAIL";
-        identifierValue = email;
-      } else {
-        const phone = coerceString(formData.get("phone"));
-        if (phone) {
-          identifierType = "PHONE";
-          identifierValue = phone;
-        }
-      }
-    }
-
-    if (!entityId && (!identifierType || !identifierValue)) {
-      return {
-        status: "error",
-        message: "Share an email address or phone number so we can register your membership.",
-      };
-    }
-
-    if (!entityId && identifierType && identifierValue) {
-      try {
-        const entity = await getOrCreateEntityByIdentifier({
-          identifierType,
-          identifierValue,
-          supabase,
-          makePrimary: true,
-        });
-        entityId = entity.id;
-      } catch (cause) {
-        console.error("Failed to resolve entity for join request", cause);
-        return {
-          status: "error",
-          message: "We couldn’t resolve your contact information. Double-check it and try again.",
-        };
-      }
-    }
-
-    if (!entityId) {
-      return {
-        status: "error",
-        message: "We couldn’t resolve your membership information. Please try again.",
-      };
-    }
-
-    const { error: upsertError } = await supabase
-      .from("guild_roles")
-      .upsert(
-        { guild_id: guildId, entity_id: entityId, role: "guild_member" },
-        { onConflict: "guild_id,entity_id,role", ignoreDuplicates: true },
-      );
-
-    if (upsertError) {
-      console.error(
-        `Failed to grant guild membership for entity ${entityId} on guild ${guildId}`,
-        upsertError,
-      );
-      return {
-        status: "error",
-        message: "We couldn’t record your membership just yet. Please try again later.",
-      };
-    }
-
-    revalidatePath(`/guild/${slug}`);
-    revalidatePath(`/guild/${slug}/join`);
-
-    return {
-      status: "success",
-      message: `You’re now a member of ${guildName}!`,
-    };
-  } catch (cause) {
-    console.error("Unexpected error while applying to a guild", cause);
-    return {
-      status: "error",
-      message: "Something went wrong while processing your application.",
-    };
-  }
+  return { ok: true, guild: { id: guild.id, slug: guild.slug, name: guild.name }, entityId: entity.id };
 }
