@@ -1,171 +1,61 @@
 "use client";
 
-import { useEffect, useOptimistic, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
-
+import * as React from "react";
+import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/toaster";
-import { type UiTermKey, type UiTerms } from "@/lib/ui-terms";
+import { Card, CardContent } from "@/components/ui/card";
+import type { UiTerms } from "@/lib/ui-terms";
+import { updateTerms } from "./actions";
 
-import { updateUiTerms } from "./actions";
+export default function TermsForm({ initial }: { initial: UiTerms }) {
+  const [terms, setTerms] = React.useState(initial);
+  const [pending, start] = useTransition();
 
-const HOUSE_PASS_CHOICES = ["Patron Pass", "House Crest", "Trade Sigil", "ShopPass"] as const;
+  function onChange<K extends keyof UiTerms>(key: K, val: string) {
+    setTerms((t) => ({ ...t, [key]: val }));
+  }
 
-const TERM_FIELDS: Array<{
-  key: UiTermKey;
-  label: string;
-  description: string;
-  placeholder: string;
-  choices?: readonly string[];
-}> = [
-  {
-    key: "alliance",
-    label: "Alliance",
-    description: "The highest-level organization that can span multiple guilds.",
-    placeholder: "Alliance",
-  },
-  {
-    key: "guild",
-    label: "Guild",
-    description: "A core organization or franchise that houses multiple companies.",
-    placeholder: "Guild",
-  },
-  {
-    key: "company",
-    label: "Company",
-    description: "A business unit or legal entity within a guild.",
-    placeholder: "Company",
-  },
-  {
-    key: "team",
-    label: "Team",
-    description: "Your frontline crew or staff members who run day-to-day operations.",
-    placeholder: "Team",
-  },
-  {
-    key: "alliance_pass",
-    label: "Alliance Pass",
-    description: "The loyalty pass that works across every guild in an alliance.",
-    placeholder: "Alliance Pass",
-  },
-  {
-    key: "guild_card",
-    label: "Guild Card",
-    description: "The membership card for a specific guild and its houses.",
-    placeholder: "Guild Card",
-  },
-  {
-    key: "house_pass",
-    label: "Patron Pass",
-    description: "The loyalty pass for a single house or location.",
-    placeholder: "Patron Pass",
-    choices: HOUSE_PASS_CHOICES,
-  },
-];
-
-export function TermsForm({ initialTerms }: { initialTerms: UiTerms }) {
-  const [form, setForm] = useState<UiTerms>(initialTerms);
-  const [optimisticTerms, applyOptimisticTerms] = useOptimistic(initialTerms, (_, next: UiTerms) => next);
-  const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
-  const toast = useToast();
-
-  useEffect(() => {
-    setForm(initialTerms);
-    applyOptimisticTerms(initialTerms);
-  }, [applyOptimisticTerms, initialTerms]);
-
-  const handleChange = (key: UiTermKey, value: string) => {
-    setForm((current) => ({ ...current, [key]: value }));
-  };
-
-  const handleSubmit: React.FormEventHandler<HTMLFormElement> = (event) => {
-    event.preventDefault();
-    setError(null);
-    const payload = { ...form };
-    applyOptimisticTerms(payload);
-
-    startTransition(async () => {
-      try {
-        const result = await updateUiTerms(payload);
-        applyOptimisticTerms(result.terms);
-        setForm(result.terms);
-        if (result.persisted) {
-          router.refresh();
-          toast.success("UI terms updated across the dashboard.");
-        } else {
-          toast.warning("Supabase isn’t configured, so changes only persist for this session.");
-        }
-      } catch (cause) {
-        console.error("Failed to update UI terms", cause);
-        setError(cause instanceof Error ? cause.message : "Failed to save terms");
-        toast.error("Unable to save terms. Please check your Supabase connection and try again.");
-      }
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const fd = new FormData();
+    (Object.keys(terms) as (keyof UiTerms)[]).forEach((k) => fd.append(k, terms[k]));
+    start(async () => {
+      await updateTerms(fd);
     });
-  };
+  }
+
+  const Row = ({ label, name }: { label: string; name: keyof UiTerms }) => (
+    <label className="grid grid-cols-[160px_1fr] items-center gap-3 text-sm">
+      <span className="text-muted-foreground">{label}</span>
+      <input
+        className="h-9 px-3 rounded-[var(--agui-radius)] bg-card border border-border"
+        value={terms[name]}
+        onChange={(e) => onChange(name, e.target.value)}
+        name={name}
+      />
+    </label>
+  );
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-2">
-        {TERM_FIELDS.map((field) => (
-          <Card key={field.key}>
-            <CardHeader className="space-y-1">
-              <h3 className="text-base font-semibold text-foreground">{field.label}</h3>
-              <p className="text-sm text-muted-foreground">{field.description}</p>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <Input
-                name={field.key}
-                value={form[field.key] ?? ""}
-                placeholder={field.placeholder}
-                onChange={(event) => handleChange(field.key, event.target.value)}
-                disabled={pending}
-              />
-              {field.choices ? (
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">Suggested names</p>
-                  <div className="flex flex-wrap gap-2">
-                    {field.choices.map((choice) => {
-                      const isActive = form[field.key] === choice;
-                      return (
-                        <Button
-                          key={choice}
-                          type="button"
-                          size="sm"
-                          variant={isActive ? "solid" : "outline"}
-                          aria-pressed={isActive}
-                          onClick={() => handleChange(field.key, choice)}
-                          disabled={pending}
-                        >
-                          {choice}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ) : null}
-              <div className="text-xs text-muted-foreground">
-                Preview: <strong>{optimisticTerms[field.key]}</strong>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {error ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="flex items-center justify-end gap-3">
-        <Button type="submit" disabled={pending}>
-          {pending ? "Saving…" : "Save changes"}
-        </Button>
-      </div>
-    </form>
+    <Card>
+      <CardContent className="space-y-4">
+        <form onSubmit={onSubmit} className="space-y-3">
+          <div className="text-lg font-semibold">Public Labels</div>
+          <Row label="Alliance" name="alliance" />
+          <Row label="Guild" name="guild" />
+          <Row label="Company" name="company" />
+          <Row label="Team" name="team" />
+          <div className="text-lg font-semibold pt-2">Loyalty Terms</div>
+          <Row label="Alliance Pass" name="alliance_pass" />
+          <Row label="Guild Card" name="guild_card" />
+          <Row label="House Pass" name="house_pass" />
+          <div className="pt-2">
+            <Button type="submit" variant="solid" disabled={pending}>
+              {pending ? "Saving…" : "Save"}
+            </Button>
+          </div>
+        </form>
+      </CardContent>
+    </Card>
   );
 }
