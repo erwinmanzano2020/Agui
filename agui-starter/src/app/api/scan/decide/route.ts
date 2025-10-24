@@ -71,7 +71,7 @@ export async function POST(req: Request) {
     guildId: authorization.context.guildId,
     actorId: actor.id,
     liftedIncognito: Boolean(liftIncognito),
-    reason: reason ?? null,
+    reason,
   });
 
   const { tokenId: _tokenId, resolvedCardId: _resolvedCardId, ...payload } = result;
