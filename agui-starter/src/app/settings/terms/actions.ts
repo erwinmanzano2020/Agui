@@ -1,45 +1,20 @@
 "use server";
 
-import { getSupabase } from "@/lib/supabase";
-import {
-  applyUiTermUpdates,
-  loadUiTerms,
-  type UiTermKey,
-  type UiTerms,
-} from "@/lib/ui-terms";
+import { loadUiTerms, saveUiTerms, type UiTerms } from "@/lib/ui-terms";
 
-const ROW_ID = "default";
+export async function getTerms(): Promise<UiTerms> {
+  return loadUiTerms();
+}
 
-export type UiTermsUpdate = Partial<Record<UiTermKey, string>>;
-
-export type UpdateUiTermsResult = {
-  terms: UiTerms;
-  persisted: boolean;
-};
-
-export async function updateUiTerms(updates: UiTermsUpdate): Promise<UpdateUiTermsResult> {
-  const base = await loadUiTerms();
-  const next = applyUiTermUpdates(base, updates);
-  const supabase = getSupabase();
-
-  if (!supabase) {
-    return { terms: next, persisted: false };
-  }
-
-  const { error } = await supabase
-    .from("ui_terms")
-    .upsert(
-      {
-        id: ROW_ID,
-        terms: next,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "id" }
-    );
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return { terms: next, persisted: true };
+export async function updateTerms(formData: FormData) {
+  const payload: Partial<UiTerms> = {
+    alliance: formData.get("alliance")?.toString() ?? undefined,
+    guild: formData.get("guild")?.toString() ?? undefined,
+    company: formData.get("company")?.toString() ?? undefined,
+    team: formData.get("team")?.toString() ?? undefined,
+    alliance_pass: formData.get("alliance_pass")?.toString() ?? undefined,
+    guild_card: formData.get("guild_card")?.toString() ?? undefined,
+    house_pass: formData.get("house_pass")?.toString() ?? undefined,
+  };
+  await saveUiTerms(payload);
 }
