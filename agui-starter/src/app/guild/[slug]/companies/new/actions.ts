@@ -53,19 +53,22 @@ export async function createHouse(slug: string, input: CreateHouseInput) {
   const guild = await loadGuild(slug);
   if (!guild) throw new Error("Guild not found");
 
-  // Resolve creator entity (prefer current session, fallback to identifier if provided)
-  let entity = await getCurrentEntity();
-  if (!entity && input.owner_identifier_kind && input.owner_identifier_value) {
-    entity = await getOrCreateEntityByIdentifier(
+  // Resolve creator entity from current session (required for permission check)
+  const actor = await getCurrentEntity();
+  if (!actor) throw new Error("No actor entity");
+
+  // Guard: must be a guild member
+  const ok = await isGuildMember(actor.id, guild.id);
+  if (!ok) throw new Error("Only guild members can create a company");
+
+  // Determine the house owner (default to actor, allow explicit identifier override)
+  let ownerEntity = actor;
+  if (input.owner_identifier_kind && input.owner_identifier_value) {
+    ownerEntity = await getOrCreateEntityByIdentifier(
       input.owner_identifier_kind,
       input.owner_identifier_value,
     );
   }
-  if (!entity) throw new Error("No actor entity");
-
-  // Guard: must be a guild member
-  const ok = await isGuildMember(entity.id, guild.id);
-  if (!ok) throw new Error("Only guild members can create a company");
 
   // Unique slug
   const slugCandidate = await uniqueSlug(input.name, "houses");
@@ -100,7 +103,7 @@ export async function createHouse(slug: string, input: CreateHouseInput) {
   const { error: e2 } = await db
     .from("house_roles")
     .upsert(
-      { house_id: house.id, entity_id: entity.id, role: "house_owner" },
+      { house_id: house.id, entity_id: ownerEntity.id, role: "house_owner" },
       { onConflict: "house_id,entity_id,role" },
     );
   if (e2) throw new Error(e2.message);
