@@ -1,8 +1,9 @@
-import { createHash, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getSupabase } from "@/lib/supabase";
+import { generateRawToken, hashToken } from "./tokens";
 import {
   isJsonObject,
   type JsonObject,
@@ -340,11 +341,11 @@ export async function updateCardFlags(
 }
 
 export function hashCardToken(token: string): string {
-  return createHash("sha256").update(token).digest("hex");
+  return hashToken(token);
 }
 
 function generateTokenString(): string {
-  return randomBytes(16).toString("base64url");
+  return generateRawToken();
 }
 
 export async function rotateCardToken(
@@ -388,4 +389,72 @@ export async function rotateCardToken(
     tokenId: parsed.id,
     expiresAt: parsed.expires_at,
   } satisfies RotateCardTokenResult;
+}
+
+export async function ensureCard(
+  schemeId: string,
+  entityId: string,
+  options: { incognitoDefault?: boolean; cardNo?: string; supabase?: SupabaseClient } = {},
+): Promise<CardWithScheme> {
+  const supabase = resolveSupabaseClient(options.supabase);
+  const existing = await findCardForScheme(entityId, schemeId, { supabase });
+
+  if (existing) {
+    if (typeof options.incognitoDefault === "boolean") {
+      const desired = options.incognitoDefault;
+      const current = existing.flags.incognito_default ?? false;
+      if (current !== desired) {
+        return updateCardFlags(existing.id, { incognito_default: desired }, { supabase });
+      }
+    }
+    return existing;
+  }
+
+  const { data: schemeRow, error: schemeError } = await supabase
+    .from("loyalty_schemes")
+    .select("*")
+    .eq("id", schemeId)
+    .maybeSingle();
+
+  if (schemeError) {
+    throw new Error(`Failed to load scheme ${schemeId}: ${schemeError.message}`);
+  }
+
+  if (!schemeRow) {
+    throw new Error(`Loyalty scheme ${schemeId} was not found`);
+  }
+
+  const scheme = parseLoyaltyScheme(schemeRow);
+  return issueCard({
+    scheme,
+    entityId,
+    cardNo: options.cardNo,
+    incognitoDefault: options.incognitoDefault,
+    supabase,
+  });
+}
+
+export async function rotateToken(
+  cardId: string,
+  kind: CardTokenKind = "qr",
+  options: { supabase?: SupabaseClient; expiresAt?: Date | null } = {},
+): Promise<{ raw: string; meta: Pick<CardToken, "id" | "created_at"> }> {
+  const supabase = resolveSupabaseClient(options.supabase);
+  const result = await rotateCardToken(cardId, kind, { supabase, expiresAt: options.expiresAt ?? null });
+
+  const { data, error } = await supabase
+    .from("card_tokens")
+    .select("id, created_at")
+    .eq("id", result.tokenId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Failed to load new token metadata: ${error.message}`);
+  }
+
+  if (!data) {
+    throw new Error("Card token metadata was not returned");
+  }
+
+  return { raw: result.token, meta: data as Pick<CardToken, "id" | "created_at"> };
 }
