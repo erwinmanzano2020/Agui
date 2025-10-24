@@ -14,7 +14,7 @@ describe("loyalty precedence", () => {
     allow_incognito: overrides.allow_incognito ?? false,
     design: overrides.design ?? {},
     created_at: overrides.created_at ?? new Date().toISOString(),
-    updated_at: overrides.updated_at ?? new Date().toISOString(),
+    meta: overrides.meta ?? {},
   });
 
   it("sorts schemes by precedence without mutating the input", () => {
