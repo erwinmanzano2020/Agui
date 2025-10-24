@@ -23,46 +23,79 @@ type ApiResponse = {
   error?: string;
 };
 
-export default function ScanHUD({ companyId }: { companyId: string }) {
+export default function ScanHUD({ companyId, guildId }: { companyId: string; guildId?: string | null }) {
   const [token, setToken] = React.useState("");
   const [hud, setHud] = React.useState<HudState | null>(null);
   const [needsDecision, setNeedsDecision] = React.useState(false);
   const [response, setResponse] = React.useState<string>("");
   const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const requestContext = React.useMemo(() => {
+    const context: { scope: "HOUSE"; companyId: string; guildId?: string } = {
+      scope: "HOUSE",
+      companyId,
+    };
+    if (typeof guildId === "string" && guildId.length > 0) {
+      context.guildId = guildId;
+    }
+    return context;
+  }, [companyId, guildId]);
 
   const resolve = React.useCallback(
     async (rawToken: string) => {
       if (!rawToken) return;
       setLoading(true);
+      setError(null);
       try {
-        const res: ApiResponse = await fetch("/api/scan/resolve", {
+        const httpResponse = await fetch("/api/scan/resolve", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ token: rawToken, context: { scope: "HOUSE", companyId } }),
-        }).then((r) => r.json());
+          body: JSON.stringify({ token: rawToken, context: requestContext }),
+        });
+        const res: ApiResponse = await httpResponse.json();
+
+        setResponse(JSON.stringify(res, null, 2));
+
+        if (!httpResponse.ok || !res.ok) {
+          setHud(null);
+          setNeedsDecision(false);
+          setError(res.error ?? "Failed to resolve scan");
+          return;
+        }
 
         setHud(res.hud ?? null);
         setNeedsDecision(Boolean(res.needsDecision));
-        setResponse(JSON.stringify(res, null, 2));
       } catch (error) {
         const fallback = { error: (error as Error).message };
         setResponse(JSON.stringify(fallback, null, 2));
+        setHud(null);
+        setNeedsDecision(false);
+        setError((error as Error).message);
       } finally {
         setLoading(false);
       }
     },
-    [companyId],
+    [requestContext],
   );
 
   const decide = React.useCallback(
     async (decision: Decision, liftIncognito?: boolean) => {
       if (!token) return;
-      const reasonInput =
-        decision === "issue_lower" ? window.prompt("Reason for issuing lower card anyway?") ?? "" : undefined;
-      const reason = typeof reasonInput === "string" && reasonInput.trim().length > 0 ? reasonInput.trim() : undefined;
+      let reason: string | undefined;
+      if (decision === "issue_lower") {
+        const reasonInput = window.prompt("Reason for issuing lower card anyway?") ?? "";
+        const trimmed = reasonInput.trim();
+        if (!trimmed) {
+          window.alert("A reason is required to issue the lower-precedence card.");
+          return;
+        }
+        reason = trimmed;
+      }
       setLoading(true);
+      setError(null);
       try {
-        const res: ApiResponse = await fetch("/api/scan/decide", {
+        const httpResponse = await fetch("/api/scan/decide", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -70,21 +103,31 @@ export default function ScanHUD({ companyId }: { companyId: string }) {
             decision,
             reason,
             liftIncognito,
-            context: { scope: "HOUSE", companyId },
+            context: requestContext,
           }),
-        }).then((r) => r.json());
+        });
+        const res: ApiResponse = await httpResponse.json();
+
+        setResponse(JSON.stringify(res, null, 2));
+
+        if (!httpResponse.ok || !res.ok) {
+          setError(res.error ?? "Failed to record decision");
+          setNeedsDecision(false);
+          setHud(res.hud ?? null);
+          return;
+        }
 
         setHud(res.hud ?? null);
-        setNeedsDecision(false);
-        setResponse(JSON.stringify(res, null, 2));
+        setNeedsDecision(Boolean(res.needsDecision));
       } catch (error) {
         const fallback = { error: (error as Error).message };
         setResponse(JSON.stringify(fallback, null, 2));
+        setError((error as Error).message);
       } finally {
         setLoading(false);
       }
     },
-    [companyId, token],
+    [requestContext, token],
   );
 
   return (
@@ -110,6 +153,12 @@ export default function ScanHUD({ companyId }: { companyId: string }) {
               Resolve
             </Button>
           </form>
+
+          {error && (
+            <div className="rounded-[var(--agui-radius)] border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              {error}
+            </div>
+          )}
 
           {hud && (
             <div className="space-y-1 rounded-[var(--agui-radius)] border border-border p-3 text-sm">

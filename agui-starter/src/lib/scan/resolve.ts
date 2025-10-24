@@ -33,11 +33,29 @@ export type ResolutionResult = {
   };
   needsDecision?: boolean;
   error?: string;
+  tokenId?: string;
+  resolvedCardId?: string;
 };
 
 function hash(raw: string) {
   return createHash("sha256").update(raw).digest("base64url");
 }
+
+function readIncognitoDefault(flags: unknown): boolean {
+  if (typeof flags !== "object" || flags === null || Array.isArray(flags)) {
+    return false;
+  }
+
+  const value = (flags as Record<string, unknown>).incognito_default;
+  return typeof value === "boolean" ? value : false;
+}
+
+type EntityCardRow = {
+  id: string;
+  scheme_id: string;
+  status: string | null;
+  flags: unknown;
+};
 
 export async function resolveScan(input: ResolutionInput): Promise<ResolutionResult> {
   const db = getSupabase();
@@ -78,20 +96,30 @@ export async function resolveScan(input: ResolutionInput): Promise<ResolutionRes
     return { ok: false, hud: { scope: "UNKNOWN", incognito: false }, error: "Scheme missing" };
   }
 
-  const incognito = Boolean(card.flags?.incognito_default);
+  const currentScheme = parseLoyaltyScheme(scheme);
+  const baseIncognito = readIncognitoDefault(card.flags);
 
-  const { data: entitySchemes } = await db
+  const { data: entityCards } = await db
     .from("cards")
-    .select("id, scheme_id")
+    .select("id, scheme_id, status, flags")
     .eq("entity_id", card.entity_id);
 
   let hasHigherCard = false;
   let higherLabel: string | null = null;
+  let higherCardId: string | null = null;
+  let higherScheme: LoyaltyScheme | null = null;
+  let higherIncognitoDefault = false;
 
-  if (entitySchemes && entitySchemes.length) {
-    const ids = entitySchemes
-      .map((item) => item.scheme_id)
-      .filter((value): value is string => typeof value === "string" && value.length > 0);
+  const normalizedCards = (entityCards ?? [])
+    .filter((entry): entry is EntityCardRow =>
+      typeof entry?.id === "string" &&
+      typeof entry?.scheme_id === "string" &&
+      entry.scheme_id.length > 0
+    )
+    .filter((entry) => entry.status === "active");
+
+  if (normalizedCards.length > 0) {
+    const ids = normalizedCards.map((item) => item.scheme_id);
 
     if (ids.length > 0) {
       const { data: rows } = await db.from("loyalty_schemes").select("*").in("id", ids);
@@ -112,34 +140,62 @@ export async function resolveScan(input: ResolutionInput): Promise<ResolutionRes
 
           if (
             top &&
-            top.id !== scheme.id &&
-            top.precedence < scheme.precedence &&
+            top.id !== currentScheme.id &&
+            top.precedence < currentScheme.precedence &&
             top.is_active
           ) {
             hasHigherCard = true;
             higherLabel = top.name;
+            higherScheme = top;
+            const higherCard = normalizedCards.find((entry) => entry.scheme_id === top.id) ?? null;
+            if (higherCard) {
+              higherCardId = higherCard.id;
+              higherIncognitoDefault = readIncognitoDefault(higherCard.flags);
+            }
           }
         }
       }
     }
   }
 
-  const scope = (scheme.scope as Scope | undefined) ?? "UNKNOWN";
+  let activeCardId = card.id;
+  let activeScheme: LoyaltyScheme = currentScheme;
+  let activeIncognitoDefault = baseIncognito;
+
+  if (input.override?.useHigher) {
+    if (!hasHigherCard || !higherScheme || !higherCardId) {
+      return {
+        ok: false,
+        hud: { scope: "UNKNOWN", incognito: false },
+        error: "Higher-precedence card unavailable",
+      };
+    }
+
+    activeCardId = higherCardId;
+    activeScheme = higherScheme;
+    activeIncognitoDefault = higherIncognitoDefault;
+  }
+
+  const incognito = activeIncognitoDefault;
+  const scope = (activeScheme.scope as Scope | undefined) ?? "UNKNOWN";
+  const shouldReveal = !incognito || Boolean(input?.override?.liftIncognito);
+  const resolvedCardId = activeCardId;
+  const resolvedEntityId = card.entity_id;
 
   const hud: ResolutionResult["hud"] = {
     scope,
     incognito,
-    entityId: incognito && !input?.override?.liftIncognito ? undefined : card.entity_id,
-    cardId: incognito && !input?.override?.liftIncognito ? undefined : card.id,
-    schemeName: scheme.name,
-    hints: incognito && !input?.override?.liftIncognito ? ["Scope-limited profile"] : [],
-    hasHigherCard,
-    higherLabel: hasHigherCard ? higherLabel : null,
+    entityId: shouldReveal ? resolvedEntityId : undefined,
+    cardId: shouldReveal ? resolvedCardId : undefined,
+    schemeName: activeScheme.name,
+    hints: incognito && !shouldReveal ? ["Scope-limited profile"] : [],
+    hasHigherCard: hasHigherCard && !input?.override?.useHigher,
+    higherLabel: hasHigherCard && !input?.override?.useHigher ? higherLabel : null,
   };
 
   const needsDecision = Boolean(
     hasHigherCard && !input?.override?.useHigher && !input?.override?.issueLowerAnyway,
   );
 
-  return { ok: true, hud, needsDecision };
+  return { ok: true, hud, needsDecision, tokenId: tok.id, resolvedCardId };
 }
