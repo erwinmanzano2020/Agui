@@ -1,17 +1,28 @@
+import { cookies } from "next/headers";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
 import { getSupabase } from "../supabase";
 import { parseEntity, type Entity, type EntityIdentifierType, type JsonValue } from "../types/taxonomy";
+
+export type IdentifierKind = "phone" | "email";
+
+/** normalize email/phone to canonical form */
+export function normalizeIdentifier(kind: IdentifierKind, value: string): string {
+  const trimmed = value.trim();
+  if (kind === "email") return trimmed.toLowerCase();
+  const digits = trimmed.replace(/[^\d+]/g, "");
+  if (!digits) return "";
+  return digits.startsWith("+") ? digits : `+${digits}`;
+}
 
 const UNIQUE_VIOLATION = "23505";
 
 type JsonObject = Record<string, JsonValue>;
 
 function normalizeIdentifierValue(type: EntityIdentifierType, value: string): string {
-  const trimmed = value.trim();
-  if (type === "EMAIL") return trimmed.toLowerCase();
-  if (type === "PHONE") return trimmed.replace(/\s+/g, "");
-  return trimmed;
+  if (type === "EMAIL") return normalizeIdentifier("email", value);
+  if (type === "PHONE") return normalizeIdentifier("phone", value);
+  return value.trim();
 }
 
 function resolveSupabaseClient(explicit?: SupabaseClient): SupabaseClient {
@@ -126,7 +137,7 @@ async function markIdentifierPrimary(client: SupabaseClient, identifierId: strin
   }
 }
 
-export async function getOrCreateEntityByIdentifier({
+async function getOrCreateEntityByIdentifierInternal({
   identifierType,
   identifierValue,
   supabase: explicitClient,
@@ -196,7 +207,7 @@ export type GetCurrentEntityOptions = {
   identifierOrder?: EntityIdentifierType[];
 };
 
-export async function getCurrentEntity({
+async function getCurrentEntityWithSupabase({
   supabase: explicitClient,
   identifierOrder = ["EMAIL", "PHONE"],
 }: GetCurrentEntityOptions = {}): Promise<Entity | null> {
@@ -246,4 +257,55 @@ export async function getCurrentEntity({
   }
 
   return null;
+}
+
+export async function getOrCreateEntityByIdentifier(args: GetOrCreateEntityArgs): Promise<Entity>;
+export async function getOrCreateEntityByIdentifier(kind: IdentifierKind, raw: string): Promise<Entity>;
+export async function getOrCreateEntityByIdentifier(
+  argsOrKind: GetOrCreateEntityArgs | IdentifierKind,
+  raw?: string,
+): Promise<Entity> {
+  if (typeof argsOrKind === "string") {
+    if (typeof raw !== "string" || !raw.trim()) {
+      throw new Error("Identifier value is required");
+    }
+    const identifierType = argsOrKind === "email" ? "EMAIL" : "PHONE";
+    return getOrCreateEntityByIdentifierInternal({
+      identifierType,
+      identifierValue: normalizeIdentifier(argsOrKind, raw),
+      makePrimary: true,
+    });
+  }
+  return getOrCreateEntityByIdentifierInternal(argsOrKind);
+}
+
+async function getCurrentEntityFromCookieFallback(): Promise<Entity | null> {
+  const client = getSupabase();
+  if (!client) {
+    return null;
+  }
+
+  const jar = await cookies();
+  const entId = jar.get("entity_id")?.value;
+  if (!entId) {
+    return null;
+  }
+
+  const { data, error } = await client.from("entities").select("*").eq("id", entId).maybeSingle();
+  if (error || !data) {
+    return null;
+  }
+
+  return parseEntity(data);
+}
+
+export async function getCurrentEntity(options: GetCurrentEntityOptions = {}): Promise<Entity | null> {
+  try {
+    return await getCurrentEntityWithSupabase(options);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("Supabase client is not configured")) {
+      return getCurrentEntityFromCookieFallback();
+    }
+    throw error;
+  }
 }
