@@ -2,16 +2,27 @@
 
 import { getSupabase } from "@/lib/supabase";
 import { getOrCreateEntityByIdentifier, type IdentifierKind } from "@/lib/auth/entity";
+import { ensureGuildRecord } from "@/lib/taxonomy/guilds-server";
 
 export async function loadGuild(slug: string) {
   const db = getSupabase();
   if (!db) return null;
+  const ensuredGuild = await ensureGuildRecord(db, slug);
+  if (!ensuredGuild) {
+    return null;
+  }
+
   const { data } = await db
     .from("guilds")
     .select("id,slug,name,guild_type")
-    .eq("slug", slug)
+    .eq("id", ensuredGuild.id)
     .maybeSingle();
-  return data ?? null;
+
+  if (data) {
+    return data;
+  }
+
+  return { ...ensuredGuild, guild_type: null };
 }
 
 export async function joinGuild(input: { slug: string; kind: IdentifierKind; value: string }) {
