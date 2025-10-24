@@ -8,6 +8,16 @@ import type { CreateHouseInput } from "./actions";
 import { createHouse } from "./actions";
 
 const HOUSE_TYPES = ["RETAIL", "MANUFACTURER", "BRAND", "SERVICE", "WHOLESALE", "DISTRIBUTOR"] as const;
+type HouseType = (typeof HOUSE_TYPES)[number];
+type OwnerIdentifierKind = NonNullable<CreateHouseInput["owner_identifier_kind"]>;
+
+function isHouseType(value: FormDataEntryValue | null): value is HouseType {
+  return typeof value === "string" && HOUSE_TYPES.includes(value as HouseType);
+}
+
+function isOwnerKind(value: FormDataEntryValue | null): value is OwnerIdentifierKind {
+  return value === "phone" || value === "email";
+}
 
 export default function NewCompanyForm({ slug }: { slug: string }) {
   const router = useRouter();
@@ -19,21 +29,34 @@ export default function NewCompanyForm({ slug }: { slug: string }) {
     setErr(null);
     setPending(true);
     const fd = new FormData(e.currentTarget);
+
+    const typeValue = fd.get("type");
+    const houseType: HouseType = isHouseType(typeValue) ? typeValue : "RETAIL";
+
+    const ownerKindValue = fd.get("owner_kind");
+    const ownerKind: OwnerIdentifierKind | undefined = isOwnerKind(ownerKindValue)
+      ? ownerKindValue
+      : undefined;
+
+    const ownerValueRaw = fd.get("owner_value");
+    const ownerValue = typeof ownerValueRaw === "string" ? ownerValueRaw.trim() : "";
+
     const input: CreateHouseInput = {
       name: String(fd.get("name") || "").trim(),
-      type: String(fd.get("type") || "RETAIL") as any,
+      type: houseType,
       address: String(fd.get("address") || ""),
       tax_flags: String(fd.get("tax_flags") || ""),
       seed_parties: fd.get("seed_parties") === "on",
-      owner_identifier_kind: (fd.get("owner_kind") as any) || undefined,
-      owner_identifier_value: (String(fd.get("owner_value") || "") || undefined) as any,
+      owner_identifier_kind: ownerKind,
+      owner_identifier_value: ownerValue.length > 0 ? ownerValue : undefined,
     };
 
     try {
       const res = await createHouse(slug, input);
       if (res?.ok) router.replace(`/company/${res.slug}`);
-    } catch (e: any) {
-      setErr(e?.message || "Failed to create company");
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Failed to create company";
+      setErr(message);
     } finally {
       setPending(false);
     }

@@ -75,12 +75,12 @@ export async function createHouse(slug: string, input: CreateHouseInput) {
 
   // Parse JSON-ish, but keep server-safe
   const address_json = input.address ? { line1: input.address } : null;
-  let tax_flags: any = null;
+  let parsedTaxFlags: unknown = null;
   if (input.tax_flags) {
     try {
-      tax_flags = JSON.parse(input.tax_flags);
+      parsedTaxFlags = JSON.parse(input.tax_flags);
     } catch {
-      tax_flags = { raw: input.tax_flags };
+      parsedTaxFlags = { raw: input.tax_flags };
     }
   }
 
@@ -93,7 +93,7 @@ export async function createHouse(slug: string, input: CreateHouseInput) {
       name: input.name,
       house_type: input.type,
       address_json,
-      tax_flags,
+      tax_flags: parsedTaxFlags,
     })
     .select("id,slug,name")
     .single();
