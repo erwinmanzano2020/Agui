@@ -1,4 +1,4 @@
-import { getSupabase } from "../supabase";
+import { getSupabase } from "@/lib/supabase";
 
 export type LoyaltyScope = "ALLIANCE" | "GUILD" | "HOUSE";
 
@@ -10,19 +10,19 @@ export type LoyaltyScheme = {
   is_active: boolean;
   allow_incognito: boolean;
   design: Record<string, unknown>;
+  meta: Record<string, unknown>;
   created_at: string;
-  updated_at: string;
 };
 
 export type LoyaltyProfile = {
   id: string;
   scheme_id: string;
   entity_id: string;
-  account_no: string;
+  account_no: string | null;
   points: number;
   tier: string | null;
+  meta: Record<string, unknown>;
   created_at: string;
-  updated_at: string;
 };
 
 export type CreateLoyaltySchemeInput = {
@@ -32,6 +32,7 @@ export type CreateLoyaltySchemeInput = {
   is_active?: boolean;
   allow_incognito?: boolean;
   design?: Record<string, unknown>;
+  meta?: Record<string, unknown>;
 };
 
 export type EnrollLoyaltyProfileInput = {
@@ -52,6 +53,26 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function normalizePoints(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return Number.NaN;
+    }
+
+    const parsed = Number.parseFloat(trimmed);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return Number.NaN;
+}
+
 export function parseLoyaltyScheme(value: unknown): LoyaltyScheme {
   if (!isPlainObject(value)) {
     throw new Error("Invalid loyalty scheme payload");
@@ -65,8 +86,8 @@ export function parseLoyaltyScheme(value: unknown): LoyaltyScheme {
     is_active,
     allow_incognito,
     design,
+    meta,
     created_at,
-    updated_at,
   } = value;
 
   if (typeof id !== "string") {
@@ -87,8 +108,8 @@ export function parseLoyaltyScheme(value: unknown): LoyaltyScheme {
   if (typeof allow_incognito !== "boolean") {
     throw new Error("Loyalty scheme is missing allow_incognito flag");
   }
-  if (typeof created_at !== "string" || typeof updated_at !== "string") {
-    throw new Error("Loyalty scheme timestamps are invalid");
+  if (typeof created_at !== "string") {
+    throw new Error("Loyalty scheme timestamp is invalid");
   }
 
   return {
@@ -99,8 +120,8 @@ export function parseLoyaltyScheme(value: unknown): LoyaltyScheme {
     is_active,
     allow_incognito,
     design: isPlainObject(design) ? design : {},
+    meta: isPlainObject(meta) ? meta : {},
     created_at,
-    updated_at,
   } satisfies LoyaltyScheme;
 }
 
@@ -109,7 +130,7 @@ export function parseLoyaltyProfile(value: unknown): LoyaltyProfile {
     throw new Error("Invalid loyalty profile payload");
   }
 
-  const { id, scheme_id, entity_id, account_no, points, tier, created_at, updated_at } = value;
+  const { id, scheme_id, entity_id, account_no, points, tier, meta, created_at } = value;
 
   if (typeof id !== "string") {
     throw new Error("Loyalty profile is missing id");
@@ -120,26 +141,51 @@ export function parseLoyaltyProfile(value: unknown): LoyaltyProfile {
   if (typeof entity_id !== "string") {
     throw new Error("Loyalty profile is missing entity_id");
   }
-  if (typeof account_no !== "string") {
-    throw new Error("Loyalty profile is missing account_no");
-  }
-  if (typeof points !== "number") {
+  const normalizedPoints = normalizePoints(points);
+  if (!Number.isFinite(normalizedPoints)) {
     throw new Error("Loyalty profile is missing points");
   }
-  if (typeof created_at !== "string" || typeof updated_at !== "string") {
-    throw new Error("Loyalty profile timestamps are invalid");
+  if (typeof created_at !== "string") {
+    throw new Error("Loyalty profile timestamp is invalid");
   }
 
   return {
     id,
     scheme_id,
     entity_id,
-    account_no,
-    points,
+    account_no: typeof account_no === "string" ? account_no : null,
+    points: normalizedPoints,
     tier: typeof tier === "string" ? tier : null,
+    meta: isPlainObject(meta) ? meta : {},
     created_at,
-    updated_at,
   } satisfies LoyaltyProfile;
+}
+
+function compareSchemes(a: LoyaltyScheme, b: LoyaltyScheme): number {
+  if (a.is_active !== b.is_active) {
+    return a.is_active ? -1 : 1;
+  }
+
+  if (a.precedence !== b.precedence) {
+    return a.precedence - b.precedence;
+  }
+
+  const scopeRankDelta = SCOPE_RANK[a.scope] - SCOPE_RANK[b.scope];
+  if (scopeRankDelta !== 0) {
+    return scopeRankDelta;
+  }
+
+  const nameComparison = a.name.localeCompare(b.name);
+  if (nameComparison !== 0) {
+    return nameComparison;
+  }
+
+  return a.id.localeCompare(b.id);
+}
+
+/** Sort ascending by precedence, active first */
+export function sortByPrecedence(schemes: LoyaltyScheme[]): LoyaltyScheme[] {
+  return [...schemes].sort(compareSchemes);
 }
 
 /**
@@ -147,23 +193,94 @@ export function parseLoyaltyProfile(value: unknown): LoyaltyProfile {
  * Lowest precedence value wins. Ties fall back to scope, name, then id.
  */
 export function resolvePrecedence(schemes: LoyaltyScheme[]): LoyaltyScheme[] {
-  return [...schemes].sort((a, b) => {
-    if (a.precedence !== b.precedence) {
-      return a.precedence - b.precedence;
-    }
+  return sortByPrecedence(schemes);
+}
 
-    const scopeRankDelta = SCOPE_RANK[a.scope] - SCOPE_RANK[b.scope];
-    if (scopeRankDelta !== 0) {
-      return scopeRankDelta;
-    }
+/** Given a scope filter, return active schemes ordered by precedence */
+export async function listSchemes(scope?: LoyaltyScope): Promise<LoyaltyScheme[]> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    return [];
+  }
 
-    const nameComparison = a.name.localeCompare(b.name);
-    if (nameComparison !== 0) {
-      return nameComparison;
-    }
+  const query = supabase.from("loyalty_schemes").select("*").eq("is_active", true);
+  const { data, error } = scope ? await query.eq("scope", scope) : await query;
+  if (error || !data) {
+    return [];
+  }
 
-    return a.id.localeCompare(b.id);
-  });
+  return sortByPrecedence((data as unknown[]).map((row) => parseLoyaltyScheme(row)));
+}
+
+/** Enroll (idempotent) an entity into a scheme; returns profile row */
+export async function enrollEntity(
+  schemeId: string,
+  entityId: string,
+  accountNo?: string,
+): Promise<LoyaltyProfile> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    throw new Error("Supabase client is not available");
+  }
+
+  const payload: Record<string, unknown> = {
+    scheme_id: schemeId,
+    entity_id: entityId,
+  };
+  if (typeof accountNo !== "undefined") {
+    payload.account_no = accountNo;
+  }
+
+  const { data, error } = await supabase
+    .from("loyalty_profiles")
+    .upsert(payload, { onConflict: "scheme_id,entity_id" })
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return parseLoyaltyProfile(data);
+}
+
+/** Get (or create) a per-scope scheme by name; helpful for tests/dev */
+export async function ensureScheme(
+  scope: LoyaltyScope,
+  name: string,
+  precedence: number,
+): Promise<LoyaltyScheme> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    throw new Error("Supabase client is not available");
+  }
+
+  const { data, error } = await supabase
+    .from("loyalty_schemes")
+    .select("*")
+    .eq("scope", scope)
+    .eq("name", name)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (data) {
+    return parseLoyaltyScheme(data);
+  }
+
+  const { data: created, error: insertError } = await supabase
+    .from("loyalty_schemes")
+    .insert({ scope, name, precedence, is_active: true, allow_incognito: true })
+    .select("*")
+    .single();
+
+  if (insertError) {
+    throw new Error(insertError.message);
+  }
+
+  return parseLoyaltyScheme(created);
 }
 
 /** Create a new loyalty scheme scoped to an alliance, guild, or house. */
@@ -182,6 +299,7 @@ export async function createLoyaltyScheme(
     is_active: input.is_active ?? true,
     allow_incognito: input.allow_incognito ?? false,
     design: input.design ?? {},
+    meta: input.meta ?? {},
   };
 
   const { data, error } = await supabase

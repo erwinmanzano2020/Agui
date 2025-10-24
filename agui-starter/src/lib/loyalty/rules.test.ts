@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { resolvePrecedence, type LoyaltyScheme } from "./rules";
+import { parseLoyaltyProfile, resolvePrecedence, type LoyaltyScheme } from "./rules";
 
 describe("loyalty precedence", () => {
   let counter = 0;
@@ -14,7 +14,7 @@ describe("loyalty precedence", () => {
     allow_incognito: overrides.allow_incognito ?? false,
     design: overrides.design ?? {},
     created_at: overrides.created_at ?? new Date().toISOString(),
-    updated_at: overrides.updated_at ?? new Date().toISOString(),
+    meta: overrides.meta ?? {},
   });
 
   it("sorts schemes by precedence without mutating the input", () => {
@@ -45,5 +45,23 @@ describe("loyalty precedence", () => {
     const sorted = resolvePrecedence(schemes);
 
     assert.deepEqual(sorted.map((s) => s.id), ["a1", "g1", "g2", "h1"]);
+  });
+});
+
+describe("loyalty profile parsing", () => {
+  it("normalizes bigint string values to numbers", () => {
+    const now = new Date().toISOString();
+    const parsed = parseLoyaltyProfile({
+      id: "profile-1",
+      scheme_id: "scheme-1",
+      entity_id: "entity-1",
+      points: "42",
+      tier: null,
+      account_no: null,
+      meta: {},
+      created_at: now,
+    });
+
+    assert.equal(parsed.points, 42);
   });
 });
