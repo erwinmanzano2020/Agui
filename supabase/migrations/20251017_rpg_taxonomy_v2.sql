@@ -8,7 +8,7 @@ create table if not exists public.entities (
 create table if not exists public.entity_identifiers (
   id uuid primary key default gen_random_uuid(),
   entity_id uuid not null references public.entities(id) on delete cascade,
-  kind text not null check (kind in ('phone','email')),
+  kind text not null check (kind in ('EMAIL','PHONE')),
   value text not null,
   created_at timestamptz not null default now(),
   unique (kind, value)
