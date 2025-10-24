@@ -53,6 +53,26 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
+function normalizePoints(value: unknown): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (trimmed.length === 0) {
+      return Number.NaN;
+    }
+
+    const parsed = Number.parseFloat(trimmed);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return Number.NaN;
+}
+
 export function parseLoyaltyScheme(value: unknown): LoyaltyScheme {
   if (!isPlainObject(value)) {
     throw new Error("Invalid loyalty scheme payload");
@@ -121,7 +141,8 @@ export function parseLoyaltyProfile(value: unknown): LoyaltyProfile {
   if (typeof entity_id !== "string") {
     throw new Error("Loyalty profile is missing entity_id");
   }
-  if (typeof points !== "number") {
+  const normalizedPoints = normalizePoints(points);
+  if (!Number.isFinite(normalizedPoints)) {
     throw new Error("Loyalty profile is missing points");
   }
   if (typeof created_at !== "string") {
@@ -133,7 +154,7 @@ export function parseLoyaltyProfile(value: unknown): LoyaltyProfile {
     scheme_id,
     entity_id,
     account_no: typeof account_no === "string" ? account_no : null,
-    points,
+    points: normalizedPoints,
     tier: typeof tier === "string" ? tier : null,
     meta: isPlainObject(meta) ? meta : {},
     created_at,
