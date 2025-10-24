@@ -1,3 +1,5 @@
+import { getSupabase } from "@/lib/supabase";
+
 export type SlugifyOptions = {
   separator?: string;
   maxLength?: number;
@@ -90,7 +92,38 @@ function buildCandidate(
   return clampSlugLength(candidate, separator, maxLength, fallback);
 }
 
+export async function uniqueSlug(value: string, options: UniqueSlugOptions): Promise<string>;
+export async function uniqueSlug(value: string, table: "guilds" | "houses"): Promise<string>;
 export async function uniqueSlug(
+  value: string,
+  optionsOrTable: UniqueSlugOptions | "guilds" | "houses",
+): Promise<string> {
+  if (typeof optionsOrTable === "string") {
+    return uniqueSlugFromTable(value, optionsOrTable);
+  }
+  return uniqueSlugWithOptions(value, optionsOrTable);
+}
+
+async function uniqueSlugFromTable(base: string, table: "guilds" | "houses"): Promise<string> {
+  const slug = slugify(base);
+  const db = getSupabase();
+  if (!db) return slug;
+  let candidate = slug;
+  let n = 1;
+  while (true) {
+    const { data, error } = await db.from(table).select("id").eq("slug", candidate).limit(1);
+    if (error) {
+      return candidate;
+    }
+    if (!data || data.length === 0) {
+      return candidate;
+    }
+    n += 1;
+    candidate = `${slug}-${n}`;
+  }
+}
+
+async function uniqueSlugWithOptions(
   value: string,
   {
     isAvailable,

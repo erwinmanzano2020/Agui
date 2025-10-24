@@ -1,3 +1,5 @@
+import { getSupabase } from "@/lib/supabase";
+
 type RoleTarget = string | string[] | null | undefined;
 
 export type AllianceRoleLike = {
@@ -78,7 +80,7 @@ function hasRole<T extends { entity_id: string; role: string }>(
   return false;
 }
 
-export function hasAllianceRole({ roles, entityId, allianceId, role }: AllianceRoleCheck): boolean {
+function hasAllianceRoleLocal({ roles, entityId, allianceId, role }: AllianceRoleCheck): boolean {
   return hasRole(
     roles,
     entityId ?? null,
@@ -87,7 +89,7 @@ export function hasAllianceRole({ roles, entityId, allianceId, role }: AllianceR
   );
 }
 
-export function hasGuildRole({ roles, entityId, guildId, role }: GuildRoleCheck): boolean {
+function hasGuildRoleLocal({ roles, entityId, guildId, role }: GuildRoleCheck): boolean {
   return hasRole(
     roles,
     entityId ?? null,
@@ -96,11 +98,86 @@ export function hasGuildRole({ roles, entityId, guildId, role }: GuildRoleCheck)
   );
 }
 
-export function hasHouseRole({ roles, entityId, houseId, role }: HouseRoleCheck): boolean {
+function hasHouseRoleLocal({ roles, entityId, houseId, role }: HouseRoleCheck): boolean {
   return hasRole(
     roles,
     entityId ?? null,
     (entry) => (houseId ? entry.house_id === houseId : true),
     role,
   );
+}
+
+async function hasAllianceRoleRemote(entityId: string, allianceId: string, roles: string[]): Promise<boolean> {
+  const client = getSupabase();
+  if (!client || !allianceId || roles.length === 0) return false;
+  const { data, error } = await client
+    .from("alliance_roles")
+    .select("role")
+    .eq("entity_id", entityId)
+    .eq("alliance_id", allianceId);
+  if (error) return false;
+  return data?.some((entry) => roles.includes(entry.role)) ?? false;
+}
+
+async function hasGuildRoleRemote(entityId: string, guildId: string, roles: string[]): Promise<boolean> {
+  const client = getSupabase();
+  if (!client || !guildId || roles.length === 0) return false;
+  const { data, error } = await client
+    .from("guild_roles")
+    .select("role")
+    .eq("entity_id", entityId)
+    .eq("guild_id", guildId);
+  if (error) return false;
+  return data?.some((entry) => roles.includes(entry.role)) ?? false;
+}
+
+async function hasHouseRoleRemote(entityId: string, houseId: string, roles: string[]): Promise<boolean> {
+  const client = getSupabase();
+  if (!client || !houseId || roles.length === 0) return false;
+  const { data, error } = await client
+    .from("house_roles")
+    .select("role")
+    .eq("entity_id", entityId)
+    .eq("house_id", houseId);
+  if (error) return false;
+  return data?.some((entry) => roles.includes(entry.role)) ?? false;
+}
+
+export function hasAllianceRole(args: AllianceRoleCheck): boolean;
+export function hasAllianceRole(entityId: string, allianceId: string, roles: string[]): Promise<boolean>;
+export function hasAllianceRole(
+  arg1: AllianceRoleCheck | string,
+  allianceId?: string,
+  roles?: string[],
+): boolean | Promise<boolean> {
+  if (typeof arg1 === "string") {
+    return hasAllianceRoleRemote(arg1, allianceId ?? "", roles ?? []);
+  }
+  return hasAllianceRoleLocal(arg1);
+}
+
+export function hasGuildRole(args: GuildRoleCheck): boolean;
+export function hasGuildRole(entityId: string, guildId: string, roles: string[]): Promise<boolean>;
+export function hasGuildRole(
+  arg1: GuildRoleCheck | string,
+  guildId?: string,
+  roles?: string[],
+): boolean | Promise<boolean> {
+  if (typeof arg1 === "string") {
+    return hasGuildRoleRemote(arg1, guildId ?? "", roles ?? []);
+  }
+  return hasGuildRoleLocal(arg1);
+}
+
+export function hasHouseRole(args: HouseRoleCheck): boolean;
+export function hasHouseRole(entityId: string, houseId: string, roles: string[]): Promise<boolean>;
+export function hasHouseRole(
+  arg1: HouseRoleCheck | string,
+  houseId?: string,
+  roles?: string[],
+): boolean | Promise<boolean> {
+  if (typeof arg1 === "string") {
+    return hasHouseRoleRemote(arg1, houseId ?? "", roles ?? []);
+  }
+  return hasHouseRoleLocal(arg1);
 }
