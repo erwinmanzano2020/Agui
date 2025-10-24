@@ -158,9 +158,8 @@ export default async function MemberPassPage() {
             {otherCards.length > 0 && (
               <ul className="space-y-2">
                 {otherCards.map((card) => (
-                  <li key={card.id} className="flex flex-col gap-0.5">
-                    <span className="font-medium text-foreground">{card.scheme.name}</span>
-                    <span className="text-xs text-muted-foreground">Card number {card.card_no}</span>
+                  <li key={card.id}>
+                    <span className="font-medium text-foreground">{card.scheme.name}</span> — card number {card.card_no}
                   </li>
                 ))}
               </ul>
@@ -168,10 +167,6 @@ export default async function MemberPassPage() {
           </CardContent>
         </Card>
       )}
-
-      <footer className="text-xs text-muted-foreground">
-        Need help rotating a QR token for a teammate? Visit their profile from the guild roster.
-      </footer>
     </div>
   );
 }
