@@ -25,14 +25,42 @@ export default async function GuildDetail({
     return notFound();
   }
 
-  const { data: guild, error } = await db
+  type GuildRecord = {
+    id: string;
+    slug: string;
+    name: string;
+    guild_type: string | null;
+  };
+
+  let guild: GuildRecord | null = null;
+
+  const guildRes = await db
     .from("guilds")
     .select("id,slug,name,guild_type")
     .eq("slug", params.slug)
-    .maybeSingle();
+    .maybeSingle<GuildRecord>();
 
-  if (error || !guild) {
-    console.error("Failed to load guild", error);
+  if (guildRes.error) {
+    console.warn("Failed to load guild", guildRes.error);
+  } else {
+    guild = guildRes.data ?? null;
+  }
+
+  if (!guild) {
+    const legacyRes = await db
+      .from("orgs_as_guilds")
+      .select("id,slug,name,guild_type")
+      .eq("slug", params.slug)
+      .maybeSingle<GuildRecord>();
+
+    if (legacyRes.error) {
+      console.warn("Failed to load legacy guild view", legacyRes.error);
+    } else {
+      guild = legacyRes.data ?? null;
+    }
+  }
+
+  if (!guild) {
     return notFound();
   }
 
