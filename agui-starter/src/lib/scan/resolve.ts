@@ -1,5 +1,7 @@
+import { createHash } from "node:crypto";
+
 import { getSupabase } from "@/lib/supabase";
-import { sortByPrecedence } from "@/lib/loyalty/rules";
+import { LoyaltyScheme, parseLoyaltyScheme, sortByPrecedence } from "@/lib/loyalty/rules";
 
 type Scope = "GUILD" | "HOUSE" | "ALLIANCE";
 
@@ -34,8 +36,7 @@ export type ResolutionResult = {
 };
 
 function hash(raw: string) {
-  const crypto = require("crypto") as typeof import("crypto");
-  return crypto.createHash("sha256").update(raw).digest("base64url");
+  return createHash("sha256").update(raw).digest("base64url");
 }
 
 export async function resolveScan(input: ResolutionInput): Promise<ResolutionResult> {
@@ -88,19 +89,37 @@ export async function resolveScan(input: ResolutionInput): Promise<ResolutionRes
   let higherLabel: string | null = null;
 
   if (entitySchemes && entitySchemes.length) {
-    const ids = entitySchemes.map((x) => x.scheme_id);
-    const { data: rows } = await db
-      .from("loyalty_schemes")
-      .select("id, name, precedence, is_active")
-      .in("id", ids);
+    const ids = entitySchemes
+      .map((item) => item.scheme_id)
+      .filter((value): value is string => typeof value === "string" && value.length > 0);
 
-    if (rows?.length) {
-      const sorted = sortByPrecedence(rows as any);
-      const top = sorted[0];
+    if (ids.length > 0) {
+      const { data: rows } = await db.from("loyalty_schemes").select("*").in("id", ids);
 
-      if (top && top.id !== scheme.id && top.precedence < scheme.precedence && top.is_active) {
-        hasHigherCard = true;
-        higherLabel = top.name;
+      if (rows?.length) {
+        const normalized: LoyaltyScheme[] = [];
+        for (const row of rows) {
+          try {
+            normalized.push(parseLoyaltyScheme(row));
+          } catch {
+            // Ignore invalid rows; they cannot influence precedence decisions.
+          }
+        }
+
+        if (normalized.length) {
+          const sorted = sortByPrecedence(normalized);
+          const top = sorted[0];
+
+          if (
+            top &&
+            top.id !== scheme.id &&
+            top.precedence < scheme.precedence &&
+            top.is_active
+          ) {
+            hasHigherCard = true;
+            higherLabel = top.name;
+          }
+        }
       }
     }
   }
