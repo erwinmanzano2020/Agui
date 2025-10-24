@@ -1,18 +1,135 @@
--- ========== ENTITIES ==========
 create table if not exists public.entities (
   id uuid primary key default gen_random_uuid(),
-  display_name text,
-  created_at timestamptz not null default now()
+  display_name text not null,
+  profile jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
+
+alter table if exists public.entities
+  alter column display_name set not null;
+
+alter table if exists public.entities
+  add column if not exists profile jsonb not null default '{}'::jsonb;
+
+alter table if exists public.entities
+  add column if not exists updated_at timestamptz not null default now();
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_type t
+    join pg_namespace n on n.oid = t.typnamespace
+    where t.typname = 'entity_identifier_type'
+      and n.nspname = 'public'
+  ) then
+    create type public.entity_identifier_type as enum ('EMAIL', 'PHONE');
+  end if;
+end
+$$;
 
 create table if not exists public.entity_identifiers (
   id uuid primary key default gen_random_uuid(),
   entity_id uuid not null references public.entities(id) on delete cascade,
-  kind text not null check (kind in ('EMAIL','PHONE')),
-  value text not null,
-  created_at timestamptz not null default now(),
-  unique (kind, value)
+  identifier_type public.entity_identifier_type not null,
+  identifier_value text not null,
+  is_primary boolean not null default false,
+  created_at timestamptz not null default now()
 );
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'entity_identifiers'
+      and column_name = 'kind'
+  ) then
+    alter table public.entity_identifiers rename column kind to identifier_type_text;
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'entity_identifiers'
+      and column_name = 'value'
+  ) then
+    alter table public.entity_identifiers rename column value to identifier_value;
+  end if;
+end
+$$;
+
+alter table if exists public.entity_identifiers
+  add column if not exists identifier_type public.entity_identifier_type;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'entity_identifiers'
+      and column_name = 'identifier_type_text'
+  ) then
+    update public.entity_identifiers
+    set identifier_type = upper(identifier_type_text)::public.entity_identifier_type
+    where identifier_type is null
+      and identifier_type_text is not null;
+
+    alter table public.entity_identifiers drop column identifier_type_text;
+  end if;
+end
+$$;
+
+do $$
+begin
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'entity_identifiers'
+      and column_name = 'identifier_type'
+      and udt_name <> 'entity_identifier_type'
+  ) then
+    alter table public.entity_identifiers
+      alter column identifier_type type public.entity_identifier_type
+      using upper(identifier_type)::public.entity_identifier_type;
+  end if;
+end
+$$;
+
+alter table if exists public.entity_identifiers
+  add column if not exists identifier_value text;
+
+alter table if exists public.entity_identifiers
+  alter column identifier_value set not null;
+
+alter table if exists public.entity_identifiers
+  alter column identifier_type set not null;
+
+alter table if exists public.entity_identifiers
+  add column if not exists is_primary boolean not null default false;
+
+alter table if exists public.entity_identifiers
+  alter column is_primary set default false;
+
+alter table if exists public.entity_identifiers
+  drop constraint if exists entity_identifiers_kind_value_key;
+
+create unique index if not exists entity_identifiers_email_unique
+  on public.entity_identifiers (lower(identifier_value))
+  where identifier_type = 'EMAIL';
+
+create unique index if not exists entity_identifiers_phone_unique
+  on public.entity_identifiers (identifier_value)
+  where identifier_type = 'PHONE';
+
+create unique index if not exists entity_identifiers_primary_unique
+  on public.entity_identifiers (entity_id, identifier_type)
+  where is_primary;
 
 -- ========== ALLIANCE ==========
 create table if not exists public.alliances (
