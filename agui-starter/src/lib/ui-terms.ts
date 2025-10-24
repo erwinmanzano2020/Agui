@@ -25,15 +25,24 @@ export const DEFAULT_UI_TERMS = DEFAULT_TERMS;
 const ROW_ID = "default";
 
 export async function loadUiTerms(): Promise<UiTerms> {
-  const db = getSupabase();
-  if (!db) return DEFAULT_TERMS;
-  const { data, error } = await db
-    .from("ui_terms")
-    .select("terms")
-    .eq("id", ROW_ID)
-    .maybeSingle();
-  if (error || !data?.terms) return DEFAULT_TERMS;
-  return { ...DEFAULT_TERMS, ...data.terms };
+  try {
+    const db = getSupabase();
+    if (!db) return DEFAULT_TERMS;
+    const { data, error } = await db
+      .from("ui_terms")
+      .select("terms")
+      .eq("id", ROW_ID)
+      .maybeSingle();
+    if (error) {
+      console.warn("Failed to load UI terms", error);
+      return DEFAULT_TERMS;
+    }
+    const terms = data?.terms ?? {};
+    return { ...DEFAULT_TERMS, ...terms };
+  } catch (error) {
+    console.warn("Failed to load UI terms", error);
+    return DEFAULT_TERMS;
+  }
 }
 
 export async function saveUiTerms(next: Partial<UiTerms>) {
