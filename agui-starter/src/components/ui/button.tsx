@@ -1,4 +1,6 @@
 import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
+
 import { cn } from "@/lib/utils";
 
 export type ButtonVariant = "solid" | "outline" | "ghost" | "link";
@@ -7,6 +9,7 @@ export type ButtonSize = "xs" | "sm" | "md" | "lg";
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  asChild?: boolean;
 };
 
 const base =
@@ -31,10 +34,20 @@ const variants: Record<ButtonVariant, string> = {
 };
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "solid", size = "md", ...props }, ref) => {
+  (
+    {
+      className,
+      variant = "solid",
+      size = "md",
+      asChild = false,
+      ...props
+    },
+    ref
+  ) => {
     const sizeClasses = variant === "link" ? "" : sizes[size];
+    const Comp = asChild ? Slot : "button";
     return (
-      <button
+      <Comp
         ref={ref}
         className={cn(base, sizeClasses, variants[variant], className)}
         {...props}
