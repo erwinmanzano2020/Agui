@@ -2,6 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 import { NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_SUPABASE_URL } from "./env";
+import { getSupabaseProjectRef } from "./supabase-auth-cookie";
 
 type SessionCookiePayload = {
   currentSession?: {
@@ -16,17 +17,6 @@ type RestoredTokens = {
   accessToken: string;
   refreshToken: string;
 };
-
-function resolveProjectRef(url: string): string | null {
-  try {
-    const host = new URL(url).host;
-    const [projectRef] = host.split(".");
-    return projectRef || null;
-  } catch (error) {
-    console.warn("Failed to parse Supabase URL while resolving auth cookie", error);
-    return null;
-  }
-}
 
 function decodeCookieValue(rawValue: string): SessionCookiePayload | null {
   if (!rawValue) return null;
@@ -91,7 +81,7 @@ export async function createServerSupabaseClient(): Promise<SupabaseClient | nul
     },
   });
 
-  const projectRef = resolveProjectRef(url);
+  const projectRef = getSupabaseProjectRef();
   if (!projectRef) {
     return client;
   }

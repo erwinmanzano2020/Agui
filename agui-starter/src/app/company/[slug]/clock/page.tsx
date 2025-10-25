@@ -1,8 +1,8 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { getCurrentEntity } from "@/lib/auth/entity";
-import { getSupabase } from "@/lib/supabase";
 import { loadHouseBySlug } from "@/lib/taxonomy/houses-server";
 import { loadUiTerms } from "@/lib/ui-terms";
+import { requireAuth } from "@/lib/auth/require-auth";
 
 import ScanHUD from "./scan-hud";
 
@@ -12,33 +12,8 @@ export default async function CompanyClockPage({ params }: { params: { slug: str
   const { slug } = params;
   const terms = await loadUiTerms();
   const clockLabel = "Attendance";
-
-  let supabase;
-  try {
-    supabase = getSupabase();
-  } catch {
-    supabase = null;
-  }
-
-  if (!supabase) {
-    return (
-      <div className="mx-auto flex max-w-3xl flex-col gap-6 p-6">
-        <header className="space-y-2">
-          <p className="text-sm text-muted-foreground">Company clock</p>
-          <h1 className="text-3xl font-semibold text-foreground">{clockLabel}</h1>
-          <p className="text-sm text-muted-foreground">
-            Configure Supabase to start resolving scans and recording overrides.
-          </p>
-        </header>
-        <Card>
-          <CardContent className="p-6 text-sm text-muted-foreground">
-            Supabase isn’t configured, so attendance scans can’t be processed yet.
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
-
+  const nextPath = `/company/${slug}/clock`;
+  const { supabase } = await requireAuth(nextPath);
   const house = await loadHouseBySlug(supabase, slug);
   if (!house) {
     return (

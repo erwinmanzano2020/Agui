@@ -1,4 +1,5 @@
 import * as React from "react";
+
 import { cn } from "@/lib/utils";
 
 export type ButtonVariant = "solid" | "outline" | "ghost" | "link";
@@ -7,6 +8,7 @@ export type ButtonSize = "xs" | "sm" | "md" | "lg";
 export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
+  asChild?: boolean;
 };
 
 const base =
@@ -30,15 +32,69 @@ const variants: Record<ButtonVariant, string> = {
     "border border-transparent bg-transparent h-auto p-0 text-[var(--agui-primary)] underline-offset-4 hover:underline focus-visible:shadow-[0_0_0_3px] focus-visible:shadow-[color-mix(in_srgb,_var(--ring)_35%,_transparent)] motion-reduce:underline-offset-4",
 };
 
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function composeRefs<T>(
+  ...refs: Array<React.Ref<T> | undefined>
+): React.RefCallback<T> {
+  return (node) => {
+    for (const ref of refs) {
+      if (!ref) continue;
+
+      if (typeof ref === "function") {
+        ref(node);
+        continue;
+      }
+
+      try {
+        (ref as React.MutableRefObject<T | null>).current = node;
+      } catch {
+        // ignore refs we can't assign to
+      }
+    }
+  };
+}
+
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className, variant = "solid", size = "md", ...props }, ref) => {
+  (
+    {
+      className,
+      variant = "solid",
+      size = "md",
+      asChild = false,
+      children,
+      type,
+      ...props
+    },
+    ref
+  ) => {
     const sizeClasses = variant === "link" ? "" : sizes[size];
+    const composedClassName = cn(base, sizeClasses, variants[variant], className);
+    if (asChild && React.isValidElement(children)) {
+      const child = React.Children.only(children) as React.ReactElement<Record<string, unknown>>;
+      const existingClassName = isString(child.props?.className)
+        ? child.props.className
+        : undefined;
+      const childRef = (child as React.ReactElement & { ref?: React.Ref<unknown> }).ref;
+
+      return React.cloneElement(child as React.ReactElement, {
+        ...props,
+        className: cn(composedClassName, existingClassName),
+        ref: composeRefs(ref, childRef),
+      } as unknown as React.Attributes & Record<string, unknown>);
+    }
+
     return (
       <button
         ref={ref}
-        className={cn(base, sizeClasses, variants[variant], className)}
+        className={composedClassName}
+        type={type ?? "button"}
         {...props}
-      />
+      >
+        {children}
+      </button>
     );
   }
 );
