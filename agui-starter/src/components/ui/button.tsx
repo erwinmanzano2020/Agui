@@ -1,5 +1,4 @@
 import * as React from "react";
-import { Slot } from "@radix-ui/react-slot";
 
 import { cn } from "@/lib/utils";
 
@@ -40,18 +39,35 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       variant = "solid",
       size = "md",
       asChild = false,
+      children,
+      type,
       ...props
     },
     ref
   ) => {
     const sizeClasses = variant === "link" ? "" : sizes[size];
-    const Comp = asChild ? Slot : "button";
+    const composedClassName = cn(base, sizeClasses, variants[variant], className);
+
+    if (asChild && React.isValidElement(children)) {
+      const child = React.Children.only(children) as React.ReactElement<
+        React.HTMLAttributes<HTMLElement>
+      >;
+      return React.cloneElement(child, {
+        className: cn(composedClassName, child.props?.className),
+        ref: ref as React.Ref<HTMLElement>,
+        ...props,
+      });
+    }
+
     return (
-      <Comp
+      <button
         ref={ref}
-        className={cn(base, sizeClasses, variants[variant], className)}
+        className={composedClassName}
+        type={type ?? "button"}
         {...props}
-      />
+      >
+        {children}
+      </button>
     );
   }
 );
