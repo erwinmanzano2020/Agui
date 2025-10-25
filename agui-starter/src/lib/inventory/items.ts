@@ -1,3 +1,8 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { getSupabase } from "@/lib/supabase";
+import { uniqueSlug } from "@/lib/slug";
+
 export type ItemRecord = {
   id: string;
   name: string;
@@ -143,4 +148,80 @@ export function parseHouseInventoryRow(input: unknown): HouseInventoryItem {
     : [];
 
   return { house_item, item, barcodes } satisfies HouseInventoryItem;
+}
+
+export async function findItemByBarcode(code: string, supabase?: SupabaseClient | null) {
+  const db = supabase ?? getSupabase(); if (!db) return null;
+  const { data: row } = await db
+    .from("item_barcodes")
+    .select("item_id")
+    .eq("barcode", code)
+    .maybeSingle();
+  if (!row?.item_id) return null;
+  const { data: item } = await db.from("items").select("*").eq("id", row.item_id).maybeSingle();
+  return item ?? null;
+}
+
+export type EnsureGlobalItemOptions = {
+  supabase?: SupabaseClient | null;
+  nameHint?: string;
+  brand?: string;
+  category?: string;
+};
+
+export async function ensureGlobalItemFromBarcode(code: string, opts: EnsureGlobalItemOptions = {}) {
+  const db = opts.supabase ?? getSupabase(); if (!db) throw new Error("DB unavailable");
+  const found = await findItemByBarcode(code, db);
+  if (found) return found;
+
+  const baseName = opts.nameHint?.trim() || `Unknown ${code.slice(-6)}`;
+  const slug = await uniqueSlug(baseName, {
+    async isAvailable(candidate) {
+      const { data, error } = await db.from("items").select("id").eq("slug", candidate).limit(1);
+      if (error) {
+        return true;
+      }
+      return !data || data.length === 0;
+    },
+  });
+  const { data: item, error: e1 } = await db
+    .from("items")
+    .insert({ name: baseName, slug, brand: opts.brand ?? null, category: opts.category ?? null })
+    .select("*")
+    .single();
+  if (e1) throw new Error(e1.message);
+
+  const { error: e2 } = await db
+    .from("item_barcodes")
+    .insert({ item_id: item.id, barcode: code, is_primary: true });
+  if (e2) throw new Error(e2.message);
+  return item;
+}
+
+export type AdoptIntoHouseOptions = {
+  supabase?: SupabaseClient | null;
+  houseId: string;
+  itemId: string;
+  priceCentavos?: number;
+  sku?: string;
+};
+
+export async function adoptIntoHouse({
+  supabase,
+  houseId,
+  itemId,
+  priceCentavos = 0,
+  sku,
+}: AdoptIntoHouseOptions) {
+  const db = supabase ?? getSupabase(); if (!db) throw new Error("DB unavailable");
+  const { data, error } = await db
+    .from("house_items")
+    .upsert(
+      { house_id: houseId, item_id: itemId, price_centavos: priceCentavos, sku },
+      { onConflict: "house_id,item_id" },
+    )
+    .select("*")
+    .single();
+  if (error) throw new Error(error.message);
+  return data;
 }
