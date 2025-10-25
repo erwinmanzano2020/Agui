@@ -16,6 +16,48 @@ type InventoryRow = {
   } | null;
 };
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function asStringOrNull(value: unknown): string | null {
+  if (typeof value === "string") return value;
+  if (value == null) return null;
+  return String(value);
+}
+
+function asNumberOrNull(value: unknown): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (value == null) return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function coerceInventoryRow(row: unknown): InventoryRow | null {
+  if (!isRecord(row)) return null;
+
+  const itemsRaw = row["items"];
+  const nested = Array.isArray(itemsRaw)
+    ? itemsRaw.find((item): item is Record<string, unknown> => isRecord(item)) ?? null
+    : isRecord(itemsRaw)
+      ? itemsRaw
+      : null;
+
+  const items = nested
+    ? {
+        name: asStringOrNull(nested["name"] ?? null),
+        brand: asStringOrNull(nested["brand"] ?? null),
+      }
+    : null;
+
+  return {
+    id: asStringOrNull(row["id"]) ?? "",
+    sku: asStringOrNull(row["sku"]),
+    price_centavos: asNumberOrNull(row["price_centavos"]),
+    items,
+  };
+}
+
 export default async function CompanyInventory({ params }: { params: { slug: string } }) {
   const db = getSupabase();
   if (!db) return notFound();
@@ -35,7 +77,11 @@ export default async function CompanyInventory({ params }: { params: { slug: str
     .order("created_at", { ascending: false })
     .limit(50);
 
-  const rows: InventoryRow[] = Array.isArray(data) ? (data as InventoryRow[]) : [];
+  const rows: InventoryRow[] = Array.isArray(data)
+    ? data
+        .map((row) => coerceInventoryRow(row))
+        .filter((row): row is InventoryRow => Boolean(row))
+    : [];
 
   return (
     <div className="space-y-4">
