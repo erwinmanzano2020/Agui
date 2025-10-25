@@ -100,7 +100,7 @@ export default function SignOutPage() {
               type="button"
               className="w-full"
               onClick={() => router.replace(nextPath)}
-              variant={status === "error" ? "default" : "ghost"}
+              variant={status === "error" ? "solid" : "ghost"}
             >
               Continue
             </Button>
