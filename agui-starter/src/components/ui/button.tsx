@@ -49,10 +49,9 @@ function composeRefs<T>(
       }
 
       try {
-        // MutableRefObject
         (ref as React.MutableRefObject<T | null>).current = node;
       } catch {
-        // no-op; gracefully ignore refs we can't assign to
+        // ignore refs we can't assign to
       }
     }
   };
@@ -73,7 +72,6 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ) => {
     const sizeClasses = variant === "link" ? "" : sizes[size];
     const composedClassName = cn(base, sizeClasses, variants[variant], className);
-
     if (asChild && React.isValidElement(children)) {
       const child = React.Children.only(children) as React.ReactElement<Record<string, unknown>>;
       const existingClassName = isString(child.props?.className)
@@ -81,11 +79,11 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         : undefined;
       const childRef = (child as React.ReactElement & { ref?: React.Ref<unknown> }).ref;
 
-      return React.cloneElement(child, {
+      return React.cloneElement(child as React.ReactElement, {
         ...props,
         className: cn(composedClassName, existingClassName),
-        ref: composeRefs(ref, childRef) as React.Ref<unknown>,
-      } as React.Attributes & Record<string, unknown>);
+        ref: composeRefs(ref, childRef),
+      } as unknown as React.Attributes & Record<string, unknown>);
     }
 
     return (
