@@ -290,7 +290,6 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
     const tooltipId = description
       ? `${label.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase()}-tooltip`
       : undefined;
-    const isDisabled = Boolean(disabled);
     const { onClick: providedOnClick, ...restLinkProps } = linkProps;
 
     useLayoutEffect(() => {
