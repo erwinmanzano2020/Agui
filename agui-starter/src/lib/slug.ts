@@ -143,7 +143,6 @@ async function uniqueSlugWithOptions(
 
   while (attempt < startIndex + maxAttempts) {
     const candidate = buildCandidate(base, attempt, separator, maxLength, fallback);
-    // eslint-disable-next-line no-await-in-loop
     const available = await isAvailable(candidate);
     if (available) {
       return candidate;
