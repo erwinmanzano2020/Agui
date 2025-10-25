@@ -32,6 +32,32 @@ const variants: Record<ButtonVariant, string> = {
     "border border-transparent bg-transparent h-auto p-0 text-[var(--agui-primary)] underline-offset-4 hover:underline focus-visible:shadow-[0_0_0_3px] focus-visible:shadow-[color-mix(in_srgb,_var(--ring)_35%,_transparent)] motion-reduce:underline-offset-4",
 };
 
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function composeRefs<T>(
+  ...refs: Array<React.Ref<T> | undefined>
+): React.RefCallback<T> {
+  return (node) => {
+    for (const ref of refs) {
+      if (!ref) continue;
+
+      if (typeof ref === "function") {
+        ref(node);
+        continue;
+      }
+
+      try {
+        // MutableRefObject
+        (ref as React.MutableRefObject<T | null>).current = node;
+      } catch {
+        // no-op; gracefully ignore refs we can't assign to
+      }
+    }
+  };
+}
+
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   (
     {
@@ -50,16 +76,18 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     if (asChild && React.isValidElement(children)) {
       const child = React.Children.only(children) as React.ReactElement<
-        Record<string, unknown>
+        React.HTMLAttributes<HTMLElement>
       >;
-      const existingClassName =
-        typeof child.props?.className === "string" ? child.props.className : undefined;
+      const existingClassName = isString(child.props?.className)
+        ? child.props.className
+        : undefined;
+      const childRef = (child as React.ReactElement & { ref?: React.Ref<HTMLElement> }).ref;
 
       return React.cloneElement(child, {
-        className: cn(composedClassName, existingClassName),
         ...props,
-        ref,
-      } as typeof child.props & { ref: React.Ref<HTMLElement> });
+        className: cn(composedClassName, existingClassName),
+        ref: composeRefs(ref, childRef),
+      });
     }
 
     return (
