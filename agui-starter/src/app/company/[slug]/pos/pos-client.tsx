@@ -170,7 +170,10 @@ export default function PosClient({ companyId, companySlug }: { companyId: strin
 
     if (res?.saleId) {
       const print = confirm("Print receipt? (Y=yes, N=no)");
-      setCart(newCart(companyId, dev));
+      setCart(current => {
+        const base = newCart(companyId, dev);
+        return { ...base, localSeq: (current?.localSeq ?? 0) + 1 };
+      });
       if (print) {
         console.log("Print receipt for sale", res.saleId);
       }
