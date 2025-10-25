@@ -4,7 +4,9 @@ import { getSupabase } from "@/lib/supabase";
 import { loadHouseBySlug } from "@/lib/taxonomy/houses-server";
 import { loadUiTerms } from "@/lib/ui-terms";
 
-import { ScanHud } from "./scan-hud";
+import ScanHUD from "./scan-hud";
+
+export const dynamic = "force-dynamic";
 
 export default async function CompanyClockPage({ params }: { params: { slug: string } }) {
   const { slug } = params;
@@ -24,7 +26,9 @@ export default async function CompanyClockPage({ params }: { params: { slug: str
         <header className="space-y-2">
           <p className="text-sm text-muted-foreground">Company clock</p>
           <h1 className="text-3xl font-semibold text-foreground">{clockLabel}</h1>
-          <p className="text-sm text-muted-foreground">Configure Supabase to start resolving scans and recording overrides.</p>
+          <p className="text-sm text-muted-foreground">
+            Configure Supabase to start resolving scans and recording overrides.
+          </p>
         </header>
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
@@ -78,7 +82,6 @@ export default async function CompanyClockPage({ params }: { params: { slug: str
     }
   }
 
-  const guildName = house.guild?.name ?? null;
   const heading = `${house.name} · ${clockLabel}`;
 
   return (
@@ -102,9 +105,7 @@ export default async function CompanyClockPage({ params }: { params: { slug: str
         </Card>
       )}
 
-      {!gateMessage && (
-        <ScanHud slug={slug} houseName={house.name} guildName={guildName} />
-      )}
+      {!gateMessage && <ScanHUD companyId={house.id} guildId={house.guild_id} />}
     </div>
   );
 }

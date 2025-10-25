@@ -1,305 +1,217 @@
 "use client";
 
-import { useActionState, useEffect, useMemo, useRef } from "react";
-
-import { Badge } from "@/components/ui/badge";
+import * as React from "react";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { cn } from "@/lib/utils";
-import type { LoyaltyScope } from "@/lib/loyalty/rules";
 
-import { handleClockScan } from "./actions";
-import { INITIAL_CLOCK_SCAN_STATE, type ClockScanState } from "./state";
+type Decision = "use_higher" | "issue_lower";
 
-type ScanHudProps = {
-  slug: string;
-  houseName: string;
-  guildName: string | null;
+type HudState = {
+  scope?: string;
+  incognito?: boolean;
+  schemeName?: string;
+  cardId?: string;
+  entityId?: string;
+  hasHigherCard?: boolean;
+  higherLabel?: string | null;
 };
 
-const SCOPE_LABELS: Record<LoyaltyScope, string> = {
-  ALLIANCE: "Alliance",
-  GUILD: "Guild",
-  HOUSE: "Company",
+type ApiResponse = {
+  ok?: boolean;
+  hud?: HudState;
+  needsDecision?: boolean;
+  error?: string;
 };
 
-function formatScope(scope: LoyaltyScope): string {
-  return SCOPE_LABELS[scope] ?? scope;
-}
+export default function ScanHUD({ companyId, guildId }: { companyId: string; guildId?: string | null }) {
+  const [token, setToken] = React.useState("");
+  const [hud, setHud] = React.useState<HudState | null>(null);
+  const [needsDecision, setNeedsDecision] = React.useState(false);
+  const [response, setResponse] = React.useState<string>("");
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-function formatPoints(value: number): string {
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 0 }).format(value);
-}
+  const requestContext = React.useMemo(() => {
+    const context: { scope: "HOUSE"; companyId: string; guildId?: string } = {
+      scope: "HOUSE",
+      companyId,
+    };
+    if (typeof guildId === "string" && guildId.length > 0) {
+      context.guildId = guildId;
+    }
+    return context;
+  }, [companyId, guildId]);
 
-function normalizeRole(role: string): string {
-  const cleaned = role.replace(/[_-]+/g, " ");
-  return cleaned.charAt(0).toUpperCase() + cleaned.slice(1);
-}
+  const resolve = React.useCallback(
+    async (rawToken: string) => {
+      if (!rawToken) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const httpResponse = await fetch("/api/scan/resolve", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ token: rawToken, context: requestContext }),
+        });
+        const res: ApiResponse = await httpResponse.json();
 
-function formatTimestamp(value: string | null): string | null {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  return date.toLocaleString();
-}
+        setResponse(JSON.stringify(res, null, 2));
 
-const textareaClasses = cn(
-  "min-h-[88px] w-full rounded-md border border-border bg-background px-3 py-2 text-sm text-foreground shadow-sm",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
-);
+        if (!httpResponse.ok || !res.ok) {
+          setHud(null);
+          setNeedsDecision(false);
+          setError(res.error ?? "Failed to resolve scan");
+          return;
+        }
 
-function StatusBanner({ state }: { state: ClockScanState }) {
-  if (!state.message) return null;
-
-  const toneClasses =
-    state.status === "error"
-      ? "border-destructive/40 bg-destructive/10 text-destructive"
-      : state.status === "needs-override"
-        ? "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
-        : "border-border bg-muted/40 text-muted-foreground";
-
-  return (
-    <div className={cn("rounded-md px-3 py-2 text-sm", toneClasses)}>
-      {state.message}
-    </div>
+        setHud(res.hud ?? null);
+        setNeedsDecision(Boolean(res.needsDecision));
+      } catch (error) {
+        const fallback = { error: (error as Error).message };
+        setResponse(JSON.stringify(fallback, null, 2));
+        setHud(null);
+        setNeedsDecision(false);
+        setError((error as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [requestContext],
   );
-}
 
-export function ScanHud({ slug, houseName, guildName }: ScanHudProps) {
-  const [state, formAction, pending] = useActionState(handleClockScan, INITIAL_CLOCK_SCAN_STATE);
-  const tokenInputRef = useRef<HTMLInputElement>(null);
+  const decide = React.useCallback(
+    async (decision: Decision, liftIncognito?: boolean) => {
+      if (!token) return;
+      let reason: string | undefined;
+      if (decision === "issue_lower") {
+        const reasonInput = window.prompt("Reason for issuing lower card anyway?") ?? "";
+        const trimmed = reasonInput.trim();
+        if (!trimmed) {
+          window.alert("A reason is required to issue the lower-precedence card.");
+          return;
+        }
+        reason = trimmed;
+      }
+      setLoading(true);
+      setError(null);
+      try {
+        const httpResponse = await fetch("/api/scan/decide", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            token,
+            decision,
+            reason,
+            liftIncognito,
+            context: requestContext,
+          }),
+        });
+        const res: ApiResponse = await httpResponse.json();
 
-  useEffect(() => {
-    const input = tokenInputRef.current;
-    if (!input) return;
+        setResponse(JSON.stringify(res, null, 2));
 
-    if (state.status === "resolved" || state.status === "needs-override" || state.status === "error") {
-      input.value = "";
-    }
+        if (!httpResponse.ok || !res.ok) {
+          setError(res.error ?? "Failed to record decision");
+          setNeedsDecision(false);
+          setHud(res.hud ?? null);
+          return;
+        }
 
-    if (!pending) {
-      input.focus();
-    }
-  }, [state.status, pending]);
-
-  const resolution = state.resolution;
-
-  const scopeLabel = useMemo(() => {
-    if (!resolution) return null;
-    return formatScope(resolution.schemeScope);
-  }, [resolution]);
-
-  const tokenExpiry = useMemo(() => formatTimestamp(resolution?.tokenExpiresAt ?? null), [resolution?.tokenExpiresAt]);
-
-  const linkedCards = useMemo(() => {
-    if (!resolution) return [];
-    return [...resolution.linkedCards].sort((a, b) => a.precedence - b.precedence);
-  }, [resolution]);
+        setHud(res.hud ?? null);
+        setNeedsDecision(Boolean(res.needsDecision));
+      } catch (error) {
+        const fallback = { error: (error as Error).message };
+        setResponse(JSON.stringify(fallback, null, 2));
+        setError((error as Error).message);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [requestContext, token],
+  );
 
   return (
-    <div className="space-y-6">
-      <form action={formAction} className="space-y-3">
-        <input type="hidden" name="mode" value="resolve" />
-        <input type="hidden" name="slug" value={slug} />
-        <label htmlFor="scan-token" className="text-sm font-medium text-foreground">
-          Scan token
-        </label>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-          <Input
-            id="scan-token"
-            name="token"
-            ref={tokenInputRef}
-            placeholder="Scan or paste a QR token"
-            required
-            disabled={pending}
-            className="sm:flex-1"
-          />
-          <Button type="submit" disabled={pending} className="sm:w-40">
-            {pending ? "Resolving…" : "Resolve scan"}
-          </Button>
-        </div>
-        <p className="text-xs text-muted-foreground">
-          Scans are scoped to {houseName}. {guildName ? `${guildName} guild` : "Your guild"} staff can log overrides for auditing.
-        </p>
-      </form>
+    <div className="grid gap-4 md:grid-cols-2">
+      <Card>
+        <CardContent className="space-y-3 py-6">
+          <div className="text-lg font-semibold">Scan</div>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              resolve(token);
+            }}
+            className="flex gap-2"
+          >
+            <input
+              className="h-9 flex-1 rounded-[var(--agui-radius)] border border-border bg-card px-3"
+              placeholder="Paste raw token here (dev)"
+              value={token}
+              disabled={loading}
+              onChange={(event) => setToken(event.target.value)}
+            />
+            <Button type="submit" disabled={loading}>
+              Resolve
+            </Button>
+          </form>
 
-      <StatusBanner state={state} />
+          {error && (
+            <div className="rounded-[var(--agui-radius)] border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+              {error}
+            </div>
+          )}
 
-      {resolution && (
-        <Card className="border-border/80 bg-card/80 backdrop-blur">
-          <CardHeader className="space-y-3">
+          {hud && (
+            <div className="space-y-1 rounded-[var(--agui-radius)] border border-border p-3 text-sm">
+              <div>
+                Scope: <span className="font-medium">{hud.scope ?? "UNKNOWN"}</span>
+              </div>
+              {hud.incognito && <div className="text-xs text-amber-600">Incognito active</div>}
+              <div>
+                Scheme: <span className="font-medium">{hud.schemeName ?? "—"}</span>
+              </div>
+              <div>
+                Card: <span className="font-mono">{hud.cardId ?? "hidden"}</span>
+              </div>
+              <div>
+                Entity: <span className="font-mono">{hud.entityId ?? "hidden"}</span>
+              </div>
+              {hud.hasHigherCard && (
+                <div className="text-xs">
+                  Higher-level card available: <span className="font-medium">{hud.higherLabel ?? "—"}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {needsDecision && (
             <div className="flex flex-wrap items-center gap-2">
-              {scopeLabel && <Badge tone="on">{scopeLabel}</Badge>}
-              {resolution.incognitoActive && <Badge tone="off">Incognito</Badge>}
-              {!resolution.incognitoActive && resolution.incognitoDefault && (
-                <Badge tone="on">Incognito lifted</Badge>
-              )}
-              {tokenExpiry && (
-                <span className="text-xs text-muted-foreground">Token expires {tokenExpiry}</span>
+              <Button variant="outline" disabled={loading} onClick={() => decide("use_higher")}>Use higher card</Button>
+              <Button variant="solid" disabled={loading} onClick={() => decide("issue_lower")}>
+                Issue lower anyway
+              </Button>
+              {hud?.incognito && (
+                <Button
+                  variant="ghost"
+                  disabled={loading}
+                  onClick={() => decide("use_higher", true)}
+                  title="Lift incognito for this scan"
+                >
+                  Lift incognito
+                </Button>
               )}
             </div>
-            <div>
-              <h2 className="text-2xl font-semibold text-foreground">{resolution.schemeName}</h2>
-              <p className="text-sm text-muted-foreground">Card number {resolution.cardNo}</p>
-              <p className="text-sm text-muted-foreground">{resolution.entityName}</p>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {resolution.loyaltyAccount && (
-              <div className="grid gap-4 rounded-md border border-border/70 bg-muted/20 p-4 sm:grid-cols-2">
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Account</p>
-                  <p className="text-sm text-foreground">{resolution.loyaltyAccount.accountNo}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Points</p>
-                  <p className="text-sm text-foreground">{formatPoints(resolution.loyaltyAccount.points)}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Tier</p>
-                  <p className="text-sm text-foreground">
-                    {resolution.loyaltyAccount.tier ? resolution.loyaltyAccount.tier : "—"}
-                  </p>
-                </div>
-              </div>
-            )}
+          )}
+        </CardContent>
+      </Card>
 
-            {state.event && (
-              <div className="rounded-md border border-border/70 bg-muted/30 p-4 text-xs text-muted-foreground">
-                <p className="font-medium text-foreground">Override recorded</p>
-                <p>
-                  {state.event.liftedIncognito ? "Incognito lifted" : "Lower-precedence card allowed"} · {state.event.reason}
-                </p>
-                <p>{formatTimestamp(state.event.recordedAt)}</p>
-              </div>
-            )}
-
-            {state.status === "needs-override" && resolution.higherCard && (
-              <div className="space-y-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-4 text-sm text-foreground">
-                <div>
-                  <p className="font-medium text-foreground">Higher card detected</p>
-                  <p className="text-sm text-muted-foreground">
-                    {resolution.higherCard.schemeName} ({formatScope(resolution.higherCard.scope)}) · Card {resolution.higherCard.cardNo}
-                  </p>
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Ask for the higher-precedence credential. If the patron needs this scan anyway, record a reason below.
-                </p>
-                <form action={formAction} className="space-y-3">
-                  <input type="hidden" name="mode" value="override-lower" />
-                  <input type="hidden" name="slug" value={slug} />
-                  <input type="hidden" name="token_id" value={resolution.tokenId} />
-                  <input type="hidden" name="card_id" value={resolution.cardId} />
-                  <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground" htmlFor="override-reason">
-                    Reason to override
-                  </label>
-                  <textarea
-                    id="override-reason"
-                    name="reason"
-                    required
-                    placeholder="Patron lost primary card"
-                    className={textareaClasses}
-                    disabled={pending}
-                  />
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-xs text-muted-foreground">
-                      Overrides are saved to the scan log for audit.
-                    </p>
-                    <Button type="submit" disabled={pending} className="sm:w-48">
-                      {pending ? "Recording…" : "Override and continue"}
-                    </Button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            {resolution.incognitoActive && (
-              <div className="space-y-3 rounded-md border border-border/70 bg-muted/20 p-4 text-sm text-muted-foreground">
-                <p className="font-medium text-foreground">Incognito is active</p>
-                <p>Cross-scope details stay hidden. Lift incognito with a reason if you need to verify wider access.</p>
-                <form action={formAction} className="space-y-3">
-                  <input type="hidden" name="mode" value="lift-incognito" />
-                  <input type="hidden" name="slug" value={slug} />
-                  <input type="hidden" name="token_id" value={resolution.tokenId} />
-                  <input type="hidden" name="card_id" value={resolution.cardId} />
-                  <label className="text-xs font-medium uppercase tracking-wide text-muted-foreground" htmlFor="incognito-reason">
-                    Reason to lift incognito
-                  </label>
-                  <textarea
-                    id="incognito-reason"
-                    name="reason"
-                    required
-                    placeholder="Fraud check with guild lead"
-                    className={textareaClasses}
-                    disabled={pending}
-                  />
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-xs text-muted-foreground">This note will appear in the scan log.</p>
-                    <Button type="submit" disabled={pending} className="sm:w-48">
-                      {pending ? "Recording…" : "Lift incognito"}
-                    </Button>
-                  </div>
-                </form>
-              </div>
-            )}
-
-            {!resolution.incognitoActive && linkedCards.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Linked credentials</p>
-                <ul className="space-y-1 text-sm text-muted-foreground">
-                  {linkedCards.map((card) => (
-                    <li key={card.cardId}>
-                      <span className="font-medium text-foreground">{card.schemeName}</span> · {formatScope(card.scope)} card {card.cardNo}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {!resolution.incognitoActive && (resolution.houseRoles.length > 0 || resolution.guildRoles.length > 0) && (
-              <div className="grid gap-3 sm:grid-cols-2">
-                {resolution.houseRoles.length > 0 && (
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">House roles</p>
-                    <ul className="space-y-1 text-sm text-muted-foreground">
-                      {resolution.houseRoles.map((role) => (
-                        <li key={role}>{normalizeRole(role)}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {resolution.guildRoles.length > 0 && (
-                  <div className="space-y-1">
-                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Guild roles</p>
-                    <ul className="space-y-1 text-sm text-muted-foreground">
-                      {resolution.guildRoles.map((role) => (
-                        <li key={role}>{normalizeRole(role)}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {resolution.incognitoActive && (
-              <p className="text-xs text-muted-foreground">
-                Additional roles and linked credentials stay hidden while incognito is on.
-              </p>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="flex flex-wrap gap-2">
-        <form action={formAction}>
-          <input type="hidden" name="mode" value="reset" />
-          <input type="hidden" name="slug" value={slug} />
-          <Button type="submit" variant="ghost" size="sm" disabled={pending}>
-            Clear
-          </Button>
-        </form>
-      </div>
+      <Card>
+        <CardContent className="py-6">
+          <div className="mb-2 text-sm text-muted-foreground">Debug</div>
+          <pre className="min-h-[240px] overflow-auto rounded-[var(--agui-radius)] bg-muted p-3 text-xs">
+            {response || "// resolve to see payload"}
+          </pre>
+        </CardContent>
+      </Card>
     </div>
   );
 }
