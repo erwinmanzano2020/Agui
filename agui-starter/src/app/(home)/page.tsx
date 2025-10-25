@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -13,26 +14,173 @@ import { Dock, type DockItem } from "@/components/ui/dock";
 import { AppTile } from "@/components/ui/app-tile";
 import { createApps, dockIds, type AppMeta } from "@/config/apps";
 import { useUiTerms } from "@/lib/ui-terms-context";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { useSession } from "@/lib/auth/session-context";
+import { useToast } from "@/components/ui/toaster";
 
 type TileHandlers = {
   onFocus: () => void;
   onKeyDown: (event: KeyboardEvent<HTMLAnchorElement>) => void;
 };
 
+type HouseSummary = {
+  id: string;
+  slug: string;
+  name: string;
+  guild_id: string | null;
+};
+
+type GuildSummary = {
+  id: string;
+  slug: string;
+  name: string;
+};
+
+type DataState = {
+  status: "idle" | "loading" | "ready" | "error";
+  houses: HouseSummary[];
+  guilds: GuildSummary[];
+};
+
 export default function HomePage() {
   const terms = useUiTerms();
-  const apps = useMemo(() => createApps(terms), [terms]);
+  const { supabase, status: sessionStatus, user } = useSession();
+  const toast = useToast();
+  const [dataState, setDataState] = useState<DataState>({ status: "idle", houses: [], guilds: [] });
+  const [dataVersion, setDataVersion] = useState(0);
+  const [seeding, setSeeding] = useState(false);
+  const signedIn = Boolean(user);
+  const dataReady = dataState.status === "ready";
+  const hasHouse = dataState.houses.length > 0;
+  const hasGuild = dataState.guilds.length > 0;
+  const hasData = hasHouse || hasGuild;
+
+  const reloadData = useCallback(() => {
+    setDataVersion((value) => value + 1);
+  }, []);
+
+  useEffect(() => {
+    if (!supabase || !signedIn) {
+      setDataState({ status: "idle", houses: [], guilds: [] });
+      return;
+    }
+
+    let cancelled = false;
+    setDataState((current) => ({
+      status: "loading",
+      houses: current.houses,
+      guilds: current.guilds,
+    }));
+
+    const fetchData = async () => {
+      const [housesResult, guildsResult] = await Promise.all([
+        supabase
+          .from("houses")
+          .select("id, slug, name, guild_id")
+          .order("created_at", { ascending: true })
+          .limit(10),
+        supabase
+          .from("guilds")
+          .select("id, slug, name")
+          .order("created_at", { ascending: true })
+          .limit(10),
+      ]);
+
+      if (cancelled) {
+        return;
+      }
+
+      if (housesResult.error || guildsResult.error) {
+        console.error(
+          "Failed to load dashboard data",
+          housesResult.error ?? guildsResult.error ?? new Error("Unknown error"),
+        );
+        setDataState({ status: "error", houses: [], guilds: [] });
+        return;
+      }
+
+      setDataState({
+        status: "ready",
+        houses: housesResult.data ?? [],
+        guilds: guildsResult.data ?? [],
+      });
+    };
+
+    fetchData().catch((error) => {
+      if (!cancelled) {
+        console.error("Failed to load home data", error);
+        setDataState({ status: "error", houses: [], guilds: [] });
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [supabase, signedIn, dataVersion]);
+
+  const handleSeedDemo = useCallback(async () => {
+    if (!signedIn) {
+      return;
+    }
+
+    setSeeding(true);
+    try {
+      const response = await fetch("/api/dev/seed-demo", { method: "POST" });
+      const payload = (await response.json()) as { ok?: boolean; error?: string; seeded?: boolean };
+      if (!response.ok || payload.error) {
+        throw new Error(payload.error ?? "Failed to seed demo data");
+      }
+
+      if (payload.seeded === false) {
+        toast.success("Demo data already available.");
+      } else {
+        toast.success("Demo data created. Reloading…");
+      }
+      reloadData();
+    } catch (error) {
+      console.error("Failed to seed demo data", error);
+      toast.error(error instanceof Error ? error.message : "Failed to seed demo data");
+    } finally {
+      setSeeding(false);
+    }
+  }, [reloadData, signedIn, toast]);
+
+  const baseApps = useMemo(() => createApps(terms), [terms]);
+  const decoratedApps = useMemo(() => {
+    const primaryHouseSlug = dataState.houses[0]?.slug ?? "demo";
+    return baseApps.map((app) => {
+      if (app.id === "pos") {
+        return { ...app, href: `/company/${primaryHouseSlug}/pos` } satisfies AppMeta;
+      }
+      return app;
+    });
+  }, [baseApps, dataState.houses]);
   const appsById = useMemo(
-    () => new Map<string, AppMeta>(apps.map((app) => [app.id, app])),
-    [apps]
+    () => new Map<string, AppMeta>(decoratedApps.map((app) => [app.id, app])),
+    [decoratedApps]
   );
-  const gridApps = apps;
+  const gridApps = decoratedApps;
+  const isAppDisabled = useCallback(
+    (appId: string) => {
+      if (!signedIn) {
+        return true;
+      }
+
+      if (appId === "pos") {
+        return !dataReady || !hasHouse;
+      }
+
+      return false;
+    },
+    [signedIn, dataReady, hasHouse]
+  );
   const dockApps = useMemo(
     () =>
       dockIds
         .map((id) => appsById.get(id))
-        .filter((entry): entry is AppMeta => Boolean(entry)),
-    [appsById]
+        .filter((entry): entry is AppMeta => Boolean(entry && !isAppDisabled(entry.id))),
+    [appsById, isAppDisabled]
   );
   const gridRef = useRef<HTMLDivElement>(null);
   const tileRefs = useRef<(HTMLAnchorElement | null)[]>([]);
@@ -134,15 +282,55 @@ export default function HomePage() {
   const dockHintGap = "16px";
   const hintBottomOffset = `calc(${safeAreaBottom} + ${dockHeight} + ${dockHintGap})`;
 
+  const tileDisabledFlags = useMemo(
+    () => gridApps.map((app) => isAppDisabled(app.id)),
+    [gridApps, isAppDisabled]
+  );
+
   const tileHandlers: TileHandlers[] = useMemo(() => {
     return gridApps.map((_, index) => {
       const moveFocus = (nextIndex: number) => {
+        if (!gridApps.length) {
+          return;
+        }
+
         const maxIndex = gridApps.length - 1;
         const targetIndex = Math.min(Math.max(nextIndex, 0), maxIndex);
+        const direction = nextIndex > index ? 1 : nextIndex < index ? -1 : 0;
 
-        setFocusIndex((current) => (current === targetIndex ? current : targetIndex));
+        const resolveTargetIndex = () => {
+          if (!tileDisabledFlags[targetIndex]) {
+            return targetIndex;
+          }
 
-        const target = tileRefs.current[targetIndex];
+          if (direction === 0) {
+            for (let forward = targetIndex + 1; forward <= maxIndex; forward += 1) {
+              if (!tileDisabledFlags[forward]) return forward;
+            }
+            for (let backward = targetIndex - 1; backward >= 0; backward -= 1) {
+              if (!tileDisabledFlags[backward]) return backward;
+            }
+            return -1;
+          }
+
+          let current = targetIndex;
+          while (current >= 0 && current <= maxIndex) {
+            if (!tileDisabledFlags[current]) {
+              return current;
+            }
+            current += direction;
+          }
+          return -1;
+        };
+
+        const resolvedIndex = resolveTargetIndex();
+        if (resolvedIndex < 0 || tileDisabledFlags[resolvedIndex]) {
+          return;
+        }
+
+        setFocusIndex((current) => (current === resolvedIndex ? current : resolvedIndex));
+
+        const target = tileRefs.current[resolvedIndex];
         if (!target) {
           return;
         }
@@ -208,7 +396,7 @@ export default function HomePage() {
 
       return { onFocus, onKeyDown } satisfies TileHandlers;
     });
-  }, [getColumnCount, gridApps]);
+  }, [getColumnCount, gridApps, tileDisabledFlags]);
 
   return (
     <>
@@ -221,6 +409,76 @@ export default function HomePage() {
                 <h1>App launcher</h1>
               </header>
 
+              {sessionStatus === "initializing" ? (
+                <Card className="w-full max-w-xl">
+                  <CardContent className="text-sm text-muted-foreground">
+                    Preparing your session…
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {sessionStatus === "error" ? (
+                <Card className="w-full max-w-xl">
+                  <CardContent className="text-sm text-muted-foreground">
+                    Supabase isn’t configured. Set the required environment variables to enable sign-in and data access.
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {!signedIn && sessionStatus === "ready" ? (
+                <Card className="w-full max-w-xl">
+                  <CardHeader className="border-none px-5 pt-5 pb-2">
+                    <h2 className="text-lg font-semibold text-foreground">Sign in to unlock apps</h2>
+                  </CardHeader>
+                  <CardContent className="space-y-4 text-sm text-muted-foreground">
+                    <p>Send yourself a magic link or one-time passcode to start exploring Agui.</p>
+                    <Button asChild>
+                      <Link href="/signin">Sign in</Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {signedIn && dataState.status === "loading" && !hasData ? (
+                <Card className="w-full max-w-xl">
+                  <CardContent className="text-sm text-muted-foreground">
+                    Loading your workspace…
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {signedIn && dataState.status === "error" ? (
+                <Card className="w-full max-w-xl">
+                  <CardHeader className="border-none px-5 pt-5 pb-2">
+                    <h2 className="text-lg font-semibold text-foreground">We hit a snag</h2>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-3 text-sm text-muted-foreground">
+                    <p>We couldn’t load your data right now. Try again in a moment.</p>
+                    <div>
+                      <Button size="sm" onClick={reloadData} className="w-fit">
+                        Retry
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {signedIn && dataReady && !hasData ? (
+                <Card className="w-full max-w-xl">
+                  <CardHeader className="border-none px-5 pt-5 pb-2">
+                    <h2 className="text-lg font-semibold text-foreground">Create demo data</h2>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-3 text-sm text-muted-foreground">
+                    <p>Seed a demo guild and company so POS and roster links resolve immediately.</p>
+                    <div>
+                      <Button onClick={handleSeedDemo} disabled={seeding} className="w-fit">
+                        {seeding ? "Seeding…" : "Create demo data"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : null}
+
               <section className="w-full flex flex-col items-center">
                 <div
                   ref={gridRef}
@@ -230,29 +488,33 @@ export default function HomePage() {
                   aria-rowcount={Math.ceil(gridApps.length / columnCount)}
                   className="grid grid-cols-3 justify-items-center gap-x-5 gap-y-8 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8"
                 >
-                  {gridApps.map((app, index) => (
-                    <div
-                      key={app.id}
-                      role="gridcell"
-                      aria-rowindex={Math.floor(index / columnCount) + 1}
-                      aria-colindex={(index % columnCount) + 1}
-                      className="flex items-start justify-center"
-                    >
-                      <AppTile
-                        href={app.href}
-                        label={app.label}
-                        description={app.description}
-                        icon={app.icon}
-                        tabIndex={focusIndex === index ? 0 : -1}
-                        onFocus={tileHandlers[index]?.onFocus}
-                        onKeyDown={tileHandlers[index]?.onKeyDown}
-                        className="w-full max-w-[9.5rem]"
-                        ref={(element) => {
-                          tileRefs.current[index] = element;
-                        }}
-                      />
-                    </div>
-                  ))}
+                  {gridApps.map((app, index) => {
+                    const tileIsDisabled = tileDisabledFlags[index];
+                    return (
+                      <div
+                        key={app.id}
+                        role="gridcell"
+                        aria-rowindex={Math.floor(index / columnCount) + 1}
+                        aria-colindex={(index % columnCount) + 1}
+                        className="flex items-start justify-center"
+                      >
+                        <AppTile
+                          href={app.href}
+                          label={app.label}
+                          description={app.description}
+                          icon={app.icon}
+                          disabled={tileIsDisabled}
+                          tabIndex={tileIsDisabled ? -1 : focusIndex === index ? 0 : -1}
+                          onFocus={tileHandlers[index]?.onFocus}
+                          onKeyDown={tileHandlers[index]?.onKeyDown}
+                          className="w-full max-w-[9.5rem]"
+                          ref={(element) => {
+                            tileRefs.current[index] = element;
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
             </div>

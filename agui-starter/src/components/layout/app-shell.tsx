@@ -7,6 +7,7 @@ import { ReactNode, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ui/theme-toggle";
 import { useUiTerms } from "@/lib/ui-terms-context";
+import { useSession } from "@/lib/auth/session-context";
 import {
   CalendarClockIcon,
   ChevronLeftIcon,
@@ -31,6 +32,7 @@ export function AppShell({
   posEnabled?: boolean;
 }) {
   const terms = useUiTerms();
+  const { status: sessionStatus, user } = useSession();
   const baseNav = useMemo<NavItem[]>(
     () => [
       { name: "Dashboard", href: "/", icon: <LayoutDashboardIcon className="h-5 w-5" /> },
@@ -218,9 +220,22 @@ export function AppShell({
           <div className="flex items-center gap-2">
             {/* icon-only shared toggle */}
             <ThemeToggle className="h-9 w-9 p-0 rounded-2xl" />
-            <div className="h-8 w-8 rounded-full bg-[color-mix(in_srgb,_var(--agui-on-surface)_12%,_transparent)] flex items-center justify-center text-sm text-[var(--agui-on-surface)]">
-              U
-            </div>
+            {sessionStatus === "initializing" ? (
+              <div className="h-8 w-8 animate-pulse rounded-full bg-[color-mix(in_srgb,_var(--agui-on-surface)_12%,_transparent)]" />
+            ) : user ? (
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color-mix(in_srgb,_var(--agui-primary)_18%,_transparent)] text-sm font-medium text-[var(--agui-on-surface)]">
+                  {user.email?.[0]?.toUpperCase() ?? user.phone?.[0]?.toUpperCase() ?? "U"}
+                </div>
+                <Button asChild size="sm" variant="ghost" className="h-8">
+                  <Link href="/signout">Sign out</Link>
+                </Button>
+              </div>
+            ) : (
+              <Button asChild size="sm" variant="outline" className="h-8">
+                <Link href="/signin">Sign in</Link>
+              </Button>
+            )}
           </div>
         </header>
 

@@ -39,6 +39,7 @@ export interface AppTileProps extends LinkComponentProps {
   href: string;
   description?: string;
   variant?: AppTileVariant;
+  disabled?: boolean;
 }
 
 type VariantStyles = {
@@ -134,6 +135,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
       href,
       description,
       variant = "auto",
+      disabled = false,
       className,
       tabIndex,
       onFocus,
@@ -167,19 +169,20 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
       return window.matchMedia("(pointer: coarse)").matches;
     });
     const showTimerRef = useRef<number | null>(null);
-
+    const isDisabled = Boolean(disabled);
     const shouldRenderTooltip = Boolean(description) && !isCoarsePointer;
+    const tooltipEnabled = shouldRenderTooltip && !isDisabled;
     const iconContainerRef = useRef<HTMLSpanElement | null>(null);
     const { ref: tooltipRef, inlineOffset, update: updateTooltipInlineOffset } =
       useTooltipPosition<HTMLDivElement>({
-        open: isTooltipVisible && shouldRenderTooltip,
+        open: isTooltipVisible && tooltipEnabled,
         gap: 12,
-        contentKey: shouldRenderTooltip ? description : undefined,
+        contentKey: tooltipEnabled ? description : undefined,
       });
     const [placement, setPlacement] = useState<TooltipPlacement>("top");
 
     const updatePlacement = useCallback(() => {
-      if (!shouldRenderTooltip || typeof window === "undefined") {
+      if (!tooltipEnabled || typeof window === "undefined") {
         return;
       }
 
@@ -196,7 +199,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
       });
 
       setPlacement((current) => (current === nextPlacement ? current : nextPlacement));
-    }, [shouldRenderTooltip, tooltipRef]);
+    }, [tooltipEnabled, tooltipRef]);
 
     const handleTooltipMetrics = useCallback(() => {
       updatePlacement();
@@ -211,7 +214,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
     };
 
     const showTooltip = () => {
-      if (!shouldRenderTooltip) {
+      if (!tooltipEnabled) {
         return;
       }
 
@@ -251,7 +254,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
     }, []);
 
     useEffect(() => {
-      if (!isCoarsePointer) {
+      if (!isCoarsePointer && tooltipEnabled) {
         return;
       }
 
@@ -261,7 +264,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
       }
 
       setTooltipVisible(false);
-    }, [isCoarsePointer]);
+    }, [isCoarsePointer, tooltipEnabled]);
 
     useEffect(() => {
       return () => {
@@ -287,9 +290,11 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
     const tooltipId = description
       ? `${label.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-+|-+$/g, "").toLowerCase()}-tooltip`
       : undefined;
+    const isDisabled = Boolean(disabled);
+    const { onClick: providedOnClick, ...restLinkProps } = linkProps;
 
     useLayoutEffect(() => {
-      if (!isTooltipVisible || !shouldRenderTooltip) {
+      if (!isTooltipVisible || !tooltipEnabled) {
         return;
       }
 
@@ -302,16 +307,18 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
         window.removeEventListener("resize", handleTooltipMetrics);
         window.removeEventListener("scroll", handleTooltipMetrics, true);
       };
-    }, [description, handleTooltipMetrics, isTooltipVisible, shouldRenderTooltip]);
+    }, [description, handleTooltipMetrics, isTooltipVisible, tooltipEnabled]);
 
     return (
       <Link
         href={href}
         ref={ref}
-        tabIndex={tabIndex}
+        tabIndex={isDisabled ? -1 : tabIndex}
+        aria-disabled={isDisabled || undefined}
         className={cn(
           "app-tile__link group inline-flex max-w-[7.25rem] flex-col items-center gap-2 text-center outline-none",
           "focus-visible:outline-none focus-visible:ring-0 focus-visible:border-none",
+          isDisabled && "pointer-events-none opacity-60",
           className,
         )}
         style={
@@ -323,39 +330,56 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
           } as CSSProperties
         }
         onPointerEnter={(event) => {
-          if (event.pointerType === "touch") {
+          if (isDisabled || event.pointerType === "touch") {
             return;
           }
           showTooltip();
         }}
         onPointerLeave={(event) => {
-          if (event.pointerType === "touch") return;
+          if (isDisabled || event.pointerType === "touch") return;
           if (event.currentTarget === document.activeElement) {
             return;
           }
           hideTooltip();
         }}
         onFocus={(event) => {
+          if (isDisabled) {
+            return;
+          }
           if (event.currentTarget.matches(":focus-visible")) {
             showTooltip();
           }
           onFocus?.(event);
         }}
         onBlur={(event) => {
-          hideTooltip();
+          if (!isDisabled) {
+            hideTooltip();
+          }
           onBlur?.(event);
         }}
         onPointerDown={() => {
-          hideTooltip();
+          if (!isDisabled) {
+            hideTooltip();
+          }
         }}
         onKeyDown={(event) => {
+          if (isDisabled) {
+            return;
+          }
           if (event.key === "Escape") {
             hideTooltip();
           }
           onKeyDown?.(event);
         }}
-        aria-describedby={isTooltipVisible && shouldRenderTooltip ? tooltipId : undefined}
-        {...linkProps}
+        onClick={(event) => {
+          if (isDisabled) {
+            event.preventDefault();
+            return;
+          }
+          providedOnClick?.(event);
+        }}
+        aria-describedby={isTooltipVisible && tooltipEnabled ? tooltipId : undefined}
+        {...restLinkProps}
       >
         <span
           ref={iconContainerRef}
@@ -380,7 +404,7 @@ const AppTileBase = forwardRef<HTMLAnchorElement, AppTileProps>(
               {enhancedIcon}
             </span>
           </span>
-          {shouldRenderTooltip ? (
+          {tooltipEnabled ? (
             <div
               id={tooltipId}
               role="tooltip"
