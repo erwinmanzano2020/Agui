@@ -52,9 +52,11 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       const child = React.Children.only(children) as React.ReactElement<
         Record<string, unknown>
       >;
+      const existingClassName =
+        typeof child.props?.className === "string" ? child.props.className : undefined;
 
       return React.cloneElement(child, {
-        className: cn(composedClassName, child.props?.className),
+        className: cn(composedClassName, existingClassName),
         ...props,
         ref,
       } as typeof child.props & { ref: React.Ref<HTMLElement> });
