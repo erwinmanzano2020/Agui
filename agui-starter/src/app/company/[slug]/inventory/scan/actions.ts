@@ -9,6 +9,7 @@ import {
   updateHouseItemDetails,
   type UpdateHouseItemDetailsOptions,
 } from "@/lib/inventory/items-server";
+import { ensureInventoryAccess } from "@/lib/inventory/access";
 import { getSupabase } from "@/lib/supabase";
 import { loadHouseBySlug } from "@/lib/taxonomy/houses-server";
 
@@ -53,42 +54,6 @@ function parseStockInput(value: FormDataEntryValue | null): number {
     throw new Error("Stock can’t be negative.");
   }
   return parsed;
-}
-
-async function ensureInventoryAccess(
-  supabase: SupabaseClient,
-  houseId: string,
-  guildId: string | null,
-  entityId: string,
-) {
-  const [houseRoleResult, guildRoleResult] = await Promise.all([
-    supabase
-      .from("house_roles")
-      .select("id")
-      .eq("house_id", houseId)
-      .eq("entity_id", entityId)
-      .maybeSingle(),
-    guildId
-      ? supabase
-          .from("guild_roles")
-          .select("id")
-          .eq("guild_id", guildId)
-          .eq("entity_id", entityId)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-  ]);
-
-  if (houseRoleResult.error) {
-    throw new Error(`Failed to verify house role: ${houseRoleResult.error.message}`);
-  }
-
-  if (guildRoleResult.error) {
-    throw new Error(`Failed to verify guild role: ${guildRoleResult.error.message}`);
-  }
-
-  const hasHouseRole = Boolean(houseRoleResult.data);
-  const hasGuildRole = Boolean(guildRoleResult.data);
-  return hasHouseRole || hasGuildRole;
 }
 
 export async function handleInventoryAction(
@@ -167,7 +132,12 @@ export async function handleInventoryAction(
 
   let hasAccess = false;
   try {
-    hasAccess = await ensureInventoryAccess(supabase, house.id, house.guild_id ?? null, actor.id);
+    hasAccess = await ensureInventoryAccess({
+      supabase,
+      houseId: house.id,
+      guildId: house.guild_id ?? null,
+      entityId: actor.id,
+    });
   } catch (error) {
     console.error("Failed to verify inventory access", error);
     return {
