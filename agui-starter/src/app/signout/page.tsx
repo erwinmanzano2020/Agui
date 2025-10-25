@@ -12,11 +12,21 @@ function sanitizeNextPath(raw: string | null): string {
     return "/";
   }
 
-  if (raw.startsWith("/")) {
-    return raw;
+  const trimmed = raw.trim();
+
+  if (!trimmed) {
+    return "/";
   }
 
-  return "/";
+  if (!trimmed.startsWith("/")) {
+    return "/";
+  }
+
+  if (trimmed.startsWith("//")) {
+    return "/";
+  }
+
+  return trimmed;
 }
 
 export default function SignOutPage() {
