@@ -1,17 +1,26 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 
+type ResumeRequestBody = {
+  companyId?: string;
+  saleId?: string;
+};
+
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({}));
+  const body = (await req.json().catch(() => ({}))) as ResumeRequestBody;
   const db = getSupabase();
   if (!db) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
+
+  if (!body.companyId && !body.saleId) {
+    return NextResponse.json({ error: "Missing company or sale" }, { status: 400 });
+  }
 
   let saleId: string | undefined = body.saleId;
   if (!saleId) {
     const latest = await db
       .from("sales")
       .select("id")
-      .eq("company_id", body.companyId)
+      .eq("company_id", body.companyId!)
       .eq("status", "HELD")
       .order("updated_at", { ascending: false })
       .limit(1)

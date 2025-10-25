@@ -1,17 +1,42 @@
 import { NextResponse } from "next/server";
 import { getSupabase } from "@/lib/supabase";
 
+type FinalizeLinePayload = {
+  itemId: string;
+  uom?: string;
+  multiplier?: number;
+  qty: number;
+  unitPriceCentavos: number;
+  lineTotalCentavos: number;
+};
+
+type FinalizeRequestBody = {
+  companyId?: string;
+  deviceId?: string;
+  localSeq?: number;
+  saleId?: string;
+  version?: number;
+  grandTotalCentavos?: number;
+  lines?: FinalizeLinePayload[];
+};
+
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({}));
+  const body = (await req.json().catch(() => ({}))) as FinalizeRequestBody;
   const db = getSupabase();
   if (!db) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });
+
+  if (!body.companyId || !body.deviceId || typeof body.localSeq !== "number") {
+    return NextResponse.json({ error: "Missing finalize identifiers" }, { status: 400 });
+  }
+
+  const { companyId, deviceId, localSeq } = body;
 
   const key = await db
     .from("sale_finalize_keys")
     .select("sale_id")
-    .eq("company_id", body.companyId)
-    .eq("device_id", body.deviceId)
-    .eq("local_seq", body.localSeq)
+    .eq("company_id", companyId)
+    .eq("device_id", deviceId)
+    .eq("local_seq", localSeq)
     .maybeSingle();
 
   if (key.data?.sale_id) {
@@ -23,8 +48,8 @@ export async function POST(req: Request) {
     .upsert(
       {
         id: body.saleId ?? undefined,
-        company_id: body.companyId,
-        device_id: body.deviceId,
+        company_id: companyId,
+        device_id: deviceId,
         status: "COMPLETED",
         grand_total_centavos: body.grandTotalCentavos ?? 0,
         version: (body.version ?? 0) + 1,
@@ -40,8 +65,9 @@ export async function POST(req: Request) {
 
   await db.from("sale_lines").delete().eq("sale_id", sale.id);
 
-  if (Array.isArray(body.lines) && body.lines.length) {
-    const rows = body.lines.map((line: any, index: number) => ({
+  const lines = Array.isArray(body.lines) ? body.lines : [];
+  if (lines.length) {
+    const rows = lines.map((line, index) => ({
       sale_id: sale.id,
       line_no: index + 1,
       item_id: line.itemId,
@@ -56,9 +82,9 @@ export async function POST(req: Request) {
   }
 
   await db.from("sale_finalize_keys").insert({
-    company_id: body.companyId,
-    device_id: body.deviceId,
-    local_seq: body.localSeq,
+    company_id: companyId,
+    device_id: deviceId,
+    local_seq: localSeq,
     sale_id: sale.id,
   });
 

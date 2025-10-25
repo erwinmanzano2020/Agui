@@ -10,7 +10,7 @@ export type CartLine = {
   qty: number;
   unitPrice: Money;
   lineTotal: Money;
-  meta?: Record<string, any>;
+  meta?: Record<string, unknown>;
 };
 
 export type Cart = {

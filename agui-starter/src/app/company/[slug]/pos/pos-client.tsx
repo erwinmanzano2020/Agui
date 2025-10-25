@@ -7,6 +7,38 @@ import { newCart, addOrBumpLine, priceLines } from "@/lib/pos/cart";
 import { loadLocalCart, saveLocalCart } from "@/lib/pos/local";
 import type { Cart } from "@/lib/pos/types";
 
+type InventorySearchResponse = {
+  items?: Array<{ id: string; name: string }>;
+};
+
+type HoldResponse = { ok?: boolean; saleId?: string; error?: string };
+
+type ResumeSale = {
+  id: string;
+  device_id: string;
+  status: Cart["status"];
+  grand_total_centavos: number;
+  version: number;
+};
+
+type ResumeLine = {
+  line_no: number;
+  item_id: string;
+  uom: string;
+  multiplier: number;
+  qty: number | string;
+  unit_price_centavos: number;
+  line_total_centavos: number;
+};
+
+type ResumeResponse = {
+  sale?: ResumeSale;
+  lines?: ResumeLine[];
+  error?: string;
+};
+
+type FinalizeResponse = { ok?: boolean; saleId?: string; error?: string; idempotent?: boolean };
+
 function deviceId() {
   const existing = localStorage.getItem("agui:device");
   if (existing) return existing;
@@ -29,28 +61,8 @@ export default function PosClient({ companyId, companySlug }: { companyId: strin
     if (cart) saveLocalCart(cart);
   }, [cart]);
 
-  React.useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (!cart) return;
-
-      if (event.key === "F9") {
-        event.preventDefault();
-        holdSale();
-        return;
-      }
-
-      if (event.key === "F12") {
-        event.preventDefault();
-        finalizeSale();
-      }
-    }
-
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [cart]);
-
-  async function adoptByBarcode(code: string) {
-    const res = await fetch(`/api/inventory/search?q=${encodeURIComponent(code)}`).then(r => r.json());
+  const adoptByBarcode = React.useCallback(async (code: string) => {
+    const res = (await fetch(`/api/inventory/search?q=${encodeURIComponent(code)}`).then(r => r.json())) as InventorySearchResponse;
     const item = res.items?.[0];
     if (!item) return;
 
@@ -68,9 +80,9 @@ export default function PosClient({ companyId, companySlug }: { companyId: strin
 
       return { ...next, localSeq: current.localSeq + 1 };
     });
-  }
+  }, []);
 
-  async function holdSale() {
+  const holdSale = React.useCallback(async () => {
     if (!cart) return;
 
     const payload = {
@@ -90,11 +102,11 @@ export default function PosClient({ companyId, companySlug }: { companyId: strin
       reason: prompt("Reason for hold?") || undefined,
     };
 
-    const res = await fetch("/api/pos/hold", {
+    const res = (await fetch("/api/pos/hold", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
-    }).then(r => r.json());
+    }).then(r => r.json())) as HoldResponse;
 
     if (res?.saleId) {
       setCart(current =>
@@ -104,17 +116,17 @@ export default function PosClient({ companyId, companySlug }: { companyId: strin
       );
       alert("Held.");
     }
-  }
+  }, [cart, companyId]);
 
-  async function resumeSale() {
-    const res = await fetch("/api/pos/resume", {
+  const resumeSale = React.useCallback(async () => {
+    const res = (await fetch("/api/pos/resume", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ companyId }),
-    }).then(r => r.json());
+    }).then(r => r.json())) as ResumeResponse;
 
     if (res?.sale) {
-      const lines = (res.lines ?? []).map((line: any) => ({
+      const lines = (res.lines ?? []).map(line => ({
         lineNo: line.line_no,
         itemId: line.item_id,
         name: "",
@@ -140,9 +152,9 @@ export default function PosClient({ companyId, companySlug }: { companyId: strin
     } else {
       alert(res?.error || "No held sale.");
     }
-  }
+  }, [companyId]);
 
-  async function finalizeSale() {
+  const finalizeSale = React.useCallback(async () => {
     if (!cart) return;
 
     const payload = {
@@ -162,11 +174,11 @@ export default function PosClient({ companyId, companySlug }: { companyId: strin
       })),
     };
 
-    const res = await fetch("/api/pos/finalize", {
+    const res = (await fetch("/api/pos/finalize", {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),
-    }).then(r => r.json());
+    }).then(r => r.json())) as FinalizeResponse;
 
     if (res?.saleId) {
       const print = confirm("Print receipt? (Y=yes, N=no)");
@@ -180,7 +192,25 @@ export default function PosClient({ companyId, companySlug }: { companyId: strin
     } else {
       alert(res?.error || "Finalize failed");
     }
-  }
+  }, [cart, companyId, dev]);
+
+  React.useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "F9") {
+        event.preventDefault();
+        holdSale();
+        return;
+      }
+
+      if (event.key === "F12") {
+        event.preventDefault();
+        finalizeSale();
+      }
+    }
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [holdSale, finalizeSale]);
 
   if (!cart) return null;
 
