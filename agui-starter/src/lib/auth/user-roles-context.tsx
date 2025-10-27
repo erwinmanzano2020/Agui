@@ -26,7 +26,12 @@ function toUniqueRoles(selection: ViewAsSelection | null): RoleAssignments | nul
   }
 
   const unique = Array.from(
-    new Set((selection.roles ?? []).filter((role): role is string => typeof role === "string" && role.trim())),
+    new Set(
+      (selection.roles ?? []).filter(
+        (role): role is string =>
+          typeof role === "string" && role.trim().length > 0,
+      ),
+    ),
   );
 
   const viewRoles = emptyRoleAssignments();
