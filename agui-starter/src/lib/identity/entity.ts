@@ -3,6 +3,16 @@ import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getSupabase } from "@/lib/supabase";
 
+class ForbiddenError extends Error {
+  status: number;
+
+  constructor(message = "Forbidden") {
+    super(message);
+    this.name = "ForbiddenError";
+    this.status = 403;
+  }
+}
+
 export async function ensureEntityByEmail(
   email: string,
   opts?: { displayName?: string },
@@ -102,8 +112,6 @@ export async function isGM() {
 export async function requireGM() {
   const ok = await isGM();
   if (!ok) {
-    const err: any = new Error("Forbidden");
-    err.status = 403;
-    throw err;
+    throw new ForbiddenError();
   }
 }
