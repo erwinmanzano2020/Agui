@@ -181,7 +181,10 @@ const VIEW_AS_STORAGE_KEY = "agui:view-as";
 function sanitizeViewAs(selection: ViewAsSelection | null): ViewAsSelection | null {
   if (!selection) return null;
   const roles = Array.isArray(selection.roles)
-    ? selection.roles.filter((role): role is string => typeof role === "string" && role.trim())
+    ? selection.roles.filter(
+        (role): role is string =>
+          typeof role === "string" && role.trim().length > 0
+      )
     : [];
 
   if (selection.scope === "GUILD") {
