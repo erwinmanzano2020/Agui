@@ -7,23 +7,17 @@ import { NextResponse } from "next/server";
 import { canAccess, type FeatureInput, AppFeature } from "@/lib/auth/permissions";
 import { getUserRoles } from "@/lib/auth/user-roles";
 
-function resolveDestination(explicit?: string): string | null {
-  if (explicit && explicit.startsWith("/")) {
-    return explicit;
-  }
-
+/** Resolve current request path for redirects (server only). */
+export async function resolveDestFromHeaders(): Promise<string> {
   try {
-    const headerList = headers();
-    const nextUrl = headerList.get("next-url");
-    if (nextUrl) {
-      const parsed = new URL(nextUrl, "https://agui.local");
-      return parsed.pathname + parsed.search;
-    }
+    const headerList = await headers();
+    const raw = headerList.get("next-url") ?? headerList.get("referer") ?? "/";
+    const parsed = new URL(raw, "https://agui.local");
+    return parsed.pathname + parsed.search;
   } catch (error) {
     console.warn("Failed to resolve guard destination", error);
+    return "/";
   }
-
-  return null;
 }
 
 export async function hasFeatureAccess(feature: FeatureInput): Promise<boolean> {
@@ -31,18 +25,18 @@ export async function hasFeatureAccess(feature: FeatureInput): Promise<boolean> 
   return canAccess(feature, roles);
 }
 
-export async function requireFeatureAccess(feature: FeatureInput, options?: { dest?: string }) {
+export async function requireFeatureAccess(
+  feature: FeatureInput,
+  options?: { dest?: string }
+) {
   if (await hasFeatureAccess(feature)) {
     return;
   }
 
-  const dest = resolveDestination(options?.dest);
-  if (dest) {
-    const params = new URLSearchParams({ dest });
-    redirect(`/403?${params.toString()}`);
-  }
-
-  redirect("/403");
+  const explicit = options?.dest;
+  const dest = explicit && explicit.startsWith("/") ? explicit : await resolveDestFromHeaders();
+  const params = new URLSearchParams({ dest });
+  redirect(`/403?${params.toString()}`);
 }
 
 export async function requireFeatureAccessApi(feature: AppFeature) {
