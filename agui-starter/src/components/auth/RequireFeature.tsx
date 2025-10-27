@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 
 import { ForbiddenState } from "@/components/auth/Forbidden";
-import { can, type Feature } from "@/lib/authz";
+import { can, type Feature } from "@/lib/authz/server";
 
 type RequireFeatureProps = {
   feature: Feature;

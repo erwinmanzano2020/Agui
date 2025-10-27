@@ -1,7 +1,5 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
-import { getSupabase } from "@/lib/supabase";
-
 export type Feature =
   | "alliances"
   | "guilds"
@@ -59,26 +57,6 @@ function normalizePhone(phone?: string | null): string | null {
   const digits = phone.trim().replace(/[^\d+]/g, "");
   if (!digits) return null;
   return digits.startsWith("+") ? digits : `+${digits}`;
-}
-
-async function getAuthedSupabaseClient(client?: SupabaseClient): Promise<SupabaseClient> {
-  if (client) {
-    return client;
-  }
-
-  if (typeof window === "undefined") {
-    const { createServerSupabaseClient } = await import("@/lib/supabase-server");
-    return createServerSupabaseClient();
-  }
-
-  const supabase = getSupabase();
-  if (!supabase) {
-    throw new Error(
-      "Supabase client not initialized. Check NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY.",
-    );
-  }
-
-  return supabase;
 }
 
 async function getCurrentUser(client: SupabaseClient): Promise<User | null> {
@@ -183,12 +161,11 @@ function buildAssignments(
   } satisfies RoleAssignments;
 }
 
-export async function getMyRoles(client?: SupabaseClient): Promise<RoleAssignments> {
-  let supabase: SupabaseClient;
-  try {
-    supabase = await getAuthedSupabaseClient(client);
-  } catch (error) {
-    console.warn("Failed to resolve Supabase client for roles", error);
+export async function getMyRoles(
+  supabase: SupabaseClient | null | undefined,
+): Promise<RoleAssignments> {
+  if (!supabase) {
+    console.warn("Supabase client unavailable for role lookup");
     return cloneEmptyRoles();
   }
 
@@ -244,15 +221,6 @@ export function hasRoleInAssignments(
   return Array.isArray(pool) ? pool.includes(role) : false;
 }
 
-export async function hasRole(
-  scope: RoleScope,
-  role: string,
-  client?: SupabaseClient,
-): Promise<boolean> {
-  const roles = await getMyRoles(client);
-  return hasRoleInAssignments(roles, scope, role);
-}
-
 export function canWithRoles(roles: RoleAssignments, feature: Feature): boolean {
   const requirements = FEATURE_ROLES[feature] ?? [];
   if (requirements.length === 0) {
@@ -267,13 +235,6 @@ export function canWithRoles(roles: RoleAssignments, feature: Feature): boolean 
     hasRoleInAssignments(roles, requirement.scope, requirement.role),
   );
 }
-
-export async function can(feature: Feature, client?: SupabaseClient): Promise<boolean> {
-  const roles = await getMyRoles(client);
-  return canWithRoles(roles, feature);
-}
-
-export { isGM } from "@/lib/identity/entity";
 
 export function isRoleAssignmentsEmpty(roles: RoleAssignments): boolean {
   return roles.PLATFORM.length === 0 && roles.GUILD.length === 0 && roles.HOUSE.length === 0;
