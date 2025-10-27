@@ -33,6 +33,9 @@ You can also produce a production build by running `npm run build` and [changing
 - `GM_EMAIL` (your email)
 - `ADMIN_BOOTSTRAP_SECRET` (long random string)
 
+Supabase Auth redirect URLs should include `https://*.vercel.app/*`, your production domain, and `http://localhost:3000/*`. The app
+derives its runtime site URL automatically, with an optional `NEXT_PUBLIC_SITE_URL` fallback for server-side contexts.
+
 ### Manual steps after this PR deploys to Preview
 
 1. **Run SQL:** In Supabase → SQL Editor, run both migration SQL files (copy/paste content).
