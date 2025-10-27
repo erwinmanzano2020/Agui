@@ -10,7 +10,7 @@ import { loadUiConfig } from "@/lib/ui-config";
 import { themeToCssVars } from "@/lib/theme-css";
 import { loadUiTerms } from "@/lib/ui-terms";
 import { UiTermsProvider } from "@/lib/ui-terms-context";
-import { SessionProvider } from "@/lib/auth/session-context";
+import SessionProviders from "@/app/providers/session";
 
 // ✅ Client-only palette mount (prevents server from serializing functions)
 import CommandPaletteMount from "@/components/ui/command-palette-mount";
@@ -36,7 +36,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
         style={styleVars}
       >
         <UiTermsProvider terms={uiTerms}>
-          <SessionProvider>
+          <SessionProviders>
             <ThemeProvider theme={theme}>
               <TenantThemeMount />
               <AppShell posEnabled={Boolean(flags?.pos_enabled)}>{children}</AppShell>
@@ -45,7 +45,7 @@ export default async function RootLayout({ children }: { children: ReactNode }) 
               {/* ⌨️ Global Command Palette mounted client-side */}
               <CommandPaletteMount />
             </ThemeProvider>
-          </SessionProvider>
+          </SessionProviders>
         </UiTermsProvider>
       </body>
     </html>

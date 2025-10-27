@@ -1,24 +1,15 @@
 import type { ReactNode } from "react";
 
-import { ForbiddenState } from "@/components/auth/Forbidden";
-import { can, type Feature } from "@/lib/authz/server";
+import { requireFeatureAccess } from "@/lib/auth/feature-guard";
+import { AppFeature } from "@/lib/auth/permissions";
 
 type RequireFeatureProps = {
-  feature: Feature;
+  feature: AppFeature;
   children: ReactNode;
-  fallback?: ReactNode;
+  dest?: string;
 };
 
-export async function RequireFeature({ feature, children, fallback }: RequireFeatureProps) {
-  const allowed = await can(feature);
-
-  if (!allowed) {
-    if (fallback) {
-      return <>{fallback}</>;
-    }
-
-    return <ForbiddenState />;
-  }
-
+export async function RequireFeature({ feature, children, dest }: RequireFeatureProps) {
+  await requireFeatureAccess(feature, dest ? { dest } : undefined);
   return <>{children}</>;
 }

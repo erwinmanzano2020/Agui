@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { requireFeatureAccess } from "@/lib/auth/feature-guard";
+import { AppFeature } from "@/lib/auth/permissions";
 import { getSupabase } from "@/lib/supabase";
 
 type HoldLinePayload = {
@@ -23,6 +25,7 @@ type HoldRequestBody = {
 };
 
 export async function POST(req: Request) {
+  await requireFeatureAccess(AppFeature.POS, { dest: new URL(req.url).pathname });
   const body = (await req.json().catch(() => ({}))) as HoldRequestBody;
   const db = getSupabase();
   if (!db) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });

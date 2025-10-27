@@ -1,5 +1,7 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { getCurrentEntity } from "@/lib/auth/entity";
+import { requireFeatureAccess } from "@/lib/auth/feature-guard";
+import { AppFeature } from "@/lib/auth/permissions";
 import { loadHouseBySlug } from "@/lib/taxonomy/houses-server";
 import { loadUiTerms } from "@/lib/ui-terms";
 import { requireAuth } from "@/lib/auth/require-auth";
@@ -14,6 +16,7 @@ export default async function CompanyClockPage({ params }: { params: { slug: str
   const clockLabel = "Attendance";
   const nextPath = `/company/${slug}/clock`;
   const { supabase } = await requireAuth(nextPath);
+  await requireFeatureAccess(AppFeature.SHIFTS, { dest: nextPath });
   const house = await loadHouseBySlug(supabase, slug);
   if (!house) {
     return (

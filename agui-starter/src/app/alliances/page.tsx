@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { RequireFeature } from "@/components/auth/RequireFeature";
+import { AppFeature } from "@/lib/auth/permissions";
 import { Card, CardContent } from "@/components/ui/card";
 import { getSupabase } from "@/lib/supabase";
 import { labels } from "@/lib/labels";
@@ -74,7 +75,7 @@ async function AlliancesContent() {
 
 export default async function AlliancesPage() {
   return (
-    <RequireFeature feature="alliances">
+    <RequireFeature feature={AppFeature.ALLIANCES}>
       <AlliancesContent />
     </RequireFeature>
   );

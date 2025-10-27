@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentEntity } from "@/lib/auth/entity";
+import { requireFeatureAccess } from "@/lib/auth/feature-guard";
+import { AppFeature } from "@/lib/auth/permissions";
 import { loadCardById, rotateCardToken } from "@/lib/passes/cards";
 import { getSupabase } from "@/lib/supabase";
 
@@ -16,6 +18,8 @@ export async function POST(req: Request) {
   if (isProduction()) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
+
+  await requireFeatureAccess(AppFeature.ALLIANCE_PASS, { dest: new URL(req.url).pathname });
 
   const supabase = getSupabase();
   if (!supabase) {
