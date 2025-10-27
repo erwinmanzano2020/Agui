@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useSession } from "@/lib/auth/session-context";
+import { getSiteUrl } from "@/lib/site-url";
 
 function sanitizeNextPath(raw: string | null): string {
   if (!raw) {
@@ -76,7 +77,7 @@ export default function SignInPage() {
 
       try {
         const redirectQuery = nextParam && nextParam.startsWith("/") ? `?next=${encodeURIComponent(nextParam)}` : "";
-        const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/signin${redirectQuery}` : undefined;
+        const redirectTo = `${getSiteUrl()}/signin${redirectQuery}`;
         const { error: signInError } = await supabase.auth.signInWithOtp({
           email: email.trim(),
           options: {
