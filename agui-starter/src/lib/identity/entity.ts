@@ -65,7 +65,9 @@ async function getAuthedSupabase(): Promise<SupabaseClient> {
 
   const supabase = getSupabase();
   if (!supabase) {
-    throw new Error("Supabase client not initialized on client");
+    throw new Error(
+      "Supabase client not initialized. Check NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY."
+    );
   }
 
   return supabase;
