@@ -100,7 +100,6 @@ export function createApps(terms: UiTerms = DEFAULT_UI_TERMS): AppMeta[] {
       description: `Manage loyalty and ${alliancePassLower}`,
       icon: <IdCardIcon />,
       feature: AppFeature.ALLIANCE_PASS,
-      feature: AppFeature.IMPORT_CSV,
     },
     {
       id: "imports",
@@ -108,6 +107,7 @@ export function createApps(terms: UiTerms = DEFAULT_UI_TERMS): AppMeta[] {
       href: "/imports",
       description: "Bulk upload",
       icon: <FileDownIcon />,
+      feature: AppFeature.IMPORT_CSV,
     },
     {
       id: "agui",

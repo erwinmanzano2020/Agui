@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireFeatureAccess } from "@/lib/auth/feature-guard";
+import { requireFeatureAccessApi } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
 import { getSupabase } from "@/lib/supabase";
 
@@ -23,7 +23,8 @@ type FinalizeRequestBody = {
 };
 
 export async function POST(req: Request) {
-  await requireFeatureAccess(AppFeature.POS, { dest: new URL(req.url).pathname });
+  const deny = await requireFeatureAccessApi(AppFeature.POS);
+  if (deny) return deny;
   const body = (await req.json().catch(() => ({}))) as FinalizeRequestBody;
   const db = getSupabase();
   if (!db) return NextResponse.json({ error: "DB unavailable" }, { status: 500 });

@@ -2,8 +2,9 @@ import "server-only";
 
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { NextResponse } from "next/server";
 
-import { canAccess, type FeatureInput } from "@/lib/auth/permissions";
+import { canAccess, type FeatureInput, AppFeature } from "@/lib/auth/permissions";
 import { getUserRoles } from "@/lib/auth/user-roles";
 
 function resolveDestination(explicit?: string): string | null {
@@ -25,10 +26,13 @@ function resolveDestination(explicit?: string): string | null {
   return null;
 }
 
-export async function requireFeatureAccess(feature: FeatureInput, options?: { dest?: string }) {
+export async function hasFeatureAccess(feature: FeatureInput): Promise<boolean> {
   const roles = await getUserRoles();
+  return canAccess(feature, roles);
+}
 
-  if (canAccess(feature, roles)) {
+export async function requireFeatureAccess(feature: FeatureInput, options?: { dest?: string }) {
+  if (await hasFeatureAccess(feature)) {
     return;
   }
 
@@ -39,4 +43,12 @@ export async function requireFeatureAccess(feature: FeatureInput, options?: { de
   }
 
   redirect("/403");
+}
+
+export async function requireFeatureAccessApi(feature: AppFeature) {
+  if (await hasFeatureAccess(feature)) {
+    return null;
+  }
+
+  return NextResponse.json({ error: "Forbidden", feature }, { status: 403 });
 }
