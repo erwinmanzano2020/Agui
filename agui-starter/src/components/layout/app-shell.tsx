@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ui/theme-toggle";
 import { useUiTerms } from "@/lib/ui-terms-context";
 import { useSession } from "@/lib/auth/session-context";
+import { ViewAsSwitcher } from "@/components/auth/view-as";
 import {
   CalendarClockIcon,
   ChevronLeftIcon,
@@ -217,7 +218,8 @@ export function AppShell({
           </div>
 
           {/* Right: actions (theme + user) */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            <ViewAsSwitcher />
             {/* icon-only shared toggle */}
             <ThemeToggle className="h-9 w-9 p-0 rounded-2xl" />
             {sessionStatus === "initializing" ? (
