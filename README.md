@@ -71,3 +71,9 @@ derives its runtime site URL automatically, with an optional `NEXT_PUBLIC_SITE_U
 - `agui-starter/src/lib/authz.ts` centralizes the `Feature` union and the `FEATURE_ROLES` mapping. Each feature lists the scope (`PLATFORM`, `GUILD`, or `HOUSE`) and the role required to unlock it. `game_master` automatically bypasses these checks.
 - Use the async helpers `can(feature)` / `hasRole(scope, role)` on the server or client to check access. For server components wrap protected sections with `<RequireFeature feature="…">` (`agui-starter/src/components/auth/RequireFeature.tsx`).
 - Launcher tiles and the command palette use the same helpers. When adding a new app or command, set its `feature` field and add the matching entry in `FEATURE_ROLES`.
+
+### Invites & Time Clock
+
+- Guild and company managers can send email invites from `/guild/[slug]/team/invite` and `/company/[slug]/team/invite`. Invites grant the selected role when the recipient accepts via the magic link.
+- Invite acceptance happens on `/accept-invite?token=…`; the link sent in the email signs the recipient in and the page attaches their entity before granting roles.
+- POS Clock for staff lives at `/company/[slug]/pos/clock`. House staff, cashiers, managers, and game masters can clock in/out; unauthorized calls to `/api/clock` return JSON errors.

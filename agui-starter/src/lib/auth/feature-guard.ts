@@ -39,10 +39,14 @@ export async function requireFeatureAccess(
   redirect(`/403?${params.toString()}`);
 }
 
-export async function requireFeatureAccessApi(feature: AppFeature) {
+export async function requireFeatureAccessJson(feature: FeatureInput) {
   if (await hasFeatureAccess(feature)) {
     return null;
   }
 
-  return NextResponse.json({ error: "Forbidden", feature }, { status: 403 });
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+}
+
+export async function requireFeatureAccessApi(feature: AppFeature) {
+  return requireFeatureAccessJson(feature);
 }

@@ -19,6 +19,15 @@ const UNIQUE_VIOLATION = "23505";
 type SessionStatus = "initializing" | "ready" | "error";
 type EntityStatus = "idle" | "loading" | "ready" | "error";
 
+export type ViewAsScope = "GUILD" | "HOUSE";
+
+export type ViewAsSelection = {
+  scope: ViewAsScope;
+  guildId?: string | null;
+  houseId?: string | null;
+  roles: string[];
+};
+
 type SessionContextValue = {
   supabase: SupabaseClient | null;
   status: SessionStatus;
@@ -26,6 +35,9 @@ type SessionContextValue = {
   user: User | null;
   entityId: string | null;
   entityStatus: EntityStatus;
+  viewAs: ViewAsSelection | null;
+  setViewAs: (selection: ViewAsSelection | null) => void;
+  clearViewAs: () => void;
 };
 
 const SessionContext = createContext<SessionContextValue | undefined>(undefined);
@@ -164,6 +176,32 @@ type SessionProviderProps = {
   children: ReactNode;
 };
 
+const VIEW_AS_STORAGE_KEY = "agui:view-as";
+
+function sanitizeViewAs(selection: ViewAsSelection | null): ViewAsSelection | null {
+  if (!selection) return null;
+  const roles = Array.isArray(selection.roles)
+    ? selection.roles.filter(
+        (role): role is string =>
+          typeof role === "string" && role.trim().length > 0
+      )
+    : [];
+
+  if (selection.scope === "GUILD") {
+    return {
+      scope: "GUILD",
+      guildId: selection.guildId ?? null,
+      roles,
+    } satisfies ViewAsSelection;
+  }
+
+  return {
+    scope: "HOUSE",
+    houseId: selection.houseId ?? null,
+    roles,
+  } satisfies ViewAsSelection;
+}
+
 export function SessionProvider({ children }: SessionProviderProps) {
   const [supabase] = useState<SupabaseClient | null>(() => {
     try {
@@ -179,6 +217,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
     id: null,
     status: "idle",
   }));
+  const [viewAsState, setViewAsState] = useState<ViewAsSelection | null>(null);
   const activeUserIdRef = useRef<string | null>(null);
 
   const syncSessionCookie = useCallback(
@@ -201,6 +240,53 @@ export function SessionProvider({ children }: SessionProviderProps) {
     },
     [],
   );
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      const raw = window.localStorage.getItem(VIEW_AS_STORAGE_KEY);
+      if (!raw) {
+        setViewAsState(null);
+        return;
+      }
+      const parsed = JSON.parse(raw) as ViewAsSelection;
+      setViewAsState(sanitizeViewAs(parsed));
+    } catch (error) {
+      console.warn("Failed to restore view-as selection", error);
+      setViewAsState(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    if (!viewAsState) {
+      window.localStorage.removeItem(VIEW_AS_STORAGE_KEY);
+      return;
+    }
+    try {
+      window.localStorage.setItem(VIEW_AS_STORAGE_KEY, JSON.stringify(viewAsState));
+    } catch (error) {
+      console.warn("Failed to persist view-as selection", error);
+    }
+  }, [viewAsState]);
+
+  useEffect(() => {
+    if (!session?.user) {
+      setViewAsState(null);
+    }
+  }, [session?.user]);
+
+  const setViewAs = useCallback((selection: ViewAsSelection | null) => {
+    setViewAsState(sanitizeViewAs(selection));
+  }, []);
+
+  const clearViewAs = useCallback(() => {
+    setViewAsState(null);
+  }, []);
 
   useEffect(() => {
     if (!supabase) {
@@ -307,8 +393,11 @@ export function SessionProvider({ children }: SessionProviderProps) {
       user: session?.user ?? null,
       entityId: entityState.id,
       entityStatus: entityState.status,
+      viewAs: viewAsState,
+      setViewAs,
+      clearViewAs,
     } satisfies SessionContextValue;
-  }, [supabase, status, session, entityState.id, entityState.status]);
+  }, [supabase, status, session, entityState.id, entityState.status, viewAsState, setViewAs, clearViewAs]);
 
   return <SessionContext.Provider value={value}>{children}</SessionContext.Provider>;
 }
