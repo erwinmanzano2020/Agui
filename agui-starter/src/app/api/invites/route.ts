@@ -158,9 +158,7 @@ export async function POST(req: Request) {
 
   let magicLink: string | null = null;
   if (inviteErr) {
-    const maybeMessage = (inviteErr as any)?.message ?? "";
-    const status = (inviteErr as any)?.status;
-    const alreadyExists = status === 422 || /exists|registered/i.test(maybeMessage);
+    const alreadyExists = isAlreadyRegisteredError(inviteErr);
 
     if (!alreadyExists) {
       console.error("Failed to send Supabase invite email", inviteErr);
@@ -170,7 +168,7 @@ export async function POST(req: Request) {
     const { data: linkData, error: linkErr } = await service.auth.admin.generateLink({
       type: "magiclink",
       email,
-      options: { emailRedirectTo: redirectUrl.toString() },
+      options: { redirectTo: redirectUrl.toString() },
     });
 
     if (linkErr) {
@@ -178,8 +176,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Failed to send invite email" }, { status: 500 });
     }
 
-    magicLink = (linkData as any)?.properties?.action_link ?? null;
+    magicLink = extractActionLink(linkData);
   }
 
   return NextResponse.json({ ok: true, magicLink });
+}
+
+function isAlreadyRegisteredError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+
+  const status = "status" in error ? (error as { status?: unknown }).status : undefined;
+  if (typeof status === "number" && status === 422) {
+    return true;
+  }
+
+  const message = "message" in error ? (error as { message?: unknown }).message : undefined;
+  return typeof message === "string" && /exists|registered/i.test(message);
+}
+
+function extractActionLink(data: unknown): string | null {
+  if (!data || typeof data !== "object") {
+    return null;
+  }
+
+  const properties = "properties" in data ? (data as { properties?: unknown }).properties : undefined;
+  if (!properties || typeof properties !== "object") {
+    return null;
+  }
+
+  const actionLink = "action_link" in properties ? (properties as { action_link?: unknown }).action_link : undefined;
+  return typeof actionLink === "string" ? actionLink : null;
 }
