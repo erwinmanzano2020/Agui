@@ -4,7 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toaster";
 import { useSession } from "@/lib/auth/session-context";
@@ -139,7 +139,7 @@ export default function AcceptInvitePage() {
     <div className="min-h-screen flex items-center justify-center bg-[color-mix(in_srgb,_var(--agui-surface)_94%,_white_6%)] px-4 py-12">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Accept invite</CardTitle>
+          <h3 className="text-lg font-semibold">Accept invite</h3>
         </CardHeader>
         <CardContent className="space-y-4">
           {!token ? (

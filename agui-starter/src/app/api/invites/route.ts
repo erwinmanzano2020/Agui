@@ -151,18 +151,35 @@ export async function POST(req: Request) {
   const requestUrl = new URL(req.url);
   const redirectUrl = new URL(`/accept-invite?token=${invite.token}`, requestUrl.origin);
 
-  const { error: linkError } = await service.auth.admin.generateLink({
-    type: "magiclink",
-    email,
-    options: {
-      emailRedirectTo: redirectUrl.toString(),
-    },
+  // First try the Supabase invite email API so the platform handles delivery.
+  const { error: inviteErr } = await service.auth.admin.inviteUserByEmail(email, {
+    redirectTo: redirectUrl.toString(),
   });
 
-  if (linkError) {
-    console.error("Failed to send invite magic link", linkError);
-    return NextResponse.json({ error: "Failed to send invite email" }, { status: 500 });
+  let magicLink: string | null = null;
+  if (inviteErr) {
+    const maybeMessage = (inviteErr as any)?.message ?? "";
+    const status = (inviteErr as any)?.status;
+    const alreadyExists = status === 422 || /exists|registered/i.test(maybeMessage);
+
+    if (!alreadyExists) {
+      console.error("Failed to send Supabase invite email", inviteErr);
+      return NextResponse.json({ error: "Failed to send invite email" }, { status: 500 });
+    }
+
+    const { data: linkData, error: linkErr } = await service.auth.admin.generateLink({
+      type: "magiclink",
+      email,
+      options: { emailRedirectTo: redirectUrl.toString() },
+    });
+
+    if (linkErr) {
+      console.error("Failed to generate magic link for existing user", linkErr);
+      return NextResponse.json({ error: "Failed to send invite email" }, { status: 500 });
+    }
+
+    magicLink = (linkData as any)?.properties?.action_link ?? null;
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, magicLink });
 }

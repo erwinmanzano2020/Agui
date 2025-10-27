@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toaster";
 
 export type ClockEventRecord = {
@@ -101,7 +101,7 @@ export function ClockClient({ houseId, houseName }: ClockClientProps) {
     <div className="max-w-xl mx-auto py-10 px-4 space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>{houseName} — Time Clock</CardTitle>
+          <h3 className="text-lg font-semibold">{houseName} — Time Clock</h3>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-3">

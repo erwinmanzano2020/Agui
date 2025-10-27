@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toaster";
 
@@ -30,7 +30,8 @@ export function InviteForm({ scope, guildId, houseId, roleOptions, heading, desc
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!email.trim() || !role) {
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail || !role) {
       toast.error("Email and role are required");
       return;
     }
@@ -41,7 +42,7 @@ export function InviteForm({ scope, guildId, houseId, roleOptions, heading, desc
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          email,
+          email: trimmedEmail,
           role,
           scope,
           guildId,
@@ -53,7 +54,12 @@ export function InviteForm({ scope, guildId, houseId, roleOptions, heading, desc
         throw new Error(payload?.error ?? "Failed to send invite");
       }
 
-      toast.success("Invite sent successfully");
+      if (payload?.magicLink) {
+        await navigator.clipboard?.writeText(payload.magicLink).catch(() => {});
+        toast.warning("User already exists. Magic link copied to clipboard.");
+      } else {
+        toast.success(`Invite sent. We emailed ${trimmedEmail}.`);
+      }
       setEmail("");
     } catch (error) {
       console.error("Failed to create invite", error);
@@ -65,9 +71,9 @@ export function InviteForm({ scope, guildId, houseId, roleOptions, heading, desc
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>{heading}</CardTitle>
-        {description && <CardDescription>{description}</CardDescription>}
+      <CardHeader className="space-y-1">
+        <h3 className="text-lg font-semibold">{heading}</h3>
+        {description && <p className="text-sm text-muted-foreground">{description}</p>}
       </CardHeader>
       <CardContent>
         <form className="space-y-4" onSubmit={handleSubmit}>
