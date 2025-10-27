@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
+import { RequireFeature } from "@/components/auth/RequireFeature";
 import { loadUiConfig } from "@/lib/ui-config";
 
 const pesoFormatter = new Intl.NumberFormat("en-PH", {
@@ -108,12 +109,13 @@ export default async function PosPage() {
   const cartTotals = computeCartTotals(ACTIVE_CART);
 
   return (
-    <div className="space-y-6 p-4 text-foreground md:p-6">
-      <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h1 className="text-xl font-semibold">Point of Sale</h1>
-          <p className="text-sm text-muted-foreground">
-            Cart stub with tiered pricing, hold tokens, and register keymap placeholders.
+    <RequireFeature feature="pos">
+      <div className="space-y-6 p-4 text-foreground md:p-6">
+        <header className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h1 className="text-xl font-semibold">Point of Sale</h1>
+            <p className="text-sm text-muted-foreground">
+              Cart stub with tiered pricing, hold tokens, and register keymap placeholders.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -282,6 +284,7 @@ export default async function PosPage() {
           </div>
         </div>
       </Suspense>
-    </div>
+      </div>
+    </RequireFeature>
   );
 }

@@ -18,6 +18,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useSession } from "@/lib/auth/session-context";
 import { useToast } from "@/components/ui/toaster";
+import {
+  canWithRoles,
+  emptyRoleAssignments,
+  getMyRoles,
+  isRoleAssignmentsEmpty,
+  type RoleAssignments,
+} from "@/lib/authz";
 
 type TileHandlers = {
   onFocus: () => void;
@@ -50,6 +57,10 @@ export default function HomePage() {
   const [dataState, setDataState] = useState<DataState>({ status: "idle", houses: [], guilds: [] });
   const [dataVersion, setDataVersion] = useState(0);
   const [seeding, setSeeding] = useState(false);
+  const [roleState, setRoleState] = useState<{ status: "idle" | "loading" | "ready" | "error"; roles: RoleAssignments }>(() => ({
+    status: "idle",
+    roles: emptyRoleAssignments(),
+  }));
   const signedIn = Boolean(user);
   const dataReady = dataState.status === "ready";
   const hasHouse = dataState.houses.length > 0;
@@ -119,6 +130,35 @@ export default function HomePage() {
     };
   }, [supabase, signedIn, dataVersion]);
 
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!supabase || !signedIn) {
+      setRoleState({ status: "idle", roles: emptyRoleAssignments() });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setRoleState({ status: "loading", roles: emptyRoleAssignments() });
+
+    getMyRoles(supabase)
+      .then((roles) => {
+        if (cancelled) return;
+        setRoleState({ status: "ready", roles });
+      })
+      .catch((error) => {
+        console.warn("Failed to load feature roles", error);
+        if (!cancelled) {
+          setRoleState({ status: "error", roles: emptyRoleAssignments() });
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [signedIn, supabase]);
+
   const handleSeedDemo = useCallback(async () => {
     if (!signedIn) {
       return;
@@ -160,7 +200,21 @@ export default function HomePage() {
     () => new Map<string, AppMeta>(decoratedApps.map((app) => [app.id, app])),
     [decoratedApps]
   );
-  const gridApps = decoratedApps;
+  const accessibleApps = useMemo(() => {
+    if (!signedIn) {
+      return [] as AppMeta[];
+    }
+
+    if (roleState.status !== "ready") {
+      return [] as AppMeta[];
+    }
+
+    return decoratedApps.filter((app) =>
+      app.feature ? canWithRoles(roleState.roles, app.feature) : true,
+    );
+  }, [decoratedApps, roleState.roles, roleState.status, signedIn]);
+  const accessibleAppIds = useMemo(() => new Set(accessibleApps.map((app) => app.id)), [accessibleApps]);
+  const gridApps = useMemo(() => (signedIn ? accessibleApps : []), [accessibleApps, signedIn]);
   const isAppDisabled = useCallback(
     (appId: string) => {
       if (!signedIn) {
@@ -173,14 +227,17 @@ export default function HomePage() {
 
       return false;
     },
-    [signedIn, dataReady, hasHouse]
+    [dataReady, hasHouse, signedIn]
   );
   const dockApps = useMemo(
     () =>
       dockIds
         .map((id) => appsById.get(id))
-        .filter((entry): entry is AppMeta => Boolean(entry && !isAppDisabled(entry.id))),
-    [appsById, isAppDisabled]
+        .filter(
+          (entry): entry is AppMeta =>
+            Boolean(entry && accessibleAppIds.has(entry.id) && !isAppDisabled(entry.id)),
+        ),
+    [accessibleAppIds, appsById, isAppDisabled]
   );
   const gridRef = useRef<HTMLDivElement>(null);
   const tileRefs = useRef<(HTMLAnchorElement | null)[]>([]);
@@ -475,6 +532,31 @@ export default function HomePage() {
                         {seeding ? "Seeding…" : "Create demo data"}
                       </Button>
                     </div>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {signedIn && roleState.status === "error" ? (
+                <Card className="w-full max-w-xl">
+                  <CardHeader className="border-none px-5 pt-5 pb-2">
+                    <h2 className="text-lg font-semibold text-foreground">We couldn’t verify access</h2>
+                  </CardHeader>
+                  <CardContent className="flex flex-col gap-3 text-sm text-muted-foreground">
+                    <p>Try refreshing the page or signing out and back in.</p>
+                  </CardContent>
+                </Card>
+              ) : null}
+
+              {signedIn && roleState.status === "ready" && gridApps.length === 0 ? (
+                <Card className="w-full max-w-xl">
+                  <CardHeader className="border-none px-5 pt-5 pb-2">
+                    <h2 className="text-lg font-semibold text-foreground">No apps assigned yet</h2>
+                  </CardHeader>
+                  <CardContent className="text-sm text-muted-foreground">
+                    Your account doesn’t have access to any launcher apps right now.
+                    {isRoleAssignmentsEmpty(roleState.roles)
+                      ? " Reach out to an administrator to request access."
+                      : " Contact your administrator to adjust your roles."}
                   </CardContent>
                 </Card>
               ) : null}

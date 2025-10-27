@@ -1,12 +1,13 @@
 import Link from "next/link";
 
+import { RequireFeature } from "@/components/auth/RequireFeature";
 import { Card, CardContent } from "@/components/ui/card";
 import { getSupabase } from "@/lib/supabase";
 import { labels } from "@/lib/labels";
 
 export const dynamic = "force-dynamic";
 
-export default async function AlliancesPage() {
+async function AlliancesContent() {
   const l = await labels();
 
   let db: ReturnType<typeof getSupabase> | null = null;
@@ -68,5 +69,13 @@ export default async function AlliancesPage() {
         </Card>
       ))}
     </div>
+  );
+}
+
+export default async function AlliancesPage() {
+  return (
+    <RequireFeature feature="alliances">
+      <AlliancesContent />
+    </RequireFeature>
   );
 }

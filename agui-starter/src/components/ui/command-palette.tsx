@@ -10,6 +10,8 @@ import {
 } from "react";
 import { useRouter } from "next/navigation";
 import type { Command } from "@/config/commands";
+import { canWithRoles, getMyRoles } from "@/lib/authz";
+import { useSession } from "@/lib/auth/session-context";
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -43,10 +45,60 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
   const router = useRouter();
   const baseId = useId();
   const listId = `${baseId}-options`;
+  const { supabase, user } = useSession();
+  const signedIn = Boolean(user);
+  const [filteredCommands, setFilteredCommands] = useState<Command[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      if (!supabase || !signedIn) {
+        if (!cancelled) {
+          setFilteredCommands([]);
+        }
+        return;
+      }
+
+      try {
+        const roles = await getMyRoles(supabase);
+        if (cancelled) return;
+
+        setFilteredCommands(
+          commands.filter((command) =>
+            command.feature ? canWithRoles(roles, command.feature) : true,
+          ),
+        );
+      } catch (error) {
+        console.warn("Failed to resolve command access", error);
+        if (!cancelled) {
+          setFilteredCommands([]);
+        }
+      }
+    };
+
+    load().catch((error) => {
+      console.error("Failed to initialize command palette roles", error);
+      if (!cancelled) {
+        setFilteredCommands([]);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [commands, signedIn, supabase]);
+
+  useEffect(() => {
+    if (filteredCommands.length === 0 && open) {
+      setOpen(false);
+    }
+  }, [filteredCommands.length, open]);
 
   // open with ⌘/Ctrl+K — also '/' like Brave
   useKeybind(
     (e) => {
+      if (filteredCommands.length === 0) return false;
       if (isEditableTarget(e.target)) return false;
       const key = e.key.toLowerCase();
       if (key === "k" && (e.metaKey || e.ctrlKey)) return true;
@@ -67,9 +119,10 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
   }, [open]);
 
   // simple fuzzy-ish filter
+  const baseCommands = filteredCommands;
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const base = commands;
+    const base = baseCommands;
     if (!needle) return base.slice(0, 30);
     return base
       .map((c) => ({
@@ -80,7 +133,7 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
       .sort((a, b) => b.score - a.score)
       .slice(0, 30)
       .map((x) => x.cmd);
-  }, [q, commands]);
+  }, [baseCommands, q]);
 
   const [activeIndex, setActiveIndex] = useState(0);
 
