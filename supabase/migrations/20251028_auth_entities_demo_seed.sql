@@ -1,3 +1,5 @@
+create extension if not exists pgcrypto;
+
 do $$
 begin
   if not exists (
