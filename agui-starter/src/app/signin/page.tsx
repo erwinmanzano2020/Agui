@@ -6,6 +6,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { useToast } from "@/components/ui/toaster";
 import { useSession } from "@/lib/auth/session-context";
 import { getSiteUrl } from "@/lib/site-url";
 
@@ -35,6 +36,7 @@ export default function SignInPage() {
   const { supabase, status: sessionStatus, user } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const toast = useToast();
   const nextParam = searchParams.get("next");
   const nextPath = useMemo(() => sanitizeNextPath(nextParam), [nextParam]);
   const authError = searchParams.get("error_description");
@@ -43,7 +45,11 @@ export default function SignInPage() {
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(authError);
+  const [activeOAuthProvider, setActiveOAuthProvider] = useState<"google" | "apple" | null>(null);
   const supabaseUnavailable = !supabase || sessionStatus === "error";
+  const redirectOrigin = useMemo(() => getSiteUrl(), []);
+  const googleOAuthEnabled = process.env.NEXT_PUBLIC_AUTH_GOOGLE_ENABLED !== "false";
+  const appleOAuthEnabled = process.env.NEXT_PUBLIC_AUTH_APPLE_ENABLED === "true";
 
   useEffect(() => {
     if (sessionStatus === "ready" && user) {
@@ -77,7 +83,7 @@ export default function SignInPage() {
 
       try {
         const redirectQuery = nextParam && nextParam.startsWith("/") ? `?next=${encodeURIComponent(nextParam)}` : "";
-        const redirectTo = `${getSiteUrl()}/signin${redirectQuery}`;
+        const redirectTo = `${redirectOrigin}/signin${redirectQuery}`;
         const { error: signInError } = await supabase.auth.signInWithOtp({
           email: email.trim(),
           options: {
@@ -97,7 +103,7 @@ export default function SignInPage() {
         setError(signInError instanceof Error ? signInError.message : "Failed to send sign-in link.");
       }
     },
-    [email, nextParam, supabase, supabaseUnavailable],
+    [email, nextParam, redirectOrigin, supabase, supabaseUnavailable],
   );
 
   const handleEmailChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
@@ -110,6 +116,36 @@ export default function SignInPage() {
       setMessage(null);
     }
   }, [error, status]);
+
+  const handleOAuthSignIn = useCallback(
+    async (provider: "google" | "apple") => {
+      if (supabaseUnavailable || !supabase) {
+        toast.error("Supabase is not configured. Configure env vars to enable sign-in.");
+        return;
+      }
+
+      setActiveOAuthProvider(provider);
+      try {
+        const { error: signInError } = await supabase.auth.signInWithOAuth({
+          provider,
+          options: { redirectTo: redirectOrigin },
+        });
+
+        if (signInError) {
+          toast.error(signInError.message);
+        }
+      } catch (signInError) {
+        toast.error(
+          signInError instanceof Error ? signInError.message : "Failed to start OAuth sign-in."
+        );
+      } finally {
+        setActiveOAuthProvider(null);
+      }
+    },
+    [redirectOrigin, supabase, supabaseUnavailable, toast]
+  );
+
+  const oauthBusy = activeOAuthProvider !== null;
 
   return (
     <div className="min-h-screen bg-[color-mix(in_srgb,_var(--agui-surface)_94%,_white_6%)] px-4 py-10 text-foreground">
@@ -142,6 +178,29 @@ export default function SignInPage() {
 
             {message ? <p className="text-sm text-muted-foreground">{message}</p> : null}
             {error ? <p className="text-sm text-red-500">{error}</p> : null}
+
+            <div className="space-y-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={!googleOAuthEnabled || supabaseUnavailable || oauthBusy}
+                title={!googleOAuthEnabled ? "Not configured" : undefined}
+                onClick={() => handleOAuthSignIn("google")}
+              >
+                {activeOAuthProvider === "google" ? "Connecting…" : "Continue with Google"}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                disabled={!appleOAuthEnabled || supabaseUnavailable || oauthBusy}
+                title={!appleOAuthEnabled ? "Not configured" : undefined}
+                onClick={() => handleOAuthSignIn("apple")}
+              >
+                {activeOAuthProvider === "apple" ? "Connecting…" : "Continue with Apple"}
+              </Button>
+            </div>
 
             <Button
               type="button"

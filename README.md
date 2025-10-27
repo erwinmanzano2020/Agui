@@ -32,9 +32,27 @@ You can also produce a production build by running `npm run build` and [changing
 - `SUPABASE_SERVICE_ROLE_KEY` (server-only)
 - `GM_EMAIL` (your email)
 - `ADMIN_BOOTSTRAP_SECRET` (long random string)
+- `NEXT_PUBLIC_AUTH_GOOGLE_ENABLED` (defaults to `true`)
+- `NEXT_PUBLIC_AUTH_APPLE_ENABLED` (set to `true` once credentials are ready)
 
 Supabase Auth redirect URLs should include `https://*.vercel.app/*`, your production domain, and `http://localhost:3000/*`. The app
 derives its runtime site URL automatically, with an optional `NEXT_PUBLIC_SITE_URL` fallback for server-side contexts.
+
+### OAuth Providers
+
+- **Google:** Create an OAuth Client ID (web) and add these authorized redirect URIs:
+  - `https://*.vercel.app/auth/v1/callback`
+  - `https://<your-prod-domain>/auth/v1/callback`
+  - `http://localhost:3000/auth/v1/callback`
+- **Apple:** Configure a Services ID / bundle ID, key, and team ID. Use the same callback URLs as Google.
+- In Supabase → **Auth → Providers**, paste the credentials for each provider and enable them.
+- In Vercel → **Project → Settings → Environment Variables**, add:
+  - `NEXT_PUBLIC_AUTH_GOOGLE_ENABLED=true`
+  - `NEXT_PUBLIC_AUTH_APPLE_ENABLED=false` (flip to `true` when the Apple configuration is complete)
+- Confirm Supabase **Auth → URL Configuration → Redirect URLs** includes:
+  - `https://*.vercel.app/*`
+  - `https://<your-prod-domain>/*`
+  - `http://localhost:3000/*`
 
 ### Manual steps after this PR deploys to Preview
 
