@@ -1,6 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getServiceSupabase } from "@/lib/supabase-service";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getSupabase } from "@/lib/supabase";
 
 class ForbiddenError extends Error {
@@ -58,16 +57,22 @@ export async function ensureEntityByEmail(
   return created.data;
 }
 
-async function getAuthedSupabase(): Promise<SupabaseClient | null> {
+async function getAuthedSupabase(): Promise<SupabaseClient> {
   if (typeof window === "undefined") {
-    return await createServerSupabaseClient();
+    const { createServerSupabaseClient } = await import("@/lib/supabase-server");
+    return createServerSupabaseClient();
   }
-  return getSupabase();
+
+  const supabase = getSupabase();
+  if (!supabase) {
+    throw new Error("Supabase client not initialized on client");
+  }
+
+  return supabase;
 }
 
-export async function isGM() {
+export async function isGM(): Promise<boolean> {
   const db = await getAuthedSupabase();
-  if (!db) return false;
   const {
     data: { user },
     error,
