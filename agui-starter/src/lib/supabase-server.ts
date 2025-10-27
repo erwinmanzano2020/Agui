@@ -63,15 +63,14 @@ function extractTokens(payload: SessionCookiePayload | null): RestoredTokens | n
   return { accessToken, refreshToken } satisfies RestoredTokens;
 }
 
-export async function createServerSupabaseClient(): Promise<SupabaseClient | null> {
+export async function createServerSupabaseClient(): Promise<SupabaseClient> {
   const url = NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!url || !anonKey) {
-    console.error(
-      "Supabase not configured. Missing NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+    throw new Error(
+      "Supabase server client not initialized. Missing NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY.",
     );
-    return null;
   }
 
   const client = createClient(url, anonKey, {
@@ -87,7 +86,7 @@ export async function createServerSupabaseClient(): Promise<SupabaseClient | nul
   }
 
   try {
-    const cookieStore = await cookies();
+    const cookieStore = cookies();
     const cookieValue = cookieStore.get(`sb-${projectRef}-auth-token`)?.value;
     const tokens = extractTokens(decodeCookieValue(cookieValue ?? ""));
     if (!tokens) {
