@@ -150,10 +150,11 @@ export async function POST(req: Request) {
 
   const requestUrl = new URL(req.url);
   const redirectUrl = new URL(`/accept-invite?token=${invite.token}`, requestUrl.origin);
+  const redirectTo = redirectUrl.toString();
 
   // First try the Supabase invite email API so the platform handles delivery.
   const { error: inviteErr } = await service.auth.admin.inviteUserByEmail(email, {
-    redirectTo: redirectUrl.toString(),
+    redirectTo,
   });
 
   let magicLink: string | null = null;
@@ -168,7 +169,7 @@ export async function POST(req: Request) {
     const { data: linkData, error: linkErr } = await service.auth.admin.generateLink({
       type: "magiclink",
       email,
-      options: { redirectTo: redirectUrl.toString() },
+      options: { redirectTo },
     });
 
     if (linkErr) {
