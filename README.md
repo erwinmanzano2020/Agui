@@ -65,3 +65,9 @@ derives its runtime site URL automatically, with an optional `NEXT_PUBLIC_SITE_U
    ```
 
 3. **Sign in** with `GM_EMAIL` on the preview site → open `/admin`.
+
+## Role-gated UI
+
+- `agui-starter/src/lib/authz.ts` centralizes the `Feature` union and the `FEATURE_ROLES` mapping. Each feature lists the scope (`PLATFORM`, `GUILD`, or `HOUSE`) and the role required to unlock it. `game_master` automatically bypasses these checks.
+- Use the async helpers `can(feature)` / `hasRole(scope, role)` on the server or client to check access. For server components wrap protected sections with `<RequireFeature feature="…">` (`agui-starter/src/components/auth/RequireFeature.tsx`).
+- Launcher tiles and the command palette use the same helpers. When adding a new app or command, set its `feature` field and add the matching entry in `FEATURE_ROLES`.

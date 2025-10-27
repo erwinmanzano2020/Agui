@@ -1,4 +1,5 @@
 import { DEFAULT_UI_TERMS, type UiTerms } from "@/lib/ui-terms";
+import type { Feature } from "@/lib/authz";
 
 export type Command = {
   id: string;
@@ -9,6 +10,7 @@ export type Command = {
   href?: string;
   section?: string;
   keywords?: string;
+  feature?: Feature;
 };
 
 function teamKeywords(terms: UiTerms): string {
@@ -29,6 +31,7 @@ export function createCommands(terms: UiTerms = DEFAULT_UI_TERMS): Command[] {
       href: "/employees",
       shortcut: "G E",
       keywords: teamKeywords(terms),
+      feature: "team",
     },
     {
       id: "dtr-bulk",
@@ -36,6 +39,7 @@ export function createCommands(terms: UiTerms = DEFAULT_UI_TERMS): Command[] {
       href: "/payroll/dtr-bulk",
       shortcut: "G D",
       keywords: "time logs roster timesheet",
+      feature: "dtr-bulk",
     },
     {
       id: "payroll",
@@ -43,6 +47,7 @@ export function createCommands(terms: UiTerms = DEFAULT_UI_TERMS): Command[] {
       href: "/payroll",
       shortcut: "G P",
       keywords: "payslip run salary",
+      feature: "payroll",
     },
     {
       id: "new-employee",
@@ -50,6 +55,7 @@ export function createCommands(terms: UiTerms = DEFAULT_UI_TERMS): Command[] {
       href: "/employees/new",
       shortcut: "N E",
       keywords: addTeamKeywords(terms),
+      feature: "team",
     },
     {
       id: "new-payroll",
@@ -57,6 +63,7 @@ export function createCommands(terms: UiTerms = DEFAULT_UI_TERMS): Command[] {
       href: "/payroll/new",
       shortcut: "N P",
       keywords: "create payrun",
+      feature: "payroll",
     },
     {
       id: "toggle-theme",
