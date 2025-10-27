@@ -17,14 +17,9 @@ import { useUiTerms } from "@/lib/ui-terms-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useSession } from "@/lib/auth/session-context";
+import { useUserRoles } from "@/lib/auth/user-roles-context";
+import { canAccess } from "@/lib/auth/permissions";
 import { useToast } from "@/components/ui/toaster";
-import {
-  canWithRoles,
-  emptyRoleAssignments,
-  getMyRoles,
-  isRoleAssignmentsEmpty,
-  type RoleAssignments,
-} from "@/lib/authz";
 
 type TileHandlers = {
   onFocus: () => void;
@@ -50,17 +45,16 @@ type DataState = {
   guilds: GuildSummary[];
 };
 
+const SHOW_LOCKED_TILES = false;
+
 export default function HomePage() {
   const terms = useUiTerms();
   const { supabase, status: sessionStatus, user } = useSession();
+  const roles = useUserRoles();
   const toast = useToast();
   const [dataState, setDataState] = useState<DataState>({ status: "idle", houses: [], guilds: [] });
   const [dataVersion, setDataVersion] = useState(0);
   const [seeding, setSeeding] = useState(false);
-  const [roleState, setRoleState] = useState<{ status: "idle" | "loading" | "ready" | "error"; roles: RoleAssignments }>(() => ({
-    status: "idle",
-    roles: emptyRoleAssignments(),
-  }));
   const signedIn = Boolean(user);
   const dataReady = dataState.status === "ready";
   const hasHouse = dataState.houses.length > 0;
@@ -130,35 +124,6 @@ export default function HomePage() {
     };
   }, [supabase, signedIn, dataVersion]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!supabase || !signedIn) {
-      setRoleState({ status: "idle", roles: emptyRoleAssignments() });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    setRoleState({ status: "loading", roles: emptyRoleAssignments() });
-
-    getMyRoles(supabase)
-      .then((roles) => {
-        if (cancelled) return;
-        setRoleState({ status: "ready", roles });
-      })
-      .catch((error) => {
-        console.warn("Failed to load feature roles", error);
-        if (!cancelled) {
-          setRoleState({ status: "error", roles: emptyRoleAssignments() });
-        }
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [signedIn, supabase]);
-
   const handleSeedDemo = useCallback(async () => {
     if (!signedIn) {
       return;
@@ -200,24 +165,39 @@ export default function HomePage() {
     () => new Map<string, AppMeta>(decoratedApps.map((app) => [app.id, app])),
     [decoratedApps]
   );
-  const accessibleApps = useMemo(() => {
+
+  const accessibleAppIds = useMemo(() => {
+    if (!signedIn) {
+      return new Set<string>();
+    }
+
+    const ids = new Set<string>();
+    for (const app of decoratedApps) {
+      if (!app.feature || canAccess(app.feature, roles)) {
+        ids.add(app.id);
+      }
+    }
+    return ids;
+  }, [decoratedApps, roles, signedIn]);
+
+  const gridApps = useMemo(() => {
     if (!signedIn) {
       return [] as AppMeta[];
     }
 
-    if (roleState.status !== "ready") {
-      return [] as AppMeta[];
+    if (!SHOW_LOCKED_TILES) {
+      return decoratedApps.filter((app) => !app.feature || accessibleAppIds.has(app.id));
     }
 
-    return decoratedApps.filter((app) =>
-      app.feature ? canWithRoles(roleState.roles, app.feature) : true,
-    );
-  }, [decoratedApps, roleState.roles, roleState.status, signedIn]);
-  const accessibleAppIds = useMemo(() => new Set(accessibleApps.map((app) => app.id)), [accessibleApps]);
-  const gridApps = useMemo(() => (signedIn ? accessibleApps : []), [accessibleApps, signedIn]);
+    return decoratedApps.slice();
+  }, [accessibleAppIds, decoratedApps, signedIn]);
   const isAppDisabled = useCallback(
     (appId: string) => {
       if (!signedIn) {
+        return true;
+      }
+
+      if (SHOW_LOCKED_TILES && !accessibleAppIds.has(appId)) {
         return true;
       }
 
@@ -227,7 +207,7 @@ export default function HomePage() {
 
       return false;
     },
-    [dataReady, hasHouse, signedIn]
+    [accessibleAppIds, dataReady, hasHouse, signedIn]
   );
   const dockApps = useMemo(
     () =>
@@ -536,25 +516,14 @@ export default function HomePage() {
                 </Card>
               ) : null}
 
-              {signedIn && roleState.status === "error" ? (
-                <Card className="w-full max-w-xl">
-                  <CardHeader className="border-none px-5 pt-5 pb-2">
-                    <h2 className="text-lg font-semibold text-foreground">We couldn’t verify access</h2>
-                  </CardHeader>
-                  <CardContent className="flex flex-col gap-3 text-sm text-muted-foreground">
-                    <p>Try refreshing the page or signing out and back in.</p>
-                  </CardContent>
-                </Card>
-              ) : null}
-
-              {signedIn && roleState.status === "ready" && gridApps.length === 0 ? (
+              {signedIn && gridApps.length === 0 ? (
                 <Card className="w-full max-w-xl">
                   <CardHeader className="border-none px-5 pt-5 pb-2">
                     <h2 className="text-lg font-semibold text-foreground">No apps assigned yet</h2>
                   </CardHeader>
                   <CardContent className="text-sm text-muted-foreground">
                     Your account doesn’t have access to any launcher apps right now.
-                    {isRoleAssignmentsEmpty(roleState.roles)
+                    {accessibleAppIds.size === 0
                       ? " Reach out to an administrator to request access."
                       : " Contact your administrator to adjust your roles."}
                   </CardContent>

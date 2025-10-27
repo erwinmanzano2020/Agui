@@ -14,7 +14,7 @@ import {
   UsersIcon,
 } from "@/components/icons/lucide";
 import { pluralize } from "@/lib/utils";
-import type { Feature } from "@/lib/authz";
+import { AppFeature } from "@/lib/auth/permissions";
 import { DEFAULT_UI_TERMS, type UiTerms } from "@/lib/ui-terms";
 
 export type AppMeta = {
@@ -24,7 +24,7 @@ export type AppMeta = {
   description?: string;
   icon: ReactNode;
   accentColor?: string;
-  feature?: Feature;
+  feature?: AppFeature;
 };
 
 export function createApps(terms: UiTerms = DEFAULT_UI_TERMS): AppMeta[] {
@@ -43,7 +43,7 @@ export function createApps(terms: UiTerms = DEFAULT_UI_TERMS): AppMeta[] {
       href: "/alliances",
       description: `Coordinate ${alliancesLower} and programs`,
       icon: <NetworkIcon />,
-      feature: "alliances",
+      feature: AppFeature.ALLIANCES,
     },
     {
       id: "guilds",
@@ -51,7 +51,7 @@ export function createApps(terms: UiTerms = DEFAULT_UI_TERMS): AppMeta[] {
       href: "/guilds",
       description: `Organize ${guildsLower} and houses`,
       icon: <ShieldIcon />,
-      feature: "guilds",
+      feature: AppFeature.GUILDS,
     },
     {
       id: "employees",
@@ -59,7 +59,7 @@ export function createApps(terms: UiTerms = DEFAULT_UI_TERMS): AppMeta[] {
       href: "/employees",
       description: `Manage ${teamLower} records`,
       icon: <UsersIcon />,
-      feature: "team",
+      feature: AppFeature.TEAM,
     },
     {
       id: "shifts",
@@ -67,7 +67,7 @@ export function createApps(terms: UiTerms = DEFAULT_UI_TERMS): AppMeta[] {
       href: "/shifts",
       description: "Design shift templates",
       icon: <CalendarCheckIcon />,
-      feature: "shifts",
+      feature: AppFeature.SHIFTS,
     },
     {
       id: "dtr",
@@ -75,7 +75,7 @@ export function createApps(terms: UiTerms = DEFAULT_UI_TERMS): AppMeta[] {
       href: "/payroll/dtr-bulk",
       description: "Quick time entry",
       icon: <CalendarClockIcon />,
-      feature: "dtr-bulk",
+      feature: AppFeature.DTR_BULK,
     },
     {
       id: "payroll",
@@ -83,7 +83,7 @@ export function createApps(terms: UiTerms = DEFAULT_UI_TERMS): AppMeta[] {
       href: "/payroll",
       description: "Runs & payslips",
       icon: <ScrollTextIcon />,
-      feature: "payroll",
+      feature: AppFeature.PAYROLL,
     },
     {
       id: "pos",
@@ -91,7 +91,7 @@ export function createApps(terms: UiTerms = DEFAULT_UI_TERMS): AppMeta[] {
       href: "/pos",
       description: "Open the point-of-sale register",
       icon: <StorefrontIcon />,
-      feature: "pos",
+      feature: AppFeature.POS,
     },
     {
       id: "passes",
@@ -99,7 +99,7 @@ export function createApps(terms: UiTerms = DEFAULT_UI_TERMS): AppMeta[] {
       href: "/passes/member",
       description: `Manage loyalty and ${alliancePassLower}`,
       icon: <IdCardIcon />,
-      feature: "alliance-pass",
+      feature: AppFeature.ALLIANCE_PASS,
     },
     {
       id: "imports",
@@ -107,6 +107,7 @@ export function createApps(terms: UiTerms = DEFAULT_UI_TERMS): AppMeta[] {
       href: "/imports",
       description: "Bulk upload",
       icon: <FileDownIcon />,
+      feature: AppFeature.IMPORT_CSV,
     },
     {
       id: "agui",
@@ -121,7 +122,7 @@ export function createApps(terms: UiTerms = DEFAULT_UI_TERMS): AppMeta[] {
       href: "/settings/appearance",
       description: "Theme & app config",
       icon: <SettingsIcon />,
-      feature: "settings",
+      feature: AppFeature.SETTINGS,
     },
   ];
 }

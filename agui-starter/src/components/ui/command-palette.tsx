@@ -9,8 +9,10 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useRouter } from "next/navigation";
-import type { Command } from "@/config/commands";
-import { canWithRoles, getMyRoles } from "@/lib/authz";
+import { useToast } from "@/components/ui/toaster";
+import type { CommandDefinition } from "@/lib/commands/registry";
+import { canAccess } from "@/lib/auth/permissions";
+import { useUserRoles } from "@/lib/auth/user-roles-context";
 import { useSession } from "@/lib/auth/session-context";
 
 function isEditableTarget(target: EventTarget | null) {
@@ -38,67 +40,38 @@ function useKeybind(combo: (e: KeyboardEvent) => boolean, handler: () => void) {
   }, [combo, handler]);
 }
 
-export function CommandPalette({ commands }: { commands: Command[] }) {
+export function CommandPalette({ commands }: { commands: CommandDefinition[] }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const baseId = useId();
   const listId = `${baseId}-options`;
-  const { supabase, user } = useSession();
+  const { user } = useSession();
   const signedIn = Boolean(user);
-  const [filteredCommands, setFilteredCommands] = useState<Command[]>([]);
+  const toast = useToast();
+  const roles = useUserRoles();
+
+  const availableCommands = useMemo(() => {
+    if (!signedIn) {
+      return commands.filter((command) => !command.feature);
+    }
+
+    return commands.filter((command) =>
+      command.feature ? canAccess(command.feature, roles) : true,
+    );
+  }, [commands, roles, signedIn]);
 
   useEffect(() => {
-    let cancelled = false;
-
-    const load = async () => {
-      if (!supabase || !signedIn) {
-        if (!cancelled) {
-          setFilteredCommands([]);
-        }
-        return;
-      }
-
-      try {
-        const roles = await getMyRoles(supabase);
-        if (cancelled) return;
-
-        setFilteredCommands(
-          commands.filter((command) =>
-            command.feature ? canWithRoles(roles, command.feature) : true,
-          ),
-        );
-      } catch (error) {
-        console.warn("Failed to resolve command access", error);
-        if (!cancelled) {
-          setFilteredCommands([]);
-        }
-      }
-    };
-
-    load().catch((error) => {
-      console.error("Failed to initialize command palette roles", error);
-      if (!cancelled) {
-        setFilteredCommands([]);
-      }
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [commands, signedIn, supabase]);
-
-  useEffect(() => {
-    if (filteredCommands.length === 0 && open) {
+    if (availableCommands.length === 0 && open) {
       setOpen(false);
     }
-  }, [filteredCommands.length, open]);
+  }, [availableCommands.length, open]);
 
   // open with ⌘/Ctrl+K — also '/' like Brave
   useKeybind(
     (e) => {
-      if (filteredCommands.length === 0) return false;
+      if (availableCommands.length === 0) return false;
       if (isEditableTarget(e.target)) return false;
       const key = e.key.toLowerCase();
       if (key === "k" && (e.metaKey || e.ctrlKey)) return true;
@@ -119,7 +92,7 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
   }, [open]);
 
   // simple fuzzy-ish filter
-  const baseCommands = filteredCommands;
+  const baseCommands = availableCommands;
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const base = baseCommands;
@@ -141,8 +114,15 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
     setActiveIndex(0);
   }, [q, results.length]);
 
-  function onRun(c: Command) {
+  function onRun(c: CommandDefinition) {
     setOpen(false);
+    if (c.feature && (!signedIn || !canAccess(c.feature, roles))) {
+      if (process.env.NODE_ENV !== "production") {
+        toast.warning("You don’t have access to this");
+      }
+      console.info("Blocked command", { id: c.id, feature: c.feature });
+      return;
+    }
     if (c.run) c.run();
     if (c.href) router.push(c.href);
   }

@@ -9,6 +9,7 @@ export type Feature =
   | "payroll"
   | "pos"
   | "alliance-pass"
+  | "import-csv"
   | "settings";
 
 export type RoleScope = "PLATFORM" | "GUILD" | "HOUSE";
@@ -33,6 +34,7 @@ export const FEATURE_ROLES: Record<Feature, RoleRequirement[]> = {
     { scope: "GUILD", role: "guild_elder" },
     { scope: "PLATFORM", role: "game_master" },
   ],
+  "import-csv": [{ scope: "PLATFORM", role: "game_master" }],
   settings: [{ scope: "PLATFORM", role: "game_master" }],
 };
 

@@ -1,7 +1,7 @@
+import { AppFeature } from "@/lib/auth/permissions";
 import { DEFAULT_UI_TERMS, type UiTerms } from "@/lib/ui-terms";
-import type { Feature } from "@/lib/authz";
 
-export type Command = {
+export type CommandDefinition = {
   id: string;
   label: string;
   hint?: string;
@@ -10,7 +10,7 @@ export type Command = {
   href?: string;
   section?: string;
   keywords?: string;
-  feature?: Feature;
+  feature?: AppFeature;
 };
 
 function teamKeywords(terms: UiTerms): string {
@@ -23,7 +23,7 @@ function addTeamKeywords(terms: UiTerms): string {
   return `add ${lower} onboarding`;
 }
 
-export function createCommands(terms: UiTerms = DEFAULT_UI_TERMS): Command[] {
+export function getCommandRegistry(terms: UiTerms = DEFAULT_UI_TERMS): CommandDefinition[] {
   return [
     {
       id: "employees",
@@ -31,7 +31,7 @@ export function createCommands(terms: UiTerms = DEFAULT_UI_TERMS): Command[] {
       href: "/employees",
       shortcut: "G E",
       keywords: teamKeywords(terms),
-      feature: "team",
+      feature: AppFeature.TEAM,
     },
     {
       id: "dtr-bulk",
@@ -39,7 +39,7 @@ export function createCommands(terms: UiTerms = DEFAULT_UI_TERMS): Command[] {
       href: "/payroll/dtr-bulk",
       shortcut: "G D",
       keywords: "time logs roster timesheet",
-      feature: "dtr-bulk",
+      feature: AppFeature.DTR_BULK,
     },
     {
       id: "payroll",
@@ -47,7 +47,7 @@ export function createCommands(terms: UiTerms = DEFAULT_UI_TERMS): Command[] {
       href: "/payroll",
       shortcut: "G P",
       keywords: "payslip run salary",
-      feature: "payroll",
+      feature: AppFeature.PAYROLL,
     },
     {
       id: "new-employee",
@@ -55,7 +55,7 @@ export function createCommands(terms: UiTerms = DEFAULT_UI_TERMS): Command[] {
       href: "/employees/new",
       shortcut: "N E",
       keywords: addTeamKeywords(terms),
-      feature: "team",
+      feature: AppFeature.TEAM,
     },
     {
       id: "new-payroll",
@@ -63,7 +63,7 @@ export function createCommands(terms: UiTerms = DEFAULT_UI_TERMS): Command[] {
       href: "/payroll/new",
       shortcut: "N P",
       keywords: "create payrun",
-      feature: "payroll",
+      feature: AppFeature.PAYROLL,
     },
     {
       id: "toggle-theme",

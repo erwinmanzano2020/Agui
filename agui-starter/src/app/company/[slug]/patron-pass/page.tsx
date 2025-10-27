@@ -1,5 +1,7 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { getCurrentEntity } from "@/lib/auth/entity";
+import { requireFeatureAccess } from "@/lib/auth/feature-guard";
+import { AppFeature } from "@/lib/auth/permissions";
 import { ensureHousePassScheme } from "@/lib/loyalty/schemes-server";
 import { getSupabase } from "@/lib/supabase";
 import { loadHouseBySlug } from "@/lib/taxonomy/houses-server";
@@ -13,6 +15,8 @@ export default async function PatronPassPage({
   params: { slug: string };
 }) {
   const slug = params.slug;
+  const dest = `/company/${slug}/patron-pass`;
+  await requireFeatureAccess(AppFeature.ALLIANCE_PASS, { dest });
   const terms = await loadUiTerms();
   const passLabel = terms.house_pass;
 

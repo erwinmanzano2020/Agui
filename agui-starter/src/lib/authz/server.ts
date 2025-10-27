@@ -5,10 +5,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import {
   canWithRoles,
-  emptyRoleAssignments,
   getMyRoles as getMyRolesFromClient,
   hasRoleInAssignments,
-  isRoleAssignmentsEmpty,
   type Feature,
   type RoleAssignments,
   type RoleScope,
