@@ -1,6 +1,5 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
-import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getSupabase } from "@/lib/supabase";
 
 export type Feature =
@@ -68,6 +67,7 @@ async function getAuthedSupabaseClient(client?: SupabaseClient): Promise<Supabas
   }
 
   if (typeof window === "undefined") {
+    const { createServerSupabaseClient } = await import("@/lib/supabase-server");
     return createServerSupabaseClient();
   }
 
