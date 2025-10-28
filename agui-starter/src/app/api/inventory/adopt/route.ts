@@ -14,11 +14,19 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => ({}));
   const { z } = await loadZod();
+  const allowedSources = Array.from(INVENTORY_SOURCES);
   const schema = z
     .object({
-      source: z.enum(INVENTORY_SOURCES, {
-        errorMap: () => ({ message: `source must be one of: ${INVENTORY_SOURCES.join(", ")}` }),
-      }),
+      source: z
+        .string()
+        .refine(
+          (value): value is (typeof INVENTORY_SOURCES)[number] =>
+            allowedSources.includes(value),
+          {
+            message: `source must be one of: ${allowedSources.join(", ")}`,
+          },
+        )
+        .transform((value) => value as (typeof INVENTORY_SOURCES)[number]),
       dryRun: z.boolean().optional(),
     })
     .strict();
