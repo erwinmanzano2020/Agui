@@ -1,20 +1,10 @@
 import { NextResponse } from "next/server";
 
-const ALLOWED_SOURCES = new Set(["demo-seed", "csv", "manual"]);
-
-type AdoptRequest = {
-  source?: unknown;
-  dryRun?: unknown;
-};
-
-function parseBody(body: AdoptRequest) {
-  const source = typeof body.source === "string" ? body.source : "";
-  const dryRun = typeof body.dryRun === "boolean" ? body.dryRun : Boolean(body.dryRun);
-  return { source, dryRun };
-}
+import { loadZod } from "@/lib/safe-schema";
+import { INVENTORY_SOURCES, adoptInventory } from "@/lib/inventory/runtime";
 
 export async function POST(req: Request) {
-  const contentType = req.headers.get("content-type") ?? "";
+  const contentType = req.headers.get("content-type") || "";
   if (!contentType.includes("application/json")) {
     return NextResponse.json(
       { ok: false, error: "Expected application/json" },
@@ -22,30 +12,27 @@ export async function POST(req: Request) {
     );
   }
 
-  let payload: unknown;
-  try {
-    payload = await req.json();
-  } catch {
+  const body = await req.json().catch(() => ({}));
+  const { z } = await loadZod();
+  const schema = z
+    .object({
+      source: z.enum(INVENTORY_SOURCES, {
+        errorMap: () => ({ message: `source must be one of: ${INVENTORY_SOURCES.join(", ")}` }),
+      }),
+      dryRun: z.boolean().optional(),
+    })
+    .strict();
+
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      { ok: false, error: "Invalid JSON body" },
+      { ok: false, error: "Invalid payload", details: parsed.error.flatten() },
       { status: 400 },
     );
   }
 
-  const { source, dryRun } = parseBody((payload ?? {}) as AdoptRequest);
-
-  if (!ALLOWED_SOURCES.has(source)) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Invalid source",
-        details: { allowed: Array.from(ALLOWED_SOURCES) },
-      },
-      { status: 400 },
-    );
-  }
-
-  return NextResponse.json({ ok: true, adopted: { source, dryRun } });
+  const result = await adoptInventory(parsed.data);
+  return NextResponse.json(result, { status: 200 });
 }
 
 export async function GET() {

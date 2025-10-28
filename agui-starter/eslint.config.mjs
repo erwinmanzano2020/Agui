@@ -21,6 +21,45 @@ const eslintConfig = [
     ],
   },
   {
+    files: ["src/app/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "zod",
+              message:
+                "Do not import zod at module scope in app/**. Use loadZod() inside handlers or components.",
+            },
+            {
+              name: "@/lib/index",
+              message: "Avoid barrels that may execute schemas at module scope.",
+            },
+          ],
+          patterns: ["@/lib/**/schema*", "@/lib/**/schemas*"],
+        },
+      ],
+    },
+  },
+  {
+    files: ["src/app/api/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "zod",
+              message: "Use loadZod() inside API route handlers to avoid module-scope execution.",
+            },
+          ],
+          patterns: ["@/lib/**/schema*", "@/lib/**/schemas*"],
+        },
+      ],
+    },
+  },
+  {
     files: ["src/app/company/[slug]/patron-pass/page.tsx"],
     rules: {
       "no-restricted-imports": ["error", {

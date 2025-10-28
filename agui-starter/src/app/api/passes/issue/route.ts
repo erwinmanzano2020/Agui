@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
 
-const ALLOWED_PASS_TYPES = new Set(["alliance", "member", "staff"]);
-const ALLOWED_CHANNELS = new Set(["kiosk", "pos", "admin"]);
-
-interface IssueRequest {
-  memberId?: unknown;
-  passType?: unknown;
-  channel?: unknown;
-  expiresInDays?: unknown;
-  dryRun?: unknown;
-}
+import { loadZod } from "@/lib/safe-schema";
+import {
+  PASS_CHANNELS,
+  PASS_TYPES,
+  issuePass,
+} from "@/lib/passes/runtime";
 
 export async function POST(req: Request) {
   const contentType = req.headers.get("content-type") || "";
@@ -20,64 +16,34 @@ export async function POST(req: Request) {
     );
   }
 
-  let payload: IssueRequest;
-  try {
-    payload = (await req.json()) as IssueRequest;
-  } catch {
-    return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
-  }
+  const body = await req.json().catch(() => ({}));
+  const { z } = await loadZod();
+  const schema = z
+    .object({
+      memberId: z.string().min(1, "memberId is required"),
+      passType: z.enum(PASS_TYPES, {
+        errorMap: () => ({ message: `passType must be one of: ${PASS_TYPES.join(", ")}` }),
+      }),
+      channel: z
+        .enum(PASS_CHANNELS, {
+          errorMap: () => ({ message: `channel must be one of: ${PASS_CHANNELS.join(", ")}` }),
+        })
+        .optional(),
+      expiresInDays: z.number().int().positive().max(365).optional(),
+      dryRun: z.boolean().optional(),
+    })
+    .strict();
 
-  const memberId = typeof payload.memberId === "string" ? payload.memberId.trim() : "";
-  const passType = typeof payload.passType === "string" ? payload.passType.trim() : "";
-  const channel = typeof payload.channel === "string" ? payload.channel.trim() : "";
-
-  const expiresInDaysRaw = typeof payload.expiresInDays === "number" ? payload.expiresInDays : undefined;
-  const expiresInDays = Number.isFinite(expiresInDaysRaw)
-    ? Math.max(1, Math.floor(expiresInDaysRaw!))
-    : 30;
-  const dryRun = Boolean(payload?.dryRun);
-
-  if (!memberId) {
-    return NextResponse.json({ ok: false, error: "memberId is required" }, { status: 400 });
-  }
-
-  if (!passType || !ALLOWED_PASS_TYPES.has(passType)) {
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
     return NextResponse.json(
-      {
-        ok: false,
-        error: "Invalid passType",
-        details: { allowed: Array.from(ALLOWED_PASS_TYPES) },
-      },
+      { ok: false, error: "Invalid payload", details: parsed.error.flatten() },
       { status: 400 },
     );
   }
 
-  if (channel && !ALLOWED_CHANNELS.has(channel)) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Invalid channel",
-        details: { allowed: Array.from(ALLOWED_CHANNELS) },
-      },
-      { status: 400 },
-    );
-  }
-
-  const issuedAt = new Date();
-  const expiresAt = new Date(issuedAt);
-  expiresAt.setDate(issuedAt.getDate() + expiresInDays);
-
-  const pass = {
-    id: `pass_${Math.random().toString(36).slice(2, 10)}`,
-    memberId,
-    passType,
-    channel: channel || "admin",
-    issuedAt: issuedAt.toISOString(),
-    expiresAt: expiresAt.toISOString(),
-    dryRun,
-  };
-
-  return NextResponse.json({ ok: true, pass });
+  const result = await issuePass(parsed.data);
+  return NextResponse.json(result, { status: 200 });
 }
 
 export async function GET() {
