@@ -1,4 +1,4 @@
-import { headers } from "next/headers";
+import { headers, type UnsafeUnwrappedHeaders } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { createServerSupabaseClient } from "@/lib/supabase-server";
@@ -167,7 +167,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Failed to create invite" }, { status: 500 });
   }
 
-  const headerList = await headers();
+  const headerList = headers() as unknown as UnsafeUnwrappedHeaders;
   const origin = headerList.get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL ?? null;
   if (!origin) {
     console.error("Missing origin for invite redirect");

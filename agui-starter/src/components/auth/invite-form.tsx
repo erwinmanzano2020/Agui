@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -37,21 +37,32 @@ type InviteFormProps = {
   heading: string;
   description?: string;
   defaultScopeId?: string;
-  defaultRoles?: string[];
+  defaultRoles?: string[] | Record<string, string[]>;
   emptyMessage?: string;
 };
 
+function CardTitle({ children }: { children: ReactNode }) {
+  return <h2 className="text-lg font-semibold leading-none tracking-tight">{children}</h2>;
+}
+
+const NO_SCOPE_MESSAGE =
+  "You don’t have any organizations or teams you can invite to yet. Ask a Game Master or Owner to grant you invite permissions.";
+
 function resolveDefaultRoles(
   scope: InviteScopeOption | undefined,
-  preferred?: string[],
+  preferred?: string[] | Record<string, string[]>,
 ): string[] {
   if (!scope) {
     return [];
   }
 
-  if (preferred && preferred.length > 0) {
+  const preferredList = Array.isArray(preferred)
+    ? preferred
+    : preferred?.[scope.id] ?? [];
+
+  if (preferredList && preferredList.length > 0) {
     const allowed = new Set(scope.roleOptions.map((option) => option.value));
-    const valid = preferred.filter((role) => allowed.has(role));
+    const valid = preferredList.filter((role) => allowed.has(role));
     if (valid.length > 0) {
       return valid;
     }
@@ -78,8 +89,10 @@ export function InviteForm({
   const [submitting, setSubmitting] = useState(false);
   const [userSelectedScope, setUserSelectedScope] = useState(false);
 
+  const hasScopes = scopes?.length ? scopes.length > 0 : false;
+
   const scopeFromViewAs = useMemo(() => {
-    if (!viewAs) {
+    if (!viewAs || !hasScopes) {
       return null;
     }
 
@@ -93,11 +106,14 @@ export function InviteForm({
     }
 
     return null;
-  }, [scopes, viewAs]);
+  }, [hasScopes, scopes, viewAs]);
 
   const resolvedDefaultScopeId = useMemo(() => {
+    if (!hasScopes) {
+      return "";
+    }
     return scopeFromViewAs ?? defaultScopeId ?? scopes[0]?.id ?? "";
-  }, [scopeFromViewAs, defaultScopeId, scopes]);
+  }, [defaultScopeId, hasScopes, scopeFromViewAs, scopes]);
 
   const [scopeId, setScopeId] = useState(resolvedDefaultScopeId);
   const [selectedRoles, setSelectedRoles] = useState<Set<string>>(() => {
@@ -106,36 +122,36 @@ export function InviteForm({
   });
 
   useEffect(() => {
-    if (!scopes.length) {
-      setScopeId("");
-      setSelectedRoles(new Set());
+    if (!hasScopes) {
+      if (scopeId !== "") {
+        setScopeId("");
+      }
+      setSelectedRoles((prev) => (prev.size ? new Set() : prev));
       return;
     }
 
     const targetScopeId = userSelectedScope ? scopeId : resolvedDefaultScopeId;
     if (!targetScopeId) {
       const fallbackId = scopes[0]?.id ?? "";
-      setScopeId(fallbackId);
-      const fallbackScope = scopes.find((option) => option.id === fallbackId);
-      setSelectedRoles(new Set(resolveDefaultRoles(fallbackScope, defaultRoles)));
+      if (fallbackId && scopeId !== fallbackId) {
+        setScopeId(fallbackId);
+      }
       return;
     }
 
     const exists = scopes.some((option) => option.id === targetScopeId);
     if (!exists) {
-      const fallbackId = scopes[0]?.id ?? "";
-      setScopeId(fallbackId);
-      const fallbackScope = scopes.find((option) => option.id === fallbackId);
-      setSelectedRoles(new Set(resolveDefaultRoles(fallbackScope, defaultRoles)));
+      const fallbackId = resolvedDefaultScopeId || scopes[0]?.id || "";
+      if (fallbackId && scopeId !== fallbackId) {
+        setScopeId(fallbackId);
+      }
       return;
     }
 
     if (!userSelectedScope && scopeId !== resolvedDefaultScopeId) {
       setScopeId(resolvedDefaultScopeId);
-      const scope = scopes.find((option) => option.id === resolvedDefaultScopeId);
-      setSelectedRoles(new Set(resolveDefaultRoles(scope, defaultRoles)));
     }
-  }, [scopes, scopeId, resolvedDefaultScopeId, defaultRoles, userSelectedScope]);
+  }, [hasScopes, resolvedDefaultScopeId, scopeId, scopes, userSelectedScope]);
 
   const selectedScope = useMemo(
     () => scopes.find((option) => option.id === scopeId),
@@ -144,27 +160,40 @@ export function InviteForm({
 
   useEffect(() => {
     if (!selectedScope) {
-      setSelectedRoles(new Set());
+      setSelectedRoles((prev) => (prev.size ? new Set() : prev));
+    }
+    // NOTE: do NOT include selectedRoles in deps
+  }, [selectedScope]);
+
+  useEffect(() => {
+    if (!selectedScope) {
       return;
     }
 
-    const allowed = new Set(selectedScope.roleOptions.map((option) => option.value));
-    const filtered = Array.from(selectedRoles).filter((role) => allowed.has(role));
-
-    if (filtered.length === selectedRoles.size) {
-      if (filtered.length === 0) {
-        setSelectedRoles(new Set(resolveDefaultRoles(selectedScope, defaultRoles)));
+    const preferredRoles = Array.isArray(defaultRoles)
+      ? defaultRoles
+      : defaultRoles?.[selectedScope.id] ?? [];
+    const nextRoles = resolveDefaultRoles(selectedScope, preferredRoles);
+    setSelectedRoles((prev) => {
+      if (prev.size === nextRoles.length && nextRoles.every((role) => prev.has(role))) {
+        return prev;
       }
-      return;
-    }
+      return new Set(nextRoles);
+    });
+  }, [defaultRoles, selectedScope]);
 
-    if (filtered.length === 0) {
-      setSelectedRoles(new Set(resolveDefaultRoles(selectedScope, defaultRoles)));
-      return;
-    }
-
-    setSelectedRoles(new Set(filtered));
-  }, [selectedScope, selectedRoles, defaultRoles]);
+  if (!hasScopes) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Invite employee</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">{NO_SCOPE_MESSAGE}</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   const handleScopeChange = (value: string) => {
     setUserSelectedScope(true);

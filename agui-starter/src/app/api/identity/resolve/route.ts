@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { getOrCreateEntityByIdentifier } from "@/lib/auth/entity";
+import {
+  getOrCreateEntityByIdentifier,
+  type IdentifierKind,
+} from "@/lib/auth/entity";
 
 const resolveIdentitySchema = z.object({
   kind: z.enum(["email", "phone"]),
@@ -22,7 +25,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const { kind, value } = parsed.data;
+  const { kind, value } = parsed.data as { kind: IdentifierKind; value: string };
   const ent = await getOrCreateEntityByIdentifier(kind, value);
   return NextResponse.json({ entity: ent });
 }
