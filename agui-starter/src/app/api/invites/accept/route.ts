@@ -81,17 +81,34 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Failed to prepare account" }, { status: 500 });
   }
 
+  const inviteRoles = Array.from(
+    new Set(
+      (invite.role ?? "")
+        .split(",")
+        .map((role) => role.trim())
+        .filter((role) => role.length > 0),
+    ),
+  );
+
+  if (inviteRoles.length === 0) {
+    return NextResponse.json({ error: "Invite missing role assignments" }, { status: 400 });
+  }
+
   try {
     if (invite.scope === "HOUSE") {
       if (!invite.house_id) {
         return NextResponse.json({ error: "Invite missing house context" }, { status: 400 });
       }
-      await grantHouseRole(entityId, invite.house_id, invite.role, { grantedBy: invite.invited_by });
+      for (const role of inviteRoles) {
+        await grantHouseRole(entityId, invite.house_id, role, { grantedBy: invite.invited_by });
+      }
     } else if (invite.scope === "GUILD") {
       if (!invite.guild_id) {
         return NextResponse.json({ error: "Invite missing guild context" }, { status: 400 });
       }
-      await grantGuildRole(entityId, invite.guild_id, invite.role, { grantedBy: invite.invited_by });
+      for (const role of inviteRoles) {
+        await grantGuildRole(entityId, invite.guild_id, role, { grantedBy: invite.invited_by });
+      }
     } else {
       return NextResponse.json({ error: "Unsupported invite scope" }, { status: 400 });
     }

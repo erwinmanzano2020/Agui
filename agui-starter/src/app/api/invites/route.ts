@@ -1,3 +1,4 @@
+import { headers, type UnsafeUnwrappedHeaders } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { createServerSupabaseClient } from "@/lib/supabase-server";
@@ -17,6 +18,7 @@ type CreateInvitePayload = {
   guildId?: string | null;
   houseId?: string | null;
   role?: string;
+  roles?: unknown;
 };
 
 function normalizeEmail(email: string): string {
@@ -42,7 +44,20 @@ export async function POST(req: Request) {
   const scope = body.scope === "HOUSE" || body.scope === "GUILD" ? body.scope : null;
   const guildId = typeof body.guildId === "string" && body.guildId ? body.guildId : null;
   const houseId = typeof body.houseId === "string" && body.houseId ? body.houseId : null;
-  const role = typeof body.role === "string" ? body.role.trim() : "";
+  const rolesInput: string[] = [];
+  if (Array.isArray(body.roles)) {
+    for (const role of body.roles) {
+      if (typeof role === "string" && role.trim()) {
+        rolesInput.push(role.trim());
+      }
+    }
+  }
+
+  if (rolesInput.length === 0 && typeof body.role === "string" && body.role.trim()) {
+    rolesInput.push(body.role.trim());
+  }
+
+  const uniqueRoles = Array.from(new Set(rolesInput));
 
   if (!email) {
     return badRequest("Email is required");
@@ -60,11 +75,15 @@ export async function POST(req: Request) {
     return badRequest("Guild ID is required for guild invites");
   }
 
-  if (scope === "HOUSE" && !HOUSE_INVITEE_ROLES.has(role)) {
+  if (uniqueRoles.length === 0) {
+    return badRequest("At least one role is required");
+  }
+
+  if (scope === "HOUSE" && !uniqueRoles.every((role) => HOUSE_INVITEE_ROLES.has(role))) {
     return badRequest("Invalid house role");
   }
 
-  if (scope === "GUILD" && !GUILD_INVITEE_ROLES.has(role)) {
+  if (scope === "GUILD" && !uniqueRoles.every((role) => GUILD_INVITEE_ROLES.has(role))) {
     return badRequest("Invalid guild role");
   }
 
@@ -140,7 +159,7 @@ export async function POST(req: Request) {
       scope,
       guildId,
       houseId,
-      role,
+      roles: uniqueRoles,
       invitedBy: inviterEntityId,
     });
   } catch (error) {
@@ -148,8 +167,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Failed to create invite" }, { status: 500 });
   }
 
-  const requestUrl = new URL(req.url);
-  const redirectUrl = new URL(`/accept-invite?token=${invite.token}`, requestUrl.origin);
+  const headerList = headers() as unknown as UnsafeUnwrappedHeaders;
+  const origin = headerList.get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL ?? null;
+  if (!origin) {
+    console.error("Missing origin for invite redirect");
+    return NextResponse.json({ error: "Site URL not configured" }, { status: 500 });
+  }
+
+  const redirectUrl = new URL("/accept-invite", origin);
+  redirectUrl.searchParams.set("token", invite.token);
   const redirectTo = redirectUrl.toString();
 
   // First try the Supabase invite email API so the platform handles delivery.

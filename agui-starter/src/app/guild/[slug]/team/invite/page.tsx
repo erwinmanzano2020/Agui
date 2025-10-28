@@ -46,11 +46,18 @@ export default async function GuildInvitePage({ params }: { params: { slug: stri
   return (
     <div className="max-w-2xl mx-auto py-10 px-4 space-y-6">
       <InviteForm
-        scope="GUILD"
-        guildId={guild.id}
-        roleOptions={GUILD_ROLE_OPTIONS}
+        scopes={[
+          {
+            type: "GUILD",
+            id: guild.id,
+            label: guild.name,
+            note: "Guild",
+            roleOptions: GUILD_ROLE_OPTIONS,
+          },
+        ]}
         heading={`Invite to ${guild.name}`}
         description="Invite leaders to help govern this guild."
+        defaultScopeId={guild.id}
       />
     </div>
   );

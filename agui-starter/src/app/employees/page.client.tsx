@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -84,11 +85,16 @@ export default function EmployeesPageClient() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">{teamLabel}</h1>
-        <p className="text-sm text-[var(--agui-muted-foreground)]">
-          Manage your {teamLower} and keep everyone in sync.
-        </p>
+      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold">{teamLabel}</h1>
+          <p className="text-sm text-[var(--agui-muted-foreground)]">
+            Manage your {teamLower} and keep everyone in sync.
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/invites/new">Invite</Link>
+        </Button>
       </header>
 
       {err && (
