@@ -1,119 +1,88 @@
 import { NextResponse } from "next/server";
 
-import { getCurrentEntity, normalizeIdentifier } from "@/lib/auth/entity";
-import { requireFeatureAccess } from "@/lib/auth/feature-guard";
-import { AppFeature } from "@/lib/auth/permissions";
-import { ensureScheme } from "@/lib/loyalty/rules";
-import { issueCard, loadCardsForEntity, updateCardFlags, rotateCardToken } from "@/lib/passes/cards";
-import { getSupabase } from "@/lib/supabase";
+const ALLOWED_PASS_TYPES = new Set(["alliance", "member", "staff"]);
+const ALLOWED_CHANNELS = new Set(["kiosk", "pos", "admin"]);
 
-const ALLOWED_SCOPES = new Set(["GUILD", "HOUSE"] as const);
-
-type IdentifierPayload = {
-  kind: "phone" | "email";
-  value: string;
-};
-
-type IssueRequestBody = {
-  scope?: "GUILD" | "HOUSE";
-  scheme?: string;
-  identifier?: IdentifierPayload;
-  incognitoDefault?: boolean;
-};
-
-function isProduction(): boolean {
-  return process.env.NODE_ENV === "production";
+interface IssueRequest {
+  memberId?: unknown;
+  passType?: unknown;
+  channel?: unknown;
+  expiresInDays?: unknown;
+  dryRun?: unknown;
 }
 
 export async function POST(req: Request) {
-  if (isProduction()) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const contentType = req.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    return NextResponse.json(
+      { ok: false, error: "Expected application/json" },
+      { status: 400 },
+    );
   }
 
-  await requireFeatureAccess(AppFeature.ALLIANCE_PASS, { dest: new URL(req.url).pathname });
-
-  const supabase = getSupabase();
-  if (!supabase) {
-    return NextResponse.json({ error: "Supabase unavailable" }, { status: 503 });
-  }
-
-  const actor = await getCurrentEntity({ supabase });
-  if (!actor) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
-
-  const body = (await req.json().catch(() => ({}))) as IssueRequestBody;
-  const scope = body.scope;
-  const identifier = body.identifier;
-
-  if (!scope || !ALLOWED_SCOPES.has(scope)) {
-    return NextResponse.json({ error: "scope must be GUILD or HOUSE" }, { status: 400 });
-  }
-
-  if (!identifier?.kind || !identifier.value) {
-    return NextResponse.json({ error: "identifier is required" }, { status: 400 });
-  }
-
-  const normalizedValue = normalizeIdentifier(identifier.kind, identifier.value);
-  const identifierType = identifier.kind === "email" ? "EMAIL" : "PHONE";
-
-  const { data: identifierRow, error: identifierError } = await supabase
-    .from("entity_identifiers")
-    .select("entity_id")
-    .eq("identifier_type", identifierType)
-    .eq("identifier_value", normalizedValue)
-    .maybeSingle();
-
-  if (identifierError) {
-    console.error("Failed to resolve identifier while issuing dev pass", identifierError);
-    return NextResponse.json({ error: "Failed to resolve identifier" }, { status: 500 });
-  }
-
-  if (!identifierRow?.entity_id) {
-    return NextResponse.json({ error: "Identifier not found" }, { status: 404 });
-  }
-
-  if (identifierRow.entity_id !== actor.id) {
-    return NextResponse.json({ error: "You can only issue passes for your own entity in dev" }, { status: 403 });
-  }
-
+  let payload: IssueRequest;
   try {
-    const schemeName = body.scheme || (scope === "GUILD" ? "Guild Card" : "Patron Pass");
-    const scheme = await ensureScheme(scope, schemeName, scope === "GUILD" ? 2 : 3);
-
-    const cards = await loadCardsForEntity(actor.id, { supabase });
-    const existing = cards.find((card) => card.scheme.id === scheme.id) ?? null;
-    const targetIncognito = !!body.incognitoDefault && scheme.allow_incognito;
-
-    let card = existing;
-    if (card) {
-      const currentIncognito = card.flags.incognito_default ?? false;
-      if (currentIncognito !== targetIncognito) {
-        card = await updateCardFlags(card.id, { incognito_default: targetIncognito }, { supabase });
-      }
-    } else {
-      card = await issueCard({
-        supabase,
-        scheme,
-        entityId: actor.id,
-        incognitoDefault: targetIncognito,
-      });
-    }
-
-    const rotation = await rotateCardToken(card.id, "qr", { supabase });
-
-    return NextResponse.json({
-      ok: true,
-      card: {
-        id: card.id,
-        card_no: card.card_no,
-        flags: card.flags,
-        scheme: { id: scheme.id, name: scheme.name },
-      },
-      token_raw: rotation.token,
-    });
-  } catch (error) {
-    console.error("Failed to issue dev pass", error);
-    return NextResponse.json({ error: "Failed to issue pass" }, { status: 500 });
+    payload = (await req.json()) as IssueRequest;
+  } catch {
+    return NextResponse.json({ ok: false, error: "Invalid JSON body" }, { status: 400 });
   }
+
+  const memberId = typeof payload.memberId === "string" ? payload.memberId.trim() : "";
+  const passType = typeof payload.passType === "string" ? payload.passType.trim() : "";
+  const channel = typeof payload.channel === "string" ? payload.channel.trim() : "";
+
+  const expiresInDaysRaw = typeof payload.expiresInDays === "number" ? payload.expiresInDays : undefined;
+  const expiresInDays = Number.isFinite(expiresInDaysRaw)
+    ? Math.max(1, Math.floor(expiresInDaysRaw!))
+    : 30;
+  const dryRun = Boolean(payload?.dryRun);
+
+  if (!memberId) {
+    return NextResponse.json({ ok: false, error: "memberId is required" }, { status: 400 });
+  }
+
+  if (!passType || !ALLOWED_PASS_TYPES.has(passType)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Invalid passType",
+        details: { allowed: Array.from(ALLOWED_PASS_TYPES) },
+      },
+      { status: 400 },
+    );
+  }
+
+  if (channel && !ALLOWED_CHANNELS.has(channel)) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Invalid channel",
+        details: { allowed: Array.from(ALLOWED_CHANNELS) },
+      },
+      { status: 400 },
+    );
+  }
+
+  const issuedAt = new Date();
+  const expiresAt = new Date(issuedAt);
+  expiresAt.setDate(issuedAt.getDate() + expiresInDays);
+
+  const pass = {
+    id: `pass_${Math.random().toString(36).slice(2, 10)}`,
+    memberId,
+    passType,
+    channel: channel || "admin",
+    issuedAt: issuedAt.toISOString(),
+    expiresAt: expiresAt.toISOString(),
+    dryRun,
+  };
+
+  return NextResponse.json({ ok: true, pass });
+}
+
+export async function GET() {
+  return NextResponse.json(
+    { ok: false, error: "Use POST /api/passes/issue with JSON body" },
+    { status: 405 },
+  );
 }
