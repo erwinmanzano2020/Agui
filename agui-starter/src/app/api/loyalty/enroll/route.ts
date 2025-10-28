@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { z } from "zod";
+import { z as Z } from "zod";
 
 import { stringEnum } from "@/lib/schema-helpers";
 import {
@@ -19,19 +19,19 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const schema = z
+  const schema = Z
     .object({
-      memberId: z.string().min(1).optional(),
-      phone: z.string().min(1).optional(),
+      memberId: Z.string().min(1).optional(),
+      phone: Z.string().min(1).optional(),
       channel: stringEnum(LOYALTY_CHANNELS, "channel").optional(),
       plan: stringEnum(LOYALTY_PLANS, "plan").optional(),
-      dryRun: z.boolean().optional(),
+      dryRun: Z.boolean().optional(),
     })
     .strict()
     .superRefine((value, ctx) => {
       if (!value.memberId && !value.phone) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: Z.ZodIssueCode.custom,
           message: "Provide at least one identifier: memberId or phone",
           path: ["memberId"],
         });

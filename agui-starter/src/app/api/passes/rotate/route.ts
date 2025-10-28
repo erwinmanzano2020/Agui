@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { z } from "zod";
+import { z as Z } from "zod";
 
 import { rotatePass } from "@/lib/passes/runtime";
 
@@ -14,18 +14,18 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const schema = z
+  const schema = Z
     .object({
-      passId: z.string().min(1).optional(),
-      memberId: z.string().min(1).optional(),
-      reason: z.string().trim().max(200).optional(),
-      dryRun: z.boolean().optional(),
+      passId: Z.string().min(1).optional(),
+      memberId: Z.string().min(1).optional(),
+      reason: Z.string().trim().max(200).optional(),
+      dryRun: Z.boolean().optional(),
     })
     .strict()
     .superRefine((value, ctx) => {
       if (!value.passId && !value.memberId) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: Z.ZodIssueCode.custom,
           message: "Provide passId or memberId",
           path: ["passId"],
         });

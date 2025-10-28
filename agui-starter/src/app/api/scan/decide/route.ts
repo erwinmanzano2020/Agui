@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { z } from "zod";
+import { z as Z } from "zod";
 
 import { decideScan } from "@/lib/scan/runtime";
 
@@ -14,11 +14,11 @@ export async function POST(req: Request) {
   }
 
   const payload = await req.json().catch(() => ({}));
-  const schema = z
+  const schema = Z
     .object({
-      type: z.string().min(1, "type is required"),
-      payload: z.unknown(),
-      companyId: z.string().min(1).optional(),
+      type: Z.string().min(1, "type is required"),
+      payload: Z.unknown(),
+      companyId: Z.string().min(1).optional(),
     })
     .strict();
 

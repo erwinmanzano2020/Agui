@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { z } from "zod";
+import { z as Z } from "zod";
 
 import { stringEnum } from "@/lib/schema-helpers";
 import {
@@ -19,13 +19,13 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const schema = z
+  const schema = Z
     .object({
-      memberId: z.string().min(1, "memberId is required"),
+      memberId: Z.string().min(1, "memberId is required"),
       passType: stringEnum(PASS_TYPES, "passType"),
       channel: stringEnum(PASS_CHANNELS, "channel").optional(),
-      expiresInDays: z.number().int().positive().max(365).optional(),
-      dryRun: z.boolean().optional(),
+      expiresInDays: Z.number().int().positive().max(365).optional(),
+      dryRun: Z.boolean().optional(),
     })
     .strict();
 
