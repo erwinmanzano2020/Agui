@@ -1,35 +1,43 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
 
-const TypeSchema = z.enum(["email", "phone"]);
-const DirectionSchema = z.enum(["forward", "reverse"]);
-
-const QuerySchema = z.object({
-  type: TypeSchema,
-  value: z.string().min(1, "value is required"),
-  direction: DirectionSchema,
-});
+const ALLOWED_TYPES = new Set(["email", "phone", "user"]);
+const ALLOWED_DIRECTIONS = new Set(["forward", "reverse"]);
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
 
-  const parsed = QuerySchema.safeParse({
-    type: url.searchParams.get("type"),
-    value: url.searchParams.get("value"),
-    direction: url.searchParams.get("direction") ?? "forward",
-  });
+  const type = url.searchParams.get("type") ?? "";
+  const value = url.searchParams.get("value") ?? "";
+  const direction = url.searchParams.get("direction") ?? "forward";
 
-  if (!parsed.success) {
-    return NextResponse.json(
-      {
-        error: "Invalid query",
-        details: parsed.error.flatten(),
-      },
-      { status: 400 },
+  const errors: string[] = [];
+
+  if (!ALLOWED_TYPES.has(type)) {
+    errors.push(
+      `Invalid type. Expected one of: ${Array.from(ALLOWED_TYPES).join(", ")}.`,
     );
   }
 
-  const { type, value, direction } = parsed.data;
+  if (!value.trim()) {
+    errors.push("Value is required.");
+  }
 
-  return NextResponse.json({ type, value, direction });
+  if (!ALLOWED_DIRECTIONS.has(direction)) {
+    errors.push(
+      `Invalid direction. Expected one of: ${Array.from(ALLOWED_DIRECTIONS).join(", ")}.`,
+    );
+  }
+
+  if (errors.length > 0) {
+    return NextResponse.json({ error: "Invalid query", details: errors }, { status: 400 });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    resolved: {
+      type,
+      value,
+      direction,
+    },
+  });
 }
