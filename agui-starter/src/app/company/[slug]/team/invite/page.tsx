@@ -44,12 +44,19 @@ export default async function CompanyInvitePage({ params }: { params: { slug: st
   return (
     <div className="max-w-2xl mx-auto py-10 px-4 space-y-6">
       <InviteForm
-        scope="HOUSE"
-        houseId={house.id}
-        guildId={house.guild_id}
-        roleOptions={HOUSE_ROLE_OPTIONS}
+        scopes={[
+          {
+            type: "HOUSE",
+            id: house.id,
+            guildId: house.guild_id,
+            label: house.name,
+            note: "Company",
+            roleOptions: HOUSE_ROLE_OPTIONS,
+          },
+        ]}
         heading={`Invite to ${house.name}`}
         description="Send an email invite so your teammate can join this company with the right role."
+        defaultScopeId={house.id}
       />
     </div>
   );

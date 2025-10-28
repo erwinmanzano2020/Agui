@@ -58,6 +58,14 @@ export function getCommandRegistry(terms: UiTerms = DEFAULT_UI_TERMS): CommandDe
       feature: AppFeature.TEAM,
     },
     {
+      id: "invite-employee",
+      label: "Invite employee",
+      href: "/invites/new",
+      shortcut: "I E",
+      keywords: `invite ${terms.team.toLowerCase()} email`,
+      feature: AppFeature.TEAM,
+    },
+    {
       id: "new-payroll",
       label: "New Payroll",
       href: "/payroll/new",
