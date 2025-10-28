@@ -20,6 +20,18 @@ const eslintConfig = [
       "next-env.d.ts",
     ],
   },
+  {
+    files: ["src/app/company/[slug]/patron-pass/page.tsx"],
+    rules: {
+      "no-restricted-imports": ["error", {
+        paths: [
+          { name: "zod", message: "Do not import zod in this SSR page. Use runtime guards or dynamic import." },
+          { name: "@/lib/index", message: "Avoid barrel imports that may execute schemas at module scope." }
+        ],
+        patterns: ["@/lib/**/schema*", "@/lib/**/schemas*"]
+      }]
+    }
+  },
 ];
 
 export default eslintConfig;

@@ -1,137 +1,109 @@
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { getCurrentEntity } from "@/lib/auth/entity";
-import { requireFeatureAccess } from "@/lib/auth/feature-guard";
-import { AppFeature } from "@/lib/auth/permissions";
-import { ensureHousePassScheme } from "@/lib/loyalty/schemes-server";
-import { getSupabase } from "@/lib/supabase";
-import { loadHouseBySlug } from "@/lib/taxonomy/houses-server";
-import { loadUiTerms } from "@/lib/ui-terms";
+import Link from "next/link";
+import { notFound } from "next/navigation";
 
-import { PatronPassForm } from "./patron-pass-form";
+type PageParams = { params: { slug?: string } };
 
-export default async function PatronPassPage({
-  params,
-}: {
-  params: { slug: string };
-}) {
-  const slug = params.slug;
-  const dest = `/company/${slug}/patron-pass`;
-  await requireFeatureAccess(AppFeature.ALLIANCE_PASS, { dest });
-  const terms = await loadUiTerms();
-  const passLabel = terms.house_pass;
+function isNonEmptyString(x: unknown): x is string {
+  return typeof x === "string" && x.trim().length > 0;
+}
 
-  let supabase;
-  let supabaseError: string | null = null;
-  try {
-    supabase = getSupabase();
-  } catch {
-    supabase = null;
-    supabaseError = "Supabase isn’t configured, so patron passes can’t be issued yet.";
+/**
+ * IMPORTANT: Do NOT import schema barrels here.
+ * Any heavy logic must be dynamically imported inside the component.
+ */
+export default async function PatronPassPage({ params }: PageParams) {
+  const slug = isNonEmptyString(params?.slug) ? params!.slug!.trim() : "";
+
+  if (!slug) {
+    // No slug → 404
+    notFound();
   }
 
-  let houseName = slug;
-  let guildName: string | null = null;
-  let allowIncognito = true;
-  let canIssue = false;
-  let gateMessage: string | null = supabaseError;
+  // Lazy-load a runtime-only helper (no zod/valibot at module scope).
+  let getPatronPass:
+    | ((slug: string) => Promise<{
+        companyName: string;
+        active: boolean;
+        passId?: string;
+        note?: string;
+      } | null>)
+    | null = null;
 
-  if (supabase && !gateMessage) {
-    try {
-      const house = await loadHouseBySlug(supabase, slug);
-      if (!house) {
-        gateMessage = "We couldn’t find that company.";
-      } else {
-        houseName = house.name;
-        guildName = house.guild?.name ?? null;
+  try {
+    const mod = await import("@/lib/patron/pass-runtime"); // must be schema-free at import time
+    if (typeof mod.getPatronPass === "function") getPatronPass = mod.getPatronPass;
+  } catch {
+    // swallow: treat as unavailable, render fallback UI
+  }
 
-        const currentEntity = await getCurrentEntity({ supabase });
-        if (!currentEntity) {
-          gateMessage = `Sign in to issue a ${passLabel.toLowerCase()}.`;
-        } else {
-          const { data: houseRole, error: houseRoleError } = await supabase
-            .from("house_roles")
-            .select("id")
-            .eq("house_id", house.id)
-            .eq("entity_id", currentEntity.id)
-            .maybeSingle();
-
-          let hasAccess = false;
-          if (houseRoleError) {
-            console.error("Failed to verify house role while preparing patron pass issuance", houseRoleError);
-            gateMessage = "We couldn’t verify your role at this house. Try again later.";
-          } else if (houseRole) {
-            hasAccess = true;
-          } else {
-            const { data: guildRole, error: guildRoleError } = await supabase
-              .from("guild_roles")
-              .select("id")
-              .eq("guild_id", house.guild_id)
-              .eq("entity_id", currentEntity.id)
-              .maybeSingle();
-
-            if (guildRoleError) {
-              console.error("Failed to verify guild role while preparing patron pass issuance", guildRoleError);
-              gateMessage = "We couldn’t verify your guild role just yet.";
-            } else if (!guildRole) {
-              gateMessage = "Only house or guild staff can issue patron passes.";
-            } else {
-              hasAccess = true;
-            }
-          }
-
-          if (hasAccess) {
-            const scheme = await ensureHousePassScheme({
-              supabase,
-              house,
-              housePassLabel: passLabel,
-            });
-            allowIncognito = scheme.allow_incognito;
-            canIssue = true;
-          }
-        }
+  let data:
+    | {
+        companyName: string;
+        active: boolean;
+        passId?: string;
+        note?: string;
       }
-    } catch (error) {
-      console.error("Failed to prepare patron pass issuance", error);
-      gateMessage = "We couldn’t load the loyalty scheme for this company.";
+    | null = null;
+
+  if (getPatronPass) {
+    try {
+      data = await getPatronPass(slug);
+    } catch {
+      // fall through to null
     }
   }
 
+  const companyName = data?.companyName ?? slug;
+  const active = !!data?.active;
+  const passId = data?.passId ?? undefined;
+  const note = data?.note ?? undefined;
+
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-8 p-6">
-      <header className="space-y-2">
-        <p className="text-sm text-muted-foreground">{guildName ? `${guildName} · Loyalty` : "Company loyalty"}</p>
-        <h1 className="text-3xl font-semibold text-foreground">Issue {passLabel}</h1>
-        <p className="text-sm text-muted-foreground">
-          Enroll patrons to {houseName}’s loyalty perks. Each pass ties back to the same entity graph.
+    <main className="max-w-3xl mx-auto px-4 py-10 space-y-6">
+      <div className="space-y-1">
+        <h1 className="text-2xl font-semibold">Patron Pass</h1>
+        <p className="text-sm opacity-80">
+          Company: <span className="font-medium">{companyName}</span>
         </p>
-      </header>
+      </div>
 
-      {gateMessage && (
-        <Card>
-          <CardContent className="space-y-2 p-6 text-sm text-muted-foreground">
-            <p>{gateMessage}</p>
-          </CardContent>
-        </Card>
+      {!data && (
+        <div className="rounded-xl border p-4">
+          <p className="mb-2">We couldn’t load the Patron Pass details right now.</p>
+          <ul className="list-disc list-inside text-sm opacity-80">
+            <li>Check if the company exists and has a Patron Pass configured.</li>
+            <li>Try again later or contact support.</li>
+          </ul>
+        </div>
       )}
 
-      {canIssue && (
-        <Card>
-          <CardHeader className="space-y-2">
-            <h2 className="text-xl font-semibold text-foreground">Lookup and issue</h2>
-            <p className="text-sm text-muted-foreground">
-              Search by contact to reuse an existing member record or create a new one on the fly.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <PatronPassForm
-              slug={slug}
-              houseName={houseName}
-              passLabel={passLabel}
-              allowIncognito={allowIncognito}
-            />
-          </CardContent>
-        </Card>
+      {data && (
+        <div className="rounded-xl border p-4 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-sm opacity-80">Status</span>
+            <span
+              className={`text-sm font-medium ${
+                active ? "text-green-600" : "text-amber-600"
+              }`}
+            >
+              {active ? "Active" : "Inactive"}
+            </span>
+          </div>
+          {passId && (
+            <div className="flex items-center justify-between">
+              <span className="text-sm opacity-80">Pass ID</span>
+              <span className="text-sm font-mono">{passId}</span>
+            </div>
+          )}
+          {note && <p className="text-sm opacity-80 pt-2 border-t">{note}</p>}
+        </div>
       )}
-    </div>
+
+      <div className="pt-2">
+        <Link href={`/company/${encodeURIComponent(slug)}`} className="underline">
+          Back to company
+        </Link>
+      </div>
+    </main>
   );
 }
