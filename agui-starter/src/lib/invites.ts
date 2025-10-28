@@ -26,7 +26,7 @@ export type CreateInviteInput = {
   scope: InviteScope;
   guildId?: string | null;
   houseId?: string | null;
-  role: string;
+  roles: string[];
   invitedBy: string;
   expiresAt?: Date;
 };
@@ -42,13 +42,6 @@ function normalizeEmail(email: string): string {
   return trimmed;
 }
 
-function normalizeRole(role: string): string {
-  if (typeof role !== "string" || !role.trim()) {
-    throw new Error("Role is required");
-  }
-  return role.trim();
-}
-
 function generateToken(): string {
   return randomBytes(24).toString("hex");
 }
@@ -56,12 +49,24 @@ function generateToken(): string {
 export async function createInvite(input: CreateInviteInput): Promise<InviteRecord> {
   const svc = getServiceSupabase();
   const token = generateToken();
+  const roles = Array.from(
+    new Set(
+      (input.roles ?? []).map((role) =>
+        typeof role === "string" ? role.trim() : "",
+      ),
+    ),
+  ).filter((role): role is string => role.length > 0);
+
+  if (roles.length === 0) {
+    throw new Error("At least one role is required");
+  }
+
   const payload: Record<string, unknown> = {
     email: normalizeEmail(input.email),
     scope: input.scope,
     guild_id: input.guildId ?? null,
     house_id: input.houseId ?? null,
-    role: normalizeRole(input.role),
+    role: roles.join(","),
     token,
     invited_by: input.invitedBy,
   };
