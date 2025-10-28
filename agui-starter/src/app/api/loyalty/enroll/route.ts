@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { loadZod } from "@/lib/safe-schema";
+import { z } from "zod";
+
+import { stringEnum } from "@/lib/schema-helpers";
 import {
   LOYALTY_CHANNELS,
   LOYALTY_PLANS,
@@ -17,13 +19,12 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { z } = await loadZod();
   const schema = z
     .object({
       memberId: z.string().min(1).optional(),
       phone: z.string().min(1).optional(),
-      channel: z.enum(LOYALTY_CHANNELS).optional(),
-      plan: z.enum(LOYALTY_PLANS).optional(),
+      channel: stringEnum(LOYALTY_CHANNELS, "channel").optional(),
+      plan: stringEnum(LOYALTY_PLANS, "plan").optional(),
       dryRun: z.boolean().optional(),
     })
     .strict()

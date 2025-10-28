@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { loadZod } from "@/lib/safe-schema";
+import { z } from "zod";
+
+import { stringEnum } from "@/lib/schema-helpers";
 import {
   PASS_CHANNELS,
   PASS_TYPES,
@@ -17,33 +19,11 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { z } = await loadZod();
-  const allowedPassTypes = Array.from(PASS_TYPES);
-  const allowedChannels = Array.from(PASS_CHANNELS);
   const schema = z
     .object({
       memberId: z.string().min(1, "memberId is required"),
-      passType: z
-        .string()
-        .refine(
-          (value): value is (typeof PASS_TYPES)[number] =>
-            allowedPassTypes.includes(value),
-          {
-            message: `passType must be one of: ${allowedPassTypes.join(", ")}`,
-          },
-        )
-        .transform((value) => value as (typeof PASS_TYPES)[number]),
-      channel: z
-        .string()
-        .refine(
-          (value): value is (typeof PASS_CHANNELS)[number] =>
-            allowedChannels.includes(value),
-          {
-            message: `channel must be one of: ${allowedChannels.join(", ")}`,
-          },
-        )
-        .transform((value) => value as (typeof PASS_CHANNELS)[number])
-        .optional(),
+      passType: stringEnum(PASS_TYPES, "passType"),
+      channel: stringEnum(PASS_CHANNELS, "channel").optional(),
       expiresInDays: z.number().int().positive().max(365).optional(),
       dryRun: z.boolean().optional(),
     })

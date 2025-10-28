@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
-import { loadZod } from "@/lib/safe-schema";
+import { z } from "zod";
+
+import { stringEnum } from "@/lib/schema-helpers";
 import { INVENTORY_SOURCES, adoptInventory } from "@/lib/inventory/runtime";
 
 export async function POST(req: Request) {
@@ -13,20 +15,9 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const { z } = await loadZod();
-  const allowedSources = Array.from(INVENTORY_SOURCES);
   const schema = z
     .object({
-      source: z
-        .string()
-        .refine(
-          (value): value is (typeof INVENTORY_SOURCES)[number] =>
-            allowedSources.includes(value),
-          {
-            message: `source must be one of: ${allowedSources.join(", ")}`,
-          },
-        )
-        .transform((value) => value as (typeof INVENTORY_SOURCES)[number]),
+      source: stringEnum(INVENTORY_SOURCES, "source"),
       dryRun: z.boolean().optional(),
     })
     .strict();

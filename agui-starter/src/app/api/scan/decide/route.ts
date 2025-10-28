@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { loadZod } from "@/lib/safe-schema";
+import { z } from "zod";
+
 import { decideScan } from "@/lib/scan/runtime";
 
 export async function POST(req: Request) {
@@ -13,7 +14,6 @@ export async function POST(req: Request) {
   }
 
   const payload = await req.json().catch(() => ({}));
-  const { z } = await loadZod();
   const schema = z
     .object({
       type: z.string().min(1, "type is required"),
