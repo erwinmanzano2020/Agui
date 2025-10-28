@@ -27,6 +27,10 @@ class ZodError extends Error {
   }
 }
 
+const ZodIssueCode = Object.freeze({
+  custom: "custom",
+});
+
 function withSafeParse(parse) {
   return (input) => {
     try {
@@ -38,10 +42,39 @@ function withSafeParse(parse) {
       }
       return {
         success: false,
-        error: new ZodError([{ message: error instanceof Error ? error.message : String(error) }]),
+        error: new ZodError([
+          { message: error instanceof Error ? error.message : String(error) },
+        ]),
       };
     }
   };
+}
+
+function wrapValidator(steps, validator) {
+  return [...steps, (value) => {
+    validator(value);
+    return value;
+  }];
+}
+
+function createOptionalSchema(schema) {
+  const parse = (input) => {
+    if (input === undefined) {
+      return undefined;
+    }
+    return schema.parse(input);
+  };
+
+  let base;
+  base = {
+    parse,
+    safeParse: withSafeParse(parse),
+    optional() {
+      return base;
+    },
+  };
+
+  return base;
 }
 
 function createEnum(values) {
@@ -52,55 +85,191 @@ function createEnum(values) {
   const frozen = Object.freeze([...values]);
   const allowed = new Set(frozen);
 
-  function parse(input) {
+  const parse = (input) => {
     if (typeof input === "string" && allowed.has(input)) {
       return input;
     }
-    throw new ZodError(
-      `Invalid enum value. Expected one of: ${frozen.join(", ")}`,
-    );
-  }
+    throw new ZodError([
+      { message: `Invalid enum value. Expected one of: ${frozen.join(", ")}` },
+    ]);
+  };
 
-  return {
+  let base;
+  base = {
     options: frozen,
     parse,
     safeParse: withSafeParse(parse),
-  };
-}
-
-function createString(validators = []) {
-  const parse = (input) => {
-    if (typeof input !== "string") {
-      throw new ZodError([{ message: "Expected string" }]);
-    }
-
-    for (const validator of validators) {
-      validator(input);
-    }
-
-    return input;
-  };
-
-  const base = {
-    parse,
-    safeParse: withSafeParse(parse),
-    min(length, message = `String must contain at least ${length} character(s)`) {
-      return createString([
-        ...validators,
-        (value) => {
-          if (value.length < length) {
-            throw new ZodError([{ message }]);
-          }
-        },
-      ]);
+    optional() {
+      return createOptionalSchema(base);
     },
   };
 
   return base;
 }
 
-function createObject(shape) {
+function createString(steps = []) {
+  const parse = (input) => {
+    if (typeof input !== "string") {
+      throw new ZodError([{ message: "Expected string" }]);
+    }
+
+    let value = input;
+    for (const step of steps) {
+      value = step(value);
+    }
+
+    return value;
+  };
+
+  let base;
+  base = {
+    parse,
+    safeParse: withSafeParse(parse),
+    min(length, message = `String must contain at least ${length} character(s)`) {
+      return createString(
+        wrapValidator(steps, (value) => {
+          if (value.length < length) {
+            throw new ZodError([{ message }]);
+          }
+        }),
+      );
+    },
+    max(length, message = `String must contain at most ${length} character(s)`) {
+      return createString(
+        wrapValidator(steps, (value) => {
+          if (value.length > length) {
+            throw new ZodError([{ message }]);
+          }
+        }),
+      );
+    },
+    trim() {
+      return createString([...steps, (value) => String(value).trim()]);
+    },
+    refine(check, options = {}) {
+      const message = options?.message ?? "Invalid value";
+      return createString(
+        wrapValidator(steps, (value) => {
+          if (!check(value)) {
+            throw new ZodError([{ message }]);
+          }
+        }),
+      );
+    },
+    transform(transformer) {
+      return createString([...steps, (value) => transformer(value)]);
+    },
+    optional() {
+      return createOptionalSchema(base);
+    },
+  };
+
+  return base;
+}
+
+function createNumber(steps = []) {
+  const parse = (input) => {
+    if (typeof input !== "number" || Number.isNaN(input)) {
+      throw new ZodError([{ message: "Expected number" }]);
+    }
+
+    let value = input;
+    for (const step of steps) {
+      value = step(value);
+    }
+
+    return value;
+  };
+
+  let base;
+  base = {
+    parse,
+    safeParse: withSafeParse(parse),
+    min(minValue, message = `Number must be greater than or equal to ${minValue}`) {
+      return createNumber(
+        wrapValidator(steps, (value) => {
+          if (value < minValue) {
+            throw new ZodError([{ message }]);
+          }
+        }),
+      );
+    },
+    max(maxValue, message = `Number must be less than or equal to ${maxValue}`) {
+      return createNumber(
+        wrapValidator(steps, (value) => {
+          if (value > maxValue) {
+            throw new ZodError([{ message }]);
+          }
+        }),
+      );
+    },
+    int(message = "Expected integer") {
+      return createNumber(
+        wrapValidator(steps, (value) => {
+          if (!Number.isInteger(value)) {
+            throw new ZodError([{ message }]);
+          }
+        }),
+      );
+    },
+    positive(message = "Number must be greater than 0") {
+      return createNumber(
+        wrapValidator(steps, (value) => {
+          if (value <= 0) {
+            throw new ZodError([{ message }]);
+          }
+        }),
+      );
+    },
+    optional() {
+      return createOptionalSchema(base);
+    },
+  };
+
+  return base;
+}
+
+function createBoolean() {
+  const parse = (input) => {
+    if (typeof input !== "boolean") {
+      throw new ZodError([{ message: "Expected boolean" }]);
+    }
+    return input;
+  };
+
+  let base;
+  base = {
+    parse,
+    safeParse: withSafeParse(parse),
+    optional() {
+      return createOptionalSchema(base);
+    },
+  };
+
+  return base;
+}
+
+function createUnknown() {
+  const parse = (input) => input;
+
+  let base;
+  base = {
+    parse,
+    safeParse: withSafeParse(parse),
+    optional() {
+      return createOptionalSchema(base);
+    },
+  };
+
+  return base;
+}
+
+function createObject(shape, config = {}) {
   const keys = Object.keys(shape ?? {});
+  const strict = Boolean(config.strict);
+  const superRefines = Array.isArray(config.superRefines)
+    ? config.superRefines
+    : [];
 
   const parse = (input) => {
     if (typeof input !== "object" || input === null || Array.isArray(input)) {
@@ -135,6 +304,33 @@ function createObject(shape) {
       }
     }
 
+    if (strict) {
+      for (const key of Object.keys(input)) {
+        if (!keys.includes(key)) {
+          issues.push({
+            message: `Unrecognized key: ${key}`,
+            path: [key],
+          });
+        }
+      }
+    }
+
+    if (superRefines.length > 0) {
+      const ctx = {
+        addIssue(issue = {}) {
+          issues.push({
+            message: issue.message ?? "Invalid input",
+            path: Array.isArray(issue.path) ? issue.path : [],
+            code: issue.code ?? ZodIssueCode.custom,
+          });
+        },
+      };
+
+      for (const refiner of superRefines) {
+        refiner(result, ctx);
+      }
+    }
+
     if (issues.length > 0) {
       throw new ZodError(issues);
     }
@@ -142,10 +338,22 @@ function createObject(shape) {
     return result;
   };
 
-  return {
+  let base;
+  base = {
     parse,
     safeParse: withSafeParse(parse),
+    strict() {
+      return createObject(shape, { strict: true, superRefines });
+    },
+    superRefine(refiner) {
+      return createObject(shape, {
+        strict,
+        superRefines: [...superRefines, refiner],
+      });
+    },
   };
+
+  return base;
 }
 
 const z = {
@@ -155,12 +363,25 @@ const z = {
   string() {
     return createString();
   },
+  number() {
+    return createNumber();
+  },
+  boolean() {
+    return createBoolean();
+  },
+  unknown() {
+    return createUnknown();
+  },
   object(shape) {
     return createObject(shape);
   },
+  ZodIssueCode,
 };
+
+z.ZodIssueCode = ZodIssueCode;
 
 module.exports = {
   z,
   ZodError,
+  ZodIssueCode,
 };

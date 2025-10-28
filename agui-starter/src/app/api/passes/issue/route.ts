@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 
 import { z as Z } from "zod";
 
-import { stringEnum } from "@/lib/schema-helpers";
 import {
   PASS_CHANNELS,
   PASS_TYPES,
@@ -22,8 +21,8 @@ export async function POST(req: Request) {
   const schema = Z
     .object({
       memberId: Z.string().min(1, "memberId is required"),
-      passType: stringEnum(PASS_TYPES, "passType"),
-      channel: stringEnum(PASS_CHANNELS, "channel").optional(),
+      passType: Z.enum(PASS_TYPES),
+      channel: Z.enum(PASS_CHANNELS).optional(),
       expiresInDays: Z.number().int().positive().max(365).optional(),
       dryRun: Z.boolean().optional(),
     })

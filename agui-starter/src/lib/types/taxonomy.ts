@@ -1,14 +1,14 @@
-import { z } from "zod";
+import { z as Z } from "zod";
 
-export const EntityIdentifierType = z.enum(["EMAIL", "PHONE"]);
-export type EntityIdentifierType = z.infer<typeof EntityIdentifierType>;
+export const EntityIdentifierType = Z.enum(["EMAIL", "PHONE"]);
+export type EntityIdentifierType = (typeof EntityIdentifierType)["options"][number];
 export const entityIdentifierTypeValues = EntityIdentifierType.options;
 
-export const GuildType = z.enum(["MERCHANT", "ADVENTURER", "APOTHECARY"]);
-export type GuildType = z.infer<typeof GuildType>;
+export const GuildType = Z.enum(["MERCHANT", "ADVENTURER", "APOTHECARY"]);
+export type GuildType = (typeof GuildType)["options"][number];
 export const guildTypeValues = GuildType.options;
 
-export const HouseType = z.enum([
+export const HouseType = Z.enum([
   "RETAIL",
   "MANUFACTURER",
   "BRAND",
@@ -16,16 +16,16 @@ export const HouseType = z.enum([
   "WHOLESALE",
   "DISTRIBUTOR",
 ]);
-export type HouseType = z.infer<typeof HouseType>;
+export type HouseType = (typeof HouseType)["options"][number];
 export const houseTypeValues = HouseType.options;
 
-export const PartyScope = z.enum(["GUILD", "HOUSE"]);
-export type PartyScope = z.infer<typeof PartyScope>;
+export const PartyScope = Z.enum(["GUILD", "HOUSE"]);
+export type PartyScope = (typeof PartyScope)["options"][number];
 
-export const AllianceRole = z.enum(["alliance_lord", "alliance_steward", "alliance_member"]);
-export type AllianceRole = z.infer<typeof AllianceRole>;
+export const AllianceRole = Z.enum(["alliance_lord", "alliance_steward", "alliance_member"]);
+export type AllianceRole = (typeof AllianceRole)["options"][number];
 
-export const GuildRole = z.enum([
+export const GuildRole = Z.enum([
   "guild_master",
   "guild_elder",
   "staff",
@@ -36,10 +36,10 @@ export const GuildRole = z.enum([
   "agui_user",
   "guild_member",
 ]);
-export type GuildRole = z.infer<typeof GuildRole>;
+export type GuildRole = (typeof GuildRole)["options"][number];
 
-export const HouseRole = z.enum(["house_owner", "house_manager", "house_staff"]);
-export type HouseRole = z.infer<typeof HouseRole>;
+export const HouseRole = Z.enum(["house_owner", "house_manager", "house_staff"]);
+export type HouseRole = (typeof HouseRole)["options"][number];
 
 export type JsonValue =
   | string

@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 
 import { z as Z } from "zod";
 
-import { stringEnum } from "@/lib/schema-helpers";
 import { INVENTORY_SOURCES, adoptInventory } from "@/lib/inventory/runtime";
 
 export async function POST(req: Request) {
@@ -17,7 +16,7 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => ({}));
   const schema = Z
     .object({
-      source: stringEnum(INVENTORY_SOURCES, "source"),
+      source: Z.enum(INVENTORY_SOURCES),
       dryRun: Z.boolean().optional(),
     })
     .strict();
