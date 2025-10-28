@@ -1,51 +1,89 @@
 import { NextResponse } from "next/server";
-import { resolveScan } from "@/lib/scan/resolve";
-import { getSupabase } from "@/lib/supabase";
-import { getCurrentEntity } from "@/lib/auth/entity";
-import { authorizeScanContext, parseScanContext } from "@/lib/scan/context";
 
-type ResolveScanBody = {
-  token?: string;
-  context?: unknown;
+type ResolveReq = {
+  type?: string;
+  payload?: unknown;
+  companyId?: string;
 };
 
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as ResolveScanBody;
-  const { token, context } = body;
-
-  if (!token) {
-    return NextResponse.json({ error: "token required" }, { status: 400 });
+  const contentType = req.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    return NextResponse.json(
+      { ok: false, error: "Expected application/json" },
+      { status: 400 }
+    );
   }
 
-  const supabase = getSupabase();
-  if (!supabase) {
-    return NextResponse.json({ error: "Supabase unavailable" }, { status: 503 });
+  let body: ResolveReq;
+  try {
+    body = (await req.json()) as ResolveReq;
+  } catch {
+    return NextResponse.json(
+      { ok: false, error: "Invalid JSON body" },
+      { status: 400 }
+    );
   }
 
-  const actor = await getCurrentEntity({ supabase });
-  if (!actor) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
+  const type = isNonEmptyString(body.type) ? body.type.trim().toUpperCase() : "";
+  const companyId = isNonEmptyString(body.companyId)
+    ? body.companyId.trim()
+    : undefined;
+  const payload = body.payload;
+
+  if (!type) {
+    return NextResponse.json(
+      { ok: false, error: "Missing 'type'" },
+      { status: 400 }
+    );
   }
 
-  const parsedContext = parseScanContext(context);
-  const authorization = await authorizeScanContext({
-    supabase,
-    actorId: actor.id,
-    context: parsedContext,
-  });
-
-  if (!authorization.ok) {
-    return NextResponse.json({ error: authorization.error }, { status: authorization.status });
+  if (payload === undefined || payload === null) {
+    return NextResponse.json(
+      { ok: false, error: "Missing 'payload'" },
+      { status: 400 }
+    );
   }
 
-  const result = await resolveScan({
-    rawToken: token,
-    context: authorization.context,
-    actorEntityId: actor.id,
-  });
+  let resolved:
+    | { entity: "PRODUCT" | "CUSTOMER" | "PASS" | "UNKNOWN"; ref?: string }
+    | undefined;
 
-  const { tokenId: _tokenId, resolvedCardId: _resolvedCardId, ...payload } = result;
-  void _tokenId;
-  void _resolvedCardId;
-  return NextResponse.json(payload);
+  if (type === "BARCODE" && typeof payload === "string") {
+    resolved = { entity: "PRODUCT", ref: payload.slice(0, 64) };
+  } else if (type === "QRCODE" && typeof payload === "string") {
+    if (payload.startsWith("PASS:")) {
+      resolved = { entity: "PASS", ref: payload.substring(5, 69) };
+    } else if (payload.startsWith("CUST:")) {
+      resolved = { entity: "CUSTOMER", ref: payload.substring(5, 69) };
+    }
+  }
+
+  if (!resolved) {
+    resolved = { entity: "UNKNOWN" };
+  }
+
+  return NextResponse.json(
+    {
+      ok: true,
+      result: {
+        decidedAt: new Date().toISOString(),
+        companyId,
+        type,
+        resolved,
+      },
+    },
+    { status: 200 }
+  );
+}
+
+export async function GET() {
+  return NextResponse.json(
+    { ok: false, error: "Use POST /api/scan/resolve with JSON body" },
+    { status: 405 }
+  );
 }
