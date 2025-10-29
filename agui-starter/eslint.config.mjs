@@ -87,6 +87,12 @@ const eslintConfig = [
               name: "@/lib/validation/zod",
               message: "Import Zod directly from 'zod' within clock modules to avoid SSR bundling issues.",
             },
+            {
+              name: "zod",
+              importKind: "type",
+              message:
+                "Clock modules must use value imports from 'zod'; avoid type-only bindings that disappear at runtime.",
+            },
           ],
           patterns: [
             {
