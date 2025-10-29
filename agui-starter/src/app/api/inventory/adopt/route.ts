@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { z } from "zod";
+import { z } from "@/lib/z";
 
 import { INVENTORY_SOURCES, adoptInventory } from "@/lib/inventory/runtime";
 import { stringEnum } from "@/lib/schema-helpers";

@@ -4,7 +4,7 @@ import { getCurrentEntity } from "@/lib/auth/entity";
 import { recordScanEvent, resolveScanByToken, resolveScanByTokenId, type ScanResolution } from "@/lib/passes/scan";
 import { getSupabase } from "@/lib/supabase";
 import { loadHouseBySlug } from "@/lib/taxonomy/houses-server";
-import { z } from "zod";
+import { z } from "@/lib/z";
 import { stringEnum } from "@/lib/schema-helpers";
 import {
   INITIAL_CLOCK_SCAN_STATE,

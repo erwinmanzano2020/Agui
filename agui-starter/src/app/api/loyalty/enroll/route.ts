@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { z } from "zod";
+import { z } from "@/lib/z";
 
 import { LOYALTY_CHANNELS, LOYALTY_PLANS, enrollMember } from "@/lib/loyalty/runtime";
 import { stringEnum } from "@/lib/schema-helpers";

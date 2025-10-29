@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { z } from "zod";
+import { z } from "@/lib/z";
 
 import { resolveScan } from "@/lib/scan/runtime";
 

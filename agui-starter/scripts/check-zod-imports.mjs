@@ -30,9 +30,9 @@ const schemaHints = [
   "z.intersection("
 ];
 
-const typeOnlyImportRe = /import\s+type\s+(?:\*\s+as\s+z|\{[^}]*\bz\b[^}]*\})\s+from\s+[\"']zod[\"'];?/;
-const valueImportRe = /import\s*\{\s*z\s*\}\s*from\s*[\"']zod[\"'];?/;
-const namespaceImportRe = /import\s*\*\s+as\s+\w+\s*from\s*[\"']zod[\"'];?/;
+const typeOnlyImportRe = /import\s+type\s+(?:\*\s+as\s+z|\{[^}]*\bz\b[^}]*\})\s+from\s*[\"'](?:zod|@\/lib\/z)[\"'];?/;
+const valueImportRe = /import\s*\{\s*z\s*\}\s*from\s*[\"'](?:zod|@\/lib\/z)[\"'];?/;
+const namespaceImportRe = /import\s*\*\s+as\s+\w+\s*from\s*[\"'](?:zod|@\/lib\/z)[\"'];?/;
 const riskyBarrelRe = /export\s+(?:\*\s+as\s+\w+|\{\s*z\s*\}|\*)\s+from\s*[\"']zod[\"']/;
 
 const offenders = [];
@@ -54,13 +54,17 @@ walkDir(srcDir, (filePath) => {
   if (hasNamespaceImport) {
     offenders.push({
       filePath,
-      message: "imports zod via `import * as … from \"zod\"`; use `import { z } from \"zod\"` instead",
+      message:
+        "imports zod via `import * as …`; use `import { z } from \"@/lib/z\"` (or directly from \"zod\") instead",
     });
     return;
   }
 
   if (!hasValueImport) {
-    offenders.push({ filePath, message: "constructs zod schema but is missing `import { z } from \"zod\"`" });
+    offenders.push({
+      filePath,
+      message: "constructs zod schema but is missing `import { z } from \"@/lib/z\"`",
+    });
   }
 });
 
@@ -87,7 +91,7 @@ if (offenders.length || barrelOffenders.length) {
     for (const filePath of barrelOffenders) {
       console.error(`  - ${path.relative(projectRoot, filePath)}`);
     }
-    console.error("\nFix: import { z } from \"zod\" only at usage sites.");
+    console.error("\nFix: import { z } from \"@/lib/z\" (or directly from \"zod\") only at usage sites.");
   }
   process.exit(1);
 }

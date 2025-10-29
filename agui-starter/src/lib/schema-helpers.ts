@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from "@/lib/z";
 import type { ZodEnum } from "zod";
 
 /** Builds a string enum validator from a readonly tuple of values. */

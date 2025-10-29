@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { z } from "zod";
+import { z } from "@/lib/z";
 
 import { PASS_CHANNELS, PASS_TYPES, issuePass } from "@/lib/passes/runtime";
 import { stringEnum } from "@/lib/schema-helpers";
