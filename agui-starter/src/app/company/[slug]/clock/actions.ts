@@ -4,7 +4,7 @@ import { getCurrentEntity } from "@/lib/auth/entity";
 import { recordScanEvent, resolveScanByToken, resolveScanByTokenId, type ScanResolution } from "@/lib/passes/scan";
 import { getSupabase } from "@/lib/supabase";
 import { loadHouseBySlug } from "@/lib/taxonomy/houses-server";
-import * as Z from "zod";
+import { z } from "zod";
 import {
   INITIAL_CLOCK_SCAN_STATE,
   type ClockScanEvent,
@@ -12,19 +12,16 @@ import {
   type ClockScanState,
 } from "./state";
 
-if (process.env.NODE_ENV !== "production" && typeof Z?.string !== "function") {
+if (process.env.NODE_ENV !== "production" && typeof z?.string !== "function") {
   throw new Error(
-    "Zod import for /company/[slug]/clock/actions.ts is misconfigured. Use `import * as Z from \"zod\"`.",
+    "Zod import for /company/[slug]/clock/actions.ts is misconfigured. Use `import { z } from \"zod\"`.",
   );
 }
 
 const MODE_VALUES = ["resolve", "reset", "override-lower", "lift-incognito"] as const;
-const stringEnum = <T extends readonly [string, ...string[]]>(values: T, label = "value") =>
-  Z.enum(values, {
-    errorMap: () => ({ message: `${label} must be one of: ${values.join(", ")}` }),
-  });
+const stringEnum = <T extends readonly [string, ...string[]]>(values: T) => z.enum(values);
 
-const ModeSchema = stringEnum(MODE_VALUES, "mode");
+const ModeSchema = stringEnum(MODE_VALUES);
 type ClockMode = (typeof MODE_VALUES)[number];
 const DEFAULT_MODE: ClockMode = "resolve";
 

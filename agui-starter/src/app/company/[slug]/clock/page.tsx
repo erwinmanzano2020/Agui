@@ -5,12 +5,12 @@ import { AppFeature } from "@/lib/auth/permissions";
 import { loadHouseBySlug } from "@/lib/taxonomy/houses-server";
 import { loadUiTerms } from "@/lib/ui-terms";
 import { requireAuth } from "@/lib/auth/require-auth";
-import * as Z from "zod";
+import { z } from "zod";
 import ScanHUD from "./scan-hud";
 
-if (process.env.NODE_ENV !== "production" && typeof Z?.string !== "function") {
+if (process.env.NODE_ENV !== "production" && typeof z?.object !== "function") {
   throw new Error(
-    "Zod import for /company/[slug]/clock/page.tsx is misconfigured. Use `import * as Z from \"zod\"`.",
+    "Zod import for /company/[slug]/clock/page.tsx is misconfigured. Use `import { z } from \"zod\"`.",
   );
 }
 
