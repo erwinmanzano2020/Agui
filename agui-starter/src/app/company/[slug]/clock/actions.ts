@@ -5,6 +5,7 @@ import { recordScanEvent, resolveScanByToken, resolveScanByTokenId, type ScanRes
 import { getSupabase } from "@/lib/supabase";
 import { loadHouseBySlug } from "@/lib/taxonomy/houses-server";
 import { z } from "zod";
+import { stringEnum } from "@/lib/schema-helpers";
 import {
   INITIAL_CLOCK_SCAN_STATE,
   type ClockScanEvent,
@@ -19,8 +20,6 @@ if (process.env.NODE_ENV !== "production" && typeof z?.string !== "function") {
 }
 
 const MODE_VALUES = ["resolve", "reset", "override-lower", "lift-incognito"] as const;
-const stringEnum = <T extends readonly [string, ...string[]]>(values: T) => z.enum(values);
-
 const ModeSchema = stringEnum(MODE_VALUES);
 type ClockMode = (typeof MODE_VALUES)[number];
 const DEFAULT_MODE: ClockMode = "resolve";

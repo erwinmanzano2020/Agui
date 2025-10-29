@@ -388,4 +388,7 @@ const api = {
 };
 
 module.exports = api;
+module.exports.z = z;
+module.exports.ZodError = ZodError;
+module.exports.ZodIssueCode = ZodIssueCode;
 module.exports.default = api;
