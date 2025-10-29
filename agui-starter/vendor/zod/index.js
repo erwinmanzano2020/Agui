@@ -380,8 +380,12 @@ const z = {
 
 z.ZodIssueCode = ZodIssueCode;
 
-module.exports = {
+const api = {
+  ...z,
   z,
   ZodError,
   ZodIssueCode,
 };
+
+module.exports = api;
+module.exports.default = api;

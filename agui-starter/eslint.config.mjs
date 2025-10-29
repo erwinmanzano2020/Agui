@@ -28,26 +28,32 @@ const eslintConfig = [
         {
           paths: [
             {
-              name: "zod",
-              importNames: ["default"],
-              message: "Do not default-import Zod. Use `import { z as Z } from \"zod\"`.",
-            },
-            {
               name: "@/lib/schema-helpers",
               importNames: ["z"],
-              message: "Do not import `z` from helpers; use `import { z as Z } from \"zod\"`.",
+              message: "Do not import `z` from helpers; use the canonical `import * as Z from \"zod\"`.",
             },
           ],
           patterns: [
             {
               group: ["@/**"],
               importNames: ["z"],
-              message: "Never import `z` from app barrels; always import the canonical namespace from \"zod\".",
+              message: "Never import a `z` symbol from app barrels; always import the namespace from \"zod\".",
             },
           ],
         },
       ],
       "no-restricted-globals": ["error", "z"],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "ImportDeclaration[source.value='zod'] ImportDefaultSpecifier",
+          message: "Always import the Zod namespace with `import * as Z from \"zod\"`.",
+        },
+        {
+          selector: "ImportDeclaration[source.value='zod'] ImportSpecifier[imported.name='z']",
+          message: "Always import the Zod namespace with `import * as Z from \"zod\"`.",
+        },
+      ],
     },
   },
   {

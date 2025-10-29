@@ -50,6 +50,8 @@ export interface ZodObject<Shape extends ZodObjectShape> extends ZodType<ZodObje
   ): ZodObject<Shape>;
 }
 
+declare const ZodIssueCodeMap: { custom: "custom" };
+
 export declare const z: {
   enum<T extends readonly [string, ...string[]]>(values: T): ZodEnum<T>;
   string(): ZodString;
@@ -57,10 +59,34 @@ export declare const z: {
   boolean(): ZodBoolean;
   unknown(): ZodUnknown;
   object<Shape extends ZodObjectShape>(shape: Shape): ZodObject<Shape>;
-  ZodIssueCode: { custom: "custom" };
+  ZodIssueCode: typeof ZodIssueCodeMap;
 };
 
 export declare namespace z {
   type infer<T extends ZodType<any>> = T extends ZodType<infer U> ? U : never;
-  const ZodIssueCode: { custom: "custom" };
+  const ZodIssueCode: typeof ZodIssueCodeMap;
 }
+
+declare const exported: typeof z & {
+  z: typeof z;
+  ZodError: typeof ZodError;
+  ZodIssueCode: typeof ZodIssueCodeMap;
+};
+
+declare const enumFn: typeof z.enum;
+declare const stringFn: typeof z.string;
+declare const numberFn: typeof z.number;
+declare const booleanFn: typeof z.boolean;
+declare const unknownFn: typeof z.unknown;
+declare const objectFn: typeof z.object;
+
+export { ZodError, ZodIssueCodeMap as ZodIssueCode };
+export { z };
+export { enumFn as enum };
+export { stringFn as string };
+export { numberFn as number };
+export { booleanFn as boolean };
+export { unknownFn as unknown };
+export { objectFn as object };
+
+export default exported;

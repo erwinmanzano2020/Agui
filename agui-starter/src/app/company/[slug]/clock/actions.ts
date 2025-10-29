@@ -1,6 +1,6 @@
 "use server";
 
-import { z as Z } from "zod";
+import * as Z from "zod";
 
 import { getCurrentEntity } from "@/lib/auth/entity";
 import { recordScanEvent, resolveScanByToken, resolveScanByTokenId, type ScanResolution } from "@/lib/passes/scan";
@@ -16,7 +16,7 @@ import {
 
 if (process.env.NODE_ENV !== "production" && typeof Z?.string !== "function") {
   throw new Error(
-    "Zod import for /company/[slug]/clock/actions.ts is misconfigured. Use the named import from 'zod'.",
+    "Zod import for /company/[slug]/clock/actions.ts is misconfigured. Use `import * as Z from \"zod\"`.",
   );
 }
 

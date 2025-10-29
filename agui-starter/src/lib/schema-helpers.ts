@@ -1,4 +1,4 @@
-import { z as Z } from "zod";
+import * as Z from "zod";
 import type { ZodString } from "zod";
 
 /**

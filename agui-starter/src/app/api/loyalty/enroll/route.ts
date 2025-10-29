@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { z as Z } from "zod";
+import * as Z from "zod";
 
 import {
   LOYALTY_CHANNELS,
@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const schema = Z
+  const baseSchema = Z
     .object({
       memberId: Z.string().min(1).optional(),
       phone: Z.string().min(1).optional(),
@@ -27,16 +27,20 @@ export async function POST(req: Request) {
       plan: stringEnum(LOYALTY_PLANS, "plan").optional(),
       dryRun: Z.boolean().optional(),
     })
-    .strict()
-    .superRefine((value, ctx) => {
-      if (!value.memberId && !value.phone) {
-        ctx.addIssue({
-          code: Z.ZodIssueCode.custom,
-          message: "Provide at least one identifier: memberId or phone",
-          path: ["memberId"],
-        });
-      }
-    });
+    .strict();
+
+  type LoyaltyInput = ReturnType<(typeof baseSchema)["parse"]>;
+  type SuperRefineContext = Parameters<(typeof baseSchema)["superRefine"]>[1];
+
+  const schema = baseSchema.superRefine((value: LoyaltyInput, ctx: SuperRefineContext) => {
+    if (!value.memberId && !value.phone) {
+      ctx.addIssue({
+        code: Z.ZodIssueCode.custom,
+        message: "Provide at least one identifier: memberId or phone",
+        path: ["memberId"],
+      });
+    }
+  });
 
   const parsed = schema.safeParse(body);
   if (!parsed.success) {

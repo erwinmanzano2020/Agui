@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { z as Z } from "zod";
+import * as Z from "zod";
 
 import {
   PASS_CHANNELS,
