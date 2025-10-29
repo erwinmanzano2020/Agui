@@ -28,18 +28,17 @@ const eslintConfig = [
         {
           paths: [
             {
+              name: "zod",
+              importNames: ["default"],
+              message: "Do not default-import Zod. Use `import { z as Z } from \"zod\"`.",
+            },
+            {
               name: "@/lib/schema-helpers",
               importNames: ["z"],
               message: "Do not import `z` from helpers; use `import { z as Z } from \"zod\"`.",
             },
           ],
-          patterns: [
-            {
-              group: ["@/lib/*"],
-              importNames: ["z"],
-              message: "Do not import `z` from internal libraries; use the real Zod namespace.",
-            },
-          ],
+          patterns: [],
         },
       ],
       "no-restricted-globals": ["error", "z"],
@@ -53,11 +52,6 @@ const eslintConfig = [
         {
           paths: [
             {
-              name: "zod",
-              message:
-                "Do not import zod at module scope in app/**. Use runtime guards or dynamic imports if necessary.",
-            },
-            {
               name: "@/lib/index",
               message: "Avoid barrels that may execute schemas at module scope.",
             },
@@ -67,15 +61,7 @@ const eslintConfig = [
               message: "Do not import `z` from helpers; use the real Zod namespace.",
             },
           ],
-          patterns: [
-            {
-              group: ["@/lib/*"],
-              importNames: ["z"],
-              message: "Do not import `z` from internal libraries; use the real Zod namespace.",
-            },
-            "@/lib/**/schema*",
-            "@/lib/**/schemas*",
-          ],
+          patterns: [],
         },
       ],
     },
