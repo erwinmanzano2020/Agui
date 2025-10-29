@@ -8,7 +8,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import { z as Z } from "zod";
 import ScanHUD from "./scan-hud";
 
-if (process.env.NODE_ENV !== "production" && typeof Z?.enum !== "function") {
+if (process.env.NODE_ENV !== "production" && typeof Z?.string !== "function") {
   throw new Error(
     "Zod import for /company/[slug]/clock/page.tsx is misconfigured. Use the named import from 'zod'.",
   );

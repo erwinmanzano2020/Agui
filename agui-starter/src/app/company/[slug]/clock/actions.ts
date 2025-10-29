@@ -6,6 +6,7 @@ import { getCurrentEntity } from "@/lib/auth/entity";
 import { recordScanEvent, resolveScanByToken, resolveScanByTokenId, type ScanResolution } from "@/lib/passes/scan";
 import { getSupabase } from "@/lib/supabase";
 import { loadHouseBySlug } from "@/lib/taxonomy/houses-server";
+import { stringEnum } from "@/lib/schema-helpers";
 import {
   INITIAL_CLOCK_SCAN_STATE,
   type ClockScanEvent,
@@ -13,14 +14,14 @@ import {
   type ClockScanState,
 } from "./state";
 
-if (process.env.NODE_ENV !== "production" && typeof Z?.enum !== "function") {
+if (process.env.NODE_ENV !== "production" && typeof Z?.string !== "function") {
   throw new Error(
     "Zod import for /company/[slug]/clock/actions.ts is misconfigured. Use the named import from 'zod'.",
   );
 }
 
 const MODE_VALUES = ["resolve", "reset", "override-lower", "lift-incognito"] as const;
-const ModeSchema = Z.enum(MODE_VALUES);
+const ModeSchema = stringEnum(MODE_VALUES, "mode");
 type ClockMode = (typeof MODE_VALUES)[number];
 const DEFAULT_MODE: ClockMode = "resolve";
 

@@ -40,9 +40,9 @@ const eslintConfig = [
           ],
           patterns: [
             {
-              group: ["@/lib/**"],
+              group: ["@/**"],
               importNames: ["z"],
-              message: "Never import `z` from internal libraries; use the canonical Zod namespace.",
+              message: "Never import `z` from app barrels; always import the canonical namespace from \"zod\".",
             },
           ],
         },
