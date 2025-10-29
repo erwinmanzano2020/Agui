@@ -21,6 +21,31 @@ const eslintConfig = [
     ],
   },
   {
+    files: ["**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/lib/schema-helpers",
+              importNames: ["z"],
+              message: "Do not import `z` from helpers; use `import { z as Z } from \"zod\"`.",
+            },
+          ],
+          patterns: [
+            {
+              group: ["@/lib/*"],
+              importNames: ["z"],
+              message: "Do not import `z` from internal libraries; use the real Zod namespace.",
+            },
+          ],
+        },
+      ],
+      "no-restricted-globals": ["error", "z"],
+    },
+  },
+  {
     files: ["src/app/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-imports": [
@@ -36,8 +61,21 @@ const eslintConfig = [
               name: "@/lib/index",
               message: "Avoid barrels that may execute schemas at module scope.",
             },
+            {
+              name: "@/lib/schema-helpers",
+              importNames: ["z"],
+              message: "Do not import `z` from helpers; use the real Zod namespace.",
+            },
           ],
-          patterns: ["@/lib/**/schema*", "@/lib/**/schemas*"],
+          patterns: [
+            {
+              group: ["@/lib/*"],
+              importNames: ["z"],
+              message: "Do not import `z` from internal libraries; use the real Zod namespace.",
+            },
+            "@/lib/**/schema*",
+            "@/lib/**/schemas*",
+          ],
         },
       ],
     },
@@ -45,20 +83,36 @@ const eslintConfig = [
   {
     files: ["src/app/company/[slug]/patron-pass/page.tsx"],
     rules: {
-      "no-restricted-imports": ["error", {
-        paths: [
-          { name: "zod", message: "Do not import zod in this SSR page. Use runtime guards or dynamic import." },
-          { name: "@/lib/index", message: "Avoid barrel imports that may execute schemas at module scope." }
-        ],
-        patterns: ["@/lib/**/schema*", "@/lib/**/schemas*"]
-      }]
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "zod",
+              message: "Do not import zod in this SSR page. Use runtime guards or dynamic import.",
+            },
+            {
+              name: "@/lib/index",
+              message: "Avoid barrel imports that may execute schemas at module scope.",
+            },
+            {
+              name: "@/lib/schema-helpers",
+              importNames: ["z"],
+              message: "Do not import `z` from helpers; use the real Zod namespace.",
+            },
+          ],
+          patterns: [
+            {
+              group: ["@/lib/*"],
+              importNames: ["z"],
+              message: "Do not import `z` from internal libraries; use the real Zod namespace.",
+            },
+            "@/lib/**/schema*",
+            "@/lib/**/schemas*",
+          ],
+        },
+      ]
     }
-  },
-  {
-    files: ["src/app/api/**/*.{ts,tsx}"],
-    rules: {
-      "no-restricted-imports": "off",
-    },
   },
 ];
 

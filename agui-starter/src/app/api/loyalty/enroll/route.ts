@@ -7,6 +7,7 @@ import {
   LOYALTY_PLANS,
   enrollMember,
 } from "@/lib/loyalty/runtime";
+import { stringEnum } from "@/lib/schema-helpers";
 
 export async function POST(req: Request) {
   const contentType = req.headers.get("content-type") || "";
@@ -22,8 +23,8 @@ export async function POST(req: Request) {
     .object({
       memberId: Z.string().min(1).optional(),
       phone: Z.string().min(1).optional(),
-      channel: Z.enum(LOYALTY_CHANNELS).optional(),
-      plan: Z.enum(LOYALTY_PLANS).optional(),
+      channel: stringEnum(LOYALTY_CHANNELS, "channel").optional(),
+      plan: stringEnum(LOYALTY_PLANS, "plan").optional(),
       dryRun: Z.boolean().optional(),
     })
     .strict()

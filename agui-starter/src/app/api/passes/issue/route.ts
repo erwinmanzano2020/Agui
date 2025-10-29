@@ -7,6 +7,7 @@ import {
   PASS_TYPES,
   issuePass,
 } from "@/lib/passes/runtime";
+import { stringEnum } from "@/lib/schema-helpers";
 
 export async function POST(req: Request) {
   const contentType = req.headers.get("content-type") || "";
@@ -21,8 +22,8 @@ export async function POST(req: Request) {
   const schema = Z
     .object({
       memberId: Z.string().min(1, "memberId is required"),
-      passType: Z.enum(PASS_TYPES),
-      channel: Z.enum(PASS_CHANNELS).optional(),
+      passType: stringEnum(PASS_TYPES, "passType"),
+      channel: stringEnum(PASS_CHANNELS, "channel").optional(),
       expiresInDays: Z.number().int().positive().max(365).optional(),
       dryRun: Z.boolean().optional(),
     })
