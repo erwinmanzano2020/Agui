@@ -32,8 +32,8 @@ const schemaHints = [
 
 const typeOnlyImportRe = /import\s+type\s+(?:\*\s+as\s+z|\{[^}]*\bz\b[^}]*\})\s+from\s+[\"']zod[\"'];?/;
 const valueImportRe = /import\s*\{\s*z\s*\}\s*from\s*[\"']zod[\"'];?/;
-const namespaceImportRe = /import\s*\*\s+as\s+z\s*from\s*[\"']zod[\"'];?/;
-const riskyBarrelRe = /export\s+(?:\*\s+as\s+z|\{\s*z\s*\}|\*)\s+from\s*[\"']zod[\"']/;
+const namespaceImportRe = /import\s*\*\s+as\s+\w+\s*from\s*[\"']zod[\"'];?/;
+const riskyBarrelRe = /export\s+(?:\*\s+as\s+\w+|\{\s*z\s*\}|\*)\s+from\s*[\"']zod[\"']/;
 
 const offenders = [];
 
@@ -42,11 +42,20 @@ walkDir(srcDir, (filePath) => {
   const text = fs.readFileSync(filePath, "utf8");
   const buildsSchema = schemaHints.some((hint) => text.includes(hint));
   if (!buildsSchema) return;
-  const hasValueImport = valueImportRe.test(text) || namespaceImportRe.test(text);
+  const hasNamespaceImport = namespaceImportRe.test(text);
+  const hasValueImport = valueImportRe.test(text);
   const hasTypeOnlyImport = typeOnlyImportRe.test(text);
 
   if (hasTypeOnlyImport) {
     offenders.push({ filePath, message: "uses type-only zod import in a schema-building file" });
+    return;
+  }
+
+  if (hasNamespaceImport) {
+    offenders.push({
+      filePath,
+      message: "imports zod via `import * as … from \"zod\"`; use `import { z } from \"zod\"` instead",
+    });
     return;
   }
 

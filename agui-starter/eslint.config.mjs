@@ -45,6 +45,30 @@ const eslintConfig = [
       "no-restricted-syntax": [
         "error",
         {
+          selector:
+            "ImportDeclaration[source.value='zod'][importKind!='type'] ImportSpecifier:not([imported.name='z'])",
+          message: "Only `import { z } from \"zod\"` is allowed for runtime usage.",
+        },
+        {
+          selector:
+            "ImportDeclaration[source.value='zod'][importKind!='type'] ImportSpecifier[imported.name='z'][local.name!='z']",
+          message: "Do not alias the `z` import; use `import { z } from \"zod\"`.",
+        },
+        {
+          selector:
+            "ImportDeclaration[source.value='zod'][importKind!='type'] ImportNamespaceSpecifier",
+          message: "Do not use `import * as … from \"zod\"`. Use `import { z } from \"zod\"`.",
+        },
+        {
+          selector:
+            "VariableDeclaration:has(CallExpression[callee.name='require'][arguments.0.value='zod'])",
+          message: "Do not require('zod'); use ESM value imports instead.",
+        },
+        {
+          selector: "ImportDeclaration[source.value='zod'] ImportDefaultSpecifier",
+          message: "Zod has no default export. Use `import { z } from \"zod\"`.",
+        },
+        {
           selector: "CallExpression[callee.name='Z']",
           message:
             "Use the lowercase `z` namespace returned by `import { z } from \"zod\"`.",
