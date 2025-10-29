@@ -1,4 +1,4 @@
-import { Z } from "@/lib/z";
+import { z as Z } from "zod";
 import type { ZodString } from "zod";
 
 /**
