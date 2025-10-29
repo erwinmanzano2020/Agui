@@ -77,6 +77,40 @@ const eslintConfig = [
     },
   },
   {
+    files: ["src/app/company/[[]slug]/clock/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@/lib/validation/zod",
+              message: "Import Zod directly from 'zod' within clock modules to avoid SSR bundling issues.",
+            },
+          ],
+          patterns: [
+            {
+              group: ["@/**"],
+              importNames: ["z", "Z"],
+              message: "Do not import Zod bindings from internal barrels in clock modules.",
+            },
+          ],
+        },
+      ],
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.name='Z']",
+          message: "Do not call Z as a function. Use helpers such as Z.string() or Z.object().",
+        },
+        {
+          selector: "VariableDeclarator[id.type='ObjectPattern'][init.name='Z']",
+          message: "Do not destructure from Z. Call its methods directly.",
+        },
+      ],
+    },
+  },
+  {
     files: ["src/app/company/[slug]/patron-pass/page.tsx"],
     rules: {
       "no-restricted-imports": [
@@ -104,6 +138,23 @@ const eslintConfig = [
         },
       ]
     }
+  },
+  {
+    files: ["src/lib/validation/zod.ts"],
+    rules: {
+      "no-restricted-imports": "off",
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.name='Z']",
+          message: "Do not call Z as a function. Use helpers such as Z.string() or Z.object().",
+        },
+        {
+          selector: "VariableDeclarator[id.type='ObjectPattern'][init.name='Z']",
+          message: "Do not destructure from Z. Call its methods directly.",
+        },
+      ],
+    },
   },
 ];
 
