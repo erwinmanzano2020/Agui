@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 
-import {
-  LOYALTY_CHANNELS,
-  LOYALTY_PLANS,
-  enrollMember,
-} from "@/lib/loyalty/runtime";
-import { Z, stringEnum } from "@/lib/validation/zod";
+import { z } from "zod";
+
+import { LOYALTY_CHANNELS, LOYALTY_PLANS, enrollMember } from "@/lib/loyalty/runtime";
+import { stringEnum } from "@/lib/schema-helpers";
 
 export async function POST(req: Request) {
   const contentType = req.headers.get("content-type") || "";
@@ -17,23 +15,22 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const baseSchema = Z
+  const baseSchema = z
     .object({
-      memberId: Z.string().min(1).optional(),
-      phone: Z.string().min(1).optional(),
-      channel: stringEnum(LOYALTY_CHANNELS, "channel").optional(),
-      plan: stringEnum(LOYALTY_PLANS, "plan").optional(),
-      dryRun: Z.boolean().optional(),
+      memberId: z.string().min(1).optional(),
+      phone: z.string().min(1).optional(),
+      channel: stringEnum(LOYALTY_CHANNELS).optional(),
+      plan: stringEnum(LOYALTY_PLANS).optional(),
+      dryRun: z.boolean().optional(),
     })
     .strict();
 
   type LoyaltyInput = ReturnType<(typeof baseSchema)["parse"]>;
-  type SuperRefineContext = Parameters<(typeof baseSchema)["superRefine"]>[1];
 
-  const schema = baseSchema.superRefine((value: LoyaltyInput, ctx: SuperRefineContext) => {
+  const schema = baseSchema.superRefine((value: LoyaltyInput, ctx) => {
     if (!value.memberId && !value.phone) {
       ctx.addIssue({
-        code: Z.ZodIssueCode.custom,
+        code: z.ZodIssueCode.custom,
         message: "Provide at least one identifier: memberId or phone",
         path: ["memberId"],
       });

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 
+import { z } from "zod";
+
 import { INVENTORY_SOURCES, adoptInventory } from "@/lib/inventory/runtime";
-import { Z, stringEnum } from "@/lib/validation/zod";
+import { stringEnum } from "@/lib/schema-helpers";
 
 export async function POST(req: Request) {
   const contentType = req.headers.get("content-type") || "";
@@ -13,10 +15,10 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const schema = Z
+  const schema = z
     .object({
-      source: stringEnum(INVENTORY_SOURCES, "source"),
-      dryRun: Z.boolean().optional(),
+      source: stringEnum(INVENTORY_SOURCES),
+      dryRun: z.boolean().optional(),
     })
     .strict();
 

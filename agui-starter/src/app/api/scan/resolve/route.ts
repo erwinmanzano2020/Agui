@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { z } from "zod";
+
 import { resolveScan } from "@/lib/scan/runtime";
-import { Z } from "@/lib/validation/zod";
 
 export async function POST(req: Request) {
   const contentType = req.headers.get("content-type") || "";
@@ -13,21 +14,20 @@ export async function POST(req: Request) {
   }
 
   const payload = await req.json().catch(() => ({}));
-  const baseSchema = Z
+  const baseSchema = z
     .object({
-      type: Z.string().min(1, "type is required"),
-      payload: Z.unknown(),
-      companyId: Z.string().min(1).optional(),
+      type: z.string().min(1, "type is required"),
+      payload: z.unknown(),
+      companyId: z.string().min(1).optional(),
     })
     .strict();
 
   type ResolveInput = ReturnType<(typeof baseSchema)["parse"]>;
-  type SuperRefineContext = Parameters<(typeof baseSchema)["superRefine"]>[1];
 
-  const schema = baseSchema.superRefine((value: ResolveInput, ctx: SuperRefineContext) => {
+  const schema = baseSchema.superRefine((value: ResolveInput, ctx) => {
     if (value.payload === null || value.payload === undefined) {
       ctx.addIssue({
-        code: Z.ZodIssueCode.custom,
+        code: z.ZodIssueCode.custom,
         message: "payload is required",
         path: ["payload"],
       });

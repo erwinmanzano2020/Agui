@@ -1,11 +1,9 @@
 import { NextResponse } from "next/server";
 
-import {
-  PASS_CHANNELS,
-  PASS_TYPES,
-  issuePass,
-} from "@/lib/passes/runtime";
-import { Z, stringEnum } from "@/lib/validation/zod";
+import { z } from "zod";
+
+import { PASS_CHANNELS, PASS_TYPES, issuePass } from "@/lib/passes/runtime";
+import { stringEnum } from "@/lib/schema-helpers";
 
 export async function POST(req: Request) {
   const contentType = req.headers.get("content-type") || "";
@@ -17,13 +15,13 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const schema = Z
+  const schema = z
     .object({
-      memberId: Z.string().min(1, "memberId is required"),
-      passType: stringEnum(PASS_TYPES, "passType"),
-      channel: stringEnum(PASS_CHANNELS, "channel").optional(),
-      expiresInDays: Z.number().int().positive().max(365).optional(),
-      dryRun: Z.boolean().optional(),
+      memberId: z.string().min(1, "memberId is required"),
+      passType: stringEnum(PASS_TYPES),
+      channel: stringEnum(PASS_CHANNELS).optional(),
+      expiresInDays: z.number().int().positive().max(365).optional(),
+      dryRun: z.boolean().optional(),
     })
     .strict();
 

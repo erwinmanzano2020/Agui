@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { z } from "zod";
+
 import { rotatePass } from "@/lib/passes/runtime";
-import { Z } from "@/lib/validation/zod";
 
 export async function POST(req: Request) {
   const contentType = req.headers.get("content-type") || "";
@@ -13,22 +14,21 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const baseSchema = Z
+  const baseSchema = z
     .object({
-      passId: Z.string().min(1).optional(),
-      memberId: Z.string().min(1).optional(),
-      reason: Z.string().trim().max(200).optional(),
-      dryRun: Z.boolean().optional(),
+      passId: z.string().min(1).optional(),
+      memberId: z.string().min(1).optional(),
+      reason: z.string().trim().max(200).optional(),
+      dryRun: z.boolean().optional(),
     })
     .strict();
 
   type RotateInput = ReturnType<(typeof baseSchema)["parse"]>;
-  type SuperRefineContext = Parameters<(typeof baseSchema)["superRefine"]>[1];
 
-  const schema = baseSchema.superRefine((value: RotateInput, ctx: SuperRefineContext) => {
+  const schema = baseSchema.superRefine((value: RotateInput, ctx) => {
     if (!value.passId && !value.memberId) {
       ctx.addIssue({
-        code: Z.ZodIssueCode.custom,
+        code: z.ZodIssueCode.custom,
         message: "Provide passId or memberId",
         path: ["passId"],
       });

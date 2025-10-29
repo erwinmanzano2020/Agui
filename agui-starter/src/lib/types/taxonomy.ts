@@ -1,15 +1,12 @@
-import { stringEnum } from "@/lib/validation/zod";
+import { stringEnum } from "@/lib/schema-helpers";
 
 const ENTITY_IDENTIFIER_VALUES = ["EMAIL", "PHONE"] as const;
-export const EntityIdentifierType = stringEnum(
-  ENTITY_IDENTIFIER_VALUES,
-  "entity identifier type",
-);
+export const EntityIdentifierType = stringEnum(ENTITY_IDENTIFIER_VALUES);
 export type EntityIdentifierType = (typeof ENTITY_IDENTIFIER_VALUES)[number];
 export const entityIdentifierTypeValues = ENTITY_IDENTIFIER_VALUES;
 
 const GUILD_TYPE_VALUES = ["MERCHANT", "ADVENTURER", "APOTHECARY"] as const;
-export const GuildType = stringEnum(GUILD_TYPE_VALUES, "guild type");
+export const GuildType = stringEnum(GUILD_TYPE_VALUES);
 export type GuildType = (typeof GUILD_TYPE_VALUES)[number];
 export const guildTypeValues = GUILD_TYPE_VALUES;
 
@@ -21,12 +18,12 @@ const HOUSE_TYPE_VALUES = [
   "WHOLESALE",
   "DISTRIBUTOR",
 ] as const;
-export const HouseType = stringEnum(HOUSE_TYPE_VALUES, "house type");
+export const HouseType = stringEnum(HOUSE_TYPE_VALUES);
 export type HouseType = (typeof HOUSE_TYPE_VALUES)[number];
 export const houseTypeValues = HOUSE_TYPE_VALUES;
 
 const PARTY_SCOPE_VALUES = ["GUILD", "HOUSE"] as const;
-export const PartyScope = stringEnum(PARTY_SCOPE_VALUES, "party scope");
+export const PartyScope = stringEnum(PARTY_SCOPE_VALUES);
 export type PartyScope = (typeof PARTY_SCOPE_VALUES)[number];
 
 const ALLIANCE_ROLE_VALUES = [
@@ -34,7 +31,7 @@ const ALLIANCE_ROLE_VALUES = [
   "alliance_steward",
   "alliance_member",
 ] as const;
-export const AllianceRole = stringEnum(ALLIANCE_ROLE_VALUES, "alliance role");
+export const AllianceRole = stringEnum(ALLIANCE_ROLE_VALUES);
 export type AllianceRole = (typeof ALLIANCE_ROLE_VALUES)[number];
 
 const GUILD_ROLE_VALUES = [
@@ -48,11 +45,11 @@ const GUILD_ROLE_VALUES = [
   "agui_user",
   "guild_member",
 ] as const;
-export const GuildRole = stringEnum(GUILD_ROLE_VALUES, "guild role");
+export const GuildRole = stringEnum(GUILD_ROLE_VALUES);
 export type GuildRole = (typeof GUILD_ROLE_VALUES)[number];
 
 const HOUSE_ROLE_VALUES = ["house_owner", "house_manager", "house_staff"] as const;
-export const HouseRole = stringEnum(HOUSE_ROLE_VALUES, "house role");
+export const HouseRole = stringEnum(HOUSE_ROLE_VALUES);
 export type HouseRole = (typeof HOUSE_ROLE_VALUES)[number];
 
 export type JsonValue =
