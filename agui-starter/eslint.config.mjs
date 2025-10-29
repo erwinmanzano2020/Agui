@@ -38,7 +38,13 @@ const eslintConfig = [
               message: "Do not import `z` from helpers; use `import { z as Z } from \"zod\"`.",
             },
           ],
-          patterns: [],
+          patterns: [
+            {
+              group: ["@/lib/**"],
+              importNames: ["z"],
+              message: "Never import `z` from internal libraries; use the canonical Zod namespace.",
+            },
+          ],
         },
       ],
       "no-restricted-globals": ["error", "z"],

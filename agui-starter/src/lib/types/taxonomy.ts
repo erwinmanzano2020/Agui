@@ -1,4 +1,4 @@
-import { z as Z } from "zod";
+import { Z } from "@/lib/z";
 
 export const EntityIdentifierType = Z.enum(["EMAIL", "PHONE"]);
 export type EntityIdentifierType = (typeof EntityIdentifierType)["options"][number];
