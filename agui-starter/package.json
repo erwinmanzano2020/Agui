@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "prebuild": "bash scripts/check-zod-imports.sh",
+    "prebuild": "node scripts/check-zod-imports.mjs",
     "build": "next build --turbopack",
     "start": "next start",
     "lint": "next lint",
