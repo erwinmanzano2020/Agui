@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 
-import * as Z from "zod";
-
 import { resolveScan } from "@/lib/scan/runtime";
+import { Z } from "@/lib/validation/zod";
 
 export async function POST(req: Request) {
   const contentType = req.headers.get("content-type") || "";

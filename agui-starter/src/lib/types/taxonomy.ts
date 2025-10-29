@@ -1,4 +1,4 @@
-import { stringEnum } from "@/lib/schema-helpers";
+import { stringEnum } from "@/lib/validation/zod";
 
 const ENTITY_IDENTIFIER_VALUES = ["EMAIL", "PHONE"] as const;
 export const EntityIdentifierType = stringEnum(

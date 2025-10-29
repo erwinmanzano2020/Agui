@@ -28,30 +28,33 @@ const eslintConfig = [
         {
           paths: [
             {
-              name: "@/lib/schema-helpers",
-              importNames: ["z"],
-              message: "Do not import `z` from helpers; use the canonical `import * as Z from \"zod\"`.",
+              name: "zod",
+              message: "Import Zod via the shared entrypoint: `import { Z } from \"@/lib/validation/zod\"`.",
             },
           ],
           patterns: [
             {
               group: ["@/**"],
-              importNames: ["z"],
-              message: "Never import a `z` symbol from app barrels; always import the namespace from \"zod\".",
+              importNames: ["z", "Z"],
+              message: "Do not import Zod bindings from internal barrels; use @/lib/validation/zod.",
             },
           ],
         },
       ],
-      "no-restricted-globals": ["error", "z"],
+      "no-restricted-globals": ["error", "z", "Z"],
       "no-restricted-syntax": [
         "error",
         {
-          selector: "ImportDeclaration[source.value='zod'] ImportDefaultSpecifier",
-          message: "Always import the Zod namespace with `import * as Z from \"zod\"`.",
+          selector: "ImportDeclaration[source.value='zod']",
+          message: "Import Zod via @/lib/validation/zod instead of directly from 'zod'.",
         },
         {
-          selector: "ImportDeclaration[source.value='zod'] ImportSpecifier[imported.name='z']",
-          message: "Always import the Zod namespace with `import * as Z from \"zod\"`.",
+          selector: "CallExpression[callee.name='Z']",
+          message: "Do not call Z as a function. Use helpers such as Z.string() or stringEnum().",
+        },
+        {
+          selector: "VariableDeclarator[id.type='ObjectPattern'][init.name='Z']",
+          message: "Do not destructure from Z. Call its methods directly.",
         },
       ],
     },
@@ -66,11 +69,6 @@ const eslintConfig = [
             {
               name: "@/lib/index",
               message: "Avoid barrels that may execute schemas at module scope.",
-            },
-            {
-              name: "@/lib/schema-helpers",
-              importNames: ["z"],
-              message: "Do not import `z` from helpers; use the real Zod namespace.",
             },
           ],
           patterns: [],
@@ -93,17 +91,12 @@ const eslintConfig = [
               name: "@/lib/index",
               message: "Avoid barrel imports that may execute schemas at module scope.",
             },
-            {
-              name: "@/lib/schema-helpers",
-              importNames: ["z"],
-              message: "Do not import `z` from helpers; use the real Zod namespace.",
-            },
           ],
           patterns: [
             {
               group: ["@/lib/*"],
               importNames: ["z"],
-              message: "Do not import `z` from internal libraries; use the real Zod namespace.",
+              message: "Do not import Zod bindings from internal libraries on this page.",
             },
             "@/lib/**/schema*",
             "@/lib/**/schemas*",

@@ -1,13 +1,11 @@
 import { NextResponse } from "next/server";
 
-import * as Z from "zod";
-
 import {
   LOYALTY_CHANNELS,
   LOYALTY_PLANS,
   enrollMember,
 } from "@/lib/loyalty/runtime";
-import { stringEnum } from "@/lib/schema-helpers";
+import { Z, stringEnum } from "@/lib/validation/zod";
 
 export async function POST(req: Request) {
   const contentType = req.headers.get("content-type") || "";
