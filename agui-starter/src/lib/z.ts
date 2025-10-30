@@ -8,10 +8,8 @@
 import {
   z as _z,
   ZodIssueCode,
-  // These are stable across zod v3 variants; if they ever drift, drop them.
+  // stable types we use in app code
   type ZodIssue,
-  type ZodTypeAny,
-  type AnyZodObject,
 } from "zod";
 
 // Runtime sanity check (helps catch bundler/interop issues)
@@ -29,15 +27,10 @@ export const z = _z;
 
 /**
  * Version-safe ctx type for .refine/.superRefine callbacks.
- * Only model the bit we use (addIssue) so this stays compatible across Zod versions.
+ * Accept both the classic ZodIssue signature and more permissive issue shapes.
  */
 export type RefinementCtx = {
-  addIssue: (issue: {
-    code: unknown;
-    message?: string;
-    path?: (string | number)[];
-    [key: string]: unknown;
-  }) => void;
+  addIssue: (issue: ZodIssue | { [k: string]: unknown }) => void;
 };
 
 // Helper: string enum (kept tiny and zod-version-agnostic)
@@ -46,4 +39,4 @@ export function stringEnum<T extends readonly [string, ...string[]]>(values: T) 
 }
 
 export { ZodIssueCode };
-export type { ZodIssue, ZodTypeAny, AnyZodObject };
+export type { ZodIssue };
