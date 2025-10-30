@@ -8,6 +8,7 @@ const config: NextConfig = {
   experimental: {
     // If you MUST set turbopack.root, ensure it matches:
     // turbopack: { root: process.cwd() },
+    serverComponentsExternalPackages: ["zod"],
   },
   env: {
     AGUI_TAXONOMY_V2: "true",

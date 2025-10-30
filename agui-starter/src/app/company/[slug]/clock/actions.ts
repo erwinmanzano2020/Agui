@@ -15,7 +15,7 @@ import {
 
 if (process.env.NODE_ENV !== "production" && typeof z?.string !== "function") {
   throw new Error(
-    "Zod import for /company/[slug]/clock/actions.ts is misconfigured. Use `import { z } from \"zod\"`.",
+    "Zod import for /company/[slug]/clock/actions.ts is misconfigured. Use `import { z } from \"@/lib/z\"`.",
   );
 }
 
