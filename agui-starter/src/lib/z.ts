@@ -1,36 +1,28 @@
-// A single, shape-proof Zod export for SSR, RSC, and API routes.
-// Handles default, namespace, and named `z` exports safely.
-import * as ZNS from "zod";
+/**
+ * Central Zod facade.
+ * Always import `z` and supporting types from here:
+ *   import { z, type RefinementCtx } from "@/lib/z";
+ *
+ * This avoids mixed ESM/CJS pitfalls under Turbopack/Vercel builds.
+ */
+
+import * as Z from "zod";
 import type { ZodIssue } from "zod";
 
-const candidate =
-  (ZNS as any)?.z ??
-  (ZNS as any)?.default?.z ??
-  (ZNS as any)?.default ??
-  (ZNS as any);
+// Runtime guard so failures are loud & early in dev/build
+const healthy =
+  Z &&
+  typeof Z.object === "function" &&
+  typeof Z.string === "function" &&
+  typeof Z.enum === "function";
 
-type ZLike = typeof ZNS;
-
-function assertZod(z: unknown): asserts z is ZLike {
-  const runtime = z as Record<string, unknown> | null | undefined;
-  const ok =
-    !!runtime &&
-    typeof runtime.object === "function" &&
-    typeof runtime.string === "function" &&
-    typeof runtime.enum === "function" &&
-    typeof runtime.array === "function";
-
-  if (!ok) {
-    throw new Error(
-      `[ZOD_IMPORT_BROKEN] Resolved 'z' is invalid. Module keys: ${Object.keys(ZNS || {})
-        .slice(0, 16)
-        .join(",") || "(none)"}`,
-    );
-  }
+if (!healthy) {
+  throw new Error("[ZOD_IMPORT_BROKEN] z appears invalid in src/lib/z.ts");
 }
 
-assertZod(candidate);
+// Re-export a concrete namespace that callers can rely on.
+export const z = Z;
 
-export const z: ZLike = candidate;
 export type { ZodType, ZodIssue } from "zod";
 export type RefinementCtx = { addIssue(issue: ZodIssue): void };
+export { ZodIssueCode } from "zod";
