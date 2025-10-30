@@ -12,6 +12,8 @@ if (process.env.ZOD_CHECK === "0") {
   process.exit(0);
 }
 
+const facadePath = path.resolve(projectRoot, "src/lib/z.ts");
+
 const schemaHints = [
   "z.object(",
   "z.enum(",
@@ -38,6 +40,7 @@ const riskyBarrelRe = /export\s+(?:\*\s+as\s+\w+|\{\s*z\s*\}|\*)\s+from\s*[\"']z
 const offenders = [];
 
 walkDir(srcDir, (filePath) => {
+  if (path.resolve(filePath) === facadePath) return;
   if (!/\.(ts|tsx)$/.test(filePath)) return;
   const text = fs.readFileSync(filePath, "utf8");
   const buildsSchema = schemaHints.some((hint) => text.includes(hint));

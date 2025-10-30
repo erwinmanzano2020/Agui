@@ -1,27 +1,21 @@
 /**
- * Central Zod facade.
- * Always import from here:
+ * Zod facade – always import from here:
  *   import { z, ZodIssueCode, type RefinementCtx } from "@/lib/z";
  *
- * IMPORTANT: We must re-export the NAMED `z` binding from "zod",
- * NOT a module namespace. Turbopack SSR can break if we wrap the namespace.
+ * Keep exports minimal & version-safe. Do NOT re-export the entire module namespace.
  */
 
 import {
   z as _z,
   ZodIssueCode,
-  type ZodType,
-  type ZodIssue,
-  type ZodString,
-  type ZodNumber,
-  type ZodBoolean,
-  type ZodObject,
-  type ZodArray,
-  type ZodEnum,
+  // Safe type exports across zod v3 variants:
   type RefinementCtx,
+  type ZodIssue,
+  type ZodTypeAny,
+  type AnyZodObject,
 } from "zod";
 
-// Minimal runtime sanity check (dev/build)
+// Runtime sanity check (helps catch bundler/interop issues)
 if (
   !_z ||
   typeof _z.object !== "function" ||
@@ -31,19 +25,16 @@ if (
   throw new Error("[ZOD_IMPORT_BROKEN] z appears invalid in src/lib/z.ts");
 }
 
-// Re-export the actual `z` value
+// Re-export the actual `z` runtime
 export const z = _z;
 
-// Re-export commonly used items so callers never import from "zod" directly
+// Minimal helpers (optional, used by some routes)
+export function stringEnum<T extends readonly [string, ...string[]]>(values: T) {
+  // Note: message customization can be applied by callers via .superRefine if needed
+  return _z.enum(values);
+}
+
+// Re-export a few commonly used items
 export { ZodIssueCode };
-export type {
-  ZodType,
-  ZodIssue,
-  ZodString,
-  ZodNumber,
-  ZodBoolean,
-  ZodObject,
-  ZodArray,
-  ZodEnum,
-  RefinementCtx,
-};
+export type { RefinementCtx, ZodIssue, ZodTypeAny, AnyZodObject };
+
