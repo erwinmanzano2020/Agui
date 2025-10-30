@@ -1,28 +1,49 @@
 /**
  * Central Zod facade.
- * Always import `z` and supporting types from here:
- *   import { z, type RefinementCtx } from "@/lib/z";
+ * Always import from here:
+ *   import { z, ZodIssueCode, type RefinementCtx } from "@/lib/z";
  *
- * This avoids mixed ESM/CJS pitfalls under Turbopack/Vercel builds.
+ * IMPORTANT: We must re-export the NAMED `z` binding from "zod",
+ * NOT a module namespace. Turbopack SSR can break if we wrap the namespace.
  */
 
-import * as Z from "zod";
-import type { ZodIssue } from "zod";
+import {
+  z as _z,
+  ZodIssueCode,
+  type ZodType,
+  type ZodIssue,
+  type ZodString,
+  type ZodNumber,
+  type ZodBoolean,
+  type ZodObject,
+  type ZodArray,
+  type ZodEnum,
+  type RefinementCtx,
+} from "zod";
 
-// Runtime guard so failures are loud & early in dev/build
-const healthy =
-  Z &&
-  typeof Z.object === "function" &&
-  typeof Z.string === "function" &&
-  typeof Z.enum === "function";
-
-if (!healthy) {
+// Minimal runtime sanity check (dev/build)
+if (
+  !_z ||
+  typeof _z.object !== "function" ||
+  typeof _z.string !== "function" ||
+  typeof _z.enum !== "function"
+) {
   throw new Error("[ZOD_IMPORT_BROKEN] z appears invalid in src/lib/z.ts");
 }
 
-// Re-export a concrete namespace that callers can rely on.
-export const z = Z;
+// Re-export the actual `z` value
+export const z = _z;
 
-export type { ZodType, ZodIssue } from "zod";
-export type RefinementCtx = { addIssue(issue: ZodIssue): void };
-export { ZodIssueCode } from "zod";
+// Re-export commonly used items so callers never import from "zod" directly
+export { ZodIssueCode };
+export type {
+  ZodType,
+  ZodIssue,
+  ZodString,
+  ZodNumber,
+  ZodBoolean,
+  ZodObject,
+  ZodArray,
+  ZodEnum,
+  RefinementCtx,
+};
