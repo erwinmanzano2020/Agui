@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { z } from "@/lib/z";
+import type { RefinementCtx } from "@/lib/z";
 
 import { LOYALTY_CHANNELS, LOYALTY_PLANS, enrollMember } from "@/lib/loyalty/runtime";
 import { stringEnum } from "@/lib/schema-helpers";
@@ -27,7 +28,7 @@ export async function POST(req: Request) {
 
   type LoyaltyInput = ReturnType<(typeof baseSchema)["parse"]>;
 
-  const schema = baseSchema.superRefine((value: LoyaltyInput, ctx) => {
+  const schema = baseSchema.superRefine((value: LoyaltyInput, ctx: RefinementCtx) => {
     if (!value.memberId && !value.phone) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

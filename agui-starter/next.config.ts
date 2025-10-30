@@ -5,11 +5,7 @@ const config: NextConfig = {
   // “Both `outputFileTracingRoot` and `turbopack.root` are set…”
   outputFileTracingRoot: process.cwd(),
 
-  experimental: {
-    // If you MUST set turbopack.root, ensure it matches:
-    // turbopack: { root: process.cwd() },
-    serverComponentsExternalPackages: ["zod"],
-  },
+  serverExternalPackages: ["zod"],
   env: {
     AGUI_TAXONOMY_V2: "true",
   },

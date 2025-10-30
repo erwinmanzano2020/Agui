@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { z } from "@/lib/z";
+import type { RefinementCtx } from "@/lib/z";
 
 import { rotatePass } from "@/lib/passes/runtime";
 
@@ -25,7 +26,7 @@ export async function POST(req: Request) {
 
   type RotateInput = ReturnType<(typeof baseSchema)["parse"]>;
 
-  const schema = baseSchema.superRefine((value: RotateInput, ctx) => {
+  const schema = baseSchema.superRefine((value: RotateInput, ctx: RefinementCtx) => {
     if (!value.passId && !value.memberId) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

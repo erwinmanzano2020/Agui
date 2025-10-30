@@ -1,6 +1,7 @@
 // A single, shape-proof Zod export for SSR, RSC, and API routes.
 // Handles default, namespace, and named `z` exports safely.
 import * as ZNS from "zod";
+import type { ZodIssue } from "zod";
 
 const candidate =
   (ZNS as any)?.z ??
@@ -32,3 +33,4 @@ assertZod(candidate);
 
 export const z: ZLike = candidate;
 export type { ZodType, ZodIssue } from "zod";
+export type RefinementCtx = { addIssue(issue: ZodIssue): void };

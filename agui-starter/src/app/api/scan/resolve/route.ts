@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { z } from "@/lib/z";
+import type { RefinementCtx } from "@/lib/z";
 
 import { resolveScan } from "@/lib/scan/runtime";
 
@@ -24,7 +25,7 @@ export async function POST(req: Request) {
 
   type ResolveInput = ReturnType<(typeof baseSchema)["parse"]>;
 
-  const schema = baseSchema.superRefine((value: ResolveInput, ctx) => {
+  const schema = baseSchema.superRefine((value: ResolveInput, ctx: RefinementCtx) => {
     if (value.payload === null || value.payload === undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
