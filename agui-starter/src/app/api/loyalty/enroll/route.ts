@@ -1,20 +1,58 @@
 import { NextResponse } from "next/server";
-import { enrollEntity, ensureScheme } from "@/lib/loyalty/rules";
-import { getOrCreateEntityByIdentifier } from "@/lib/auth/entity";
 
-/** Body: { scope: 'GUILD'|'HOUSE', scheme?: string, identifier: { kind:'phone'|'email', value } } */
+import { z } from "@/lib/z";
+import type { RefinementCtx } from "@/lib/z";
+
+import { LOYALTY_CHANNELS, LOYALTY_PLANS, enrollMember } from "@/lib/loyalty/runtime";
+import { stringEnum } from "@/lib/schema-helpers";
+
 export async function POST(req: Request) {
-  const body = await req.json().catch(() => ({}));
-  const scope = body.scope as "GUILD" | "HOUSE" | undefined;
-  const schemeName = (body.scheme as string) || (scope === "GUILD" ? "Guild Card" : "Patron Pass");
-  const id = body.identifier as { kind: "phone" | "email"; value: string };
-
-  if (!scope || !id?.kind || !id?.value) {
-    return NextResponse.json({ error: "scope and identifier required" }, { status: 400 });
+  const contentType = req.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    return NextResponse.json(
+      { ok: false, error: "Expected application/json" },
+      { status: 400 },
+    );
   }
 
-  const scheme = await ensureScheme(scope, schemeName, scope === "GUILD" ? 2 : 3);
-  const entity = await getOrCreateEntityByIdentifier(id.kind, id.value);
-  const profile = await enrollEntity(scheme.id, entity.id);
-  return NextResponse.json({ ok: true, scheme: { id: scheme.id, name: scheme.name }, entity_id: entity.id, profile });
+  const body = await req.json().catch(() => ({}));
+  const baseSchema = z
+    .object({
+      memberId: z.string().min(1).optional(),
+      phone: z.string().min(1).optional(),
+      channel: stringEnum(LOYALTY_CHANNELS).optional(),
+      plan: stringEnum(LOYALTY_PLANS).optional(),
+      dryRun: z.boolean().optional(),
+    })
+    .strict();
+
+  type LoyaltyInput = ReturnType<(typeof baseSchema)["parse"]>;
+
+  const schema = baseSchema.superRefine((value: LoyaltyInput, ctx: RefinementCtx) => {
+    if (!value.memberId && !value.phone) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Provide at least one identifier: memberId or phone",
+        path: ["memberId"],
+      });
+    }
+  });
+
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, error: "Invalid payload", details: parsed.error.flatten() },
+      { status: 400 },
+    );
+  }
+
+  const result = await enrollMember(parsed.data);
+  return NextResponse.json(result, { status: 200 });
+}
+
+export async function GET() {
+  return NextResponse.json(
+    { ok: false, error: "Use POST /api/loyalty/enroll with JSON body" },
+    { status: 405 },
+  );
 }

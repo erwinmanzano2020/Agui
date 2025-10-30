@@ -1,51 +1,56 @@
 import { NextResponse } from "next/server";
 
-import { getCurrentEntity } from "@/lib/auth/entity";
-import { requireFeatureAccess } from "@/lib/auth/feature-guard";
-import { AppFeature } from "@/lib/auth/permissions";
-import { loadCardById, rotateCardToken } from "@/lib/passes/cards";
-import { getSupabase } from "@/lib/supabase";
+import { z } from "@/lib/z";
+import type { RefinementCtx } from "@/lib/z";
 
-function isProduction(): boolean {
-  return process.env.NODE_ENV === "production";
-}
-
-type RotateRequest = {
-  cardId?: string;
-};
+import { rotatePass } from "@/lib/passes/runtime";
 
 export async function POST(req: Request) {
-  if (isProduction()) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  const contentType = req.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    return NextResponse.json(
+      { ok: false, error: "Expected application/json" },
+      { status: 400 },
+    );
   }
 
-  await requireFeatureAccess(AppFeature.ALLIANCE_PASS, { dest: new URL(req.url).pathname });
+  const body = await req.json().catch(() => ({}));
+  const baseSchema = z
+    .object({
+      passId: z.string().min(1).optional(),
+      memberId: z.string().min(1).optional(),
+      reason: z.string().trim().max(200).optional(),
+      dryRun: z.boolean().optional(),
+    })
+    .strict();
 
-  const supabase = getSupabase();
-  if (!supabase) {
-    return NextResponse.json({ error: "Supabase unavailable" }, { status: 503 });
-  }
+  type RotateInput = ReturnType<(typeof baseSchema)["parse"]>;
 
-  const actor = await getCurrentEntity({ supabase });
-  if (!actor) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
-
-  const body = (await req.json().catch(() => ({}))) as RotateRequest;
-  if (!body.cardId) {
-    return NextResponse.json({ error: "cardId required" }, { status: 400 });
-  }
-
-  try {
-    const card = await loadCardById(body.cardId, { supabase });
-    if (!card || card.entity_id !== actor.id) {
-      return NextResponse.json({ error: "Card not found" }, { status: 404 });
+  const schema = baseSchema.superRefine((value: RotateInput, ctx: RefinementCtx) => {
+    if (!value.passId && !value.memberId) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Provide passId or memberId",
+        path: ["passId"],
+      });
     }
+  });
 
-    const rotation = await rotateCardToken(card.id, "qr", { supabase });
-    return NextResponse.json({ ok: true, token_raw: rotation.token });
-  } catch (error) {
-    console.error("Failed to rotate dev pass token", error);
-    return NextResponse.json({ error: "Failed to rotate token" }, { status: 500 });
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, error: "Invalid payload", details: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
+
+  const result = await rotatePass(parsed.data);
+  return NextResponse.json(result, { status: 200 });
+}
+
+export async function GET() {
+  return NextResponse.json(
+    { ok: false, error: "Use POST /api/passes/rotate with JSON body" },
+    { status: 405 },
+  );
 }

@@ -4,13 +4,25 @@ import { getCurrentEntity } from "@/lib/auth/entity";
 import { recordScanEvent, resolveScanByToken, resolveScanByTokenId, type ScanResolution } from "@/lib/passes/scan";
 import { getSupabase } from "@/lib/supabase";
 import { loadHouseBySlug } from "@/lib/taxonomy/houses-server";
-
+import { z } from "@/lib/z";
+import { stringEnum } from "@/lib/schema-helpers";
 import {
   INITIAL_CLOCK_SCAN_STATE,
   type ClockScanEvent,
   type ClockScanResolution,
   type ClockScanState,
 } from "./state";
+
+if (process.env.NODE_ENV !== "production" && typeof z?.string !== "function") {
+  throw new Error(
+    "Zod import for /company/[slug]/clock/actions.ts is misconfigured. Use `import { z } from \"@/lib/z\"`.",
+  );
+}
+
+const MODE_VALUES = ["resolve", "reset", "override-lower", "lift-incognito"] as const;
+const ModeSchema = stringEnum(MODE_VALUES);
+type ClockMode = (typeof MODE_VALUES)[number];
+const DEFAULT_MODE: ClockMode = "resolve";
 
 function coerceString(value: FormDataEntryValue | null): string | null {
   if (typeof value !== "string") return null;
@@ -60,7 +72,19 @@ export async function handleClockScan(
   formData: FormData,
 ): Promise<ClockScanState> {
   try {
-    const mode = coerceString(formData.get("mode")) ?? "resolve";
+    const modeResult = ModeSchema.safeParse(
+      coerceString(formData.get("mode")) ?? DEFAULT_MODE,
+    );
+    if (!modeResult.success) {
+      const { formErrors } = modeResult.error.flatten();
+      return {
+        status: "error",
+        message: formErrors[0] ?? "Invalid clock action.",
+        resolution: prevState.resolution,
+        event: prevState.event,
+      } satisfies ClockScanState;
+    }
+    const mode = modeResult.data;
     if (mode === "reset") {
       return INITIAL_CLOCK_SCAN_STATE;
     }

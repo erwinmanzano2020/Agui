@@ -1,51 +1,55 @@
 import { NextResponse } from "next/server";
-import { resolveScan } from "@/lib/scan/resolve";
-import { getSupabase } from "@/lib/supabase";
-import { getCurrentEntity } from "@/lib/auth/entity";
-import { authorizeScanContext, parseScanContext } from "@/lib/scan/context";
 
-type ResolveScanBody = {
-  token?: string;
-  context?: unknown;
-};
+import { z } from "@/lib/z";
+import type { RefinementCtx } from "@/lib/z";
+
+import { resolveScan } from "@/lib/scan/runtime";
 
 export async function POST(req: Request) {
-  const body = (await req.json().catch(() => ({}))) as ResolveScanBody;
-  const { token, context } = body;
-
-  if (!token) {
-    return NextResponse.json({ error: "token required" }, { status: 400 });
+  const contentType = req.headers.get("content-type") || "";
+  if (!contentType.includes("application/json")) {
+    return NextResponse.json(
+      { ok: false, error: "Expected application/json" },
+      { status: 400 },
+    );
   }
 
-  const supabase = getSupabase();
-  if (!supabase) {
-    return NextResponse.json({ error: "Supabase unavailable" }, { status: 503 });
-  }
+  const payload = await req.json().catch(() => ({}));
+  const baseSchema = z
+    .object({
+      type: z.string().min(1, "type is required"),
+      payload: z.unknown(),
+      companyId: z.string().min(1).optional(),
+    })
+    .strict();
 
-  const actor = await getCurrentEntity({ supabase });
-  if (!actor) {
-    return NextResponse.json({ error: "Sign in required" }, { status: 401 });
-  }
+  type ResolveInput = ReturnType<(typeof baseSchema)["parse"]>;
 
-  const parsedContext = parseScanContext(context);
-  const authorization = await authorizeScanContext({
-    supabase,
-    actorId: actor.id,
-    context: parsedContext,
+  const schema = baseSchema.superRefine((value: ResolveInput, ctx: RefinementCtx) => {
+    if (value.payload === null || value.payload === undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "payload is required",
+        path: ["payload"],
+      });
+    }
   });
 
-  if (!authorization.ok) {
-    return NextResponse.json({ error: authorization.error }, { status: authorization.status });
+  const parsed = schema.safeParse(payload);
+  if (!parsed.success) {
+    return NextResponse.json(
+      { ok: false, error: "Invalid payload", details: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
 
-  const result = await resolveScan({
-    rawToken: token,
-    context: authorization.context,
-    actorEntityId: actor.id,
-  });
+  const result = await resolveScan(parsed.data);
+  return NextResponse.json(result, { status: 200 });
+}
 
-  const { tokenId: _tokenId, resolvedCardId: _resolvedCardId, ...payload } = result;
-  void _tokenId;
-  void _resolvedCardId;
-  return NextResponse.json(payload);
+export async function GET() {
+  return NextResponse.json(
+    { ok: false, error: "Use POST /api/scan/resolve with JSON body" },
+    { status: 405 },
+  );
 }
