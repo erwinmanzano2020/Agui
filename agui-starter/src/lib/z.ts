@@ -1,32 +1,8 @@
 // src/lib/z.ts
 import * as Z from "zod";
 
-type ZodModule = typeof import("zod");
-type ExtendedZodModule = ZodModule & {
-  default?: unknown;
-  z?: unknown;
-};
-
-const namespace = Z as ExtendedZodModule;
-
-const resolveZ = (): ZodModule => {
-  const candidates = [
-    namespace,
-    namespace.z,
-    namespace.default,
-  ] as const;
-
-  for (const candidate of candidates) {
-    if (candidate && typeof (candidate as any).enum === "function") {
-      return candidate as ZodModule;
-    }
-  }
-
-  return namespace as ZodModule;
-};
-
 /** Single import surface */
-export const z: ZodModule = resolveZ();
+export const z = Z;
 
 /** Stable type aliases that work across Zod variants */
 export type ZodIssue = Z.ZodIssue;
@@ -46,10 +22,8 @@ export const stringEnum = <T extends readonly string[]>(
 ) => {
   const errorMap: ZodErrorMap = (issue) => {
     const code = (issue as any).code;
-    // Handle both "ZodIssueCode.invalid_enum_value" and string fallback
     const enumCode =
       (z as any).ZodIssueCode?.invalid_enum_value ?? "invalid_enum_value";
-
     if (code === enumCode) {
       const list = values.join(", ");
       return { message: label ? `${label} must be one of: ${list}` : `Must be one of: ${list}` };
@@ -57,8 +31,10 @@ export const stringEnum = <T extends readonly string[]>(
     return { message: "Invalid value" };
   };
 
-  // Cast keeps compatibility even if underlying Zod’s enum types differ slightly
   return (z as any).enum(values as any, { errorMap }) as Z.ZodEnum<
     [string, ...string[]]
   >;
 };
+
+/** Default export for defensive compatibility (so `import z from "@/lib/z"` won't be undefined) */
+export default z;
