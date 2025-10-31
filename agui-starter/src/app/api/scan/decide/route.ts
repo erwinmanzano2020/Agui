@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { z } from "@/lib/z";
+import type { ZodType } from "@/lib/z";
 
 import { decideScan, type ScanDecisionInput } from "@/lib/scan/runtime";
 
@@ -14,7 +15,7 @@ export async function POST(req: Request) {
   }
 
   const payload = await req.json().catch(() => ({}));
-  const schema: z.ZodType<ScanDecisionInput> = z
+  const schema: ZodType<ScanDecisionInput> = z
     .object({
       type: z.string().min(1, "type is required"),
       payload: z.unknown(),
