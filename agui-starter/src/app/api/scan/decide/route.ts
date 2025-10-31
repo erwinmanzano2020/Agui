@@ -22,6 +22,12 @@ export async function POST(req: Request) {
     })
     .strict();
 
+  type SchemaOutput = z.infer<typeof schema>;
+  type _ScanDecisionSchemaMatches = [
+    SchemaOutput extends ScanDecisionInput ? true : never,
+    ScanDecisionInput extends SchemaOutput ? true : never,
+  ];
+
   const parsed = schema.safeParse(payload);
   if (!parsed.success) {
     return NextResponse.json(
@@ -30,8 +36,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const decisionInput: ScanDecisionInput = parsed.data;
-  const decision = await decideScan(decisionInput);
+  const decision = await decideScan(parsed.data as ScanDecisionInput);
   return NextResponse.json(decision, { status: 200 });
 }
 
