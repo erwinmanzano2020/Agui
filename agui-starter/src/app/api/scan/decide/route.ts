@@ -15,13 +15,13 @@ export async function POST(req: Request) {
   }
 
   const payload = await req.json().catch(() => ({}));
-  const schema: ZodType<ScanDecisionInput> = z
+  const schema = z
     .object({
       type: z.string().min(1, "type is required"),
       payload: z.unknown(),
       companyId: z.string().min(1).optional(),
     })
-    .strict();
+    .strict() satisfies ZodType<ScanDecisionInput>;
 
   const parsed = schema.safeParse(payload);
   if (!parsed.success) {
