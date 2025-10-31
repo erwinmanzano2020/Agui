@@ -10,41 +10,42 @@ import * as Z from "zod";
  */
 export const z = Z;
 
-/**
- * Default export for defensive compatibility.
- *
- * Usage (still works):
- *   import z from "@/lib/z";
- *   z.object({ ... });
- */
+/** Default export for defensive compatibility (`import z from "@/lib/z"`). */
 export default z;
 
 /**
  * Re-export the entire Zod surface so that
  *   import * as z from "@/lib/z"
- * also behaves like the Zod namespace:
- *
- * Usage (legacy code still compiles):
- *   import * as z from "@/lib/z";
- *   z.object({ ... });
+ * also behaves like the native Zod namespace.
  */
 export * from "zod";
 
-// ---- Optional helper: stringEnum with nicer errors ----
+/** Stable type aliases that continue working across Zod variants. */
+export type ZodIssue = Z.ZodIssue;
+export type ZodTypeAny = Z.ZodType<any, any, any>;
+export type AnyZodObject = Z.ZodObject<any>;
+
+/** Minimal structural ctx type for superRefine usage. */
+export type RefinementCtx = { addIssue: (issue: ZodIssue) => void };
+
 type PortableIssue = { code?: unknown };
 type PortableErrorMap = (issue: PortableIssue) => { message?: string };
 
+/** String enum helper with nicer errors that works across Zod builds. */
 export const stringEnum = <T extends readonly string[]>(
   values: T,
   label?: string
 ) => {
   const errorMap: PortableErrorMap = (issue) => {
-    // Try to match both vendored and regular Zod enum error codes
     const enumCode =
       (z as any).ZodIssueCode?.invalid_enum_value ?? "invalid_enum_value";
     if ((issue as any).code === enumCode) {
       const list = values.join(", ");
-      return { message: label ? `${label} must be one of: ${list}` : `Must be one of: ${list}` };
+      return {
+        message: label
+          ? `${label} must be one of: ${list}`
+          : `Must be one of: ${list}`,
+      };
     }
     return { message: "Invalid value" };
   };
