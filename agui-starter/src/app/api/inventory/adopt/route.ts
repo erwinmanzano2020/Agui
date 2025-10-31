@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import { z } from "@/lib/z";
-import type { ZodType } from "@/lib/z";
 
 import {
   INVENTORY_SOURCES,
@@ -20,7 +19,7 @@ export async function POST(req: Request) {
   }
 
   const body = await req.json().catch(() => ({}));
-  const schema: ZodType<AdoptInventoryInput> = z
+  const schema = z
     .object({
       source: stringEnum(INVENTORY_SOURCES),
       dryRun: z.boolean().optional(),
@@ -35,7 +34,8 @@ export async function POST(req: Request) {
     );
   }
 
-  const result = await adoptInventory(parsed.data);
+  const payload: AdoptInventoryInput = parsed.data;
+  const result = await adoptInventory(payload);
   return NextResponse.json(result, { status: 200 });
 }
 
