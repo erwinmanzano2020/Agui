@@ -1,30 +1,48 @@
 // src/lib/z.ts
 import * as Z from "zod";
 
-/** Single import surface */
+/**
+ * Canonical Zod API export (preferred)
+ *
+ * Usage:
+ *   import { z } from "@/lib/z";
+ *   const S = z.object({ ... });
+ */
 export const z = Z;
 
-/** Stable type aliases that work across Zod variants */
-export type ZodIssue = Z.ZodIssue;
-export type ZodTypeAny = Z.ZodType<any>;
-export type AnyZodObject = Z.ZodObject<any>;
+/**
+ * Default export for defensive compatibility.
+ *
+ * Usage (still works):
+ *   import z from "@/lib/z";
+ *   z.object({ ... });
+ */
+export default z;
 
-/** Minimal structural ctx type for superRefine (portable across builds) */
-export type RefinementCtx = { addIssue: (issue: ZodIssue) => void };
+/**
+ * Re-export the entire Zod surface so that
+ *   import * as z from "@/lib/z"
+ * also behaves like the Zod namespace:
+ *
+ * Usage (legacy code still compiles):
+ *   import * as z from "@/lib/z";
+ *   z.object({ ... });
+ */
+export * from "zod";
 
-/** Portable errorMap type (structural, no dependency on z.setErrorMap) */
-type ZodErrorMap = (issue: { code?: unknown }, ctx?: unknown) => { message?: string };
+// ---- Optional helper: stringEnum with nicer errors ----
+type PortableIssue = { code?: unknown };
+type PortableErrorMap = (issue: PortableIssue) => { message?: string };
 
-/** String enum helper with nice errors; works across vendored/variant Zod builds */
 export const stringEnum = <T extends readonly string[]>(
   values: T,
   label?: string
 ) => {
-  const errorMap: ZodErrorMap = (issue) => {
-    const code = (issue as any).code;
+  const errorMap: PortableErrorMap = (issue) => {
+    // Try to match both vendored and regular Zod enum error codes
     const enumCode =
       (z as any).ZodIssueCode?.invalid_enum_value ?? "invalid_enum_value";
-    if (code === enumCode) {
+    if ((issue as any).code === enumCode) {
       const list = values.join(", ");
       return { message: label ? `${label} must be one of: ${list}` : `Must be one of: ${list}` };
     }
@@ -35,6 +53,3 @@ export const stringEnum = <T extends readonly string[]>(
     [string, ...string[]]
   >;
 };
-
-/** Default export for defensive compatibility (so `import z from "@/lib/z"` won't be undefined) */
-export default z;
