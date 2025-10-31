@@ -1,8 +1,32 @@
 // src/lib/z.ts
 import * as Z from "zod";
 
+type ZodModule = typeof import("zod");
+type ExtendedZodModule = ZodModule & {
+  default?: unknown;
+  z?: unknown;
+};
+
+const namespace = Z as ExtendedZodModule;
+
+const resolveZ = (): ZodModule => {
+  const candidates = [
+    namespace,
+    namespace.z,
+    namespace.default,
+  ] as const;
+
+  for (const candidate of candidates) {
+    if (candidate && typeof (candidate as any).enum === "function") {
+      return candidate as ZodModule;
+    }
+  }
+
+  return namespace as ZodModule;
+};
+
 /** Single import surface */
-export const z = Z;
+export const z: ZodModule = resolveZ();
 
 /** Stable type aliases that work across Zod variants */
 export type ZodIssue = Z.ZodIssue;
