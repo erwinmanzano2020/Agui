@@ -35,7 +35,7 @@ const enumIssueCode = () =>
   (z as any).ZodIssueCode?.invalid_enum_value ?? "invalid_enum_value";
 
 /** String enum helper with nicer errors that works across Zod builds. */
-export const stringEnum = <T extends readonly [string, ...string[]]>(
+export const stringEnum = <const T extends readonly [string, ...string[]]>(
   values: T,
   label?: string
 ) => {
@@ -52,5 +52,5 @@ export const stringEnum = <T extends readonly [string, ...string[]]>(
     return { message: "Invalid value" };
   };
 
-  return z.enum(values, { errorMap }) as Z.ZodEnum<T>;
+  return z.enum(values as unknown as [string, ...string[]], { errorMap }) as Z.ZodEnum<T>;
 };
