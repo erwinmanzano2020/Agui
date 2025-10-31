@@ -1,19 +1,25 @@
+// src/lib/z.ts
 import * as Z from "zod";
 
 // Single import surface
 export const z = Z;
 
-// ---- Stable type aliases (work across Zod 3 variants) ----
+// ---- Stable type aliases that work across Zod builds ----
 export type ZodIssue = Z.ZodIssue;
-// Use the generic base types instead of version-specific aliases
-export type ZodTypeAny = Z.ZodType<any, any, any>;
+
+// In some vendored builds, ZodType is generic with ONE arg.
+// Keep it super loose to avoid arity mismatches.
+export type ZodTypeAny = Z.ZodType<any>;
+
+// Same idea for ZodObject; keep parameters minimal for portability.
 export type AnyZodObject = Z.ZodObject<any>;
 
+// A minimal structural type for ctx used in superRefine.
+// (Avoids depending on internal/export-variant names.)
+export type RefinementCtx = { addIssue: (issue: ZodIssue) => void };
+
 // ---- Helpers ----
-/**
- * Create a string enum schema with a nicer error message.
- * Works for both classic and vendored Zod builds.
- */
+/** Create a string enum schema with a nicer error message. */
 export const stringEnum = <T extends readonly string[]>(
   values: T,
   label?: string
@@ -29,5 +35,3 @@ export const stringEnum = <T extends readonly string[]>(
       return { message: "Invalid value" };
     },
   });
-
-export type RefinementCtx = Parameters<NonNullable<Z.ZodTypeAny["_def"]["errorMap"]>>[0];
