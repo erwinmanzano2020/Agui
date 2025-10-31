@@ -2,6 +2,9 @@
   "name": "agui-starter",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "next dev",
     "prebuild": "node scripts/check-zod-imports.mjs",
@@ -32,5 +35,5 @@
     "tailwindcss": "^4",
     "typescript": "^5.9.3",
     "vitest": "^2.1.8"
-  },
+  }
 }
