@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 
 import { z } from "@/lib/z";
-import type { ZodType } from "@/lib/z";
 
 import { decideScan, type ScanDecisionInput } from "@/lib/scan/runtime";
 
@@ -21,7 +20,7 @@ export async function POST(req: Request) {
       payload: z.unknown(),
       companyId: z.string().min(1).optional(),
     })
-    .strict() satisfies ZodType<ScanDecisionInput>;
+    .strict();
 
   const parsed = schema.safeParse(payload);
   if (!parsed.success) {
@@ -31,7 +30,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const decision = await decideScan(parsed.data);
+  const decision = await decideScan(parsed.data as ScanDecisionInput);
   return NextResponse.json(decision, { status: 200 });
 }
 
