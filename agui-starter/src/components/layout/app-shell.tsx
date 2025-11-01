@@ -59,6 +59,7 @@ export function AppShell({
   );
   const pathname = usePathname();
   const isHome = pathname === "/";
+  const isPublicRoute = pathname?.startsWith("/welcome");
 
   // responsive + collapsible
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile
@@ -77,7 +78,7 @@ export function AppShell({
   const activeNav = nav.find((item) => item.href === pathname);
   const headerTitle = isHome ? "Home" : activeNav?.name ?? "Agui Dashboard";
 
-  if (pathname === "/") {
+  if (pathname === "/" || isPublicRoute) {
     return <>{children}</>;
   }
 
