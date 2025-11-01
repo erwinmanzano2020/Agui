@@ -30,7 +30,15 @@ export function middleware(request: NextRequest) {
 
   if (hasSession && pathname === "/welcome") {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = "/me";
+    url.search = request.nextUrl.search;
+    return NextResponse.redirect(url);
+  }
+
+  // Optional: land on /me when hitting /
+  if (hasSession && pathname === "/") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/me";
     url.search = request.nextUrl.search;
     return NextResponse.redirect(url);
   }
