@@ -9,7 +9,7 @@ export default async function LoyaltyHubPage() {
   const { session } = await getServerSession();
   if (!session) redirect("/welcome");
 
-  const caps = await getCapabilitiesForUser(session.user.id, session.user.email ?? undefined);
+  const caps = await getCapabilitiesForUser(session.user.id);
   const brands = caps.loyaltyBrands;
 
   if (brands.length === 1) {
