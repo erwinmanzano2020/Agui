@@ -1,5 +1,5 @@
 // src/lib/roles/capabilities.ts
-import { getServerSupabase } from "@/lib/auth/server";
+import { createServerSupabase } from "@/lib/auth/server";
 import type { PostgrestResponse } from "@supabase/supabase-js";
 
 export type BrandRef = { id: string; slug: string; name: string };
@@ -46,7 +46,7 @@ function rowsToBrandRefs(rows: ReadonlyArray<RowWithBrand> | null | undefined): 
 }
 
 export async function getCapabilities(userId: string, email?: string): Promise<Capabilities> {
-  const supabase = await getServerSupabase();
+  const supabase = await createServerSupabase();
 
   const [loyaltyQ, employeeQ, ownerQ]: BrandQuery[] = await Promise.all([
     supabase.from("loyalty_memberships").select("brand:brands(id,slug,name)").eq("user_id", userId),
@@ -62,7 +62,13 @@ export async function getCapabilities(userId: string, email?: string): Promise<C
   const employeeOf = rowsToBrandRefs(employeeQ.data);
   const ownerOf = rowsToBrandRefs(ownerQ.data);
 
-  const isGM = !!email && GM_EMAILS.includes(email.toLowerCase());
+  let gmEmail = email;
+  if (!gmEmail) {
+    const { data } = await supabase.auth.getUser();
+    gmEmail = data.user?.email ?? undefined;
+  }
+
+  const isGM = !!gmEmail && GM_EMAILS.includes(gmEmail.toLowerCase());
 
   return { isGM, loyaltyBrands, employeeOf, ownerOf, gmApps: isGM };
 }

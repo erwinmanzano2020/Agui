@@ -3,29 +3,38 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getServerSession } from "@/lib/auth/server";
-import { getCapabilities } from "@/lib/roles/capabilities";
+import { getCapabilitiesForUser } from "@/lib/roles/get-capabilities.server";
 
-export default async function LoyaltyHub() {
-  const session = await getServerSession();
-  if (!session) return null;
+export default async function LoyaltyHubPage() {
+  const { session } = await getServerSession();
+  if (!session) redirect("/welcome");
 
-  const caps = await getCapabilities(session.user.id, session.user.email ?? undefined);
+  const caps = await getCapabilitiesForUser(session.user.id, session.user.email ?? undefined);
+  const brands = caps.loyaltyBrands;
 
-  if (caps.loyaltyBrands.length === 1) {
-    const only = caps.loyaltyBrands[0];
-    redirect(`/brand/${only.slug}/loyalty`);
+  if (brands.length === 1) {
+    redirect(`/brand/${brands[0].slug}/loyalty`);
   }
 
   return (
-    <main className="mx-auto max-w-3xl p-6 md:p-10">
-      <h1 className="text-2xl font-semibold mb-4">Your Loyalty Passes</h1>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {caps.loyaltyBrands.map((b) => (
-          <Link key={b.id} href={`/brand/${b.slug}/loyalty`} className="rounded-xl border p-4">
-            {b.name}
-          </Link>
-        ))}
-      </div>
+    <main className="mx-auto max-w-3xl p-4 md:p-6">
+      <h1 className="text-xl md:text-2xl font-bold mb-3">Loyalty Pass</h1>
+      {brands.length === 0 ? (
+        <p className="opacity-75">No loyalty memberships yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {brands.map((b) => (
+            <li key={b.id}>
+              <Link
+                href={`/brand/${b.slug}/loyalty`}
+                className="inline-block rounded-lg border px-3 py-2 hover:shadow"
+              >
+                {b.name}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
     </main>
   );
 }

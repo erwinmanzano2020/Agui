@@ -1,16 +1,17 @@
 // src/middleware.ts
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PREFIXES = [
+const PUBLIC_PATHS = [
   "/welcome",
   "/signin",
   "/auth/callback",
-  "/api/auth/session", // cookie sync endpoint used by client
+  "/api/auth/session",
+  "/healthz",
 ];
 
 function isPublicPath(pathname: string) {
   if (pathname === "/") return true;
-  if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) return true;
+  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) return true;
   // (Optional) allow all API routes; uncomment if desired:
   // if (pathname.startsWith("/api/")) return true;
   return false;

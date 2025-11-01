@@ -26,6 +26,9 @@
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "@supabase/ssr": [
+        "src/lib/supabase-ssr"
       ]
     },
     "plugins": [
