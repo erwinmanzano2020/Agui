@@ -1,38 +1,55 @@
+// src/app/(public)/auth/callback/page.tsx
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/auth/client";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { supabase } from "@/lib/auth/client";
-
-export default function AuthCallback() {
+export default function AuthCallbackPage() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const next = useMemo(() => searchParams.get("next") || "/agui", [searchParams]);
+  const search = useSearchParams();
+  const next = search.get("next") || "/me";
+  const [status, setStatus] = useState<"pending" | "ok" | "error">("pending");
+  const [message, setMessage] = useState("Signing you in…");
 
   useEffect(() => {
-    let active = true;
-
+    let mounted = true;
     (async () => {
       try {
-        await supabase.auth.getSession();
-      } catch (error) {
-        console.error("Failed to process Supabase session", error);
-      }
+        // Supabase reads the #access_token on this public page
+        const { error } = await supabase.auth.getSession();
+        if (error) throw error;
 
-      if (active) {
+        // Server cookie sync
+        await fetch("/api/auth/session", { method: "POST" });
+
+        if (!mounted) return;
+        setStatus("ok");
+        setMessage("Success! Redirecting…");
         router.replace(next);
+      } catch (e) {
+        console.error(e);
+        if (!mounted) return;
+        setStatus("error");
+        setMessage("Sign-in failed. Please try again.");
       }
     })();
-
     return () => {
-      active = false;
+      mounted = false;
     };
-  }, [next, router]);
+  }, [router, next]);
 
   return (
-    <main className="grid min-h-dvh place-items-center p-6">
-      <div className="text-sm text-muted-foreground">Signing you in…</div>
+    <main className="flex min-h-dvh items-center justify-center p-6">
+      <div className="max-w-sm text-center">
+        <h1 className="text-xl font-semibold mb-2">Auth Callback</h1>
+        <p className="text-sm opacity-80">{message}</p>
+        {status === "error" && (
+          <a className="underline mt-3 inline-block" href="/welcome">
+            Back to sign in
+          </a>
+        )}
+      </div>
     </main>
   );
 }
