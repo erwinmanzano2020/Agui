@@ -1,10 +1,11 @@
 import type { NextConfig } from "next";
 
-const config: NextConfig = {
+const nextConfig: NextConfig = {
   // Keep only one root config to avoid:
   // “Both `outputFileTracingRoot` and `turbopack.root` are set…”
   outputFileTracingRoot: process.cwd(),
 
+  // moved from experimental.serverComponentsExternalPackages
   serverExternalPackages: ["zod"],
   env: {
     AGUI_TAXONOMY_V2: "true",
@@ -15,4 +16,4 @@ const config: NextConfig = {
   },
 };
 
-export default config;
+export default nextConfig;
