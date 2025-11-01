@@ -1,51 +1,41 @@
+// src/middleware.ts
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = [
-  /^\/welcome(?:$|\/)/,
-  /^\/auth(?:$|\/)/,
-  /^\/api(?:$|\/)/,
-  /^\/signin(?:$|\/)/,
-  /^\/signout(?:$|\/)/,
-  /^\/accept-invite(?:$|\/)/,
-  /^\/_next\//,
-  /^\/favicon\.ico$/,
-  /^\/robots\.txt$/,
+const PUBLIC_PREFIXES = [
+  "/welcome",
+  "/signin",
+  "/auth/callback",
+  "/api/auth/session", // cookie sync endpoint used by client
 ];
+
+function isPublicPath(pathname: string) {
+  if (pathname === "/") return true;
+  if (PUBLIC_PREFIXES.some((p) => pathname.startsWith(p))) return true;
+  // (Optional) allow all API routes; uncomment if desired:
+  // if (pathname.startsWith("/api/")) return true;
+  return false;
+}
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const isPublic = PUBLIC_PATHS.some((pattern) => pattern.test(pathname));
-  const hasSession = Boolean(
-    request.cookies.get("sb-access-token") ||
-      request.cookies.get("supabase-auth-token") ||
-      request.cookies.get("sb-session")
-  );
+  if (isPublicPath(pathname)) return NextResponse.next();
 
-  if (!hasSession && !isPublic) {
+  // Basic auth gate: require sb-access-token cookie presence
+  const hasSession =
+    request.cookies.has("sb-access-token") ||
+    request.cookies.has("sb-refresh-token");
+
+  if (!hasSession) {
     const url = request.nextUrl.clone();
     url.pathname = "/welcome";
-    url.search = request.nextUrl.search;
-    return NextResponse.redirect(url);
-  }
-
-  if (hasSession && pathname === "/welcome") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/me";
-    url.search = request.nextUrl.search;
-    return NextResponse.redirect(url);
-  }
-
-  // Optional: land on /me when hitting /
-  if (hasSession && pathname === "/") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/me";
-    url.search = request.nextUrl.search;
+    // preserve query
     return NextResponse.redirect(url);
   }
 
   return NextResponse.next();
 }
 
+// Match all routes except static files/_next
 export const config = {
-  matcher: "/:path*",
+  matcher: ["/((?!_next/|favicon.ico|robots.txt|sitemap.xml).*)"],
 };
