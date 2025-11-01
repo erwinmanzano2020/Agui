@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 
 import { z } from "@/lib/z";
 
-import { INVENTORY_SOURCES, adoptInventory } from "@/lib/inventory/runtime";
+import {
+  INVENTORY_SOURCES,
+  adoptInventory,
+  type AdoptInventoryInput,
+} from "@/lib/inventory/runtime";
 import { stringEnum } from "@/lib/schema-helpers";
 
 export async function POST(req: Request) {
@@ -30,7 +34,8 @@ export async function POST(req: Request) {
     );
   }
 
-  const result = await adoptInventory(parsed.data);
+  const payload: AdoptInventoryInput = parsed.data;
+  const result = await adoptInventory(payload);
   return NextResponse.json(result, { status: 200 });
 }
 

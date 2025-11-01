@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "@/lib/z";
 import type { RefinementCtx } from "@/lib/z";
 
-import { resolveScan } from "@/lib/scan/runtime";
+import { resolveScan, type ScanResolveInput } from "@/lib/scan/runtime";
 
 export async function POST(req: Request) {
   const contentType = req.headers.get("content-type") || "";
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const result = await resolveScan(parsed.data);
+  const result = await resolveScan(parsed.data as ScanResolveInput);
   return NextResponse.json(result, { status: 200 });
 }
 

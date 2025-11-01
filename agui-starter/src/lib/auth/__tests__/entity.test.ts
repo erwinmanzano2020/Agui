@@ -1,11 +1,20 @@
-import { describe, it, expect } from "vitest";
+import assert from "node:assert/strict";
+import { describe, it } from "node:test";
+
 import { normalizeIdentifier } from "../entity";
 
 describe("normalizeIdentifier", () => {
   it("normalizes email", () => {
-    expect(normalizeIdentifier("email", "John@Example.COM ")).toBe("john@example.com");
+    assert.equal(
+      normalizeIdentifier("email", "John@Example.COM "),
+      "john@example.com",
+    );
   });
+
   it("normalizes phone", () => {
-    expect(normalizeIdentifier("phone", "  (0917) 123-4567 ")).toBe("+09171234567");
+    assert.equal(
+      normalizeIdentifier("phone", "  (0917) 123-4567 "),
+      "+09171234567",
+    );
   });
 });

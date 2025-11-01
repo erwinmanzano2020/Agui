@@ -38,11 +38,22 @@ const namespaceImportRe = /import\s*\*\s+as\s+\w+\s*from\s*[\"'](?:zod|@\/lib\/z
 const riskyBarrelRe = /export\s+(?:\*\s+as\s+\w+|\{\s*z\s*\}|\*)\s+from\s*[\"']zod[\"']/;
 
 const offenders = [];
+const directImportOffenders = [];
+const namespaceAccessOffenders = [];
+
+const directZodImportRe = /from\s*["']zod["']/;
+const namespaceAccessRe = /\bz\.z\./;
 
 walkDir(srcDir, (filePath) => {
   if (path.resolve(filePath) === facadePath) return;
   if (!/\.(ts|tsx)$/.test(filePath)) return;
   const text = fs.readFileSync(filePath, "utf8");
+  if (directZodImportRe.test(text)) {
+    directImportOffenders.push(filePath);
+  }
+  if (namespaceAccessRe.test(text)) {
+    namespaceAccessOffenders.push(filePath);
+  }
   const buildsSchema = schemaHints.some((hint) => text.includes(hint));
   if (!buildsSchema) return;
   const hasNamespaceImport = namespaceImportRe.test(text);
@@ -74,18 +85,47 @@ walkDir(srcDir, (filePath) => {
 const barrelOffenders = [];
 walkDir(projectRoot, (filePath) => {
   if (!/\.(ts|tsx)$/.test(filePath)) return;
+  const isFacade = path.resolve(filePath) === facadePath;
   const text = fs.readFileSync(filePath, "utf8");
-  if (riskyBarrelRe.test(text)) {
+  if (!isFacade && directZodImportRe.test(text)) {
+    directImportOffenders.push(filePath);
+  }
+  if (namespaceAccessRe.test(text)) {
+    namespaceAccessOffenders.push(filePath);
+  }
+  if (!isFacade && riskyBarrelRe.test(text)) {
     barrelOffenders.push(filePath);
   }
 });
 
-if (offenders.length || barrelOffenders.length) {
+const uniqueDirectImportOffenders = [...new Set(directImportOffenders)];
+const uniqueNamespaceAccessOffenders = [...new Set(namespaceAccessOffenders)];
+
+if (
+  offenders.length ||
+  barrelOffenders.length ||
+  uniqueDirectImportOffenders.length ||
+  uniqueNamespaceAccessOffenders.length
+) {
   console.error("❌ Refusing to build due to unsafe zod imports.\n");
   if (offenders.length) {
     console.error("Files that must value-import zod:");
     for (const { filePath, message } of offenders) {
       console.error(`  - ${path.relative(projectRoot, filePath)} → ${message}`);
+    }
+    console.error("");
+  }
+  if (uniqueDirectImportOffenders.length) {
+    console.error("Files must import from \"@/lib/z\" instead of \"zod\":");
+    for (const filePath of uniqueDirectImportOffenders) {
+      console.error(`  - ${path.relative(projectRoot, filePath)}`);
+    }
+    console.error("");
+  }
+  if (uniqueNamespaceAccessOffenders.length) {
+    console.error("Replace \`z.z.*\` usage with the facade export (\`z.*\`):");
+    for (const filePath of uniqueNamespaceAccessOffenders) {
+      console.error(`  - ${path.relative(projectRoot, filePath)}`);
     }
     console.error("");
   }

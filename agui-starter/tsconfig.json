@@ -26,9 +26,6 @@
     "paths": {
       "@/*": [
         "src/*"
-      ],
-      "zod": [
-        "vendor/zod/index.d.ts"
       ]
     },
     "plugins": [

@@ -2,6 +2,9 @@
   "name": "agui-starter",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": "20.x"
+  },
   "scripts": {
     "dev": "next dev",
     "prebuild": "node scripts/check-zod-imports.mjs",
@@ -10,8 +13,7 @@
     "lint": "next lint",
     "lint:ci": "next lint --max-warnings=100000 || true",
     "typecheck": "tsc --noEmit",
-    "test": "rm -rf .test-dist && tsc --project tsconfig.test.json && node --test $(find .test-dist -name '*.test.js')",
-    "test:vitest": "vitest run"
+    "test": "rm -rf .test-dist && tsc --project tsconfig.test.json && node --test $(find .test-dist -name '*.test.js')"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
@@ -19,7 +21,7 @@
     "next": "15.5.4",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "zod": "file:./vendor/zod"
+    "zod": "3.23.8"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
@@ -30,13 +32,6 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.4",
     "tailwindcss": "^4",
-    "typescript": "^5.9.3",
-    "vitest": "^2.1.8"
-  },
-  "overrides": {
-    "zod": "file:./vendor/zod"
-  },
-  "resolutions": {
-    "zod": "file:./vendor/zod"
+    "typescript": "^5.9.3"
   }
 }

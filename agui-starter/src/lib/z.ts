@@ -1,53 +1,62 @@
+// src/lib/z.ts
+import * as Z from "zod";
+
 /**
- * Zod facade – import this *everywhere* instead of "zod":
- *   import { z, stringEnum, ZodIssueCode, type RefinementCtx } from "@/lib/z";
+ * Canonical Zod API export (preferred).
  *
- * This bypasses Turbopack/SSR ESM quirks by resolving Zod via Node's require.
+ * Usage:
+ *   import { z } from "@/lib/z";
  */
+export const z = Z;
 
-import type { ZodIssue } from "zod";
-import { createRequire } from "module";
+/** Default export for defensive compatibility (`import z from "@/lib/z"`). */
+export default z;
 
-// Resolve the actual zod module using Node's resolver (avoids ESM namespace weirdness)
-const req = createRequire(import.meta.url);
-// eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-const ZNS: any = req("zod");
+/**
+ * Re-export the entire Zod surface so namespace imports stay functional.
+ */
+export * from "zod";
 
-// Try common shapes: { z }, { default: { z } }, default itself, or the namespace
-const candidates: any[] = [ZNS?.z, ZNS?.default?.z, ZNS?.default, ZNS];
+/** Stable type aliases that continue working across Zod variants. */
+export type ZodIssue = Z.ZodIssue;
+export type ZodTypeAny = Z.ZodType<any>;
+export type AnyZodObject = Z.ZodObject<any>;
 
-function isZApi(o: any) {
-  return (
-    o &&
-    typeof o.object === "function" &&
-    typeof o.string === "function" &&
-    typeof o.enum === "function"
-  );
-}
+/** Minimal structural ctx type for superRefine usage. */
+export type RefinementCtx = { addIssue: (issue: ZodIssue) => void };
 
-let _z: any = candidates.find(isZApi);
+type PortableIssue = { code?: unknown };
+type PortableErrorMap = (
+  issue: PortableIssue,
+  ctx?: unknown
+) => { message: string };
 
-if (!_z) {
-  const keys = ZNS && typeof ZNS === "object" ? Object.keys(ZNS).join(", ") : "(none)";
-  throw new Error(`[ZOD_IMPORT_BROKEN] z appears invalid in src/lib/z.ts. Keys: ${keys}`);
-}
+const enumIssueCode = () =>
+  (z as any).ZodIssueCode?.invalid_enum_value ?? "invalid_enum_value";
 
-// Runtime z API
-export const z = _z as typeof import("zod")["z"];
+/** String enum helper with nicer errors that works across Zod builds. */
+type MutableEnumValues<T extends readonly [string, ...string[]]> = {
+  -readonly [Index in keyof T]: T[Index];
+} & [string, ...string[]];
 
-// Constants/types — pull from whichever object has them
-export const ZodIssueCode: typeof import("zod")["ZodIssueCode"] =
-  ZNS.ZodIssueCode ?? ZNS?.default?.ZodIssueCode;
+export const stringEnum = <const T extends readonly [string, ...string[]]>(
+  values: T,
+  label?: string
+) => {
+  const expectedCode = enumIssueCode();
+  const formattedList = values.join(", ");
 
-// Type re-exports
-export type { ZodIssue };
+  const errorMap: PortableErrorMap = (issue) => {
+    if ((issue as any).code === expectedCode) {
+      const message = label
+        ? `${label} must be one of: ${formattedList}`
+        : `Must be one of: ${formattedList}`;
+      return { message };
+    }
+    return { message: "Invalid value" };
+  };
 
-/** Version-safe ctx type for .refine/.superRefine */
-export type RefinementCtx = {
-  addIssue: (issue: ZodIssue) => void;
+  const mutableValues = [...values] as MutableEnumValues<T>;
+
+  return z.enum(mutableValues, { errorMap }) as Z.ZodEnum<MutableEnumValues<T>>;
 };
-
-/** Small helper for union of string literals */
-export function stringEnum<T extends readonly [string, ...string[]]>(values: T) {
-  return z.enum(values);
-}
