@@ -1,16 +1,16 @@
 // Loyalty enrollment helpers with no schema libraries at module scope.
 
-const ALLOWED_CHANNELS = ["kiosk", "cashier", "self-service"] as const;
-const ALLOWED_PLANS = ["basic", "premium"] as const;
+import { z } from "@/lib/z";
+import { Channel, LoyaltyPlan } from "@/lib/schema-kit";
 
-export const LOYALTY_CHANNELS = ALLOWED_CHANNELS;
-export const LOYALTY_PLANS = ALLOWED_PLANS;
+export const LOYALTY_CHANNELS = Channel.options;
+export const LOYALTY_PLANS = LoyaltyPlan.options;
 
 export type EnrollMemberInput = {
   memberId?: string;
   phone?: string;
-  channel?: (typeof ALLOWED_CHANNELS)[number];
-  plan?: (typeof ALLOWED_PLANS)[number];
+  channel?: z.infer<typeof Channel>;
+  plan?: z.infer<typeof LoyaltyPlan>;
   dryRun?: boolean;
 };
 
@@ -27,7 +27,7 @@ export type EnrollMemberResult = {
 export async function enrollMember(input: EnrollMemberInput): Promise<EnrollMemberResult> {
   const identifier = input.memberId || input.phone || "";
   const by = input.channel ?? "unspecified";
-  const plan = input.plan ?? "basic";
+  const plan = input.plan ?? "starter";
 
   return {
     ok: true,
@@ -41,9 +41,9 @@ export async function enrollMember(input: EnrollMemberInput): Promise<EnrollMemb
 }
 
 export function allowedChannels() {
-  return [...ALLOWED_CHANNELS];
+  return [...Channel.options];
 }
 
 export function allowedPlans() {
-  return [...ALLOWED_PLANS];
+  return [...LoyaltyPlan.options];
 }

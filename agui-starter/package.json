@@ -10,9 +10,9 @@
     "prebuild": "node scripts/check-zod-imports.mjs",
     "build": "next build --turbopack",
     "start": "next start",
-    "lint": "eslint . --ext .ts,.tsx",
+    "lint": "eslint .",
     "lint:ci": "next lint --max-warnings=100000 || true",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "rm -rf .test-dist && tsc --project tsconfig.test.json && node --test $(find .test-dist -name '*.test.js')"
   },
   "dependencies": {
