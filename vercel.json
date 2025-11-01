@@ -1,0 +1,4 @@
+{
+  "installCommand": "cd agui-starter && npm ci",
+  "buildCommand": "cd agui-starter && npm run build"
+}
