@@ -33,7 +33,8 @@ const schemaHints = [
 ];
 
 const typeOnlyImportRe = /import\s+type\s+(?:\*\s+as\s+z|\{[^}]*\bz\b[^}]*\})\s+from\s*[\"'](?:zod|@\/lib\/z)[\"'];?/;
-const valueImportRe = /import\s*\{\s*z\s*\}\s*from\s*[\"'](?:zod|@\/lib\/z)[\"'];?/;
+const valueImportRe =
+  /import\s*\{[^}]*\bz\b[^}]*\}\s*from\s*[\"'](?:zod|@\/lib\/z)[\"'];?/;
 const namespaceImportRe = /import\s*\*\s+as\s+\w+\s*from\s*[\"'](?:zod|@\/lib\/z)[\"'];?/;
 const riskyBarrelRe = /export\s+(?:\*\s+as\s+\w+|\{\s*z\s*\}|\*)\s+from\s*[\"']zod[\"']/;
 
