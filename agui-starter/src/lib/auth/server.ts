@@ -3,13 +3,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createServerSupabaseClient } from "../supabase-server";
 
-let clientPromise: Promise<SupabaseClient> | null = null;
-
 export function getServerSupabase(): Promise<SupabaseClient> {
-  if (!clientPromise) {
-    clientPromise = createServerSupabaseClient();
-  }
-  return clientPromise;
+  return createServerSupabaseClient();
 }
 
 export async function getServerSession() {
