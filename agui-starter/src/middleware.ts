@@ -5,8 +5,12 @@ const PUBLIC_PATHS = [
   "/welcome",
   "/signin",
   "/auth/callback",
+  "/(public)/auth/callback",
   "/api/auth/session",
   "/healthz",
+  "/favicon.ico",
+  "/robots.txt",
+  "/sitemap.xml",
 ];
 
 function isPublicPath(pathname: string) {
