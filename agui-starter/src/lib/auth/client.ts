@@ -9,8 +9,12 @@ export const supabase = createClient(
 );
 
 export async function sendMagicLink(email: string) {
+  const next = "/agui";
+
   return supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: `${location.origin}/agui` },
+    options: {
+      emailRedirectTo: `${location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+    },
   });
 }

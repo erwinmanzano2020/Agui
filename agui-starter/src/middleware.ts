@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const PUBLIC_PATHS = [
   /^\/welcome(?:$|\/)/,
+  /^\/auth(?:$|\/)/,
+  /^\/api(?:$|\/)/,
   /^\/signin(?:$|\/)/,
   /^\/signout(?:$|\/)/,
   /^\/accept-invite(?:$|\/)/,
@@ -14,7 +16,9 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.some((pattern) => pattern.test(pathname));
   const hasSession = Boolean(
-    request.cookies.get("sb-access-token") || request.cookies.get("supabase-auth-token")
+    request.cookies.get("sb-access-token") ||
+      request.cookies.get("supabase-auth-token") ||
+      request.cookies.get("sb-session")
   );
 
   if (!hasSession && !isPublic) {
