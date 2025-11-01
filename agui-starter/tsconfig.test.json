@@ -19,7 +19,9 @@
     "src/lib/loyalty/rules.ts",
     "src/lib/loyalty/rules.test.ts",
     "src/lib/pos/price.ts",
-    "src/lib/pos/price.test.ts"
+    "src/lib/pos/price.test.ts",
+    "src/lib/z.ts",
+    "src/lib/z.test.ts"
   ],
   "exclude": [
     "node_modules"

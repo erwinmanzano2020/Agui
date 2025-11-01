@@ -1,5 +1,6 @@
 // src/lib/z.ts
-import * as Z from "zod";
+import { z } from "zod";
+import type { AnyZodObject, ZodEnum, ZodIssue, ZodTypeAny } from "zod";
 
 /**
  * Canonical Zod API export (preferred).
@@ -7,7 +8,7 @@ import * as Z from "zod";
  * Usage:
  *   import { z } from "@/lib/z";
  */
-export const z = Z;
+export { z };
 
 /** Default export for defensive compatibility (`import z from "@/lib/z"`). */
 export default z;
@@ -18,9 +19,7 @@ export default z;
 export * from "zod";
 
 /** Stable type aliases that continue working across Zod variants. */
-export type ZodIssue = Z.ZodIssue;
-export type ZodTypeAny = Z.ZodType<any>;
-export type AnyZodObject = Z.ZodObject<any>;
+export type { ZodIssue, ZodTypeAny, AnyZodObject };
 
 /** Minimal structural ctx type for superRefine usage. */
 export type RefinementCtx = { addIssue: (issue: ZodIssue) => void };
@@ -31,8 +30,12 @@ type PortableErrorMap = (
   ctx?: unknown
 ) => { message: string };
 
-const enumIssueCode = () =>
-  (z as any).ZodIssueCode?.invalid_enum_value ?? "invalid_enum_value";
+type ZodIssueCarrier = { ZodIssueCode?: { invalid_enum_value?: string } };
+
+const enumIssueCode = () => {
+  const issueCode = (z as ZodIssueCarrier).ZodIssueCode?.invalid_enum_value;
+  return issueCode ?? "invalid_enum_value";
+};
 
 /** String enum helper with nicer errors that works across Zod builds. */
 type MutableEnumValues<T extends readonly [string, ...string[]]> = {
@@ -47,7 +50,7 @@ export const stringEnum = <const T extends readonly [string, ...string[]]>(
   const formattedList = values.join(", ");
 
   const errorMap: PortableErrorMap = (issue) => {
-    if ((issue as any).code === expectedCode) {
+    if (typeof issue.code === "string" && issue.code === expectedCode) {
       const message = label
         ? `${label} must be one of: ${formattedList}`
         : `Must be one of: ${formattedList}`;
@@ -58,5 +61,5 @@ export const stringEnum = <const T extends readonly [string, ...string[]]>(
 
   const mutableValues = [...values] as MutableEnumValues<T>;
 
-  return z.enum(mutableValues, { errorMap }) as Z.ZodEnum<MutableEnumValues<T>>;
+  return z.enum(mutableValues, { errorMap }) as ZodEnum<MutableEnumValues<T>>;
 };

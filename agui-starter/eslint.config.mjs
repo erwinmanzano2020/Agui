@@ -29,15 +29,12 @@ const eslintConfig = [
           paths: [
             {
               name: "zod",
+              message: "Use \"@/lib/z\" facade instead.",
+            },
+            {
+              name: "zod",
               importNames: ["default"],
               message: "Use `import { z } from \"zod\"` instead of the default export.",
-            },
-          ],
-          patterns: [
-            {
-              group: ["@/**"],
-              importNames: ["z", "Z"],
-              message: "Import the Zod runtime directly from \"zod\" rather than internal barrels.",
             },
           ],
         },
@@ -124,6 +121,12 @@ const eslintConfig = [
           ],
         },
       ],
+    },
+  },
+  {
+    files: ["src/lib/z.ts"],
+    rules: {
+      "no-restricted-imports": "off",
     },
   },
 ];
