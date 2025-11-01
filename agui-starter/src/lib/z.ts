@@ -52,5 +52,5 @@ export const stringEnum = <const T extends readonly [string, ...string[]]>(
     return { message: "Invalid value" };
   };
 
-  return z.enum(values as unknown as [string, ...string[]], { errorMap }) as Z.ZodEnum<T>;
+  return z.enum(values as unknown as [string, ...string[]], { errorMap }) as unknown as Z.ZodEnum<T>;
 };
