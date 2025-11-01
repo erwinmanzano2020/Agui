@@ -2,52 +2,47 @@ import { NextResponse } from "next/server";
 
 import { z } from "@/lib/z";
 import type { RefinementCtx } from "@/lib/z";
+import { Channel, LoyaltyPlan, id, phone, safeParse } from "@/lib/schema-kit";
 
-import { LOYALTY_CHANNELS, LOYALTY_PLANS, enrollMember } from "@/lib/loyalty/runtime";
-import { stringEnum } from "@/lib/schema-helpers";
+const baseSchema = z.object({
+  memberId: id().optional(),
+  phone: phone().optional(),
+  channel: Channel.optional(),
+  plan: LoyaltyPlan.default("starter"),
+  dryRun: z.boolean().default(false),
+});
+
+type LoyaltyInput = z.infer<typeof baseSchema>;
+
+const schema = baseSchema.superRefine((value: LoyaltyInput, ctx: RefinementCtx) => {
+  if (!value.memberId && !value.phone) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Provide either memberId or phone.",
+      path: ["memberId"],
+    });
+  }
+});
 
 export async function POST(req: Request) {
-  const contentType = req.headers.get("content-type") || "";
-  if (!contentType.includes("application/json")) {
-    return NextResponse.json(
-      { ok: false, error: "Expected application/json" },
-      { status: 400 },
-    );
+  const json = await req.json().catch(() => null);
+  const parsed = safeParse(schema, json);
+
+  if (!parsed.ok) {
+    return NextResponse.json({ ok: false, issues: parsed.issues }, { status: 400 });
   }
 
-  const body = await req.json().catch(() => ({}));
-  const baseSchema = z
-    .object({
-      memberId: z.string().min(1).optional(),
-      phone: z.string().min(1).optional(),
-      channel: stringEnum(LOYALTY_CHANNELS).optional(),
-      plan: stringEnum(LOYALTY_PLANS).optional(),
-      dryRun: z.boolean().optional(),
-    })
-    .strict();
+  const { memberId, phone, channel, plan, dryRun } = parsed.data;
 
-  type LoyaltyInput = ReturnType<(typeof baseSchema)["parse"]>;
-
-  const schema = baseSchema.superRefine((value: LoyaltyInput, ctx: RefinementCtx) => {
-    if (!value.memberId && !value.phone) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Provide at least one identifier: memberId or phone",
-        path: ["memberId"],
-      });
-    }
+  // TODO: implement real enroll; mocked for now
+  const mockId = memberId ?? `P-${phone}`;
+  return NextResponse.json({
+    ok: true,
+    enrolled: !dryRun,
+    memberId: mockId,
+    channel: channel ?? "cashier",
+    plan,
   });
-
-  const parsed = schema.safeParse(body);
-  if (!parsed.success) {
-    return NextResponse.json(
-      { ok: false, error: "Invalid payload", details: parsed.error.flatten() },
-      { status: 400 },
-    );
-  }
-
-  const result = await enrollMember(parsed.data);
-  return NextResponse.json(result, { status: 200 });
 }
 
 export async function GET() {
