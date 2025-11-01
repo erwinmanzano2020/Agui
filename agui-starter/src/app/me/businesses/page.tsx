@@ -9,10 +9,7 @@ export default async function MyBusinesses() {
   const { session } = await getServerSession();
   if (!session) redirect("/welcome");
 
-  const caps = await getCapabilitiesForUser(
-    session.user.id,
-    session.user.email ?? undefined
-  );
+  const caps = await getCapabilitiesForUser(session.user.id);
 
   return (
     <main className="mx-auto max-w-3xl p-6 md:p-10">
