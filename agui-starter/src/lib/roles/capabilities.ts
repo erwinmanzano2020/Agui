@@ -12,23 +12,42 @@ export type Capabilities = {
 
 const GM_EMAILS = (process.env.AGHI_GM_EMAILS || "")
   .split(",")
-  .map((s) => s.trim())
+  .map((s) => s.trim().toLowerCase())
   .filter(Boolean);
 
-type BrandRow = {
-  brand: {
-    id: string;
-    slug: string;
-    name: string;
-  } | null;
-};
+/** Map any brand-like record to a BrandRef (defensive casting). */
+function toBrandRef(b: any): BrandRef {
+  if (!b) throw new Error("Invalid brand");
+  return {
+    id: String(b.id),
+    slug: String(b.slug),
+    name: String(b.name),
+  };
+}
 
-const isBrand = (brand: BrandRow["brand"]): brand is NonNullable<BrandRow["brand"]> =>
-  Boolean(brand);
+/** Supabase may return `brand` as an object or an array; normalize to a flat list. */
+function rowsToBrandRefs(rows: any[] | null | undefined): BrandRef[] {
+  if (!rows) return [];
+  const out: BrandRef[] = [];
+  for (const r of rows) {
+    const cell = (r as any).brand;
+    if (!cell) continue;
+    if (Array.isArray(cell)) {
+      for (const b of cell) out.push(toBrandRef(b));
+    } else {
+      out.push(toBrandRef(cell));
+    }
+  }
+  return out;
+}
 
-export async function getCapabilities(userId: string, email?: string): Promise<Capabilities> {
+export async function getCapabilities(
+  userId: string,
+  email?: string
+): Promise<Capabilities> {
   const supabase = await getServerSupabase();
 
+  // Adjust table names/columns to your schema if needed.
   const [loyaltyQ, employeeQ, ownerQ] = await Promise.all([
     supabase
       .from("loyalty_memberships")
@@ -45,17 +64,12 @@ export async function getCapabilities(userId: string, email?: string): Promise<C
       .eq("user_id", userId),
   ]);
 
-  const toBrandRefs = (rows?: BrandRow[] | null): BrandRef[] =>
-    (rows ?? [])
-      .map((r) => r.brand)
-      .filter(isBrand)
-      .map((b) => ({ id: b.id, slug: b.slug, name: b.name }));
-
-  const loyaltyBrands = toBrandRefs(loyaltyQ.data);
-  const employeeOf = toBrandRefs(employeeQ.data);
-  const ownerOf = toBrandRefs(ownerQ.data);
+  const loyaltyBrands = rowsToBrandRefs(loyaltyQ.data);
+  const employeeOf = rowsToBrandRefs(employeeQ.data);
+  const ownerOf = rowsToBrandRefs(ownerQ.data);
 
   const isGM = !!email && GM_EMAILS.includes(email.toLowerCase());
+
   return {
     isGM,
     loyaltyBrands,
