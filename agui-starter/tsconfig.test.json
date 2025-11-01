@@ -3,6 +3,7 @@
   "compilerOptions": {
     "noEmit": false,
     "outDir": ".test-dist",
+    "rootDir": "src",
     "module": "commonjs",
     "moduleResolution": "node",
     "declaration": false,
@@ -21,7 +22,9 @@
     "src/lib/pos/price.ts",
     "src/lib/pos/price.test.ts",
     "src/lib/z.ts",
-    "src/lib/z.test.ts"
+    "src/lib/z.test.ts",
+    "src/lib/schema-kit.ts",
+    "src/lib/__tests__/schema-kit.test.ts"
   ],
   "exclude": [
     "node_modules"

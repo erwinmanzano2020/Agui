@@ -19,4 +19,7 @@ jobs:
           cache-dependency-path: agui-starter/package-lock.json
       - run: npm ci
       - run: npm run lint
+      - run: npm run typecheck
       - run: npm run build
+      - name: Run node tests (compiled)
+        run: npm run test

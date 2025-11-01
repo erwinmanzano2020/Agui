@@ -12,8 +12,8 @@
     "start": "next start",
     "lint": "eslint . --ext .ts,.tsx",
     "lint:ci": "next lint --max-warnings=100000 || true",
-    "typecheck": "tsc --noEmit",
-    "test": "rm -rf .test-dist && tsc --project tsconfig.test.json && node --test $(find .test-dist -name '*.test.js')"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "rm -rf .test-dist && tsc --project tsconfig.test.json && node -r ./scripts/register-test-aliases.cjs --test $(find .test-dist -name '*.test.js')"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
