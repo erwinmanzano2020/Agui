@@ -3,13 +3,16 @@ import { cookies, headers } from "next/headers";
 import { createServerClient, type CookieOptions, type SupabaseClient } from "@supabase/ssr";
 import { Database } from "@/lib/types/supabase";
 
-type CookieStore = Awaited<ReturnType<typeof cookies>>;
-
-type HeaderStore = Awaited<ReturnType<typeof headers>>;
+type MutableCookieStore = {
+  set?: (name: string, value: string, options?: CookieOptions) => void;
+  delete?: (name: string, options?: CookieOptions) => void;
+};
 
 export async function createServerSupabase(): Promise<SupabaseClient<Database>> {
-  const cookieStore: CookieStore = await cookies();
-  const headerStore: HeaderStore = await headers();
+  const cookieStore = await cookies();
+  const headerStore = await headers();
+
+  const mutableCookies = cookieStore as unknown as MutableCookieStore;
 
   return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -20,10 +23,14 @@ export async function createServerSupabase(): Promise<SupabaseClient<Database>> 
           return cookieStore.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options });
+          if (typeof mutableCookies.set === "function") {
+            mutableCookies.set(name, value, options);
+          }
         },
         remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: "", ...options });
+          if (typeof mutableCookies.delete === "function") {
+            mutableCookies.delete(name, options);
+          }
         },
       },
       headers: {
