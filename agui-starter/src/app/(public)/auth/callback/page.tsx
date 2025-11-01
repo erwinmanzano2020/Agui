@@ -1,14 +1,21 @@
 // src/app/(public)/auth/callback/page.tsx
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/auth/client";
 import { useRouter, useSearchParams } from "next/navigation";
+
+function resolveNextPath(raw: string | null): string {
+  if (!raw) return "/me";
+  if (!raw.startsWith("/")) return "/me";
+  if (raw.startsWith("//")) return "/me";
+  return raw;
+}
 
 export default function AuthCallbackPage() {
   const router = useRouter();
   const search = useSearchParams();
-  const next = search.get("next") || "/me";
+  const next = useMemo(() => resolveNextPath(search.get("next")), [search]);
   const [status, setStatus] = useState<"pending" | "ok" | "error">("pending");
   const [message, setMessage] = useState("Signing you in…");
 

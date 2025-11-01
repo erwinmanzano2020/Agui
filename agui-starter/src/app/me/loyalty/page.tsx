@@ -17,18 +17,19 @@ export default async function LoyaltyHubPage() {
   }
 
   return (
-    <main className="mx-auto max-w-3xl p-4 md:p-6">
-      <h1 className="text-xl md:text-2xl font-bold mb-3">Loyalty Pass</h1>
+    <main className="mx-auto max-w-3xl space-y-4 p-4">
+      <header>
+        <h1 className="text-xl font-semibold">Loyalty Pass</h1>
+        <p className="text-sm opacity-70">Choose a brand to open your pass.</p>
+      </header>
+
       {brands.length === 0 ? (
         <p className="opacity-75">No loyalty memberships yet.</p>
       ) : (
         <ul className="space-y-2">
           {brands.map((b) => (
             <li key={b.id}>
-              <Link
-                href={`/brand/${b.slug}/loyalty`}
-                className="inline-block rounded-lg border px-3 py-2 hover:shadow"
-              >
+              <Link href={`/brand/${b.slug}/loyalty`} className="underline">
                 {b.name}
               </Link>
             </li>
