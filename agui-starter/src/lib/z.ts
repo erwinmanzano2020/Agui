@@ -29,7 +29,7 @@ type PortableIssue = { code?: unknown };
 type PortableErrorMap = (
   issue: PortableIssue,
   ctx?: unknown
-) => { message?: string };
+) => { message: string };
 
 const enumIssueCode = () =>
   (z as any).ZodIssueCode?.invalid_enum_value ?? "invalid_enum_value";
