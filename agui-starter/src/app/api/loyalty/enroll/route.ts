@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { z } from "@/lib/z";
 import type { RefinementCtx } from "@/lib/z";
 import { Channel, LoyaltyPlan, id, phone, safeParse } from "@/lib/schema-kit";
+import { enrollMember } from "@/lib/loyalty/runtime";
 
 const baseSchema = z.object({
   memberId: id().optional(),
@@ -25,6 +26,14 @@ const schema = baseSchema.superRefine((value: LoyaltyInput, ctx: RefinementCtx) 
 });
 
 export async function POST(req: Request) {
+  const contentType = req.headers.get("content-type") ?? "";
+  if (!contentType.includes("application/json")) {
+    return NextResponse.json(
+      { ok: false, error: "Expected application/json" },
+      { status: 400 },
+    );
+  }
+
   const json = await req.json().catch(() => null);
   const parsed = safeParse(schema, json);
 
@@ -32,17 +41,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, issues: parsed.issues }, { status: 400 });
   }
 
-  const { memberId, phone, channel, plan, dryRun } = parsed.data;
-
-  // TODO: implement real enroll; mocked for now
-  const mockId = memberId ?? `P-${phone}`;
-  return NextResponse.json({
-    ok: true,
-    enrolled: !dryRun,
-    memberId: mockId,
-    channel: channel ?? "cashier",
-    plan,
-  });
+  const result = await enrollMember(parsed.data);
+  return NextResponse.json(result, { status: 200 });
 }
 
 export async function GET() {
