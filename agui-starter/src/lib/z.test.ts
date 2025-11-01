@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { z, stringEnum } from "@/lib/z";
+import { z, stringEnum } from "./z";
 
 describe("z facade", () => {
   it("stringEnum validates allowed values", () => {
