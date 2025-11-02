@@ -6,7 +6,7 @@ import { useSearchParams } from "next/navigation";
 
 import { sendMagicLink } from "@/lib/auth/client";
 
-export default function LandingPage() {
+export default function WelcomePage() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
@@ -46,11 +46,11 @@ export default function LandingPage() {
       <section className="rounded-2xl border border-border/80 bg-card p-6 shadow-soft">
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1 text-left">
-            <label className="text-sm font-medium text-foreground" htmlFor="landing-email">
+            <label className="text-sm font-medium text-foreground" htmlFor="welcome-email">
               Email
             </label>
             <input
-              id="landing-email"
+              id="welcome-email"
               type="email"
               required
               autoComplete="email"

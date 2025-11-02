@@ -7,7 +7,7 @@ import { getCapabilitiesForUser } from "@/lib/roles/get-capabilities.server";
 
 export default async function MyBusinesses() {
   const { session } = await getServerSession();
-  if (!session) redirect("/");
+  if (!session) redirect("/welcome");
 
   const caps = await getCapabilitiesForUser(session.user.id);
   const brands = caps.ownerBrands;

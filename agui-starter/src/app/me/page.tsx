@@ -46,7 +46,7 @@ function GMIcon(props: React.SVGProps<SVGSVGElement>) {
 
 export default async function MePage() {
   const { session } = await getServerSession();
-  if (!session) redirect("/");
+  if (!session) redirect("/welcome");
 
   const caps = await getCapabilitiesForUser(session.user.id);
 

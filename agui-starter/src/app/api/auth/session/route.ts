@@ -1,14 +1,42 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
-import type { SupabaseClient } from "@supabase/supabase-js";
+
+import type { Database } from "@/lib/types/supabase";
 
 export const dynamic = "force-dynamic"; // do not cache; we set cookies here
 
-async function getServerSupabase(): Promise<SupabaseClient> {
-  const jar = await cookies();
+const PRESENCE_COOKIE = "sb-presence";
 
-  return createServerClient(
+type CookieStore = Awaited<ReturnType<typeof cookies>>;
+
+function setPresenceCookie(
+  jar: CookieStore,
+  options: Partial<Pick<CookieOptions, "maxAge" | "expires">> = {},
+) {
+  jar.set({
+    name: PRESENCE_COOKIE,
+    value: "1",
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    ...options,
+  });
+}
+
+function clearPresenceCookie(jar: CookieStore) {
+  jar.set({
+    name: PRESENCE_COOKIE,
+    value: "",
+    path: "/",
+    httpOnly: true,
+    sameSite: "lax",
+    maxAge: 0,
+  });
+}
+
+async function createSupabaseServerClient(jar: CookieStore) {
+  return createServerClient<Database>(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
@@ -28,27 +56,37 @@ async function getServerSupabase(): Promise<SupabaseClient> {
 }
 
 export async function POST(req: Request) {
-  const { access_token, refresh_token } = (await req.json().catch(() => ({}))) as {
+  const payload = (await req.json().catch(() => ({}))) as {
     access_token?: string;
     refresh_token?: string;
   };
 
-  if (!access_token || !refresh_token) {
-    return NextResponse.json({ ok: false, error: "missing_tokens" }, { status: 400 });
+  const jar = await cookies();
+  const accessToken = payload.access_token;
+  const refreshToken = payload.refresh_token;
+
+  if (accessToken && refreshToken) {
+    const supabase = await createSupabaseServerClient(jar);
+    const { data, error } = await supabase.auth.setSession({ access_token: accessToken, refresh_token: refreshToken });
+
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 401 });
+    }
+
+    const expiresIn = data.session?.expires_in;
+    setPresenceCookie(jar, typeof expiresIn === "number" ? { maxAge: expiresIn } : {});
+    return NextResponse.json({ ok: true });
   }
 
-  const supabase = await getServerSupabase();
-  const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-
-  if (error) {
-    return NextResponse.json({ ok: false, error: error.message }, { status: 401 });
-  }
-
+  setPresenceCookie(jar);
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE() {
-  const supabase = await getServerSupabase();
+  const jar = await cookies();
+  clearPresenceCookie(jar);
+
+  const supabase = await createSupabaseServerClient(jar);
   await supabase.auth.signOut();
   return NextResponse.json({ ok: true });
 }

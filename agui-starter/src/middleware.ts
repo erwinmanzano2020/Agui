@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const PUBLIC_PATHS = new Set<string>([
-  "/", // landing
+  "/welcome",
   "/auth/callback",
   "/apply",
   "/api/auth/session",
@@ -30,11 +30,13 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  const hasSession = Boolean(request.cookies.get("sb-access-token")?.value);
+  const hasSession =
+    Boolean(request.cookies.get("sb-access-token")?.value) ||
+    Boolean(request.cookies.get("sb-presence")?.value);
 
   if (!hasSession) {
     const url = request.nextUrl.clone();
-    url.pathname = "/";
+    url.pathname = "/welcome";
     url.search = request.nextUrl.search;
     return NextResponse.redirect(url);
   }

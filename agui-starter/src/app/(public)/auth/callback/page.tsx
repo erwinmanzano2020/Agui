@@ -34,7 +34,9 @@ export default function AuthCallback() {
       } catch (error) {
         console.error("Failed to finalize authentication", error);
         if (active) {
-          router.replace("/?error=auth");
+          const next = searchParams.get("next");
+          const redirectUrl = next ? `/welcome?error=auth&next=${encodeURIComponent(next)}` : "/welcome?error=auth";
+          router.replace(redirectUrl);
         }
       }
     };

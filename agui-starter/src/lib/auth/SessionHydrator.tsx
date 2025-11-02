@@ -25,8 +25,17 @@ export default function SessionHydrator() {
       await runSync();
     });
 
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        void runSync();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibility);
+
     return () => {
       subscription.subscription.unsubscribe();
+      document.removeEventListener("visibilitychange", handleVisibility);
     };
   }, []);
 

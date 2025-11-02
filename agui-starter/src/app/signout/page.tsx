@@ -10,21 +10,21 @@ import { signOutEverywhere } from "@/lib/auth/client";
 
 function sanitizeNextPath(raw: string | null): string {
   if (!raw) {
-    return "/";
+    return "/welcome";
   }
 
   const trimmed = raw.trim();
 
   if (!trimmed) {
-    return "/";
+    return "/welcome";
   }
 
   if (!trimmed.startsWith("/")) {
-    return "/";
+    return "/welcome";
   }
 
   if (trimmed.startsWith("//")) {
-    return "/";
+    return "/welcome";
   }
 
   return trimmed;
