@@ -1,51 +1,40 @@
-import type { NextRequest } from "next/server";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/", "/welcome", "/signin", "/auth/callback", "/api/auth/session"] as const;
-const PUBLIC_FILES = new Set([
-  "/favicon.ico",
-  "/manifest.webmanifest",
+const PUBLIC_PATHS = new Set<string>([
+  "/", // landing
+  "/auth/callback",
+  "/apply",
+  "/api/auth/session",
   "/robots.txt",
   "/sitemap.xml",
+  "/manifest.webmanifest",
   "/healthz",
 ]);
 
-function isPublicPath(pathname: string) {
-  if (PUBLIC_FILES.has(pathname)) {
-    return true;
-  }
-
-  if (pathname.startsWith("/_next")) {
-    return true;
-  }
-
-  for (const path of PUBLIC_PATHS) {
-    if (pathname === path) {
-      return true;
-    }
-
-    if (path !== "/" && pathname.startsWith(`${path}/`)) {
-      return true;
-    }
-  }
-
-  return false;
+function isStaticPath(pathname: string) {
+  return pathname.startsWith("/_next") || pathname.startsWith("/assets") || pathname.startsWith("/favicon");
 }
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (isPublicPath(pathname)) {
+  if (isStaticPath(pathname)) {
     return NextResponse.next();
   }
 
-  const hasSession =
-    request.cookies.has("sb-access-token") ||
-    request.cookies.has("sb-refresh-token");
+  const isPublic =
+    PUBLIC_PATHS.has(pathname) ||
+    pathname.startsWith("/api/public/");
+
+  if (isPublic) {
+    return NextResponse.next();
+  }
+
+  const hasSession = Boolean(request.cookies.get("sb-access-token")?.value);
 
   if (!hasSession) {
     const url = request.nextUrl.clone();
-    url.pathname = "/welcome";
+    url.pathname = "/";
     url.search = request.nextUrl.search;
     return NextResponse.redirect(url);
   }
@@ -54,5 +43,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/|favicon.ico|robots.txt|sitemap.xml).*)"],
+  matcher: ["/((?!_next|assets|favicon).*)"],
 };

@@ -1,48 +1,54 @@
 "use client";
 
 import { useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { supabase, syncSession } from "@/lib/auth/client";
 
 export default function AuthCallback() {
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    let cancelled = false;
+    let active = true;
 
-    const finalizeAuth = async () => {
+    const finalize = async () => {
       try {
-        const params = new URLSearchParams(location.search);
+        const params = new URLSearchParams(window.location.search);
         const code = params.get("code");
         if (code) {
           const { error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) throw error;
         }
 
-        if (location.hash.includes("access_token")) {
+        if (window.location.hash.includes("access_token")) {
           await supabase.auth.getSession();
         }
 
         await syncSession();
 
-        if (!cancelled) {
-          router.replace("/me");
+        if (active) {
+          const next = searchParams.get("next") || "/me";
+          router.replace(next);
         }
       } catch (error) {
         console.error("Failed to finalize authentication", error);
-        if (!cancelled) {
-          router.replace("/welcome?error=auth");
+        if (active) {
+          router.replace("/?error=auth");
         }
       }
     };
 
-    void finalizeAuth();
+    void finalize();
 
     return () => {
-      cancelled = true;
+      active = false;
     };
-  }, [router]);
+  }, [router, searchParams]);
 
-  return null;
+  return (
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-12">
+      <p className="text-center text-sm text-muted-foreground">Signing you in…</p>
+    </main>
+  );
 }

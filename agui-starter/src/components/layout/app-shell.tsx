@@ -59,7 +59,7 @@ export function AppShell({
   );
   const pathname = usePathname();
   const isHome = pathname === "/";
-  const isPublicRoute = pathname?.startsWith("/welcome");
+  const isPublicRoute = pathname?.startsWith("/apply") || pathname?.startsWith("/auth/");
 
   // responsive + collapsible
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile
@@ -236,7 +236,7 @@ export function AppShell({
               </div>
             ) : (
               <Button asChild size="sm" variant="outline" className="h-8">
-                <Link href="/signin">Sign in</Link>
+                <Link href="/">Sign in</Link>
               </Button>
             )}
           </div>

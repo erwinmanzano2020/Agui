@@ -15,13 +15,14 @@ export const supabase = supabaseClient;
 async function setServerSession(accessToken: string, refreshToken: string) {
   const response = await fetch("/api/auth/session", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "content-type": "application/json" },
     body: JSON.stringify({ access_token: accessToken, refresh_token: refreshToken }),
     credentials: "include",
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to sync Supabase session (${response.status})`);
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(payload.error ?? `Failed to sync Supabase session (${response.status})`);
   }
 }
 
@@ -55,11 +56,17 @@ export async function syncSession() {
 }
 
 /** Send magic link to a public callback URL (no middleware redirect). */
-export async function sendMagicLink(email: string) {
-  return supabase.auth.signInWithOtp({
+export async function sendMagicLink(email: string): Promise<{ ok: boolean; error?: string }> {
+  const { error } = await supabase.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: `${location.origin}/auth/callback` },
   });
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true };
 }
 
 /** Client sign-out + clear server cookies. */

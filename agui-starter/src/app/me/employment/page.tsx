@@ -7,7 +7,7 @@ import { getCapabilitiesForUser } from "@/lib/roles/get-capabilities.server";
 
 export default async function EmploymentHubPage() {
   const { session } = await getServerSession();
-  if (!session) redirect("/welcome");
+  if (!session) redirect("/");
 
   const caps = await getCapabilitiesForUser(session.user.id);
   const brands = caps.employeeBrands;

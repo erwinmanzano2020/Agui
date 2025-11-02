@@ -5,13 +5,13 @@ import { useEffect, useRef } from "react";
 import { supabase, syncSession } from "@/lib/auth/client";
 
 export default function SessionHydrator() {
-  const ranOnce = useRef(false);
+  const ran = useRef(false);
 
   useEffect(() => {
-    if (ranOnce.current) return;
-    ranOnce.current = true;
+    if (ran.current) return;
+    ran.current = true;
 
-    const performSync = async () => {
+    const runSync = async () => {
       try {
         await syncSession();
       } catch (error) {
@@ -19,23 +19,14 @@ export default function SessionHydrator() {
       }
     };
 
-    void performSync();
+    void runSync();
 
     const { data: subscription } = supabase.auth.onAuthStateChange(async () => {
-      await performSync();
+      await runSync();
     });
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === "visible") {
-        void performSync();
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       subscription.subscription.unsubscribe();
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, []);
 
