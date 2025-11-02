@@ -1,9 +1,9 @@
-// src/app/(public)/auth/callback/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/auth/client";
+import { useEffect, useMemo } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+
+import { supabase, syncSession } from "@/lib/auth/client";
 
 function resolveNextPath(raw: string | null): string {
   if (!raw) return "/me";
@@ -12,51 +12,46 @@ function resolveNextPath(raw: string | null): string {
   return raw;
 }
 
-export default function AuthCallbackPage() {
+export default function AuthCallback() {
   const router = useRouter();
-  const search = useSearchParams();
-  const next = useMemo(() => resolveNextPath(search.get("next")), [search]);
-  const [status, setStatus] = useState<"pending" | "ok" | "error">("pending");
-  const [message, setMessage] = useState("Signing you in…");
+  const searchParams = useSearchParams();
+  const destination = useMemo(() => resolveNextPath(searchParams.get("next")), [searchParams]);
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
+    let cancelled = false;
+
+    const completeSignIn = async () => {
       try {
-        // Supabase reads the #access_token on this public page
-        const { error } = await supabase.auth.getSession();
-        if (error) throw error;
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get("code");
 
-        // Server cookie sync
-        await fetch("/api/auth/session", { method: "POST" });
+        if (code) {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+        } else {
+          const { error } = await supabase.auth.getSession();
+          if (error) throw error;
+        }
 
-        if (!mounted) return;
-        setStatus("ok");
-        setMessage("Success! Redirecting…");
-        router.replace(next);
-      } catch (e) {
-        console.error(e);
-        if (!mounted) return;
-        setStatus("error");
-        setMessage("Sign-in failed. Please try again.");
+        await syncSession();
+
+        if (!cancelled) {
+          router.replace(destination);
+        }
+      } catch (error) {
+        console.error("Failed to finalize authentication", error);
+        if (!cancelled) {
+          router.replace("/welcome?error=auth");
+        }
       }
-    })();
-    return () => {
-      mounted = false;
     };
-  }, [router, next]);
 
-  return (
-    <main className="flex min-h-dvh items-center justify-center p-6">
-      <div className="max-w-sm text-center">
-        <h1 className="text-xl font-semibold mb-2">Auth Callback</h1>
-        <p className="text-sm opacity-80">{message}</p>
-        {status === "error" && (
-          <a className="underline mt-3 inline-block" href="/welcome">
-            Back to sign in
-          </a>
-        )}
-      </div>
-    </main>
-  );
+    void completeSignIn();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [destination, router]);
+
+  return null;
 }

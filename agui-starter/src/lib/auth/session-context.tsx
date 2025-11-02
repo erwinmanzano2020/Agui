@@ -12,7 +12,7 @@ import {
 } from "react";
 import type { AuthChangeEvent, Session, SupabaseClient, User } from "@supabase/supabase-js";
 
-import { getSupabase } from "@/lib/supabase";
+import { supabase as browserSupabase, syncSession } from "@/lib/auth/client";
 
 const UNIQUE_VIOLATION = "23505";
 
@@ -203,14 +203,7 @@ function sanitizeViewAs(selection: ViewAsSelection | null): ViewAsSelection | nu
 }
 
 export function SessionProvider({ children }: SessionProviderProps) {
-  const [supabase] = useState<SupabaseClient | null>(() => {
-    try {
-      return getSupabase();
-    } catch (error) {
-      console.error("Failed to initialize Supabase client", error);
-      return null;
-    }
-  });
+  const [supabase] = useState<SupabaseClient | null>(() => browserSupabase ?? null);
   const [status, setStatus] = useState<SessionStatus>(supabase ? "initializing" : "error");
   const [session, setSession] = useState<Session | null>(null);
   const [entityState, setEntityState] = useState<{ id: string | null; status: EntityStatus }>(() => ({
@@ -221,19 +214,9 @@ export function SessionProvider({ children }: SessionProviderProps) {
   const activeUserIdRef = useRef<string | null>(null);
 
   const syncSessionCookie = useCallback(
-    async (event: AuthChangeEvent | "INITIAL_SESSION", nextSession: Session | null) => {
+    async (_event: AuthChangeEvent | "INITIAL_SESSION", nextSession: Session | null) => {
       try {
-        if (!nextSession || event === "SIGNED_OUT") {
-          await fetch("/api/auth/session", { method: "DELETE", credentials: "same-origin" });
-          return;
-        }
-
-        await fetch("/api/auth/session", {
-          method: "POST",
-          credentials: "same-origin",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({ event, session: nextSession }),
-        });
+        await syncSession(nextSession);
       } catch (error) {
         console.warn("Failed to sync Supabase session cookie", error);
       }

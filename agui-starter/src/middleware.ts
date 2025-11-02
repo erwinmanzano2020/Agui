@@ -1,31 +1,28 @@
-// src/middleware.ts
-import { NextResponse, type NextRequest } from "next/server";
+import type { NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 const PUBLIC_PATHS = [
-  "/welcome",
-  "/signin",
-  "/auth/callback",
-  "/(public)/auth/callback",
-  "/api/auth/session",
-  "/healthz",
-  "/favicon.ico",
-  "/robots.txt",
-  "/sitemap.xml",
+  "^/$",
+  "^/welcome(?:/.*)?$",
+  "^/signin(?:/.*)?$",
+  "^/auth/callback(?:/.*)?$",
+  "^/api/auth/session$",
+  "^/_next(?:/.*)?$",
+  "^/favicon\\.ico$",
+  "^/robots\\.txt$",
+  "^/sitemap\\.xml$",
+  "^/healthz$",
 ];
 
-function isPublicPath(pathname: string) {
-  if (pathname === "/") return true;
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) return true;
-  // (Optional) allow all API routes; uncomment if desired:
-  // if (pathname.startsWith("/api/")) return true;
-  return false;
-}
+const publicMatcher = new RegExp(PUBLIC_PATHS.join("|"));
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  if (isPublicPath(pathname)) return NextResponse.next();
 
-  // Basic auth gate: require sb-access-token cookie presence
+  if (publicMatcher.test(pathname)) {
+    return NextResponse.next();
+  }
+
   const hasSession =
     request.cookies.has("sb-access-token") ||
     request.cookies.has("sb-refresh-token");
@@ -33,14 +30,13 @@ export function middleware(request: NextRequest) {
   if (!hasSession) {
     const url = request.nextUrl.clone();
     url.pathname = "/welcome";
-    // preserve query
+    url.search = request.nextUrl.search;
     return NextResponse.redirect(url);
   }
 
   return NextResponse.next();
 }
 
-// Match all routes except static files/_next
 export const config = {
   matcher: ["/((?!_next/|favicon.ico|robots.txt|sitemap.xml).*)"],
 };
