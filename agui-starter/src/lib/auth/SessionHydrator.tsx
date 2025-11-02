@@ -1,12 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 import { supabase, syncSession } from "@/lib/auth/client";
 
-export default function SessionSync() {
+export default function SessionHydrator() {
+  const ranOnce = useRef(false);
+
   useEffect(() => {
-    const runInitialSync = async () => {
+    if (ranOnce.current) return;
+    ranOnce.current = true;
+
+    const performSync = async () => {
       try {
         await syncSession();
       } catch (error) {
@@ -14,19 +19,15 @@ export default function SessionSync() {
       }
     };
 
-    void runInitialSync();
+    void performSync();
 
     const { data: subscription } = supabase.auth.onAuthStateChange(async () => {
-      try {
-        await syncSession();
-      } catch (error) {
-        console.warn("Failed to sync Supabase session", error);
-      }
+      await performSync();
     });
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        void runInitialSync();
+        void performSync();
       }
     };
 

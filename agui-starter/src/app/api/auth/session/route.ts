@@ -1,5 +1,5 @@
-import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -29,22 +29,21 @@ async function getServerSupabase(): Promise<SupabaseClient> {
 }
 
 export async function POST(req: Request) {
-  try {
-    const { access_token, refresh_token } = await req.json();
-    if (!access_token || !refresh_token) {
-      return NextResponse.json({ ok: false, error: "missing_tokens" }, { status: 400 });
-    }
+  const { access_token, refresh_token } =
+    (await req.json().catch(() => ({} as Record<string, string | undefined>))) ?? {};
 
-    const supabase = await getServerSupabase();
-    const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-    if (error) {
-      return NextResponse.json({ ok: false, error: error.message }, { status: 401 });
-    }
-
-    return NextResponse.json({ ok: true });
-  } catch {
-    return NextResponse.json({ ok: false, error: "bad_request" }, { status: 400 });
+  if (!access_token || !refresh_token) {
+    return NextResponse.json({ ok: false, error: "missing_tokens" }, { status: 400 });
   }
+
+  const supabase = await getServerSupabase();
+  const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+
+  if (error) {
+    return NextResponse.json({ ok: false, error: error.message }, { status: 401 });
+  }
+
+  return NextResponse.json({ ok: true });
 }
 
 export async function DELETE() {
