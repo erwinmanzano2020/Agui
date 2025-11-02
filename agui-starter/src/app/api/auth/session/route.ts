@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
-export const dynamic = "force-dynamic";
+export const dynamic = "force-dynamic"; // do not cache; we set cookies here
 
-function getServerSupabase() {
-  const cookieStore = cookies();
+async function getServerSupabase(): Promise<SupabaseClient> {
+  // Next 15: cookies() is async
+  const cookieStore = await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,10 +18,10 @@ function getServerSupabase() {
           return cookieStore.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set(name, value, options);
+          cookieStore.set({ name, value, ...options });
         },
         remove(name: string, options: CookieOptions) {
-          cookieStore.set(name, "", { ...options, maxAge: 0 });
+          cookieStore.set({ name, value: "", ...options, maxAge: 0 });
         },
       },
     }
@@ -28,18 +30,13 @@ function getServerSupabase() {
 
 export async function POST(req: Request) {
   try {
-    const { access_token, refresh_token } = (await req.json()) as {
-      access_token?: string;
-      refresh_token?: string;
-    };
-
+    const { access_token, refresh_token } = await req.json();
     if (!access_token || !refresh_token) {
       return NextResponse.json({ ok: false, error: "missing_tokens" }, { status: 400 });
     }
 
-    const supabase = getServerSupabase();
+    const supabase = await getServerSupabase();
     const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-
     if (error) {
       return NextResponse.json({ ok: false, error: error.message }, { status: 401 });
     }
@@ -51,7 +48,7 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE() {
-  const supabase = getServerSupabase();
+  const supabase = await getServerSupabase();
   await supabase.auth.signOut();
   return NextResponse.json({ ok: true });
 }
