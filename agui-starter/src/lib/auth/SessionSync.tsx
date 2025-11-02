@@ -4,29 +4,29 @@ import { useEffect } from "react";
 
 import { supabase, syncSession } from "@/lib/auth/client";
 
-function logSyncError(error: unknown) {
-  console.warn("Failed to sync Supabase session", error);
-}
-
-export function SessionSync() {
+export default function SessionSync() {
   useEffect(() => {
-    const runSync = async (session?: Parameters<typeof syncSession>[0]) => {
+    const runInitialSync = async () => {
       try {
-        await syncSession(session);
+        await syncSession();
       } catch (error) {
-        logSyncError(error);
+        console.warn("Failed to sync Supabase session", error);
       }
     };
 
-    void runSync();
+    void runInitialSync();
 
-    const { data: subscription } = supabase.auth.onAuthStateChange((_, nextSession) => {
-      void runSync(nextSession ?? null);
+    const { data: subscription } = supabase.auth.onAuthStateChange(async () => {
+      try {
+        await syncSession();
+      } catch (error) {
+        console.warn("Failed to sync Supabase session", error);
+      }
     });
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        void runSync();
+        void runInitialSync();
       }
     };
 

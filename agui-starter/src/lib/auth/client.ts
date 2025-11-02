@@ -1,7 +1,5 @@
 "use client";
 
-import type { Session } from "@supabase/supabase-js";
-
 import { getSupabase } from "@/lib/supabase";
 
 const supabaseClient = getSupabase();
@@ -14,12 +12,12 @@ if (!supabaseClient) {
 
 export const supabase = supabaseClient;
 
-async function postSession(session: Session) {
+async function setServerSession(accessToken: string, refreshToken: string) {
   const response = await fetch("/api/auth/session", {
     method: "POST",
-    credentials: "same-origin",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ session }),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ access_token: accessToken, refresh_token: refreshToken }),
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -27,10 +25,10 @@ async function postSession(session: Session) {
   }
 }
 
-async function deleteSession() {
+async function clearServerSession() {
   const response = await fetch("/api/auth/session", {
     method: "DELETE",
-    credentials: "same-origin",
+    credentials: "include",
   });
 
   if (!response.ok) {
@@ -38,34 +36,34 @@ async function deleteSession() {
   }
 }
 
-/**
- * Sync the current Supabase session with the server via the auth session API.
- *
- * When a session is provided we use it directly; otherwise we resolve the
- * session from Supabase to minimize duplicate calls from event listeners.
- */
-export async function syncSession(session?: Session | null) {
-  let nextSession = session;
-
-  if (typeof nextSession === "undefined") {
-    const { data, error } = await supabase.auth.getSession();
-    if (error) {
-      throw error;
-    }
-    nextSession = data.session ?? null;
+/** Call the server cookie bridge to set/refresh HttpOnly cookies. */
+export async function syncSession() {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) {
+    throw error;
   }
 
-  if (nextSession) {
-    await postSession(nextSession);
+  const accessToken = data.session?.access_token ?? null;
+  const refreshToken = data.session?.refresh_token ?? null;
+
+  if (accessToken && refreshToken) {
+    await setServerSession(accessToken, refreshToken);
     return;
   }
 
-  await deleteSession();
+  await clearServerSession();
 }
 
+/** Send magic link to a public callback URL (no middleware redirect). */
 export async function sendMagicLink(email: string) {
   return supabase.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: `${location.origin}/auth/callback` },
   });
+}
+
+/** Client sign-out + clear server cookies. */
+export async function signOutEverywhere() {
+  await supabase.auth.signOut();
+  await clearServerSession();
 }

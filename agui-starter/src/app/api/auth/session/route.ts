@@ -1,65 +1,57 @@
 import { NextResponse } from "next/server";
-import type { Session } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
-import {
-  buildSupabaseAuthCookie,
-  buildSupabaseSignOutCookie,
-  getSupabaseAuthCookieName,
-} from "@/lib/supabase-auth-cookie";
+export const dynamic = "force-dynamic";
 
-function okResponse(body: Record<string, unknown> = {}) {
-  return NextResponse.json({ ok: true, ...body });
+function getServerSupabase() {
+  const cookieStore = cookies();
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value;
+        },
+        set(name: string, value: string, options: CookieOptions) {
+          cookieStore.set(name, value, options);
+        },
+        remove(name: string, options: CookieOptions) {
+          cookieStore.set(name, "", { ...options, maxAge: 0 });
+        },
+      },
+    }
+  );
 }
 
-function unauthorizedResponse(message: string) {
-  return NextResponse.json({ error: message }, { status: 401 });
-}
-
-export async function POST(request: Request) {
-  const cookieName = getSupabaseAuthCookieName();
-  if (!cookieName) {
-    return okResponse({ skipped: true });
-  }
-
-  let payload: { event?: string; session?: Session | null };
+export async function POST(req: Request) {
   try {
-    payload = (await request.json()) as { event?: string; session?: Session | null };
+    const { access_token, refresh_token } = (await req.json()) as {
+      access_token?: string;
+      refresh_token?: string;
+    };
+
+    if (!access_token || !refresh_token) {
+      return NextResponse.json({ ok: false, error: "missing_tokens" }, { status: 400 });
+    }
+
+    const supabase = getServerSupabase();
+    const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+
+    if (error) {
+      return NextResponse.json({ ok: false, error: error.message }, { status: 401 });
+    }
+
+    return NextResponse.json({ ok: true });
   } catch {
-    return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    return NextResponse.json({ ok: false, error: "bad_request" }, { status: 400 });
   }
-
-  const session = payload.session;
-  if (!session) {
-    return unauthorizedResponse("Missing session");
-  }
-
-  const response = okResponse();
-  const cookie = buildSupabaseAuthCookie(session);
-  response.cookies.set(cookie.name, cookie.value, {
-    path: cookie.path,
-    httpOnly: cookie.httpOnly,
-    sameSite: cookie.sameSite,
-    secure: cookie.secure,
-    maxAge: cookie.maxAge,
-  });
-
-  return response;
 }
 
 export async function DELETE() {
-  const cookie = buildSupabaseSignOutCookie();
-  if (!cookie) {
-    return okResponse({ skipped: true });
-  }
-
-  const response = okResponse();
-  response.cookies.set(cookie.name, cookie.value, {
-    path: cookie.path,
-    httpOnly: cookie.httpOnly,
-    sameSite: cookie.sameSite,
-    secure: cookie.secure,
-    maxAge: cookie.maxAge,
-  });
-
-  return response;
+  const supabase = getServerSupabase();
+  await supabase.auth.signOut();
+  return NextResponse.json({ ok: true });
 }

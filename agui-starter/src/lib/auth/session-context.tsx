@@ -10,7 +10,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import type { AuthChangeEvent, Session, SupabaseClient, User } from "@supabase/supabase-js";
+import type { Session, SupabaseClient, User } from "@supabase/supabase-js";
 
 import { supabase as browserSupabase, syncSession } from "@/lib/auth/client";
 
@@ -213,16 +213,13 @@ export function SessionProvider({ children }: SessionProviderProps) {
   const [viewAsState, setViewAsState] = useState<ViewAsSelection | null>(null);
   const activeUserIdRef = useRef<string | null>(null);
 
-  const syncSessionCookie = useCallback(
-    async (_event: AuthChangeEvent | "INITIAL_SESSION", nextSession: Session | null) => {
-      try {
-        await syncSession(nextSession);
-      } catch (error) {
-        console.warn("Failed to sync Supabase session cookie", error);
-      }
-    },
-    [],
-  );
+  const syncSessionCookie = useCallback(async () => {
+    try {
+      await syncSession();
+    } catch (error) {
+      console.warn("Failed to sync Supabase session cookie", error);
+    }
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -297,7 +294,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
         setStatus("ready");
 
         if (nextSession) {
-          void syncSessionCookie("INITIAL_SESSION", nextSession);
+          void syncSessionCookie();
         }
       })
       .catch((error) => {
@@ -313,7 +310,7 @@ export function SessionProvider({ children }: SessionProviderProps) {
         setEntityState({ id: null, status: "idle" });
       }
 
-      void syncSessionCookie(event, nextSession ?? null);
+      void syncSessionCookie();
     });
 
     return () => {

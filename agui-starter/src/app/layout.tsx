@@ -14,7 +14,7 @@ import SessionProviders from "@/app/providers/session";
 
 // ✅ Client-only palette mount (prevents server from serializing functions)
 import CommandPaletteMount from "@/components/ui/command-palette-mount";
-import { SessionSync } from "@/app/providers/session-sync";
+import SessionSync from "@/lib/auth/SessionSync";
 
 const geistSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
 const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
