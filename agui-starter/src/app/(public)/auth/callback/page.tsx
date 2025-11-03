@@ -17,12 +17,26 @@ export default function AuthCallback() {
         const params = new URLSearchParams(window.location.search);
         const code = params.get("code");
         if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) throw error;
-        }
+          await syncSession(data.session ?? null);
+        } else {
+          const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+          const accessToken = hashParams.get("access_token");
+          const refreshToken = hashParams.get("refresh_token");
 
-        const { data } = await supabase.auth.getSession();
-        await syncSession(data.session ?? null);
+          if (accessToken && refreshToken) {
+            const { data, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (error) throw error;
+            await syncSession(data.session ?? null);
+          } else {
+            const { data } = await supabase.auth.getSession();
+            await syncSession(data.session ?? null);
+          }
+        }
 
         if (active) {
           const next = searchParams.get("next") || "/me";

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 
 import { getServerSession } from "@/lib/auth/server";
 import { getCapabilitiesForUser } from "@/lib/roles/get-capabilities.server";
+import type { UserCapabilities } from "@/lib/types/brand-lite";
 import { redirect } from "next/navigation";
 
 type Tile = {
@@ -48,7 +49,18 @@ export default async function MePage() {
   const { session } = await getServerSession();
   if (!session) redirect("/welcome");
 
-  const caps = await getCapabilitiesForUser(session.user.id);
+  let caps: UserCapabilities;
+  try {
+    caps = await getCapabilitiesForUser(session.user.id);
+  } catch (error) {
+    console.warn("Failed to load user capabilities", error);
+    caps = {
+      loyaltyBrands: [],
+      employeeBrands: [],
+      ownerBrands: [],
+      isGM: false,
+    };
+  }
 
   const tiles: Tile[] = [];
 

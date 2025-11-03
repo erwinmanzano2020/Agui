@@ -5,7 +5,7 @@ import type { Session } from "@supabase/supabase-js";
 
 import { createServerSupabase } from "@/lib/auth/server";
 
-export const dynamic = "force-dynamic"; // do not cache; we set cookies here
+export const dynamic = "force-dynamic";
 
 const ACCESS_COOKIE = "sb-access-token";
 const REFRESH_COOKIE = "sb-refresh-token";
@@ -55,6 +55,17 @@ function clearSessionCookies(jar: CookieStore) {
   clearCookie(jar, PRESENCE_COOKIE);
 }
 
+function tokensFromHash(hash?: string | null) {
+  if (!hash) return { accessToken: null, refreshToken: null };
+  const params = new URLSearchParams(hash.replace(/^#/, ""));
+  const accessToken = params.get("access_token");
+  const refreshToken = params.get("refresh_token");
+  return {
+    accessToken: accessToken && accessToken.length > 0 ? accessToken : null,
+    refreshToken: refreshToken && refreshToken.length > 0 ? refreshToken : null,
+  };
+}
+
 export async function POST(req: Request) {
   const jar = await cookies();
   const supabase = await createServerSupabase({ cookieStore: jar });
@@ -62,25 +73,36 @@ export async function POST(req: Request) {
   const payload = (await req.json().catch(() => ({}))) as {
     access_token?: string;
     refresh_token?: string;
+    hash?: string;
   };
+
+  let accessToken = payload.access_token?.trim() || null;
+  let refreshToken = payload.refresh_token?.trim() || null;
+
+  if (!accessToken || !refreshToken) {
+    const fromHash = tokensFromHash(payload.hash);
+    accessToken = accessToken ?? fromHash.accessToken;
+    refreshToken = refreshToken ?? fromHash.refreshToken;
+  }
 
   let session: Session | null | undefined;
 
-  if (payload.access_token && payload.refresh_token) {
+  if (accessToken && refreshToken) {
     const { data, error } = await supabase.auth.setSession({
-      access_token: payload.access_token,
-      refresh_token: payload.refresh_token,
+      access_token: accessToken,
+      refresh_token: refreshToken,
     });
 
-    if (error) {
+    if (error || !data.session) {
       clearSessionCookies(jar);
-      return NextResponse.json({ ok: false, error: error.message }, { status: 401 });
+      return NextResponse.json({ ok: false, error: error?.message ?? "invalid_session" }, { status: 401 });
     }
 
     session = data.session;
   } else {
     const { data, error } = await supabase.auth.getSession();
     if (error) {
+      clearSessionCookies(jar);
       return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
     session = data.session;
