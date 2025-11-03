@@ -11,11 +11,11 @@ export type RequireAuthResult = {
 
 function buildRedirectLocation(nextPath: string): string {
   if (!nextPath || !nextPath.startsWith("/")) {
-    return "/signin";
+    return "/welcome";
   }
 
   const params = new URLSearchParams({ next: nextPath });
-  return `/signin?${params.toString()}`;
+  return `/welcome?${params.toString()}`;
 }
 
 export async function requireAuth(nextPath: string): Promise<RequireAuthResult> {

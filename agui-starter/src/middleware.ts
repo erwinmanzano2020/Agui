@@ -1,46 +1,70 @@
-// src/middleware.ts
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = [
-  "/welcome",
-  "/signin",
-  "/auth/callback",
-  "/(public)/auth/callback",
-  "/api/auth/session",
-  "/healthz",
-  "/favicon.ico",
-  "/robots.txt",
-  "/sitemap.xml",
+const PUBLIC_ROUTES: RegExp[] = [
+  /^\/$/,
+  /^\/welcome(?:\/.*)?$/,
+  /^\/auth\/callback(?:\/.*)?$/,
+  /^\/apply(?:\/.*)?$/,
+  /^\/api\/auth\/session(?:\/.*)?$/,
+  /^\/api\/public\/.*$/,
+  /^\/_next\//,
+  /^\/assets\//,
+  /^\/favicon\.ico$/,
+  /^\/robots\.txt$/,
+  /^\/sitemap\.xml$/,
+  /^\/manifest\.webmanifest$/,
+  /^\/healthz$/,
 ];
 
-function isPublicPath(pathname: string) {
-  if (pathname === "/") return true;
-  if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) return true;
-  // (Optional) allow all API routes; uncomment if desired:
-  // if (pathname.startsWith("/api/")) return true;
-  return false;
+function isPublic(pathname: string) {
+  return PUBLIC_ROUTES.some((pattern) => pattern.test(pathname));
+}
+
+function hasAuthCookie(request: NextRequest) {
+  const cookies = request.cookies.getAll();
+  if (cookies.length === 0) {
+    return false;
+  }
+
+  return cookies.some((cookie) => {
+    return (
+      cookie.name === "sb-access-token" ||
+      cookie.name === "sb-refresh-token" ||
+      cookie.name === "sb-presence" ||
+      cookie.name.endsWith("-auth-token")
+    );
+  });
 }
 
 export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-  if (isPublicPath(pathname)) return NextResponse.next();
+  const { pathname, search } = request.nextUrl;
 
-  // Basic auth gate: require sb-access-token cookie presence
-  const hasSession =
-    request.cookies.has("sb-access-token") ||
-    request.cookies.has("sb-refresh-token");
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next();
+  }
 
-  if (!hasSession) {
+  const publicRoute = isPublic(pathname);
+  const authed = hasAuthCookie(request);
+
+  if (!authed && !publicRoute) {
     const url = request.nextUrl.clone();
     url.pathname = "/welcome";
-    // preserve query
+    url.search = search;
+    return NextResponse.redirect(url);
+  }
+
+  if (authed && pathname === "/welcome") {
+    const url = request.nextUrl.clone();
+    url.pathname = "/me";
+    url.search = search;
     return NextResponse.redirect(url);
   }
 
   return NextResponse.next();
 }
 
-// Match all routes except static files/_next
 export const config = {
-  matcher: ["/((?!_next/|favicon.ico|robots.txt|sitemap.xml).*)"],
+  matcher: [
+    "/((?!.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico|txt|map)$).*)",
+  ],
 };

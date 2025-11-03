@@ -470,7 +470,7 @@ export default function HomePage() {
                   <CardContent className="space-y-4 text-sm text-muted-foreground">
                     <p>Send yourself a magic link or one-time passcode to start exploring Agui.</p>
                     <Button asChild>
-                      <Link href="/signin">Sign in</Link>
+                      <Link href="/">Sign in</Link>
                     </Button>
                   </CardContent>
                 </Card>

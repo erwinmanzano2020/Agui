@@ -1,62 +1,79 @@
-// src/app/(public)/auth/callback/page.tsx
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/auth/client";
+import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
-function resolveNextPath(raw: string | null): string {
-  if (!raw) return "/me";
-  if (!raw.startsWith("/")) return "/me";
-  if (raw.startsWith("//")) return "/me";
-  return raw;
-}
+import { supabase, syncSession } from "@/lib/auth/client";
 
-export default function AuthCallbackPage() {
+export default function AuthCallback() {
   const router = useRouter();
-  const search = useSearchParams();
-  const next = useMemo(() => resolveNextPath(search.get("next")), [search]);
-  const [status, setStatus] = useState<"pending" | "ok" | "error">("pending");
-  const [message, setMessage] = useState("Signing you in…");
+  const searchParams = useSearchParams();
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
+    let active = true;
+
+    const finalize = async () => {
+      const nextPath = searchParams.get("next") || "/me";
+      const cleanUrl = () => {
+        const url = new URL(window.location.href);
+        url.hash = "";
+        url.searchParams.delete("code");
+        url.searchParams.delete("next");
+        const query = url.searchParams.toString();
+        window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
+      };
+
       try {
-        // Supabase reads the #access_token on this public page
-        const { error } = await supabase.auth.getSession();
-        if (error) throw error;
 
-        // Server cookie sync
-        await fetch("/api/auth/session", { method: "POST" });
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get("code");
+        if (code) {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) throw error;
+          await syncSession(data.session ?? null);
+        } else {
+          const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+          const accessToken = hashParams.get("access_token");
+          const refreshToken = hashParams.get("refresh_token");
 
-        if (!mounted) return;
-        setStatus("ok");
-        setMessage("Success! Redirecting…");
-        router.replace(next);
-      } catch (e) {
-        console.error(e);
-        if (!mounted) return;
-        setStatus("error");
-        setMessage("Sign-in failed. Please try again.");
+          if (accessToken && refreshToken) {
+            const { data, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+            if (error) throw error;
+            await syncSession(data.session ?? null);
+          } else {
+            const { data } = await supabase.auth.getSession();
+            await syncSession(data.session ?? null);
+          }
+        }
+
+        if (active) {
+          cleanUrl();
+          router.replace(nextPath);
+        }
+      } catch (error) {
+        console.error("Failed to finalize authentication", error);
+        if (active) {
+          cleanUrl();
+          const next = searchParams.get("next");
+          const redirectUrl = next ? `/welcome?error=auth&next=${encodeURIComponent(next)}` : "/welcome?error=auth";
+          router.replace(redirectUrl);
+        }
       }
-    })();
-    return () => {
-      mounted = false;
     };
-  }, [router, next]);
+
+    void finalize();
+
+    return () => {
+      active = false;
+    };
+  }, [router, searchParams]);
 
   return (
-    <main className="flex min-h-dvh items-center justify-center p-6">
-      <div className="max-w-sm text-center">
-        <h1 className="text-xl font-semibold mb-2">Auth Callback</h1>
-        <p className="text-sm opacity-80">{message}</p>
-        {status === "error" && (
-          <a className="underline mt-3 inline-block" href="/welcome">
-            Back to sign in
-          </a>
-        )}
-      </div>
+    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center px-5 py-12">
+      <p className="text-center text-sm text-muted-foreground">Signing you in…</p>
     </main>
   );
 }

@@ -1,26 +1,89 @@
-// src/lib/auth/client.ts
 "use client";
 
-import { createClient } from "@supabase/supabase-js";
+import type { Session } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+import { getSupabase } from "@/lib/supabase";
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error("Missing Supabase client environment variables");
+const supabaseClient = getSupabase();
+
+if (!supabaseClient) {
+  throw new Error(
+    "Supabase client is not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+  );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: { persistSession: true, autoRefreshToken: true },
-});
+export const supabase = supabaseClient;
 
-/** Send magic link and redirect back to a public callback page. */
-export async function sendMagicLink(email: string) {
-  return supabase.auth.signInWithOtp({
-    email,
-    options: {
-      // Must be a PUBLIC route so URL hash survives and Supabase can read it
-      emailRedirectTo: `${location.origin}/auth/callback`,
-    },
+async function setServerSession(accessToken: string, refreshToken: string) {
+  const response = await fetch("/api/auth/session", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ access_token: accessToken, refresh_token: refreshToken }),
+    credentials: "include",
   });
+
+  if (!response.ok) {
+    const payload = (await response.json().catch(() => ({}))) as { error?: string };
+    throw new Error(payload.error ?? `Failed to sync Supabase session (${response.status})`);
+  }
+}
+
+async function clearServerSession() {
+  const response = await fetch("/api/auth/session", {
+    method: "DELETE",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to clear Supabase session (${response.status})`);
+  }
+}
+
+/** Call the server cookie bridge to set/refresh HttpOnly cookies. */
+export async function syncSession(session?: Session | null) {
+  let activeSession = session;
+
+  if (typeof activeSession === "undefined") {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      throw error;
+    }
+    activeSession = data.session;
+  }
+
+  const accessToken = activeSession?.access_token ?? null;
+  const refreshToken = activeSession?.refresh_token ?? null;
+
+  if (accessToken && refreshToken) {
+    await setServerSession(accessToken, refreshToken);
+    return;
+  }
+
+  await clearServerSession();
+}
+
+/** Send magic link to a public callback URL (no middleware redirect). */
+export async function sendMagicLink(
+  email: string,
+  next: string = "/me",
+): Promise<{ ok: boolean; error?: string }> {
+  const origin = typeof location !== "undefined" ? location.origin : "";
+  const redirectTo = origin ? `${origin}/auth/callback?next=${encodeURIComponent(next)}` : undefined;
+
+  const { error } = await supabase.auth.signInWithOtp({
+    email,
+    options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
+  });
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+
+  return { ok: true };
+}
+
+/** Client sign-out + clear server cookies. */
+export async function signOutEverywhere() {
+  await supabase.auth.signOut();
+  await clearServerSession();
 }

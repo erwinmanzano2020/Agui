@@ -6,24 +6,25 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useSession } from "@/lib/auth/session-context";
+import { signOutEverywhere } from "@/lib/auth/client";
 
 function sanitizeNextPath(raw: string | null): string {
   if (!raw) {
-    return "/";
+    return "/welcome";
   }
 
   const trimmed = raw.trim();
 
   if (!trimmed) {
-    return "/";
+    return "/welcome";
   }
 
   if (!trimmed.startsWith("/")) {
-    return "/";
+    return "/welcome";
   }
 
   if (trimmed.startsWith("//")) {
-    return "/";
+    return "/welcome";
   }
 
   return trimmed;
@@ -48,18 +49,17 @@ export default function SignOutPage() {
         return;
       }
 
-      const { error: signOutError } = await supabase.auth.signOut();
-      if (cancelled) {
-        return;
+      try {
+        await signOutEverywhere();
+        if (!cancelled) {
+          setStatus("done");
+        }
+      } catch (signOutError) {
+        if (!cancelled) {
+          setError(signOutError instanceof Error ? signOutError.message : "Failed to sign out.");
+          setStatus("error");
+        }
       }
-
-      if (signOutError) {
-        setError(signOutError.message);
-        setStatus("error");
-        return;
-      }
-
-      setStatus("done");
     };
 
     void run();
