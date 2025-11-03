@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const PUBLIC_ROUTES: RegExp[] = [
+  /^\/api\//,
   /^\/$/,
   /^\/welcome(?:\/.*)?$/,
   /^\/auth\/callback(?:\/.*)?$/,
@@ -38,10 +39,6 @@ function hasAuthCookie(request: NextRequest) {
 
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
-
-  if (pathname.startsWith("/api/")) {
-    return NextResponse.next();
-  }
 
   const publicRoute = isPublic(pathname);
   const authed = hasAuthCookie(request);
