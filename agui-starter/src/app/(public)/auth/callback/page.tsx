@@ -21,11 +21,8 @@ export default function AuthCallback() {
           if (error) throw error;
         }
 
-        if (window.location.hash.includes("access_token")) {
-          await supabase.auth.getSession();
-        }
-
-        await syncSession();
+        const { data } = await supabase.auth.getSession();
+        await syncSession(data.session ?? null);
 
         if (active) {
           const next = searchParams.get("next") || "/me";

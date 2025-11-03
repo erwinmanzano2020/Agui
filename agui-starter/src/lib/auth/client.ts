@@ -1,5 +1,7 @@
 "use client";
 
+import type { Session } from "@supabase/supabase-js";
+
 import { getSupabase } from "@/lib/supabase";
 
 const supabaseClient = getSupabase();
@@ -38,14 +40,19 @@ async function clearServerSession() {
 }
 
 /** Call the server cookie bridge to set/refresh HttpOnly cookies. */
-export async function syncSession() {
-  const { data, error } = await supabase.auth.getSession();
-  if (error) {
-    throw error;
+export async function syncSession(session?: Session | null) {
+  let activeSession = session;
+
+  if (typeof activeSession === "undefined") {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      throw error;
+    }
+    activeSession = data.session;
   }
 
-  const accessToken = data.session?.access_token ?? null;
-  const refreshToken = data.session?.refresh_token ?? null;
+  const accessToken = activeSession?.access_token ?? null;
+  const refreshToken = activeSession?.refresh_token ?? null;
 
   if (accessToken && refreshToken) {
     await setServerSession(accessToken, refreshToken);

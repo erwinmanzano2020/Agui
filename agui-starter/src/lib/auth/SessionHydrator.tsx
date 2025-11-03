@@ -21,8 +21,12 @@ export default function SessionHydrator() {
 
     void runSync();
 
-    const { data: subscription } = supabase.auth.onAuthStateChange(async () => {
-      await runSync();
+    const { data: subscription } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      try {
+        await syncSession(session);
+      } catch (error) {
+        console.warn("Failed to sync Supabase session", error);
+      }
     });
 
     const handleVisibility = () => {
