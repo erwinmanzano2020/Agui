@@ -13,7 +13,18 @@ export default function AuthCallback() {
     let active = true;
 
     const finalize = async () => {
+      const nextPath = searchParams.get("next") || "/me";
+      const cleanUrl = () => {
+        const url = new URL(window.location.href);
+        url.hash = "";
+        url.searchParams.delete("code");
+        url.searchParams.delete("next");
+        const query = url.searchParams.toString();
+        window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
+      };
+
       try {
+
         const params = new URLSearchParams(window.location.search);
         const code = params.get("code");
         if (code) {
@@ -39,12 +50,13 @@ export default function AuthCallback() {
         }
 
         if (active) {
-          const next = searchParams.get("next") || "/me";
-          router.replace(next);
+          cleanUrl();
+          router.replace(nextPath);
         }
       } catch (error) {
         console.error("Failed to finalize authentication", error);
         if (active) {
+          cleanUrl();
           const next = searchParams.get("next");
           const redirectUrl = next ? `/welcome?error=auth&next=${encodeURIComponent(next)}` : "/welcome?error=auth";
           router.replace(redirectUrl);

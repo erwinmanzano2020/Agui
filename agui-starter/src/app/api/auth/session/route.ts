@@ -12,6 +12,7 @@ const REFRESH_COOKIE = "sb-refresh-token";
 const PRESENCE_COOKIE = "sb-presence";
 
 type CookieStore = Awaited<ReturnType<typeof cookies>>;
+type CookieStoreLike = CookieStore | Promise<CookieStore>;
 
 const isProd = process.env.NODE_ENV === "production";
 
@@ -21,6 +22,14 @@ const BASE_COOKIE: CookieOptions = {
   path: "/",
   secure: isProd,
 };
+
+function isPromiseLike<T>(value: unknown): value is Promise<T> {
+  return typeof value === "object" && value !== null && typeof (value as PromiseLike<T>).then === "function";
+}
+
+async function ensureCookieStore(store: CookieStoreLike): Promise<CookieStore> {
+  return isPromiseLike<CookieStore>(store) ? await store : store;
+}
 
 function setCookie(jar: CookieStore, name: string, value: string, options: Partial<CookieOptions> = {}) {
   jar.set({
@@ -67,7 +76,8 @@ function tokensFromHash(hash?: string | null) {
 }
 
 export async function POST(req: Request) {
-  const jar = await cookies();
+  const cookieStore = cookies();
+  const jar = await ensureCookieStore(cookieStore);
   const supabase = await createServerSupabase({ cookieStore: jar });
 
   const payload = (await req.json().catch(() => ({}))) as {
@@ -118,7 +128,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE() {
-  const jar = await cookies();
+  const cookieStore = cookies();
+  const jar = await ensureCookieStore(cookieStore);
   clearSessionCookies(jar);
 
   const supabase = await createServerSupabase({ cookieStore: jar });

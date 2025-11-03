@@ -1,18 +1,79 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
-import { sendMagicLink } from "@/lib/auth/client";
+import { sendMagicLink, supabase, syncSession } from "@/lib/auth/client";
 
 export default function WelcomePage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
   const [error, setError] = useState<string | null>(
     searchParams.get("error") === "auth" ? "We couldn’t sign you in. Try again." : null,
   );
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resumeSession = async () => {
+      const nextPath = searchParams.get("next") || "/me";
+
+      try {
+        const hash = typeof window !== "undefined" ? window.location.hash : "";
+        const hasTokenHash = hash.includes("access_token") || hash.includes("refresh_token");
+
+        if (hasTokenHash && typeof window !== "undefined") {
+          const params = new URLSearchParams(hash.replace(/^#/, ""));
+          const accessToken = params.get("access_token");
+          const refreshToken = params.get("refresh_token");
+
+          if (accessToken && refreshToken) {
+            const { data, error: setSessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            });
+
+            if (setSessionError) {
+              throw setSessionError;
+            }
+
+            await syncSession(data.session ?? null);
+
+            if (!cancelled) {
+              const url = new URL(window.location.href);
+              url.hash = "";
+              window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+              router.replace(nextPath);
+            }
+            return;
+          } else {
+            const url = new URL(window.location.href);
+            url.hash = "";
+            window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+          }
+        }
+
+        const { data } = await supabase.auth.getSession();
+        if (data.session) {
+          await syncSession(data.session);
+          if (!cancelled) {
+            router.replace(nextPath);
+          }
+        }
+      } catch (resumeError) {
+        console.error("Failed to resume session from welcome", resumeError);
+      }
+    };
+
+    void resumeSession();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, searchParams]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -24,7 +85,8 @@ export default function WelcomePage() {
     setStatus("sending");
     setError(null);
 
-    const { ok, error: sendError } = await sendMagicLink(email.trim());
+    const nextPath = searchParams.get("next") || "/me";
+    const { ok, error: sendError } = await sendMagicLink(email.trim(), nextPath);
     if (ok) {
       setStatus("sent");
       return;

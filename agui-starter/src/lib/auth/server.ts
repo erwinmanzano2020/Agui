@@ -12,16 +12,35 @@ type MutableCookieStore = {
   delete?: (name: string, options?: CookieOptions) => void;
 };
 
+type CookieStoreInput = CookieStore | Promise<CookieStore>;
+type HeaderStoreInput = HeaderStore | Promise<HeaderStore>;
+
 export interface CreateServerSupabaseOptions {
-  cookieStore?: CookieStore;
-  headerStore?: HeaderStore;
+  cookieStore?: CookieStoreInput;
+  headerStore?: HeaderStoreInput;
+}
+
+function isPromiseLike<T>(value: unknown): value is Promise<T> {
+  return typeof value === "object" && value !== null && typeof (value as PromiseLike<T>).then === "function";
+}
+
+async function resolveMaybePromise<T>(
+  value: T | Promise<T> | undefined,
+  fallback: () => T | Promise<T>,
+): Promise<T> {
+  if (typeof value !== "undefined") {
+    return isPromiseLike<T>(value) ? await value : (value as T);
+  }
+
+  const resolvedFallback = fallback();
+  return isPromiseLike<T>(resolvedFallback) ? await resolvedFallback : (resolvedFallback as T);
 }
 
 export async function createServerSupabase(
   options: CreateServerSupabaseOptions = {},
 ): Promise<SupabaseClient<Database>> {
-  const cookieStore = options.cookieStore ?? (await cookies());
-  const headerStore = options.headerStore ?? (await headers());
+  const cookieStore = await resolveMaybePromise(options.cookieStore, cookies);
+  const headerStore = await resolveMaybePromise(options.headerStore, headers);
 
   const mutableCookies = cookieStore as unknown as MutableCookieStore;
 

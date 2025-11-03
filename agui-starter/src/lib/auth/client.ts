@@ -63,10 +63,16 @@ export async function syncSession(session?: Session | null) {
 }
 
 /** Send magic link to a public callback URL (no middleware redirect). */
-export async function sendMagicLink(email: string): Promise<{ ok: boolean; error?: string }> {
+export async function sendMagicLink(
+  email: string,
+  next: string = "/me",
+): Promise<{ ok: boolean; error?: string }> {
+  const origin = typeof location !== "undefined" ? location.origin : "";
+  const redirectTo = origin ? `${origin}/auth/callback?next=${encodeURIComponent(next)}` : undefined;
+
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: `${location.origin}/auth/callback` },
+    options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
   });
 
   if (error) {
