@@ -46,7 +46,12 @@ export async function POST(req: Request) {
   const { kind, value } = parsed.data;
   const args: ResolveArgs = { p_kind: kind, p_raw: value };
 
-  const { data, error } = await supabase.rpc("resolve_entity_by_identifier", args);
+  const rpcUntyped = supabase.rpc as unknown as (
+    fn: string,
+    a?: unknown
+  ) => Promise<{ data: unknown; error: { message: string } | null }>;
+
+  const { data, error } = await rpcUntyped("resolve_entity_by_identifier", args as unknown);
 
   if (error) {
     return NextResponse.json(

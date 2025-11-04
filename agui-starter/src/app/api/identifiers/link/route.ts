@@ -80,10 +80,22 @@ export async function POST(req: Request) {
     added_by_entity_id: currentEntityId,
   };
 
-  // Avoid generics on .from(...) until DB types exist; cast the result instead.
-  const { data, error } = await supabase
-    .from("entity_identifiers")
-    .insert(row)
+  // Avoid generics on .from(...) until DB types exist; use a temporary untyped shim.
+  const fromUntyped = supabase.from as unknown as (
+    table: string
+  ) => {
+    insert: (values: unknown) => {
+      select: (columns: string) => {
+        maybeSingle: () => Promise<{
+          data: unknown;
+          error: { message: string } | null;
+        }>;
+      };
+    };
+  };
+
+  const { data, error } = await fromUntyped("entity_identifiers")
+    .insert(row as unknown)
     .select("id, entity_id, kind, issuer, value_norm, verified_at")
     .maybeSingle();
 
