@@ -12,7 +12,10 @@ const schema = z.object({
   contact: z.string().min(4, "Phone or email is required"),
 });
 
-type FormData = z.infer<typeof schema>;
+type FormData = {
+  brandName: string;
+  contact: string;
+};
 
 const createInitialData = (): FormData => ({
   brandName: "",
@@ -47,7 +50,32 @@ export default function ApplyBusinessPage() {
 
     setPending(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      const identifierKind = submission.contact.includes("@")
+        ? "email"
+        : submission.contact.match(/^\+?\d{7,}$/)
+          ? "phone"
+          : undefined;
+
+      const response = await fetch("/api/applications/apply", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          role: "brand_owner",
+          identifierKind,
+          rawValue: submission.contact,
+          meta: {
+            brandName: submission.brandName,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const message = typeof payload.error === "string" ? payload.error : "Failed to submit";
+        toast.error(message);
+        return;
+      }
+
       toast.success("Application received. We’ll review and get back to you.");
       setData(createInitialData());
     } finally {

@@ -1,53 +1,74 @@
-import { NextResponse } from "next/server";
-
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "@/lib/z";
-import type { RefinementCtx } from "@/lib/z";
-import { Channel, LoyaltyPlan, id, phone, safeParse } from "@/lib/schema-kit";
-import { enrollMember } from "@/lib/loyalty/runtime";
+import { createServerSupabase } from "@/lib/auth/server";
 
-const baseSchema = z.object({
-  memberId: id().optional(),
-  phone: phone().optional(),
-  channel: Channel.optional(),
-  plan: LoyaltyPlan.default("starter"),
-  dryRun: z.boolean().default(false),
+const Channel = z.enum(["cashier", "kiosk", "self-service"]);
+
+const Body = z.object({
+  brandId: z.string().uuid(),
+  channel: z.string().optional(),
+  identifierKind: z
+    .enum(["email", "phone", "qr", "gov_id", "loyalty_card", "employee_no", "other"])
+    .optional(),
+  rawValue: z.string().min(1).optional(),
+  issuer: z.string().max(120).optional(),
+  meta: z.record(z.string(), z.unknown()).optional().default({}),
 });
 
-type LoyaltyInput = z.infer<typeof baseSchema>;
-
-const schema = baseSchema.superRefine((value: LoyaltyInput, ctx: RefinementCtx) => {
-  if (!value.memberId && !value.phone) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Provide either memberId or phone.",
-      path: ["memberId"],
-    });
-  }
-});
-
-export async function POST(req: Request) {
-  const contentType = req.headers.get("content-type") ?? "";
-  if (!contentType.includes("application/json")) {
-    return NextResponse.json(
-      { ok: false, error: "Expected application/json" },
-      { status: 400 },
-    );
-  }
-
-  const json = await req.json().catch(() => null);
-  const parsed = safeParse(schema, json);
-
-  if (!parsed.ok) {
-    return NextResponse.json({ ok: false, issues: parsed.issues }, { status: 400 });
-  }
-
-  const result = await enrollMember(parsed.data);
-  return NextResponse.json(result, { status: 200 });
+function normalizeChannel(input?: string) {
+  if (!input) return undefined;
+  const value = input.toLowerCase();
+  const parsed = Channel.safeParse(value);
+  return parsed.success ? parsed.data : undefined;
 }
 
-export async function GET() {
-  return NextResponse.json(
-    { ok: false, error: "Use POST /api/loyalty/enroll with JSON body" },
-    { status: 405 },
-  );
+export async function POST(req: NextRequest) {
+  const supabase = await createServerSupabase();
+  const parsed = Body.parse(await req.json());
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { data: ent, error: entErr } = await supabase.rpc("ensure_entity_for_current_user");
+  if (entErr) {
+    return NextResponse.json({ error: entErr.message }, { status: 400 });
+  }
+
+  const applicantEntityId = (ent as { id?: string } | null)?.id;
+  if (!applicantEntityId) {
+    return NextResponse.json({ error: "No entity" }, { status: 400 });
+  }
+
+  const payload = {
+    brandId: parsed.brandId,
+    channel: normalizeChannel(parsed.channel),
+    identifierKind: parsed.identifierKind ?? null,
+    rawValue: parsed.rawValue ?? null,
+    issuer: parsed.issuer ?? null,
+    meta: parsed.meta,
+  };
+
+  const { data: app, error: appErr } = await supabase
+    .from("entity_applications" as never)
+    .insert({
+      applicant_entity_id: applicantEntityId,
+      target_brand_id: payload.brandId,
+      kind: "loyalty_pass",
+      identifier_kind: payload.identifierKind,
+      raw_value: payload.rawValue,
+      issuer: payload.issuer,
+      meta: payload.meta,
+    } as never)
+    .select("*")
+    .maybeSingle();
+
+  if (appErr) {
+    return NextResponse.json({ error: appErr.message }, { status: 400 });
+  }
+
+  return NextResponse.json({ ok: true, application: app });
 }

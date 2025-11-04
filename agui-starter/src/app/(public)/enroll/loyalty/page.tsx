@@ -12,7 +12,10 @@ const schema = z.object({
   contact: z.string().min(4, "Phone or email is required"),
 });
 
-type FormData = z.infer<typeof schema>;
+type FormData = {
+  brandOrCode: string;
+  contact: string;
+};
 
 const createInitialData = (): FormData => ({
   brandOrCode: "",
@@ -47,7 +50,31 @@ export default function EnrollLoyaltyPage() {
 
     setPending(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      const identifierKind = submission.contact.includes("@")
+        ? "email"
+        : submission.contact.match(/^\+?\d{7,}$/)
+          ? "phone"
+          : undefined;
+
+      const response = await fetch("/api/applications/enroll", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          identifierKind,
+          rawValue: submission.contact,
+          meta: {
+            brandOrCode: submission.brandOrCode,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const message = typeof payload.error === "string" ? payload.error : "Failed to submit";
+        toast.error(message);
+        return;
+      }
+
       toast.success("Enrollment request sent. We’ll text/email you updates.");
       setData(createInitialData());
     } finally {

@@ -13,7 +13,11 @@ const schema = z.object({
   note: z.string().optional(),
 });
 
-type FormData = z.infer<typeof schema>;
+type FormData = {
+  employerName: string;
+  contact: string;
+  note?: string;
+};
 
 const createInitialData = (): FormData => ({
   employerName: "",
@@ -50,7 +54,33 @@ export default function ApplyEmployeePage() {
 
     setPending(true);
     try {
-      await new Promise((resolve) => setTimeout(resolve, 600));
+      const identifierKind = submission.contact.includes("@")
+        ? "email"
+        : submission.contact.match(/^\+?\d{7,}$/)
+          ? "phone"
+          : undefined;
+
+      const response = await fetch("/api/applications/apply", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          role: "employment",
+          identifierKind,
+          rawValue: submission.contact,
+          meta: {
+            employerName: submission.employerName,
+            note: submission.note,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        const message = typeof payload.error === "string" ? payload.error : "Failed to submit";
+        toast.error(message);
+        return;
+      }
+
       toast.success("Application received. We’ll review and get back to you.");
       setData(createInitialData());
     } finally {
