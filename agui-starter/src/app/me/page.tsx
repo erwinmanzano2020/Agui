@@ -1,11 +1,13 @@
 // src/app/me/page.tsx
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
+import Link from "next/link";
 import TileGrid from "@/components/me/TileGrid";
 import AppTile from "@/components/me/AppTile";
 import { getCapabilitiesForUser } from "@/lib/roles/get-capabilities.server";
 import { createServerSupabase } from "@/lib/auth/server";
 import { BizIcon, EmployeeIcon, GMIcon, LoyaltyIcon } from "@/components/me/icons";
+import { Button } from "@/components/ui/button";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,35 @@ export default async function MePage() {
   }
 
   const caps = await getCapabilitiesForUser(userId);
+
+  if (
+    caps.loyaltyBrands.length === 0 &&
+    caps.employeeBrands.length === 0 &&
+    caps.ownerBrands.length === 0 &&
+    !caps.isGM
+  ) {
+    return (
+      <main className="px-4 py-6 md:px-6 lg:px-8">
+        <div className="mx-auto max-w-md space-y-4 py-16 text-center">
+          <h1 className="text-2xl font-semibold">Walang apps pa for you.</h1>
+          <p className="text-sm text-muted-foreground">
+            Enroll in a Loyalty Pass or ask your employer to add you. You can also apply below:
+          </p>
+          <div className="grid gap-3">
+            <Button asChild className="w-full">
+              <Link href="/enroll/loyalty">Enroll to a Loyalty Pass</Link>
+            </Button>
+            <Button variant="outline" asChild className="w-full">
+              <Link href="/apply/employee">Apply as Employee</Link>
+            </Button>
+            <Button variant="ghost" asChild className="w-full">
+              <Link href="/apply/business">Register a Business</Link>
+            </Button>
+          </div>
+        </div>
+      </main>
+    );
+  }
 
   type TileConfig = {
     href: string;
