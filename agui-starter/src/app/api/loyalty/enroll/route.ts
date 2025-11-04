@@ -1,59 +1,75 @@
-import { NextResponse } from "next/server";
-
+// src/app/api/loyalty/enroll/route.ts
+import { NextResponse, NextRequest } from "next/server";
 import { z } from "@/lib/z";
-import type { RefinementCtx } from "@/lib/z";
-import { Channel, LoyaltyPlan, id, phone, safeParse } from "@/lib/schema-kit";
-import { enrollMember } from "@/lib/loyalty/runtime";
+import { createServerSupabase } from "@/lib/auth/server";
 
-const baseSchema = z.object({
-  memberId: id().optional(),
-  phone: phone().optional(),
-  channel: Channel.optional(),
-  plan: LoyaltyPlan.default("starter"),
-  dryRun: z.boolean().default(false),
+/**
+ * The service expects: { brandId: string; channel?: 'cashier'|'kiosk'|'self-service'; ... }
+ * We validate and coerce channel to the allowed union.
+ */
+
+const Channel = z.enum(["cashier", "kiosk", "self-service"]);
+
+const Body = z.object({
+  brandId: z.string().uuid(),
+  // Accept either the exact union or any string; coerce later to union or drop
+  channel: z.string().optional(),
+  // add any other inputs you support
+  identifierKind: z.optional(z.enum(["email","phone","qr","gov_id","loyalty_card","employee_no","other"])),
+  rawValue: z.optional(z.string().min(1)),
+  issuer: z.optional(z.string().max(120)),
+  meta: z.optional(z.record(z.string(), z.any())).default({}),
 });
 
-type LoyaltyInput = {
-  memberId?: string;
-  phone?: string;
-  channel?: string;
-  plan: string;
-  dryRun: boolean;
-};
-
-const schema = baseSchema.superRefine((value: LoyaltyInput, ctx: RefinementCtx) => {
-  if (!value.memberId && !value.phone) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message: "Provide either memberId or phone.",
-      path: ["memberId"],
-    });
-  }
-});
-
-export async function POST(req: Request) {
-  const contentType = req.headers.get("content-type") ?? "";
-  if (!contentType.includes("application/json")) {
-    return NextResponse.json(
-      { ok: false, error: "Expected application/json" },
-      { status: 400 },
-    );
-  }
-
-  const json = await req.json().catch(() => null);
-  const parsed = safeParse<LoyaltyInput>(schema, json);
-
-  if (!parsed.ok) {
-    return NextResponse.json({ ok: false, issues: parsed.issues }, { status: 400 });
-  }
-
-  const result = await enrollMember(parsed.data);
-  return NextResponse.json(result, { status: 200 });
+function normalizeChannel(input?: string) {
+  if (!input) return undefined;
+  const v = input.toLowerCase();
+  if (Channel.options.includes(v as any)) return v as z.infer<typeof Channel>;
+  return undefined; // refuse unknowns to satisfy the narrow union type
 }
 
-export async function GET() {
-  return NextResponse.json(
-    { ok: false, error: "Use POST /api/loyalty/enroll with JSON body" },
-    { status: 405 },
-  );
+export async function POST(req: NextRequest) {
+  const supabase = await createServerSupabase();
+  const parsed = Body.parse(await req.json());
+
+  // who am I?
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+
+  // ensure current entity exists
+  const { data: ent, error: entErr } = await supabase.rpc("ensure_entity_for_current_user");
+  const entity = ent as { id?: string } | null;
+  if (entErr || !entity?.id) {
+    return NextResponse.json({ error: entErr?.message ?? "No entity" }, { status: 400 });
+  }
+
+  // Build a payload that conforms to EnrollMemberInput
+  const payload = {
+    brandId: parsed.brandId,
+    channel: normalizeChannel(parsed.channel),
+    identifierKind: parsed.identifierKind ?? null,
+    rawValue: parsed.rawValue ?? null,
+    issuer: parsed.issuer ?? null,
+    meta: parsed.meta,
+  };
+
+  // For now, store as application; later we can auto-approve
+  const { data: app, error: appErr } = await supabase
+    .from("entity_applications" as never)
+    .insert({
+      applicant_entity_id: entity.id,
+      target_brand_id: payload.brandId,
+      kind: "loyalty_pass",
+      identifier_kind: payload.identifierKind,
+      raw_value: payload.rawValue,
+      issuer: payload.issuer,
+      meta: payload.meta,
+    } as never)
+    .select("*")
+    .maybeSingle();
+
+  if (appErr) return NextResponse.json({ error: appErr.message }, { status: 400 });
+  return NextResponse.json({ ok: true, application: app });
 }
