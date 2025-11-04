@@ -30,11 +30,12 @@ export async function POST(req: Request) {
 
   const { kind, value } = parsed.data;
 
-  // Use DB resolver (normalized & hashed in SQL).
+  // Call RPC with explicit arg object; cast while DB types are absent.
+  // TODO: replace `as any` with Database["public"]["Functions"]["resolve_entity_by_identifier"]["Args"]
   const { data, error } = await supabase.rpc("resolve_entity_by_identifier", {
     p_kind: kind,
     p_raw: value,
-  });
+  } as any);
 
   if (error) {
     return NextResponse.json(

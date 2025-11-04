@@ -3,8 +3,30 @@ import { NextResponse } from "next/server";
 import { z } from "@/lib/z";
 import { createServerSupabase } from "@/lib/auth/server";
 
+/**
+ * Minimal shape for inserting into entity_identifiers.
+ * (We use a local type because DB types aren’t generated yet.)
+ * TODO: replace with Database["public"]["Tables"]["entity_identifiers"]["Insert"]
+ *       once supabase gen types is wired in.
+ */
+type EntityIdentifierInsert = {
+  entity_id: string;
+  kind:
+    | "email"
+    | "phone"
+    | "qr"
+    | "gov_id"
+    | "loyalty_card"
+    | "employee_no"
+    | "other";
+  value_norm: string;
+  issuer: string | null;
+  meta: Record<string, unknown>;
+  added_by_entity_id: string;
+};
+
 const bodySchema = z.object({
-  entityId: z.string().uuid().optional(), // if omitted, link to current entity
+  entityId: z.string().uuid().optional(), // default = current user
   kind: z.enum([
     "email",
     "phone",
@@ -40,19 +62,19 @@ export async function POST(req: Request) {
 
   const { entityId, kind, value, issuer, meta } = parsed.data;
 
-  // Insert; RLS enforces:
-  // - self can add for self
-  // - GM can add for anyone
+  const row: EntityIdentifierInsert = {
+    entity_id: entityId ?? currentEntityId,
+    kind,
+    value_norm: value, // normalized/hashed in trigger
+    issuer: issuer ?? null,
+    meta: meta ?? {},
+    added_by_entity_id: currentEntityId,
+  };
+
+  // Cast table generics to avoid `never` until DB types are in place
   const { data, error } = await supabase
-    .from("entity_identifiers")
-    .insert({
-      entity_id: entityId ?? currentEntityId,
-      kind,
-      value_norm: value, // normalized/hashed in trigger
-      issuer: issuer ?? null,
-      meta: meta ?? {},
-      added_by_entity_id: currentEntityId,
-    })
+    .from<EntityIdentifierInsert>("entity_identifiers")
+    .insert(row as EntityIdentifierInsert)
     .select("id, entity_id, kind, issuer, value_norm, verified_at")
     .maybeSingle();
 
