@@ -1,59 +1,47 @@
-import { NextResponse, type NextRequest } from "next/server";
+// src/middleware.ts
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
-const PUBLIC_ROUTES: RegExp[] = [
-  /^\/api\//,
-  /^\/$/,
-  /^\/welcome(?:\/.*)?$/,
-  /^\/auth\/callback(?:\/.*)?$/,
-  /^\/apply(?:\/.*)?$/,
-  /^\/api\/auth\/session(?:\/.*)?$/,
-  /^\/api\/public\/.*$/,
+// Public paths (no session required)
+const PUBLIC_PATHS: (string | RegExp)[] = [
+  "/",                 // landing
+  "/welcome",          // magic-link entry
+  "/auth/callback",    // email link lands here
+  /^\/api\/auth\/session$/,          // cookie sync endpoint
+  /^\/api\/lookup\/resolve$/,        // new lookup API
+  /^\/api\/identifiers\/link$/,      // allow POST; RLS guards auth/GM
+  // Next.js runtime/asset paths
   /^\/_next\//,
-  /^\/assets\//,
   /^\/favicon\.ico$/,
+  /^\/images\//,
+  /^\/icons?\//,
   /^\/robots\.txt$/,
   /^\/sitemap\.xml$/,
-  /^\/manifest\.webmanifest$/,
-  /^\/healthz$/,
 ];
 
-function isPublic(pathname: string) {
-  return PUBLIC_ROUTES.some((pattern) => pattern.test(pathname));
-}
-
-function hasAuthCookie(request: NextRequest) {
-  const cookies = request.cookies.getAll();
-  if (cookies.length === 0) {
-    return false;
-  }
-
-  return cookies.some((cookie) => {
-    return (
-      cookie.name === "sb-access-token" ||
-      cookie.name === "sb-refresh-token" ||
-      cookie.name === "sb-presence" ||
-      cookie.name.endsWith("-auth-token")
-    );
-  });
+function isPublicPath(pathname: string) {
+  return PUBLIC_PATHS.some((p) =>
+    typeof p === "string" ? p === pathname : p.test(pathname)
+  );
 }
 
 export function middleware(request: NextRequest) {
-  const { pathname, search } = request.nextUrl;
+  const { pathname } = request.nextUrl;
 
-  const publicRoute = isPublic(pathname);
-  const authed = hasAuthCookie(request);
+  // short-circuit public routes
+  if (isPublicPath(pathname)) return NextResponse.next();
 
-  if (!authed && !publicRoute) {
+  // If we already have sb access cookie, let it through
+  // (cookie names follow Supabase convention; adjust if you prefixed them)
+  const hasSession =
+    request.cookies.has("sb-access-token") ||
+    request.cookies.has("sb:token") ||
+    request.cookies.has("supabase-auth-token");
+
+  if (!hasSession) {
     const url = request.nextUrl.clone();
     url.pathname = "/welcome";
-    url.search = search;
-    return NextResponse.redirect(url);
-  }
-
-  if (authed && pathname === "/welcome") {
-    const url = request.nextUrl.clone();
-    url.pathname = "/me";
-    url.search = search;
+    url.search = request.nextUrl.search;
     return NextResponse.redirect(url);
   }
 
@@ -61,7 +49,5 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    "/((?!.*\\.(?:png|jpg|jpeg|gif|webp|svg|ico|txt|map)$).*)",
-  ],
+  matcher: ["/((?!_next/static|_next/image|.*\\.(?:svg|png|jpg|jpeg|gif|webp)).*)"],
 };
