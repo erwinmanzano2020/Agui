@@ -79,7 +79,7 @@ export default async function MePage() {
 
   if (caps.isGM) {
     tiles.push({
-      href: "/gm",
+      href: "/me/admin",
       title: "Game Master",
       desc: "Global controls & settings",
       icon: <GMIcon className="opacity-80" />,
