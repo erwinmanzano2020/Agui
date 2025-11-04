@@ -8,6 +8,7 @@ const PUBLIC_PATHS: (string | RegExp)[] = [
   "/welcome",          // magic-link entry
   "/auth/callback",    // email link lands here
   /^\/api\/auth\/session$/,          // cookie sync endpoint
+  /^\/api\/identity\/bootstrap$/,    // bootstrap identity
   /^\/api\/lookup\/resolve$/,        // new lookup API
   /^\/api\/identifiers\/link$/,      // allow POST; RLS guards auth/GM
   // Next.js runtime/asset paths
