@@ -1,6 +1,7 @@
 // src/lib/identity/bootstrap.server.ts
 import { createServerSupabase } from "@/lib/auth/server";
 import { z } from "@/lib/z";
+import { headers, cookies } from "next/headers";
 
 const Input = z.object({
   // Optional explicit phone; we always have email from session
@@ -32,18 +33,41 @@ export async function ensureEntityForCurrentUser(args?: BootstrapInput) {
   const email = user.email ?? null;
   const phone = parsedArgs.phone ?? (user.user_metadata?.phone_number as string | undefined) ?? null;
 
+  async function absoluteUrl(path: string) {
+    const h = await headers();
+    const proto = h.get("x-forwarded-proto") ?? "https";
+    const host = h.get("x-forwarded-host") ?? h.get("host");
+    const base =
+      process.env.NEXT_PUBLIC_BASE_URL && /^https?:\/\//i.test(process.env.NEXT_PUBLIC_BASE_URL)
+        ? process.env.NEXT_PUBLIC_BASE_URL
+        : host
+        ? `${proto}://${host}`
+        : "http://localhost:3000";
+    return new URL(path, base).toString();
+  }
+
+  async function cookieHeaderString() {
+    const list = (await cookies()).getAll();
+    return list.map(({ name, value }) => `${name}=${value}`).join("; ");
+  }
+
   async function link(kind: "email" | "phone", value: string) {
-    const resp = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? ""}/api/identifiers/link`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ kind, value }), // API infers current entity via RLS helper
-    });
-    // Best-effort; ignore 409 duplicates
-    if (!resp.ok && resp.status !== 409) {
-      // swallow but return note
-      return await resp.json().catch(() => ({}));
+    try {
+      const resp = await fetch(await absoluteUrl("/api/identifiers/link"), {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          cookie: await cookieHeaderString(),
+        },
+        body: JSON.stringify({ kind, value }),
+      });
+      if (!resp.ok && resp.status !== 409) {
+        return { warned: true, status: resp.status };
+      }
+    } catch {
+      return { warned: true };
     }
-    return null;
+    return { warned: false };
   }
 
   if (email) await link("email", email);
