@@ -21,9 +21,12 @@ export default async function AdminHubPage() {
         <p className="text-sm opacity-70">Platform controls for game masters.</p>
       </header>
 
-      <div>
+      <div className="space-y-3">
         <Link href="/admin" className="underline">
           Open the Admin Console
+        </Link>
+        <Link href="/me/admin/applications" className="underline">
+          Review Applications
         </Link>
       </div>
     </main>

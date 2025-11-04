@@ -16,9 +16,19 @@ export const phone = () =>
   z.string().regex(/^[0-9]{10,13}$/, "Phone must be 10–13 digits");
 
 /** Safe Zod parse that returns { ok, data|issues } */
-export function safeParse<T extends z.ZodTypeAny>(schema: T, input: unknown) {
+type SafeParseReturn<T> =
+  | { ok: true; data: T }
+  | { ok: false; issues: unknown };
+
+type SchemaLike<T> = {
+  safeParse: (input: unknown) =>
+    | { success: true; data: T }
+    | { success: false; error: { issues: unknown } };
+};
+
+export function safeParse<T>(schema: SchemaLike<T>, input: unknown): SafeParseReturn<T> {
   const r = schema.safeParse(input);
   return r.success
-    ? { ok: true as const, data: r.data }
-    : { ok: false as const, issues: r.error.issues };
+    ? { ok: true, data: r.data }
+    : { ok: false, issues: r.error.issues };
 }

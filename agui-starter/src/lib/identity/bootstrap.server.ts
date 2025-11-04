@@ -8,7 +8,9 @@ const Input = z.object({
   phone: z.string().optional(),
 });
 
-export type BootstrapInput = z.infer<typeof Input>;
+export type BootstrapInput = {
+  phone?: string;
+};
 
 export async function ensureEntityForCurrentUser(args?: BootstrapInput) {
   const parsedArgs = Input.parse(args ?? {});

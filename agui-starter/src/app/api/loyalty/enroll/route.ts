@@ -13,7 +13,13 @@ const baseSchema = z.object({
   dryRun: z.boolean().default(false),
 });
 
-type LoyaltyInput = z.infer<typeof baseSchema>;
+type LoyaltyInput = {
+  memberId?: string;
+  phone?: string;
+  channel?: string;
+  plan: string;
+  dryRun: boolean;
+};
 
 const schema = baseSchema.superRefine((value: LoyaltyInput, ctx: RefinementCtx) => {
   if (!value.memberId && !value.phone) {
@@ -35,7 +41,7 @@ export async function POST(req: Request) {
   }
 
   const json = await req.json().catch(() => null);
-  const parsed = safeParse(schema, json);
+  const parsed = safeParse<LoyaltyInput>(schema, json);
 
   if (!parsed.ok) {
     return NextResponse.json({ ok: false, issues: parsed.issues }, { status: 400 });
