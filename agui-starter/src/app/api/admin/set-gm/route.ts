@@ -1,43 +1,50 @@
 import { NextResponse } from "next/server";
-import { z } from "zod";
-
+import { z } from "@/lib/z";
 import { createServerSupabase } from "@/lib/auth/server";
 
-const BodySchema = z.object({
+const Body = z.object({
   entityId: z.string().uuid(),
   isGm: z.boolean(),
 });
 
-type BodyInput = z.infer<typeof BodySchema>;
-
-function parseBody(json: unknown): BodyInput {
-  return BodySchema.parse(json);
-}
-
 export async function POST(req: Request) {
   try {
-    const json = await req.json();
-    const { entityId, isGm } = parseBody(json);
+    const raw = await req.text();
+    let json: unknown = {};
+
+    if (raw) {
+      try {
+        json = JSON.parse(raw);
+      } catch (parseErr) {
+        const message = parseErr instanceof Error ? parseErr.message : "Bad request";
+        return NextResponse.json({ error: message }, { status: 400 });
+      }
+    }
+
+    const { entityId, isGm } = Body.parse(json);
 
     const supabase = await createServerSupabase();
 
-    const { data: userRes, error: userError } = await supabase.auth.getUser();
-    if (userError) {
-      return NextResponse.json({ error: userError.message }, { status: 500 });
+    const { data: userRes, error: userErr } = await supabase.auth.getUser();
+    if (userErr) {
+      return NextResponse.json({ error: userErr.message }, { status: 500 });
     }
     if (!userRes?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { data: gmFlag, error: gmError } = await supabase.rpc("current_entity_is_gm");
-    if (gmError) {
-      return NextResponse.json({ error: gmError.message }, { status: 500 });
+    const {
+      data: isGmNow,
+      error: gmErr,
+    } = await (supabase as any).rpc("current_entity_is_gm");
+    if (gmErr) {
+      return NextResponse.json({ error: gmErr.message }, { status: 500 });
     }
-    if (!gmFlag) {
+    if (!isGmNow) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { error } = await supabase.rpc("admin_set_gm", {
+    const { error } = await (supabase as any).rpc("admin_set_gm", {
       p_entity_id: entityId,
       p_is_gm: isGm,
     });
@@ -46,8 +53,8 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Bad request";
-    return NextResponse.json({ error: message }, { status: 400 });
+  } catch (e: any) {
+    const msg = e?.message ?? "Bad request";
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 }
