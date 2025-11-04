@@ -7,6 +7,8 @@ const PUBLIC_PATHS: (string | RegExp)[] = [
   "/",                 // landing
   "/welcome",          // magic-link entry
   "/auth/callback",    // email link lands here
+  /^\/apply(\/.*)?$/,  // public apply flows
+  /^\/enroll(\/.*)?$/, // public enroll flows
   /^\/api\/auth\/session$/,          // cookie sync endpoint
   /^\/api\/identity\/bootstrap$/,    // bootstrap identity
   /^\/api\/lookup\/resolve$/,        // new lookup API
