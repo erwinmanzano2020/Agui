@@ -2,12 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 
 import { sendMagicLink, supabase, syncSession } from "@/lib/auth/client";
 
 export default function WelcomePage() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
@@ -18,9 +17,18 @@ export default function WelcomePage() {
   useEffect(() => {
     let cancelled = false;
 
-    const resumeSession = async () => {
-      const nextPath = searchParams.get("next") || "/me";
+    const redirectToAccount = async () => {
+      try {
+        await fetch("/api/identity/bootstrap", { method: "POST" });
+      } catch {
+        // best effort
+      }
+      if (!cancelled) {
+        window.location.replace("/me");
+      }
+    };
 
+    const resumeSession = async () => {
       try {
         const hash = typeof window !== "undefined" ? window.location.hash : "";
         const hasTokenHash = hash.includes("access_token") || hash.includes("refresh_token");
@@ -46,8 +54,8 @@ export default function WelcomePage() {
               const url = new URL(window.location.href);
               url.hash = "";
               window.history.replaceState(null, "", `${url.pathname}${url.search}`);
-              router.replace(nextPath);
             }
+            await redirectToAccount();
             return;
           } else {
             const url = new URL(window.location.href);
@@ -59,9 +67,7 @@ export default function WelcomePage() {
         const { data } = await supabase.auth.getSession();
         if (data.session) {
           await syncSession(data.session);
-          if (!cancelled) {
-            router.replace(nextPath);
-          }
+          await redirectToAccount();
         }
       } catch (resumeError) {
         console.error("Failed to resume session from welcome", resumeError);
@@ -73,7 +79,7 @@ export default function WelcomePage() {
     return () => {
       cancelled = true;
     };
-  }, [router, searchParams]);
+  }, [searchParams]);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
