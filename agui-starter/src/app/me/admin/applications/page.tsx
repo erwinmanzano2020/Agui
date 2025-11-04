@@ -1,98 +1,88 @@
-import { createServerSupabase } from "@/lib/auth/server";
-import Link from "next/link";
 import { revalidatePath } from "next/cache";
+import { createServerSupabase } from "@/lib/auth/server";
 
-function hasObjectMeta(value: unknown): value is Record<string, unknown> {
-  return !!value && typeof value === "object" && !Array.isArray(value);
-}
-
-type ApplicationRow = {
+type Row = {
   id: string;
-  created_at: string | null;
   kind: string;
   status: string;
-  target_brand_id: string | null;
-  applicant_entity_id: string | null;
-  meta: unknown;
-  identifier_kind: string | null;
-  raw_value: string | null;
+  applicant_entity_id: string;
+  brand_id: string | null;
+  decided_at: string | null;
+  processed_at: string | null;
 };
 
-export default async function ApplicationsAdminPage() {
+export default async function AdminApplicationsPage() {
   const supabase = await createServerSupabase();
-
   const { data, error } = await supabase
     .from("entity_applications")
-    .select(
-      "id, created_at, kind, status, target_brand_id, applicant_entity_id, meta, identifier_kind, raw_value"
-    )
-    .order("created_at", { ascending: false });
+    .select("id, kind, status, applicant_entity_id, target_brand_id, decided_at, processed_at")
+    .order("created_at", { ascending: false })
+    .limit(100);
 
   if (error) {
-    return <div className="p-6">Failed to load: {error.message}</div>;
+    return <div className="p-6 text-red-600">Failed to load applications: {error.message}</div>;
   }
 
-  const applications = (data ?? []) as ApplicationRow[];
+  const apps = (data ?? []).map((row) => ({
+    ...row,
+    brand_id: (row as { target_brand_id?: string | null }).target_brand_id ?? null,
+  })) as Row[];
 
   async function decide(id: string, action: "approve" | "reject") {
     "use server";
     const supabase = await createServerSupabase();
-
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) {
-      throw new Error("Unauthorized");
+    await supabase.auth.getUser();
+    const res = await fetch(`/api/admin/applications/${id}/${action}`, {
+      method: "POST",
+      headers: { cookie: (await import("next/headers")).cookies().toString() },
+    });
+    const bodyText = await res.text();
+    let payload: unknown = null;
+    try {
+      payload = bodyText ? JSON.parse(bodyText) : null;
+    } catch {
+      payload = null;
     }
-
-    const { error } = await supabase
-      .from("entity_applications" as never)
-      .update({
-        status: action === "approve" ? "approved" : "rejected",
-        decided_at: new Date().toISOString(),
-      } as never)
-      .eq("id", id as never);
-
-    if (error) {
-      throw new Error(error.message);
+    const data = (payload ?? null) as null | { ok?: boolean; error?: string; processed?: boolean; warning?: string };
+    if (!res.ok || data?.ok === false) {
+      throw new Error(data?.error ?? `Decision failed: ${res.status} ${bodyText}`);
     }
-
     revalidatePath("/me/admin/applications");
+    if (data?.processed === false && data?.warning) {
+      throw new Error(data.warning);
+    }
   }
 
   return (
     <div className="p-6 space-y-4">
-      <h1 className="text-2xl font-semibold">Applications</h1>
-      <p className="opacity-70">Review new enroll/apply requests.</p>
-
+      <h1 className="text-xl font-semibold">Applications</h1>
       <div className="grid gap-3">
-        {applications.map((a) => (
-          <div key={a.id} className="rounded-2xl border p-4">
-            <div className="flex items-center justify-between">
-              <div className="text-sm opacity-70">{new Date(a.created_at!).toLocaleString()}</div>
-              <div className="text-xs uppercase tracking-wide">{a.kind} · {a.status}</div>
+        {apps.map((a) => (
+          <div key={a.id} className="rounded-xl border p-4 flex items-center justify-between">
+            <div>
+              <div className="font-medium">{a.kind}</div>
+              <div className="text-sm opacity-70">ID: {a.id}</div>
+              <div className="text-sm opacity-70">Applicant: {a.applicant_entity_id}</div>
+              {a.brand_id ? <div className="text-sm opacity-70">Brand: {a.brand_id}</div> : null}
             </div>
-
-            <div className="mt-2 text-sm opacity-80">
-              Brand: <code>{a.target_brand_id ?? "—"}</code> · Applicant: <code>{a.applicant_entity_id}</code>
-            </div>
-            {a.identifier_kind && a.raw_value && (
-              <div className="mt-1 text-sm">ID: {a.identifier_kind} — <code>{a.raw_value}</code></div>
-            )}
-            {hasObjectMeta(a.meta) && Object.keys(a.meta).length > 0 && (
-              <pre className="mt-2 text-xs bg-black/5 p-2 rounded">{JSON.stringify(a.meta, null, 2)}</pre>
-            )}
-
-            <div className="mt-3 flex gap-2">
-              <form action={async () => decide(a.id, "approve")}>
-                <button className="px-3 py-1 rounded-lg border">Approve</button>
-              </form>
-              <form action={async () => decide(a.id, "reject")}>
-                <button className="px-3 py-1 rounded-lg border">Reject</button>
-              </form>
-              <Link href={`/me`} className="ml-auto text-sm underline">
-                Back to Me
-              </Link>
+            <div className="flex items-center gap-2">
+              {a.processed_at ? (
+                <span className="text-xs rounded-full bg-green-100 px-2 py-1 text-green-700">Processed</span>
+              ) : a.status === "approved" ? (
+                <span className="text-xs rounded-full bg-amber-100 px-2 py-1 text-amber-700">Approved (processing…)</span>
+              ) : (
+                <span className="text-xs rounded-full bg-gray-100 px-2 py-1 text-gray-700">{a.status}</span>
+              )}
+              {a.status === "pending" && (
+                <>
+                  <form action={decide.bind(null, a.id, "approve")}>
+                    <button className="px-3 py-1 rounded-lg border hover:bg-gray-50">Approve</button>
+                  </form>
+                  <form action={decide.bind(null, a.id, "reject")}>
+                    <button className="px-3 py-1 rounded-lg border hover:bg-gray-50">Reject</button>
+                  </form>
+                </>
+              )}
             </div>
           </div>
         ))}
