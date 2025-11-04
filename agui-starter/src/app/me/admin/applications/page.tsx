@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/auth/server";
 import Link from "next/link";
+import { revalidatePath } from "next/cache";
 
 function hasObjectMeta(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -22,7 +23,9 @@ export default async function ApplicationsAdminPage() {
 
   const { data, error } = await supabase
     .from("entity_applications")
-    .select("id, created_at, kind, status, target_brand_id, applicant_entity_id, meta, identifier_kind, raw_value")
+    .select(
+      "id, created_at, kind, status, target_brand_id, applicant_entity_id, meta, identifier_kind, raw_value"
+    )
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -34,8 +37,27 @@ export default async function ApplicationsAdminPage() {
   async function decide(id: string, action: "approve" | "reject") {
     "use server";
     const supabase = await createServerSupabase();
-    await supabase.auth.getUser();
-    await fetch(`/api/admin/applications/${id}/${action}`, { method: "POST" });
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      throw new Error("Unauthorized");
+    }
+
+    const { error } = await supabase
+      .from("entity_applications" as never)
+      .update({
+        status: action === "approve" ? "approved" : "rejected",
+        decided_at: new Date().toISOString(),
+      } as never)
+      .eq("id", id as never);
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    revalidatePath("/me/admin/applications");
   }
 
   return (
@@ -68,7 +90,9 @@ export default async function ApplicationsAdminPage() {
               <form action={async () => decide(a.id, "reject")}>
                 <button className="px-3 py-1 rounded-lg border">Reject</button>
               </form>
-              <Link href={`/me`} className="ml-auto text-sm underline">Back to Me</Link>
+              <Link href={`/me`} className="ml-auto text-sm underline">
+                Back to Me
+              </Link>
             </div>
           </div>
         ))}
