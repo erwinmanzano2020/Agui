@@ -3,6 +3,21 @@ import { NextResponse } from "next/server";
 import { z } from "@/lib/z";
 import { createServerSupabase } from "@/lib/auth/server";
 
+type IdentifierKind =
+  | "email"
+  | "phone"
+  | "qr"
+  | "gov_id"
+  | "loyalty_card"
+  | "employee_no"
+  | "other";
+
+/** Precise RPC arg type to avoid `any`. */
+type ResolveArgs = {
+  p_kind: IdentifierKind;
+  p_raw: string;
+};
+
 const bodySchema = z.object({
   kind: z.enum([
     "email",
@@ -29,13 +44,9 @@ export async function POST(req: Request) {
   }
 
   const { kind, value } = parsed.data;
+  const args: ResolveArgs = { p_kind: kind, p_raw: value };
 
-  // Call RPC with explicit arg object; cast while DB types are absent.
-  // TODO: replace `as any` with Database["public"]["Functions"]["resolve_entity_by_identifier"]["Args"]
-  const { data, error } = await supabase.rpc("resolve_entity_by_identifier", {
-    p_kind: kind,
-    p_raw: value,
-  } as any);
+  const { data, error } = await supabase.rpc("resolve_entity_by_identifier", args);
 
   if (error) {
     return NextResponse.json(
@@ -44,5 +55,7 @@ export async function POST(req: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true, found: !!data, entityId: data ?? null });
+  // data is expected to be entity_id | null
+  const entityId = (data ?? null) as string | null;
+  return NextResponse.json({ ok: true, found: !!entityId, entityId });
 }

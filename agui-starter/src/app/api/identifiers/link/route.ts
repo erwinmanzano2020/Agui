@@ -4,25 +4,34 @@ import { z } from "@/lib/z";
 import { createServerSupabase } from "@/lib/auth/server";
 
 /**
- * Minimal shape for inserting into entity_identifiers.
- * (We use a local type because DB types aren’t generated yet.)
- * TODO: replace with Database["public"]["Tables"]["entity_identifiers"]["Insert"]
- *       once supabase gen types is wired in.
+ * Minimal insert shape for entity_identifiers.
+ * TODO: replace with generated DB types when available.
  */
+type IdentifierKind =
+  | "email"
+  | "phone"
+  | "qr"
+  | "gov_id"
+  | "loyalty_card"
+  | "employee_no"
+  | "other";
+
 type EntityIdentifierInsert = {
   entity_id: string;
-  kind:
-    | "email"
-    | "phone"
-    | "qr"
-    | "gov_id"
-    | "loyalty_card"
-    | "employee_no"
-    | "other";
+  kind: IdentifierKind;
   value_norm: string;
   issuer: string | null;
   meta: Record<string, unknown>;
   added_by_entity_id: string;
+};
+
+type EntityIdentifierReturn = {
+  id: string;
+  entity_id: string;
+  kind: IdentifierKind;
+  issuer: string | null;
+  value_norm: string;
+  verified_at: string | null;
 };
 
 const bodySchema = z.object({
@@ -38,7 +47,7 @@ const bodySchema = z.object({
   ]),
   value: z.string().min(1, "value is required"),
   issuer: z.string().optional(),
-  meta: z.record(z.any()).optional(),
+  meta: z.record(z.unknown()).optional(),
 });
 
 export async function POST(req: Request) {
@@ -71,10 +80,10 @@ export async function POST(req: Request) {
     added_by_entity_id: currentEntityId,
   };
 
-  // Cast table generics to avoid `never` until DB types are in place
+  // Avoid generics on .from(...) until DB types exist; cast the result instead.
   const { data, error } = await supabase
-    .from<EntityIdentifierInsert>("entity_identifiers")
-    .insert(row as EntityIdentifierInsert)
+    .from("entity_identifiers")
+    .insert(row)
     .select("id, entity_id, kind, issuer, value_norm, verified_at")
     .maybeSingle();
 
@@ -82,5 +91,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: error.message }, { status: 400 });
   }
 
-  return NextResponse.json({ ok: true, row: data });
+  const out = (data ?? null) as EntityIdentifierReturn | null;
+  return NextResponse.json({ ok: true, row: out });
 }
