@@ -1,90 +1,63 @@
-import Link from "next/link";
-import type { ReactNode } from "react";
-
-import { getServerSession } from "@/lib/auth/server";
-import { getCapabilitiesForUser } from "@/lib/roles/get-capabilities.server";
-import type { UserCapabilities } from "@/lib/types/brand-lite";
+// src/app/me/page.tsx
 import { redirect } from "next/navigation";
+import type { ReactNode } from "react";
+import TileGrid from "@/components/me/TileGrid";
+import AppTile from "@/components/me/AppTile";
+import { getCapabilitiesForUser } from "@/lib/roles/get-capabilities.server";
+import { createServerSupabase } from "@/lib/auth/server";
+import { BizIcon, EmployeeIcon, GMIcon, LoyaltyIcon } from "@/components/me/icons";
 
-type Tile = {
-  href: string;
-  title: string;
-  desc: string;
-  icon?: ReactNode;
-};
-
-function LoyaltyIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden {...props}>
-      <circle cx="12" cy="12" r="9" />
-    </svg>
-  );
-}
-
-function EmpIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden {...props}>
-      <rect x="5" y="5" width="14" height="14" rx="2" />
-    </svg>
-  );
-}
-
-function BizIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden {...props}>
-      <path d="M4 20V8l8-4 8 4v12z" />
-    </svg>
-  );
-}
-
-function GMIcon(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" aria-hidden {...props}>
-      <path d="M12 2l3 6 6 .5-4.5 4 1.5 6-6-3-6 3 1.5-6L3 8.5 9 8l3-6z" />
-    </svg>
-  );
-}
+export const dynamic = "force-dynamic";
 
 export default async function MePage() {
-  const { session } = await getServerSession();
-  if (!session) redirect("/welcome");
-
-  let caps: UserCapabilities;
-  try {
-    caps = await getCapabilitiesForUser(session.user.id);
-  } catch (error) {
-    console.warn("Failed to load user capabilities", error);
-    caps = {
-      loyaltyBrands: [],
-      employeeBrands: [],
-      ownerBrands: [],
-      isGM: false,
-    };
+  const supabase = await createServerSupabase();
+  const { data: userRes } = await supabase.auth.getUser();
+  const userId = userRes?.user?.id;
+  if (!userId) {
+    redirect("/welcome");
   }
 
-  const tiles: Tile[] = [];
+  const caps = await getCapabilitiesForUser(userId);
 
-  if (caps.loyaltyBrands.length > 0) {
-    tiles.push({
-      href: "/me/loyalty",
-      title: "Loyalty Pass",
-      desc:
-        caps.loyaltyBrands.length === 1
-          ? "1 brand"
-          : `${caps.loyaltyBrands.length} brands`,
-      icon: <LoyaltyIcon className="opacity-80" />,
-    });
-  }
+  type TileConfig = {
+    href: string;
+    title: string;
+    desc: string;
+    icon: ReactNode;
+    testid: string;
+  };
+
+  const tiles: TileConfig[] = [];
+
+  tiles.push({
+    href: "/me/loyalty",
+    title:
+      caps.loyaltyBrands.length === 0
+        ? "No Loyalty Passes (yet)"
+        : "My Loyalty Passes",
+    desc:
+      caps.loyaltyBrands.length === 0
+        ? "Enroll to start earning points & perks"
+        : `View ${caps.loyaltyBrands.length} pass${
+            caps.loyaltyBrands.length > 1 ? "es" : ""
+          }`,
+    icon: <LoyaltyIcon className="opacity-80" />,
+    testid: "tile-loyalty",
+  });
 
   if (caps.employeeBrands.length > 0) {
     tiles.push({
-      href: "/me/employment",
-      title: "My Employment",
+      href: "/me/work",
+      title:
+        caps.employeeBrands.length === 1
+          ? `${caps.employeeBrands[0].name}`
+          : "My Workplace",
       desc:
         caps.employeeBrands.length === 1
-          ? "1 brand"
-          : `${caps.employeeBrands.length} brands`,
-      icon: <EmpIcon className="opacity-80" />,
+          ? "Open your employee portal"
+          : `You’re linked to ${caps.employeeBrands.length} workplaces`,
+      icon: <EmployeeIcon className="opacity-80" />,
+      testid: "tile-work",
     });
   }
 
@@ -100,46 +73,48 @@ export default async function MePage() {
           ? "Manage your business"
           : `Manage ${caps.ownerBrands.length} businesses`,
       icon: <BizIcon className="opacity-80" />,
+      testid: "tile-businesses",
     });
   }
 
   if (caps.isGM) {
     tiles.push({
-      href: "/me/admin",
+      href: "/gm",
       title: "Game Master",
       desc: "Global controls & settings",
       icon: <GMIcon className="opacity-80" />,
+      testid: "tile-gm",
     });
   }
 
-  const hasAny = tiles.length > 0;
-
   return (
-    <main className="mx-auto max-w-4xl space-y-6 p-4">
-      <h1 className="text-2xl font-semibold">Me</h1>
+    <main className="px-4 py-6 md:px-6 lg:px-8">
+      <h1 className="text-xl md:text-2xl font-semibold">Me</h1>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Your apps & shortcuts.
+      </p>
 
-      {hasAny ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {tiles.map((tile) => (
-            <Link
-              key={tile.href}
-              href={tile.href}
-              className="flex items-start gap-3 rounded-2xl border p-4 shadow transition hover:shadow-md"
-            >
-              <div className="mt-1">{tile.icon}</div>
-              <div>
-                <div className="text-lg font-medium">{tile.title}</div>
-                <div className="text-sm opacity-70">{tile.desc}</div>
-              </div>
-            </Link>
+      <div className="mt-4">
+        <TileGrid>
+          {tiles.map((t) => (
+            <AppTile
+              key={t.testid}
+              href={t.href}
+              title={t.title}
+              desc={t.desc}
+              icon={t.icon}
+              data-testid={t.testid}
+            />
           ))}
-        </div>
-      ) : (
-        <p className="opacity-70">
-          Walang apps pa for you. Enroll in a Loyalty Pass or ask your employer to
-          add you.
-        </p>
-      )}
+        </TileGrid>
+
+        {tiles.length === 0 ? (
+          <div className="mt-6 text-sm text-muted-foreground">
+            Walang apps pa for you. Enroll in a Loyalty Pass or ask your
+            employer to add you.
+          </div>
+        ) : null}
+      </div>
     </main>
   );
 }
