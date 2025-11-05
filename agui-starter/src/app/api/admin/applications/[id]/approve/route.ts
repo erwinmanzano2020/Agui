@@ -1,26 +1,58 @@
 // src/app/api/admin/applications/[id]/approve/route.ts
-import { NextResponse, NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import { z } from "@/lib/z";
 import { createServerSupabase } from "@/lib/auth/server";
 
-const Params = z.object({ id: z.string().uuid() });
+const Params = z.object({
+  id: z.string().uuid(),
+});
 
-export async function POST(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function POST(_req: Request, ctx: { params: { id: string } }) {
   const supabase = await createServerSupabase();
-  const { id } = Params.parse(await context.params);
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
 
-  const { data, error } = await supabase
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const parse = Params.safeParse(ctx.params);
+  if (!parse.success) {
+    return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
+  }
+  const appId = parse.data.id;
+
+  // 1) Approve in place (status change & audit)
+  const { error: upErr } = await supabase
     .from("entity_applications" as never)
-    .update({ status: "approved", decided_at: new Date().toISOString() } as never)
-    .eq("id", id)
-    .select("*")
-    .maybeSingle();
+    .update({
+      status: "approved",
+      decided_at: new Date().toISOString(),
+      decided_by_entity_id: user.id,
+    } as never)
+    .eq("id", appId);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
-  return NextResponse.json({ ok: true, application: data ?? null });
+  if (upErr) {
+    return NextResponse.json({ error: `Approve failed: ${upErr.message}` }, { status: 500 });
+  }
+
+  // 2) Trigger safe side-effects in DB
+  const { error: rpcErr } = await supabase.rpc(
+    "process_application",
+    {
+      p_application_id: appId,
+      p_decider_entity_id: user.id,
+    } as never,
+  );
+
+  // Even if RPC fails, the approval stands — but we report it
+  if (rpcErr) {
+    return NextResponse.json(
+      { ok: true, processed: false, warning: `Approved but processing failed: ${rpcErr.message}` },
+      { status: 200 },
+    );
+  }
+
+  return NextResponse.json({ ok: true, processed: true }, { status: 200 });
 }
