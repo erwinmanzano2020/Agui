@@ -1,11 +1,12 @@
 import { createServerSupabase } from "@/lib/auth/server";
-import type { AppInboxRow, AppInboxUpdate, InboxList, InboxItem } from "./types";
+import type { AppInboxRow, AppInboxUpdate, InboxItem, InboxList } from "./types";
 
 export async function fetchInbox(): Promise<InboxList> {
   const supabase = await createServerSupabase();
 
+  // NOTE: client is untyped, so use .from<any, RowType>("table")
   const { data: unread, error: e1 } = await supabase
-    .from<AppInboxRow>("app_inbox")
+    .from<any, AppInboxRow>("app_inbox")
     .select("id, kind, title, body, ref, created_at, read_at")
     .is("read_at", null)
     .order("created_at", { ascending: false });
@@ -13,7 +14,7 @@ export async function fetchInbox(): Promise<InboxList> {
   if (e1) throw new Error(`Load unread failed: ${e1.message}`);
 
   const { data: read, error: e2 } = await supabase
-    .from<AppInboxRow>("app_inbox")
+    .from<any, AppInboxRow>("app_inbox")
     .select("id, kind, title, body, ref, created_at, read_at")
     .not("read_at", "is", null)
     .order("created_at", { ascending: false })
@@ -33,7 +34,7 @@ export async function markRead(id: string) {
   const patch: AppInboxUpdate = { read_at: new Date().toISOString() };
 
   const { error } = await supabase
-    .from<AppInboxRow>("app_inbox")
+    .from<any, AppInboxRow>("app_inbox")
     .update(patch)
     .eq("id", id);
 
@@ -44,9 +45,9 @@ export async function markAllRead() {
   const supabase = await createServerSupabase();
   const patch: AppInboxUpdate = { read_at: new Date().toISOString() };
 
-  // Only updates rows visible to current entity via RLS
+  // RLS limits scope to current entity
   const { error } = await supabase
-    .from<AppInboxRow>("app_inbox")
+    .from<any, AppInboxRow>("app_inbox")
     .update(patch)
     .is("read_at", null);
 
