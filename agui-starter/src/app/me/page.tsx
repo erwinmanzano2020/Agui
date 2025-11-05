@@ -6,6 +6,7 @@ import TileGrid from "@/components/me/TileGrid";
 import AppTile from "@/components/me/AppTile";
 import { getCapabilitiesForUser } from "@/lib/roles/get-capabilities.server";
 import { createServerSupabase } from "@/lib/auth/server";
+import { fetchInbox } from "@/lib/inbox/queries.server";
 import { BizIcon, EmployeeIcon, GMIcon, LoyaltyIcon } from "@/components/me/icons";
 import { Button } from "@/components/ui/button";
 
@@ -49,6 +50,9 @@ export default async function MePage() {
       </main>
     );
   }
+
+  const inbox = await fetchInbox();
+  const unread = inbox.unreadCount;
 
   type TileConfig = {
     href: string;
@@ -117,6 +121,23 @@ export default async function MePage() {
       testid: "tile-gm",
     });
   }
+
+  tiles.push({
+    href: "/me/inbox",
+    title: "Inbox",
+    desc: unread > 0 ? `${unread} unread` : "All caught up",
+    icon: (
+      <div className="relative">
+        <span className="opacity-80">📬</span>
+        {unread > 0 && (
+          <span className="absolute -top-1 -right-2 text-[10px] rounded-full px-1.5 py-[1px] bg-red-500 text-white">
+            {unread}
+          </span>
+        )}
+      </div>
+    ),
+    testid: "tile-inbox",
+  });
 
   return (
     <main className="px-4 py-6 md:px-6 lg:px-8">
