@@ -1,10 +1,11 @@
 import { createServerSupabase } from "@/lib/auth/server";
+import type { AppInboxRow, AppInboxUpdate, InboxList, InboxItem } from "./types";
 
-export async function fetchInbox(): Promise<import("./types").InboxList> {
+export async function fetchInbox(): Promise<InboxList> {
   const supabase = await createServerSupabase();
 
   const { data: unread, error: e1 } = await supabase
-    .from("app_inbox")
+    .from<AppInboxRow>("app_inbox")
     .select("id, kind, title, body, ref, created_at, read_at")
     .is("read_at", null)
     .order("created_at", { ascending: false });
@@ -12,7 +13,7 @@ export async function fetchInbox(): Promise<import("./types").InboxList> {
   if (e1) throw new Error(`Load unread failed: ${e1.message}`);
 
   const { data: read, error: e2 } = await supabase
-    .from("app_inbox")
+    .from<AppInboxRow>("app_inbox")
     .select("id, kind, title, body, ref, created_at, read_at")
     .not("read_at", "is", null)
     .order("created_at", { ascending: false })
@@ -21,27 +22,33 @@ export async function fetchInbox(): Promise<import("./types").InboxList> {
   if (e2) throw new Error(`Load read failed: ${e2.message}`);
 
   return {
-    unread: unread ?? [],
-    read: read ?? [],
-    unreadCount: (unread ?? []).length,
+    unread: (unread ?? []) as unknown as InboxItem[],
+    read: (read ?? []) as unknown as InboxItem[],
+    unreadCount: unread?.length ?? 0,
   };
 }
 
 export async function markRead(id: string) {
   const supabase = await createServerSupabase();
+  const patch: AppInboxUpdate = { read_at: new Date().toISOString() };
+
   const { error } = await supabase
-    .from("app_inbox")
-    .update({ read_at: new Date().toISOString() })
+    .from<AppInboxRow>("app_inbox")
+    .update(patch)
     .eq("id", id);
+
   if (error) throw new Error(`Mark read failed: ${error.message}`);
 }
 
 export async function markAllRead() {
   const supabase = await createServerSupabase();
+  const patch: AppInboxUpdate = { read_at: new Date().toISOString() };
+
   // Only updates rows visible to current entity via RLS
   const { error } = await supabase
-    .from("app_inbox")
-    .update({ read_at: new Date().toISOString() })
+    .from<AppInboxRow>("app_inbox")
+    .update(patch)
     .is("read_at", null);
+
   if (error) throw new Error(`Mark all read failed: ${error.message}`);
 }
