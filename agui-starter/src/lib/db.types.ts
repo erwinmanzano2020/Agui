@@ -1,3 +1,4 @@
+// src/lib/db.types.ts
 // NOTE: Hand-maintained subset. Replace with CLI-generated types when available.
 export type Json =
   | string
@@ -29,7 +30,16 @@ export type AppInboxInsert = {
   read_at?: string | null;
 };
 
-export type AppInboxUpdate = Pick<AppInboxInsert, "read_at">;
+export type AppInboxUpdate = {
+  id?: string;
+  entity_id?: string;
+  kind?: string;
+  title?: string;
+  body?: string | null;
+  ref?: Json | null;
+  created_at?: string;
+  read_at?: string | null;
+};
 
 export type EntityIdentifierRow = {
   id: string;
@@ -74,6 +84,7 @@ export type EntityApplicationRow = {
   decided_at: string | null;
   processed_at: string | null;
   created_at: string;
+  target_brand_id: string | null;
 };
 
 export type EntityApplicationInsert = {
@@ -86,6 +97,7 @@ export type EntityApplicationInsert = {
   decided_at?: string | null;
   processed_at?: string | null;
   created_at?: string;
+  target_brand_id?: string | null;
 };
 
 export type EntityApplicationUpdate = Partial<EntityApplicationInsert>;
@@ -140,129 +152,101 @@ export type BrandOwnerInsert = {
 
 export type BrandOwnerUpdate = Partial<BrandOwnerInsert>;
 
-type GenericTable = {
-  Row: any;
-  Insert: any;
-  Update: any;
-  Relationships: any[];
+export type ProfileRow = {
+  id: string;
+  is_gm: boolean | null;
 };
 
-type AppInboxTable = {
-  Row: AppInboxRow;
-  Insert: AppInboxInsert;
-  Update: AppInboxUpdate;
+export type ProfileInsert = {
+  id: string;
+  is_gm?: boolean | null;
+};
+
+export type ProfileUpdate = Partial<ProfileInsert>;
+
+export type LoyaltyMembershipViewRow = {
+  user_id: string;
+  brand_id: string;
+  brand_slug: string;
+  brand_name: string;
+};
+
+export type EmployeeRosterViewRow = {
+  user_id: string;
+  brand_id: string;
+  brand_slug: string;
+  brand_name: string;
+  role: string | null;
+};
+
+export type BrandOwnerViewRow = {
+  user_id: string;
+  brand_id: string;
+  brand_slug: string;
+  brand_name: string;
+};
+
+type GenericTableDefinition = TableDefinition<
+  Record<string, unknown>,
+  Record<string, unknown>,
+  Record<string, unknown>
+>;
+
+type TableDefinition<RowType, InsertType, UpdateType> = {
+  Row: RowType;
+  Insert: InsertType;
+  Update: UpdateType;
   Relationships: [];
 };
 
-type EntityIdentifierTable = {
-  Row: EntityIdentifierRow;
-  Insert: EntityIdentifierInsert;
-  Update: EntityIdentifierUpdate;
+type GenericViewDefinition = ViewDefinition<Record<string, unknown>>;
+
+type ViewDefinition<RowType> = {
+  Row: RowType;
   Relationships: [];
 };
 
-type EntityApplicationTable = {
-  Row: EntityApplicationRow;
-  Insert: EntityApplicationInsert;
-  Update: EntityApplicationUpdate;
-  Relationships: [];
+type GenericFunctionDefinition = FunctionDefinition<Record<string, unknown>, unknown>;
+
+type FunctionDefinition<ArgsType, ReturnType> = {
+  Args: ArgsType;
+  Returns: ReturnType;
 };
-
-type BrandMembershipTable = {
-  Row: BrandMembershipRow;
-  Insert: BrandMembershipInsert;
-  Update: BrandMembershipUpdate;
-  Relationships: [];
-};
-
-type EmployeeTable = {
-  Row: EmployeeRow;
-  Insert: EmployeeInsert;
-  Update: EmployeeUpdate;
-  Relationships: [];
-};
-
-type BrandOwnerTable = {
-  Row: BrandOwnerRow;
-  Insert: BrandOwnerInsert;
-  Update: BrandOwnerUpdate;
-  Relationships: [];
-};
-
-interface PublicTables {
-  accounts: GenericTable;
-  alliance_guilds: GenericTable;
-  alliance_roles: GenericTable;
-  alliances: GenericTable;
-  app_inbox: AppInboxTable;
-  applications: GenericTable;
-  brand_memberships: BrandMembershipTable;
-  brand_owners: BrandOwnerTable;
-  card_tokens: GenericTable;
-  cards: GenericTable;
-  clock_events: GenericTable;
-  demo_seed_runs: GenericTable;
-  dtr_entries: GenericTable;
-  dtr_segments: GenericTable;
-  dtr_with_rates: GenericTable;
-  employee_memberships: GenericTable;
-  employee_rate_history: GenericTable;
-  employee_shift_overrides: GenericTable;
-  employee_shift_weekly: GenericTable;
-  employees: EmployeeTable;
-  entities: GenericTable;
-  entity_applications: EntityApplicationTable;
-  entity_identifiers: EntityIdentifierTable;
-  guild_roles: GenericTable;
-  guilds: GenericTable;
-  house_items: GenericTable;
-  house_roles: GenericTable;
-  houses: GenericTable;
-  invites: GenericTable;
-  item_barcodes: GenericTable;
-  items: GenericTable;
-  loyalty_memberships: GenericTable;
-  loyalty_profiles: GenericTable;
-  loyalty_schemes: GenericTable;
-  orgs_as_guilds: GenericTable;
-  owner_memberships: GenericTable;
-  parties: GenericTable;
-  payroll_deductions: GenericTable;
-  platform_roles: GenericTable;
-  profiles: GenericTable;
-  sale_finalize_keys: GenericTable;
-  sale_holds: GenericTable;
-  sale_lines: GenericTable;
-  sale_payments: GenericTable;
-  sales: GenericTable;
-  scan_events: GenericTable;
-  settings_payroll: GenericTable;
-  shifts: GenericTable;
-  tenant_theme: GenericTable;
-  ui_terms: GenericTable;
-  user_quest_daily: GenericTable;
-}
-
-interface PublicViews extends Record<string, { Row: Record<string, unknown> }> {
-  v_loyalty_memberships: { Row: any };
-  v_employee_roster: { Row: any };
-  v_brand_owners: { Row: any };
-}
-
-interface PublicFunctions
-  extends Record<string, { Args: Record<string, unknown>; Returns: unknown }> {
-  process_application: {
-    Args: { p_application_id: string; p_decider_entity_id: string };
-    Returns: void;
-  };
-  current_entity_id: { Args: Record<string, never>; Returns: string | null };
-}
 
 export interface Database {
   public: {
-    Tables: PublicTables;
-    Views: PublicViews;
-    Functions: PublicFunctions;
-    Enums: Record<string, unknown>;
+    Tables: Record<string, GenericTableDefinition> & {
+      app_inbox: TableDefinition<AppInboxRow, AppInboxInsert, AppInboxUpdate>;
+      entity_identifiers: TableDefinition<
+        EntityIdentifierRow,
+        EntityIdentifierInsert,
+        EntityIdentifierUpdate
+      >;
+      entity_applications: TableDefinition<
+        EntityApplicationRow,
+        EntityApplicationInsert,
+        EntityApplicationUpdate
+      >;
+      brand_memberships: TableDefinition<
+        BrandMembershipRow,
+        BrandMembershipInsert,
+        BrandMembershipUpdate
+      >;
+      employees: TableDefinition<EmployeeRow, EmployeeInsert, EmployeeUpdate>;
+      brand_owners: TableDefinition<BrandOwnerRow, BrandOwnerInsert, BrandOwnerUpdate>;
+      profiles: TableDefinition<ProfileRow, ProfileInsert, ProfileUpdate>;
+    };
+    Views: Record<string, GenericViewDefinition> & {
+      v_loyalty_memberships: ViewDefinition<LoyaltyMembershipViewRow>;
+      v_employee_roster: ViewDefinition<EmployeeRosterViewRow>;
+      v_brand_owners: ViewDefinition<BrandOwnerViewRow>;
+    };
+    Functions: Record<string, GenericFunctionDefinition> & {
+      process_application: FunctionDefinition<
+        { p_application_id: string; p_decider_entity_id: string },
+        void
+      >;
+      current_entity_id: FunctionDefinition<Record<string, never>, string | null>;
+    };
   };
 }

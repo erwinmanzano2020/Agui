@@ -1,15 +1,33 @@
 import { revalidatePath } from "next/cache";
-import { createServerSupabase } from "@/lib/auth/server";
+import { cookies, headers } from "next/headers";
 
-type Row = {
-  id: string;
-  kind: string;
-  status: string;
-  applicant_entity_id: string;
-  target_brand_id: string | null;
-  decided_at: string | null;
-  processed_at: string | null;
-};
+import { createServerSupabase } from "@/lib/auth/server";
+import type { EntityApplicationRow } from "@/lib/db.types";
+
+type ApplicationListRow = Pick<
+  EntityApplicationRow,
+  | "id"
+  | "kind"
+  | "status"
+  | "applicant_entity_id"
+  | "target_brand_id"
+  | "decided_at"
+  | "processed_at"
+>;
+
+function resolveBaseUrl(headerStore: Headers): string {
+  const configured = process.env.NEXT_PUBLIC_BASE_URL;
+  if (configured) {
+    return configured.endsWith("/") ? configured.slice(0, -1) : configured;
+  }
+
+  const forwardedProto = headerStore.get("x-forwarded-proto") ?? undefined;
+  const protocol = forwardedProto ?? "https";
+  const host =
+    headerStore.get("x-forwarded-host") ?? headerStore.get("host") ?? "localhost:3000";
+
+  return `${protocol}://${host}`.replace(/\/$/, "");
+}
 
 export default async function AdminApplicationsPage() {
   const supabase = await createServerSupabase();
@@ -23,17 +41,19 @@ export default async function AdminApplicationsPage() {
     return <div className="p-6 text-red-600">Failed to load applications: {error.message}</div>;
   }
 
-  const apps = (data ?? []) as Row[];
+  const apps = (data ?? []) as ApplicationListRow[];
 
   async function decide(id: string, action: "approve" | "reject") {
     "use server";
-    const supabase = await createServerSupabase();
-    await supabase.auth.getUser();
+    const cookieStore = await cookies();
+    const headerStore = await headers();
 
-    const { cookies } = await import("next/headers");
-    const res = await fetch(`/api/admin/applications/${id}/${action}`, {
+    const baseUrl = resolveBaseUrl(headerStore);
+    const endpoint = new URL(`/api/admin/applications/${id}/${action}`, `${baseUrl}/`).toString();
+
+    const res = await fetch(endpoint, {
       method: "POST",
-      headers: { cookie: cookies().toString() },
+      headers: { cookie: cookieStore.toString() },
     });
 
     let body: { warning?: string; error?: string } | null = null;

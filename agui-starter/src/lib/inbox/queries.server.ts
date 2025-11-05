@@ -1,7 +1,10 @@
 import { createServerSupabase } from "@/lib/auth/server";
 import type { AppInboxRow, AppInboxUpdate } from "@/lib/db.types";
 
-export type InboxItem = AppInboxRow;
+export type InboxItem = Pick<
+  AppInboxRow,
+  "id" | "kind" | "title" | "body" | "ref" | "created_at" | "read_at"
+>;
 export type InboxList = { unread: InboxItem[]; read: InboxItem[]; unreadCount: number };
 
 export async function fetchInbox(): Promise<InboxList> {
@@ -25,33 +28,27 @@ export async function fetchInbox(): Promise<InboxList> {
   if (e2) throw new Error(`Load read failed: ${e2.message}`);
 
   return {
-    unread: unread ?? [],
-    read: read ?? [],
+    unread: (unread ?? []) as InboxItem[],
+    read: (read ?? []) as InboxItem[],
     unreadCount: unread?.length ?? 0,
   };
 }
 
 export async function markRead(id: string) {
   const supabase = await createServerSupabase();
-  const patch = { read_at: new Date().toISOString() } satisfies AppInboxUpdate;
+  const patch: AppInboxUpdate = { read_at: new Date().toISOString() };
 
-  const { error } = await supabase
-    .from("app_inbox")
-    .update(patch as Record<string, unknown>)
-    .eq("id", id);
+  const { error } = await supabase.from("app_inbox").update(patch).eq("id", id);
 
   if (error) throw new Error(`Mark read failed: ${error.message}`);
 }
 
 export async function markAllRead() {
   const supabase = await createServerSupabase();
-  const patch = { read_at: new Date().toISOString() } satisfies AppInboxUpdate;
+  const patch: AppInboxUpdate = { read_at: new Date().toISOString() };
 
   // RLS limits scope to current entity
-  const { error } = await supabase
-    .from("app_inbox")
-    .update(patch as Record<string, unknown>)
-    .is("read_at", null);
+  const { error } = await supabase.from("app_inbox").update(patch).is("read_at", null);
 
   if (error) throw new Error(`Mark all read failed: ${error.message}`);
 }
