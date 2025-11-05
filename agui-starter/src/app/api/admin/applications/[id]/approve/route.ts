@@ -43,7 +43,6 @@ export async function POST(_req: NextRequest, context: { params: Promise<{ id: s
     "process_application",
     {
       p_application_id: appId,
-      p_decider_entity_id: user.id,
     } as never,
   );
 

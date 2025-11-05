@@ -249,3 +249,176 @@ $$;
 
 comment on function public.process_application(uuid, uuid)
   is 'Safely performs side-effects for an approved application; always marks processed and writes inbox entries.';
+
+-- === RLS for app_inbox ===================================================
+
+alter table if exists public.app_inbox enable row level security;
+
+drop policy if exists app_inbox_self_read on public.app_inbox;
+create policy app_inbox_self_read
+  on public.app_inbox
+  for select
+  using (entity_id = public.current_entity_id());
+
+drop policy if exists app_inbox_self_insert on public.app_inbox;
+create policy app_inbox_self_insert
+  on public.app_inbox
+  for insert
+  with check (entity_id = public.current_entity_id());
+
+drop policy if exists app_inbox_self_update on public.app_inbox;
+create policy app_inbox_self_update
+  on public.app_inbox
+  for update
+  using (entity_id = public.current_entity_id())
+  with check (entity_id = public.current_entity_id());
+
+-- === Harden process_application ==========================================
+
+do $$
+begin
+  if exists (
+    select 1
+    from pg_proc
+    where proname = 'process_application'
+      and pg_function_is_visible(oid)
+      and pg_get_function_identity_arguments(oid) in ('p_application_id uuid, p_decider_entity_id uuid', 'uuid, uuid')
+  ) then
+    execute 'revoke execute on function public.process_application(uuid, uuid) from public, anon, authenticated';
+    execute 'drop function public.process_application(uuid, uuid)';
+  end if;
+exception when undefined_function then
+  null;
+end;
+$$;
+
+create or replace function public.process_application(p_application_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  app record;
+  v_decider uuid := auth.uid();
+  v_brand_uuid uuid;
+  v_msg text;
+  brand_meta text;
+  has_brand_memberships boolean := public._table_exists('brand_memberships');
+  has_employees boolean := public._table_exists('employees');
+  has_brand_owners boolean := public._table_exists('brand_owners');
+begin
+  if v_decider is null then
+    raise exception 'unauthorized: no auth uid' using errcode = '28P01';
+  end if;
+
+  select *
+    into app
+    from public.entity_applications
+   where id = p_application_id;
+
+  if app is null then
+    raise exception 'application % not found', p_application_id using errcode = 'NF001';
+  end if;
+
+  if app.processed_at is not null then
+    return;
+  end if;
+
+  if app.status <> 'approved' then
+    raise exception 'application % not approved', p_application_id using errcode = 'APPNA';
+  end if;
+
+  if app.decided_by_entity_id is distinct from v_decider then
+    raise exception 'decider mismatch' using errcode = 'DECMM';
+  end if;
+
+  v_brand_uuid := app.target_brand_id;
+  if v_brand_uuid is null and app.meta is not null then
+    begin
+      brand_meta := app.meta ->> 'brand_id';
+      if brand_meta is not null and length(brand_meta) > 0 then
+        v_brand_uuid := brand_meta::uuid;
+      end if;
+    exception when others then
+      v_brand_uuid := null;
+    end;
+  end if;
+
+  if app.kind = 'loyalty_pass' then
+    if has_brand_memberships and v_brand_uuid is not null then
+      perform 1 from public.brand_memberships
+       where brand_id = v_brand_uuid and entity_id = app.applicant_entity_id;
+      if not found then
+        insert into public.brand_memberships (brand_id, entity_id, source)
+        values (v_brand_uuid, app.applicant_entity_id, 'application');
+      end if;
+      v_msg := 'Approved: Loyalty Pass granted.';
+    else
+      v_msg := 'Approved: Loyalty Pass queued (membership table missing or brand_id null).';
+    end if;
+
+  elsif app.kind = 'employment' then
+    if has_employees and v_brand_uuid is not null then
+      perform 1 from public.employees
+       where brand_id = v_brand_uuid and entity_id = app.applicant_entity_id;
+      if not found then
+        insert into public.employees (brand_id, entity_id, status)
+        values (v_brand_uuid, app.applicant_entity_id, 'active');
+      end if;
+      v_msg := 'Approved: Employment created.';
+    else
+      v_msg := 'Approved: Employment queued (employees table missing or brand_id null).';
+    end if;
+
+  elsif app.kind = 'brand_owner' then
+    if has_brand_owners and v_brand_uuid is not null then
+      perform 1 from public.brand_owners
+       where brand_id = v_brand_uuid and entity_id = app.applicant_entity_id;
+      if not found then
+        insert into public.brand_owners (brand_id, entity_id, source)
+        values (v_brand_uuid, app.applicant_entity_id, 'application');
+      end if;
+      v_msg := 'Approved: Ownership granted.';
+    else
+      v_msg := 'Approved: Ownership queued (brand_owners table missing or brand_id null).';
+    end if;
+
+  else
+    v_msg := 'Approved: No handler for kind=' || coalesce(app.kind::text, 'null') || '.';
+  end if;
+
+  update public.entity_applications
+     set processed_at = now(),
+         processed_by_entity_id = v_decider
+   where id = app.id;
+
+  insert into public.app_inbox (entity_id, kind, title, body, ref, recipient_entity_id, application_id)
+  values (
+    app.applicant_entity_id,
+    'application:approved',
+    'Your application was approved',
+    v_msg,
+    jsonb_build_object('application_id', app.id, 'kind', app.kind, 'brand_id', v_brand_uuid),
+    app.applicant_entity_id,
+    app.id
+  );
+
+  insert into public.app_inbox (entity_id, kind, title, body, ref, recipient_entity_id, application_id)
+  values (
+    v_decider,
+    'application:processed',
+    'Application processed',
+    v_msg,
+    jsonb_build_object('application_id', app.id, 'kind', app.kind, 'brand_id', v_brand_uuid),
+    v_decider,
+    app.id
+  );
+end;
+$$;
+
+comment on function public.process_application(uuid)
+  is 'Safely performs side-effects for an approved application; derives decider from auth.uid() and enforces approval state.';
+
+revoke execute on function public.process_application(uuid) from public, anon;
+grant execute on function public.process_application(uuid) to authenticated;
