@@ -27,10 +27,30 @@ export async function fetchInbox(): Promise<InboxList> {
 
   if (e2) throw new Error(`Load read failed: ${e2.message}`);
 
+  const unreadItems: InboxItem[] = (unread ?? []).map((item) => ({
+    id: item.id,
+    kind: item.kind,
+    title: item.title,
+    body: item.body,
+    ref: item.ref,
+    created_at: item.created_at,
+    read_at: item.read_at,
+  }));
+
+  const readItems: InboxItem[] = (read ?? []).map((item) => ({
+    id: item.id,
+    kind: item.kind,
+    title: item.title,
+    body: item.body,
+    ref: item.ref,
+    created_at: item.created_at,
+    read_at: item.read_at,
+  }));
+
   return {
-    unread: (unread ?? []) as InboxItem[],
-    read: (read ?? []) as InboxItem[],
-    unreadCount: unread?.length ?? 0,
+    unread: unreadItems,
+    read: readItems,
+    unreadCount: unreadItems.length,
   };
 }
 

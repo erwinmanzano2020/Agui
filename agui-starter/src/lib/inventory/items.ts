@@ -190,12 +190,14 @@ export async function ensureGlobalItemFromBarcode(code: string, opts: EnsureGlob
     .select("*")
     .single();
   if (e1) throw new Error(e1.message);
+  if (!item) throw new Error("Failed to insert item");
+  const insertedItem = item as ItemRecord;
 
   const { error: e2 } = await db
     .from("item_barcodes")
-    .insert({ item_id: item.id, barcode: code, is_primary: true });
+    .insert({ item_id: insertedItem.id, barcode: code, is_primary: true });
   if (e2) throw new Error(e2.message);
-  return item;
+  return insertedItem;
 }
 
 export type AdoptIntoHouseOptions = {

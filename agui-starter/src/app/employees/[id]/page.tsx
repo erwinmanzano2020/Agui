@@ -6,6 +6,7 @@ import { getSupabase } from "@/lib/supabase";
 import EditEmployeeDrawer from "../_components/EditEmployeeDrawer";
 
 import type { Employee as EmployeeRecord } from "@/lib/types";
+import type { Database } from "@/lib/db.types";
 
 type Shift = {
   id: string;
@@ -16,6 +17,10 @@ type Shift = {
 };
 
 type Employee = Pick<EmployeeRecord, "code" | "full_name" | "rate_per_day">;
+type EmployeeTableRow = Pick<
+  Database["public"]["Tables"]["employees"]["Row"],
+  "code" | "full_name" | "rate_per_day"
+>;
 
 type WeeklyShiftRow = { day_of_week: number; shift_id: string | null };
 type OverrideRow = {
@@ -89,7 +94,16 @@ export default function EmployeeSchedulePage() {
       .eq("id", employeeId)
       .maybeSingle();
     if (empRes.error) setErr(empRes.error.message);
-    setEmp(empRes.data ?? null);
+    const employeeRow = empRes.data as EmployeeTableRow | null;
+    setEmp(
+      employeeRow
+        ? {
+            code: employeeRow.code ?? "",
+            full_name: employeeRow.full_name ?? "",
+            rate_per_day: employeeRow.rate_per_day ?? 0,
+          }
+        : null,
+    );
 
     const shiftRes = await sb
       .from("shifts")
@@ -116,7 +130,7 @@ export default function EmployeeSchedulePage() {
       .eq("employee_id", employeeId)
       .order("date", { ascending: true });
     if (ovrRes.error) setErr((p) => p ?? ovrRes.error?.message ?? null);
-    const overrideRows = (ovrRes.data ?? []) as OverrideRow[];
+    const overrideRows = (ovrRes.data ?? []) as unknown as OverrideRow[];
     const ov = overrideRows.map((row) => {
       const shift = Array.isArray(row.shifts) ? row.shifts[0] : row.shifts;
       return {

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import EmptyState from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { ThemedLink } from "@/components/ui/themed-link";
 import { getSupabase } from "@/lib/supabase";
+import type { Database } from "@/lib/db.types";
 import { useUiTerms } from "@/lib/ui-terms-context";
 
 type EmployeeRow = {
@@ -40,7 +41,9 @@ export default function EmployeesPageClient() {
     return <Badge tone={tone}>{label}</Badge>;
   };
 
-  const load = async () => {
+  type EmployeeTableRow = Database["public"]["Tables"]["employees"]["Row"];
+
+  const load = useCallback(async () => {
     setErr(null);
     setLoading(true);
     const sb = getSupabase();
@@ -56,13 +59,23 @@ export default function EmployeesPageClient() {
       .order("full_name", { ascending: true });
 
     if (error) setErr(error.message);
-    setRows(data ?? []);
+    const normalized: EmployeeRow[] = (data ?? []).map((row) => {
+      const typed = row as EmployeeTableRow;
+      return {
+        id: typed.id,
+        code: typed.code ?? "",
+        full_name: typed.full_name ?? "",
+        status: typed.status ?? "active",
+        rate_per_day: typed.rate_per_day ?? null,
+      } satisfies EmployeeRow;
+    });
+    setRows(normalized);
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    void load();
+  }, [load]);
 
   const archive = async (id: string) => {
     setBusy(true);

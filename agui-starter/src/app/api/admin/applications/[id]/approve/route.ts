@@ -45,9 +45,11 @@ export async function POST(_req: NextRequest, { params }: { params: RouteParams<
     return NextResponse.json({ ok: true, processed: false });
   }
 
+  const deciderId = app.decided_by_entity_id ?? user.id;
+
   const { error: rpcError } = await supabase.rpc("process_application", {
     p_application_id: id,
-    p_decider_entity_id: app.decided_by_entity_id,
+    p_decider_entity_id: deciderId,
   });
 
   if (rpcError) {

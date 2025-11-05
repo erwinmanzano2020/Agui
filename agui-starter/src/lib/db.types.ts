@@ -122,16 +122,24 @@ export type EmployeeRow = {
   id: string;
   entity_id: string;
   brand_id: string;
-  role: string;
+  code: string | null;
+  full_name: string | null;
+  status: string | null;
+  rate_per_day: number | null;
   created_at: string;
+  updated_at: string | null;
 };
 
 export type EmployeeInsert = {
   id?: string;
   entity_id: string;
   brand_id: string;
-  role: string;
+  code?: string | null;
+  full_name?: string | null;
+  status?: string | null;
+  rate_per_day?: number | null;
   created_at?: string;
+  updated_at?: string | null;
 };
 
 export type EmployeeUpdate = Partial<EmployeeInsert>;
@@ -164,6 +172,132 @@ export type ProfileInsert = {
 
 export type ProfileUpdate = Partial<ProfileInsert>;
 
+export type EntityRow = {
+  id: string;
+  display_name: string | null;
+  profile: Json | null;
+  is_gm: boolean | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type EntityInsert = {
+  id?: string;
+  display_name?: string | null;
+  profile?: Json | null;
+  is_gm?: boolean | null;
+  created_at?: string;
+  updated_at?: string | null;
+};
+
+export type EntityUpdate = Partial<EntityInsert>;
+
+export type GuildRow = {
+  id: string;
+  slug: string;
+  name: string;
+  guild_type: string;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type GuildInsert = {
+  id?: string;
+  slug: string;
+  name: string;
+  guild_type: string;
+  created_at?: string;
+  updated_at?: string | null;
+};
+
+export type GuildUpdate = Partial<GuildInsert>;
+
+export type GuildRoleRow = {
+  id: string;
+  guild_id: string;
+  entity_id: string;
+  role: string;
+  created_at: string;
+};
+
+export type GuildRoleInsert = {
+  id?: string;
+  guild_id: string;
+  entity_id: string;
+  role: string;
+  created_at?: string;
+};
+
+export type GuildRoleUpdate = Partial<GuildRoleInsert>;
+
+export type ItemRow = {
+  id: string;
+  slug: string;
+  name: string;
+  description: string | null;
+  brand: string | null;
+  category: string | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type ItemInsert = {
+  id?: string;
+  slug: string;
+  name: string;
+  description?: string | null;
+  brand?: string | null;
+  category?: string | null;
+  created_at?: string;
+  updated_at?: string | null;
+};
+
+export type ItemUpdate = Partial<ItemInsert>;
+
+export type ItemBarcodeRow = {
+  id: string;
+  item_id: string;
+  barcode: string;
+  is_primary: boolean | null;
+  created_at: string;
+};
+
+export type ItemBarcodeInsert = {
+  id?: string;
+  item_id: string;
+  barcode: string;
+  is_primary?: boolean | null;
+  created_at?: string;
+};
+
+export type ItemBarcodeUpdate = Partial<ItemBarcodeInsert>;
+
+export type HouseItemRow = {
+  id: string;
+  house_id: string;
+  item_id: string;
+  sku: string | null;
+  price_cents: number | null;
+  price_currency: string;
+  stock_quantity: number;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type HouseItemInsert = {
+  id?: string;
+  house_id: string;
+  item_id: string;
+  sku?: string | null;
+  price_cents?: number | null;
+  price_currency?: string;
+  stock_quantity?: number;
+  created_at?: string;
+  updated_at?: string | null;
+};
+
+export type HouseItemUpdate = Partial<HouseItemInsert>;
+
 export type LoyaltyMembershipViewRow = {
   user_id: string;
   brand_id: string;
@@ -186,12 +320,6 @@ export type BrandOwnerViewRow = {
   brand_name: string;
 };
 
-type GenericTableDefinition = TableDefinition<
-  Record<string, unknown>,
-  Record<string, unknown>,
-  Record<string, unknown>
->;
-
 type TableDefinition<RowType, InsertType, UpdateType> = {
   Row: RowType;
   Insert: InsertType;
@@ -199,14 +327,16 @@ type TableDefinition<RowType, InsertType, UpdateType> = {
   Relationships: [];
 };
 
-type GenericViewDefinition = ViewDefinition<Record<string, unknown>>;
+/* eslint-disable @typescript-eslint/no-explicit-any */
+type GenericTableDefinition = TableDefinition<any, any, any>;
+type GenericViewDefinition = ViewDefinition<any>;
+type GenericFunctionDefinition = FunctionDefinition<any, any>;
+/* eslint-enable @typescript-eslint/no-explicit-any */
 
 type ViewDefinition<RowType> = {
   Row: RowType;
   Relationships: [];
 };
-
-type GenericFunctionDefinition = FunctionDefinition<Record<string, unknown>, unknown>;
 
 type FunctionDefinition<ArgsType, ReturnType> = {
   Args: ArgsType;
@@ -235,6 +365,12 @@ export interface Database {
       employees: TableDefinition<EmployeeRow, EmployeeInsert, EmployeeUpdate>;
       brand_owners: TableDefinition<BrandOwnerRow, BrandOwnerInsert, BrandOwnerUpdate>;
       profiles: TableDefinition<ProfileRow, ProfileInsert, ProfileUpdate>;
+      entities: TableDefinition<EntityRow, EntityInsert, EntityUpdate>;
+      guilds: TableDefinition<GuildRow, GuildInsert, GuildUpdate>;
+      guild_roles: TableDefinition<GuildRoleRow, GuildRoleInsert, GuildRoleUpdate>;
+      items: TableDefinition<ItemRow, ItemInsert, ItemUpdate>;
+      item_barcodes: TableDefinition<ItemBarcodeRow, ItemBarcodeInsert, ItemBarcodeUpdate>;
+      house_items: TableDefinition<HouseItemRow, HouseItemInsert, HouseItemUpdate>;
     };
     Views: Record<string, GenericViewDefinition> & {
       v_loyalty_memberships: ViewDefinition<LoyaltyMembershipViewRow>;
