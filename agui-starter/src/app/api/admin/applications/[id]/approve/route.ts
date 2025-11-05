@@ -1,4 +1,5 @@
 // src/app/api/admin/applications/[id]/approve/route.ts
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { z } from "@/lib/z";
 import { createServerSupabase } from "@/lib/auth/server";
@@ -7,7 +8,7 @@ const Params = z.object({
   id: z.string().uuid(),
 });
 
-export async function POST(_req: Request, ctx: { params: { id: string } }) {
+export async function POST(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -17,7 +18,7 @@ export async function POST(_req: Request, ctx: { params: { id: string } }) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const parse = Params.safeParse(ctx.params);
+  const parse = Params.safeParse(await context.params);
   if (!parse.success) {
     return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
   }
