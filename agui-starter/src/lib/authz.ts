@@ -1,42 +1,6 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
-export type Feature =
-  | "alliances"
-  | "guilds"
-  | "team"
-  | "shifts"
-  | "dtr-bulk"
-  | "payroll"
-  | "pos"
-  | "alliance-pass"
-  | "import-csv"
-  | "settings";
-
 export type RoleScope = "PLATFORM" | "GUILD" | "HOUSE";
-
-export type RoleRequirement = { scope: RoleScope; role: string };
-
-export const FEATURE_ROLES: Record<Feature, RoleRequirement[]> = {
-  alliances: [{ scope: "PLATFORM", role: "game_master" }],
-  guilds: [
-    { scope: "GUILD", role: "guild_master" },
-    { scope: "PLATFORM", role: "game_master" },
-  ],
-  team: [{ scope: "HOUSE", role: "house_manager" }],
-  shifts: [{ scope: "HOUSE", role: "house_manager" }],
-  "dtr-bulk": [{ scope: "HOUSE", role: "house_manager" }],
-  payroll: [{ scope: "HOUSE", role: "house_manager" }],
-  pos: [
-    { scope: "HOUSE", role: "cashier" },
-    { scope: "HOUSE", role: "house_manager" },
-  ],
-  "alliance-pass": [
-    { scope: "GUILD", role: "guild_elder" },
-    { scope: "PLATFORM", role: "game_master" },
-  ],
-  "import-csv": [{ scope: "PLATFORM", role: "game_master" }],
-  settings: [{ scope: "PLATFORM", role: "game_master" }],
-};
 
 export type RoleAssignments = Record<RoleScope, string[]>;
 
@@ -75,7 +39,7 @@ async function getCurrentUser(client: SupabaseClient): Promise<User | null> {
   return user ?? null;
 }
 
-async function resolveEntityId(client: SupabaseClient, user: User): Promise<string | null> {
+export async function resolveEntityId(client: SupabaseClient, user: User): Promise<string | null> {
   const email = normalizeEmail(user.email ?? null);
   if (email) {
     const { data, error } = await client
@@ -204,6 +168,22 @@ export async function getMyRoles(
   return buildAssignments(platformResult.data?.roles, guildResult.data ?? [], houseResult.data ?? []);
 }
 
+export async function getMyEntityId(
+  supabase: SupabaseClient | null | undefined,
+): Promise<string | null> {
+  if (!supabase) {
+    console.warn("Supabase client unavailable for entity lookup");
+    return null;
+  }
+
+  const user = await getCurrentUser(supabase);
+  if (!user) {
+    return null;
+  }
+
+  return resolveEntityId(supabase, user);
+}
+
 function hasPlatformBypass(roles: RoleAssignments): boolean {
   return roles.PLATFORM.includes("game_master");
 }
@@ -221,21 +201,6 @@ export function hasRoleInAssignments(
 
   const pool = roles[scope];
   return Array.isArray(pool) ? pool.includes(role) : false;
-}
-
-export function canWithRoles(roles: RoleAssignments, feature: Feature): boolean {
-  const requirements = FEATURE_ROLES[feature] ?? [];
-  if (requirements.length === 0) {
-    return true;
-  }
-
-  if (hasPlatformBypass(roles)) {
-    return true;
-  }
-
-  return requirements.some((requirement) =>
-    hasRoleInAssignments(roles, requirement.scope, requirement.role),
-  );
 }
 
 export function isRoleAssignmentsEmpty(roles: RoleAssignments): boolean {

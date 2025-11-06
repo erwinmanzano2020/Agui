@@ -17,7 +17,7 @@ import { useUiTerms } from "@/lib/ui-terms-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { useSession } from "@/lib/auth/session-context";
-import { useUserRoles } from "@/lib/auth/user-roles-context";
+import { useUserPermissions } from "@/lib/auth/user-permissions-context";
 import { canAccess } from "@/lib/auth/permissions";
 import { useToast } from "@/components/ui/toaster";
 
@@ -50,7 +50,7 @@ const SHOW_LOCKED_TILES = false;
 export default function HomePage() {
   const terms = useUiTerms();
   const { supabase, status: sessionStatus, user } = useSession();
-  const roles = useUserRoles();
+  const permissions = useUserPermissions();
   const toast = useToast();
   const [dataState, setDataState] = useState<DataState>({ status: "idle", houses: [], guilds: [] });
   const [dataVersion, setDataVersion] = useState(0);
@@ -173,12 +173,12 @@ export default function HomePage() {
 
     const ids = new Set<string>();
     for (const app of decoratedApps) {
-      if (!app.feature || canAccess(app.feature, roles)) {
+      if (!app.feature || canAccess(app.feature, permissions)) {
         ids.add(app.id);
       }
     }
     return ids;
-  }, [decoratedApps, roles, signedIn]);
+  }, [decoratedApps, permissions, signedIn]);
 
   const gridApps = useMemo(() => {
     if (!signedIn) {

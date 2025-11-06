@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import { getServiceSupabase } from "@/lib/supabase-service";
-import { getMyRoles } from "@/lib/authz/server";
+import { getMyRoles, listMyPolicies } from "@/lib/authz/server";
 import { ensureEntityForUser, resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import { AppFeature, canAccess } from "@/lib/auth/permissions";
 
@@ -17,6 +17,7 @@ async function authorizeForHouse(
   entityId: string,
   houseId: string,
   roles: Awaited<ReturnType<typeof getMyRoles>>,
+  permissions: Awaited<ReturnType<typeof listMyPolicies>>,
 ): Promise<boolean> {
   if (roles.PLATFORM.includes("game_master")) {
     return true;
@@ -39,7 +40,7 @@ async function authorizeForHouse(
     return true;
   }
 
-  if (canAccess(AppFeature.POS, roles)) {
+  if (canAccess(AppFeature.POS, permissions)) {
     return (data ?? []).some((entry) => entry.role === "cashier" || entry.role === "house_manager");
   }
 
@@ -72,7 +73,10 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const roles = await getMyRoles(supabase);
+  const [roles, permissions] = await Promise.all([
+    getMyRoles(supabase),
+    listMyPolicies(supabase),
+  ]);
   const entityId = await resolveEntityIdForUser(user).catch((error) => {
     console.error("Failed to resolve entity for clock lookup", error);
     return null;
@@ -83,7 +87,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const allowed = await authorizeForHouse(entityId, houseId, roles);
+    const allowed = await authorizeForHouse(entityId, houseId, roles, permissions);
     if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
@@ -157,9 +161,12 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Failed to prepare account" }, { status: 500 });
   }
 
-  const roles = await getMyRoles(supabase);
+  const [roles, permissions] = await Promise.all([
+    getMyRoles(supabase),
+    listMyPolicies(supabase),
+  ]);
   try {
-    const allowed = await authorizeForHouse(entityId, houseId, roles);
+    const allowed = await authorizeForHouse(entityId, houseId, roles, permissions);
     if (!allowed) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

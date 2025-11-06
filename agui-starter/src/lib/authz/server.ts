@@ -4,13 +4,17 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createServerSupabaseClient } from "@/lib/supabase-server";
 import {
-  canWithRoles,
+  getMyEntityId as getMyEntityIdFromClient,
   getMyRoles as getMyRolesFromClient,
   hasRoleInAssignments,
-  type Feature,
   type RoleAssignments,
   type RoleScope,
 } from "../authz";
+import {
+  evaluatePolicy,
+  listPoliciesForCurrentUser,
+} from "@/lib/policy/server";
+import type { PolicyRecord, PolicyRequest } from "@/lib/policy/types";
 
 export async function getMyRoles(
   client?: SupabaseClient | null,
@@ -28,20 +32,33 @@ export async function hasRole(
   return hasRoleInAssignments(roles, scope, role);
 }
 
-export async function can(
-  feature: Feature,
+export async function getMyEntityId(
+  client?: SupabaseClient | null,
+): Promise<string | null> {
+  const supabase = client ?? (await createServerSupabaseClient());
+  return getMyEntityIdFromClient(supabase);
+}
+
+export async function listMyPolicies(
+  client?: SupabaseClient | null,
+): Promise<PolicyRecord[]> {
+  const supabase = client ?? (await createServerSupabaseClient());
+  return listPoliciesForCurrentUser(supabase);
+}
+
+export async function evaluatePolicyForCurrentUser(
+  request: PolicyRequest,
   client?: SupabaseClient | null,
 ): Promise<boolean> {
-  const roles = await getMyRoles(client);
-  return canWithRoles(roles, feature);
+  const supabase = client ?? (await createServerSupabaseClient());
+  return evaluatePolicy(request, supabase);
 }
 
 export {
-  canWithRoles,
   emptyRoleAssignments,
   hasRoleInAssignments,
   isRoleAssignmentsEmpty,
-  FEATURE_ROLES,
 } from "../authz";
-export type { Feature, RoleAssignments, RoleScope } from "../authz";
+export type { RoleAssignments, RoleScope } from "../authz";
+export type { PolicyRecord, PolicyRequest } from "@/lib/policy/types";
 export { isGM } from "@/lib/identity/entity";

@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 
 import { canAccess, type FeatureInput, AppFeature } from "@/lib/auth/permissions";
-import { getUserRoles } from "@/lib/auth/user-roles";
+import { getUserPermissions } from "@/lib/auth/user-permissions";
 
 /** Resolve current request path for redirects (server only). */
 export async function resolveDestFromHeaders(): Promise<string> {
@@ -21,8 +21,8 @@ export async function resolveDestFromHeaders(): Promise<string> {
 }
 
 export async function hasFeatureAccess(feature: FeatureInput): Promise<boolean> {
-  const roles = await getUserRoles();
-  return canAccess(feature, roles);
+  const permissions = await getUserPermissions();
+  return canAccess(feature, permissions);
 }
 
 export async function requireFeatureAccess(

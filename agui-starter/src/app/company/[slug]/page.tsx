@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getSupabase } from "@/lib/supabase";
 import { notFound } from "next/navigation";
 
@@ -14,12 +15,18 @@ export default async function CompanyDetail({ params }: { params: { slug: string
   if (!house) return notFound();
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <div className="text-xl font-semibold">{house.name}</div>
       <div className="text-xs text-muted-foreground">/{house.slug}</div>
       <div className="text-sm">
         Type: <span className="font-medium">{house.house_type}</span>
       </div>
+      <Link
+        href={`/company/${house.slug}/roles/custom`}
+        className="inline-flex text-sm font-medium text-primary hover:underline"
+      >
+        Manage custom roles →
+      </Link>
     </div>
   );
 }

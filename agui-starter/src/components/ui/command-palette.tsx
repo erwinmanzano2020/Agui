@@ -12,7 +12,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toaster";
 import type { CommandDefinition } from "@/lib/commands/registry";
 import { canAccess } from "@/lib/auth/permissions";
-import { useUserRoles } from "@/lib/auth/user-roles-context";
+import { useUserPermissions } from "@/lib/auth/user-permissions-context";
 import { useSession } from "@/lib/auth/session-context";
 
 function isEditableTarget(target: EventTarget | null) {
@@ -50,7 +50,7 @@ export function CommandPalette({ commands }: { commands: CommandDefinition[] }) 
   const { user } = useSession();
   const signedIn = Boolean(user);
   const toast = useToast();
-  const roles = useUserRoles();
+  const permissions = useUserPermissions();
 
   const availableCommands = useMemo(() => {
     if (!signedIn) {
@@ -58,9 +58,9 @@ export function CommandPalette({ commands }: { commands: CommandDefinition[] }) 
     }
 
     return commands.filter((command) =>
-      command.feature ? canAccess(command.feature, roles) : true,
+      command.feature ? canAccess(command.feature, permissions) : true,
     );
-  }, [commands, roles, signedIn]);
+  }, [commands, permissions, signedIn]);
 
   useEffect(() => {
     if (availableCommands.length === 0 && open) {
@@ -116,7 +116,7 @@ export function CommandPalette({ commands }: { commands: CommandDefinition[] }) 
 
   function onRun(c: CommandDefinition) {
     setOpen(false);
-    if (c.feature && (!signedIn || !canAccess(c.feature, roles))) {
+    if (c.feature && (!signedIn || !canAccess(c.feature, permissions))) {
       if (process.env.NODE_ENV !== "production") {
         toast.warning("You don’t have access to this");
       }
