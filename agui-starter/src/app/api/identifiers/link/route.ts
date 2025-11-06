@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { createServerSupabase } from "@/lib/auth/server";
-import type { EntityIdentifierInsert } from "@/lib/db.types";
+import type { EntityIdentifierInsert, Json } from "@/lib/db.types";
 import { z } from "@/lib/z";
 
 const bodySchema = z.object({
@@ -42,13 +42,14 @@ export async function POST(req: NextRequest) {
   }
 
   const { entityId, kind, value, issuer, meta } = parsed.data;
+  const metaJson: Json | null = meta == null ? null : (meta as unknown as Json);
 
   const row: EntityIdentifierInsert = {
     entity_id: entityId ?? currentEntityId,
     kind,
     value_norm: value, // normalized/hashed in trigger
     issuer: issuer ?? null,
-    meta: meta ?? null,
+    meta: metaJson,
     added_by_entity_id: currentEntityId,
   };
 
