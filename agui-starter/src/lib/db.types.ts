@@ -54,10 +54,12 @@ export type EntityIdentifierRow = {
     | "other";
   issuer: string | null;
   value_norm: string;
+  fingerprint: string;
   meta: Json | null;
   verified_at: string | null;
-  added_by_entity_id: string;
+  added_by_entity_id: string | null;
   created_at: string;
+  updated_at: string | null;
 };
 
 export type EntityIdentifierInsert = {
@@ -68,11 +70,31 @@ export type EntityIdentifierInsert = {
   value_norm: string;
   meta?: Json | null;
   verified_at?: string | null;
-  added_by_entity_id: string;
+  added_by_entity_id?: string | null;
+  fingerprint?: string;
   created_at?: string;
+  updated_at?: string | null;
 };
 
 export type EntityIdentifierUpdate = Partial<EntityIdentifierInsert>;
+
+export type EntitlementRow = {
+  entity_id: string;
+  code: string;
+  source: string;
+  granted_at: string;
+  meta: Json | null;
+};
+
+export type EntitlementInsert = {
+  entity_id: string;
+  code: string;
+  source: string;
+  granted_at?: string;
+  meta?: Json | null;
+};
+
+export type EntitlementUpdate = Partial<EntitlementInsert>;
 
 export type EntityApplicationRow = {
   id: string;
@@ -361,6 +383,11 @@ export interface Database {
         BrandMembershipRow,
         BrandMembershipInsert,
         BrandMembershipUpdate
+      >;
+      entitlements: TableDefinition<
+        EntitlementRow,
+        EntitlementInsert,
+        EntitlementUpdate
       >;
       employees: TableDefinition<EmployeeRow, EmployeeInsert, EmployeeUpdate>;
       brand_owners: TableDefinition<BrandOwnerRow, BrandOwnerInsert, BrandOwnerUpdate>;
