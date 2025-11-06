@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import type { Database } from "@/lib/db.types";
+import type { IdentityDatabase } from "@/lib/db.types";
 import {
   createSupabaseIdentifierResolverStore,
   resolveIdentifier,
@@ -12,9 +12,8 @@ const schema = z.object({
   identifier: z.object({
     kind: z.enum(["email", "phone", "qr", "gov_id"]),
     value: z.string().min(1, "value is required"),
-    meta: z.record(z.unknown()).optional(),
   }),
-  displayName: z.string().optional(),
+  entityKind: z.enum(["person", "business", "gm"]).optional(),
   profile: z.record(z.unknown()).optional(),
   verification: z
     .object({
@@ -35,12 +34,12 @@ export async function POST(req: Request) {
     );
   }
 
-  const supabase = getServiceSupabase<Database>();
+  const supabase = getServiceSupabase<IdentityDatabase>();
   const store = createSupabaseIdentifierResolverStore(supabase);
 
   try {
     const result = await resolveIdentifier(store, parsed.data.identifier, {
-      displayName: parsed.data.displayName ?? null,
+      entityKind: parsed.data.entityKind ?? undefined,
       profile: parsed.data.profile ?? null,
       verification: parsed.data.verification ?? null,
     });
@@ -50,16 +49,7 @@ export async function POST(req: Request) {
       created: result.created,
       entity: result.entity,
       entitlements: result.entitlements,
-      identifier: {
-        id: result.identifier.id,
-        kind: result.identifier.kind,
-        issuer: result.identifier.issuer,
-        value: result.identifier.value_norm,
-        meta: result.identifier.meta,
-        verified_at: result.identifier.verified_at,
-        created_at: result.identifier.created_at,
-        updated_at: result.identifier.updated_at,
-      },
+      identifier: result.identifier,
     });
   } catch (error) {
     console.error("identifier resolve failed", error);

@@ -41,6 +41,58 @@ export type AppInboxUpdate = {
   read_at?: string | null;
 };
 
+export type IdentityEntityRow = {
+  id: string;
+  kind: "person" | "business" | "gm";
+  primary_identifier: string | null;
+  profile: Json | null;
+  created_at: string;
+};
+
+export type IdentityEntityInsert = {
+  id?: string;
+  kind: IdentityEntityRow["kind"];
+  primary_identifier?: string | null;
+  profile?: Json | null;
+  created_at?: string;
+};
+
+export type IdentityEntityUpdate = Partial<IdentityEntityInsert>;
+
+export type IdentifierRow = {
+  id: string;
+  entity_id: string;
+  kind: "phone" | "email" | "qr" | "gov_id";
+  value: string;
+  verified_at: string | null;
+};
+
+export type IdentifierInsert = {
+  id?: string;
+  entity_id: string;
+  kind: IdentifierRow["kind"];
+  value: string;
+  verified_at?: string | null;
+};
+
+export type IdentifierUpdate = Partial<IdentifierInsert>;
+
+export type EntitlementRow = {
+  entity_id: string;
+  code: string;
+  source: string | null;
+  granted_at: string;
+};
+
+export type EntitlementInsert = {
+  entity_id: string;
+  code: string;
+  source?: string | null;
+  granted_at?: string;
+};
+
+export type EntitlementUpdate = Partial<EntitlementInsert>;
+
 export type EntityIdentifierRow = {
   id: string;
   entity_id: string;
@@ -77,24 +129,6 @@ export type EntityIdentifierInsert = {
 };
 
 export type EntityIdentifierUpdate = Partial<EntityIdentifierInsert>;
-
-export type EntitlementRow = {
-  entity_id: string;
-  code: string;
-  source: string;
-  granted_at: string;
-  meta: Json | null;
-};
-
-export type EntitlementInsert = {
-  entity_id: string;
-  code: string;
-  source: string;
-  granted_at?: string;
-  meta?: Json | null;
-};
-
-export type EntitlementUpdate = Partial<EntitlementInsert>;
 
 export type EntityApplicationRow = {
   id: string;
@@ -364,6 +398,18 @@ type FunctionDefinition<ArgsType, ReturnType> = {
   Args: ArgsType;
   Returns: ReturnType;
 };
+
+export interface IdentityDatabase {
+  public: {
+    Tables: {
+      entities: TableDefinition<IdentityEntityRow, IdentityEntityInsert, IdentityEntityUpdate>;
+      identifiers: TableDefinition<IdentifierRow, IdentifierInsert, IdentifierUpdate>;
+      entitlements: TableDefinition<EntitlementRow, EntitlementInsert, EntitlementUpdate>;
+    };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
+  };
+}
 
 export interface Database {
   public: {

@@ -1,23 +1,23 @@
-// src/lib/identity/identifier-resolver.ts
 import { createHash } from "node:crypto";
 
 import type { SupabaseClient, PostgrestError } from "@supabase/supabase-js";
 
 import type {
-  Database,
-  EntityIdentifierInsert,
-  EntityIdentifierRow,
-  EntityRow,
+  EntitlementInsert,
   EntitlementRow,
+  IdentityDatabase,
+  IdentityEntityInsert,
+  IdentityEntityRow,
+  IdentifierInsert,
+  IdentifierRow,
   Json,
 } from "@/lib/db.types";
 
-type IdentifierKind = EntityIdentifierRow["kind"];
+export type IdentifierKind = IdentifierRow["kind"];
 
 export type IdentifierInput = {
   kind: IdentifierKind;
   value: string;
-  meta?: Record<string, unknown> | null;
 };
 
 export type VerificationHints = {
@@ -26,52 +26,36 @@ export type VerificationHints = {
 };
 
 export type ResolverOptions = {
-  displayName?: string | null;
+  entityKind?: IdentityEntityRow["kind"];
   profile?: Record<string, unknown> | null;
   verification?: VerificationHints | null;
 };
 
 export type IdentifierResolverResult = {
-  entity: EntityRow;
-  identifier: EntityIdentifierRow;
+  entity: IdentityEntityRow;
+  identifier: IdentifierRow;
   entitlements: EntitlementRow[];
   created: boolean;
 };
 
 export interface IdentifierResolverStore {
-  findByFingerprint(kind: IdentifierKind, fingerprint: string): Promise<EntityIdentifierRow | null>;
-  createEntity(args: {
-    kind: IdentifierKind;
-    normalizedValue: string;
-    displayName?: string | null;
-    profile?: Record<string, unknown> | null;
-  }): Promise<EntityRow>;
-  linkIdentifier(args: {
-    entityId: string;
-    kind: IdentifierKind;
-    normalizedValue: string;
-    fingerprint: string;
-    meta?: Record<string, unknown> | null;
-    verification?: VerificationHints | null;
-  }): Promise<EntityIdentifierRow>;
-  loadEntity(entityId: string): Promise<EntityRow>;
+  findIdentifier(kind: IdentifierKind, value: string): Promise<IdentifierRow | null>;
+  createEntity(input: IdentityEntityInsert): Promise<IdentityEntityRow>;
+  updateEntity(entityId: string, patch: Partial<IdentityEntityInsert>): Promise<void>;
+  deleteEntity(entityId: string): Promise<void>;
+  linkIdentifier(input: IdentifierInsert): Promise<IdentifierRow>;
+  loadEntity(entityId: string): Promise<IdentityEntityRow>;
   listEntitlements(entityId: string): Promise<EntitlementRow[]>;
-  ensureEntitlement(
-    entityId: string,
-    code: string,
-    source: string,
-    context: Record<string, unknown>,
-  ): Promise<void>;
+  upsertEntitlement(input: EntitlementInsert): Promise<void>;
 }
 
-const SENIOR_KEYS = ["senior", "isSenior", "is_senior", "senior_verified", "verified_senior"];
+const SENIOR_PATTERN = /senior/i;
+const GOV_ID_HASH_PREFIX = "gov:";
 
-const toJson = (value: Record<string, unknown> | null | undefined): Json | null => {
-  if (!value) return null;
-  return value as unknown as Json;
-};
-
-const DEFAULT_SENIOR_SOURCE = "gov_id_auto";
+function normalizeProfile(profile: Record<string, unknown> | null | undefined): Json {
+  if (!profile) return {} as Json;
+  return profile as unknown as Json;
+}
 
 export function normalizeIdentifier(kind: IdentifierKind, raw: string): string {
   const input = raw ?? "";
@@ -83,135 +67,31 @@ export function normalizeIdentifier(kind: IdentifierKind, raw: string): string {
     case "phone":
       return trimmed.replace(/[^0-9]/g, "");
     case "gov_id":
-      return trimmed.toLowerCase().replace(/[\s-]/g, "");
-    case "loyalty_card":
-    case "employee_no":
-      return trimmed.toLowerCase().replace(/[\s-]/g, "");
+      return trimmed.replace(/[\s-]/g, "").toUpperCase();
     case "qr":
-      return trimmed.toLowerCase();
     default:
       return trimmed.toLowerCase();
   }
 }
 
-export function fingerprintIdentifier(kind: IdentifierKind, normalized: string): string {
+function hashGovId(value: string): string {
+  return `${GOV_ID_HASH_PREFIX}${createHash("sha256").update(value, "utf8").digest("hex")}`;
+}
+
+function storeValue(kind: IdentifierKind, normalized: string): string {
   if (kind === "gov_id") {
-    return createHash("sha256").update(normalized, "utf8").digest("hex");
+    return hashGovId(normalized);
   }
   return normalized;
 }
 
-function buildDefaultDisplayName(kind: IdentifierKind, normalized: string): string {
-  if (kind === "email") return normalized;
-  if (kind === "phone") return normalized || "phone";
-  if (kind === "gov_id") {
-    const suffix = normalized.slice(-4);
-    return suffix ? `Gov ID ••••${suffix}` : "Gov ID";
-  }
-  if (kind === "qr") {
-    return normalized ? `QR ${normalized.slice(0, 8)}` : "QR";
-  }
-  return normalized || kind;
-}
-
-function isVerified(meta: Record<string, unknown> | null | undefined, verification?: VerificationHints | null): boolean {
-  if (verification?.verified) return true;
-  if (verification?.verifiedAt) return true;
-
-  if (!meta) return false;
-
-  const flags = ["verified", "is_verified", "verified_senior", "senior_verified"];
-  return flags.some((key) => Boolean((meta as Record<string, unknown>)[key]));
-}
-
-function hasSeniorHint(normalized: string, meta: Record<string, unknown> | null | undefined): boolean {
-  if (meta) {
-    if (SENIOR_KEYS.some((key) => Boolean((meta as Record<string, unknown>)[key]))) {
-      return true;
-    }
-  }
-
-  return /senior/i.test(normalized);
-}
-
-function shouldGrantSenior(
-  kind: IdentifierKind,
-  normalized: string,
-  meta: Record<string, unknown> | null | undefined,
-  verification?: VerificationHints | null,
-): boolean {
+function seniorEligible(kind: IdentifierKind, normalized: string, verification?: VerificationHints | null): boolean {
   if (kind !== "gov_id") return false;
-  if (!isVerified(meta, verification)) return false;
-  return hasSeniorHint(normalized, meta);
+  if (!verification?.verified && !verification?.verifiedAt) return false;
+  return SENIOR_PATTERN.test(normalized);
 }
 
-export async function resolveIdentifier(
-  store: IdentifierResolverStore,
-  input: IdentifierInput,
-  options: ResolverOptions = {},
-): Promise<IdentifierResolverResult> {
-  const normalized = normalizeIdentifier(input.kind, input.value);
-
-  if (!normalized) {
-    throw new Error("Identifier value is required");
-  }
-
-  const fingerprint = fingerprintIdentifier(input.kind, normalized);
-  const existing = await store.findByFingerprint(input.kind, fingerprint);
-
-  let entity: EntityRow;
-  let identifier: EntityIdentifierRow;
-  let created = false;
-
-  if (existing) {
-    entity = await store.loadEntity(existing.entity_id);
-    identifier = existing;
-  } else {
-    created = true;
-    entity = await store.createEntity({
-      kind: input.kind,
-      normalizedValue: normalized,
-      displayName: options.displayName ?? null,
-      profile: options.profile ?? null,
-    });
-
-    identifier = await store.linkIdentifier({
-      entityId: entity.id,
-      kind: input.kind,
-      normalizedValue: normalized,
-      fingerprint,
-      meta: input.meta ?? null,
-      verification: options.verification ?? null,
-    });
-  }
-
-  const entitlements = await store.listEntitlements(entity.id);
-
-  if (shouldGrantSenior(input.kind, normalized, input.meta ?? null, options.verification)) {
-    const hasSenior = entitlements.some((ent) => ent.code === "senior");
-    if (!hasSenior) {
-      await store.ensureEntitlement(entity.id, "senior", DEFAULT_SENIOR_SOURCE, {
-        identifier_id: identifier.id,
-      });
-      const refreshed = await store.listEntitlements(entity.id);
-      return { entity, identifier, entitlements: refreshed, created };
-    }
-  }
-
-  return { entity, identifier, entitlements, created };
-}
-
-function normalizeProfile(profile: Record<string, unknown> | null | undefined): Json {
-  if (!profile) return {} as Json;
-  return profile as unknown as Json;
-}
-
-function normalizeMeta(meta: Record<string, unknown> | null | undefined): Json {
-  if (!meta) return {} as Json;
-  return meta as unknown as Json;
-}
-
-function mapEntity(row: EntityRow | null, error: PostgrestError | null, hint: string): EntityRow {
+function mapEntity(row: IdentityEntityRow | null, error: PostgrestError | null, hint: string): IdentityEntityRow {
   if (error) {
     throw new Error(`${hint}: ${error.message}`);
   }
@@ -221,73 +101,135 @@ function mapEntity(row: EntityRow | null, error: PostgrestError | null, hint: st
   return row;
 }
 
-class SupabaseIdentifierResolverStore implements IdentifierResolverStore {
-  private client: SupabaseClient<Database>;
-
-  constructor(client: SupabaseClient<Database>) {
-    this.client = client;
+export async function resolveIdentifier(
+  store: IdentifierResolverStore,
+  input: IdentifierInput,
+  options: ResolverOptions = {},
+): Promise<IdentifierResolverResult> {
+  const normalized = normalizeIdentifier(input.kind, input.value);
+  if (!normalized) {
+    throw new Error("Identifier value is required");
   }
 
-  async findByFingerprint(kind: IdentifierKind, fingerprint: string): Promise<EntityIdentifierRow | null> {
+  const storedValue = storeValue(input.kind, normalized);
+  const existing = await store.findIdentifier(input.kind, storedValue);
+
+  let entity: IdentityEntityRow;
+  let identifier: IdentifierRow;
+  let created = false;
+
+  if (existing) {
+    entity = await store.loadEntity(existing.entity_id);
+    identifier = existing;
+  } else {
+    created = true;
+    entity = await store.createEntity({
+      kind: options.entityKind ?? "person",
+      primary_identifier: normalized,
+      profile: normalizeProfile(options.profile ?? null),
+    });
+
+    identifier = await store.linkIdentifier({
+      entity_id: entity.id,
+      kind: input.kind,
+      value: storedValue,
+      verified_at: options.verification?.verifiedAt ?? (options.verification?.verified ? new Date().toISOString() : null),
+    });
+
+    if (identifier.entity_id !== entity.id) {
+      await store.deleteEntity(entity.id);
+      entity = await store.loadEntity(identifier.entity_id);
+      created = false;
+    }
+
+    if (!entity.primary_identifier) {
+      await store.updateEntity(entity.id, { primary_identifier: normalized });
+      entity = await store.loadEntity(entity.id);
+    }
+  }
+
+  const entitlements = await store.listEntitlements(entity.id);
+
+  if (seniorEligible(input.kind, normalized, options.verification)) {
+    const hasSenior = entitlements.some((ent) => ent.code === "senior");
+    if (!hasSenior) {
+      await store.upsertEntitlement({
+        entity_id: entity.id,
+        code: "senior",
+        source: "gov_id_auto",
+      });
+      const refreshed = await store.listEntitlements(entity.id);
+      return { entity, identifier, entitlements: refreshed, created };
+    }
+  }
+
+  return { entity, identifier, entitlements, created };
+}
+
+class SupabaseIdentifierResolverStore implements IdentifierResolverStore {
+  constructor(private client: SupabaseClient<IdentityDatabase>) {}
+
+  async findIdentifier(kind: IdentifierKind, value: string): Promise<IdentifierRow | null> {
     const { data, error } = await this.client
-      .from("entity_identifiers")
-      .select("id, entity_id, kind, issuer, value_norm, fingerprint, meta, verified_at, added_by_entity_id, created_at, updated_at")
+      .from("identifiers")
+      .select("id, entity_id, kind, value, verified_at")
       .eq("kind", kind)
-      .eq("fingerprint", fingerprint)
+      .eq("value", value)
       .maybeSingle();
 
     if (error) {
-      throw new Error(`Failed to find identifier: ${error.message}`);
+      throw new Error(`Failed to look up identifier: ${error.message}`);
     }
 
     return data ?? null;
   }
 
-  async createEntity(args: {
-    kind: IdentifierKind;
-    normalizedValue: string;
-    displayName?: string | null;
-    profile?: Record<string, unknown> | null;
-  }): Promise<EntityRow> {
-    const display = (args.displayName ?? "").trim() || buildDefaultDisplayName(args.kind, args.normalizedValue);
-    const profile = normalizeProfile(args.profile);
+  async createEntity(input: IdentityEntityInsert): Promise<IdentityEntityRow> {
+    const record: IdentityEntityInsert = {
+      kind: input.kind,
+      primary_identifier: input.primary_identifier ?? null,
+      profile: input.profile ?? ({} as Json),
+    };
 
     const { data, error } = await this.client
       .from("entities")
-      .insert({
-        display_name: display,
-        profile,
-      })
-      .select("id, display_name, profile, is_gm, created_at, updated_at")
+      .insert(record)
+      .select("id, kind, primary_identifier, profile, created_at")
       .single();
 
     return mapEntity(data, error, "Failed to create entity");
   }
 
-  async linkIdentifier(args: {
-    entityId: string;
-    kind: IdentifierKind;
-    normalizedValue: string;
-    fingerprint: string;
-    meta?: Record<string, unknown> | null;
-    verification?: VerificationHints | null;
-  }): Promise<EntityIdentifierRow> {
-    const shouldVerify = Boolean(args.verification?.verified) || Boolean(args.verification?.verifiedAt);
-    const record: EntityIdentifierInsert = {
-      entity_id: args.entityId,
-      kind: args.kind,
-      value_norm: args.normalizedValue,
-      meta: normalizeMeta(args.meta ?? null),
+  async updateEntity(entityId: string, patch: Partial<IdentityEntityInsert>): Promise<void> {
+    const { error } = await this.client
+      .from("entities")
+      .update(patch)
+      .eq("id", entityId);
+
+    if (error) {
+      throw new Error(`Failed to update entity: ${error.message}`);
+    }
+  }
+
+  async deleteEntity(entityId: string): Promise<void> {
+    const { error } = await this.client.from("entities").delete().eq("id", entityId);
+    if (error) {
+      throw new Error(`Failed to delete entity: ${error.message}`);
+    }
+  }
+
+  async linkIdentifier(input: IdentifierInsert): Promise<IdentifierRow> {
+    const record: IdentifierInsert = {
+      entity_id: input.entity_id,
+      kind: input.kind,
+      value: input.value,
+      verified_at: input.verified_at ?? null,
     };
 
-    if (shouldVerify) {
-      record.verified_at = args.verification?.verifiedAt ?? new Date().toISOString();
-    }
-
     const { data, error } = await this.client
-      .from("entity_identifiers")
+      .from("identifiers")
       .insert(record)
-      .select("id, entity_id, kind, issuer, value_norm, fingerprint, meta, verified_at, added_by_entity_id, created_at, updated_at")
+      .select("id, entity_id, kind, value, verified_at")
       .single();
 
     if (!error && data) {
@@ -295,23 +237,19 @@ class SupabaseIdentifierResolverStore implements IdentifierResolverStore {
     }
 
     if (error?.code === "23505") {
-      const existing = await this.findByFingerprint(args.kind, args.fingerprint);
+      const existing = await this.findIdentifier(record.kind, record.value);
       if (existing) {
         return existing;
       }
     }
 
-    if (error) {
-      throw new Error(`Failed to link identifier: ${error.message}`);
-    }
-
-    throw new Error("Failed to link identifier: unknown error");
+    throw new Error(`Failed to link identifier: ${error ? error.message : "unknown error"}`);
   }
 
-  async loadEntity(entityId: string): Promise<EntityRow> {
+  async loadEntity(entityId: string): Promise<IdentityEntityRow> {
     const { data, error } = await this.client
       .from("entities")
-      .select("id, display_name, profile, is_gm, created_at, updated_at")
+      .select("id, kind, primary_identifier, profile, created_at")
       .eq("id", entityId)
       .maybeSingle();
 
@@ -321,7 +259,7 @@ class SupabaseIdentifierResolverStore implements IdentifierResolverStore {
   async listEntitlements(entityId: string): Promise<EntitlementRow[]> {
     const { data, error } = await this.client
       .from("entitlements")
-      .select("entity_id, code, source, granted_at, meta")
+      .select("entity_id, code, source, granted_at")
       .eq("entity_id", entityId);
 
     if (error) {
@@ -331,40 +269,25 @@ class SupabaseIdentifierResolverStore implements IdentifierResolverStore {
     return data ?? [];
   }
 
-  async ensureEntitlement(
-    entityId: string,
-    code: string,
-    source: string,
-    context: Record<string, unknown>,
-  ): Promise<void> {
+  async upsertEntitlement(input: EntitlementInsert): Promise<void> {
     const { error } = await this.client
       .from("entitlements")
-      .upsert(
-        {
-          entity_id: entityId,
-          code,
-          source,
-          granted_at: new Date().toISOString(),
-          meta: toJson(context) ?? {},
-        },
-        { onConflict: "entity_id,code" },
-      );
+      .upsert(input, { onConflict: "entity_id,code" });
 
     if (error) {
-      throw new Error(`Failed to grant entitlement: ${error.message}`);
+      throw new Error(`Failed to upsert entitlement: ${error.message}`);
     }
   }
 }
 
 export function createSupabaseIdentifierResolverStore(
-  client: SupabaseClient<Database>,
+  client: SupabaseClient<IdentityDatabase>,
 ): IdentifierResolverStore {
   return new SupabaseIdentifierResolverStore(client);
 }
 
 export const internal = {
-  buildDefaultDisplayName,
-  hasSeniorHint,
-  isVerified,
-  shouldGrantSenior,
+  normalizeIdentifier,
+  seniorEligible,
+  storeValue,
 };

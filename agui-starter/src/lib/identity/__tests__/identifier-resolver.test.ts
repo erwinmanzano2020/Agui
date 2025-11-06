@@ -2,78 +2,78 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type {
-  EntityIdentifierRow,
-  EntityRow,
+  EntitlementInsert,
   EntitlementRow,
+  IdentityEntityInsert,
+  IdentityEntityRow,
+  IdentifierInsert,
+  IdentifierRow,
 } from "@/lib/db.types";
 
 import {
   type IdentifierInput,
   type IdentifierResolverStore,
   type ResolverOptions,
-  fingerprintIdentifier,
-  normalizeIdentifier,
   resolveIdentifier,
 } from "../identifier-resolver";
 
 class InMemoryStore implements IdentifierResolverStore {
   private entitySeq = 0;
   private identifierSeq = 0;
-  private entities = new Map<string, EntityRow>();
-  private identifiers = new Map<string, EntityIdentifierRow>();
+  private entities = new Map<string, IdentityEntityRow>();
+  private identifiers = new Map<string, IdentifierRow>();
   private entitlements: EntitlementRow[] = [];
 
-  async findByFingerprint(kind: EntityIdentifierRow["kind"], fingerprint: string) {
+  async findIdentifier(kind: IdentifierRow["kind"], value: string) {
     for (const identifier of this.identifiers.values()) {
-      if (identifier.kind === kind && identifier.fingerprint === fingerprint) {
+      if (identifier.kind === kind && identifier.value === value) {
         return identifier;
       }
     }
     return null;
   }
 
-  async createEntity(args: {
-    kind: EntityIdentifierRow["kind"];
-    normalizedValue: string;
-    displayName?: string | null;
-    profile?: Record<string, unknown> | null;
-  }) {
+  async createEntity(input: IdentityEntityInsert) {
     const id = `ent-${++this.entitySeq}`;
-    const row: EntityRow = {
+    const row: IdentityEntityRow = {
       id,
-      display_name: args.displayName ?? args.normalizedValue,
-      profile: (args.profile ?? {}) as unknown as EntityRow["profile"],
-      is_gm: false,
+      kind: input.kind,
+      primary_identifier: input.primary_identifier ?? null,
+      profile: (input.profile ?? {}) as IdentityEntityRow["profile"],
       created_at: new Date().toISOString(),
-      updated_at: null,
     };
     this.entities.set(id, row);
     return row;
   }
 
-  async linkIdentifier(args: {
-    entityId: string;
-    kind: EntityIdentifierRow["kind"];
-    normalizedValue: string;
-    fingerprint: string;
-    meta?: Record<string, unknown> | null;
-    verification?: ResolverOptions["verification"];
-  }) {
+  async updateEntity(entityId: string, patch: Partial<IdentityEntityInsert>) {
+    const current = this.entities.get(entityId);
+    if (!current) throw new Error(`entity ${entityId} missing`);
+    const next = {
+      ...current,
+      primary_identifier: patch.primary_identifier ?? current.primary_identifier,
+    } satisfies IdentityEntityRow;
+    this.entities.set(entityId, next);
+  }
+
+  async deleteEntity(entityId: string) {
+    this.entities.delete(entityId);
+  }
+
+  async linkIdentifier(input: IdentifierInsert) {
+    for (const identifier of this.identifiers.values()) {
+      if (identifier.kind === input.kind && identifier.value === input.value) {
+        return identifier;
+      }
+    }
+
     const id = `ident-${++this.identifierSeq}`;
-    const identifier: EntityIdentifierRow = {
+    const identifier: IdentifierRow = {
       id,
-      entity_id: args.entityId,
-      kind: args.kind,
-      issuer: null,
-      value_norm: args.normalizedValue,
-      fingerprint: args.fingerprint,
-      meta: (args.meta ?? {}) as unknown as EntityIdentifierRow["meta"],
-      verified_at: args.verification?.verified
-        ? args.verification?.verifiedAt ?? new Date().toISOString()
-        : null,
-      added_by_entity_id: null,
-      created_at: new Date().toISOString(),
-      updated_at: null,
+      entity_id: input.entity_id,
+      kind: input.kind,
+      value: input.value,
+      verified_at: input.verified_at ?? null,
     };
     this.identifiers.set(id, identifier);
     return identifier;
@@ -89,29 +89,22 @@ class InMemoryStore implements IdentifierResolverStore {
     return this.entitlements.filter((ent) => ent.entity_id === entityId);
   }
 
-  async ensureEntitlement(
-    entityId: string,
-    code: string,
-    source: string,
-    context: Record<string, unknown>,
-  ) {
+  async upsertEntitlement(input: EntitlementInsert) {
     const existing = this.entitlements.find(
-      (ent) => ent.entity_id === entityId && ent.code === code,
+      (ent) => ent.entity_id === input.entity_id && ent.code === input.code,
     );
 
     if (existing) {
-      existing.source = source;
+      existing.source = input.source ?? existing.source;
       existing.granted_at = new Date().toISOString();
-      existing.meta = context as unknown as EntitlementRow["meta"];
       return;
     }
 
     const entitlement: EntitlementRow = {
-      entity_id: entityId,
-      code,
-      source,
+      entity_id: input.entity_id,
+      code: input.code,
+      source: input.source ?? null,
       granted_at: new Date().toISOString(),
-      meta: context as unknown as EntitlementRow["meta"],
     };
     this.entitlements.push(entitlement);
   }
@@ -131,26 +124,22 @@ describe("identifier resolver", () => {
     const result = await resolveWithStore(store, input);
 
     assert.equal(result.created, true);
-    assert.equal(result.identifier.value_norm, "newuser@example.com");
-    assert.equal(result.identifier.fingerprint, "newuser@example.com");
-    assert.equal(result.entity.display_name, "newuser@example.com");
+    assert.equal(result.identifier.value, "newuser@example.com");
+    assert.equal(result.entity.primary_identifier, "newuser@example.com");
     assert.deepEqual(result.entitlements, []);
   });
 
   it("reuses an existing entity for duplicate identifiers", async () => {
     const store = new InMemoryStore();
-    const normalized = normalizeIdentifier("phone", "(0917) 000-1111");
-    const fingerprint = fingerprintIdentifier("phone", normalized);
     const first = await resolveWithStore(store, { kind: "phone", value: "(0917) 000-1111" });
 
     assert.equal(first.created, true);
 
-    // Emulate a second resolution that should reuse the same entity
     const second = await resolveWithStore(store, { kind: "phone", value: "09170001111" });
 
     assert.equal(second.created, false);
     assert.equal(second.entity.id, first.entity.id);
-    assert.equal(second.identifier.fingerprint, fingerprint);
+    assert.equal(second.identifier.value, first.identifier.value);
   });
 
   it("grants senior entitlement when gov_id is verified", async () => {
@@ -158,7 +147,6 @@ describe("identifier resolver", () => {
     const input: IdentifierInput = {
       kind: "gov_id",
       value: "SENIOR-1234",
-      meta: { senior: true },
     };
 
     const result = await resolveWithStore(store, input, {
@@ -168,5 +156,6 @@ describe("identifier resolver", () => {
     const senior = result.entitlements.find((ent) => ent.code === "senior");
     assert.ok(senior, "expected senior entitlement to be granted");
     assert.equal(senior?.source, "gov_id_auto");
+    assert.match(result.identifier.value, /^gov:/);
   });
 });
