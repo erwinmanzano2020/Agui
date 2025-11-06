@@ -28,3 +28,37 @@ create table if not exists entitlements (
   granted_at timestamptz default now(),
   primary key (entity_id, code)
 );
+
+-- ✅ Secure entitlements table access
+
+-- 1) Ensure entities are linked to auth users for RLS checks
+alter table public.entities
+  add column if not exists user_id uuid unique
+    references auth.users(id) on delete set null;
+
+-- 2) Revoke overly broad privileges and grant minimal access
+revoke all on table public.entitlements from anon, authenticated;
+grant select on table public.entitlements to authenticated;
+grant all on table public.entitlements to service_role;
+
+-- 3) Enable RLS for entitlements
+alter table public.entitlements enable row level security;
+
+-- 4) RLS policies
+drop policy if exists "entitlements: select own" on public.entitlements;
+create policy "entitlements: select own"
+on public.entitlements
+for select to authenticated
+using (
+  exists (
+    select 1 from public.entities e
+    where e.id = entitlements.entity_id
+      and e.user_id = auth.uid()
+  )
+);
+
+drop policy if exists "entitlements: write via service role" on public.entitlements;
+create policy "entitlements: write via service role"
+on public.entitlements
+for all to service_role
+using (true) with check (true);
