@@ -1,11 +1,12 @@
 // agui-starter/src/lib/supabase.ts
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/lib/db.types";
 import {
   NEXT_PUBLIC_SUPABASE_URL,
   NEXT_PUBLIC_SUPABASE_ANON_KEY,
 } from "./env";
 
-let _client: SupabaseClient | null = null;
+let _client: SupabaseClient<Database> | null = null;
 
 /**
  * Return a singleton Supabase client.
@@ -13,7 +14,7 @@ let _client: SupabaseClient | null = null;
  *   (so pages can fail gracefully).
  * - On the server/build, throw so we fail fast.
  */
-export function getSupabase(): SupabaseClient | null {
+export function getSupabase(): SupabaseClient<Database> | null {
   if (_client) return _client;
 
   const url = NEXT_PUBLIC_SUPABASE_URL;
@@ -31,7 +32,7 @@ export function getSupabase(): SupabaseClient | null {
     );
   }
 
-  _client = createClient(url, anon);
+  _client = createClient<Database>(url, anon);
   return _client;
 }
 

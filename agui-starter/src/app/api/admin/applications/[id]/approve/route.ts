@@ -1,14 +1,19 @@
 // src/app/api/admin/applications/[id]/approve/route.ts
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+
 import { z } from "@/lib/z";
 import { createServerSupabase } from "@/lib/auth/server";
+import type {
+  EntityApplicationRow,
+  EntityApplicationUpdate,
+} from "@/lib/db.types";
 
-const Params = z.object({
-  id: z.string().uuid(),
-});
+const Params = z.object({ id: z.string().uuid() });
 
-export async function POST(_req: NextRequest, context: { params: Promise<{ id: string }> }) {
+export async function POST(_req: NextRequest, { params }: { params: RouteParams<{ id: string }> }) {
+  const { id } = Params.parse(await params);
+
   const supabase = await createServerSupabase();
   const {
     data: { user },
@@ -18,41 +23,45 @@ export async function POST(_req: NextRequest, context: { params: Promise<{ id: s
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const parse = Params.safeParse(await context.params);
-  if (!parse.success) {
-    return NextResponse.json({ error: "Invalid ID" }, { status: 400 });
-  }
-  const appId = parse.data.id;
+  const patch: EntityApplicationUpdate = {
+    status: "approved",
+    decided_at: new Date().toISOString(),
+    decided_by_entity_id: user.id,
+  };
 
-  // 1) Approve in place (status change & audit)
-  const { error: upErr } = await supabase
-    .from("entity_applications" as never)
-    .update({
-      status: "approved",
-      decided_at: new Date().toISOString(),
-      decided_by_entity_id: user.id,
-    } as never)
-    .eq("id", appId);
+  const { data: app, error: updateError } = await supabase
+    .from("entity_applications")
+    .update(patch)
+    .eq("id", id)
+    .eq("status", "pending")
+    .select("*")
+    .maybeSingle<EntityApplicationRow>();
 
-  if (upErr) {
-    return NextResponse.json({ error: `Approve failed: ${upErr.message}` }, { status: 500 });
+  if (updateError) {
+    return NextResponse.json({ error: updateError.message }, { status: 400 });
   }
 
-  // 2) Trigger safe side-effects in DB
-  const { error: rpcErr } = await supabase.rpc(
-    "process_application",
-    {
-      p_application_id: appId,
-    } as never,
-  );
+  if (!app) {
+    return NextResponse.json({ ok: true, processed: false });
+  }
 
-  // Even if RPC fails, the approval stands — but we report it
-  if (rpcErr) {
+  const deciderId = app.decided_by_entity_id ?? user.id;
+
+  const { error: rpcError } = await supabase.rpc("process_application", {
+    p_application_id: id,
+    p_decider_entity_id: deciderId,
+  });
+
+  if (rpcError) {
     return NextResponse.json(
-      { ok: true, processed: false, warning: `Approved but processing failed: ${rpcErr.message}` },
+      {
+        ok: true,
+        processed: false,
+        warning: `Approved but processing failed: ${rpcError.message}`,
+      },
       { status: 200 },
     );
   }
 
-  return NextResponse.json({ ok: true, processed: true }, { status: 200 });
+  return NextResponse.json({ ok: true, processed: true });
 }

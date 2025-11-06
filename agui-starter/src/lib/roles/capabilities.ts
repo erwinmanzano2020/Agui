@@ -1,6 +1,5 @@
 // src/lib/roles/capabilities.ts
 import { createServerSupabase } from "@/lib/auth/server";
-import type { PostgrestResponse } from "@supabase/supabase-js";
 
 export type BrandRef = { id: string; slug: string; name: string };
 export type Capabilities = {
@@ -19,8 +18,6 @@ const GM_EMAILS = (process.env.AGHI_GM_EMAILS || "")
 // The shape we select with:  brand: brands(id,slug,name)
 type BrandCell = { id: string | number; slug: string; name: string };
 type RowWithBrand = { brand?: BrandCell | BrandCell[] | null };
-
-type BrandQuery = PostgrestResponse<RowWithBrand>;
 
 /** Map a selected brand record to a BrandRef (stringify ids). */
 function toBrandRef(b: BrandCell): BrandRef {
@@ -48,7 +45,7 @@ function rowsToBrandRefs(rows: ReadonlyArray<RowWithBrand> | null | undefined): 
 export async function getCapabilities(userId: string, email?: string): Promise<Capabilities> {
   const supabase = await createServerSupabase();
 
-  const [loyaltyQ, employeeQ, ownerQ]: BrandQuery[] = await Promise.all([
+  const [loyaltyQ, employeeQ, ownerQ] = await Promise.all([
     supabase.from("loyalty_memberships").select("brand:brands(id,slug,name)").eq("user_id", userId),
     supabase
       .from("employee_memberships")
@@ -58,9 +55,9 @@ export async function getCapabilities(userId: string, email?: string): Promise<C
     supabase.from("owner_memberships").select("brand:brands(id,slug,name)").eq("user_id", userId),
   ]);
 
-  const loyaltyBrands = rowsToBrandRefs(loyaltyQ.data);
-  const employeeOf = rowsToBrandRefs(employeeQ.data);
-  const ownerOf = rowsToBrandRefs(ownerQ.data);
+  const loyaltyBrands = rowsToBrandRefs(loyaltyQ.data as RowWithBrand[] | null | undefined);
+  const employeeOf = rowsToBrandRefs(employeeQ.data as RowWithBrand[] | null | undefined);
+  const ownerOf = rowsToBrandRefs(ownerQ.data as RowWithBrand[] | null | undefined);
 
   let gmEmail = email;
   if (!gmEmail) {

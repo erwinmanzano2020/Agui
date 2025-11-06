@@ -2,7 +2,7 @@
 import { cookies, headers } from "next/headers";
 import { createServerClient, type CookieOptions, type SupabaseClient } from "@supabase/ssr";
 
-import { Database } from "@/lib/types/supabase";
+import type { Database } from "@/lib/db.types";
 
 type CookieStore = Awaited<ReturnType<typeof cookies>>;
 type HeaderStore = Awaited<ReturnType<typeof headers>>;
@@ -36,9 +36,11 @@ async function resolveMaybePromise<T>(
   return isPromiseLike<T>(resolvedFallback) ? await resolvedFallback : (resolvedFallback as T);
 }
 
+export type SupabaseServerClient = SupabaseClient<Database>;
+
 export async function createServerSupabase(
   options: CreateServerSupabaseOptions = {},
-): Promise<SupabaseClient<Database>> {
+): Promise<SupabaseServerClient> {
   const cookieStore = await resolveMaybePromise(options.cookieStore, cookies);
   const headerStore = await resolveMaybePromise(options.headerStore, headers);
 

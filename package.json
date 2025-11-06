@@ -1,7 +1,12 @@
 {
   "private": "true",
   "name": "agui-root",
+  "scripts": {
+    "db:types:local": "supabase gen types typescript --local --schema public > agui-starter/src/lib/db.types.ts",
+    "db:types:remote": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID --schema public > agui-starter/src/lib/db.types.ts"
+  },
   "devDependencies": {
+    "@supabase/cli": "^2.7.4",
     "@types/node": "^20.19.21"
   }
 }
