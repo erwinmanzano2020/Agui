@@ -1,5 +1,3 @@
-"use server";
-
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -108,6 +106,7 @@ export async function createCustomRole(
   _prevState: CreateRoleState,
   formData: FormData,
 ): Promise<CreateRoleState> {
+  "use server";
   const houseId = ensureString(formData.get("houseId"));
   const houseSlug = ensureString(formData.get("houseSlug"));
   const name = ensureString(formData.get("name"));

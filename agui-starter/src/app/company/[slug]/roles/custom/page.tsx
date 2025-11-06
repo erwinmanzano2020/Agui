@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { CustomRoleForm } from "./CustomRoleForm";
 import { createServerSupabaseClient } from "@/lib/supabase-server";
-import { evaluatePolicyForCurrentUser } from "@/lib/authz/server";
+import { evaluatePolicyForCurrentUser, getMyEntityId } from "@/lib/authz/server";
 
 type AssignablePolicy = {
   id: string;
@@ -48,6 +48,23 @@ export default async function CustomRolesPage({ params }: PageParams) {
     .maybeSingle();
 
   if (houseError || !house) {
+    notFound();
+  }
+
+  const entityId = await getMyEntityId(supabase);
+  if (!entityId) {
+    notFound();
+  }
+
+  const { data: membership, error: membershipError } = await supabase
+    .from("house_roles")
+    .select("role")
+    .eq("house_id", house.id)
+    .eq("entity_id", entityId)
+    .eq("role", "house_owner")
+    .maybeSingle();
+
+  if (membershipError || !membership) {
     notFound();
   }
 
