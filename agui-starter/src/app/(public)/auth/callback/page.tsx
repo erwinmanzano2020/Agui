@@ -20,7 +20,7 @@ export default function AuthCallback() {
       try {
         const code = searchParams.get("code");
         if (code) {
-          const { error } = await supabase.auth.exchangeCodeForSession({ code });
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
           if (error) throw error;
         } else if (
           typeof window !== "undefined" &&
