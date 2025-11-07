@@ -91,7 +91,7 @@ export async function createServerSupabaseClient<
   }
 
   try {
-    const cookieStore = await cookies();
+    const cookieStore = await Promise.resolve(cookies());
     const cookieValue = cookieStore.get(`sb-${projectRef}-auth-token`)?.value;
     const tokens = extractTokens(decodeCookieValue(cookieValue ?? ""));
     if (!tokens) {

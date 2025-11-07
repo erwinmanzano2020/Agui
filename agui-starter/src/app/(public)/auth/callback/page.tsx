@@ -13,53 +13,51 @@ export default function AuthCallback() {
     let active = true;
 
     const finalize = async () => {
-      const nextPath = searchParams.get("next") || "/me";
-      const cleanUrl = () => {
-        const url = new URL(window.location.href);
-        url.hash = "";
-        url.searchParams.delete("code");
-        url.searchParams.delete("next");
-        const query = url.searchParams.toString();
-        window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
-      };
+      const rawNext = searchParams.get("next");
+      const nextPath = rawNext || "/me";
+      let encounteredError = false;
 
       try {
-
-        const params = new URLSearchParams(window.location.search);
-        const code = params.get("code");
+        const code = searchParams.get("code");
         if (code) {
-          const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+          const { error } = await supabase.auth.exchangeCodeForSession({ code });
           if (error) throw error;
-          await syncSession(data.session ?? null);
-        } else {
-          const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
-          const accessToken = hashParams.get("access_token");
-          const refreshToken = hashParams.get("refresh_token");
-
-          if (accessToken && refreshToken) {
-            const { data, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            });
-            if (error) throw error;
-            await syncSession(data.session ?? null);
-          } else {
-            const { data } = await supabase.auth.getSession();
-            await syncSession(data.session ?? null);
-          }
-        }
-
-        if (active) {
-          cleanUrl();
-          router.replace(nextPath);
+        } else if (
+          typeof window !== "undefined" &&
+          window.location.hash.includes("access_token")
+        ) {
+          const { error } = await supabase.auth.exchangeCodeForSession(window.location.href);
+          if (error) throw error;
         }
       } catch (error) {
-        console.error("Failed to finalize authentication", error);
+        console.error("Auth callback error:", error);
+        encounteredError = true;
+      } finally {
+        try {
+          const { data } = await supabase.auth.getSession();
+          await syncSession(data.session ?? null);
+        } catch (syncError) {
+          console.error("Failed to sync session after auth callback:", syncError);
+        }
+
+        if (typeof window !== "undefined") {
+          const url = new URL(window.location.href);
+          url.hash = "";
+          url.searchParams.delete("code");
+          url.searchParams.delete("next");
+          const query = url.searchParams.toString();
+          window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
+        }
+
         if (active) {
-          cleanUrl();
-          const next = searchParams.get("next");
-          const redirectUrl = next ? `/welcome?error=auth&next=${encodeURIComponent(next)}` : "/welcome?error=auth";
-          router.replace(redirectUrl);
+          if (encounteredError) {
+            const redirectUrl = rawNext
+              ? `/welcome?error=auth&next=${encodeURIComponent(rawNext)}`
+              : "/welcome?error=auth";
+            router.replace(redirectUrl);
+          } else {
+            router.replace(nextPath);
+          }
         }
       }
     };

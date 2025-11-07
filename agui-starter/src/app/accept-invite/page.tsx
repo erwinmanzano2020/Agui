@@ -50,8 +50,13 @@ export default function AcceptInvitePage() {
       }
 
       const origin = typeof window !== "undefined" ? window.location.origin : undefined;
+      const nextParams = new URLSearchParams();
+      if (token) {
+        nextParams.set("token", token);
+      }
+      const nextPath = `/accept-invite${nextParams.toString() ? `?${nextParams.toString()}` : ""}`;
       const redirectTo = origin
-        ? `${origin}/accept-invite${token ? `?token=${encodeURIComponent(token)}` : ""}`
+        ? `${origin}/auth/callback?next=${encodeURIComponent(nextPath)}`
         : undefined;
 
       setSendingEmail(true);

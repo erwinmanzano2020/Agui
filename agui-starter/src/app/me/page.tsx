@@ -17,7 +17,7 @@ export default async function MePage() {
   const { data: userRes } = await supabase.auth.getUser();
   const userId = userRes?.user?.id;
   if (!userId) {
-    redirect("/welcome");
+    redirect(`/welcome?next=${encodeURIComponent("/me")}`);
   }
 
   const caps = await getCapabilitiesForUser(userId);
