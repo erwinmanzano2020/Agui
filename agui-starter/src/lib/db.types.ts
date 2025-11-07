@@ -19,6 +19,32 @@ export type AppInboxRow = {
   read_at: string | null;
 };
 
+export type AppRow = {
+  key: string;
+  name: string;
+  category: string | null;
+  tags: string[];
+  default_settings: Json;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TileAssignmentRow = {
+  id: string;
+  entity_id: string;
+  app_key: string;
+  context: Json | null;
+  visible: boolean;
+  created_at: string;
+};
+
+export type AppVisibilityRuleRow = {
+  app_key: string;
+  min_role: "customer" | "employee" | "owner" | "gm" | null;
+  require_policies: string[];
+  created_at: string;
+};
+
 export type AppInboxInsert = {
   id?: string;
   entity_id: string;
