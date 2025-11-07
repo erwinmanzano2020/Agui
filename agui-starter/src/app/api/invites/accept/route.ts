@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getInviteByToken, markInviteAccepted } from "@/lib/invites";
 import { ensureEntityForUser } from "@/lib/identity/entity-server";
 import { grantGuildRole, grantHouseRole } from "@/lib/identity/roles";

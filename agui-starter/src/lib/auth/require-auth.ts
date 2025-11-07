@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import type { Session, SupabaseClient, User } from "@supabase/supabase-js";
 
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export type RequireAuthResult = {
   supabase: SupabaseClient;

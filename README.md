@@ -66,11 +66,11 @@ derives its runtime site URL automatically, with an optional `NEXT_PUBLIC_SITE_U
 
 3. **Sign in** with `GM_EMAIL` on the preview site → open `/admin`.
 
-## Role-gated UI
+## Policy-gated UI
 
-- `agui-starter/src/lib/authz.ts` centralizes the `Feature` union and the `FEATURE_ROLES` mapping. Each feature lists the scope (`PLATFORM`, `GUILD`, or `HOUSE`) and the role required to unlock it. `game_master` automatically bypasses these checks.
-- Use the async helpers `can(feature)` / `hasRole(scope, role)` on the server or client to check access. For server components wrap protected sections with `<RequireFeature feature="…">` (`agui-starter/src/components/auth/RequireFeature.tsx`).
-- Launcher tiles and the command palette use the same helpers. When adding a new app or command, set its `feature` field and add the matching entry in `FEATURE_ROLES`.
+- Feature access is policy driven. `agui-starter/src/lib/auth/permissions.ts` maps each `AppFeature` to one or more policy checks (for example `tiles:read` and `apps:discover`).
+- `agui-starter/src/lib/policy/server.ts` evaluates `{ action, resource }` requests against the signed-in entity’s policies. Use the helpers `getUserPermissions()` / `canAccess(feature, permissions)` to gate UI, or wrap protected sections with `<RequireFeature feature="…">`.
+- Launcher tiles and the command palette read from the same permission set provided by `UserPermissionsProvider`, keeping server and client behaviour aligned.
 
 ### Invites & Time Clock
 

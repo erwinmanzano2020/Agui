@@ -6,7 +6,7 @@ import { getCurrentEntity, getOrCreateEntityByIdentifier } from "@/lib/auth/enti
 import { issueCard, loadCardsForEntity, updateCardFlags } from "@/lib/passes/cards";
 import { ensureHousePassScheme } from "@/lib/loyalty/schemes-server";
 import { ensureLoyaltyProfile } from "@/lib/loyalty/rules";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { loadHouseBySlug } from "@/lib/taxonomy/houses-server";
 import type { EntityIdentifierType } from "@/lib/types/taxonomy";
 

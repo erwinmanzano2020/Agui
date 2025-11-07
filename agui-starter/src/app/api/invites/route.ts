@@ -1,7 +1,7 @@
 import { headers, type UnsafeUnwrappedHeaders } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { createInvite } from "@/lib/invites";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import { getServiceSupabase } from "@/lib/supabase-service";

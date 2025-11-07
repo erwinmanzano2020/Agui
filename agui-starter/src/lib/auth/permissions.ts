@@ -1,5 +1,5 @@
-import type { RoleAssignments } from "@/lib/authz";
-import { hasRoleInAssignments } from "@/lib/authz";
+import type { PolicyRecord, PolicyRequest } from "@/lib/policy/types";
+import { permissionSetAllows } from "@/lib/policy/matcher";
 
 export enum AppFeature {
   ALLIANCES = "alliances",
@@ -14,69 +14,48 @@ export enum AppFeature {
   SETTINGS = "settings",
 }
 
-type RoleRequirement = {
-  scope: keyof RoleAssignments;
-  role: string;
-};
-
-type FeatureDefinition = {
-  requirements: RoleRequirement[];
-  predicates: Array<(roles: RoleAssignments) => boolean>;
-};
-
-const ROLE = {
-  gm: { scope: "PLATFORM" as const, role: "game_master" },
-  guildMaster: { scope: "GUILD" as const, role: "guild_master" },
-  guildElder: { scope: "GUILD" as const, role: "guild_elder" },
-  houseManager: { scope: "HOUSE" as const, role: "house_manager" },
-  cashier: { scope: "HOUSE" as const, role: "cashier" },
-};
-
-function predicate(requirement: RoleRequirement) {
-  return (roles: RoleAssignments) => hasRoleInAssignments(roles, requirement.scope, requirement.role);
-}
-
-const FEATURE_DEFINITIONS: Partial<Record<AppFeature, FeatureDefinition>> = {
-  [AppFeature.ALLIANCES]: {
-    requirements: [ROLE.gm],
-    predicates: [predicate(ROLE.gm)],
-  },
-  [AppFeature.GUILDS]: {
-    requirements: [ROLE.guildMaster, ROLE.gm],
-    predicates: [predicate(ROLE.guildMaster), predicate(ROLE.gm)],
-  },
-  [AppFeature.TEAM]: {
-    requirements: [ROLE.houseManager],
-    predicates: [predicate(ROLE.houseManager)],
-  },
-  [AppFeature.SHIFTS]: {
-    requirements: [ROLE.houseManager],
-    predicates: [predicate(ROLE.houseManager)],
-  },
-  [AppFeature.PAYROLL]: {
-    requirements: [ROLE.houseManager],
-    predicates: [predicate(ROLE.houseManager)],
-  },
-  [AppFeature.DTR_BULK]: {
-    requirements: [ROLE.houseManager],
-    predicates: [predicate(ROLE.houseManager)],
-  },
-  [AppFeature.POS]: {
-    requirements: [ROLE.cashier, ROLE.houseManager],
-    predicates: [predicate(ROLE.cashier), predicate(ROLE.houseManager)],
-  },
-  [AppFeature.ALLIANCE_PASS]: {
-    requirements: [ROLE.guildElder, ROLE.gm],
-    predicates: [predicate(ROLE.guildElder), predicate(ROLE.gm)],
-  },
-  [AppFeature.IMPORT_CSV]: {
-    requirements: [ROLE.gm],
-    predicates: [predicate(ROLE.gm)],
-  },
-  [AppFeature.SETTINGS]: {
-    requirements: [ROLE.gm],
-    predicates: [predicate(ROLE.gm)],
-  },
+const FEATURE_DEFINITIONS: Partial<Record<AppFeature, PolicyRequest[]>> = {
+  [AppFeature.ALLIANCES]: [
+    { action: "tiles:read", resource: "alliances" },
+    { action: "apps:discover", resource: "alliances" },
+  ],
+  [AppFeature.GUILDS]: [
+    { action: "tiles:read", resource: "guilds" },
+    { action: "apps:discover", resource: "guilds" },
+  ],
+  [AppFeature.TEAM]: [
+    { action: "tiles:read", resource: "team" },
+    { action: "apps:discover", resource: "team" },
+  ],
+  [AppFeature.SHIFTS]: [
+    { action: "tiles:read", resource: "shifts" },
+    { action: "apps:discover", resource: "shifts" },
+  ],
+  [AppFeature.PAYROLL]: [
+    { action: "tiles:read", resource: "payroll" },
+    { action: "apps:discover", resource: "payroll" },
+    { action: "payroll:*", resource: "*" },
+  ],
+  [AppFeature.DTR_BULK]: [
+    { action: "tiles:read", resource: "dtr-bulk" },
+    { action: "apps:discover", resource: "dtr-bulk" },
+  ],
+  [AppFeature.POS]: [
+    { action: "tiles:read", resource: "pos" },
+    { action: "apps:discover", resource: "pos" },
+  ],
+  [AppFeature.ALLIANCE_PASS]: [
+    { action: "tiles:read", resource: "alliance-pass" },
+    { action: "apps:discover", resource: "alliance-pass" },
+  ],
+  [AppFeature.IMPORT_CSV]: [
+    { action: "tiles:read", resource: "import-csv" },
+    { action: "apps:discover", resource: "import-csv" },
+  ],
+  [AppFeature.SETTINGS]: [
+    { action: "tiles:read", resource: "settings" },
+    { action: "apps:discover", resource: "settings" },
+  ],
 };
 
 export type FeatureInput = AppFeature | Iterable<AppFeature>;
@@ -93,25 +72,25 @@ function toArray(input: FeatureInput): AppFeature[] {
   return [];
 }
 
-export function canAccess(features: FeatureInput, roles: RoleAssignments): boolean {
+export function canAccess(features: FeatureInput, permissions: PolicyRecord[]): boolean {
   const list = toArray(features);
   if (list.length === 0) {
     return true;
   }
 
   return list.every((feature) => {
-    const definition = FEATURE_DEFINITIONS[feature];
-    if (!definition) {
+    const requirements = FEATURE_DEFINITIONS[feature];
+    if (!requirements || requirements.length === 0) {
       return true;
     }
 
-    return definition.predicates.some((predicateFn) => predicateFn(roles));
+    return requirements.some((requirement) =>
+      permissionSetAllows(permissions, requirement),
+    );
   });
 }
 
-export function requiredRolesFor(feature: AppFeature): RoleRequirement[] {
-  const definition = FEATURE_DEFINITIONS[feature];
-  return definition?.requirements ?? [];
+export function requiredPoliciesFor(feature: AppFeature): PolicyRequest[] {
+  const requirements = FEATURE_DEFINITIONS[feature];
+  return requirements ? requirements.slice() : [];
 }
-
-export { type RoleAssignments };
