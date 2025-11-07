@@ -5,6 +5,25 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { supabase, syncSession } from "@/lib/auth/client";
 
+async function syncSessionOrThrow() {
+  const { data, error } = await supabase.auth.getSession();
+  if (error) {
+    throw error;
+  }
+
+  await syncSession(data.session ?? null);
+}
+
+function cleanUrl() {
+  if (typeof window === "undefined") return;
+  const url = new URL(window.location.href);
+  url.hash = "";
+  url.searchParams.delete("code");
+  url.searchParams.delete("next");
+  const query = url.searchParams.toString();
+  window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
+}
+
 export default function AuthCallback() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -12,10 +31,9 @@ export default function AuthCallback() {
   useEffect(() => {
     let active = true;
 
-    const finalize = async () => {
+    (async () => {
       const rawNext = searchParams.get("next");
-      const nextPath = rawNext || "/me";
-      let encounteredError = false;
+      const nextPath = rawNext && rawNext.startsWith("/") ? rawNext : "/me";
 
       try {
         const code = searchParams.get("code");
@@ -29,40 +47,22 @@ export default function AuthCallback() {
           const { error } = await supabase.auth.exchangeCodeForSession(window.location.href);
           if (error) throw error;
         }
+
+        await syncSessionOrThrow();
+
+        if (!active) return;
+        cleanUrl();
+        router.replace(nextPath);
       } catch (error) {
-        console.error("Auth callback error:", error);
-        encounteredError = true;
-      } finally {
-        try {
-          const { data } = await supabase.auth.getSession();
-          await syncSession(data.session ?? null);
-        } catch (syncError) {
-          console.error("Failed to sync session after auth callback:", syncError);
-        }
-
-        if (typeof window !== "undefined") {
-          const url = new URL(window.location.href);
-          url.hash = "";
-          url.searchParams.delete("code");
-          url.searchParams.delete("next");
-          const query = url.searchParams.toString();
-          window.history.replaceState(null, "", query ? `${url.pathname}?${query}` : url.pathname);
-        }
-
-        if (active) {
-          if (encounteredError) {
-            const redirectUrl = rawNext
-              ? `/welcome?error=auth&next=${encodeURIComponent(rawNext)}`
-              : "/welcome?error=auth";
-            router.replace(redirectUrl);
-          } else {
-            router.replace(nextPath);
-          }
-        }
+        console.error("Auth finalize error:", error);
+        if (!active) return;
+        cleanUrl();
+        const redirectUrl = rawNext
+          ? `/welcome?error=auth&next=${encodeURIComponent(rawNext)}`
+          : "/welcome?error=auth";
+        router.replace(redirectUrl);
       }
-    };
-
-    void finalize();
+    })();
 
     return () => {
       active = false;
