@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 
@@ -21,18 +22,24 @@ export default async function MePage() {
       </section>
 
       <section className="grid gap-3">
-        <a href="/my/apps" className="rounded-xl border p-4 hover:bg-neutral-50">
+        <Link
+          href="/my/apps"
+          className="block rounded-xl border p-4 hover:bg-neutral-50"
+        >
           <div className="font-medium">My Apps</div>
           <div className="text-sm text-neutral-500">
             Open your available tiles, or discover apps you can request.
           </div>
-        </a>
-        <a href="/company" className="rounded-xl border p-4 hover:bg-neutral-50">
+        </Link>
+        <Link
+          href="/company"
+          className="block rounded-xl border p-4 hover:bg-neutral-50"
+        >
           <div className="font-medium">My Businesses</div>
           <div className="text-sm text-neutral-500">
             Manage stores, roles, and staff.
           </div>
-        </a>
+        </Link>
       </section>
     </main>
   );

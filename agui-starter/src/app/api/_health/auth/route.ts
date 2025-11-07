@@ -10,10 +10,8 @@ export async function GET() {
       user: data?.user ?? null, // remove later if you want less detail
       error: error?.message ?? null,
     });
-  } catch (e: any) {
-    return NextResponse.json(
-      { ok: false, fatal: e?.message ?? String(e) },
-      { status: 500 }
-    );
+  } catch (e: unknown) {
+    const message = e instanceof Error ? e.message : JSON.stringify(e, null, 2);
+    return NextResponse.json({ ok: false, fatal: message }, { status: 500 });
   }
 }
