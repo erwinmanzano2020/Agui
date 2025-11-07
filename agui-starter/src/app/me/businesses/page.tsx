@@ -8,7 +8,7 @@ export default async function MyBusinessesPage() {
   const supabase = await createServerSupabase();
   const { data: userRes } = await supabase.auth.getUser();
   const userId = userRes?.user?.id;
-  if (!userId) redirect("/welcome");
+  if (!userId) redirect(`/welcome?next=${encodeURIComponent("/me/businesses")}`);
 
   const caps = await getCapabilitiesForUser(userId);
 
