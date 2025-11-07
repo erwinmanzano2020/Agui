@@ -5,7 +5,7 @@ import Link from "next/link";
 import TileGrid from "@/components/me/TileGrid";
 import AppTile from "@/components/me/AppTile";
 import { getCapabilitiesForUser } from "@/lib/roles/get-capabilities.server";
-import { createServerSupabase } from "@/lib/auth/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { fetchInbox } from "@/lib/inbox/queries.server";
 import { BizIcon, EmployeeIcon, GMIcon, LoyaltyIcon } from "@/components/me/icons";
 import { Button } from "@/components/ui/button";
@@ -13,9 +13,19 @@ import { Button } from "@/components/ui/button";
 export const dynamic = "force-dynamic";
 
 export default async function MePage() {
-  const supabase = await createServerSupabase();
-  const { data: userRes } = await supabase.auth.getUser();
-  const userId = userRes?.user?.id;
+  let userId: string | null = null;
+
+  try {
+    const supabase = await createServerSupabaseClient();
+    const { data, error } = await supabase.auth.getUser();
+    if (error) {
+      console.error("[/me] getUser error:", error.message);
+    }
+    userId = data?.user?.id ?? null;
+  } catch (error) {
+    console.error("[/me] fatal during getUser:", error);
+  }
+
   if (!userId) {
     redirect(`/welcome?next=${encodeURIComponent("/me")}`);
   }
