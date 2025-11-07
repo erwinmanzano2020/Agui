@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getMyEntityId } from "@/lib/authz";
 import { permissionSetAllows } from "./matcher";
 import type { PolicyRecord, PolicyRequest } from "./types";

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { getMyRoles, listMyPolicies } from "@/lib/authz/server";
 import { ensureEntityForUser, resolveEntityIdForUser } from "@/lib/identity/entity-server";

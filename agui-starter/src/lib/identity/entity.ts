@@ -59,7 +59,7 @@ export async function ensureEntityByEmail(
 
 async function getAuthedSupabase(): Promise<SupabaseClient> {
   if (typeof window === "undefined") {
-    const { createServerSupabaseClient } = await import("@/lib/supabase-server");
+    const { createServerSupabaseClient } = await import("@/lib/supabase/server");
     return await createServerSupabaseClient();
   }
 

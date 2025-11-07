@@ -3,8 +3,9 @@ import "server-only";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
-import { NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_SUPABASE_URL } from "./env";
-import { getSupabaseProjectRef } from "./supabase-auth-cookie";
+import type { Database } from "@/lib/db.types";
+import { NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_SUPABASE_URL } from "../env";
+import { getSupabaseProjectRef } from "../supabase-auth-cookie";
 
 type SessionCookiePayload = {
   currentSession?: {
@@ -65,7 +66,9 @@ function extractTokens(payload: SessionCookiePayload | null): RestoredTokens | n
   return { accessToken, refreshToken } satisfies RestoredTokens;
 }
 
-export async function createServerSupabaseClient(): Promise<SupabaseClient> {
+export async function createServerSupabaseClient<
+  Schema = Database,
+>(): Promise<SupabaseClient<Schema>> {
   const url = NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -75,7 +78,7 @@ export async function createServerSupabaseClient(): Promise<SupabaseClient> {
     );
   }
 
-  const client = createClient(url, anonKey, {
+  const client = createClient<Schema>(url, anonKey, {
     auth: {
       persistSession: false,
       detectSessionInUrl: false,
@@ -88,7 +91,7 @@ export async function createServerSupabaseClient(): Promise<SupabaseClient> {
   }
 
   try {
-    const cookieStore = await cookies();
+    const cookieStore = cookies();
     const cookieValue = cookieStore.get(`sb-${projectRef}-auth-token`)?.value;
     const tokens = extractTokens(decodeCookieValue(cookieValue ?? ""));
     if (!tokens) {

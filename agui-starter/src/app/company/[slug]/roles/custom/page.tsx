@@ -1,7 +1,8 @@
 import { notFound } from "next/navigation";
 
 import { CustomRoleForm } from "./CustomRoleForm";
-import { createServerSupabaseClient } from "@/lib/supabase-server";
+import { createCustomRole } from "./server-actions";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { evaluatePolicyForCurrentUser, getMyEntityId } from "@/lib/authz/server";
 
 type AssignablePolicy = {
@@ -139,7 +140,12 @@ export default async function CustomRolesPage({ params }: PageParams) {
         </p>
       </header>
 
-      <CustomRoleForm houseId={house.id} houseSlug={house.slug} policies={policies} />
+      <CustomRoleForm
+        houseId={house.id}
+        houseSlug={house.slug}
+        policies={policies}
+        createRoleAction={createCustomRole}
+      />
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-foreground">Existing custom roles</h2>

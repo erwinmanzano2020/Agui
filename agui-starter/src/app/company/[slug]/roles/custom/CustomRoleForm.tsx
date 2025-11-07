@@ -6,10 +6,10 @@ import { useFormState, useFormStatus } from "react-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  createCustomRole,
+  type CreateRoleAction,
   createRoleInitialState,
   type CreateRoleState,
-} from "./actions";
+} from "./types";
 
 type AssignablePolicy = {
   id: string;
@@ -23,6 +23,7 @@ type CustomRoleFormProps = {
   houseId: string;
   houseSlug: string;
   policies: AssignablePolicy[];
+  createRoleAction: CreateRoleAction;
 };
 
 function SubmitButton() {
@@ -69,8 +70,13 @@ function Message({ state }: { state: CreateRoleState }) {
   return <p className={`text-sm ${tone}`}>{text}</p>;
 }
 
-export function CustomRoleForm({ houseId, houseSlug, policies }: CustomRoleFormProps) {
-  const [state, formAction] = useFormState(createCustomRole, createRoleInitialState);
+export function CustomRoleForm({
+  houseId,
+  houseSlug,
+  policies,
+  createRoleAction,
+}: CustomRoleFormProps) {
+  const [state, formAction] = useFormState(createRoleAction, createRoleInitialState);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const formRef = useRef<HTMLFormElement>(null);
 
