@@ -1,32 +1,21 @@
-import Link from "next/link";
-import { getSupabase } from "@/lib/supabase";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
+
+import { loadWorkspaceSectionsForSlug } from "@/lib/tiles/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function CompanyDetail({ params }: { params: { slug: string } }) {
-  const db = getSupabase();
-  if (!db) return notFound();
-  const { data: house } = await db
-    .from("houses")
-    .select("id,slug,name,house_type,guild_id")
-    .eq("slug", params.slug)
-    .maybeSingle();
-  if (!house) return notFound();
+export default async function CompanyLanding({ params }: { params: { slug: string } }) {
+  const sections = await loadWorkspaceSectionsForSlug(params.slug);
 
-  return (
-    <div className="space-y-3">
-      <div className="text-xl font-semibold">{house.name}</div>
-      <div className="text-xs text-muted-foreground">/{house.slug}</div>
-      <div className="text-sm">
-        Type: <span className="font-medium">{house.house_type}</span>
-      </div>
-      <Link
-        href={`/company/${house.slug}/roles/custom`}
-        className="inline-flex text-sm font-medium text-primary hover:underline"
-      >
-        Manage custom roles →
-      </Link>
-    </div>
-  );
+  if (!sections) {
+    notFound();
+  }
+
+  const target = sections.sections.find((section) => section.key === "overview") ?? sections.sections[0];
+
+  if (!target) {
+    notFound();
+  }
+
+  redirect(target.defaultRoute);
 }
