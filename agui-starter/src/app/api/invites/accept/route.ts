@@ -1,9 +1,12 @@
+import type { User } from "@supabase/supabase-js";
+import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
-import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getInviteByToken, markInviteAccepted } from "@/lib/invites";
 import { ensureEntityForUser } from "@/lib/identity/entity-server";
 import { grantGuildRole, grantHouseRole } from "@/lib/identity/roles";
+import { ensureActiveEmployment, listAccountUserIds } from "@/lib/employments";
+import { getInviteByToken, markInviteAccepted, type InviteRecord } from "@/lib/invites";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 function normalizeEmail(email: string | null | undefined): string | null {
   if (typeof email !== "string") {
@@ -43,7 +46,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  let invite;
+  let invite: InviteRecord | null;
   try {
     invite = await getInviteByToken(token);
   } catch (error) {
@@ -55,7 +58,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invite not found" }, { status: 404 });
   }
 
-  if (invite.status !== "PENDING") {
+  if (invite.status !== "PENDING" || (invite.consumed_at && invite.consumed_at.length > 0)) {
     return NextResponse.json({ error: "Invite already used" }, { status: 400 });
   }
 
@@ -66,6 +69,68 @@ export async function POST(req: Request) {
     }
   }
 
+  if (invite.kind === "employee" || invite.kind === "owner") {
+    return acceptEmploymentInvite(user, invite);
+  }
+
+  return acceptLegacyInvite(user, invite);
+}
+
+async function acceptEmploymentInvite(user: User, invite: InviteRecord) {
+  if (!invite.business_id) {
+    return NextResponse.json({ error: "Invite missing business context" }, { status: 400 });
+  }
+
+  const inviteEmail = normalizeEmail(invite.email);
+  const userEmail = normalizeEmail(user.email ?? null);
+  if (inviteEmail && inviteEmail !== userEmail) {
+    return NextResponse.json({ error: "Invite email does not match your account" }, { status: 403 });
+  }
+
+  let entityId: string;
+  try {
+    entityId = await ensureEntityForUser(user);
+  } catch (error) {
+    console.error("Failed to ensure entity for invite acceptance", error);
+    return NextResponse.json({ error: "Failed to prepare account" }, { status: 500 });
+  }
+
+  try {
+    await ensureActiveEmployment(invite.business_id, entityId, invite.role_id);
+  } catch (error) {
+    console.error("Failed to activate employment", error);
+    return NextResponse.json({ error: "Failed to activate employment" }, { status: 500 });
+  }
+
+  try {
+    await markInviteAccepted(invite.id);
+  } catch (error) {
+    console.error("Failed to mark invite accepted", error);
+    return NextResponse.json({ error: "Failed to finalize invite" }, { status: 500 });
+  }
+
+  try {
+    const relatedUserIds = await listAccountUserIds(entityId).catch((error) => {
+      console.error("Failed to load account links for employment revalidation", error);
+      return [] as string[];
+    });
+    const targets = new Set<string>([user.id, ...relatedUserIds]);
+    for (const userId of targets) {
+      revalidateTag(`tiles:user:${userId}`);
+    }
+  } catch (error) {
+    console.error("Failed to revalidate tiles after invite acceptance", error);
+  }
+
+  return NextResponse.json({
+    ok: true,
+    kind: invite.kind,
+    businessId: invite.business_id,
+    roleId: invite.role_id,
+  });
+}
+
+async function acceptLegacyInvite(user: User, invite: InviteRecord) {
   const inviteEmail = normalizeEmail(invite.email);
   const userEmail = normalizeEmail(user.email ?? null);
 
@@ -100,14 +165,14 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "Invite missing house context" }, { status: 400 });
       }
       for (const role of inviteRoles) {
-        await grantHouseRole(entityId, invite.house_id, role, { grantedBy: invite.invited_by });
+        await grantHouseRole(entityId, invite.house_id, role, { grantedBy: invite.invited_by ?? undefined });
       }
     } else if (invite.scope === "GUILD") {
       if (!invite.guild_id) {
         return NextResponse.json({ error: "Invite missing guild context" }, { status: 400 });
       }
       for (const role of inviteRoles) {
-        await grantGuildRole(entityId, invite.guild_id, role, { grantedBy: invite.invited_by });
+        await grantGuildRole(entityId, invite.guild_id, role, { grantedBy: invite.invited_by ?? undefined });
       }
     } else {
       return NextResponse.json({ error: "Unsupported invite scope" }, { status: 400 });

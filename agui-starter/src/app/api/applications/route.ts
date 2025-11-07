@@ -1,54 +1,59 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { createServerClient, type CookieOptions } from "@supabase/ssr";
 
-import type { ApplicationType } from "@/lib/roles/types";
+import { getServiceSupabase } from "@/lib/supabase-service";
 
-export const dynamic = "force-dynamic";
-
-async function getServerSupabase() {
-  const jar = await cookies();
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        get: (name: string) => jar.get(name)?.value,
-        set: (name: string, value: string, options: CookieOptions) => {
-          jar.set({ name, value, ...options });
-        },
-        remove: (name: string, options: CookieOptions) => {
-          jar.set({ name, value: "", ...options, maxAge: 0 });
-        },
-      },
-    },
-  );
+function normalizeString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
-  const email = typeof body.email === "string" ? body.email.trim() : "";
-  const rawType = typeof body.type === "string" ? (body.type.trim() as ApplicationType) : null;
-  const type: ApplicationType | null = rawType && APPLICATION_TYPES.includes(rawType) ? rawType : null;
-  const brandSlugRaw = typeof body.brandSlug === "string" ? body.brandSlug.trim() : "";
+  const businessSlug = normalizeString((body as { businessSlug?: unknown }).businessSlug);
+  const name = normalizeString((body as { name?: unknown }).name);
+  const emailRaw = normalizeString((body as { email?: unknown }).email);
+  const phoneRaw = normalizeString((body as { phone?: unknown }).phone);
 
-  if (!email || !type) {
-    return NextResponse.json({ error: "missing_fields" }, { status: 400 });
+  if (!businessSlug) {
+    return NextResponse.json({ error: "businessSlug is required" }, { status: 400 });
   }
 
-  const supabase = await getServerSupabase();
-  const { error } = await supabase.from("applications").insert({
-    email,
-    type,
-    brand_slug: brandSlugRaw || null,
-    status: "pending",
-  } as never);
+  if (!name) {
+    return NextResponse.json({ error: "name is required" }, { status: 400 });
+  }
 
+  if (!emailRaw && !phoneRaw) {
+    return NextResponse.json({ error: "email_or_phone_required" }, { status: 400 });
+  }
+
+  const service = getServiceSupabase();
+  const { data: house, error: houseError } = await service
+    .from("houses")
+    .select("id")
+    .eq("slug", businessSlug)
+    .maybeSingle();
+
+  if (houseError) {
+    console.error("Failed to resolve business slug", houseError);
+    return NextResponse.json({ error: "Failed to resolve business" }, { status: 500 });
+  }
+
+  if (!house) {
+    return NextResponse.json({ error: "Business not found" }, { status: 404 });
+  }
+
+  const payload = {
+    business_id: house.id,
+    name,
+    email: emailRaw || null,
+    phone: phoneRaw || null,
+    status: "pending" as const,
+  };
+
+  const { error } = await service.from("applications").insert(payload as never);
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Failed to create application", error);
+    return NextResponse.json({ error: "Failed to submit application" }, { status: 500 });
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true }, { status: 201 });
 }
-
-const APPLICATION_TYPES: ApplicationType[] = ["customer", "employee", "owner", "admin", "gm"];

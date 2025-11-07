@@ -32,6 +32,29 @@ function normalizeWorkspaceRole(role: string | null | undefined): WorkspaceRole 
   }
 }
 
+function deriveWorkspaceRoleFromEmployment(
+  roleSlug: string | null | undefined,
+): WorkspaceRole {
+  if (!roleSlug) {
+    return "staff";
+  }
+
+  const normalized = roleSlug.toLowerCase();
+  if (normalized.includes("owner")) {
+    return "owner";
+  }
+  if (normalized.includes("manager") || normalized.includes("gm")) {
+    return "manager";
+  }
+  return "staff";
+}
+
+function appendWorkspaceRole(target: WorkspaceDescriptor, role: WorkspaceRole) {
+  if (!target.roles.includes(role)) {
+    target.roles.push(role);
+  }
+}
+
 function parseBusinessId(context: unknown): string | null {
   if (!context || typeof context !== "object") {
     return null;
@@ -125,15 +148,6 @@ async function loadLoyaltyMemberships(
   });
 }
 
-type HouseRoleRow = {
-  role: string | null;
-  house: {
-    id: string;
-    name: string | null;
-    slug: string | null;
-  } | null;
-};
-
 async function loadWorkspaceDescriptors(
   supabase: SupabaseClient,
   entityId: string,
@@ -176,7 +190,62 @@ async function loadWorkspaceDescriptors(
     }
     const descriptor = byHouse.get(id)!;
     const roleValue = (raw as { role?: unknown }).role;
-    descriptor.roles.push(normalizeWorkspaceRole(typeof roleValue === "string" ? roleValue : null));
+    appendWorkspaceRole(
+      descriptor,
+      normalizeWorkspaceRole(typeof roleValue === "string" ? roleValue : null),
+    );
+  }
+
+  const { data: employmentRows, error: employmentError } = await supabase
+    .from("employments")
+    .select(
+      "status, business:houses(id,name,slug), role:roles(id,slug)"
+    )
+    .eq("entity_id", entityId);
+
+  if (employmentError) {
+    console.warn("Failed to load employments for tiles", employmentError);
+  }
+
+  for (const raw of employmentRows ?? []) {
+    if (!raw || typeof raw !== "object") {
+      continue;
+    }
+    const status = (raw as { status?: string | null }).status ?? null;
+    if (status !== "active") {
+      continue;
+    }
+
+    const businessRaw = (raw as { business?: unknown }).business;
+    if (!businessRaw || typeof businessRaw !== "object") {
+      continue;
+    }
+
+    const business = businessRaw as { id?: unknown; name?: unknown; slug?: unknown };
+    const businessId = typeof business.id === "string" ? business.id : null;
+    if (!businessId) {
+      continue;
+    }
+
+    if (!byHouse.has(businessId)) {
+      const name = typeof business.name === "string" ? business.name : null;
+      const slug = typeof business.slug === "string" ? business.slug : null;
+      byHouse.set(businessId, {
+        businessId,
+        label: name && name.trim().length > 0 ? name : slug ?? businessId,
+        slug: slug ?? null,
+        roles: [],
+        enabledApps: [],
+      });
+    }
+
+    const descriptor = byHouse.get(businessId)!;
+    const roleObj = (raw as { role?: unknown }).role;
+    const roleSlug =
+      roleObj && typeof roleObj === "object" && roleObj !== null
+        ? ((roleObj as { slug?: unknown }).slug as string | null | undefined)
+        : null;
+    appendWorkspaceRole(descriptor, deriveWorkspaceRoleFromEmployment(roleSlug));
   }
 
   return Array.from(byHouse.values());
