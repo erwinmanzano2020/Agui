@@ -8,16 +8,17 @@ export default async function CompanyLayout({
   params,
   children,
 }: {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
   children: ReactNode;
 }) {
-  const sections = await loadWorkspaceSectionsForSlug(params.slug);
+  const { slug } = await params;
+  const sections = await loadWorkspaceSectionsForSlug(slug);
 
   if (!sections) {
     notFound();
   }
 
-  const companyLabel = sections.meta?.label ?? params.slug;
+  const companyLabel = sections.meta?.label ?? slug;
 
   const sectionList = sections.sections;
 
