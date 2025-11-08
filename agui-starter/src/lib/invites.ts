@@ -9,15 +9,21 @@ export type InviteStatus = "PENDING" | "ACCEPTED" | "CANCELLED" | "EXPIRED";
 
 export type InviteRecord = {
   id: string;
-  email: string;
-  scope: InviteScope;
+  email: string | null;
+  phone: string | null;
+  scope: InviteScope | null;
   guild_id: string | null;
   house_id: string | null;
-  role: string;
+  role: string | null;
+  role_id: string | null;
+  business_id: string | null;
+  kind: "employee" | "owner" | null;
   token: string;
   status: InviteStatus;
-  invited_by: string;
-  expires_at: string;
+  invited_by: string | null;
+  created_by: string | null;
+  expires_at: string | null;
+  consumed_at: string | null;
   created_at: string;
 };
 
@@ -28,6 +34,16 @@ export type CreateInviteInput = {
   houseId?: string | null;
   roles: string[];
   invitedBy: string;
+  expiresAt?: Date;
+};
+
+export type EmploymentInviteInput = {
+  kind: "employee" | "owner";
+  businessId: string;
+  roleId?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  createdBy: string;
   expiresAt?: Date;
 };
 
@@ -84,6 +100,34 @@ export async function createInvite(input: CreateInviteInput): Promise<InviteReco
   return data as InviteRecord;
 }
 
+export async function createEmploymentInvite(input: EmploymentInviteInput): Promise<InviteRecord> {
+  const svc = getServiceSupabase();
+  const payload: Record<string, unknown> = {
+    kind: input.kind,
+    business_id: input.businessId,
+    role_id: input.roleId ?? null,
+    created_by: input.createdBy,
+    email: input.email ? normalizeEmail(input.email) : null,
+    phone: input.phone ? input.phone.trim() : null,
+  };
+
+  if (input.expiresAt instanceof Date) {
+    payload.expires_at = input.expiresAt.toISOString();
+  }
+
+  const { data, error } = await svc
+    .from("invites")
+    .insert(payload)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    throw new Error(error?.message ?? "Failed to create invite");
+  }
+
+  return data as InviteRecord;
+}
+
 export async function getInviteByToken(token: string): Promise<InviteRecord | null> {
   if (!token) return null;
   const svc = getServiceSupabase();
@@ -101,7 +145,7 @@ export async function markInviteAccepted(inviteId: string): Promise<void> {
   const svc = getServiceSupabase();
   const { error } = await svc
     .from("invites")
-    .update({ status: "ACCEPTED" })
+    .update({ status: "ACCEPTED", consumed_at: new Date().toISOString() })
     .eq("id", inviteId)
     .eq("status", "PENDING");
   if (error) {
