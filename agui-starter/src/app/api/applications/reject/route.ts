@@ -4,6 +4,8 @@ import { getMyRoles } from "@/lib/authz/server";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import { listAccountUserIds } from "@/lib/employments";
+import { revalidateTilesForUser } from "@/lib/tiles/server";
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -111,6 +113,22 @@ export async function POST(request: Request) {
   if (updateError) {
     console.error("Failed to reject application", updateError);
     return NextResponse.json({ error: "Failed to update application" }, { status: 500 });
+  }
+
+  try {
+    const userIds = await listAccountUserIds(actorEntityId).catch((error) => {
+      console.error("Failed to load approver accounts for revalidation", error);
+      return [] as string[];
+    });
+    const targets = new Set<string>(userIds);
+    if (user.id) {
+      targets.add(user.id);
+    }
+    for (const id of targets) {
+      revalidateTilesForUser(id);
+    }
+  } catch (error) {
+    console.error("Failed to revalidate tiles after rejection", error);
   }
 
   return NextResponse.json({ ok: true });

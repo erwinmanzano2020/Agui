@@ -1,12 +1,11 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { revalidateTag } from "next/cache";
-
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { slugify } from "@/lib/slug";
 import { ensureEntityForUser } from "@/lib/identity/entity-server";
 import { evaluatePolicy } from "@/lib/policy/server";
+import { revalidateTilesForUser } from "@/lib/tiles/server";
 
 type MaybeHouse = { id: string }; // minimal shape for slug check
 
@@ -119,6 +118,6 @@ export async function createHouse(formData: FormData) {
     throw new Error(rpcError.message);
   }
 
-  revalidateTag(`tiles:user:${user.id}`);
+  revalidateTilesForUser(user.id);
   redirect(`/company/${inserted.slug ?? slugCandidate}`);
 }

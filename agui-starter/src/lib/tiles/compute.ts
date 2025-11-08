@@ -357,7 +357,7 @@ export function buildTilesResponse(input: BuildTilesInput): TilesMeResponse {
   const hasDiscoverPolicy = input.policies.some((policy) => policy.startsWith("apps."));
   const marketplaceEligible = Boolean(hasDiscoverPolicy && hasEligible);
 
-  const allowStartBusiness = policyKeys.has("houses:create") || input.workspaces.length === 0;
+  const allowStartBusiness = policyKeys.has("houses:create");
 
   const homeTiles = buildHomeTiles(
     sections,

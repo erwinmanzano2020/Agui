@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/auth/server";
 import type { AppInboxRow, AppInboxUpdate } from "@/lib/db.types";
+import { revalidateTilesForUser } from "@/lib/tiles/server";
 
 export type InboxItem = Pick<
   AppInboxRow,
@@ -61,6 +62,12 @@ export async function markRead(id: string) {
   const { error } = await supabase.from("app_inbox").update(patch).eq("id", id);
 
   if (error) throw new Error(`Mark read failed: ${error.message}`);
+
+  const { data, error: userError } = await supabase.auth.getUser();
+  if (userError) {
+    console.warn("Failed to resolve user for inbox revalidation", userError);
+  }
+  revalidateTilesForUser(data?.user?.id ?? null);
 }
 
 export async function markAllRead() {
@@ -71,4 +78,10 @@ export async function markAllRead() {
   const { error } = await supabase.from("app_inbox").update(patch).is("read_at", null);
 
   if (error) throw new Error(`Mark all read failed: ${error.message}`);
+
+  const { data, error: userError } = await supabase.auth.getUser();
+  if (userError) {
+    console.warn("Failed to resolve user for inbox revalidation", userError);
+  }
+  revalidateTilesForUser(data?.user?.id ?? null);
 }

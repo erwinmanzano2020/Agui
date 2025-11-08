@@ -1,5 +1,4 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { getMyRoles } from "@/lib/authz/server";
@@ -12,6 +11,7 @@ import {
 } from "@/lib/employments";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import { revalidateTilesForUser } from "@/lib/tiles/server";
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -297,8 +297,11 @@ export async function POST(request: Request) {
       return [] as string[];
     });
     const targets = new Set<string>(userIds);
+    if (user?.id) {
+      targets.add(user.id);
+    }
     for (const id of targets) {
-      revalidateTag(`tiles:user:${id}`);
+      revalidateTilesForUser(id);
     }
   } catch (error) {
     console.error("Failed to revalidate tiles after approval", error);
