@@ -171,8 +171,13 @@ function buildHomeTiles(
   loyalties: LoyaltyMembership[],
   inboxUnreadCount: number,
   marketplaceEligible: boolean,
+  showStartBusiness: boolean,
 ): HomeTile[] {
   const tiles: HomeTile[] = [];
+
+  if (showStartBusiness) {
+    tiles.push({ kind: "start-business", label: "Start a business" });
+  }
 
   const workspaceTiles: HomeTile[] = workspaces.map((workspace) => ({
     kind: "workspace",
@@ -352,12 +357,15 @@ export function buildTilesResponse(input: BuildTilesInput): TilesMeResponse {
   const hasDiscoverPolicy = input.policies.some((policy) => policy.startsWith("apps."));
   const marketplaceEligible = Boolean(hasDiscoverPolicy && hasEligible);
 
+  const allowStartBusiness = policyKeys.has("houses:create");
+
   const homeTiles = buildHomeTiles(
     sections,
     input.gmAccess,
     sortByLabel(input.loyalties),
     input.inboxUnreadCount,
     marketplaceEligible,
+    allowStartBusiness,
   );
 
   const response: TilesMeResponse = {

@@ -1,6 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { revalidateTag, unstable_cache } from "next/cache";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getMyEntityId } from "@/lib/authz/server";
@@ -423,14 +424,39 @@ async function buildInputForEntity(
 
 export async function loadTilesForCurrentUser(): Promise<TilesMeResponse> {
   const supabase = await createServerSupabaseClient();
-  const entityId = await getMyEntityId(supabase);
+  const [{ data, error }, resolvedEntityId] = await Promise.all([
+    supabase.auth.getUser(),
+    getMyEntityId(supabase),
+  ]);
+  const entityId = resolvedEntityId;
 
-  if (!entityId) {
+  if (error) {
+    console.warn("Failed to resolve current user while loading tiles", error);
+  }
+
+  const user = data?.user ?? null;
+  if (!user || !entityId) {
     return { home: [], workspaces: [] } satisfies TilesMeResponse;
   }
 
-  const input = await buildInputForEntity(supabase, entityId);
-  return buildTilesResponse(input);
+  const cachedLoader = unstable_cache(
+    async () => {
+      const supabaseForTiles = await createServerSupabaseClient();
+      const input = await buildInputForEntity(supabaseForTiles, entityId);
+      return buildTilesResponse(input);
+    },
+    ["tiles", "me", user.id, entityId],
+    { tags: [`tiles:user:${user.id}`], revalidate: 15 },
+  );
+
+  return cachedLoader();
+}
+
+export function revalidateTilesForUser(userId: string | null | undefined) {
+  if (!userId) {
+    return;
+  }
+  revalidateTag(`tiles:user:${userId}`);
 }
 
 export async function loadWorkspaceSectionsForSlug(slug: string): Promise<WorkspaceSections | null> {

@@ -1,5 +1,4 @@
 import type { User } from "@supabase/supabase-js";
-import { revalidateTag } from "next/cache";
 import { NextResponse } from "next/server";
 
 import { ensureEntityForUser } from "@/lib/identity/entity-server";
@@ -12,6 +11,7 @@ import {
 import { getInviteByToken, markInviteAccepted, type InviteRecord } from "@/lib/invites";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import { revalidateTilesForUser } from "@/lib/tiles/server";
 
 function normalizeEmail(email: string | null | undefined): string | null {
   if (typeof email !== "string") {
@@ -139,7 +139,7 @@ async function acceptEmploymentInvite(user: User, invite: InviteRecord) {
     });
     const targets = new Set<string>([user.id, ...relatedUserIds]);
     for (const userId of targets) {
-      revalidateTag(`tiles:user:${userId}`);
+      revalidateTilesForUser(userId);
     }
   } catch (error) {
     console.error("Failed to revalidate tiles after invite acceptance", error);
@@ -212,6 +212,19 @@ async function acceptLegacyInvite(user: User, invite: InviteRecord) {
   } catch (error) {
     console.error("Failed to mark invite accepted", error);
     return NextResponse.json({ error: "Failed to finalize invite" }, { status: 500 });
+  }
+
+  try {
+    const relatedUserIds = await listAccountUserIds(entityId).catch((error) => {
+      console.error("Failed to load account links for invite revalidation", error);
+      return [] as string[];
+    });
+    const targets = new Set<string>([user.id, ...relatedUserIds]);
+    for (const userId of targets) {
+      revalidateTilesForUser(userId);
+    }
+  } catch (error) {
+    console.error("Failed to revalidate tiles after invite acceptance", error);
   }
 
   return NextResponse.json({
