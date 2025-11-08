@@ -3,6 +3,7 @@ export type HomeTile =
   | { kind: "workspace"; businessId: string; label: string }
   | { kind: "inbox"; label: string }
   | { kind: "marketplace"; label: string }
+  | { kind: "start-business"; label: string }
   | { kind: "gm-console"; label: string };
 
 export type WorkspaceSectionKey = "overview" | "people" | "operations" | "finance" | "settings";

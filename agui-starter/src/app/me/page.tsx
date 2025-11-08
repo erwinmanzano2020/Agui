@@ -32,6 +32,8 @@ function routeForTile(tile: HomeTile, workspaces: WorkspaceSections[]): string {
       return "/inbox";
     case "gm-console":
       return "/admin";
+    case "start-business":
+      return "/company/new";
     default:
       return "/";
   }
@@ -52,6 +54,7 @@ function TileCard({ tile, href }: { tile: HomeTile; href: string }) {
         {tile.kind === "marketplace" && "Marketplace"}
         {tile.kind === "inbox" && "Inbox"}
         {tile.kind === "gm-console" && "Console"}
+        {tile.kind === "start-business" && "Action"}
       </div>
     </Link>
   );
