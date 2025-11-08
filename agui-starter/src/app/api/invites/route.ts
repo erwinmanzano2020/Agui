@@ -1,4 +1,3 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { headers, type UnsafeUnwrappedHeaders } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -7,6 +6,8 @@ import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import { createEmploymentInvite, createInvite } from "@/lib/invites";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import type { AnySupabaseClient } from "@/lib/supabase/types";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 const HOUSE_INVITER_ROLES = new Set(["house_manager", "house_owner"]);
 const HOUSE_INVITEE_ROLES = new Set(["house_manager", "cashier", "house_staff"]);
@@ -382,7 +383,7 @@ async function handleLegacyInviteRequest(supabase: SupabaseClient, body: CreateI
 }
 
 async function deliverInviteEmail(
-  service: ReturnType<typeof getServiceSupabase>,
+  service: AnySupabaseClient,
   email: string,
   redirectTo: string,
 ): Promise<string | null> {
