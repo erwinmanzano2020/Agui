@@ -15,60 +15,85 @@ export type EmploymentRecord = {
   created_at: string;
 };
 
-export async function ensureActiveEmployment(
-  businessId: string,
-  entityId: string,
-  roleId?: string | null,
-): Promise<EmploymentRecord> {
-  const svc = getServiceSupabase();
+export type HouseRoleRecord = {
+  id: string;
+  house_id: string;
+  entity_id: string;
+  role: string;
+  granted_at: string;
+  granted_by: string | null;
+  metadata: Record<string, unknown>;
+};
 
-  const { data: existing, error: existingError } = await svc
-    .from("employments")
-    .select("id, status, role_id, created_at")
-    .eq("business_id", businessId)
-    .eq("entity_id", entityId)
-    .in("status", ["pending", "active"])
-    .maybeSingle();
+export type OnboardEmployeeResult = {
+  employment: EmploymentRecord | null;
+  houseRole: HouseRoleRecord | null;
+};
 
-  if (existingError) {
-    throw new Error((existingError as PostgrestError).message);
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function isEmploymentRecord(value: unknown): value is EmploymentRecord {
+  if (!isObject(value)) {
+    return false;
   }
 
-  if (existing) {
-    if (existing.status === "active" && (existing.role_id ?? null) === (roleId ?? null)) {
-      return existing as EmploymentRecord;
-    }
+  const candidate = value as Partial<EmploymentRecord>;
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.business_id === "string" &&
+    typeof candidate.entity_id === "string" &&
+    (candidate.role_id === null || typeof candidate.role_id === "string") &&
+    typeof candidate.status === "string" &&
+    ["pending", "active", "suspended", "ended"].includes(candidate.status) &&
+    typeof candidate.created_at === "string"
+  );
+}
 
-    const { data, error } = await svc
-      .from("employments")
-      .update({ status: "active", role_id: roleId ?? null })
-      .eq("id", existing.id)
-      .select("id, business_id, entity_id, role_id, status, created_at")
-      .single();
-
-    if (error || !data) {
-      throw new Error(error?.message ?? "Failed to activate employment");
-    }
-
-    return data as EmploymentRecord;
+function isHouseRoleRecord(value: unknown): value is HouseRoleRecord {
+  if (!isObject(value)) {
+    return false;
   }
 
-  const { data, error } = await svc
-    .from("employments")
-    .insert({
-      business_id: businessId,
-      entity_id: entityId,
-      role_id: roleId ?? null,
-      status: "active",
-    })
-    .select("id, business_id, entity_id, role_id, status, created_at")
-    .single();
+  const candidate = value as Partial<HouseRoleRecord>;
+  const metadata = candidate.metadata;
 
-  if (error || !data) {
-    throw new Error(error?.message ?? "Failed to create employment");
+  const metadataIsObject =
+    metadata === null ||
+    metadata === undefined ||
+    (typeof metadata === "object" && metadata !== null);
+
+  return (
+    typeof candidate.id === "string" &&
+    typeof candidate.house_id === "string" &&
+    typeof candidate.entity_id === "string" &&
+    typeof candidate.role === "string" &&
+    typeof candidate.granted_at === "string" &&
+    (candidate.granted_by === null || typeof candidate.granted_by === "string") &&
+    metadataIsObject
+  );
+}
+
+export function parseOnboardEmployeeResult(payload: unknown): OnboardEmployeeResult {
+  if (!isObject(payload)) {
+    return { employment: null, houseRole: null };
   }
 
-  return data as EmploymentRecord;
+  const container = payload as {
+    employment?: unknown;
+    house_role?: unknown;
+  };
+
+  const employment = isEmploymentRecord(container.employment)
+    ? container.employment
+    : null;
+
+  const houseRole = isHouseRoleRecord(container.house_role)
+    ? (container.house_role as HouseRoleRecord)
+    : null;
+
+  return { employment, houseRole };
 }
 
 export async function listAccountUserIds(entityId: string): Promise<string[]> {

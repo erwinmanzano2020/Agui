@@ -5,7 +5,11 @@ import { NextResponse } from "next/server";
 import { getMyRoles } from "@/lib/authz/server";
 import { ensureEntityByEmail } from "@/lib/identity/entity";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
-import { ensureActiveEmployment, listAccountUserIds } from "@/lib/employments";
+import {
+  listAccountUserIds,
+  parseOnboardEmployeeResult,
+  type OnboardEmployeeResult,
+} from "@/lib/employments";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
 
@@ -96,11 +100,16 @@ async function ensureApplicantEntity(
   throw new Error("Application missing contact details");
 }
 
+type ValidatedRole = {
+  id: string;
+  slug: string | null;
+};
+
 async function validateRole(
   svc: SupabaseClient,
   businessId: string,
   roleId: string | null,
-): Promise<string | null> {
+): Promise<ValidatedRole | null> {
   if (!roleId) {
     return null;
   }
@@ -112,7 +121,7 @@ async function validateRole(
 
   const { data, error } = await svc
     .from("roles")
-    .select("id, scope, scope_ref")
+    .select("id, slug, scope, scope_ref")
     .eq("id", trimmed)
     .maybeSingle();
 
@@ -130,7 +139,10 @@ async function validateRole(
     throw new Error("Role not assignable to this business");
   }
 
-  return (data as { id: string }).id;
+  return {
+    id: (data as { id: string }).id,
+    slug: ((data as { slug?: string | null }).slug ?? null) as string | null,
+  } satisfies ValidatedRole;
 }
 
 function forbidden(message: string) {
@@ -222,9 +234,9 @@ export async function POST(request: Request) {
     return forbidden("Insufficient permissions to approve applications");
   }
 
-  let resolvedRoleId: string | null = null;
+  let resolvedRole: ValidatedRole | null = null;
   try {
-    resolvedRoleId = await validateRole(service, application.business_id, roleIdRaw || null);
+    resolvedRole = await validateRole(service, application.business_id, roleIdRaw || null);
   } catch (error) {
     return NextResponse.json({ error: (error as Error).message }, { status: 400 });
   }
@@ -241,8 +253,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Failed to prepare applicant" }, { status: 500 });
   }
 
+  let onboarded: OnboardEmployeeResult = { employment: null, houseRole: null };
   try {
-    await ensureActiveEmployment(application.business_id as string, applicantEntityId, resolvedRoleId);
+    const { data: onboardData, error: onboardError } = await service.rpc("onboard_employee", {
+      p_house_id: application.business_id,
+      p_entity_id: applicantEntityId,
+      p_role_id: resolvedRole?.id ?? null,
+      p_role_slug: resolvedRole?.slug ?? "house_staff",
+    });
+
+    if (onboardError) {
+      throw onboardError;
+    }
+
+    onboarded = parseOnboardEmployeeResult(onboardData);
+
+    if (!onboarded.employment) {
+      throw new Error("onboard_employee did not return employment");
+    }
   } catch (error) {
     console.error("Failed to create employment", error);
     return NextResponse.json({ error: "Failed to create employment" }, { status: 500 });
@@ -276,5 +304,9 @@ export async function POST(request: Request) {
     console.error("Failed to revalidate tiles after approval", error);
   }
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({
+    ok: true,
+    employmentId: onboarded.employment?.id ?? null,
+    houseRole: onboarded.houseRole?.role ?? null,
+  });
 }

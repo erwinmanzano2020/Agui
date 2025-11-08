@@ -4,9 +4,14 @@ import { NextResponse } from "next/server";
 
 import { ensureEntityForUser } from "@/lib/identity/entity-server";
 import { grantGuildRole, grantHouseRole } from "@/lib/identity/roles";
-import { ensureActiveEmployment, listAccountUserIds } from "@/lib/employments";
+import {
+  listAccountUserIds,
+  parseOnboardEmployeeResult,
+  type OnboardEmployeeResult,
+} from "@/lib/employments";
 import { getInviteByToken, markInviteAccepted, type InviteRecord } from "@/lib/invites";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getServiceSupabase } from "@/lib/supabase-service";
 
 function normalizeEmail(email: string | null | undefined): string | null {
   if (typeof email !== "string") {
@@ -95,8 +100,26 @@ async function acceptEmploymentInvite(user: User, invite: InviteRecord) {
     return NextResponse.json({ error: "Failed to prepare account" }, { status: 500 });
   }
 
+  const service = getServiceSupabase();
+  const fallbackRoleSlug = invite.role_id ? null : invite.kind === "owner" ? "house_owner" : "house_staff";
+  let onboarded: OnboardEmployeeResult = { employment: null, houseRole: null };
   try {
-    await ensureActiveEmployment(invite.business_id, entityId, invite.role_id);
+    const { data, error } = await service.rpc("onboard_employee", {
+      p_house_id: invite.business_id,
+      p_entity_id: entityId,
+      p_role_id: invite.role_id ?? null,
+      p_role_slug: fallbackRoleSlug,
+    });
+
+    if (error) {
+      throw error;
+    }
+
+    onboarded = parseOnboardEmployeeResult(data);
+
+    if (!onboarded.employment) {
+      throw new Error("onboard_employee did not return employment");
+    }
   } catch (error) {
     console.error("Failed to activate employment", error);
     return NextResponse.json({ error: "Failed to activate employment" }, { status: 500 });
@@ -127,6 +150,8 @@ async function acceptEmploymentInvite(user: User, invite: InviteRecord) {
     kind: invite.kind,
     businessId: invite.business_id,
     roleId: invite.role_id,
+    employmentId: onboarded.employment?.id ?? null,
+    houseRole: onboarded.houseRole?.role ?? null,
   });
 }
 

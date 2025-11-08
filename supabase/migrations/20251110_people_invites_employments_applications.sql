@@ -232,3 +232,91 @@ create policy "applications: owners update"
     )
   )
   with check (true);
+
+-- ===== Employee onboarding helpers =====
+create or replace function public.ensure_house_role(
+  p_house_id uuid,
+  p_entity_id uuid,
+  p_role_id uuid default null,
+  p_role_slug text default null
+) returns public.house_roles
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_role_slug text;
+  v_row public.house_roles;
+begin
+  v_role_slug := nullif(coalesce(p_role_slug, ''), '');
+
+  if v_role_slug is null and p_role_id is not null then
+    select r.slug
+      into v_role_slug
+    from public.roles r
+    where r.id = p_role_id
+    limit 1;
+  end if;
+
+  if v_role_slug is null then
+    v_role_slug := 'house_staff';
+  end if;
+
+  insert into public.house_roles (id, house_id, entity_id, role)
+  values (gen_random_uuid(), p_house_id, p_entity_id, v_role_slug)
+  on conflict (house_id, entity_id, role)
+  do update set role = public.house_roles.role
+  returning * into v_row;
+
+  if v_role_slug <> 'house_staff' then
+    perform public.ensure_house_role(p_house_id, p_entity_id, null, 'house_staff');
+  end if;
+
+  return v_row;
+end;
+$$;
+
+create or replace function public.onboard_employee(
+  p_house_id uuid,
+  p_entity_id uuid,
+  p_role_id uuid default null,
+  p_role_slug text default null
+) returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_employment public.employments;
+  v_house_role public.house_roles;
+begin
+  perform pg_advisory_xact_lock(hashtext('onboard_employee')::bigint);
+
+  update public.employments
+     set status = 'active',
+         role_id = coalesce(p_role_id, role_id)
+   where business_id = p_house_id
+     and entity_id = p_entity_id
+   returning * into v_employment;
+
+  if not found then
+    insert into public.employments (id, business_id, entity_id, role_id, status, created_at)
+    values (gen_random_uuid(), p_house_id, p_entity_id, p_role_id, 'active', now())
+    returning * into v_employment;
+  end if;
+
+  select *
+    into v_house_role
+  from public.ensure_house_role(p_house_id, p_entity_id, p_role_id, p_role_slug);
+
+  return jsonb_build_object(
+    'employment', to_jsonb(v_employment),
+    'house_role', to_jsonb(v_house_role)
+  );
+end;
+$$;
+
+revoke all on function public.ensure_house_role(uuid, uuid, uuid, text) from public;
+revoke all on function public.onboard_employee(uuid, uuid, uuid, text) from public;
+grant execute on function public.ensure_house_role(uuid, uuid, uuid, text) to authenticated;
+grant execute on function public.onboard_employee(uuid, uuid, uuid, text) to authenticated;
