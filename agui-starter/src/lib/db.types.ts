@@ -380,6 +380,124 @@ export type HouseItemInsert = {
 
 export type HouseItemUpdate = Partial<HouseItemInsert>;
 
+export type HouseRoleRow = {
+  id: string;
+  house_id: string;
+  entity_id: string;
+  role: string;
+  created_at: string;
+};
+
+export type HouseRoleInsert = {
+  id?: string;
+  house_id: string;
+  entity_id: string;
+  role: string;
+  created_at?: string;
+};
+
+export type HouseRoleUpdate = Partial<HouseRoleInsert>;
+
+export type PolicyRow = {
+  id: string;
+  key: string;
+  action: string;
+  resource: string;
+  description: string | null;
+  is_system: boolean;
+  is_assignable: boolean;
+  created_at: string;
+};
+
+export type PolicyInsert = {
+  id?: string;
+  key: string;
+  action: string;
+  resource: string;
+  description?: string | null;
+  is_system?: boolean;
+  is_assignable?: boolean;
+  created_at?: string;
+};
+
+export type PolicyUpdate = Partial<PolicyInsert>;
+
+export type RoleScope = "PLATFORM" | "GUILD" | "HOUSE";
+
+export type RoleRow = {
+  id: string;
+  slug: string;
+  label: string;
+  description: string | null;
+  scope: RoleScope;
+  scope_ref: string | null;
+  owner_entity_id: string | null;
+  is_system: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RoleInsert = {
+  id?: string;
+  slug: string;
+  label: string;
+  description?: string | null;
+  scope: RoleScope;
+  scope_ref?: string | null;
+  owner_entity_id?: string | null;
+  is_system?: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type RoleUpdate = Partial<RoleInsert>;
+
+export type RolePolicyRow = {
+  role_id: string;
+  policy_id: string;
+  created_at: string;
+};
+
+export type RolePolicyInsert = {
+  role_id?: string | null;
+  policy_id: string;
+  created_at?: string;
+};
+
+export type RolePolicyUpdate = Partial<RolePolicyInsert>;
+
+export type PlatformRolesRow = {
+  entity_id: string;
+  roles: string[];
+  created_at: string;
+  updated_at: string;
+};
+
+export type PlatformRolesInsert = {
+  entity_id: string;
+  roles?: string[];
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type PlatformRolesUpdate = Partial<PlatformRolesInsert>;
+
+export type EntityPolicyGrantRow = {
+  entity_id: string;
+  policy_id: string;
+  granted_via: string;
+  created_at: string;
+};
+
+export type EntityPolicyGrantInsert = {
+  entity_id: string;
+  policy_id: string;
+  granted_via?: string;
+  created_at?: string;
+};
+
+export type EntityPolicyGrantUpdate = Partial<EntityPolicyGrantInsert>;
+
 export type LoyaltyMembershipViewRow = {
   user_id: string;
   brand_id: string;
@@ -470,6 +588,16 @@ export interface Database {
       items: TableDefinition<ItemRow, ItemInsert, ItemUpdate>;
       item_barcodes: TableDefinition<ItemBarcodeRow, ItemBarcodeInsert, ItemBarcodeUpdate>;
       house_items: TableDefinition<HouseItemRow, HouseItemInsert, HouseItemUpdate>;
+      house_roles: TableDefinition<HouseRoleRow, HouseRoleInsert, HouseRoleUpdate>;
+      platform_roles: TableDefinition<PlatformRolesRow, PlatformRolesInsert, PlatformRolesUpdate>;
+      policies: TableDefinition<PolicyRow, PolicyInsert, PolicyUpdate>;
+      roles: TableDefinition<RoleRow, RoleInsert, RoleUpdate>;
+      role_policies: TableDefinition<RolePolicyRow, RolePolicyInsert, RolePolicyUpdate>;
+      entity_policy_grants: TableDefinition<
+        EntityPolicyGrantRow,
+        EntityPolicyGrantInsert,
+        EntityPolicyGrantUpdate
+      >;
     };
     Views: Record<string, GenericViewDefinition> & {
       v_loyalty_memberships: ViewDefinition<LoyaltyMembershipViewRow>;

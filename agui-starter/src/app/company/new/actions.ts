@@ -80,37 +80,41 @@ export async function createHouse(formData: FormData) {
     throw entityError;
   });
 
-  const { data: gmRole, error: gmRoleError } = await supabase
+  const { data: ownerRole, error: ownerRoleError } = await supabase
     .from("roles")
-    .select("id")
-    .in("key", ["gm", "owner"])
-    .limit(1)
-    .maybeSingle<{ id: string }>();
+    .select("id, slug")
+    .eq("scope", "HOUSE")
+    .eq("slug", "house_owner")
+    .maybeSingle<{ id: string; slug: string }>();
 
-  if (gmRoleError) {
-    console.warn("Failed to resolve GM role for onboarding via key", gmRoleError);
+  if (ownerRoleError) {
+    console.warn("Failed to resolve house_owner role for onboarding", ownerRoleError);
   }
 
-  let gmRoleId = gmRole?.id ?? null;
-  if (!gmRoleId) {
-    const { data: gmBySlug, error: gmSlugError } = await supabase
-      .from("roles")
-      .select("id")
-      .in("slug", ["gm", "owner", "house_manager", "house_owner"])
-      .limit(1)
-      .maybeSingle<{ id: string }>();
+  let roleId = ownerRole?.id ?? null;
+  let roleSlug = ownerRole?.slug ?? null;
 
-    if (gmSlugError) {
-      console.warn("Failed to resolve GM role for onboarding via slug", gmSlugError);
+  if (!roleId) {
+    const { data: managerRole, error: managerRoleError } = await supabase
+      .from("roles")
+      .select("id, slug")
+      .eq("scope", "HOUSE")
+      .eq("slug", "house_manager")
+      .maybeSingle<{ id: string; slug: string }>();
+
+    if (managerRoleError) {
+      console.warn("Failed to resolve house_manager role for onboarding", managerRoleError);
     } else {
-      gmRoleId = gmBySlug?.id ?? null;
+      roleId = managerRole?.id ?? null;
+      roleSlug = managerRole?.slug ?? null;
     }
   }
 
   const { error: rpcError } = await supabase.rpc("onboard_employee", {
     p_house_id: inserted.id,
     p_entity_id: entityId,
-    p_role_id: gmRoleId,
+    p_role_id: roleId,
+    p_role_slug: roleSlug ?? "house_owner",
   });
 
   if (rpcError) {
