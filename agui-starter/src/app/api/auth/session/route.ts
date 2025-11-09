@@ -4,6 +4,7 @@ import type { CookieOptions } from "@supabase/ssr";
 import type { Session } from "@supabase/supabase-js";
 
 import { createServerSupabase } from "@/lib/auth/server";
+import { bootstrapPoliciesForSession } from "@/lib/policy/bootstrap";
 
 export const dynamic = "force-dynamic";
 
@@ -124,6 +125,7 @@ export async function POST(req: Request) {
   }
 
   persistSessionCookies(jar, session);
+  await bootstrapPoliciesForSession(session);
   return NextResponse.json({ ok: true });
 }
 
