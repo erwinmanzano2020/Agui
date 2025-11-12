@@ -75,10 +75,12 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    if (role.role === "BUSINESS_ADMIN" && role.businessId !== businessId) {
-      return unauthorizedResponse("Business mismatch");
+    if (role.role === "BRANCH_MANAGER") {
+      return unauthorizedResponse(
+        "Branch managers cannot modify BUSINESS scope settings",
+      );
     }
-    if (role.role === "BRANCH_MANAGER" && role.businessId !== businessId) {
+    if (role.role === "BUSINESS_ADMIN" && role.businessId !== businessId) {
       return unauthorizedResponse("Business mismatch");
     }
   }

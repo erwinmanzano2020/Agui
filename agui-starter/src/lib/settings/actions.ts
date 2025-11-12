@@ -40,10 +40,10 @@ async function assertAuthorization(scope: SettingScope, businessId?: string, bra
     if (!businessId) {
       throw new Error("businessId required for BUSINESS scope");
     }
-    if (role.role === "BUSINESS_ADMIN" && role.businessId !== businessId) {
-      throw new Error("Business mismatch");
+    if (role.role === "BRANCH_MANAGER") {
+      throw new Error("Branch managers cannot modify BUSINESS scope settings");
     }
-    if (role.role === "BRANCH_MANAGER" && role.businessId !== businessId) {
+    if (role.role === "BUSINESS_ADMIN" && role.businessId !== businessId) {
       throw new Error("Business mismatch");
     }
   }

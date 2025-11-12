@@ -11,7 +11,7 @@ import {
   type SettingValueForKey,
 } from "@/lib/settings/catalog";
 import type { SettingScope } from "@/lib/settings/types";
-import { resetSettingAction, saveSettingAction } from "./actions";
+import { resetSettingAction, saveSettingAction } from "@/lib/settings/actions";
 import PreviewPanel from "./PreviewPanel";
 
 type SettingSnapshot = {

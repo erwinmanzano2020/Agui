@@ -1,5 +1,3 @@
-"use server";
-
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { unstable_cache, revalidateTag } from "next/cache";
 

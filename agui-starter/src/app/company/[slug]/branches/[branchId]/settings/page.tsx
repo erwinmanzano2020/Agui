@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import CentralizedSettingsWorkspace from "@/components/settings/CentralizedSettingsWorkspace";
 import { SETTINGS_CATALOG } from "@/lib/settings/catalog";
 import { getSettingsSnapshot } from "@/lib/settings/server";
