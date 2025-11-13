@@ -9,6 +9,8 @@ import { evaluatePolicy } from "@/lib/policy/server";
 import { emitEvent } from "@/lib/events/server";
 import { currentEntityIsGM } from "@/lib/authz/server";
 
+import { ensureCreatorEmployment, type CreatorEmploymentResult } from "./employment";
+
 const BUSINESS_KIND_TO_HOUSE_TYPE: Record<string, string> = {
   grocery: "RETAIL",
   cafe: "RETAIL",
@@ -295,6 +297,22 @@ export async function createBusinessWizard(
 
   const branch = await createDefaultBranch(client, insertedBusiness.id, slugCandidate);
 
+  let creatorEmploymentResult: CreatorEmploymentResult | null = null;
+  try {
+    creatorEmploymentResult = await ensureCreatorEmployment(client, insertedBusiness.id, entityId);
+    console.info("wizard: creator employment ensured", {
+      businessId: insertedBusiness.id,
+      branchId: branch?.id ?? null,
+      entityId,
+      roleId: creatorEmploymentResult.roleId,
+      roleSlug: creatorEmploymentResult.roleSlug,
+      employmentId: creatorEmploymentResult.employmentId,
+    });
+  } catch (employmentError) {
+    console.error("Failed to ensure creator employment", employmentError);
+    return { status: "error", message: "Failed to finalize creator employment", code: 500 };
+  }
+
   const isGM = await currentEntityIsGM(supabase);
 
   if (!isGM) {
@@ -346,6 +364,13 @@ export async function createBusinessWizard(
       creatorEntityId: entityId,
       isGM,
     }),
+    emitEvent("employment:created", "info", {
+      businessId: businessSummary.id,
+      branchId: branch?.id ?? null,
+      entityId,
+      roleId: creatorEmploymentResult?.roleId ?? null,
+      employmentId: creatorEmploymentResult?.employmentId ?? null,
+    }),
     emitEvent("tiles:invalidate", "info", { entityId }),
     emitEvent("settings:invalidate", "info", { scope: "BUSINESS", businessId: businessSummary.id }),
     emitEvent(`tiles:user:${user.id}`, "invalidate", {
@@ -356,6 +381,19 @@ export async function createBusinessWizard(
       action: "business:create",
       businessId: businessSummary.id,
       actorEntityId: entityId,
+    }),
+    emitEvent("audit", "info", {
+      action: "employment:create",
+      businessId: businessSummary.id,
+      branchId: branch?.id ?? null,
+      actorEntityId: entityId,
+      subject: {
+        businessId: businessSummary.id,
+        branchId: branch?.id ?? null,
+        entityId,
+        roleId: creatorEmploymentResult?.roleId ?? null,
+        employmentId: creatorEmploymentResult?.employmentId ?? null,
+      },
     }),
   ]).catch((eventError) => {
     console.warn("Failed to emit one or more business creation events", eventError);
