@@ -1,11 +1,32 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { before, describe, it, mock } from "node:test";
 
 import { listSettingDefinitionsByCategory } from "@/lib/settings/catalog";
-import { __settingsTesting } from "@/lib/settings/server";
 import type { SettingsValueRow } from "@/lib/db.types";
 
-const { buildSnapshotFromRows, isValidValue } = __settingsTesting;
+type DatabaseClient = import("@supabase/supabase-js").SupabaseClient<import("@/lib/db.types").Database>;
+
+mock.module("next/cache", {
+  namedExports: {
+    revalidateTag: async () => {},
+    unstable_cache: <Fn extends (...args: unknown[]) => Promise<unknown>>(fn: Fn) => {
+      return (...args: Parameters<Fn>): ReturnType<Fn> => fn(...args) as ReturnType<Fn>;
+    },
+  },
+});
+
+let testingHelpers: typeof import("@/lib/settings/server").__settingsTesting;
+
+before(async () => {
+  ({ __settingsTesting: testingHelpers } = await import("@/lib/settings/server"));
+});
+
+function getTestingHelpers() {
+  if (!testingHelpers) {
+    throw new Error("Settings testing helpers not initialized");
+  }
+  return testingHelpers;
+}
 
 let rowCounter = 0;
 function makeRow(
@@ -30,6 +51,7 @@ function makeRow(
 
 describe("settings server helpers", () => {
   it("prefers branch overrides over business and gm values", () => {
+    const { buildSnapshotFromRows: buildSnapshot } = getTestingHelpers();
     const definitions = listSettingDefinitionsByCategory("receipt");
     const rows: SettingsValueRow[] = [
       makeRow({ key: "receipt.footer_text", scope: "GM", value: "Global" }),
@@ -42,8 +64,7 @@ describe("settings server helpers", () => {
         value: "Branch",
       }),
     ];
-
-    const snapshot = buildSnapshotFromRows(definitions, rows, { businessId: "biz-1", branchId: "branch-1" });
+    const snapshot = buildSnapshot(definitions, rows, { businessId: "biz-1", branchId: "branch-1" });
     const entry = snapshot["receipt.footer_text"];
     assert.ok(entry);
     assert.strictEqual(entry?.value, "Branch");
@@ -51,10 +72,10 @@ describe("settings server helpers", () => {
   });
 
   it("falls back to gm defaults when no overrides are present", () => {
+    const { buildSnapshotFromRows: buildSnapshot } = getTestingHelpers();
     const definitions = listSettingDefinitionsByCategory("labels");
     const rows: SettingsValueRow[] = [];
-
-    const snapshot = buildSnapshotFromRows(definitions, rows, { businessId: null, branchId: null });
+    const snapshot = buildSnapshot(definitions, rows, { businessId: null, branchId: null });
     const entry = snapshot["labels.discount.manual"];
     assert.ok(entry);
     assert.strictEqual(entry?.source, "GM");
@@ -62,8 +83,72 @@ describe("settings server helpers", () => {
   });
 
   it("validates payload types", () => {
-    assert.ok(isValidValue("receipt.show_total_savings", true));
-    assert.ok(!isValidValue("receipt.show_total_savings", "yes"));
-    assert.ok(isValidValue("pos.float_template", { hundred: 2 } as SettingsValueRow["value"]));
+    const { isValidValue: validate } = getTestingHelpers();
+    assert.ok(validate("receipt.show_total_savings", true));
+    assert.ok(!validate("receipt.show_total_savings", "yes"));
+    assert.ok(validate("pos.float_template", { hundred: 2 } as SettingsValueRow["value"]));
+  });
+
+  it("writes an audit row when a setting is updated", async () => {
+    const helpers = getTestingHelpers();
+
+    class MockSupabase {
+      auditInserts: unknown[] = [];
+      valuesUpserts: unknown[] = [];
+
+      from(table: string) {
+        if (table === "settings_values") {
+          const builder = {
+            select: () => builder,
+            match: () => builder,
+            maybeSingle: async () => ({ data: null, error: null } as const),
+            upsert: async (payload: unknown) => {
+              this.valuesUpserts.push(payload);
+              return { data: null, error: null } as const;
+            },
+            delete: () => ({
+              eq: async () => ({ error: null } as const),
+            }),
+          };
+          return builder;
+        }
+
+        if (table === "settings_audit") {
+          return {
+            insert: async (payload: unknown) => {
+              this.auditInserts.push(payload);
+              return { data: null, error: null } as const;
+            },
+          };
+        }
+
+        return {
+          select: () => ({
+            eq: () => ({
+              maybeSingle: async () => ({ data: { profile: null }, error: null } as const),
+            }),
+          }),
+        };
+      }
+    }
+
+    const client = new MockSupabase();
+
+    await helpers.mutateSettingWithClient(
+      client as unknown as DatabaseClient,
+      {
+        key: "receipt.footer_text",
+        scope: "GM",
+        value: "Updated footer",
+      },
+      "entity-123",
+    );
+
+    assert.strictEqual(client.auditInserts.length, 1);
+    const audit = client.auditInserts[0] as Record<string, unknown>;
+    assert.strictEqual(audit.key, "receipt.footer_text");
+    assert.strictEqual(audit.scope, "GM");
+    assert.strictEqual(audit.changed_by, "entity-123");
+    assert.strictEqual(audit.new_value, "Updated footer");
   });
 });

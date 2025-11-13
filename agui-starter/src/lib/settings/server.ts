@@ -52,6 +52,10 @@ type AuditPayload = {
   changed_by: string | null | undefined;
 };
 
+type MutationOptions = {
+  client?: SupabaseClient<Database>;
+};
+
 function logMetric(event: string, payload: Record<string, unknown>) {
   console.info(`metric#${event}`, payload);
 }
@@ -149,7 +153,8 @@ async function writeAuditEntry(
   supabase: SupabaseClient<Database>,
   payload: AuditPayload,
 ): Promise<void> {
-  const { error } = await supabase.from("settings_audit").insert(payload);
+  const record = { ...payload, changed_by: payload.changed_by ?? null };
+  const { error } = await supabase.from("settings_audit").insert(record);
   if (error) {
     console.warn("Failed to write settings audit", error);
   }
@@ -308,8 +313,9 @@ async function mutateSetting(
   input: SettingWriteInput,
   actorEntityId?: string | null,
   action: "set" | "reset" = "set",
+  options: MutationOptions = {},
 ): Promise<void> {
-  const supabase = await createServerSupabaseClient();
+  const supabase = options.client ?? (await createServerSupabaseClient());
   const coordinates = await resolveScopeCoordinates(supabase, input);
   const key = input.key;
   const scope = input.scope;
@@ -407,4 +413,10 @@ export const __settingsTesting = {
   buildSnapshotFromRows,
   coerceValue,
   isValidValue,
+  mutateSettingWithClient: (
+    client: SupabaseClient<Database>,
+    input: SettingWriteInput,
+    actorEntityId: string,
+    action: "set" | "reset" = "set",
+  ) => mutateSetting(input, actorEntityId, action, { client }),
 };

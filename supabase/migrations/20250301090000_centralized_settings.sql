@@ -200,3 +200,91 @@ begin
     $$;
   end if;
 end $$;
+
+create or replace function public.actor_can_write_business_settings(p_business_id uuid) returns boolean
+language sql
+stable
+as $$
+  select coalesce(
+    public.current_entity_is_gm()
+    or exists (
+      select 1
+      from public.house_roles hr
+      where hr.house_id = p_business_id
+        and hr.entity_id = public.current_entity_id()
+        and hr.role in ('owner','admin','manager','gm','house_owner','house_manager')
+    ),
+    false
+  );
+$$;
+
+create or replace function public.actor_can_write_branch_settings(p_branch_id uuid) returns boolean
+language sql
+stable
+as $$
+  select coalesce(
+    public.current_entity_is_gm()
+    or exists (
+      select 1
+      from public.branches b
+      join public.house_roles hr on hr.house_id = b.house_id
+      where b.id = p_branch_id
+        and hr.entity_id = public.current_entity_id()
+        and hr.role in ('owner','admin','manager','gm','house_owner','house_manager')
+    ),
+    false
+  );
+$$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'settings_audit' and policyname = 'settings_audit_insert'
+  ) then
+    execute $$
+      create policy "settings_audit_insert"
+      on public.settings_audit
+      for insert
+      to authenticated
+      with check (
+        changed_by = public.current_entity_id()
+        and (
+          (scope = 'GM' and public.current_entity_is_gm())
+          or (scope = 'BUSINESS' and business_id is not null and public.actor_can_write_business_settings(business_id))
+          or (scope = 'BRANCH' and branch_id is not null and public.actor_can_write_branch_settings(branch_id))
+        )
+      )
+    $$;
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'settings_audit' and policyname = 'settings_audit_no_update'
+  ) then
+    execute $$
+      create policy "settings_audit_no_update"
+      on public.settings_audit
+      for update
+      to authenticated
+      using ( false )
+      with check ( false )
+    $$;
+  end if;
+end $$;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies where schemaname = 'public' and tablename = 'settings_audit' and policyname = 'settings_audit_no_delete'
+  ) then
+    execute $$
+      create policy "settings_audit_no_delete"
+      on public.settings_audit
+      for delete
+      to authenticated
+      using ( false )
+    $$;
+  end if;
+end $$;
