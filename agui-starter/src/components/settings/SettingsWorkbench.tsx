@@ -21,6 +21,7 @@ const CATEGORY_LABELS: Record<SettingCategory, string> = {
   sop: "SOP",
   email: "Email",
   preview: "Preview",
+  ui: "UI",
 };
 
 type SnapshotByCategory = Record<SettingCategory, SettingsSnapshot>;

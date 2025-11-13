@@ -24,7 +24,9 @@
     "src/lib/z.ts",
     "src/lib/z.test.ts",
     "src/lib/schema-kit.ts",
-    "src/lib/__tests__/schema-kit.test.ts"
+    "src/lib/__tests__/schema-kit.test.ts",
+    "src/app/company/new/employment.ts",
+    "src/app/company/new/__tests__/employment.test.ts"
   ],
   "exclude": [
     "node_modules"

@@ -358,6 +358,8 @@ export function buildTilesResponse(input: BuildTilesInput): TilesMeResponse {
   const marketplaceEligible = Boolean(hasDiscoverPolicy && hasEligible);
 
   const allowStartBusiness = policyKeys.has("houses:create");
+  const showStartBusinessTile =
+    allowStartBusiness && (input.businessCount === 0 || input.alwaysShowStartBusinessTile);
 
   const homeTiles = buildHomeTiles(
     sections,
@@ -365,7 +367,7 @@ export function buildTilesResponse(input: BuildTilesInput): TilesMeResponse {
     sortByLabel(input.loyalties),
     input.inboxUnreadCount,
     marketplaceEligible,
-    allowStartBusiness,
+    showStartBusinessTile,
   );
 
   const response: TilesMeResponse = {

@@ -18,15 +18,25 @@ import type {
   WorkspaceRole,
   WorkspaceSections,
 } from "./types";
+import { getEffectiveSetting } from "@/lib/settings/server";
+import { emitEvent } from "@/lib/events/server";
 
 function normalizeWorkspaceRole(role: string | null | undefined): WorkspaceRole {
   switch (role) {
     case "house_owner":
+    case "business_owner":
+    case "BUSINESS_OWNER":
       return "owner";
     case "house_manager":
+    case "business_admin":
+    case "business_manager":
+    case "BUSINESS_ADMIN":
+    case "BUSINESS_MANAGER":
       return "manager";
     case "house_staff":
     case "cashier":
+    case "business_staff":
+    case "BUSINESS_STAFF":
       return "staff";
     default:
       return "guest";
@@ -44,7 +54,7 @@ function deriveWorkspaceRoleFromEmployment(
   if (normalized.includes("owner")) {
     return "owner";
   }
-  if (normalized.includes("manager") || normalized.includes("gm")) {
+  if (normalized.includes("manager") || normalized.includes("admin") || normalized.includes("gm")) {
     return "manager";
   }
   return "staff";
@@ -397,7 +407,17 @@ async function buildInputForEntity(
   supabase: SupabaseClient,
   entityId: string,
 ): Promise<BuildTilesInput> {
-  const [loyalties, workspaces, tileAssignments, apps, visibilityRules, inboxUnreadCount, gmAccess, policies] = await Promise.all([
+  const [
+    loyalties,
+    workspaces,
+    tileAssignments,
+    apps,
+    visibilityRules,
+    inboxUnreadCount,
+    gmAccess,
+    policies,
+    gmStartTileOverride,
+  ] = await Promise.all([
     loadLoyaltyMemberships(supabase, entityId),
     loadWorkspaceDescriptors(supabase, entityId),
     loadTileAssignments(supabase, entityId),
@@ -406,9 +426,11 @@ async function buildInputForEntity(
     loadInboxUnreadCount(supabase, entityId),
     loadGmAccess(supabase, entityId),
     listPoliciesForCurrentUser(supabase),
+    getEffectiveSetting("gm.ui.always_show_start_business_tile"),
   ]);
 
   const policyKeys = policies.map((policy) => policy.key);
+  const uniqueBusinessIds = new Set(workspaces.map((workspace) => workspace.businessId));
 
   return {
     loyalties,
@@ -419,6 +441,8 @@ async function buildInputForEntity(
     inboxUnreadCount,
     apps,
     visibilityRules,
+    businessCount: uniqueBusinessIds.size,
+    alwaysShowStartBusinessTile: Boolean(gmAccess && gmStartTileOverride),
   } satisfies BuildTilesInput;
 }
 
@@ -449,7 +473,22 @@ export async function loadTilesForCurrentUser(): Promise<TilesMeResponse> {
     { tags: [`tiles:user:${user.id}`], revalidate: 60 },
   );
 
-  return cachedLoader();
+  const response = await cachedLoader();
+
+  if (response.home.some((tile) => tile.kind === "start-business")) {
+    try {
+      const gmAccess = await loadGmAccess(supabase, entityId);
+      await emitEvent("tiles_start_business_shown", "info", {
+        actorEntityId: entityId,
+        isGM: gmAccess,
+        hadWorkspacesBefore: response.workspaces.length > 0,
+      });
+    } catch (eventError) {
+      console.warn("Failed to emit start business telemetry", eventError);
+    }
+  }
+
+  return response;
 }
 
 export async function loadWorkspaceSectionsForSlug(slug: string): Promise<WorkspaceSections | null> {

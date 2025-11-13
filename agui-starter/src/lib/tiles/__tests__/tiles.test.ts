@@ -14,6 +14,8 @@ function baseInput(overrides: Partial<BuildTilesInput> = {}): BuildTilesInput {
     inboxUnreadCount: 0,
     apps: [],
     visibilityRules: [],
+    businessCount: 0,
+    alwaysShowStartBusinessTile: false,
     ...overrides,
   } satisfies BuildTilesInput;
 }
@@ -94,5 +96,37 @@ describe("buildTilesResponse", () => {
 
     const sectionKeys = response.workspaces[0]?.sections.map((section) => section.key) ?? [];
     assert.deepStrictEqual(sectionKeys, ["overview", "people", "operations", "finance", "settings"]);
+  });
+
+  it("shows the start business tile when eligible", () => {
+    const response = buildTilesResponse(
+      baseInput({
+        policies: ["houses:create"],
+        businessCount: 0,
+      }),
+    );
+
+    const kinds = response.home.map((tile) => tile.kind);
+    assert.ok(kinds.includes("start-business"));
+  });
+
+  it("hides the start business tile once a workspace exists unless forced", () => {
+    const hidden = buildTilesResponse(
+      baseInput({
+        policies: ["houses:create"],
+        businessCount: 1,
+      }),
+    );
+    assert.ok(!hidden.home.some((tile) => tile.kind === "start-business"));
+
+    const override = buildTilesResponse(
+      baseInput({
+        policies: ["houses:create"],
+        businessCount: 2,
+        alwaysShowStartBusinessTile: true,
+        gmAccess: true,
+      }),
+    );
+    assert.ok(override.home.some((tile) => tile.kind === "start-business"));
   });
 });

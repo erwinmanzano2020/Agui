@@ -42,7 +42,17 @@ type HouseRoleCheck = {
 };
 
 function normalizeRole(value: string): string {
-  return value.trim().toLowerCase();
+  const trimmed = value.trim().toLowerCase();
+  if (trimmed === "business_owner") {
+    return "house_owner";
+  }
+  if (trimmed === "business_admin" || trimmed === "business_manager") {
+    return "house_manager";
+  }
+  if (trimmed === "business_staff") {
+    return "house_staff";
+  }
+  return trimmed;
 }
 
 function matchesRole(candidate: string, target: RoleTarget): boolean {

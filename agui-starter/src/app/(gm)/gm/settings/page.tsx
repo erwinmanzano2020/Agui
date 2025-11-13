@@ -1,5 +1,8 @@
+import Link from "next/link";
+
 import SettingsWorkbench from "@/components/settings/SettingsWorkbench";
 import { loadSnapshotsByCategory } from "@/lib/settings/loaders";
+import { Button } from "@/components/ui/button";
 
 export default async function GMSettingsPage() {
   const snapshots = await loadSnapshotsByCategory();
@@ -11,6 +14,11 @@ export default async function GMSettingsPage() {
         <p className="text-sm text-muted-foreground">
           Configure the platform defaults for receipts, POS, and communications. Changes apply to every business unless overridden.
         </p>
+        <div className="mt-4">
+          <Button asChild>
+            <Link href="/company/new">Create Business</Link>
+          </Button>
+        </div>
       </div>
       <SettingsWorkbench scope="GM" snapshots={snapshots} globalSnapshots={snapshots} context={{}} />
     </div>

@@ -9,6 +9,7 @@ import ThemeToggle from "@/components/ui/theme-toggle";
 import { useUiTerms } from "@/lib/ui-terms-context";
 import { useSession } from "@/lib/auth/session-context";
 import { ViewAsSwitcher } from "@/components/auth/view-as";
+import { useActualUserRoles } from "@/lib/auth/user-roles-context";
 import {
   CalendarClockIcon,
   ChevronLeftIcon,
@@ -34,6 +35,7 @@ export function AppShell({
 }) {
   const terms = useUiTerms();
   const { status: sessionStatus, user } = useSession();
+  const roles = useActualUserRoles();
   const baseNav = useMemo<NavItem[]>(
     () => [
       { name: "Dashboard", href: "/", icon: <LayoutDashboardIcon className="h-5 w-5" /> },
@@ -77,6 +79,7 @@ export function AppShell({
   }, [baseNav, posEnabled]);
   const activeNav = nav.find((item) => item.href === pathname);
   const headerTitle = isHome ? "Home" : activeNav?.name ?? "Agui Dashboard";
+  const isGM = roles.PLATFORM.includes("game_master");
 
   if (pathname === "/" || isPublicRoute) {
     return <>{children}</>;
@@ -220,6 +223,16 @@ export function AppShell({
 
           {/* Right: actions (theme + user) */}
           <div className="flex items-center gap-3">
+            {isGM ? (
+              <>
+                <Button asChild size="sm" variant="outline" className="hidden md:inline-flex">
+                  <Link href="/company/new">➕ New Business</Link>
+                </Button>
+                <Button asChild size="sm" variant="ghost" className="md:hidden">
+                  <Link href="/company/new">➕</Link>
+                </Button>
+              </>
+            ) : null}
             <ViewAsSwitcher />
             {/* icon-only shared toggle */}
             <ThemeToggle className="h-9 w-9 p-0 rounded-2xl" />

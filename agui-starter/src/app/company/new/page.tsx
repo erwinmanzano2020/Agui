@@ -1,74 +1,88 @@
-import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { evaluatePolicy } from "@/lib/policy/server";
+import { getMyEntityId, currentEntityIsGM } from "@/lib/authz/server";
+import { emitEvent } from "@/lib/events/server";
 
-import { createHouse } from "./actions";
+import BusinessCreationWizard from "./wizard-client";
 
-export default function NewCompanyPage() {
+async function WizardLoader() {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase.auth.getUser();
+
+  if (error || !data?.user) {
+    redirect(`/welcome?next=${encodeURIComponent("/company/new")}`);
+  }
+
+  const [allowed, entityId, isGM] = await Promise.all([
+    evaluatePolicy({ action: "houses:create" }, supabase),
+    getMyEntityId(supabase),
+    currentEntityIsGM(supabase),
+  ]);
+
+  if (!allowed) {
+    return (
+      <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6 text-center">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold text-foreground">You can’t start a business yet</h1>
+          <p className="text-sm text-muted-foreground">
+            This action requires the houses:create policy. Ask your administrator to grant access.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
+  const { data: roleRows, error: roleError } = entityId
+    ? await supabase.from("house_roles").select("house_id").eq("entity_id", entityId)
+    : { data: null, error: null };
+
+  if (roleError) {
+    console.warn("Failed to resolve existing workspaces for wizard", roleError);
+  }
+
+  const hadWorkspacesBefore = Boolean(roleRows && roleRows.length > 0);
+
+  if (entityId) {
+    await emitEvent("business_creation_wizard_started", "info", {
+      actorEntityId: entityId,
+      isGM,
+      hadWorkspacesBefore,
+    });
+  }
+
+  if (!entityId) {
+    return (
+      <main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6 text-center">
+        <div className="space-y-2">
+          <h1 className="text-2xl font-semibold text-foreground">Almost there</h1>
+          <p className="text-sm text-muted-foreground">
+            We couldn’t resolve your entity record. Please sign out and sign back in to retry business creation.
+          </p>
+        </div>
+      </main>
+    );
+  }
+
   return (
     <main className="mx-auto flex w-full max-w-2xl flex-col gap-8 p-6">
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold text-foreground">Create a business</h1>
         <p className="text-sm text-muted-foreground">
-          Launch a new workspace for your team. You’ll become the first manager automatically.
+          Launch a new workspace for your team. You’ll become the first administrator automatically.
         </p>
       </header>
-
-      <section className="rounded-2xl border border-border bg-card p-6 shadow-sm">
-        <form action={createHouse} className="space-y-6">
-          <div className="space-y-2">
-            <label htmlFor="company-name" className="text-sm font-medium text-foreground">
-              Business name
-            </label>
-            <Input
-              id="company-name"
-              name="name"
-              placeholder="Vangie Variety Store"
-              required
-              autoComplete="organization"
-            />
-            <p className="text-xs text-muted-foreground">
-              This name appears on dashboards, reports, and staff tools.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="company-slug" className="text-sm font-medium text-foreground">
-              Workspace URL (optional)
-            </label>
-            <Input id="company-slug" name="slug" placeholder="vangie-variety-store" autoComplete="off" />
-            <p className="text-xs text-muted-foreground">
-              Leave blank and we’ll generate one from the name.
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="company-logo" className="text-sm font-medium text-foreground">
-              Logo URL (optional)
-            </label>
-            <Input
-              id="company-logo"
-              name="logo"
-              placeholder="https://example.com/logo.png"
-              autoComplete="url"
-              inputMode="url"
-            />
-            <p className="text-xs text-muted-foreground">
-              Add a logo to personalize your workspace later. You can change this anytime.
-            </p>
-          </div>
-
-          <div className="flex items-center justify-between gap-4">
-            <Link href="/me" className="text-sm font-medium text-primary hover:underline">
-              Cancel
-            </Link>
-            <Button type="submit" className="min-w-[140px]">
-              Create workspace
-            </Button>
-          </div>
-        </form>
-      </section>
+      <BusinessCreationWizard hadWorkspacesBefore={hadWorkspacesBefore} />
     </main>
+  );
+}
+
+export default function NewCompanyPage() {
+  return (
+    <Suspense fallback={<main className="mx-auto flex w-full max-w-2xl flex-col gap-6 p-6">Loading…</main>}>
+      <WizardLoader />
+    </Suspense>
   );
 }
