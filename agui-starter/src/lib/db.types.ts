@@ -398,6 +398,80 @@ export type HouseRoleInsert = {
 
 export type HouseRoleUpdate = Partial<HouseRoleInsert>;
 
+export type SettingsCatalogRow = {
+  key: string;
+  type: string;
+  description: string;
+  category: string;
+  meta: Json;
+  default_value: Json;
+  created_at: string;
+};
+
+export type SettingsCatalogInsert = {
+  key: string;
+  type: string;
+  description: string;
+  category: string;
+  meta?: Json;
+  default_value: Json;
+  created_at?: string;
+};
+
+export type SettingsCatalogUpdate = Partial<SettingsCatalogInsert>;
+
+export type SettingsValueRow = {
+  id: string;
+  key: string;
+  scope: "GM" | "BUSINESS" | "BRANCH";
+  business_id: string | null;
+  branch_id: string | null;
+  value: Json;
+  version: number;
+  updated_by: string | null;
+  updated_at: string | null;
+};
+
+export type SettingsValueInsert = {
+  id?: string;
+  key: string;
+  scope: "GM" | "BUSINESS" | "BRANCH";
+  business_id?: string | null;
+  branch_id?: string | null;
+  value: Json;
+  version?: number;
+  updated_by?: string | null;
+  updated_at?: string | null;
+};
+
+export type SettingsValueUpdate = Partial<SettingsValueInsert>;
+
+export type SettingsAuditRow = {
+  id: string;
+  key: string;
+  scope: "GM" | "BUSINESS" | "BRANCH";
+  business_id: string | null;
+  branch_id: string | null;
+  old_value: Json | null;
+  new_value: Json | null;
+  changed_by: string | null;
+  changed_at: string;
+};
+
+export type SettingsAuditInsert = {
+  id?: string;
+  key: string;
+  scope: "GM" | "BUSINESS" | "BRANCH";
+  business_id?: string | null;
+  branch_id?: string | null;
+  old_value?: Json | null;
+  new_value?: Json | null;
+  changed_by?: string | null;
+  changed_at?: string;
+};
+
+export type SettingsAuditUpdate = Partial<SettingsAuditInsert>;
+
 export type PolicyRow = {
   id: string;
   key: string;
@@ -597,6 +671,21 @@ export interface Database {
         EntityPolicyGrantRow,
         EntityPolicyGrantInsert,
         EntityPolicyGrantUpdate
+      >;
+      settings_catalog: TableDefinition<
+        SettingsCatalogRow,
+        SettingsCatalogInsert,
+        SettingsCatalogUpdate
+      >;
+      settings_values: TableDefinition<
+        SettingsValueRow,
+        SettingsValueInsert,
+        SettingsValueUpdate
+      >;
+      settings_audit: TableDefinition<
+        SettingsAuditRow,
+        SettingsAuditInsert,
+        SettingsAuditUpdate
       >;
     };
     Views: Record<string, GenericViewDefinition> & {
