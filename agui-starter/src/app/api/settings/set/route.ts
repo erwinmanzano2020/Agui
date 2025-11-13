@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { setSetting } from "@/lib/settings/server";
 import { ensureSettingsWriteAccess, SettingsAuthError } from "@/lib/settings/auth";
+import { emitEvent } from "@/lib/events/server";
 import type { SettingScope } from "@/lib/settings/catalog";
 import type { SettingKey, SettingValueMap } from "@/lib/settings/catalog";
 
@@ -45,6 +46,12 @@ export async function POST(request: NextRequest) {
       },
       actor.entityId,
     );
+    await emitEvent(`settings:scope:${payload.scope}`, "invalidate", {
+      key: payload.key,
+      scope: payload.scope,
+      businessId: payload.businessId ?? null,
+      branchId: payload.branchId ?? null,
+    });
     return NextResponse.json({ ok: true });
   } catch (error) {
     if (error instanceof SettingsAuthError) {

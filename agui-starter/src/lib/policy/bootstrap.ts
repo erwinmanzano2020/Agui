@@ -5,7 +5,7 @@ import "server-only";
 import type { Session, SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/db.types";
 import { ensureEntityForUser } from "@/lib/identity/entity-server";
-import { revalidateTilesForUser } from "@/lib/tiles/server";
+import { emitEvent } from "@/lib/events/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
 
 const HOUSES_CREATE_POLICY = "houses:create";
@@ -201,6 +201,6 @@ export async function bootstrapPoliciesForSession(session: Session | null | unde
   changed = changed || policyChanged;
 
   if (changed) {
-    revalidateTilesForUser(session.user.id);
+    await emitEvent(`tiles:user:${session.user.id}`, "invalidate", { reason: "policy bootstrap" });
   }
 }

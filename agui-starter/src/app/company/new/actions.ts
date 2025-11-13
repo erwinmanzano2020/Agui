@@ -5,7 +5,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { slugify } from "@/lib/slug";
 import { ensureEntityForUser } from "@/lib/identity/entity-server";
 import { evaluatePolicy } from "@/lib/policy/server";
-import { revalidateTilesForUser } from "@/lib/tiles/server";
+import { emitEvent } from "@/lib/events/server";
 
 type MaybeHouse = { id: string }; // minimal shape for slug check
 
@@ -122,6 +122,6 @@ export async function createHouse(formData: FormData) {
     throw new Error(rpcError.message);
   }
 
-  revalidateTilesForUser(user.id);
+  await emitEvent(`tiles:user:${user.id}`, "invalidate", { reason: "business created", businessId: inserted.id });
   redirect(`/company/${inserted.slug ?? slugCandidate}`);
 }

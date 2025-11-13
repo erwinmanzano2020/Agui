@@ -5,7 +5,7 @@ import { revalidateTag, unstable_cache } from "next/cache";
 
 import type { Database, Json } from "@/lib/db.types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { revalidateTilesForUser } from "@/lib/tiles/server";
+import { emitEvent } from "@/lib/events/server";
 
 import {
   getSettingDefinition,
@@ -241,7 +241,7 @@ async function maybeRevalidateTiles(
       ? (profile as { auth_user_id?: unknown }).auth_user_id
       : null;
   if (typeof userId === "string" && userId) {
-    revalidateTilesForUser(userId);
+    await emitEvent(`tiles:user:${userId}`, "invalidate", { reason: "settings updated", key });
   }
 }
 

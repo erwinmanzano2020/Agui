@@ -11,7 +11,7 @@ import {
 } from "@/lib/employments";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
-import { revalidateTilesForUser } from "@/lib/tiles/server";
+import { emitEvents } from "@/lib/events/server";
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -300,8 +300,13 @@ export async function POST(request: Request) {
     if (user?.id) {
       targets.add(user.id);
     }
-    for (const id of targets) {
-      revalidateTilesForUser(id);
+    const topics = Array.from(targets).map((id) => `tiles:user:${id}`);
+    if (topics.length > 0) {
+      await emitEvents(topics, "invalidate", {
+        reason: "application approved",
+        applicationId,
+        businessId: application.business_id,
+      });
     }
   } catch (error) {
     console.error("Failed to revalidate tiles after approval", error);

@@ -5,7 +5,7 @@ import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { listAccountUserIds } from "@/lib/employments";
-import { revalidateTilesForUser } from "@/lib/tiles/server";
+import { emitEvents } from "@/lib/events/server";
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -124,8 +124,13 @@ export async function POST(request: Request) {
     if (user.id) {
       targets.add(user.id);
     }
-    for (const id of targets) {
-      revalidateTilesForUser(id);
+    const topics = Array.from(targets).map((id) => `tiles:user:${id}`);
+    if (topics.length > 0) {
+      await emitEvents(topics, "invalidate", {
+        reason: "application rejected",
+        applicationId,
+        businessId: application.business_id,
+      });
     }
   } catch (error) {
     console.error("Failed to revalidate tiles after rejection", error);

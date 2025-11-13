@@ -1,6 +1,6 @@
 import { createServerSupabase } from "@/lib/auth/server";
 import type { AppInboxRow, AppInboxUpdate } from "@/lib/db.types";
-import { revalidateTilesForUser } from "@/lib/tiles/server";
+import { emitEvent } from "@/lib/events/server";
 
 export type InboxItem = Pick<
   AppInboxRow,
@@ -67,7 +67,10 @@ export async function markRead(id: string) {
   if (userError) {
     console.warn("Failed to resolve user for inbox revalidation", userError);
   }
-  revalidateTilesForUser(data?.user?.id ?? null);
+  const userId = data?.user?.id ?? null;
+  if (userId) {
+    await emitEvent(`tiles:user:${userId}`, "invalidate", { reason: "inbox updated", scope: "mark-read", id });
+  }
 }
 
 export async function markAllRead() {
@@ -83,5 +86,8 @@ export async function markAllRead() {
   if (userError) {
     console.warn("Failed to resolve user for inbox revalidation", userError);
   }
-  revalidateTilesForUser(data?.user?.id ?? null);
+  const userId = data?.user?.id ?? null;
+  if (userId) {
+    await emitEvent(`tiles:user:${userId}`, "invalidate", { reason: "inbox updated", scope: "mark-all-read" });
+  }
 }
