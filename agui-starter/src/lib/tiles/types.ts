@@ -92,4 +92,6 @@ export type BuildTilesInput = {
   inboxUnreadCount: number;
   apps: AppCatalogEntry[];
   visibilityRules: AppVisibilityRule[];
+  businessCount: number;
+  alwaysShowStartBusinessTile: boolean;
 };

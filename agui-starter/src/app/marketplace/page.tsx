@@ -2,11 +2,12 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { loadTilesForCurrentUser } from "@/lib/tiles/server";
+import { currentEntityIsGM } from "@/lib/authz/server";
 
 export const dynamic = "force-dynamic";
 
 export default async function MarketplacePage() {
-  const tiles = await loadTilesForCurrentUser();
+  const [tiles, gmAccess] = await Promise.all([loadTilesForCurrentUser(), currentEntityIsGM()]);
 
   if (!tiles.marketplace) {
     redirect("/me");
@@ -22,6 +23,20 @@ export default async function MarketplacePage() {
           Request new apps to unlock features for your workspaces. Enabled apps are hidden automatically.
         </p>
       </header>
+
+      {gmAccess ? (
+        <section className="rounded-2xl border border-dashed border-border/80 bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-foreground">Company Management</h2>
+              <p className="text-sm text-muted-foreground">Launch a new business workspace instantly.</p>
+            </div>
+            <Link href="/company/new" className="text-sm font-medium text-primary hover:underline">
+              Create Business →
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       {categories.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border p-6 text-sm text-muted-foreground">

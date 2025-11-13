@@ -1,127 +1,371 @@
 "use server";
 
-import { redirect } from "next/navigation";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { slugify } from "@/lib/slug";
 import { ensureEntityForUser } from "@/lib/identity/entity-server";
 import { evaluatePolicy } from "@/lib/policy/server";
 import { emitEvent } from "@/lib/events/server";
+import { currentEntityIsGM } from "@/lib/authz/server";
 
-type MaybeHouse = { id: string }; // minimal shape for slug check
+const BUSINESS_KIND_TO_HOUSE_TYPE: Record<string, string> = {
+  grocery: "RETAIL",
+  cafe: "RETAIL",
+  cafe_bar: "RETAIL",
+  laundry: "SERVICE",
+  pharmacy: "RETAIL",
+  restaurant: "RETAIL",
+  services: "SERVICE",
+  retail: "RETAIL",
+};
 
-type InsertedHouse = { id: string; slug: string | null };
+const FALLBACK_HOUSE_TYPE = "RETAIL";
 
-function coerceString(input: FormDataEntryValue | null): string {
-  if (typeof input !== "string") {
-    return "";
-  }
-  return input.trim();
+function normalizeString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
 }
 
-export async function createHouse(formData: FormData) {
+function coerceBusinessKind(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (normalized in BUSINESS_KIND_TO_HOUSE_TYPE) {
+    return normalized;
+  }
+  return "retail";
+}
+
+type MaybeBusinessRow = { id: string; slug: string | null; name?: string | null };
+
+type MaybeBranchRow = { id: string; name: string | null; slug: string | null };
+
+type BusinessSummary = {
+  id: string;
+  name: string;
+  slug: string | null;
+};
+
+type BranchSummary = {
+  id: string;
+  name: string;
+  slug: string | null;
+};
+
+export type BusinessCreationWizardInput = {
+  name: string;
+  slug?: string | null;
+  businessType: string;
+  logoUrl?: string | null;
+  slogan?: string | null;
+};
+
+export type BusinessCreationWizardResult =
+  | {
+      status: "error";
+      message: string;
+      code?: number;
+      fieldErrors?: Record<string, string | null>;
+    }
+  | {
+      status: "success";
+      business: BusinessSummary;
+      branch: BranchSummary | null;
+    };
+
+function isRelationMissing(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const message = "message" in error ? String((error as { message?: unknown }).message ?? "") : "";
+  return message.includes("relation") && message.includes("does not exist");
+}
+
+async function slugInUse(supabase: unknown, table: "houses" | "businesses", slug: string): Promise<boolean> {
+  const client: any = supabase;
+  const { data, error } = await client
+    .from(table)
+    .select("id")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (error) {
+    if (isRelationMissing(error)) {
+      return false;
+    }
+    throw new Error(error.message);
+  }
+
+  const row = data as MaybeBusinessRow | null;
+  return Boolean(row?.id);
+}
+
+async function assertUniqueSlug(supabase: unknown, slug: string): Promise<void> {
+  const fromHouses = await slugInUse(supabase, "houses", slug);
+  if (fromHouses) {
+    throw new Error("Slug is already taken");
+  }
+  const fromBusinesses = await slugInUse(supabase, "businesses", slug);
+  if (fromBusinesses) {
+    throw new Error("Slug is already taken");
+  }
+}
+
+async function assignBusinessRole(supabase: unknown, businessId: string, entityId: string, role: string): Promise<boolean> {
+  const client: any = supabase;
+  const { error } = await client.from("house_roles").upsert(
+    { house_id: businessId, entity_id: entityId, role },
+    { onConflict: "house_id,entity_id,role" },
+  );
+  if (error) {
+    console.warn("Failed to assign role", { role, error });
+    return false;
+  }
+  return true;
+}
+
+async function assignBusinessRoles(supabase: unknown, businessId: string, entityId: string): Promise<void> {
+  const attempted = await Promise.all([
+    assignBusinessRole(supabase, businessId, entityId, "BUSINESS_OWNER"),
+    assignBusinessRole(supabase, businessId, entityId, "BUSINESS_ADMIN"),
+  ]);
+
+  if (!attempted.every(Boolean)) {
+    // Fallback to legacy role names when the new constants are unavailable.
+    await Promise.all([
+      assignBusinessRole(supabase, businessId, entityId, "house_owner"),
+      assignBusinessRole(supabase, businessId, entityId, "house_manager"),
+    ]);
+  }
+}
+
+async function createDefaultBranch(supabase: unknown, businessId: string, businessSlug: string): Promise<BranchSummary | null> {
+  try {
+    const client: any = supabase;
+    const { data, error } = await client
+      .from("branches")
+      .insert({ house_id: businessId, name: "Main Branch" })
+      .select("id, name, slug")
+      .maybeSingle();
+
+    if (error) {
+      if (!isRelationMissing(error)) {
+        console.warn("Failed to create default branch", error);
+      }
+      return null;
+    }
+
+    const branch = data as MaybeBranchRow | null;
+    if (!branch?.id) {
+      return null;
+    }
+
+    return {
+      id: branch.id,
+      name: branch.name ?? "Main Branch",
+      slug: branch.slug ?? `${businessSlug}-main`,
+    } satisfies BranchSummary;
+  } catch (branchError) {
+    console.warn("Unexpected error creating branch", branchError);
+    return null;
+  }
+}
+
+export async function createBusinessWizard(
+  input: BusinessCreationWizardInput,
+): Promise<BusinessCreationWizardResult> {
   const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase.auth.getUser();
 
   if (error) {
-    console.warn("Failed to resolve current user for createHouse", error);
+    console.warn("Failed to resolve current user for business wizard", error);
   }
 
-  const user = data?.user;
+  const user = data?.user ?? null;
   if (!user) {
-    redirect(`/welcome?next=${encodeURIComponent("/company/new")}`);
+    return { status: "error", message: "Unauthorized", code: 401 };
   }
 
   const allowed = await evaluatePolicy({ action: "houses:create" }, supabase);
   if (!allowed) {
-    redirect("/welcome?error=forbidden");
+    return { status: "error", message: "Forbidden", code: 403 };
   }
 
-  const name = coerceString(formData.get("name"));
+  const name = normalizeString(input.name);
+  const providedSlug = normalizeString(input.slug ?? null);
+  const slugCandidate = providedSlug ? slugify(providedSlug) : slugify(name);
+  const businessType = coerceBusinessKind(normalizeString(input.businessType || ""));
+  const houseType = BUSINESS_KIND_TO_HOUSE_TYPE[businessType] ?? FALLBACK_HOUSE_TYPE;
+  const logoUrl = normalizeString(input.logoUrl ?? null);
+  const slogan = normalizeString(input.slogan ?? null);
+  const client: any = supabase;
+
+  const fieldErrors: Record<string, string | null> = {};
   if (!name) {
-    throw new Error("Name is required");
+    fieldErrors.name = "Business name is required";
   }
-
-  const rawSlug = coerceString(formData.get("slug"));
-  const slugCandidate = slugify(rawSlug || name);
   if (!slugCandidate) {
-    throw new Error("Slug could not be generated");
+    fieldErrors.slug = "Slug could not be generated";
   }
 
-  const { data: existing, error: slugError } = await supabase
+  if (Object.keys(fieldErrors).length > 0) {
+    return { status: "error", message: "Validation failed", fieldErrors };
+  }
+
+  try {
+    await assertUniqueSlug(client, slugCandidate);
+  } catch (slugError) {
+    return {
+      status: "error",
+      message: slugError instanceof Error ? slugError.message : "Slug validation failed",
+      fieldErrors: { slug: "Slug is already taken" },
+    };
+  }
+
+  let insertedBusiness: MaybeBusinessRow | null = null;
+  let insertError: Error | null = null;
+
+  const payload: Record<string, unknown> = {
+    name,
+    slug: slugCandidate,
+    house_type: houseType,
+  };
+
+  if (logoUrl) {
+    payload.logo_url = logoUrl;
+  }
+  if (slogan) {
+    payload.tagline = slogan;
+  }
+
+  const { data: primaryInsert, error: primaryError } = await client
     .from("houses")
-    .select("id")
-    .eq("slug", slugCandidate)
-    .maybeSingle<MaybeHouse>();
+    .insert(payload)
+    .select("id, slug, name")
+    .maybeSingle();
 
-  if (slugError) {
-    throw new Error(slugError.message);
+  if (primaryError) {
+    console.warn("Primary business insert failed, retrying with fallback payload", primaryError);
+    const fallbackPayload = { name, slug: slugCandidate } satisfies Record<string, unknown>;
+    const { data: fallbackInsert, error: fallbackError } = await client
+      .from("houses")
+      .insert(fallbackPayload)
+      .select("id, slug, name")
+      .maybeSingle();
+    insertedBusiness = fallbackInsert ?? null;
+    insertError = fallbackError ? new Error(fallbackError.message) : null;
+  } else {
+    insertedBusiness = primaryInsert ?? null;
   }
-
-  if (existing) {
-    throw new Error("Slug is already taken");
-  }
-
-  const { data: inserted, error: insertError } = await supabase
-    .from("houses")
-    .insert({ name, slug: slugCandidate })
-    .select("id, slug")
-    .single<InsertedHouse>();
 
   if (insertError) {
-    throw new Error(insertError.message);
+    return { status: "error", message: insertError.message };
   }
 
-  if (!inserted?.id) {
-    throw new Error("Failed to create business");
+  if (!insertedBusiness?.id) {
+    return { status: "error", message: "Failed to create business" };
   }
 
-  const entityId = await ensureEntityForUser(user).catch((entityError) => {
-    console.error("Failed to ensure entity for user", entityError);
-    throw entityError;
-  });
-
-  const { data: ownerRole, error: ownerRoleError } = await supabase
-    .from("roles")
-    .select("id, slug")
-    .eq("scope", "HOUSE")
-    .eq("slug", "house_owner")
-    .maybeSingle<{ id: string; slug: string }>();
-
-  if (ownerRoleError) {
-    console.warn("Failed to resolve house_owner role for onboarding", ownerRoleError);
-  }
-
-  let roleId = ownerRole?.id ?? null;
-  let roleSlug = ownerRole?.slug ?? null;
-
-  if (!roleId) {
-    const { data: managerRole, error: managerRoleError } = await supabase
-      .from("roles")
-      .select("id, slug")
-      .eq("scope", "HOUSE")
-      .eq("slug", "house_manager")
-      .maybeSingle<{ id: string; slug: string }>();
-
-    if (managerRoleError) {
-      console.warn("Failed to resolve house_manager role for onboarding", managerRoleError);
-    } else {
-      roleId = managerRole?.id ?? null;
-      roleSlug = managerRole?.slug ?? null;
+  if (primaryError && houseType) {
+    // Attempt to patch in the desired house_type if the column exists but the first insert failed.
+    try {
+      await client.from("houses").update({ house_type: houseType }).eq("id", insertedBusiness.id);
+    } catch (patchError) {
+      console.warn("Failed to backfill house_type", patchError);
     }
   }
 
-  const { error: rpcError } = await supabase.rpc("onboard_employee", {
-    p_house_id: inserted.id,
-    p_entity_id: entityId,
-    p_role_id: roleId,
-    p_role_slug: roleSlug ?? "house_owner",
-  });
-
-  if (rpcError) {
-    console.error("onboard_employee failed while creating business", rpcError);
-    throw new Error(rpcError.message);
+  if (logoUrl || slogan) {
+    try {
+      const updates: Record<string, string> = {};
+      if (logoUrl) updates.logo_url = logoUrl;
+      if (slogan) updates.tagline = slogan;
+      if (Object.keys(updates).length > 0) {
+        await client.from("houses").update(updates).eq("id", insertedBusiness.id);
+      }
+    } catch (metadataError) {
+      console.warn("Failed to persist optional branding details", metadataError);
+    }
   }
 
-  await emitEvent(`tiles:user:${user.id}`, "invalidate", { reason: "business created", businessId: inserted.id });
-  redirect(`/company/${inserted.slug ?? slugCandidate}`);
+  const entityId = await ensureEntityForUser(user).catch((entityError) => {
+    console.error("Failed to resolve entity for wizard creator", entityError);
+    throw entityError;
+  });
+
+  await assignBusinessRoles(client, insertedBusiness.id, entityId);
+
+  const branch = await createDefaultBranch(client, insertedBusiness.id, slugCandidate);
+
+  const isGM = await currentEntityIsGM(supabase);
+
+  if (!isGM) {
+    try {
+      const { data: policyRow } = await client
+        .from("policies")
+        .select("id")
+        .eq("key", "houses:create")
+        .maybeSingle();
+
+      const policyId = policyRow && typeof policyRow === "object" ? (policyRow as { id?: unknown }).id : null;
+
+      if (typeof policyId === "string" && policyId) {
+        const { error: revokeError } = await client
+          .from("entity_policy_grants")
+          .delete()
+          .eq("entity_id", entityId)
+          .eq("policy_id", policyId);
+
+        if (revokeError) {
+          console.warn("Failed to revoke houses:create policy", revokeError);
+        } else {
+          await emitEvent("policy_revoked_houses_create", "info", {
+            actorEntityId: entityId,
+            businessId: insertedBusiness.id,
+          });
+        }
+      }
+    } catch (policyError) {
+      console.warn("Unexpected error revoking houses:create policy", policyError);
+    }
+  }
+
+  const businessSummary: BusinessSummary = {
+    id: insertedBusiness.id,
+    name: insertedBusiness.name ?? name,
+    slug: insertedBusiness.slug ?? slugCandidate,
+  };
+
+  await Promise.all([
+    emitEvent("business:created", "info", {
+      businessId: businessSummary.id,
+      slug: businessSummary.slug,
+      creatorEntityId: entityId,
+      isGM,
+    }),
+    emitEvent("business_created", "info", {
+      businessId: businessSummary.id,
+      creatorEntityId: entityId,
+      isGM,
+    }),
+    emitEvent("tiles:invalidate", "info", { entityId }),
+    emitEvent("settings:invalidate", "info", { scope: "BUSINESS", businessId: businessSummary.id }),
+    emitEvent(`tiles:user:${user.id}`, "invalidate", {
+      reason: "business created",
+      businessId: businessSummary.id,
+    }),
+    emitEvent("audit", "info", {
+      action: "business:create",
+      businessId: businessSummary.id,
+      actorEntityId: entityId,
+    }),
+  ]).catch((eventError) => {
+    console.warn("Failed to emit one or more business creation events", eventError);
+  });
+
+  console.info("business created", { businessId: businessSummary.id, slug: businessSummary.slug, userId: user.id });
+
+  return {
+    status: "success",
+    business: businessSummary,
+    branch,
+  } satisfies BusinessCreationWizardResult;
 }

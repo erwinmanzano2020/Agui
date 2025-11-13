@@ -26,7 +26,8 @@ export type SettingCategory =
   | "labels"
   | "sop"
   | "email"
-  | "preview";
+  | "preview"
+  | "ui";
 
 const DEFINITIONS = [
   {
@@ -116,6 +117,14 @@ const DEFINITIONS = [
     description: "Cashier variance thresholds",
     meta: { schema: "small/medium/large" },
     defaultValue: { small: 5, medium: 15, large: 30 },
+  },
+  {
+    key: "gm.ui.always_show_start_business_tile",
+    type: "boolean",
+    category: "ui",
+    description: "Always show the Start a business tile for Game Masters",
+    meta: { label: "Always show Start a business tile" },
+    defaultValue: false,
   },
 ] as const satisfies ReadonlyArray<BaseDefinition<string, SettingType>>;
 
