@@ -9,6 +9,11 @@ export const NEXT_PUBLIC_SUPABASE_ANON_KEY =
 
 export const AGUI_TAXONOMY_V2 = process.env.AGUI_TAXONOMY_V2 === "true";
 
+export const SUPABASE_SERVICE_ROLE_KEY =
+  typeof window === "undefined"
+    ? (process.env.SUPABASE_SERVICE_ROLE_KEY as string | undefined)
+    : undefined;
+
 /**
  * Validate only on the server (build/runtime). Do NOT throw in the browser at import time.
  * Call this from server code right before you need the values (e.g., in an API route).
