@@ -11,7 +11,7 @@ import {
 import { getInviteByToken, markInviteAccepted, type InviteRecord } from "@/lib/invites";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
-import { revalidateTilesForUser } from "@/lib/tiles/server";
+import { emitEvents } from "@/lib/events/server";
 
 function normalizeEmail(email: string | null | undefined): string | null {
   if (typeof email !== "string") {
@@ -138,8 +138,13 @@ async function acceptEmploymentInvite(user: User, invite: InviteRecord) {
       return [] as string[];
     });
     const targets = new Set<string>([user.id, ...relatedUserIds]);
-    for (const userId of targets) {
-      revalidateTilesForUser(userId);
+    const topics = Array.from(targets).map((userId) => `tiles:user:${userId}`);
+    if (topics.length > 0) {
+      await emitEvents(topics, "invalidate", {
+        reason: "invite accepted",
+        inviteId: invite.id,
+        businessId: invite.business_id,
+      });
     }
   } catch (error) {
     console.error("Failed to revalidate tiles after invite acceptance", error);
@@ -220,8 +225,15 @@ async function acceptLegacyInvite(user: User, invite: InviteRecord) {
       return [] as string[];
     });
     const targets = new Set<string>([user.id, ...relatedUserIds]);
-    for (const userId of targets) {
-      revalidateTilesForUser(userId);
+    const topics = Array.from(targets).map((userId) => `tiles:user:${userId}`);
+    if (topics.length > 0) {
+      await emitEvents(topics, "invalidate", {
+        reason: "invite accepted",
+        inviteId: invite.id,
+        scope: invite.scope,
+        houseId: invite.house_id,
+        guildId: invite.guild_id,
+      });
     }
   } catch (error) {
     console.error("Failed to revalidate tiles after invite acceptance", error);

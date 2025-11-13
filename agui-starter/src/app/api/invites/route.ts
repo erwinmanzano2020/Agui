@@ -8,7 +8,7 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import type { AnySupabaseClient } from "@/lib/supabase/types";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { revalidateTilesForUser } from "@/lib/tiles/server";
+import { emitEvent } from "@/lib/events/server";
 
 const HOUSE_INVITER_ROLES = new Set(["house_manager", "house_owner"]);
 const HOUSE_INVITEE_ROLES = new Set(["house_manager", "cashier", "house_staff"]);
@@ -210,7 +210,12 @@ async function handleEmploymentInviteRequest(
     return NextResponse.json({ error: "Failed to create invite" }, { status: 500 });
   }
 
-  revalidateTilesForUser(user.id);
+  await emitEvent(`tiles:user:${user.id}`, "invalidate", {
+    reason: "invite created",
+    inviteId: invite.id,
+    businessId: businessId ?? null,
+    scope: kind,
+  });
 
   const headerList = headers() as unknown as UnsafeUnwrappedHeaders;
   const origin = headerList.get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL ?? null;
@@ -365,7 +370,13 @@ async function handleLegacyInviteRequest(supabase: SupabaseClient, body: CreateI
     return NextResponse.json({ error: "Failed to create invite" }, { status: 500 });
   }
 
-  revalidateTilesForUser(user.id);
+  await emitEvent(`tiles:user:${user.id}`, "invalidate", {
+    reason: "invite created",
+    inviteId: invite.id,
+    scope,
+    guildId,
+    houseId,
+  });
 
   const headerList = headers() as unknown as UnsafeUnwrappedHeaders;
   const origin = headerList.get("origin") ?? process.env.NEXT_PUBLIC_SITE_URL ?? null;

@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { revalidateTag, unstable_cache } from "next/cache";
+import { unstable_cache } from "next/cache";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getMyEntityId } from "@/lib/authz/server";
@@ -446,17 +446,10 @@ export async function loadTilesForCurrentUser(): Promise<TilesMeResponse> {
       return buildTilesResponse(input);
     },
     ["tiles", "me", user.id, entityId],
-    { tags: [`tiles:user:${user.id}`], revalidate: 15 },
+    { tags: [`tiles:user:${user.id}`], revalidate: 60 },
   );
 
   return cachedLoader();
-}
-
-export function revalidateTilesForUser(userId: string | null | undefined) {
-  if (!userId) {
-    return;
-  }
-  revalidateTag(`tiles:user:${userId}`);
 }
 
 export async function loadWorkspaceSectionsForSlug(slug: string): Promise<WorkspaceSections | null> {

@@ -23,6 +23,11 @@ export async function getMyRoles(
   return getMyRolesFromClient(supabase);
 }
 
+export async function currentEntityIsGM(client?: SupabaseClient | null): Promise<boolean> {
+  const roles = await getMyRoles(client);
+  return hasRoleInAssignments(roles, "PLATFORM", "game_master");
+}
+
 export async function hasRole(
   scope: RoleScope,
   role: string,
