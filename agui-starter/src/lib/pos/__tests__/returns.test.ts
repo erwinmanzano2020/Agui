@@ -68,4 +68,64 @@ describe("pos returns", () => {
     assert.equal(summary.audit.linesVoided, 2);
     assert.equal(summary.audit.hasInventoryImpact, true);
   });
+
+  it("rejects duplicate selections that exceed sold quantity", () => {
+    const sale = {
+      saleId: "sale-dup-1",
+      lines: [{ id: "line-1", quantity: 1, unitPrice: 1_000, lineTotal: 1_000 }],
+      tenders: [],
+    };
+
+    assert.throws(() =>
+      computeReturn({
+        sale,
+        selections: [
+          { lineId: "line-1", quantity: 0.75 },
+          { lineId: "line-1", quantity: 0.5 },
+        ],
+      }),
+    /exceeds sold quantity/);
+  });
+
+  it("allows fractional quantities when within sold amount", () => {
+    const result = computeReturn({
+      sale: {
+        saleId: "sale-fractional-1",
+        lines: [{ id: "line-1", quantity: 0.5, unitPrice: 400, lineTotal: 200 }],
+        tenders: [],
+      },
+      selections: [
+        { lineId: "line-1", quantity: 0.25 },
+        { lineId: "line-1", quantity: 0.25 },
+      ],
+    });
+
+    assert.equal(result.totalReturnValue, 200);
+    assert.equal(result.lineAdjustments.length, 1);
+    assert.equal(result.lineAdjustments[0]?.quantity, 0.5);
+  });
+
+  it("rejects zero or negative return quantities", () => {
+    assert.throws(() =>
+      computeReturn({
+        sale: {
+          saleId: "sale-negative-1",
+          lines: [{ id: "line-1", quantity: 1, unitPrice: 500, lineTotal: 500 }],
+          tenders: [],
+        },
+        selections: [{ lineId: "line-1", quantity: 0 }],
+      }),
+    /positive number/);
+
+    assert.throws(() =>
+      computeReturn({
+        sale: {
+          saleId: "sale-negative-2",
+          lines: [{ id: "line-1", quantity: 1, unitPrice: 500, lineTotal: 500 }],
+          tenders: [],
+        },
+        selections: [{ lineId: "line-1", quantity: -1 }],
+      }),
+    /positive number/);
+  });
 });

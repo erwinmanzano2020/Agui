@@ -71,12 +71,9 @@ function ensureNonNegativeInteger(value: unknown, label: string): number {
   return value;
 }
 
-function ensurePositiveInteger(value: unknown, label: string): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
-    throw new Error(`${label} must be a positive integer`);
-  }
-  if (!Number.isSafeInteger(value)) {
-    throw new Error(`${label} exceeds safe integer range`);
+function ensurePositiveQuantity(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    throw new Error(`${label} must be a positive number`);
   }
   return value;
 }
@@ -95,7 +92,7 @@ function ensureString(value: unknown, label: string): string {
 function normalizeLine(line: SaleLineSnapshot, index: number): SaleLineSnapshot {
   return {
     id: ensureString(line.id, `line ${index} id`),
-    quantity: ensurePositiveInteger(line.quantity, `line ${index} quantity`),
+    quantity: ensurePositiveQuantity(line.quantity, `line ${index} quantity`),
     unitPrice: ensureNonNegativeInteger(line.unitPrice, `line ${index} unit price`),
     lineTotal: ensureNonNegativeInteger(line.lineTotal, `line ${index} line total`),
     description: line.description ?? null,
@@ -128,10 +125,31 @@ function normalizeSelections(selections: ReturnLineSelection[]): ReturnLineSelec
     }
     return {
       lineId: ensureString(selection.lineId, `selection ${index} line id`),
-      quantity: ensurePositiveInteger(selection.quantity, `selection ${index} quantity`),
+      quantity: ensurePositiveQuantity(selection.quantity, `selection ${index} quantity`),
       reason: selection.reason?.trim() || undefined,
     } satisfies ReturnLineSelection;
   });
+}
+
+function mergeSelectionsByLine(selections: ReturnLineSelection[]): Map<string, ReturnLineSelection> {
+  const merged = new Map<string, ReturnLineSelection>();
+  for (const selection of selections) {
+    if (selection.quantity <= 0) {
+      throw new Error(`Invalid return quantity for line ${selection.lineId}`);
+    }
+    const existing = merged.get(selection.lineId);
+    if (!existing) {
+      merged.set(selection.lineId, { ...selection });
+      continue;
+    }
+
+    merged.set(selection.lineId, {
+      ...existing,
+      quantity: existing.quantity + selection.quantity,
+      reason: existing.reason ?? selection.reason ?? undefined,
+    });
+  }
+  return merged;
 }
 
 function computeLineAdjustments(
@@ -146,13 +164,15 @@ function computeLineAdjustments(
   const adjustments: ReturnLineAdjustment[] = [];
   let total = 0;
 
-  for (const selection of selections) {
-    const line = lineMap.get(selection.lineId);
+  const mergedSelections = mergeSelectionsByLine(selections);
+
+  for (const [lineId, selection] of mergedSelections) {
+    const line = lineMap.get(lineId);
     if (!line) {
-      throw new Error(`Line ${selection.lineId} is not part of the sale`);
+      throw new Error(`Line ${lineId} is not part of the sale`);
     }
     if (selection.quantity > line.quantity) {
-      throw new Error(`Return quantity for line ${selection.lineId} exceeds sold quantity`);
+      throw new Error(`Return quantity for line ${lineId} exceeds sold quantity`);
     }
     const unitTotal = line.unitPrice;
     const value = unitTotal * selection.quantity;
