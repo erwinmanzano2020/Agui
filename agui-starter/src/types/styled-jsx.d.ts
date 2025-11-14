@@ -1,14 +1,6 @@
-import "react";
-
+/* eslint-disable @typescript-eslint/no-unused-vars */
 declare module "react" {
-  interface StyleHTMLAttributes<T> {
-    jsx?: boolean;
-    global?: boolean;
-  }
-}
-
-declare namespace JSX {
-  interface IntrinsicAttributes {
+  interface StyleHTMLAttributes<T = unknown> {
     jsx?: boolean;
     global?: boolean;
   }

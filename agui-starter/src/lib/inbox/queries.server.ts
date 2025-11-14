@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/auth/server";
 import type { AppInboxRow, AppInboxUpdate } from "@/lib/db.types";
+import type { Tables } from "@/lib/supabase/types";
 import { emitEvent } from "@/lib/events/server";
 
 export type InboxItem = Pick<
@@ -7,6 +8,8 @@ export type InboxItem = Pick<
   "id" | "kind" | "title" | "body" | "ref" | "created_at" | "read_at"
 >;
 export type InboxList = { unread: InboxItem[]; read: InboxItem[]; unreadCount: number };
+
+type InboxRow = Tables<"app_inbox">;
 
 export async function fetchInbox(): Promise<InboxList> {
   const supabase = await createServerSupabase();
@@ -28,7 +31,7 @@ export async function fetchInbox(): Promise<InboxList> {
 
   if (e2) throw new Error(`Load read failed: ${e2.message}`);
 
-  const unreadItems: InboxItem[] = (unread ?? []).map((item: any) => ({
+  const unreadItems: InboxItem[] = (unread ?? []).map((item: InboxRow) => ({
     id: item.id,
     kind: item.kind,
     title: item.title,
@@ -38,7 +41,7 @@ export async function fetchInbox(): Promise<InboxList> {
     read_at: item.read_at,
   }));
 
-  const readItems: InboxItem[] = (read ?? []).map((item: any) => ({
+  const readItems: InboxItem[] = (read ?? []).map((item: InboxRow) => ({
     id: item.id,
     kind: item.kind,
     title: item.title,
