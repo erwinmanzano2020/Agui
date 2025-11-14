@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it, mock } from "node:test";
-import { PosShiftError, submitBlindDrop } from "@/lib/pos/shifts.server";
+import { after, before, describe, it, mock } from "node:test";
 
 type QueryResult<T> = Promise<{ data: T; error: null }>;
 type MutationResult = Promise<{ error: { message: string } | null }>;
@@ -127,34 +126,33 @@ const supabase = new MockSupabase();
 let actorEntityId = "cashier-1";
 let actorIsGM = false;
 
-mock.module("@/lib/supabase/server", {
-  namedExports: {
-    createServerSupabaseClient: async () => supabase,
-  },
+let PosShiftError: typeof import("@/lib/pos/shifts.server").PosShiftError;
+let submitBlindDrop: typeof import("@/lib/pos/shifts.server").submitBlindDrop;
+
+before(async () => {
+  const supabaseModule = await import("@/lib/supabase/server");
+  mock.method(supabaseModule, "createServerSupabaseClient", async () => supabase);
+
+  const authzModule = await import("@/lib/authz/server");
+  mock.method(authzModule, "getMyEntityId", async () => actorEntityId);
+  mock.method(authzModule, "currentEntityIsGM", async () => actorIsGM);
+
+  const settingsModule = await import("@/lib/settings/server");
+  mock.method(settingsModule, "getSettingsSnapshot", async () => ({
+    "pos.cash.blind_drop_enabled": { value: true },
+    "pos.cash.overage_pool.enabled": { value: true },
+    "pos.cash.overage_pool.max_offset_ratio": { value: 0.5 },
+    "pos.cash.float.defaults": { value: {} },
+  }));
+
+  const eventsModule = await import("@/lib/events/server");
+  mock.method(eventsModule, "emitEvent", async () => {});
+
+  ({ PosShiftError, submitBlindDrop } = await import("@/lib/pos/shifts.server"));
 });
 
-mock.module("@/lib/authz/server", {
-  namedExports: {
-    getMyEntityId: async () => actorEntityId,
-    currentEntityIsGM: async () => actorIsGM,
-  },
-});
-
-mock.module("@/lib/settings/server", {
-  namedExports: {
-    getSettingsSnapshot: async () => ({
-      "pos.cash.blind_drop_enabled": { value: true },
-      "pos.cash.overage_pool.enabled": { value: true },
-      "pos.cash.overage_pool.max_offset_ratio": { value: 0.5 },
-      "pos.cash.float.defaults": { value: {} },
-    }),
-  },
-});
-
-mock.module("@/lib/events/server", {
-  namedExports: {
-    emitEvent: async () => {},
-  },
+after(() => {
+  mock.restoreAll();
 });
 
 describe("submitBlindDrop", () => {

@@ -1,19 +1,10 @@
 import assert from "node:assert/strict";
-import { before, describe, it, mock } from "node:test";
+import { before, describe, it } from "node:test";
 
 import { listSettingDefinitionsByCategory } from "@/lib/settings/catalog";
 import type { SettingsValueRow } from "@/lib/db.types";
 
 type DatabaseClient = import("@supabase/supabase-js").SupabaseClient<import("@/lib/db.types").Database>;
-
-mock.module("next/cache", {
-  namedExports: {
-    revalidateTag: async () => {},
-    unstable_cache: <Fn extends (...args: unknown[]) => Promise<unknown>>(fn: Fn) => {
-      return (...args: Parameters<Fn>): ReturnType<Fn> => fn(...args) as ReturnType<Fn>;
-    },
-  },
-});
 
 let testingHelpers: typeof import("@/lib/settings/server").__settingsTesting;
 

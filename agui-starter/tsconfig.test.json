@@ -8,7 +8,8 @@
     "lib": ["es2020", "dom"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@supabase/ssr": ["src/lib/supabase-ssr"]
     },
     "esModuleInterop": true,
     "skipLibCheck": true,

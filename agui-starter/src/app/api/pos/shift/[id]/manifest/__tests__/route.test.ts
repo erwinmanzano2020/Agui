@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
-import { before, describe, it, mock } from "node:test";
+import { after, before, describe, it, mock } from "node:test";
 import type { NextRequest } from "next/server";
-import { GET } from "../route";
 
 type QueryResult<T> = Promise<{ data: T; error: null }>;
 
@@ -109,11 +108,16 @@ class ManifestSupabaseMock {
 }
 
 const supabase = new ManifestSupabaseMock();
+let GET: typeof import("../route").GET;
 
-mock.module("@/lib/supabase/server", {
-  namedExports: {
-    createServerSupabaseClient: async () => supabase,
-  },
+before(async () => {
+  const supabaseModule = await import("@/lib/supabase/server");
+  mock.method(supabaseModule, "createServerSupabaseClient", async () => supabase);
+  ({ GET } = await import("../route"));
+});
+
+after(() => {
+  mock.restoreAll();
 });
 
 describe("GET /api/pos/shift/[id]/manifest", () => {
