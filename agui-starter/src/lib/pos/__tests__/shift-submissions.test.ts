@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
+import { PosShiftError, submitBlindDrop } from "@/lib/pos/shifts.server";
 
 type QueryResult<T> = Promise<{ data: T; error: null }>;
 type MutationResult = Promise<{ error: { message: string } | null }>;
@@ -155,9 +156,6 @@ mock.module("@/lib/events/server", {
     emitEvent: async () => {},
   },
 });
-
-const shiftsModule = await import("@/lib/pos/shifts.server");
-const { submitBlindDrop, PosShiftError } = shiftsModule;
 
 describe("submitBlindDrop", () => {
   it("allows the cashier to resubmit before verification", async () => {

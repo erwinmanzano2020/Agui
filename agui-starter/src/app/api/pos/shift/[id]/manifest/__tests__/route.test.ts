@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
-import { describe, it, mock } from "node:test";
+import { before, describe, it, mock } from "node:test";
 import type { NextRequest } from "next/server";
+import { GET } from "../route";
 
 type QueryResult<T> = Promise<{ data: T; error: null }>;
 
@@ -115,15 +116,17 @@ mock.module("@/lib/supabase/server", {
   },
 });
 
-const { GET } = await import("../route");
-
 describe("GET /api/pos/shift/[id]/manifest", () => {
-  it("returns the manifest summary", async () => {
-    const response = await GET(
+  let response: Response;
+
+  before(async () => {
+    response = await GET(
       new Request("http://localhost/api/pos/shift/shift-1") as unknown as NextRequest,
       { params: Promise.resolve({ id: "shift-1" }) },
     );
+  });
 
+  it("returns the manifest summary", async () => {
     assert.equal(response.status, 200);
     const payload = (await response.json()) as Record<string, unknown>;
     const shift = payload.shift as Record<string, unknown>;
