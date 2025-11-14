@@ -1,6 +1,5 @@
 import { createServerSupabase } from "@/lib/auth/server";
 import type { AppInboxRow, AppInboxUpdate } from "@/lib/db.types";
-import type { Tables } from "@/lib/supabase/types";
 import { emitEvent } from "@/lib/events/server";
 
 export type InboxItem = Pick<
@@ -9,7 +8,10 @@ export type InboxItem = Pick<
 >;
 export type InboxList = { unread: InboxItem[]; read: InboxItem[]; unreadCount: number };
 
-type InboxRow = Tables<"app_inbox">;
+type InboxRow = Pick<
+  AppInboxRow,
+  "id" | "kind" | "title" | "body" | "ref" | "created_at" | "read_at"
+>;
 
 export async function fetchInbox(): Promise<InboxList> {
   const supabase = await createServerSupabase();
