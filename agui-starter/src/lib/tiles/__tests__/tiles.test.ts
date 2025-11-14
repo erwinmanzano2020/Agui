@@ -95,7 +95,14 @@ describe("buildTilesResponse", () => {
     );
 
     const sectionKeys = response.workspaces[0]?.sections.map((section) => section.key) ?? [];
-    assert.deepStrictEqual(sectionKeys, ["overview", "people", "operations", "finance", "settings"]);
+    assert.deepStrictEqual(sectionKeys, [
+      "overview",
+      "people",
+      "operations",
+      "cashiering",
+      "finance",
+      "settings",
+    ]);
   });
 
   it("shows the start business tile when eligible", () => {

@@ -94,6 +94,22 @@ export function createApps(terms: UiTerms = DEFAULT_UI_TERMS): AppMeta[] {
       feature: AppFeature.POS,
     },
     {
+      id: "pos-end-shift",
+      label: "End Shift",
+      href: "/cashiering/end-shift",
+      description: "Submit blind drops",
+      icon: <ScrollTextIcon />,
+      feature: AppFeature.POS,
+    },
+    {
+      id: "pos-verify-drops",
+      label: "Verify Drops",
+      href: "/cashiering/verify",
+      description: "Recount deposits",
+      icon: <ShieldIcon />,
+      feature: AppFeature.POS,
+    },
+    {
       id: "passes",
       label: alliancePassLabel,
       href: "/passes/member",

@@ -1,34 +1,26 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "noEmit": false,
     "outDir": ".test-dist",
-    "rootDir": "src",
     "module": "commonjs",
     "moduleResolution": "node",
-    "declaration": false,
-    "sourceMap": false,
-    "types": ["node"],
-    "jsx": "preserve"
+    "target": "es2020",
+    "lib": ["es2020", "dom"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@supabase/ssr": ["src/lib/supabase-ssr"]
+    },
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": false,
+    "sourceMap": true,
+    "types": ["node"]
   },
   "include": [
-    "src/lib/auth/roles.ts",
-    "src/lib/auth/roles.test.ts",
-    "src/lib/auth/__tests__/entity.test.ts",
-    "src/lib/slug.ts",
-    "src/lib/slug.test.ts",
-    "src/lib/loyalty/rules.ts",
-    "src/lib/loyalty/rules.test.ts",
-    "src/lib/pos/price.ts",
-    "src/lib/pos/price.test.ts",
-    "src/lib/z.ts",
-    "src/lib/z.test.ts",
-    "src/lib/schema-kit.ts",
-    "src/lib/__tests__/schema-kit.test.ts",
-    "src/app/company/new/employment.ts",
-    "src/app/company/new/__tests__/employment.test.ts"
-  ],
-  "exclude": [
-    "node_modules"
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
   ]
 }

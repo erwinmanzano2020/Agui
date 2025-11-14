@@ -6,7 +6,13 @@ export type HomeTile =
   | { kind: "start-business"; label: string }
   | { kind: "gm-console"; label: string };
 
-export type WorkspaceSectionKey = "overview" | "people" | "operations" | "finance" | "settings";
+export type WorkspaceSectionKey =
+  | "overview"
+  | "people"
+  | "operations"
+  | "cashiering"
+  | "finance"
+  | "settings";
 
 export type WorkspaceSection = {
   key: WorkspaceSectionKey;

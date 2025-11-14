@@ -8,6 +8,11 @@ export type InboxItem = Pick<
 >;
 export type InboxList = { unread: InboxItem[]; read: InboxItem[]; unreadCount: number };
 
+type InboxRow = Pick<
+  AppInboxRow,
+  "id" | "kind" | "title" | "body" | "ref" | "created_at" | "read_at"
+>;
+
 export async function fetchInbox(): Promise<InboxList> {
   const supabase = await createServerSupabase();
 
@@ -28,7 +33,7 @@ export async function fetchInbox(): Promise<InboxList> {
 
   if (e2) throw new Error(`Load read failed: ${e2.message}`);
 
-  const unreadItems: InboxItem[] = (unread ?? []).map((item) => ({
+  const unreadItems: InboxItem[] = (unread ?? []).map((item: InboxRow) => ({
     id: item.id,
     kind: item.kind,
     title: item.title,
@@ -38,7 +43,7 @@ export async function fetchInbox(): Promise<InboxList> {
     read_at: item.read_at,
   }));
 
-  const readItems: InboxItem[] = (read ?? []).map((item) => ({
+  const readItems: InboxItem[] = (read ?? []).map((item: InboxRow) => ({
     id: item.id,
     kind: item.kind,
     title: item.title,
