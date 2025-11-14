@@ -56,6 +56,11 @@ const SECTION_DEFINITIONS: Record<WorkspaceSectionKey, { label: string; apps: st
       apps: ["pos", "inventory", "purchasing"],
       buildRoute: (slug) => (slug ? `/company/${slug}/operations/pos` : "/company"),
     },
+    cashiering: {
+      label: "Cashiering",
+      apps: ["pos-end-shift", "pos-verify-drops"],
+      buildRoute: (slug) => (slug ? `/company/${slug}/cashiering/end-shift` : "/company"),
+    },
     finance: {
       label: "Finance",
       apps: ["ledger", "banking", "cheque_issuance", "payroll"],
@@ -94,6 +99,13 @@ function canSeeOperations(role: WorkspaceRole, policyKeys: Set<string>): boolean
   return policyKeys.has("tiles.pos.read");
 }
 
+function canSeeCashiering(role: WorkspaceRole, policyKeys: Set<string>): boolean {
+  if (role === "owner" || role === "manager" || role === "staff") {
+    return true;
+  }
+  return policyKeys.has("tiles.pos.read") || policyKeys.has("tiles.cashiering.read");
+}
+
 function canSeeFinance(role: WorkspaceRole, policyKeys: Set<string>): boolean {
   if (role === "owner") {
     return true;
@@ -113,6 +125,7 @@ const SECTION_GUARDS: Record<WorkspaceSectionKey, (role: WorkspaceRole, policies
   overview: () => true,
   people: canSeePeople,
   operations: canSeeOperations,
+  cashiering: canSeeCashiering,
   finance: canSeeFinance,
   settings: canSeeSettings,
 };
