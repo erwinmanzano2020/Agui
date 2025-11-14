@@ -1,3 +1,4 @@
+import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -8,10 +9,10 @@ import {
 } from "@/lib/pos/shift-utils";
 
 export async function GET(
-  _request: Request,
-  { params }: { params: { id: string } },
+  _request: NextRequest,
+  context: { params: Promise<{ id: string }> },
 ) {
-  const shiftId = params.id;
+  const { id: shiftId } = await context.params;
   if (!shiftId) {
     return NextResponse.json({ error: "shift id missing" }, { status: 400 });
   }
