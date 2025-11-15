@@ -46,9 +46,22 @@ class MockSupabase {
 
   from(table: string) {
     const queue = this.tableResults[table] ?? [{ data: null, error: null }];
-    const [result, ...rest] = queue.length > 0 ? queue : [{ data: null, error: null }];
-    this.tableResults[table] = rest;
+    let result: QueryResult;
+    if (queue.length === 0) {
+      result = { data: null, error: null };
+      this.tableResults[table] = [];
+    } else if (queue.length === 1) {
+      result = queue[0];
+      this.tableResults[table] = queue;
+    } else {
+      [result] = queue;
+      this.tableResults[table] = queue.slice(1);
+    }
 
+    return this.createQuery(result);
+  }
+
+  private createQuery(result: QueryResult) {
     const query = Promise.resolve(result) as QueryPromise;
     query.select = (_columns?: string) => query;
     query.eq = (_column: string, _value: unknown) => query;
@@ -96,6 +109,8 @@ describe("authz entity resolution", () => {
         accounts: { data: null, error: null },
         entity_identifiers: [
           { data: [], error: null },
+          { data: [], error: null },
+          { data: null, error: { message: "column entity_identifiers.value_norm does not exist" } },
           { data: [{ entity_id: "entity-email" }], error: null },
         ],
       },
@@ -160,12 +175,15 @@ describe("authz entity resolution", () => {
     const authzState = await getCurrentEntityAndPolicies(supabase as unknown as DatabaseClient, {
       context: "test",
       debug: false,
+      lookupClient: supabase as unknown as DatabaseClient,
     });
 
     assert.strictEqual(authzState.entityId, "entity-789");
     assert.deepStrictEqual(authzState.policyKeys, ["houses:create"]);
 
-    const policies = await listPoliciesForCurrentUser(supabase as unknown as DatabaseClient);
+    const policies = await listPoliciesForCurrentUser(supabase as unknown as DatabaseClient, {
+      lookupClient: supabase as unknown as DatabaseClient,
+    });
     assert.deepStrictEqual(policies.map((policy) => policy.key), ["houses:create"]);
 
     const allowed = evaluatePolicyFromSet(authzState.policies, { action: "houses:create" });
@@ -198,7 +216,9 @@ describe("authz entity resolution", () => {
         accounts: { data: null, error: null },
         entity_identifiers: [
           { data: [], error: null },
-          { data: [{ entity_id: "entity-identifiers" }], error: null },
+          { data: [], error: null },
+          { data: null, error: { message: "column entity_identifiers.value_norm does not exist" } },
+          { data: [], error: null },
           { data: [{ entity_id: "entity-identifiers" }], error: null },
         ],
         entity_policies: {
@@ -220,11 +240,64 @@ describe("authz entity resolution", () => {
 
     const { entityId: resolvedEntity, policyKeys, policies } = await getCurrentEntityAndPolicies(
       supabase as unknown as DatabaseClient,
-      { context: "test-identifiers", debug: false },
+      { context: "test-identifiers", debug: false, lookupClient: supabase as unknown as DatabaseClient },
     );
 
     assert.strictEqual(resolvedEntity, "entity-identifiers");
     assert.deepStrictEqual(policyKeys, ["houses:create"]);
     assert.ok(evaluatePolicyFromSet(policies, { action: "houses:create" }));
+  });
+
+  it("returns policies for identifiers with mixed casing", async () => {
+    const supabase = new MockSupabase({
+      user: { id: "user-mixed", email: "ErwinManzano24@gmail.com" },
+      tables: {
+        accounts: { data: null, error: null },
+        entity_identifiers: [
+          { data: [], error: null },
+          { data: [], error: null },
+          { data: null, error: { message: "column entity_identifiers.value_norm does not exist" } },
+          { data: [{ entity_id: "entity-mixed" }], error: null },
+        ],
+        entity_policies: {
+          data: [
+            {
+              policy_id: "policy-3",
+              policy_key: "houses:create",
+              action: "houses:create",
+              resource: "houses",
+            },
+          ],
+          error: null,
+        },
+      },
+    });
+
+    const entityId = await getMyEntityId(supabase as unknown as DatabaseClient);
+    assert.strictEqual(entityId, "entity-mixed");
+
+    const authz = await getCurrentEntityAndPolicies(supabase as unknown as DatabaseClient, {
+      context: "mixed-case",
+      debug: false,
+      lookupClient: supabase as unknown as DatabaseClient,
+    });
+
+    assert.strictEqual(authz.entityId, "entity-mixed");
+    assert.deepStrictEqual(authz.policyKeys, ["houses:create"]);
+
+    const tiles = appendAuthzDebug(
+      buildTilesResponse(
+        baseTilesInput({
+          policies: authz.policyKeys,
+          businessCount: 0,
+        }),
+      ),
+      { entityId: authz.entityId, policyKeys: authz.policyKeys },
+    );
+
+    assert.deepStrictEqual(tiles._debug?.authz, {
+      entityId: "entity-mixed",
+      policyKeys: ["houses:create"],
+    });
   });
 });

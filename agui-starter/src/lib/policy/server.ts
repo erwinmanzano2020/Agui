@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import { getMyEntityId } from "@/lib/authz";
 import { permissionSetAllows } from "./matcher";
 import type { PolicyRecord, PolicyRequest } from "./types";
@@ -93,10 +94,19 @@ function extractPolicyKeys(policies: PolicyRecord[]): string[] {
 
 export async function getCurrentEntityAndPolicies(
   client?: SupabaseClient | null,
-  options?: { context?: string; debug?: boolean },
+  options?: { context?: string; debug?: boolean; lookupClient?: SupabaseClient },
 ): Promise<CurrentEntityPolicies> {
   const supabase = client ?? (await createServerSupabaseClient());
-  const entityId = await getMyEntityId(supabase);
+  let lookup = options?.lookupClient ?? null;
+  if (!lookup) {
+    try {
+      lookup = getServiceSupabase();
+    } catch (error) {
+      console.warn("Falling back to session client for entity lookup", error);
+    }
+  }
+
+  const entityId = await getMyEntityId(supabase, { lookupClient: lookup ?? supabase });
   if (!entityId) {
     const result: CurrentEntityPolicies = { entityId: null, policies: [], policyKeys: [] };
     if (options?.debug ?? true) {
@@ -128,10 +138,12 @@ export async function getCurrentEntityAndPolicies(
 
 export async function listPoliciesForCurrentUser(
   client?: SupabaseClient | null,
+  options?: { lookupClient?: SupabaseClient },
 ): Promise<PolicyRecord[]> {
   const { policies } = await getCurrentEntityAndPolicies(client ?? null, {
     context: "listPoliciesForCurrentUser",
     debug: false,
+    lookupClient: options?.lookupClient,
   });
   return policies;
 }

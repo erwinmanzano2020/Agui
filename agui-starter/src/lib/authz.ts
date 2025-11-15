@@ -56,6 +56,18 @@ function extractEntityId(data: unknown): string | null {
   return null;
 }
 
+function isMissingColumnError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const message = typeof (error as { message?: unknown }).message === "string" ? (error as { message: string }).message : "";
+  if (!message) {
+    return false;
+  }
+  const lowered = message.toLowerCase();
+  return lowered.includes("column") && lowered.includes("does not exist");
+}
+
 async function lookupEntityIdByIdentifier(
   client: SupabaseClient,
   identifierTypes: string[],
@@ -68,7 +80,20 @@ async function lookupEntityIdByIdentifier(
   }
 
   const normalizedValue = normalize ? normalize(rawValue) : rawValue;
-  if (!normalizedValue) {
+  const rawCandidate = typeof rawValue === "string" ? rawValue.trim() : null;
+
+  const searchValues: Array<{ value: string; isNormalized: boolean }> = [];
+  if (typeof normalizedValue === "string" && normalizedValue.trim().length > 0) {
+    searchValues.push({ value: normalizedValue.trim(), isNormalized: true });
+  }
+  if (typeof rawCandidate === "string" && rawCandidate.length > 0) {
+    const alreadyPresent = searchValues.some((entry) => entry.value === rawCandidate);
+    if (!alreadyPresent) {
+      searchValues.push({ value: rawCandidate, isNormalized: false });
+    }
+  }
+
+  if (searchValues.length === 0) {
     return null;
   }
 
@@ -76,63 +101,103 @@ async function lookupEntityIdByIdentifier(
     .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
     .filter((entry) => entry.length > 0);
 
-  async function queryWithColumns(
-    valueColumn: "identifier_value" | "value_norm",
-    typeColumn: "identifier_type" | "kind",
-    typeTransform: (type: string) => string,
-  ): Promise<string | null> {
-    const query = client.from("entity_identifiers").select("entity_id").eq(valueColumn, normalizedValue).limit(1);
+  const expandedTypes = Array.from(
+    new Set(
+      normalizedTypes.flatMap((entry) => {
+        const lower = entry.toLowerCase();
+        const upper = entry.toUpperCase();
+        const capitalized = entry.charAt(0).toUpperCase() + entry.slice(1).toLowerCase();
+        return [entry, lower, upper, capitalized];
+      }),
+    ),
+  ).filter((entry) => entry && entry.trim().length > 0);
 
-    if (normalizedTypes.length === 1) {
-      query.eq(typeColumn, typeTransform(normalizedTypes[0]));
-    } else if (normalizedTypes.length > 1) {
-      query.in(
-        typeColumn,
-        normalizedTypes.map((entry) => typeTransform(entry)),
-      );
+  type ColumnVariant = {
+    valueColumn: "identifier_value" | "value_norm";
+    typeColumn: "identifier_type" | "kind";
+    mapType: (value: string) => string;
+    allowUnnormalized: boolean;
+  };
+
+  const columnVariants: ColumnVariant[] = [
+    {
+      valueColumn: "identifier_value",
+      typeColumn: "identifier_type",
+      mapType: (value) => value,
+      allowUnnormalized: true,
+    },
+    {
+      valueColumn: "value_norm",
+      typeColumn: "kind",
+      mapType: (value) => value.toLowerCase(),
+      allowUnnormalized: false,
+    },
+  ];
+
+  for (const { value, isNormalized } of searchValues) {
+    for (const variant of columnVariants) {
+      if (!variant.allowUnnormalized && !isNormalized) {
+        continue;
+      }
+
+      const typeSets: Array<string[] | null> = [];
+      if (expandedTypes.length > 0) {
+        typeSets.push(expandedTypes);
+      }
+      typeSets.push(null);
+
+      for (const typeSet of typeSets) {
+        try {
+          const query = client
+            .from("entity_identifiers")
+            .select("entity_id")
+            .eq(variant.valueColumn, value)
+            .limit(1);
+
+          if (typeSet && typeSet.length > 0) {
+            const transformed = Array.from(new Set(typeSet.map((entry) => variant.mapType(entry)).filter((entry) => entry)));
+            if (transformed.length === 1) {
+              query.eq(variant.typeColumn, transformed[0]);
+            } else if (transformed.length > 1) {
+              query.in(variant.typeColumn, transformed);
+            }
+          }
+
+          const { data, error } = await query;
+          if (error) {
+            if (isMissingColumnError(error)) {
+              break;
+            }
+            console.warn(`Failed to resolve entity by ${context}`, error);
+            break;
+          }
+
+          const entityId = extractEntityId(data);
+          if (entityId) {
+            return entityId;
+          }
+        } catch (error) {
+          if (isMissingColumnError(error)) {
+            break;
+          }
+          console.warn(`Failed to resolve entity by ${context}`, error);
+          break;
+        }
+      }
     }
-
-    const { data, error } = await query;
-
-    if (error) {
-      throw error;
-    }
-
-    return extractEntityId(data);
-  }
-
-  try {
-    const entityId = await queryWithColumns("identifier_value", "identifier_type", (type) => type);
-    if (entityId) {
-      return entityId;
-    }
-  } catch (error) {
-    const message = typeof (error as { message?: unknown })?.message === "string" ? (error as { message: string }).message : "";
-    const lowered = message.toLowerCase();
-    const isMissingColumn =
-      lowered.includes("identifier_type") || lowered.includes("kind") || lowered.includes("column") || lowered.includes("missing");
-    if (!isMissingColumn) {
-      console.warn(`Failed to resolve entity by ${context}`, error);
-      return null;
-    }
-    // fall through to the alternate column names
-  }
-
-  try {
-    const fallbackEntityId = await queryWithColumns("value_norm", "kind", (type) => type.toLowerCase());
-    if (fallbackEntityId) {
-      return fallbackEntityId;
-    }
-  } catch (error) {
-    console.warn(`Failed to resolve entity by ${context}`, error);
-    return null;
   }
 
   return null;
 }
 
-export async function resolveEntityId(client: SupabaseClient, user: User): Promise<string | null> {
-  const { data: accountRow, error: accountError } = await client
+export async function resolveEntityId(
+  client: SupabaseClient,
+  user: User,
+  options?: { lookupClient?: SupabaseClient },
+): Promise<string | null> {
+  const reader = options?.lookupClient ?? client;
+
+  const { data: accountRow, error: accountError } = await reader
     .from("accounts")
     .select("entity_id")
     .eq("user_id", user.id)
@@ -145,7 +210,7 @@ export async function resolveEntityId(client: SupabaseClient, user: User): Promi
   }
 
   const accountlessEntity = await lookupEntityIdByIdentifier(
-    client,
+    reader,
     ["AUTH_UID", "auth_uid"],
     user.id,
     (value) => (typeof value === "string" && value.trim().length > 0 ? value : null),
@@ -156,7 +221,7 @@ export async function resolveEntityId(client: SupabaseClient, user: User): Promi
   }
 
   const emailEntity = await lookupEntityIdByIdentifier(
-    client,
+    reader,
     ["EMAIL", "email"],
     user.email ?? null,
     normalizeEmail,
@@ -167,7 +232,7 @@ export async function resolveEntityId(client: SupabaseClient, user: User): Promi
   }
 
   const phoneEntity = await lookupEntityIdByIdentifier(
-    client,
+    reader,
     ["PHONE", "phone"],
     user.phone ?? null,
     normalizePhone,
@@ -177,7 +242,7 @@ export async function resolveEntityId(client: SupabaseClient, user: User): Promi
     return phoneEntity;
   }
 
-  const { data, error } = await client
+  const { data, error } = await reader
     .from("entities")
     .select("id")
     .eq("profile->>auth_user_id", user.id)
@@ -234,6 +299,7 @@ function buildAssignments(
 
 export async function getMyRoles(
   supabase: SupabaseClient | null | undefined,
+  options?: { lookupClient?: SupabaseClient },
 ): Promise<RoleAssignments> {
   if (!supabase) {
     console.warn("Supabase client unavailable for role lookup");
@@ -245,7 +311,7 @@ export async function getMyRoles(
     return cloneEmptyRoles();
   }
 
-  const entityId = await resolveEntityId(supabase, user);
+  const entityId = await resolveEntityId(supabase, user, options);
   if (!entityId) {
     return cloneEmptyRoles();
   }
@@ -275,6 +341,7 @@ export async function getMyRoles(
 
 export async function getMyEntityId(
   supabase: SupabaseClient | null | undefined,
+  options?: { lookupClient?: SupabaseClient },
 ): Promise<string | null> {
   if (!supabase) {
     console.warn("Supabase client unavailable for entity lookup");
@@ -286,7 +353,7 @@ export async function getMyEntityId(
     return null;
   }
 
-  return resolveEntityId(supabase, user);
+  return resolveEntityId(supabase, user, options);
 }
 
 function hasPlatformBypass(roles: RoleAssignments): boolean {
