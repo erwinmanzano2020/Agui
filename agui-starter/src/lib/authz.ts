@@ -39,37 +39,93 @@ async function getCurrentUser(client: SupabaseClient): Promise<User | null> {
   return user ?? null;
 }
 
-export async function resolveEntityId(client: SupabaseClient, user: User): Promise<string | null> {
-  const email = normalizeEmail(user.email ?? null);
-  if (email) {
-    const { data, error } = await client
-      .from("entity_identifiers")
-      .select("entity_id")
-      .eq("identifier_type", "EMAIL")
-      .eq("identifier_value", email)
-      .maybeSingle();
-
-    if (error) {
-      console.warn("Failed to resolve entity by email", error);
-    } else if (data?.entity_id) {
-      return data.entity_id;
-    }
+async function lookupEntityIdByIdentifier(
+  client: SupabaseClient,
+  identifierTypes: string[],
+  rawValue: string | null,
+  normalize: ((value: string | null) => string | null) | null = null,
+  context: string,
+): Promise<string | null> {
+  if (!rawValue) {
+    return null;
   }
 
-  const phone = normalizePhone(user.phone ?? null);
-  if (phone) {
-    const { data, error } = await client
-      .from("entity_identifiers")
-      .select("entity_id")
-      .eq("identifier_type", "PHONE")
-      .eq("identifier_value", phone)
-      .maybeSingle();
+  const normalizedValue = normalize ? normalize(rawValue) : rawValue;
+  if (!normalizedValue) {
+    return null;
+  }
 
-    if (error) {
-      console.warn("Failed to resolve entity by phone", error);
-    } else if (data?.entity_id) {
-      return data.entity_id;
-    }
+  const types = identifierTypes.filter((entry) => typeof entry === "string" && entry.trim().length > 0);
+  if (types.length === 0) {
+    return null;
+  }
+
+  const query = client
+    .from("entity_identifiers")
+    .select("entity_id")
+    .eq("identifier_value", normalizedValue)
+    .limit(1);
+
+  if (types.length === 1) {
+    query.eq("identifier_type", types[0]);
+  } else {
+    query.in("identifier_type", types);
+  }
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) {
+    console.warn(`Failed to resolve entity by ${context}`, error);
+    return null;
+  }
+
+  return data?.entity_id ?? null;
+}
+
+export async function resolveEntityId(client: SupabaseClient, user: User): Promise<string | null> {
+  const { data: accountRow, error: accountError } = await client
+    .from("accounts")
+    .select("entity_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+
+  if (accountError) {
+    console.warn("Failed to resolve entity via accounts", accountError);
+  } else if (accountRow?.entity_id) {
+    return accountRow.entity_id;
+  }
+
+  const accountlessEntity = await lookupEntityIdByIdentifier(
+    client,
+    ["AUTH_UID", "auth_uid"],
+    user.id,
+    (value) => (typeof value === "string" && value.trim().length > 0 ? value : null),
+    "auth uid",
+  );
+  if (accountlessEntity) {
+    return accountlessEntity;
+  }
+
+  const emailEntity = await lookupEntityIdByIdentifier(
+    client,
+    ["EMAIL", "email"],
+    user.email ?? null,
+    normalizeEmail,
+    "email",
+  );
+  if (emailEntity) {
+    return emailEntity;
+  }
+
+  const phoneEntity = await lookupEntityIdByIdentifier(
+    client,
+    ["PHONE", "phone"],
+    user.phone ?? null,
+    normalizePhone,
+    "phone",
+  );
+  if (phoneEntity) {
+    return phoneEntity;
   }
 
   const { data, error } = await client
