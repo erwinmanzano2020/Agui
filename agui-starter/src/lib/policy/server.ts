@@ -25,7 +25,7 @@ async function listPoliciesForEntity(
 ): Promise<PolicyRecord[]> {
   const { data, error } = await client
     .from("entity_policies")
-    .select("policy_id, policy_key, action, resource")
+    .select("policy_id, policy_key, action, resource, policy:policies(key)")
     .eq("entity_id", entityId);
 
   if (error) {
@@ -44,6 +44,13 @@ async function listPoliciesForEntity(
         const directKey = (row as { key?: unknown }).key;
         if (typeof directKey === "string" && directKey.trim().length > 0) {
           return directKey.trim();
+        }
+        const nested = (row as { policy?: unknown }).policy;
+        if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+          const nestedKey = (nested as { key?: unknown }).key;
+          if (typeof nestedKey === "string" && nestedKey.trim().length > 0) {
+            return nestedKey.trim();
+          }
         }
         return "";
       })();
@@ -68,6 +75,8 @@ export type CurrentEntityPolicies = {
   entityId: string | null;
   policies: PolicyRecord[];
   policyKeys: string[];
+  source: string | null;
+  error?: string | null;
 };
 
 function logAuthzDebug(context: string, payload: CurrentEntityPolicies) {
@@ -79,6 +88,8 @@ function logAuthzDebug(context: string, payload: CurrentEntityPolicies) {
   console.debug(prefix, {
     entityId: payload.entityId,
     policyKeys: payload.policyKeys,
+    source: payload.source,
+    error: payload.error,
   });
 }
 
@@ -106,9 +117,23 @@ export async function getCurrentEntityAndPolicies(
     }
   }
 
-  const entityId = await getMyEntityId(supabase, { lookupClient: lookup ?? supabase });
+  let resolutionSource: string | null = null;
+  let resolutionError: string | null = null;
+  const entityId = await getMyEntityId(supabase, {
+    lookupClient: lookup ?? supabase,
+    report: (details) => {
+      resolutionSource = details.source ?? null;
+      resolutionError = details.error ?? null;
+    },
+  });
   if (!entityId) {
-    const result: CurrentEntityPolicies = { entityId: null, policies: [], policyKeys: [] };
+    const result: CurrentEntityPolicies = {
+      entityId: null,
+      policies: [],
+      policyKeys: [],
+      source: resolutionSource,
+      error: resolutionError,
+    };
     if (options?.debug ?? true) {
       logAuthzDebug(options?.context ?? "current", result);
     }
@@ -121,6 +146,8 @@ export async function getCurrentEntityAndPolicies(
       entityId,
       policies,
       policyKeys: extractPolicyKeys(policies),
+      source: resolutionSource,
+      error: resolutionError,
     };
     if (options?.debug ?? true) {
       logAuthzDebug(options?.context ?? "current", result);
@@ -128,7 +155,13 @@ export async function getCurrentEntityAndPolicies(
     return result;
   } catch (error) {
     console.warn("Failed to load policies for entity", error);
-    const result: CurrentEntityPolicies = { entityId, policies: [], policyKeys: [] };
+    const result: CurrentEntityPolicies = {
+      entityId,
+      policies: [],
+      policyKeys: [],
+      source: resolutionSource,
+      error: resolutionError ?? (error instanceof Error ? error.message : undefined),
+    };
     if (options?.debug ?? true) {
       logAuthzDebug(options?.context ?? "current", result);
     }

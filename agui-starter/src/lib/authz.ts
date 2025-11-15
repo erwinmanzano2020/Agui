@@ -4,6 +4,12 @@ export type RoleScope = "PLATFORM" | "GUILD" | "HOUSE";
 
 export type RoleAssignments = Record<RoleScope, string[]>;
 
+export type EntityResolutionReport = {
+  source: string | null;
+  entityId: string | null;
+  error?: string | null;
+};
+
 function cloneEmptyRoles(): RoleAssignments {
   return {
     PLATFORM: [],
@@ -54,6 +60,51 @@ function extractEntityId(data: unknown): string | null {
   }
 
   return null;
+}
+
+async function resolveEntityBySimpleIdentifiers(
+  client: SupabaseClient,
+  user: User,
+): Promise<{ entityId: string | null; error: string | null }> {
+  const authUid = typeof user.id === "string" ? user.id.trim() : "";
+  const normalizedEmail = normalizeEmail(user.email ?? null);
+  const rawEmail = typeof user.email === "string" ? user.email.trim() : null;
+
+  const searchValues = new Set<string>();
+  if (authUid) {
+    searchValues.add(authUid);
+  }
+  if (normalizedEmail) {
+    searchValues.add(normalizedEmail);
+  }
+  if (rawEmail && rawEmail !== normalizedEmail) {
+    searchValues.add(rawEmail);
+  }
+
+  if (searchValues.size === 0) {
+    return { entityId: null, error: null };
+  }
+
+  try {
+    const query = client
+      .from("entity_identifiers")
+      .select("entity_id")
+      .in("identifier_value", Array.from(searchValues))
+      .in("identifier_type", ["auth_uid", "AUTH_UID", "email", "EMAIL"])
+      .limit(1);
+
+    const { data, error } = await query;
+    if (error) {
+      console.error("[authz] entity lookup failed (simple resolver)", error);
+      const message = typeof (error as { message?: unknown }).message === "string" ? (error as { message: string }).message : null;
+      return { entityId: null, error: message };
+    }
+
+    return { entityId: extractEntityId(data), error: null };
+  } catch (error) {
+    console.error("[authz] entity lookup crashed (simple resolver)", error);
+    return { entityId: null, error: error instanceof Error ? error.message : String(error) };
+  }
 }
 
 function isMissingColumnError(error: unknown): boolean {
@@ -193,9 +244,21 @@ async function lookupEntityIdByIdentifier(
 export async function resolveEntityId(
   client: SupabaseClient,
   user: User,
-  options?: { lookupClient?: SupabaseClient },
+  options?: { lookupClient?: SupabaseClient; report?: (details: EntityResolutionReport) => void },
 ): Promise<string | null> {
   const reader = options?.lookupClient ?? client;
+  let resolutionSource: string | null = null;
+  let resolutionError: string | null = null;
+
+  const simpleResult = await resolveEntityBySimpleIdentifiers(client, user);
+  if (simpleResult.error) {
+    resolutionError = simpleResult.error;
+  }
+  if (simpleResult.entityId) {
+    resolutionSource = "simpleResolver";
+    options?.report?.({ source: resolutionSource, entityId: simpleResult.entityId, error: resolutionError });
+    return simpleResult.entityId;
+  }
 
   const { data: accountRow, error: accountError } = await reader
     .from("accounts")
@@ -206,6 +269,8 @@ export async function resolveEntityId(
   if (accountError) {
     console.warn("Failed to resolve entity via accounts", accountError);
   } else if (accountRow?.entity_id) {
+    resolutionSource = "accounts";
+    options?.report?.({ source: resolutionSource, entityId: accountRow.entity_id, error: resolutionError });
     return accountRow.entity_id;
   }
 
@@ -217,6 +282,8 @@ export async function resolveEntityId(
     "auth uid",
   );
   if (accountlessEntity) {
+    resolutionSource = "identifier:auth_uid";
+    options?.report?.({ source: resolutionSource, entityId: accountlessEntity, error: resolutionError });
     return accountlessEntity;
   }
 
@@ -228,6 +295,8 @@ export async function resolveEntityId(
     "email",
   );
   if (emailEntity) {
+    resolutionSource = "identifier:email";
+    options?.report?.({ source: resolutionSource, entityId: emailEntity, error: resolutionError });
     return emailEntity;
   }
 
@@ -239,6 +308,8 @@ export async function resolveEntityId(
     "phone",
   );
   if (phoneEntity) {
+    resolutionSource = "identifier:phone";
+    options?.report?.({ source: resolutionSource, entityId: phoneEntity, error: resolutionError });
     return phoneEntity;
   }
 
@@ -250,10 +321,17 @@ export async function resolveEntityId(
 
   if (error) {
     console.warn("Failed to resolve entity by auth user id", error);
+    resolutionError = resolutionError ?? (error instanceof Error ? error.message : typeof error === "string" ? error : null);
+    options?.report?.({ source: resolutionSource, entityId: null, error: resolutionError });
     return null;
   }
 
-  return data?.id ?? null;
+  const resolved = data?.id ?? null;
+  if (resolved) {
+    resolutionSource = "entities.profile";
+  }
+  options?.report?.({ source: resolutionSource, entityId: resolved ?? null, error: resolutionError });
+  return resolved ?? null;
 }
 
 function toArray<T>(values: Iterable<T>): T[] {
@@ -299,7 +377,7 @@ function buildAssignments(
 
 export async function getMyRoles(
   supabase: SupabaseClient | null | undefined,
-  options?: { lookupClient?: SupabaseClient },
+  options?: { lookupClient?: SupabaseClient; report?: (details: EntityResolutionReport) => void },
 ): Promise<RoleAssignments> {
   if (!supabase) {
     console.warn("Supabase client unavailable for role lookup");
@@ -341,7 +419,7 @@ export async function getMyRoles(
 
 export async function getMyEntityId(
   supabase: SupabaseClient | null | undefined,
-  options?: { lookupClient?: SupabaseClient },
+  options?: { lookupClient?: SupabaseClient; report?: (details: EntityResolutionReport) => void },
 ): Promise<string | null> {
   if (!supabase) {
     console.warn("Supabase client unavailable for entity lookup");

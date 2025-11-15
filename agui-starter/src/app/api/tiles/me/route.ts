@@ -28,7 +28,12 @@ export async function GET(request: Request) {
       ? payload._debug.authz
       : await getCurrentEntityAndPolicies(supabase, {
           context: "tiles.debug",
-        }).then((state) => ({ entityId: state.entityId, policyKeys: state.policyKeys }));
+        }).then((state) => ({
+          entityId: state.entityId,
+          policyKeys: state.policyKeys,
+          source: state.source,
+          error: state.error,
+        }));
 
     return NextResponse.json({
       ...payload,

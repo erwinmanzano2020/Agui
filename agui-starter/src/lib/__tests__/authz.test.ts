@@ -90,6 +90,39 @@ function baseTilesInput(overrides: Partial<BuildTilesInput>): BuildTilesInput {
 }
 
 describe("authz entity resolution", () => {
+  it("resolves the entity via the simple identifier resolver", async () => {
+    const supabase = new MockSupabase({
+      user: { id: "simple-user", email: "simple@example.com" },
+      tables: {
+        entity_identifiers: {
+          data: [{ entity_id: "entity-simple" }],
+          error: null,
+        },
+        entity_policies: {
+          data: [
+            {
+              policy_id: "policy-simple",
+              policy: { key: "houses:create" },
+              action: "houses:create",
+              resource: "houses",
+            },
+          ],
+          error: null,
+        },
+      },
+    });
+
+    const authzState = await getCurrentEntityAndPolicies(supabase as unknown as DatabaseClient, {
+      context: "simple",
+      debug: false,
+      lookupClient: supabase as unknown as DatabaseClient,
+    });
+
+    assert.strictEqual(authzState.entityId, "entity-simple");
+    assert.strictEqual(authzState.source, "simpleResolver");
+    assert.deepStrictEqual(authzState.policyKeys, ["houses:create"]);
+  });
+
   it("returns the entity id linked via accounts", async () => {
     const supabase = new MockSupabase({
       user: { id: "user-1", email: "owner@example.com" },
@@ -201,11 +234,15 @@ describe("authz entity resolution", () => {
     const augmented = appendAuthzDebug(tiles, {
       entityId: authzState.entityId,
       policyKeys: authzState.policyKeys,
+      source: authzState.source,
+      error: authzState.error,
     });
 
     assert.deepStrictEqual(augmented._debug?.authz, {
       entityId: "entity-789",
       policyKeys: ["houses:create"],
+      source: "accounts",
+      error: null,
     });
   });
 
@@ -292,12 +329,14 @@ describe("authz entity resolution", () => {
           businessCount: 0,
         }),
       ),
-      { entityId: authz.entityId, policyKeys: authz.policyKeys },
+      { entityId: authz.entityId, policyKeys: authz.policyKeys, source: authz.source, error: authz.error },
     );
 
     assert.deepStrictEqual(tiles._debug?.authz, {
       entityId: "entity-mixed",
       policyKeys: ["houses:create"],
+      source: authz.source,
+      error: authz.error ?? null,
     });
   });
 });
