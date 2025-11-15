@@ -4,8 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { unstable_cache } from "next/cache";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getMyEntityId } from "@/lib/authz/server";
-import { listPoliciesForCurrentUser } from "@/lib/policy/server";
+import { getCurrentEntityAndPolicies } from "@/lib/policy/server";
 import { buildSectionsForWorkspace, buildTilesResponse } from "./compute";
 import type {
   AppCatalogEntry,
@@ -406,6 +405,7 @@ async function loadGmAccess(supabase: SupabaseClient, entityId: string): Promise
 async function buildInputForEntity(
   supabase: SupabaseClient,
   entityId: string,
+  policyKeys: string[],
 ): Promise<BuildTilesInput> {
   const [
     loyalties,
@@ -415,7 +415,6 @@ async function buildInputForEntity(
     visibilityRules,
     inboxUnreadCount,
     gmAccess,
-    policies,
     gmStartTileOverride,
   ] = await Promise.all([
     loadLoyaltyMemberships(supabase, entityId),
@@ -425,11 +424,9 @@ async function buildInputForEntity(
     loadVisibilityRules(supabase),
     loadInboxUnreadCount(supabase, entityId),
     loadGmAccess(supabase, entityId),
-    listPoliciesForCurrentUser(supabase),
     getEffectiveSetting("gm.ui.always_show_start_business_tile"),
   ]);
 
-  const policyKeys = policies.map((policy) => policy.key);
   const uniqueBusinessIds = new Set(workspaces.map((workspace) => workspace.businessId));
 
   return {
@@ -448,11 +445,11 @@ async function buildInputForEntity(
 
 export async function loadTilesForCurrentUser(): Promise<TilesMeResponse> {
   const supabase = await createServerSupabaseClient();
-  const [{ data, error }, resolvedEntityId] = await Promise.all([
+  const [{ data, error }, authzState] = await Promise.all([
     supabase.auth.getUser(),
-    getMyEntityId(supabase),
+    getCurrentEntityAndPolicies(supabase, { context: "tiles" }),
   ]);
-  const entityId = resolvedEntityId;
+  const { entityId } = authzState;
 
   if (error) {
     console.warn("Failed to resolve current user while loading tiles", error);
@@ -463,17 +460,47 @@ export async function loadTilesForCurrentUser(): Promise<TilesMeResponse> {
     return { home: [], workspaces: [] } satisfies TilesMeResponse;
   }
 
+  const policyKeys = [...authzState.policyKeys].sort();
   const cachedLoader = unstable_cache(
     async () => {
       const supabaseForTiles = await createServerSupabaseClient();
-      const input = await buildInputForEntity(supabaseForTiles, entityId);
+      const input = await buildInputForEntity(supabaseForTiles, entityId, policyKeys);
       return buildTilesResponse(input);
     },
-    ["tiles", "me", user.id, entityId],
+    ["tiles", "me", user.id, entityId, policyKeys.join("|")],
     { tags: [`tiles:user:${user.id}`], revalidate: 60 },
   );
 
   const response = await cachedLoader();
+
+  if (process.env.NODE_ENV !== "production") {
+    const existingDebug = (response as TilesMeResponse & { _debug?: Record<string, unknown> })._debug ?? {};
+    const augmented: TilesMeResponse = {
+      ...response,
+      _debug: {
+        ...existingDebug,
+        authz: {
+          entityId,
+          policyKeys,
+        },
+      },
+    };
+
+    if (augmented.home.some((tile) => tile.kind === "start-business")) {
+      try {
+        const gmAccess = await loadGmAccess(supabase, entityId);
+        await emitEvent("tiles_start_business_shown", "info", {
+          actorEntityId: entityId,
+          isGM: gmAccess,
+          hadWorkspacesBefore: augmented.workspaces.length > 0,
+        });
+      } catch (eventError) {
+        console.warn("Failed to emit start business telemetry", eventError);
+      }
+    }
+
+    return augmented;
+  }
 
   if (response.home.some((tile) => tile.kind === "start-business")) {
     try {
@@ -493,7 +520,9 @@ export async function loadTilesForCurrentUser(): Promise<TilesMeResponse> {
 
 export async function loadWorkspaceSectionsForSlug(slug: string): Promise<WorkspaceSections | null> {
   const supabase = await createServerSupabaseClient();
-  const entityId = await getMyEntityId(supabase);
+  const { entityId, policyKeys } = await getCurrentEntityAndPolicies(supabase, {
+    context: "tiles.sections",
+  });
   if (!entityId) {
     return null;
   }
@@ -513,7 +542,6 @@ export async function loadWorkspaceSectionsForSlug(slug: string): Promise<Worksp
     return null;
   }
 
-  const policies = await listPoliciesForCurrentUser(supabase);
   const { data: houseRoles, error: rolesError } = await supabase
     .from("house_roles")
     .select("role")
@@ -532,6 +560,5 @@ export async function loadWorkspaceSectionsForSlug(slug: string): Promise<Worksp
     enabledApps: [],
   };
 
-  const policyKeys = new Set(policies.map((policy) => policy.key));
-  return buildSectionsForWorkspace(descriptor, policyKeys);
+  return buildSectionsForWorkspace(descriptor, new Set(policyKeys));
 }

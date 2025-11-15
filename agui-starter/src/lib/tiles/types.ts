@@ -48,10 +48,16 @@ export type MarketplacePayload = {
   categories: MarketplaceCategory[];
 };
 
+export type TilesDebugInfo = {
+  tags?: string[];
+  authz?: { entityId: string | null; policyKeys: string[] };
+};
+
 export type TilesMeResponse = {
   home: HomeTile[];
   workspaces: WorkspaceSections[];
   marketplace?: MarketplacePayload;
+  _debug?: TilesDebugInfo;
 };
 
 export type TileAssignment = {

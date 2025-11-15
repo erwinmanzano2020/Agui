@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { getMyEntityId } from "@/lib/authz";
-import { evaluatePolicy, listPoliciesForCurrentUser } from "@/lib/policy/server";
+import {
+  evaluatePolicyFromSet,
+  getCurrentEntityAndPolicies,
+  listPoliciesForCurrentUser,
+} from "@/lib/policy/server";
 import { buildTilesResponse } from "@/lib/tiles/compute";
 import type { BuildTilesInput } from "@/lib/tiles/types";
 
@@ -136,22 +140,64 @@ describe("authz entity resolution", () => {
       },
     });
 
-    const entityId = await getMyEntityId(supabase as unknown as DatabaseClient);
-    assert.strictEqual(entityId, "entity-789");
+    const authzState = await getCurrentEntityAndPolicies(supabase as unknown as DatabaseClient, {
+      context: "test",
+      debug: false,
+    });
+
+    assert.strictEqual(authzState.entityId, "entity-789");
+    assert.deepStrictEqual(authzState.policyKeys, ["houses:create"]);
 
     const policies = await listPoliciesForCurrentUser(supabase as unknown as DatabaseClient);
     assert.deepStrictEqual(policies.map((policy) => policy.key), ["houses:create"]);
 
-    const allowed = await evaluatePolicy({ action: "houses:create" }, supabase as unknown as DatabaseClient);
+    const allowed = evaluatePolicyFromSet(authzState.policies, { action: "houses:create" });
     assert.ok(allowed);
 
     const tiles = buildTilesResponse(
       baseTilesInput({
-        policies: policies.map((policy) => policy.key),
+        policies: authzState.policyKeys,
         businessCount: 0,
       }),
     );
 
     assert.ok(tiles.home.some((tile) => tile.kind === "start-business"));
+  });
+
+  it("resolves policies when the entity is linked by auth uid and email identifiers", async () => {
+    const supabase = new MockSupabase({
+      user: { id: "user-4", email: "identifier@example.com" },
+      tables: {
+        accounts: { data: null, error: null },
+        entity_identifiers: [
+          { data: null, error: null },
+          { data: { entity_id: "entity-identifiers" }, error: null },
+          { data: { entity_id: "entity-identifiers" }, error: null },
+        ],
+        entity_policies: {
+          data: [
+            {
+              policy_id: "policy-2",
+              policy_key: "houses:create",
+              action: "houses:create",
+              resource: "houses",
+            },
+          ],
+          error: null,
+        },
+      },
+    });
+
+    const entityId = await getMyEntityId(supabase as unknown as DatabaseClient);
+    assert.strictEqual(entityId, "entity-identifiers");
+
+    const { entityId: resolvedEntity, policyKeys, policies } = await getCurrentEntityAndPolicies(
+      supabase as unknown as DatabaseClient,
+      { context: "test-identifiers", debug: false },
+    );
+
+    assert.strictEqual(resolvedEntity, "entity-identifiers");
+    assert.deepStrictEqual(policyKeys, ["houses:create"]);
+    assert.ok(evaluatePolicyFromSet(policies, { action: "houses:create" }));
   });
 });

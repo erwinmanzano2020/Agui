@@ -41,21 +41,77 @@ async function listPoliciesForEntity(
   return dedupePolicies(rows);
 }
 
-export async function listPoliciesForCurrentUser(
+export type CurrentEntityPolicies = {
+  entityId: string | null;
+  policies: PolicyRecord[];
+  policyKeys: string[];
+};
+
+function logAuthzDebug(context: string, payload: CurrentEntityPolicies) {
+  if (process.env.NODE_ENV === "production") {
+    return;
+  }
+
+  const prefix = context ? `[authz:${context}]` : "[authz]";
+  console.debug(prefix, {
+    entityId: payload.entityId,
+    policyKeys: payload.policyKeys,
+  });
+}
+
+function extractPolicyKeys(policies: PolicyRecord[]): string[] {
+  const keys = new Set<string>();
+  for (const policy of policies) {
+    if (typeof policy?.key === "string" && policy.key.trim().length > 0) {
+      keys.add(policy.key.trim());
+    }
+  }
+  return Array.from(keys.values());
+}
+
+export async function getCurrentEntityAndPolicies(
   client?: SupabaseClient | null,
-): Promise<PolicyRecord[]> {
+  options?: { context?: string; debug?: boolean },
+): Promise<CurrentEntityPolicies> {
   const supabase = client ?? (await createServerSupabaseClient());
   const entityId = await getMyEntityId(supabase);
   if (!entityId) {
-    return [];
+    const result: CurrentEntityPolicies = { entityId: null, policies: [], policyKeys: [] };
+    if (options?.debug ?? true) {
+      logAuthzDebug(options?.context ?? "current", result);
+    }
+    return result;
   }
 
   try {
-    return await listPoliciesForEntity(supabase, entityId);
+    const policies = await listPoliciesForEntity(supabase, entityId);
+    const result: CurrentEntityPolicies = {
+      entityId,
+      policies,
+      policyKeys: extractPolicyKeys(policies),
+    };
+    if (options?.debug ?? true) {
+      logAuthzDebug(options?.context ?? "current", result);
+    }
+    return result;
   } catch (error) {
     console.warn("Failed to load policies for entity", error);
-    return [];
+    const result: CurrentEntityPolicies = { entityId, policies: [], policyKeys: [] };
+    if (options?.debug ?? true) {
+      logAuthzDebug(options?.context ?? "current", result);
+    }
+    return result;
   }
+}
+
+export async function listPoliciesForCurrentUser(
+  client?: SupabaseClient | null,
+): Promise<PolicyRecord[]> {
+  const { policies } = await getCurrentEntityAndPolicies(client ?? null, {
+    context: "listPoliciesForCurrentUser",
+    debug: false,
+  });
+  return policies;
 }
 
 export async function evaluatePolicy(
