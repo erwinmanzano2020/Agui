@@ -8,6 +8,7 @@ import {
   listPoliciesForCurrentUser,
 } from "@/lib/policy/server";
 import { buildTilesResponse } from "@/lib/tiles/compute";
+import { appendAuthzDebug } from "@/lib/tiles/server";
 import type { BuildTilesInput } from "@/lib/tiles/types";
 
 type DatabaseClient = import("@supabase/supabase-js").SupabaseClient;
@@ -94,14 +95,30 @@ describe("authz entity resolution", () => {
       tables: {
         accounts: { data: null, error: null },
         entity_identifiers: [
-          { data: null, error: null },
-          { data: { entity_id: "entity-email" }, error: null },
+          { data: [], error: null },
+          { data: [{ entity_id: "entity-email" }], error: null },
         ],
       },
     });
 
     const entityId = await getMyEntityId(supabase as unknown as DatabaseClient);
     assert.strictEqual(entityId, "entity-email");
+  });
+
+  it("falls back to alternate identifier schema when identifier_type is unavailable", async () => {
+    const supabase = new MockSupabase({
+      user: { id: "user-kind", email: "kind@example.com" },
+      tables: {
+        accounts: { data: null, error: null },
+        entity_identifiers: [
+          { data: null, error: { message: "column entity_identifiers.identifier_type does not exist" } },
+          { data: [{ entity_id: "entity-kind" }], error: null },
+        ],
+      },
+    });
+
+    const entityId = await getMyEntityId(supabase as unknown as DatabaseClient);
+    assert.strictEqual(entityId, "entity-kind");
   });
 
   it("integrates entity resolution with policy checks and tiles", async () => {
@@ -129,7 +146,7 @@ describe("authz entity resolution", () => {
             data: [
               {
                 policy_id: "policy-1",
-                policy_key: "houses:create",
+                key: "houses:create",
                 action: "houses:create",
                 resource: "houses",
               },
@@ -162,6 +179,16 @@ describe("authz entity resolution", () => {
     );
 
     assert.ok(tiles.home.some((tile) => tile.kind === "start-business"));
+
+    const augmented = appendAuthzDebug(tiles, {
+      entityId: authzState.entityId,
+      policyKeys: authzState.policyKeys,
+    });
+
+    assert.deepStrictEqual(augmented._debug?.authz, {
+      entityId: "entity-789",
+      policyKeys: ["houses:create"],
+    });
   });
 
   it("resolves policies when the entity is linked by auth uid and email identifiers", async () => {
@@ -170,9 +197,9 @@ describe("authz entity resolution", () => {
       tables: {
         accounts: { data: null, error: null },
         entity_identifiers: [
-          { data: null, error: null },
-          { data: { entity_id: "entity-identifiers" }, error: null },
-          { data: { entity_id: "entity-identifiers" }, error: null },
+          { data: [], error: null },
+          { data: [{ entity_id: "entity-identifiers" }], error: null },
+          { data: [{ entity_id: "entity-identifiers" }], error: null },
         ],
         entity_policies: {
           data: [

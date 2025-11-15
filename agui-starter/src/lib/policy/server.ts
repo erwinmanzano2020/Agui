@@ -31,12 +31,34 @@ async function listPoliciesForEntity(
     throw new Error(error.message);
   }
 
-  const rows = (data ?? []).map((row) => ({
-    id: row.policy_id as string,
-    key: row.policy_key as string,
-    action: row.action as string,
-    resource: row.resource as string,
-  } satisfies PolicyRecord));
+  const rows = (data ?? [])
+    .map((row) => {
+      const id =
+        typeof (row as { policy_id?: unknown }).policy_id === "string" ? (row as { policy_id: string }).policy_id : "";
+      const policyKeyCandidate = (() => {
+        const withAlias = (row as { policy_key?: unknown }).policy_key;
+        if (typeof withAlias === "string" && withAlias.trim().length > 0) {
+          return withAlias.trim();
+        }
+        const directKey = (row as { key?: unknown }).key;
+        if (typeof directKey === "string" && directKey.trim().length > 0) {
+          return directKey.trim();
+        }
+        return "";
+      })();
+      const action =
+        typeof (row as { action?: unknown }).action === "string" ? (row as { action: string }).action : "";
+      const resource =
+        typeof (row as { resource?: unknown }).resource === "string" ? (row as { resource: string }).resource : "";
+
+      return {
+        id,
+        key: policyKeyCandidate,
+        action,
+        resource,
+      } satisfies PolicyRecord;
+    })
+    .filter((row) => row.id && row.key);
 
   return dedupePolicies(rows);
 }

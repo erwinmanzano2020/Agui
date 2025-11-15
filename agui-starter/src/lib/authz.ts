@@ -39,6 +39,23 @@ async function getCurrentUser(client: SupabaseClient): Promise<User | null> {
   return user ?? null;
 }
 
+function extractEntityId(data: unknown): string | null {
+  if (Array.isArray(data)) {
+    for (const entry of data) {
+      if (entry && typeof entry === "object" && typeof (entry as { entity_id?: unknown }).entity_id === "string") {
+        return (entry as { entity_id: string }).entity_id;
+      }
+    }
+    return null;
+  }
+
+  if (data && typeof data === "object" && typeof (data as { entity_id?: unknown }).entity_id === "string") {
+    return (data as { entity_id: string }).entity_id;
+  }
+
+  return null;
+}
+
 async function lookupEntityIdByIdentifier(
   client: SupabaseClient,
   identifierTypes: string[],
@@ -55,31 +72,63 @@ async function lookupEntityIdByIdentifier(
     return null;
   }
 
-  const types = identifierTypes.filter((entry) => typeof entry === "string" && entry.trim().length > 0);
-  if (types.length === 0) {
-    return null;
+  const normalizedTypes = identifierTypes
+    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+    .filter((entry) => entry.length > 0);
+
+  async function queryWithColumns(
+    valueColumn: "identifier_value" | "value_norm",
+    typeColumn: "identifier_type" | "kind",
+    typeTransform: (type: string) => string,
+  ): Promise<string | null> {
+    const query = client.from("entity_identifiers").select("entity_id").eq(valueColumn, normalizedValue).limit(1);
+
+    if (normalizedTypes.length === 1) {
+      query.eq(typeColumn, typeTransform(normalizedTypes[0]));
+    } else if (normalizedTypes.length > 1) {
+      query.in(
+        typeColumn,
+        normalizedTypes.map((entry) => typeTransform(entry)),
+      );
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      throw error;
+    }
+
+    return extractEntityId(data);
   }
 
-  const query = client
-    .from("entity_identifiers")
-    .select("entity_id")
-    .eq("identifier_value", normalizedValue)
-    .limit(1);
-
-  if (types.length === 1) {
-    query.eq("identifier_type", types[0]);
-  } else {
-    query.in("identifier_type", types);
+  try {
+    const entityId = await queryWithColumns("identifier_value", "identifier_type", (type) => type);
+    if (entityId) {
+      return entityId;
+    }
+  } catch (error) {
+    const message = typeof (error as { message?: unknown })?.message === "string" ? (error as { message: string }).message : "";
+    const lowered = message.toLowerCase();
+    const isMissingColumn =
+      lowered.includes("identifier_type") || lowered.includes("kind") || lowered.includes("column") || lowered.includes("missing");
+    if (!isMissingColumn) {
+      console.warn(`Failed to resolve entity by ${context}`, error);
+      return null;
+    }
+    // fall through to the alternate column names
   }
 
-  const { data, error } = await query.maybeSingle();
-
-  if (error) {
+  try {
+    const fallbackEntityId = await queryWithColumns("value_norm", "kind", (type) => type.toLowerCase());
+    if (fallbackEntityId) {
+      return fallbackEntityId;
+    }
+  } catch (error) {
     console.warn(`Failed to resolve entity by ${context}`, error);
     return null;
   }
 
-  return data?.entity_id ?? null;
+  return null;
 }
 
 export async function resolveEntityId(client: SupabaseClient, user: User): Promise<string | null> {

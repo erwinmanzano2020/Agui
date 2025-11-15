@@ -443,6 +443,25 @@ async function buildInputForEntity(
   } satisfies BuildTilesInput;
 }
 
+export function appendAuthzDebug(
+  response: TilesMeResponse,
+  authz: { entityId: string | null; policyKeys: string[] },
+): TilesMeResponse {
+  const existingDebug = (response as TilesMeResponse & { _debug?: Record<string, unknown> })._debug ?? {};
+  const policyKeys = Array.isArray(authz.policyKeys) ? [...authz.policyKeys] : [];
+
+  return {
+    ...response,
+    _debug: {
+      ...existingDebug,
+      authz: {
+        entityId: authz.entityId,
+        policyKeys,
+      },
+    },
+  } satisfies TilesMeResponse;
+}
+
 export async function loadTilesForCurrentUser(): Promise<TilesMeResponse> {
   const supabase = await createServerSupabaseClient();
   const [{ data, error }, authzState] = await Promise.all([
@@ -474,17 +493,7 @@ export async function loadTilesForCurrentUser(): Promise<TilesMeResponse> {
   const response = await cachedLoader();
 
   if (process.env.NODE_ENV !== "production") {
-    const existingDebug = (response as TilesMeResponse & { _debug?: Record<string, unknown> })._debug ?? {};
-    const augmented: TilesMeResponse = {
-      ...response,
-      _debug: {
-        ...existingDebug,
-        authz: {
-          entityId,
-          policyKeys,
-        },
-      },
-    };
+    const augmented = appendAuthzDebug(response, { entityId, policyKeys });
 
     if (augmented.home.some((tile) => tile.kind === "start-business")) {
       try {
