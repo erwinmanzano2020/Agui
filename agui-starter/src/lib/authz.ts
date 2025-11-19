@@ -90,7 +90,7 @@ async function resolveEntityBySimpleIdentifiers(
       .from("entity_identifiers")
       .select("entity_id")
       .in("identifier_value", Array.from(searchValues))
-      .in("identifier_type", ["auth_uid", "AUTH_UID", "email", "EMAIL"])
+      .in("identifier_type", ["auth_uid", "email", "EMAIL"])
       .limit(1);
 
     const { data, error } = await query;
@@ -148,18 +148,15 @@ async function lookupEntityIdByIdentifier(
     return null;
   }
 
-  const normalizedTypes = identifierTypes
-    .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
-    .filter((entry) => entry.length > 0);
-
   const expandedTypes = Array.from(
     new Set(
-      normalizedTypes.flatMap((entry) => {
-        const lower = entry.toLowerCase();
-        const upper = entry.toUpperCase();
-        const capitalized = entry.charAt(0).toUpperCase() + entry.slice(1).toLowerCase();
-        return [entry, lower, upper, capitalized];
-      }),
+      identifierTypes
+        .map((entry) => (typeof entry === "string" ? entry.trim() : ""))
+        .filter((entry) => entry.length > 0)
+        .flatMap((entry) => {
+          const lower = entry.toLowerCase();
+          return [entry, lower];
+        }),
     ),
   ).filter((entry) => entry && entry.trim().length > 0);
 
@@ -276,7 +273,7 @@ export async function resolveEntityId(
 
   const accountlessEntity = await lookupEntityIdByIdentifier(
     reader,
-    ["AUTH_UID", "auth_uid"],
+    ["auth_uid"],
     user.id,
     (value) => (typeof value === "string" && value.trim().length > 0 ? value : null),
     "auth uid",

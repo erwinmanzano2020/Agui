@@ -29,11 +29,16 @@ class MockSupabase {
   };
 
   private readonly tableResults: Record<string, QueryResult[]>;
+  private readonly handlers?: {
+    in?: (context: { table: string; column: string; values: unknown[] }) => QueryResult | void;
+  };
 
   constructor(options: {
     user: { id: string; email?: string | null; phone?: string | null };
     tables?: Record<string, QueryResult | QueryResult[]>;
+    handlers?: MockSupabase["handlers"];
   }) {
+    this.handlers = options.handlers;
     this.tableResults = {};
     for (const [table, payload] of Object.entries(options.tables ?? {})) {
       this.tableResults[table] = Array.isArray(payload) ? [...payload] : [payload];
@@ -58,14 +63,21 @@ class MockSupabase {
       this.tableResults[table] = queue.slice(1);
     }
 
-    return this.createQuery(result);
+    return this.createQuery(result, table);
   }
 
-  private createQuery(result: QueryResult) {
-    const query = Promise.resolve(result) as QueryPromise;
+  private createQuery(initialResult: QueryResult, table: string) {
+    let result = initialResult;
+    const query = Promise.resolve().then(() => result) as QueryPromise;
     query.select = (_columns?: string) => query;
     query.eq = (_column: string, _value: unknown) => query;
-    query.in = (_column: string, _values: unknown[]) => query;
+    query.in = (column: string, values: unknown[]) => {
+      const handlerResult = this.handlers?.in?.({ table, column, values });
+      if (handlerResult) {
+        result = handlerResult;
+      }
+      return query;
+    };
     query.limit = (_count: number) => query;
     query.maybeSingle = async () => result;
 
@@ -119,6 +131,51 @@ describe("authz entity resolution", () => {
     });
 
     assert.strictEqual(authzState.entityId, "entity-simple");
+    assert.strictEqual(authzState.source, "simpleResolver");
+    assert.deepStrictEqual(authzState.policyKeys, ["houses:create"]);
+  });
+
+  it("avoids invalid enum variants and still resolves the entity", async () => {
+    const supabase = new MockSupabase({
+      user: { id: "enum-user", email: "Enum@example.com" },
+      tables: {
+        entity_identifiers: {
+          data: [
+            { entity_id: "entity-enum" },
+            { entity_id: "entity-enum" },
+          ],
+          error: null,
+        },
+        entity_policies: {
+          data: [
+            {
+              policy_id: "policy-enum",
+              policy: { key: "houses:create" },
+              action: "houses:create",
+              resource: "houses",
+            },
+          ],
+          error: null,
+        },
+      },
+      handlers: {
+        in: ({ column, values }) => {
+          if (column === "identifier_type" && values.includes("AUTH_UID")) {
+            return { data: null, error: { message: "invalid input value for enum" } };
+          }
+          return undefined;
+        },
+      },
+    });
+
+    const authzState = await getCurrentEntityAndPolicies(supabase as unknown as DatabaseClient, {
+      context: "enum-simple",
+      debug: true,
+      lookupClient: supabase as unknown as DatabaseClient,
+    });
+
+    assert.strictEqual(authzState.error, null);
+    assert.strictEqual(authzState.entityId, "entity-enum");
     assert.strictEqual(authzState.source, "simpleResolver");
     assert.deepStrictEqual(authzState.policyKeys, ["houses:create"]);
   });
