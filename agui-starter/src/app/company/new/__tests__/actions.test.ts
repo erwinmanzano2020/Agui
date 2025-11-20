@@ -6,6 +6,8 @@ import * as events from "@/lib/events/server";
 import * as identity from "@/lib/identity/entity-server";
 import * as policy from "@/lib/policy/server";
 import * as supabaseServer from "@/lib/supabase/server";
+import * as supabaseService from "@/lib/supabase-service";
+import * as guilds from "@/lib/guilds/server";
 
 import * as employment from "../employment";
 import { createBusinessWizard } from "../actions";
@@ -234,6 +236,7 @@ describe("createBusinessWizard", () => {
     const { supabase, state } = createSupabaseMock({ existingGuildId: null });
 
     mock.method(supabaseServer, "createServerSupabaseClient", async () => supabase as never);
+    const serviceSpy = mock.method(supabaseService, "getServiceSupabase", () => supabase as never);
     mock.method(policy, "evaluatePolicy", async () => true);
     mock.method(identity, "ensureEntityForUser", async () => "entity-1");
     mock.method(authz, "currentEntityIsGM", async () => true);
@@ -260,12 +263,14 @@ describe("createBusinessWizard", () => {
     assert.equal(state.guildRoleAssignments.length, 2);
     assert.equal(state.branchInserts.length, 1);
     assert.equal(state.roleAssignments.length, 2);
+    assert.equal(serviceSpy.mock.callCount(), 1);
   });
 
   it("reuses an existing guild when one is present", async () => {
     const { supabase, state } = createSupabaseMock({ existingGuildId: "guild-existing" });
 
     mock.method(supabaseServer, "createServerSupabaseClient", async () => supabase as never);
+    const serviceSpy = mock.method(supabaseService, "getServiceSupabase", () => supabase as never);
     mock.method(policy, "evaluatePolicy", async () => true);
     mock.method(identity, "ensureEntityForUser", async () => "entity-1");
     mock.method(authz, "currentEntityIsGM", async () => true);
@@ -289,12 +294,14 @@ describe("createBusinessWizard", () => {
     assert.equal(state.guildLookups.length > 0, true);
     assert.equal(state.houseInserts[0]?.guild_id, "guild-existing");
     assert.equal(state.guildRoleAssignments.length, 2);
+    assert.equal(serviceSpy.mock.callCount(), 1);
   });
 
   it("surfaces insert errors as form errors", async () => {
     const { supabase } = createSupabaseMock({ houseInsertError: { message: "constraint violation" } });
 
     mock.method(supabaseServer, "createServerSupabaseClient", async () => supabase as never);
+    mock.method(supabaseService, "getServiceSupabase", () => supabase as never);
     mock.method(policy, "evaluatePolicy", async () => true);
     mock.method(identity, "ensureEntityForUser", async () => "entity-1");
     mock.method(authz, "currentEntityIsGM", async () => true);
@@ -315,5 +322,29 @@ describe("createBusinessWizard", () => {
 
     assert.equal(result.status, "error");
     assert.match(result.formError, /constraint violation|Failed to create business/);
+  });
+
+  it("surfaces guild preparation failures", async () => {
+    const { supabase } = createSupabaseMock({ existingGuildId: null });
+
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => supabase as never);
+    mock.method(supabaseService, "getServiceSupabase", () => supabase as never);
+    mock.method(policy, "evaluatePolicy", async () => true);
+    mock.method(identity, "ensureEntityForUser", async () => "entity-1");
+    mock.method(authz, "currentEntityIsGM", async () => true);
+    mock.method(guilds, "getOrCreateGuildForWorkspace", async () => {
+      throw new Error("guild write blocked");
+    });
+
+    const result = await createBusinessWizard({
+      name: "Guild Failure",
+      slug: "guild-failure",
+      businessType: "retail",
+      logoUrl: "",
+      slogan: "",
+    });
+
+    assert.equal(result.status, "error");
+    assert.match(result.formError, /Failed to prepare workspace guild/);
   });
 });

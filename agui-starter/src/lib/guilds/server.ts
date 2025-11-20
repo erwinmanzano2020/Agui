@@ -3,6 +3,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database, GuildInsert } from "@/lib/db.types";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import { slugify } from "@/lib/slug";
 
 const GUILD_OWNER_ROLES = ["guild_master", "guild_member"] as const;
@@ -21,6 +22,10 @@ type GetOrCreateGuildOptions = {
 
 function normalizeSlug(value: string): string {
   return slugify(value) || "guild";
+}
+
+function resolveClient(client?: DbClient): DbClient {
+  return client ?? getServiceSupabase<Database>();
 }
 
 async function fetchGuildBySlug(client: DbClient, slug: string): Promise<MaybeGuildRow> {
@@ -94,24 +99,33 @@ async function createGuild(
 }
 
 export async function getOrCreateGuildForWorkspace(
-  client: DbClient,
   { entityId, workspaceSlug, businessName }: GetOrCreateGuildOptions,
+  client?: DbClient,
 ): Promise<{ guildId: string; guildSlug: string }> {
+  const db = resolveClient(client);
   const slug = normalizeSlug(workspaceSlug || businessName);
 
-  const existingGuild = await fetchGuildBySlug(client, slug).catch(() => null);
+  const existingGuild = await fetchGuildBySlug(db, slug).catch((error) => {
+    console.error("prepareWorkspaceGuild: fetch existing guild failed", { error });
+    return null;
+  });
   const existingGuildId = existingGuild && typeof existingGuild === "object" ? (existingGuild as { id?: unknown }).id : null;
   const existingGuildSlug = existingGuild && typeof existingGuild === "object" ? (existingGuild as { slug?: unknown }).slug : null;
 
   if (typeof existingGuildId === "string" && existingGuildId) {
-    await ensureGuildMembership(client, existingGuildId, entityId);
+    await ensureGuildMembership(db, existingGuildId, entityId);
     return {
       guildId: existingGuildId,
       guildSlug: typeof existingGuildSlug === "string" && existingGuildSlug ? existingGuildSlug : slug,
     };
   }
 
-  const { guildId, guildSlug } = await createGuild(client, slug, businessName || slug);
-  await ensureGuildMembership(client, guildId, entityId);
-  return { guildId, guildSlug };
+  try {
+    const { guildId, guildSlug } = await createGuild(db, slug, businessName || slug);
+    await ensureGuildMembership(db, guildId, entityId);
+    return { guildId, guildSlug };
+  } catch (error) {
+    console.error("prepareWorkspaceGuild: create path failed", { error, slug });
+    throw error;
+  }
 }

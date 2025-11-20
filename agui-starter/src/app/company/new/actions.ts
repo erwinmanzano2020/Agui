@@ -3,6 +3,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import { slugify } from "@/lib/slug";
 import { ensureEntityForUser } from "@/lib/identity/entity-server";
 import { evaluatePolicy } from "@/lib/policy/server";
@@ -195,7 +196,7 @@ export async function createBusinessWizard(
   const houseType = BUSINESS_KIND_TO_HOUSE_TYPE[businessType] ?? FALLBACK_HOUSE_TYPE;
   const logoUrl = normalizeString(input.logoUrl ?? null);
   const slogan = normalizeString(input.slogan ?? null);
-  const client: any = supabase;
+  const writeClient: any = getServiceSupabase();
 
   const fieldErrors: Record<string, string | null> = {};
   if (!name) {
@@ -210,7 +211,7 @@ export async function createBusinessWizard(
   }
 
   try {
-    await assertUniqueSlug(client, slugCandidate);
+    await assertUniqueSlug(writeClient, slugCandidate);
   } catch (slugError) {
     return {
       status: "error",
@@ -226,11 +227,14 @@ export async function createBusinessWizard(
 
   let guildId: string;
   try {
-    const guildResult = await getOrCreateGuildForWorkspace(client, {
-      entityId,
-      workspaceSlug: slugCandidate,
-      businessName: name,
-    });
+    const guildResult = await getOrCreateGuildForWorkspace(
+      {
+        entityId,
+        workspaceSlug: slugCandidate,
+        businessName: name,
+      },
+      writeClient,
+    );
     guildId = guildResult.guildId;
   } catch (guildError) {
     console.error("Failed to resolve or create guild for workspace", guildError);
@@ -254,7 +258,7 @@ export async function createBusinessWizard(
     payload.tagline = slogan;
   }
 
-  const { data: primaryInsert, error: primaryError } = await client
+  const { data: primaryInsert, error: primaryError } = await writeClient
     .from("houses")
     .insert(payload)
     .select("id, slug, name")
@@ -263,7 +267,7 @@ export async function createBusinessWizard(
   if (primaryError) {
     console.warn("Primary business insert failed, retrying with fallback payload", primaryError);
     const fallbackPayload = { name, slug: slugCandidate } satisfies Record<string, unknown>;
-    const { data: fallbackInsert, error: fallbackError } = await client
+    const { data: fallbackInsert, error: fallbackError } = await writeClient
       .from("houses")
       .insert(fallbackPayload)
       .select("id, slug, name")
@@ -285,7 +289,7 @@ export async function createBusinessWizard(
   if (primaryError && houseType) {
     // Attempt to patch in the desired house_type if the column exists but the first insert failed.
     try {
-      await client.from("houses").update({ house_type: houseType }).eq("id", insertedBusiness.id);
+      await writeClient.from("houses").update({ house_type: houseType }).eq("id", insertedBusiness.id);
     } catch (patchError) {
       console.warn("Failed to backfill house_type", patchError);
     }
@@ -297,20 +301,20 @@ export async function createBusinessWizard(
       if (logoUrl) updates.logo_url = logoUrl;
       if (slogan) updates.tagline = slogan;
       if (Object.keys(updates).length > 0) {
-        await client.from("houses").update(updates).eq("id", insertedBusiness.id);
+        await writeClient.from("houses").update(updates).eq("id", insertedBusiness.id);
       }
     } catch (metadataError) {
       console.warn("Failed to persist optional branding details", metadataError);
     }
   }
 
-  await assignBusinessRoles(client, insertedBusiness.id, entityId);
+  await assignBusinessRoles(writeClient, insertedBusiness.id, entityId);
 
-  const branch = await createDefaultBranch(client, insertedBusiness.id, slugCandidate);
+  const branch = await createDefaultBranch(writeClient, insertedBusiness.id, slugCandidate);
 
   let creatorEmploymentResult: CreatorEmploymentResult | null = null;
   try {
-    creatorEmploymentResult = await ensureCreatorEmployment(client, insertedBusiness.id, entityId);
+    creatorEmploymentResult = await ensureCreatorEmployment(writeClient, insertedBusiness.id, entityId);
     console.info("wizard: creator employment ensured", {
       businessId: insertedBusiness.id,
       branchId: branch?.id ?? null,
@@ -328,7 +332,7 @@ export async function createBusinessWizard(
 
   if (!isGM) {
     try {
-      const { data: policyRow } = await client
+      const { data: policyRow } = await writeClient
         .from("policies")
         .select("id")
         .eq("key", "houses:create")
@@ -337,7 +341,7 @@ export async function createBusinessWizard(
       const policyId = policyRow && typeof policyRow === "object" ? (policyRow as { id?: unknown }).id : null;
 
       if (typeof policyId === "string" && policyId) {
-        const { error: revokeError } = await client
+        const { error: revokeError } = await writeClient
           .from("entity_policy_grants")
           .delete()
           .eq("entity_id", entityId)
