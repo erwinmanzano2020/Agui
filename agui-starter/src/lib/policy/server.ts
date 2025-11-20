@@ -140,8 +140,10 @@ export async function getCurrentEntityAndPolicies(
     return result;
   }
 
+  const policyClient = lookup ?? supabase;
+
   try {
-    const policies = await listPoliciesForEntity(supabase, entityId);
+    const policies = await listPoliciesForEntity(policyClient, entityId);
     const result: CurrentEntityPolicies = {
       entityId,
       policies,

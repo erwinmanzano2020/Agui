@@ -85,6 +85,8 @@ async function resolveEntityBySimpleIdentifiers(
     return { entityId: null, error: null };
   }
 
+  const fallbackEntityId = authUid || null;
+
   try {
     const query = client
       .from("entity_identifiers")
@@ -97,6 +99,9 @@ async function resolveEntityBySimpleIdentifiers(
     if (error) {
       console.error("[authz] entity lookup failed (simple resolver)", error);
       const message = typeof (error as { message?: unknown }).message === "string" ? (error as { message: string }).message : null;
+      if (isIdentifierPermissionDenied(error)) {
+        return { entityId: fallbackEntityId, error: message };
+      }
       return { entityId: null, error: message };
     }
 
@@ -105,6 +110,11 @@ async function resolveEntityBySimpleIdentifiers(
     console.error("[authz] entity lookup crashed (simple resolver)", error);
     return { entityId: null, error: error instanceof Error ? error.message : String(error) };
   }
+}
+
+function isIdentifierPermissionDenied(error: unknown): boolean {
+  const message = typeof (error as { message?: unknown })?.message === "string" ? (error as { message: string }).message : "";
+  return message.toLowerCase().includes("permission denied for table entity_identifiers");
 }
 
 function isMissingColumnError(error: unknown): boolean {

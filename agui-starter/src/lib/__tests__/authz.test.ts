@@ -180,6 +180,46 @@ describe("authz entity resolution", () => {
     assert.deepStrictEqual(authzState.policyKeys, ["houses:create"]);
   });
 
+  it("treats entity identifier permission errors as non-fatal when auth uid is present", async () => {
+    const supabase = new MockSupabase({
+      user: {
+        id: "a45f083f-ee47-42f3-8854-2180589d18b3",
+        email: "erwinmanzano24@gmail.com",
+      },
+      tables: {
+        entity_identifiers: {
+          data: null,
+          error: { message: "permission denied for table entity_identifiers" },
+        },
+        entity_policies: {
+          data: [
+            {
+              policy_id: "policy-auth-uid",
+              policy_key: "houses:create",
+              action: "houses:create",
+              resource: "houses",
+            },
+          ],
+          error: null,
+        },
+      },
+    });
+
+    const authzState = await getCurrentEntityAndPolicies(supabase as unknown as DatabaseClient, {
+      context: "permission-denied",
+      debug: false,
+      lookupClient: supabase as unknown as DatabaseClient,
+    });
+
+    assert.strictEqual(authzState.entityId, "a45f083f-ee47-42f3-8854-2180589d18b3");
+    assert.strictEqual(authzState.source, "simpleResolver");
+    assert.strictEqual(authzState.error, "permission denied for table entity_identifiers");
+    assert.deepStrictEqual(authzState.policyKeys, ["houses:create"]);
+
+    const allowed = evaluatePolicyFromSet(authzState.policies, { action: "houses:create" });
+    assert.ok(allowed);
+  });
+
   it("returns the entity id linked via accounts", async () => {
     const supabase = new MockSupabase({
       user: { id: "user-1", email: "owner@example.com" },
