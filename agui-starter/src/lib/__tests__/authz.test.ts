@@ -114,9 +114,7 @@ describe("authz entity resolution", () => {
           data: [
             {
               policy_id: "policy-simple",
-              policy: { key: "houses:create" },
-              action: "houses:create",
-              resource: "houses",
+              policy: { key: "houses:create", action: "houses:create", resource: "houses" },
             },
           ],
           error: null,
@@ -150,9 +148,7 @@ describe("authz entity resolution", () => {
           data: [
             {
               policy_id: "policy-enum",
-              policy: { key: "houses:create" },
-              action: "houses:create",
-              resource: "houses",
+              policy: { key: "houses:create", action: "houses:create", resource: "houses" },
             },
           ],
           error: null,
@@ -203,7 +199,7 @@ describe("authz entity resolution", () => {
         },
         policies: {
           data: [
-            { id: "policy-auth-uid", key: "houses:create" },
+            { id: "policy-auth-uid", key: "houses:create", action: "houses:create", resource: "houses" },
           ],
           error: null,
         },
@@ -247,9 +243,7 @@ describe("authz entity resolution", () => {
           data: [
             {
               policy_id: "policy-auth-uid",
-              policy: { key: "houses:create" },
-              action: "houses:create",
-              resource: "houses",
+              policy: { key: "houses:create", action: "houses:create", resource: "houses" },
             },
           ],
           error: null,
@@ -332,9 +326,7 @@ describe("authz entity resolution", () => {
             data: [
               {
                 policy_id: "policy-1",
-                policy: { key: "houses:create" },
-                action: "houses:create",
-                resource: "houses",
+                policy: { key: "houses:create", action: "houses:create", resource: "houses" },
               },
             ],
             error: null,
@@ -343,9 +335,7 @@ describe("authz entity resolution", () => {
             data: [
               {
                 policy_id: "policy-1",
-                key: "houses:create",
-                action: "houses:create",
-                resource: "houses",
+                policy: { key: "houses:create", action: "houses:create", resource: "houses" },
               },
             ],
             error: null,
@@ -385,6 +375,7 @@ describe("authz entity resolution", () => {
       policyKeys: authzState.policyKeys,
       source: authzState.source,
       error: authzState.error,
+      policyError: authzState.policyError,
     });
 
     assert.deepStrictEqual(augmented._debug?.authz, {
@@ -392,6 +383,7 @@ describe("authz entity resolution", () => {
       policyKeys: ["houses:create"],
       source: "accounts",
       error: null,
+      policyError: null,
     });
   });
 
@@ -419,7 +411,7 @@ describe("authz entity resolution", () => {
         },
         policies: {
           data: [
-            { id: "policy-2", key: "houses:create" },
+            { id: "policy-2", key: "houses:create", action: "houses:create", resource: "houses" },
           ],
           error: null,
         },
@@ -460,6 +452,10 @@ describe("authz entity resolution", () => {
           ],
           error: null,
         },
+        policies: {
+          data: [{ id: "policy-3", key: "houses:create", action: "houses:create", resource: "houses" }],
+          error: null,
+        },
       },
     });
 
@@ -482,7 +478,13 @@ describe("authz entity resolution", () => {
           businessCount: 0,
         }),
       ),
-      { entityId: authz.entityId, policyKeys: authz.policyKeys, source: authz.source, error: authz.error },
+      {
+        entityId: authz.entityId,
+        policyKeys: authz.policyKeys,
+        source: authz.source,
+        error: authz.error,
+        policyError: authz.policyError,
+      },
     );
 
     assert.deepStrictEqual(tiles._debug?.authz, {
@@ -490,6 +492,7 @@ describe("authz entity resolution", () => {
       policyKeys: ["houses:create"],
       source: authz.source,
       error: authz.error ?? null,
+      policyError: authz.policyError ?? null,
     });
   });
 });
