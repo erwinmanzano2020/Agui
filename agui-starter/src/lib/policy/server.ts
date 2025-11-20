@@ -25,107 +25,78 @@ async function listPoliciesForEntity(
 ): Promise<PolicyRecord[]> {
   const { data, error } = await client
     .from("entity_policies")
-    .select("policy_id, policy:policies!inner(key, action, resource)")
+    .select("policy_id, policy:policies!inner(key)")
     .eq("entity_id", entityId);
 
   if (error) {
     throw new Error(error.message);
   }
 
-    const rows = (data ?? []).map((row) => {
-      const id = typeof (row as { policy_id?: unknown }).policy_id === "string" ? (row as { policy_id: string }).policy_id : "";
-      const key = (() => {
-        const withAlias = (row as { policy_key?: unknown }).policy_key;
-        if (typeof withAlias === "string" && withAlias.trim().length > 0) {
-          return withAlias.trim();
+  const rows = (data ?? []).map((row) => {
+    const id = typeof (row as { policy_id?: unknown }).policy_id === "string" ? (row as { policy_id: string }).policy_id : "";
+    const key = (() => {
+      const withAlias = (row as { policy_key?: unknown }).policy_key;
+      if (typeof withAlias === "string" && withAlias.trim().length > 0) {
+        return withAlias.trim();
+      }
+      const directKey = (row as { key?: unknown }).key;
+      if (typeof directKey === "string" && directKey.trim().length > 0) {
+        return directKey.trim();
+      }
+      const nested = (row as { policy?: unknown }).policy;
+      if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+        const nestedKey = (nested as { key?: unknown }).key;
+        if (typeof nestedKey === "string" && nestedKey.trim().length > 0) {
+          return nestedKey.trim();
         }
-        const directKey = (row as { key?: unknown }).key;
-        if (typeof directKey === "string" && directKey.trim().length > 0) {
-          return directKey.trim();
-        }
-        const nested = (row as { policy?: unknown }).policy;
-        if (nested && typeof nested === "object" && !Array.isArray(nested)) {
-          const nestedKey = (nested as { key?: unknown }).key;
-          if (typeof nestedKey === "string" && nestedKey.trim().length > 0) {
-            return nestedKey.trim();
-          }
-        }
-        return "";
-      })();
-      const nestedPolicy = (row as { policy?: unknown }).policy;
-      const action = (() => {
-        const nestedAction =
-          nestedPolicy && typeof nestedPolicy === "object" && !Array.isArray(nestedPolicy)
-            ? (nestedPolicy as { action?: unknown }).action
-            : null;
-        if (typeof nestedAction === "string") {
-          return nestedAction;
-        }
-        const direct = (row as { action?: unknown }).action;
-        return typeof direct === "string" ? direct : "";
-      })();
-      const resource = (() => {
-        const nestedResource =
-          nestedPolicy && typeof nestedPolicy === "object" && !Array.isArray(nestedPolicy)
-            ? (nestedPolicy as { resource?: unknown }).resource
-            : null;
-        if (typeof nestedResource === "string") {
-          return nestedResource;
-        }
-        const direct = (row as { resource?: unknown }).resource;
-        return typeof direct === "string" ? direct : "";
-      })();
+      }
+      return "";
+    })();
+
+    const normalizedAction = key || "";
 
     return {
       id,
       key,
-      action,
-      resource,
+      action: normalizedAction,
+      resource: "*",
     } satisfies PolicyRecord;
   });
 
-  const missingPolicyIds = rows
-    .filter((row) => row.id && (!row.key || !row.action || !row.resource))
-    .map((row) => row.id);
+  const missingPolicyIds = rows.filter((row) => row.id && !row.key).map((row) => row.id);
   if (missingPolicyIds.length > 0) {
     const { data: policyRows, error: policyError } = await client
       .from("policies")
-      .select("id, key, action, resource")
+      .select("id, key")
       .in("id", missingPolicyIds);
 
     if (policyError) {
       throw new Error(policyError.message);
     }
 
-    const policyById = new Map<string, { key: string; action: string; resource: string }>();
+    const policyById = new Map<string, { key: string }>();
     for (const row of policyRows ?? []) {
       const id = typeof (row as { id?: unknown }).id === "string" ? (row as { id: string }).id : "";
       const key = typeof (row as { key?: unknown }).key === "string" ? (row as { key: string }).key : "";
-      const action = typeof (row as { action?: unknown }).action === "string" ? (row as { action: string }).action : "";
-      const resource =
-        typeof (row as { resource?: unknown }).resource === "string" ? (row as { resource: string }).resource : "";
       if (id && key) {
-        policyById.set(id, { key, action, resource });
+        policyById.set(id, { key });
       }
     }
 
     for (const row of rows) {
       const fallback = row.id ? policyById.get(row.id) : null;
-      if (fallback) {
-        if (!row.key) {
-          row.key = fallback.key ?? "";
-        }
-        if (!row.action) {
-          row.action = fallback.action ?? "";
-        }
-        if (!row.resource) {
-          row.resource = fallback.resource ?? "";
-        }
+      if (fallback && !row.key) {
+        row.key = fallback.key ?? "";
+        row.action = fallback.key ?? row.action;
       }
     }
   }
 
-  return dedupePolicies(rows.filter((row) => row.id && row.key));
+  return dedupePolicies(
+    rows
+      .filter((row) => row.id && row.key)
+      .map((row) => ({ ...row, action: row.action || row.key, resource: row.resource || "*" })),
+  );
 }
 
 export type CurrentEntityPolicies = {
