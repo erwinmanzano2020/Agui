@@ -23,6 +23,7 @@ const BUSINESS_KIND_TO_HOUSE_TYPE: Record<string, string> = {
 };
 
 const FALLBACK_HOUSE_TYPE = "RETAIL";
+const DEFAULT_GUILD_SLUG = "demo-guild";
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -63,7 +64,7 @@ export type BusinessCreationWizardInput = {
 export type BusinessCreationWizardResult =
   | {
       status: "error";
-      message: string;
+      formError: string;
       code?: number;
       fieldErrors?: Record<string, string | null>;
     }
@@ -108,6 +109,80 @@ async function assertUniqueSlug(supabase: unknown, slug: string): Promise<void> 
   const fromBusinesses = await slugInUse(supabase, "businesses", slug);
   if (fromBusinesses) {
     throw new Error("Slug is already taken");
+  }
+}
+
+async function resolveGuildId(
+  supabase: unknown,
+  preferredSlug: string,
+): Promise<string | null> {
+  const client: any = supabase;
+  const candidateSlugs = [DEFAULT_GUILD_SLUG, preferredSlug].filter(Boolean);
+
+  for (const slug of candidateSlugs) {
+    try {
+      const { data, error } = await client
+        .from("guilds")
+        .select("id")
+        .eq("slug", slug)
+        .maybeSingle();
+
+      if (error) {
+        console.warn("Failed to resolve guild by slug", { slug, error });
+        continue;
+      }
+
+      const guildId = data && typeof data === "object" ? (data as { id?: unknown }).id : null;
+      if (typeof guildId === "string" && guildId) {
+        return guildId;
+      }
+    } catch (lookupError) {
+      console.warn("Unexpected error during guild lookup", { slug, lookupError });
+    }
+  }
+
+  try {
+    const { data, error } = await client
+      .from("guilds")
+      .select("id")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+
+    if (!error) {
+      const guildId = data && typeof data === "object" ? (data as { id?: unknown }).id : null;
+      if (typeof guildId === "string" && guildId) {
+        return guildId;
+      }
+    } else {
+      console.warn("Failed to resolve fallback guild", error);
+    }
+  } catch (fallbackError) {
+    console.warn("Unexpected error while resolving fallback guild", fallbackError);
+  }
+
+  const fallbackSlug = preferredSlug || DEFAULT_GUILD_SLUG;
+  try {
+    const { data, error } = await client
+      .from("guilds")
+      .insert({
+        slug: fallbackSlug,
+        name: slugify(fallbackSlug) || "Starter Guild",
+        guild_type: "MERCHANT",
+      })
+      .select("id")
+      .maybeSingle();
+
+    if (error) {
+      console.warn("Failed to create fallback guild for business wizard", error);
+      return null;
+    }
+
+    const guildId = data && typeof data === "object" ? (data as { id?: unknown }).id : null;
+    return typeof guildId === "string" && guildId ? guildId : null;
+  } catch (createError) {
+    console.warn("Unexpected error creating fallback guild", createError);
+    return null;
   }
 }
 
@@ -183,12 +258,12 @@ export async function createBusinessWizard(
 
   const user = data?.user ?? null;
   if (!user) {
-    return { status: "error", message: "Unauthorized", code: 401 };
+    return { status: "error", formError: "Unauthorized", code: 401 };
   }
 
   const allowed = await evaluatePolicy({ action: "houses:create" }, supabase);
   if (!allowed) {
-    return { status: "error", message: "Forbidden", code: 403 };
+    return { status: "error", formError: "Forbidden", code: 403 };
   }
 
   const name = normalizeString(input.name);
@@ -209,7 +284,7 @@ export async function createBusinessWizard(
   }
 
   if (Object.keys(fieldErrors).length > 0) {
-    return { status: "error", message: "Validation failed", fieldErrors };
+    return { status: "error", formError: "Validation failed", fieldErrors };
   }
 
   try {
@@ -217,8 +292,17 @@ export async function createBusinessWizard(
   } catch (slugError) {
     return {
       status: "error",
-      message: slugError instanceof Error ? slugError.message : "Slug validation failed",
+      formError: slugError instanceof Error ? slugError.message : "Slug validation failed",
       fieldErrors: { slug: "Slug is already taken" },
+    };
+  }
+
+  const guildId = await resolveGuildId(client, slugCandidate);
+  if (!guildId) {
+    return {
+      status: "error",
+      formError: "Unable to resolve a guild for this workspace. Please try again.",
+      code: 500,
     };
   }
 
@@ -229,6 +313,7 @@ export async function createBusinessWizard(
     name,
     slug: slugCandidate,
     house_type: houseType,
+    guild_id: guildId,
   };
 
   if (logoUrl) {
@@ -259,11 +344,11 @@ export async function createBusinessWizard(
   }
 
   if (insertError) {
-    return { status: "error", message: insertError.message };
+    return { status: "error", formError: insertError.message };
   }
 
   if (!insertedBusiness?.id) {
-    return { status: "error", message: "Failed to create business" };
+    return { status: "error", formError: "Failed to create business" };
   }
 
   if (primaryError && houseType) {
@@ -310,7 +395,7 @@ export async function createBusinessWizard(
     });
   } catch (employmentError) {
     console.error("Failed to ensure creator employment", employmentError);
-    return { status: "error", message: "Failed to finalize creator employment", code: 500 };
+    return { status: "error", formError: "Failed to finalize creator employment", code: 500 };
   }
 
   const isGM = await currentEntityIsGM(supabase);
