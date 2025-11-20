@@ -82,7 +82,7 @@ function isRelationMissing(error: unknown): boolean {
   return message.includes("relation") && message.includes("does not exist");
 }
 
-async function slugInUse(supabase: unknown, table: "houses" | "businesses", slug: string): Promise<boolean> {
+async function slugInUse(supabase: unknown, table: "houses", slug: string): Promise<boolean> {
   const client: any = supabase;
   const { data, error } = await client
     .from(table)
@@ -104,10 +104,6 @@ async function slugInUse(supabase: unknown, table: "houses" | "businesses", slug
 async function assertUniqueSlug(supabase: unknown, slug: string): Promise<void> {
   const fromHouses = await slugInUse(supabase, "houses", slug);
   if (fromHouses) {
-    throw new Error("Slug is already taken");
-  }
-  const fromBusinesses = await slugInUse(supabase, "businesses", slug);
-  if (fromBusinesses) {
     throw new Error("Slug is already taken");
   }
 }

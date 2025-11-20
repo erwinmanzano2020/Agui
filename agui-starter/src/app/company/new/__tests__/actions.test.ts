@@ -40,7 +40,7 @@ type SupabaseMock = {
   auth: {
     getUser: () => Promise<{ data: { user: { id: string } } | null; error: unknown }>;
   };
-  from: (table: string) => any;
+  from: (table: string) => unknown;
 };
 
 function createSupabaseMock(options: SupabaseMockOptions = {}): { supabase: SupabaseMock; state: SupabaseMockState } {
@@ -140,23 +140,6 @@ function createSupabaseMock(options: SupabaseMockOptions = {}): { supabase: Supa
                 return undefined;
               },
             };
-          },
-        };
-      }
-
-      if (table === "businesses") {
-        return {
-          select() {
-            return {
-              eq(_column: string, value: unknown) {
-                state.slugChecks.push({ table: "businesses", slug: String(value) });
-                return {
-                  async maybeSingle() {
-                    return { data: null, error: null };
-                  },
-                };
-              },
-            } satisfies SelectChain;
           },
         };
       }
