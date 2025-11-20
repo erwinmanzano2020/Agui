@@ -220,6 +220,53 @@ describe("authz entity resolution", () => {
     assert.ok(allowed);
   });
 
+  it("hydrates policies via fallback when primary policy lookup fails but identifier errors persist", async () => {
+    const supabase = new MockSupabase({
+      user: { id: "a45f083f-ee47-42f3-8854-2180589d18b3", email: "erwinmanzano24@gmail.com" },
+      tables: {
+        entity_identifiers: {
+          data: null,
+          error: { message: "permission denied for table entity_identifiers" },
+        },
+        entity_policies: {
+          data: null,
+          error: { message: "permission denied for table entity_policies" },
+        },
+      },
+    });
+
+    const serviceFallback = new MockSupabase({
+      user: { id: "a45f083f-ee47-42f3-8854-2180589d18b3", email: "erwinmanzano24@gmail.com" },
+      tables: {
+        entity_policies: {
+          data: [
+            {
+              policy_id: "policy-auth-uid",
+              policy_key: "houses:create",
+              action: "houses:create",
+              resource: "houses",
+            },
+          ],
+          error: null,
+        },
+      },
+    });
+
+    const authzState = await getCurrentEntityAndPolicies(supabase as unknown as DatabaseClient, {
+      context: "permission-fallback",
+      debug: false,
+      lookupClient: supabase as unknown as DatabaseClient,
+      policyFallbackClient: serviceFallback as unknown as DatabaseClient,
+    });
+
+    assert.strictEqual(authzState.entityId, "a45f083f-ee47-42f3-8854-2180589d18b3");
+    assert.strictEqual(authzState.source, "simpleResolver");
+    assert.ok(authzState.error?.includes("permission denied for table entity_identifiers"));
+    assert.ok(authzState.error?.includes("policy error: permission denied for table entity_policies"));
+    assert.strictEqual(authzState.policyError, "permission denied for table entity_policies");
+    assert.deepStrictEqual(authzState.policyKeys, ["houses:create"]);
+  });
+
   it("returns the entity id linked via accounts", async () => {
     const supabase = new MockSupabase({
       user: { id: "user-1", email: "owner@example.com" },

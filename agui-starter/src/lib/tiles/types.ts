@@ -50,7 +50,13 @@ export type MarketplacePayload = {
 
 export type TilesDebugInfo = {
   tags?: string[];
-  authz?: { entityId: string | null; policyKeys: string[]; source?: string | null; error?: string | null };
+  authz?: {
+    entityId: string | null;
+    policyKeys: string[];
+    source?: string | null;
+    error?: string | null;
+    policyError?: string | null;
+  };
 };
 
 export type TilesMeResponse = {

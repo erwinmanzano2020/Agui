@@ -445,7 +445,13 @@ async function buildInputForEntity(
 
 export function appendAuthzDebug(
   response: TilesMeResponse,
-  authz: { entityId: string | null; policyKeys: string[]; source?: string | null; error?: string | null },
+  authz: {
+    entityId: string | null;
+    policyKeys: string[];
+    source?: string | null;
+    error?: string | null;
+    policyError?: string | null;
+  },
 ): TilesMeResponse {
   const existingDebug = (response as TilesMeResponse & { _debug?: Record<string, unknown> })._debug ?? {};
   const policyKeys = Array.isArray(authz.policyKeys) ? [...authz.policyKeys] : [];
@@ -459,6 +465,7 @@ export function appendAuthzDebug(
         policyKeys,
         source: authz.source ?? null,
         error: authz.error ?? null,
+        policyError: authz.policyError ?? null,
       },
     },
   } satisfies TilesMeResponse;
@@ -500,6 +507,7 @@ export async function loadTilesForCurrentUser(): Promise<TilesMeResponse> {
       policyKeys,
       source: authzState.source,
       error: authzState.error,
+      policyError: authzState.policyError,
     });
 
     if (augmented.home.some((tile) => tile.kind === "start-business")) {
