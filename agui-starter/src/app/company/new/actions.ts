@@ -8,6 +8,7 @@ import { ensureEntityForUser } from "@/lib/identity/entity-server";
 import { evaluatePolicy } from "@/lib/policy/server";
 import { emitEvent } from "@/lib/events/server";
 import { currentEntityIsGM } from "@/lib/authz/server";
+import { getOrCreateGuildForWorkspace } from "@/lib/guilds/server";
 
 import { ensureCreatorEmployment, type CreatorEmploymentResult } from "./employment";
 
@@ -23,7 +24,6 @@ const BUSINESS_KIND_TO_HOUSE_TYPE: Record<string, string> = {
 };
 
 const FALLBACK_HOUSE_TYPE = "RETAIL";
-const DEFAULT_GUILD_SLUG = "demo-guild";
 
 function normalizeString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -105,80 +105,6 @@ async function assertUniqueSlug(supabase: unknown, slug: string): Promise<void> 
   const fromHouses = await slugInUse(supabase, "houses", slug);
   if (fromHouses) {
     throw new Error("Slug is already taken");
-  }
-}
-
-async function resolveGuildId(
-  supabase: unknown,
-  preferredSlug: string,
-): Promise<string | null> {
-  const client: any = supabase;
-  const candidateSlugs = [DEFAULT_GUILD_SLUG, preferredSlug].filter(Boolean);
-
-  for (const slug of candidateSlugs) {
-    try {
-      const { data, error } = await client
-        .from("guilds")
-        .select("id")
-        .eq("slug", slug)
-        .maybeSingle();
-
-      if (error) {
-        console.warn("Failed to resolve guild by slug", { slug, error });
-        continue;
-      }
-
-      const guildId = data && typeof data === "object" ? (data as { id?: unknown }).id : null;
-      if (typeof guildId === "string" && guildId) {
-        return guildId;
-      }
-    } catch (lookupError) {
-      console.warn("Unexpected error during guild lookup", { slug, lookupError });
-    }
-  }
-
-  try {
-    const { data, error } = await client
-      .from("guilds")
-      .select("id")
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (!error) {
-      const guildId = data && typeof data === "object" ? (data as { id?: unknown }).id : null;
-      if (typeof guildId === "string" && guildId) {
-        return guildId;
-      }
-    } else {
-      console.warn("Failed to resolve fallback guild", error);
-    }
-  } catch (fallbackError) {
-    console.warn("Unexpected error while resolving fallback guild", fallbackError);
-  }
-
-  const fallbackSlug = preferredSlug || DEFAULT_GUILD_SLUG;
-  try {
-    const { data, error } = await client
-      .from("guilds")
-      .insert({
-        slug: fallbackSlug,
-        name: slugify(fallbackSlug) || "Starter Guild",
-        guild_type: "MERCHANT",
-      })
-      .select("id")
-      .maybeSingle();
-
-    if (error) {
-      console.warn("Failed to create fallback guild for business wizard", error);
-      return null;
-    }
-
-    const guildId = data && typeof data === "object" ? (data as { id?: unknown }).id : null;
-    return typeof guildId === "string" && guildId ? guildId : null;
-  } catch (createError) {
-    console.warn("Unexpected error creating fallback guild", createError);
-    return null;
   }
 }
 
@@ -293,13 +219,22 @@ export async function createBusinessWizard(
     };
   }
 
-  const guildId = await resolveGuildId(client, slugCandidate);
-  if (!guildId) {
-    return {
-      status: "error",
-      formError: "Unable to resolve a guild for this workspace. Please try again.",
-      code: 500,
-    };
+  const entityId = await ensureEntityForUser(user).catch((entityError) => {
+    console.error("Failed to resolve entity for wizard creator", entityError);
+    throw entityError;
+  });
+
+  let guildId: string;
+  try {
+    const guildResult = await getOrCreateGuildForWorkspace(client, {
+      entityId,
+      workspaceSlug: slugCandidate,
+      businessName: name,
+    });
+    guildId = guildResult.guildId;
+  } catch (guildError) {
+    console.error("Failed to resolve or create guild for workspace", guildError);
+    return { status: "error", formError: "Failed to prepare workspace guild", code: 500 };
   }
 
   let insertedBusiness: MaybeBusinessRow | null = null;
@@ -368,11 +303,6 @@ export async function createBusinessWizard(
       console.warn("Failed to persist optional branding details", metadataError);
     }
   }
-
-  const entityId = await ensureEntityForUser(user).catch((entityError) => {
-    console.error("Failed to resolve entity for wizard creator", entityError);
-    throw entityError;
-  });
 
   await assignBusinessRoles(client, insertedBusiness.id, entityId);
 

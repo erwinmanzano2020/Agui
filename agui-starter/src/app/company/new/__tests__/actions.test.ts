@@ -12,12 +12,15 @@ import { createBusinessWizard } from "../actions";
 
 type SupabaseMockOptions = {
   houseInsertError?: unknown;
+  existingGuildId?: string | null;
 };
 
 type SupabaseMockState = {
   houseInserts: Record<string, unknown>[];
   branchInserts: Record<string, unknown>[];
   roleAssignments: Record<string, unknown>[];
+  guildInserts: Record<string, unknown>[];
+  guildRoleAssignments: Record<string, unknown>[];
   slugChecks: { table: string; slug: string }[];
   guildLookups: string[];
 };
@@ -48,6 +51,8 @@ function createSupabaseMock(options: SupabaseMockOptions = {}): { supabase: Supa
     houseInserts: [],
     branchInserts: [],
     roleAssignments: [],
+    guildInserts: [],
+    guildRoleAssignments: [],
     slugChecks: [],
     guildLookups: [],
   };
@@ -67,7 +72,10 @@ function createSupabaseMock(options: SupabaseMockOptions = {}): { supabase: Supa
                 state.guildLookups.push(String(value));
                 return {
                   async maybeSingle() {
-                    return { data: { id: "guild-1" }, error: null };
+                    if (options.existingGuildId === null) {
+                      return { data: null, error: null };
+                    }
+                    return { data: { id: options.existingGuildId ?? "guild-1", slug: value }, error: null };
                   },
                 };
               },
@@ -76,7 +84,10 @@ function createSupabaseMock(options: SupabaseMockOptions = {}): { supabase: Supa
                   limit() {
                     return {
                       async maybeSingle() {
-                        return { data: { id: "guild-1" }, error: null };
+                        if (options.existingGuildId === null) {
+                          return { data: null, error: null };
+                        }
+                        return { data: { id: options.existingGuildId ?? "guild-1", slug: "guild-1" }, error: null };
                       },
                     };
                   },
@@ -85,11 +96,13 @@ function createSupabaseMock(options: SupabaseMockOptions = {}): { supabase: Supa
             } satisfies SelectChain;
           },
           insert(values: Record<string, unknown>) {
+            state.guildInserts.push(values);
             return {
               select() {
                 return {
                   async maybeSingle() {
-                    return { data: { ...(values ?? {}), id: "guild-created" }, error: null };
+                    const slug = typeof values.slug === "string" ? values.slug : "guild-created";
+                    return { data: { ...(values ?? {}), id: "guild-created", slug }, error: null };
                   },
                 };
               },
@@ -153,6 +166,15 @@ function createSupabaseMock(options: SupabaseMockOptions = {}): { supabase: Supa
         };
       }
 
+      if (table === "guild_roles") {
+        return {
+          async upsert(values: Record<string, unknown>) {
+            state.guildRoleAssignments.push(values);
+            return { data: null, error: null };
+          },
+        };
+      }
+
       if (table === "branches") {
         return {
           insert(values: Record<string, unknown>) {
@@ -209,7 +231,7 @@ describe("createBusinessWizard", () => {
   });
 
   it("creates a house with guild, branch, and roles", async () => {
-    const { supabase, state } = createSupabaseMock();
+    const { supabase, state } = createSupabaseMock({ existingGuildId: null });
 
     mock.method(supabaseServer, "createServerSupabaseClient", async () => supabase as never);
     mock.method(policy, "evaluatePolicy", async () => true);
@@ -232,10 +254,41 @@ describe("createBusinessWizard", () => {
 
     assert.equal(result.status, "success");
     assert.equal(state.houseInserts.length, 1);
-    assert.equal(state.houseInserts[0]?.guild_id, "guild-1");
+    assert.equal(state.houseInserts[0]?.guild_id, "guild-created");
     assert.equal(state.houseInserts[0]?.house_type, "RETAIL");
+    assert.equal(state.guildInserts.length, 1);
+    assert.equal(state.guildRoleAssignments.length, 2);
     assert.equal(state.branchInserts.length, 1);
     assert.equal(state.roleAssignments.length, 2);
+  });
+
+  it("reuses an existing guild when one is present", async () => {
+    const { supabase, state } = createSupabaseMock({ existingGuildId: "guild-existing" });
+
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => supabase as never);
+    mock.method(policy, "evaluatePolicy", async () => true);
+    mock.method(identity, "ensureEntityForUser", async () => "entity-1");
+    mock.method(authz, "currentEntityIsGM", async () => true);
+    mock.method(employment, "ensureCreatorEmployment", async () => ({
+      employmentId: "employment-1",
+      roleId: "role-owner",
+      roleSlug: "house_owner",
+    }));
+    mock.method(events, "emitEvent", async () => {});
+
+    const result = await createBusinessWizard({
+      name: "Existing Guild Co",
+      slug: "existing-guild-co",
+      businessType: "grocery",
+      logoUrl: "",
+      slogan: "",
+    });
+
+    assert.equal(result.status, "success");
+    assert.equal(state.guildInserts.length, 0);
+    assert.equal(state.guildLookups.length > 0, true);
+    assert.equal(state.houseInserts[0]?.guild_id, "guild-existing");
+    assert.equal(state.guildRoleAssignments.length, 2);
   });
 
   it("surfaces insert errors as form errors", async () => {
