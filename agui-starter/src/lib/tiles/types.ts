@@ -48,10 +48,22 @@ export type MarketplacePayload = {
   categories: MarketplaceCategory[];
 };
 
+export type TilesDebugInfo = {
+  tags?: string[];
+  authz?: {
+    entityId: string | null;
+    policyKeys: string[];
+    source?: string | null;
+    error?: string | null;
+    policyError?: string | null;
+  };
+};
+
 export type TilesMeResponse = {
   home: HomeTile[];
   workspaces: WorkspaceSections[];
   marketplace?: MarketplacePayload;
+  _debug?: TilesDebugInfo;
 };
 
 export type TileAssignment = {

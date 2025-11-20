@@ -30,7 +30,15 @@ export function policyAllows(policy: PolicyRecord, request: PolicyRequest): bool
   const action = request.action;
   if (!action) return false;
   const resource = request.resource ?? "*";
-  return matches(policy.action, action) && matches(policy.resource, resource);
+  if (!matches(policy.action, action)) {
+    return false;
+  }
+
+  if (resource === "*") {
+    return true;
+  }
+
+  return matches(policy.resource, resource);
 }
 
 export function permissionSetAllows(

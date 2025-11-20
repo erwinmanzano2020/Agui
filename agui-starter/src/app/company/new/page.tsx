@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { Suspense } from "react";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { evaluatePolicy } from "@/lib/policy/server";
-import { getMyEntityId, currentEntityIsGM } from "@/lib/authz/server";
+import { currentEntityIsGM } from "@/lib/authz/server";
+import { evaluatePolicyFromSet, getCurrentEntityAndPolicies } from "@/lib/policy/server";
 import { emitEvent } from "@/lib/events/server";
 
 import BusinessCreationWizard from "./wizard-client";
@@ -16,11 +16,12 @@ async function WizardLoader() {
     redirect(`/welcome?next=${encodeURIComponent("/company/new")}`);
   }
 
-  const [allowed, entityId, isGM] = await Promise.all([
-    evaluatePolicy({ action: "houses:create" }, supabase),
-    getMyEntityId(supabase),
+  const [{ entityId, policies }, isGM] = await Promise.all([
+    getCurrentEntityAndPolicies(supabase, { context: "company/new" }),
     currentEntityIsGM(supabase),
   ]);
+
+  const allowed = evaluatePolicyFromSet(policies, { action: "houses:create" });
 
   if (!allowed) {
     return (

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { loadTilesForCurrentUser } from "@/lib/tiles/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getCurrentEntityAndPolicies } from "@/lib/policy/server";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -23,7 +24,25 @@ export async function GET(request: Request) {
     }
     const userId = data?.user?.id ?? null;
     const tags = userId ? [`tiles:user:${userId}`] : [];
-    return NextResponse.json({ ...payload, _debug: { tags } });
+    const authzState = payload._debug?.authz
+      ? payload._debug.authz
+      : await getCurrentEntityAndPolicies(supabase, {
+          context: "tiles.debug",
+        }).then((state) => ({
+          entityId: state.entityId,
+          policyKeys: state.policyKeys,
+          source: state.source,
+          error: state.error,
+        }));
+
+    return NextResponse.json({
+      ...payload,
+      _debug: {
+        ...payload._debug,
+        tags,
+        authz: authzState,
+      },
+    });
   } catch (error) {
     console.error("Failed to compute tiles", error);
     return NextResponse.json({ error: "Failed to compute tiles" }, { status: 500 });

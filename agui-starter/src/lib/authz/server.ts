@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import {
   getMyEntityId as getMyEntityIdFromClient,
   getMyRoles as getMyRolesFromClient,
@@ -20,7 +21,8 @@ export async function getMyRoles(
   client?: SupabaseClient | null,
 ): Promise<RoleAssignments> {
   const supabase = client ?? (await createServerSupabaseClient());
-  return getMyRolesFromClient(supabase);
+  const lookup = getServiceSupabase();
+  return getMyRolesFromClient(supabase, { lookupClient: lookup });
 }
 
 export async function currentEntityIsGM(client?: SupabaseClient | null): Promise<boolean> {
@@ -41,14 +43,16 @@ export async function getMyEntityId(
   client?: SupabaseClient | null,
 ): Promise<string | null> {
   const supabase = client ?? (await createServerSupabaseClient());
-  return getMyEntityIdFromClient(supabase);
+  const lookup = getServiceSupabase();
+  return getMyEntityIdFromClient(supabase, { lookupClient: lookup });
 }
 
 export async function listMyPolicies(
   client?: SupabaseClient | null,
 ): Promise<PolicyRecord[]> {
   const supabase = client ?? (await createServerSupabaseClient());
-  return listPoliciesForCurrentUser(supabase);
+  const lookup = getServiceSupabase();
+  return listPoliciesForCurrentUser(supabase, { lookupClient: lookup });
 }
 
 export async function evaluatePolicyForCurrentUser(
