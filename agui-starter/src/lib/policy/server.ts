@@ -25,7 +25,7 @@ async function listPoliciesForEntity(
 ): Promise<PolicyRecord[]> {
   const { data, error } = await client
     .from("entity_policies")
-    .select("policy_id, policy_key, action, resource, policy:policies(key)")
+    .select("policy_id, action, resource, policy:policies(key)")
     .eq("entity_id", entityId);
 
   if (error) {
@@ -34,7 +34,7 @@ async function listPoliciesForEntity(
 
   const rows = (data ?? []).map((row) => {
     const id = typeof (row as { policy_id?: unknown }).policy_id === "string" ? (row as { policy_id: string }).policy_id : "";
-    let key = (() => {
+    const key = (() => {
       const withAlias = (row as { policy_key?: unknown }).policy_key;
       if (typeof withAlias === "string" && withAlias.trim().length > 0) {
         return withAlias.trim();

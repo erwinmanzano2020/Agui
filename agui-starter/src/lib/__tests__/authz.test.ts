@@ -195,10 +195,15 @@ describe("authz entity resolution", () => {
           data: [
             {
               policy_id: "policy-auth-uid",
-              policy_key: "houses:create",
               action: "houses:create",
               resource: "houses",
             },
+          ],
+          error: null,
+        },
+        policies: {
+          data: [
+            { id: "policy-auth-uid", key: "houses:create" },
           ],
           error: null,
         },
@@ -242,7 +247,7 @@ describe("authz entity resolution", () => {
           data: [
             {
               policy_id: "policy-auth-uid",
-              policy_key: "houses:create",
+              policy: { key: "houses:create" },
               action: "houses:create",
               resource: "houses",
             },
@@ -327,7 +332,7 @@ describe("authz entity resolution", () => {
             data: [
               {
                 policy_id: "policy-1",
-                policy_key: "houses:create",
+                policy: { key: "houses:create" },
                 action: "houses:create",
                 resource: "houses",
               },
@@ -406,10 +411,15 @@ describe("authz entity resolution", () => {
           data: [
             {
               policy_id: "policy-2",
-              policy_key: "houses:create",
               action: "houses:create",
               resource: "houses",
             },
+          ],
+          error: null,
+        },
+        policies: {
+          data: [
+            { id: "policy-2", key: "houses:create" },
           ],
           error: null,
         },
@@ -444,7 +454,6 @@ describe("authz entity resolution", () => {
           data: [
             {
               policy_id: "policy-3",
-              policy_key: "houses:create",
               action: "houses:create",
               resource: "houses",
             },
