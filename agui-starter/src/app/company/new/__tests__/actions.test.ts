@@ -389,7 +389,7 @@ describe("createBusinessWizard", () => {
   });
 
   it("surfaces insert errors as form errors", async () => {
-    const { supabase } = createSupabaseMock({ houseInsertError: { message: "constraint violation" } });
+    const { supabase, state } = createSupabaseMock({ houseInsertError: { message: "constraint violation" } });
 
     mock.method(supabaseServer, "createServerSupabaseClient", async () => supabase as never);
     mock.method(supabaseService, "getServiceSupabase", () => supabase as never);
@@ -413,6 +413,9 @@ describe("createBusinessWizard", () => {
 
     assert.equal(result.status, "error");
     assert.match(result.formError, /constraint violation|Failed to create business/);
+    assert.equal(state.houseInserts.length, 2);
+    assert.equal(state.houseInserts[0]?.guild_id, "guild-1");
+    assert.equal(state.houseInserts[1]?.guild_id, "guild-1");
   });
 
   it("surfaces guild preparation failures", async () => {

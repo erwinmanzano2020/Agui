@@ -272,7 +272,9 @@ export async function createBusinessWizard(
     );
     guildId = guildResult.id;
     if (!guildId) {
-      throw new Error("Workspace guild prepared without an id");
+      const missingGuildError = new Error("Workspace guild prepared without an id");
+      console.error("wizard:guild:missing-id", { guildResult });
+      throw missingGuildError;
     }
   } catch (guildError) {
     console.error("Failed to resolve or create guild for workspace", guildError);
@@ -309,7 +311,12 @@ export async function createBusinessWizard(
 
   if (primaryError) {
     console.warn("Primary business insert failed, retrying with fallback payload", primaryError);
-    const fallbackPayload = { name, slug: slugCandidate } satisfies Record<string, unknown>;
+    const fallbackPayload = {
+      name,
+      slug: slugCandidate,
+      guild_id: guildId,
+      house_type: houseType,
+    } satisfies Record<string, unknown>;
     const { data: fallbackInsert, error: fallbackError } = await writeClient
       .from("houses")
       .insert(fallbackPayload)
