@@ -270,7 +270,10 @@ export async function createBusinessWizard(
       },
       writeClient,
     );
-    guildId = guildResult.guildId;
+    guildId = guildResult.id;
+    if (!guildId) {
+      throw new Error("Workspace guild prepared without an id");
+    }
   } catch (guildError) {
     console.error("Failed to resolve or create guild for workspace", guildError);
     const formattedError = formatGuildError(guildError);

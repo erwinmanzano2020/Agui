@@ -438,4 +438,33 @@ describe("createBusinessWizard", () => {
     assert.equal(result.status, "error");
     assert.match(result.formError, /Failed to prepare workspace guild: .*guild write blocked/);
   });
+
+  it("fails fast when guild provisioning does not return an id", async () => {
+    const { supabase, state } = createSupabaseMock({ existingGuildId: null });
+
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => supabase as never);
+    mock.method(supabaseService, "getServiceSupabase", () => supabase as never);
+    mock.method(policy, "evaluatePolicy", async () => true);
+    mock.method(identity, "ensureEntityForUser", async () => "entity-1");
+    mock.method(authz, "currentEntityIsGM", async () => true);
+    mock.method(employment, "ensureCreatorEmployment", async () => ({
+      employmentId: "employment-1",
+      roleId: "role-owner",
+      roleSlug: "house_owner",
+    }));
+    mock.method(events, "emitEvent", async () => {});
+    mock.method(guilds, "getOrCreateGuildForWorkspace", async () => ({ id: "", slug: "bad" } as never));
+
+    const result = await createBusinessWizard({
+      name: "Missing Guild Id", 
+      slug: "missing-guild-id", 
+      businessType: "grocery", 
+      logoUrl: "", 
+      slogan: "", 
+    });
+
+    assert.equal(result.status, "error");
+    assert.match(result.formError, /Failed to prepare workspace guild/);
+    assert.equal(state.houseInserts.length, 0);
+  });
 });
