@@ -421,6 +421,6 @@ describe("createBusinessWizard", () => {
     });
 
     assert.equal(result.status, "error");
-    assert.match(result.formError, /Failed to prepare workspace guild/);
+    assert.match(result.formError, /Failed to prepare workspace guild: .*guild write blocked/);
   });
 });

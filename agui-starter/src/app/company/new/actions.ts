@@ -38,6 +38,36 @@ function coerceBusinessKind(value: string): string {
   return "retail";
 }
 
+function formatGuildError(error: unknown): string {
+  if (error instanceof Error) {
+    const supabaseLike = error as any;
+    const parts = [error.message];
+    if (supabaseLike?.details) parts.push(`details: ${supabaseLike.details}`);
+    if (supabaseLike?.hint) parts.push(`hint: ${supabaseLike.hint}`);
+    if (supabaseLike?.code) parts.push(`code: ${supabaseLike.code}`);
+
+    const cause = (supabaseLike?.cause ?? null) as null | Record<string, unknown>;
+    if (cause && typeof cause === "object") {
+      const causeDetails = [cause.message, cause.details, cause.hint, cause.code].filter(Boolean).join(" | ");
+      if (causeDetails) {
+        parts.push(`cause: ${causeDetails}`);
+      }
+    }
+
+    return parts.filter(Boolean).join(" | ");
+  }
+
+  if (typeof error === "object" && error) {
+    try {
+      return JSON.stringify(error);
+    } catch (stringifyError) {
+      return `Non-Error object thrown (stringify failed: ${String(stringifyError)})`;
+    }
+  }
+
+  return typeof error === "string" ? error : "Unknown error";
+}
+
 type MaybeBusinessRow = { id: string; slug: string | null; name?: string | null };
 
 type MaybeBranchRow = { id: string; name: string | null; slug: string | null };
@@ -243,7 +273,12 @@ export async function createBusinessWizard(
     guildId = guildResult.guildId;
   } catch (guildError) {
     console.error("Failed to resolve or create guild for workspace", guildError);
-    return { status: "error", formError: "Failed to prepare workspace guild", code: 500 };
+    const formattedError = formatGuildError(guildError);
+    return {
+      status: "error",
+      formError: `Failed to prepare workspace guild: ${formattedError}`,
+      code: 500,
+    };
   }
 
   let insertedBusiness: MaybeBusinessRow | null = null;

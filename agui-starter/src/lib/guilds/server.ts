@@ -27,6 +27,15 @@ type SupabaseErrorLike = {
   code?: string;
 };
 
+function supabaseErrorMessage(table: string, error: SupabaseErrorLike): string {
+  const parts = [error?.message?.trim()].filter(Boolean) as string[];
+  if (error?.details) parts.push(`details: ${error.details}`);
+  if (error?.hint) parts.push(`hint: ${error.hint}`);
+  if (error?.code) parts.push(`code: ${error.code}`);
+  const suffix = parts.length > 0 ? parts.join(" | ") : "unknown error";
+  return `[${table}] ${suffix}`;
+}
+
 function logSupabaseError(table: string, error: SupabaseErrorLike, context?: Record<string, unknown>) {
   console.error("prepareWorkspaceGuild: supabase error", {
     table,
@@ -36,6 +45,13 @@ function logSupabaseError(table: string, error: SupabaseErrorLike, context?: Rec
     code: error?.code ?? null,
     context: context ?? {},
   });
+}
+
+function throwSupabaseError(table: string, error: SupabaseErrorLike): never {
+  const message = supabaseErrorMessage(table, error);
+  const enriched = new Error(message);
+  (enriched as any).cause = error;
+  throw enriched;
 }
 
 function normalizeSlug(value: string): string {
@@ -55,7 +71,7 @@ async function fetchGuildBySlug(client: DbClient, slug: string): Promise<MaybeGu
 
   if (error) {
     logSupabaseError("guilds", error, { slug });
-    throw new Error(error.message);
+    throwSupabaseError("guilds", error);
   }
 
   return data as MaybeGuildRow;
@@ -72,7 +88,7 @@ async function fetchGuildByEntity(client: DbClient, entityId: string): Promise<M
 
   if (error) {
     logSupabaseError("guild_roles", error, { entityId, source: "membership" });
-    throw new Error(error.message);
+    throwSupabaseError("guild_roles", error);
   }
 
   const guild = data && typeof data === "object" ? (data as { guilds?: MaybeGuildRow }).guilds : null;
@@ -97,7 +113,7 @@ async function ensureGuildMembership(client: DbClient, guildId: string, entityId
 
       if (error) {
         logSupabaseError("guild_roles", error, { guildId, entityId, role });
-        throw new Error(error.message);
+        throwSupabaseError("guild_roles", error);
       }
     }),
   );
@@ -126,7 +142,7 @@ async function createGuild(
       const { data, error } = await client.from("guilds").insert(insert).select("id,slug").maybeSingle();
       if (error) {
         logSupabaseError("guilds", error, insert);
-        throw new Error(error.message);
+        throwSupabaseError("guilds", error);
       }
 
       const guildId = data && typeof data === "object" ? (data as { id?: unknown }).id : null;
