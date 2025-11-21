@@ -20,6 +20,24 @@ type GetOrCreateGuildOptions = {
   businessName: string;
 };
 
+type SupabaseErrorLike = {
+  message?: string;
+  details?: string | null;
+  hint?: string | null;
+  code?: string;
+};
+
+function logSupabaseError(table: string, error: SupabaseErrorLike, context?: Record<string, unknown>) {
+  console.error("prepareWorkspaceGuild: supabase error", {
+    table,
+    message: error?.message,
+    details: error?.details ?? null,
+    hint: error?.hint ?? null,
+    code: error?.code ?? null,
+    context: context ?? {},
+  });
+}
+
 function normalizeSlug(value: string): string {
   return slugify(value) || "guild";
 }
@@ -36,10 +54,38 @@ async function fetchGuildBySlug(client: DbClient, slug: string): Promise<MaybeGu
     .maybeSingle();
 
   if (error) {
+    logSupabaseError("guilds", error, { slug });
     throw new Error(error.message);
   }
 
   return data as MaybeGuildRow;
+}
+
+async function fetchGuildByEntity(client: DbClient, entityId: string): Promise<MaybeGuildRow> {
+  const { data, error } = await client
+    .from("guild_roles")
+    .select("guild_id,guilds!inner(id,slug)")
+    .eq("entity_id", entityId)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    logSupabaseError("guild_roles", error, { entityId, source: "membership" });
+    throw new Error(error.message);
+  }
+
+  const guild = data && typeof data === "object" ? (data as { guilds?: MaybeGuildRow }).guilds : null;
+  if (guild && typeof guild === "object") {
+    return guild as MaybeGuildRow;
+  }
+
+  const guildId = data && typeof data === "object" ? (data as { guild_id?: unknown }).guild_id : null;
+  if (typeof guildId === "string" && guildId) {
+    return { id: guildId };
+  }
+
+  return null;
 }
 
 async function ensureGuildMembership(client: DbClient, guildId: string, entityId: string): Promise<void> {
@@ -50,6 +96,7 @@ async function ensureGuildMembership(client: DbClient, guildId: string, entityId
         .upsert({ guild_id: guildId, entity_id: entityId, role }, { onConflict: "guild_id,entity_id,role" });
 
       if (error) {
+        logSupabaseError("guild_roles", error, { guildId, entityId, role });
         throw new Error(error.message);
       }
     }),
@@ -78,6 +125,7 @@ async function createGuild(
 
       const { data, error } = await client.from("guilds").insert(insert).select("id,slug").maybeSingle();
       if (error) {
+        logSupabaseError("guilds", error, insert);
         throw new Error(error.message);
       }
 
@@ -105,12 +153,24 @@ export async function getOrCreateGuildForWorkspace(
   const db = resolveClient(client);
   const slug = normalizeSlug(workspaceSlug || businessName);
 
+  console.info("prepareWorkspaceGuild:start", { entityId, slug, businessName });
+
   const existingGuild = await fetchGuildBySlug(db, slug).catch((error) => {
-    console.error("prepareWorkspaceGuild: fetch existing guild failed", { error });
+    console.error("prepareWorkspaceGuild: fetch existing guild failed", { error, slug });
     return null;
   });
   const existingGuildId = existingGuild && typeof existingGuild === "object" ? (existingGuild as { id?: unknown }).id : null;
   const existingGuildSlug = existingGuild && typeof existingGuild === "object" ? (existingGuild as { slug?: unknown }).slug : null;
+
+  const membershipGuild = !existingGuildId
+    ? await fetchGuildByEntity(db, entityId).catch((error) => {
+        console.error("prepareWorkspaceGuild: fetch guild by entity failed", { error, entityId });
+        return null;
+      })
+    : null;
+  const membershipGuildId = membershipGuild && typeof membershipGuild === "object" ? (membershipGuild as { id?: unknown }).id : null;
+  const membershipGuildSlug =
+    membershipGuild && typeof membershipGuild === "object" ? (membershipGuild as { slug?: unknown }).slug : null;
 
   if (typeof existingGuildId === "string" && existingGuildId) {
     await ensureGuildMembership(db, existingGuildId, entityId);
@@ -120,12 +180,20 @@ export async function getOrCreateGuildForWorkspace(
     };
   }
 
+  if (typeof membershipGuildId === "string" && membershipGuildId) {
+    await ensureGuildMembership(db, membershipGuildId, entityId);
+    return {
+      guildId: membershipGuildId,
+      guildSlug: typeof membershipGuildSlug === "string" && membershipGuildSlug ? membershipGuildSlug : slug,
+    };
+  }
+
   try {
     const { guildId, guildSlug } = await createGuild(db, slug, businessName || slug);
     await ensureGuildMembership(db, guildId, entityId);
     return { guildId, guildSlug };
   } catch (error) {
-    console.error("prepareWorkspaceGuild: create path failed", { error, slug });
+    console.error("prepareWorkspaceGuild: create path failed", { error, slug, entityId, businessName });
     throw error;
   }
 }

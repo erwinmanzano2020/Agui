@@ -15,6 +15,8 @@ import { createBusinessWizard } from "../actions";
 type SupabaseMockOptions = {
   houseInsertError?: unknown;
   existingGuildId?: string | null;
+  membershipGuildId?: string | null;
+  membershipGuildSlug?: string | null;
 };
 
 type SupabaseMockState = {
@@ -25,12 +27,18 @@ type SupabaseMockState = {
   guildRoleAssignments: Record<string, unknown>[];
   slugChecks: { table: string; slug: string }[];
   guildLookups: string[];
+  membershipLookups: string[];
 };
 
 type MaybeSingleResult = { data: unknown; error: unknown };
 
 type SelectChain = {
-  eq: (column: string, value: unknown) => { maybeSingle: () => Promise<MaybeSingleResult> };
+  eq: (column: string, value: unknown) => {
+    maybeSingle?: () => Promise<MaybeSingleResult>;
+    order?: (_column: string, _opts?: Record<string, unknown>) => {
+      limit: (_count: number) => { maybeSingle: () => Promise<MaybeSingleResult> };
+    };
+  };
   order?: (_column: string, _opts: Record<string, unknown>) => {
     limit: (_count: number) => { maybeSingle: () => Promise<MaybeSingleResult> };
   };
@@ -57,6 +65,7 @@ function createSupabaseMock(options: SupabaseMockOptions = {}): { supabase: Supa
     guildRoleAssignments: [],
     slugChecks: [],
     guildLookups: [],
+    membershipLookups: [],
   };
 
   const supabase: SupabaseMock = {
@@ -170,6 +179,38 @@ function createSupabaseMock(options: SupabaseMockOptions = {}): { supabase: Supa
 
       if (table === "guild_roles") {
         return {
+          select() {
+            return {
+              eq(_column: string, value: unknown) {
+                state.membershipLookups.push(String(value));
+                return {
+                  order() {
+                    return {
+                      limit() {
+                        return {
+                          async maybeSingle() {
+                            if (!options.membershipGuildId) {
+                              return { data: null, error: null };
+                            }
+                            return {
+                              data: {
+                                guild_id: options.membershipGuildId,
+                                guilds: {
+                                  id: options.membershipGuildId,
+                                  slug: options.membershipGuildSlug ?? "member-guild",
+                                },
+                              },
+                              error: null,
+                            } satisfies MaybeSingleResult;
+                          },
+                        };
+                      },
+                    };
+                  },
+                };
+              },
+            } satisfies SelectChain;
+          },
           async upsert(values: Record<string, unknown>) {
             state.guildRoleAssignments.push(values);
             return { data: null, error: null };
@@ -293,6 +334,41 @@ describe("createBusinessWizard", () => {
     assert.equal(state.guildInserts.length, 0);
     assert.equal(state.guildLookups.length > 0, true);
     assert.equal(state.houseInserts[0]?.guild_id, "guild-existing");
+    assert.equal(state.guildRoleAssignments.length, 2);
+    assert.equal(serviceSpy.mock.callCount(), 1);
+  });
+
+  it("reuses a guild linked to the entity when slug does not match", async () => {
+    const { supabase, state } = createSupabaseMock({
+      existingGuildId: null,
+      membershipGuildId: "guild-member",
+      membershipGuildSlug: "member-slug",
+    });
+
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => supabase as never);
+    const serviceSpy = mock.method(supabaseService, "getServiceSupabase", () => supabase as never);
+    mock.method(policy, "evaluatePolicy", async () => true);
+    mock.method(identity, "ensureEntityForUser", async () => "entity-1");
+    mock.method(authz, "currentEntityIsGM", async () => true);
+    mock.method(employment, "ensureCreatorEmployment", async () => ({
+      employmentId: "employment-1",
+      roleId: "role-owner",
+      roleSlug: "house_owner",
+    }));
+    mock.method(events, "emitEvent", async () => {});
+
+    const result = await createBusinessWizard({
+      name: "Membership Guild Co",
+      slug: "membership-guild-co",
+      businessType: "grocery",
+      logoUrl: "",
+      slogan: "",
+    });
+
+    assert.equal(result.status, "success");
+    assert.equal(state.guildInserts.length, 0);
+    assert.equal(state.membershipLookups.length > 0, true);
+    assert.equal(state.houseInserts[0]?.guild_id, "guild-member");
     assert.equal(state.guildRoleAssignments.length, 2);
     assert.equal(serviceSpy.mock.callCount(), 1);
   });

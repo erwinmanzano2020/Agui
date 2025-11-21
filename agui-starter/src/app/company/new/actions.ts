@@ -220,13 +220,18 @@ export async function createBusinessWizard(
     };
   }
 
-  const entityId = await ensureEntityForUser(user).catch((entityError) => {
+  const entityId = await ensureEntityForUser(user, writeClient).catch((entityError) => {
     console.error("Failed to resolve entity for wizard creator", entityError);
     throw entityError;
   });
 
   let guildId: string;
   try {
+    console.info("wizard:guild:prepare", {
+      entityId,
+      slug: slugCandidate,
+      businessName: name,
+    });
     const guildResult = await getOrCreateGuildForWorkspace(
       {
         entityId,
