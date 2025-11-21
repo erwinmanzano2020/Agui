@@ -17,6 +17,7 @@ type SupabaseMockOptions = {
   existingGuildId?: string | null;
   membershipGuildId?: string | null;
   membershipGuildSlug?: string | null;
+  membershipHouseId?: string | null;
 };
 
 type SupabaseMockState = {
@@ -24,7 +25,6 @@ type SupabaseMockState = {
   branchInserts: Record<string, unknown>[];
   roleAssignments: Record<string, unknown>[];
   guildInserts: Record<string, unknown>[];
-  guildRoleAssignments: Record<string, unknown>[];
   slugChecks: { table: string; slug: string }[];
   guildLookups: string[];
   membershipLookups: string[];
@@ -62,7 +62,6 @@ function createSupabaseMock(options: SupabaseMockOptions = {}): { supabase: Supa
     branchInserts: [],
     roleAssignments: [],
     guildInserts: [],
-    guildRoleAssignments: [],
     slugChecks: [],
     guildLookups: [],
     membershipLookups: [],
@@ -79,13 +78,21 @@ function createSupabaseMock(options: SupabaseMockOptions = {}): { supabase: Supa
         return {
           select() {
             return {
-              eq(_column: string, value: unknown) {
+              eq(column: string, value: unknown) {
                 state.guildLookups.push(String(value));
                 return {
                   async maybeSingle() {
-                    if (options.existingGuildId === null) {
+                    if (options.existingGuildId === null && column === "slug") {
                       return { data: null, error: null };
                     }
+
+                    if (column === "id" && options.membershipGuildId) {
+                      return {
+                        data: { id: options.membershipGuildId, slug: options.membershipGuildSlug ?? "member-guild" },
+                        error: null,
+                      } satisfies MaybeSingleResult;
+                    }
+
                     return { data: { id: options.existingGuildId ?? "guild-1", slug: value }, error: null };
                   },
                 };
@@ -126,8 +133,32 @@ function createSupabaseMock(options: SupabaseMockOptions = {}): { supabase: Supa
         return {
           select() {
             return {
-              eq(_column: string, value: unknown) {
-                state.slugChecks.push({ table: "houses", slug: String(value) });
+              eq(column: string, value: unknown) {
+                if (column === "slug") {
+                  state.slugChecks.push({ table: "houses", slug: String(value) });
+                  return {
+                    async maybeSingle() {
+                      return { data: null, error: null };
+                    },
+                  };
+                }
+
+                if (column === "id") {
+                  return {
+                    async maybeSingle() {
+                      if (!options.membershipGuildId) {
+                        return { data: null, error: null };
+                      }
+                      return {
+                        data: {
+                          guild_id: options.membershipGuildId,
+                        },
+                        error: null,
+                      } satisfies MaybeSingleResult;
+                    },
+                  };
+                }
+
                 return {
                   async maybeSingle() {
                     return { data: null, error: null };
@@ -170,15 +201,6 @@ function createSupabaseMock(options: SupabaseMockOptions = {}): { supabase: Supa
 
       if (table === "house_roles") {
         return {
-          async upsert(values: Record<string, unknown>) {
-            state.roleAssignments.push(values);
-            return { data: null, error: null };
-          },
-        };
-      }
-
-      if (table === "guild_roles") {
-        return {
           select() {
             return {
               eq(_column: string, value: unknown) {
@@ -193,13 +215,7 @@ function createSupabaseMock(options: SupabaseMockOptions = {}): { supabase: Supa
                               return { data: null, error: null };
                             }
                             return {
-                              data: {
-                                guild_id: options.membershipGuildId,
-                                guilds: {
-                                  id: options.membershipGuildId,
-                                  slug: options.membershipGuildSlug ?? "member-guild",
-                                },
-                              },
+                              data: { house_id: options.membershipHouseId ?? "house-member" },
                               error: null,
                             } satisfies MaybeSingleResult;
                           },
@@ -212,7 +228,7 @@ function createSupabaseMock(options: SupabaseMockOptions = {}): { supabase: Supa
             } satisfies SelectChain;
           },
           async upsert(values: Record<string, unknown>) {
-            state.guildRoleAssignments.push(values);
+            state.roleAssignments.push(values);
             return { data: null, error: null };
           },
         };
@@ -301,9 +317,9 @@ describe("createBusinessWizard", () => {
     assert.equal(state.houseInserts[0]?.guild_id, "guild-created");
     assert.equal(state.houseInserts[0]?.house_type, "RETAIL");
     assert.equal(state.guildInserts.length, 1);
-    assert.equal(state.guildRoleAssignments.length, 2);
     assert.equal(state.branchInserts.length, 1);
     assert.equal(state.roleAssignments.length, 2);
+    assert.equal(state.membershipLookups.length > 0, true);
     assert.equal(serviceSpy.mock.callCount(), 1);
   });
 
@@ -334,7 +350,7 @@ describe("createBusinessWizard", () => {
     assert.equal(state.guildInserts.length, 0);
     assert.equal(state.guildLookups.length > 0, true);
     assert.equal(state.houseInserts[0]?.guild_id, "guild-existing");
-    assert.equal(state.guildRoleAssignments.length, 2);
+    assert.equal(state.membershipLookups.length > 0, true);
     assert.equal(serviceSpy.mock.callCount(), 1);
   });
 
@@ -369,7 +385,6 @@ describe("createBusinessWizard", () => {
     assert.equal(state.guildInserts.length, 0);
     assert.equal(state.membershipLookups.length > 0, true);
     assert.equal(state.houseInserts[0]?.guild_id, "guild-member");
-    assert.equal(state.guildRoleAssignments.length, 2);
     assert.equal(serviceSpy.mock.callCount(), 1);
   });
 

@@ -6,7 +6,6 @@ import type { Database, GuildInsert } from "@/lib/db.types";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { slugify } from "@/lib/slug";
 
-const GUILD_OWNER_ROLES = ["guild_master", "guild_member"] as const;
 const DEFAULT_GUILD_TYPE = "MERCHANT";
 const MAX_SLUG_ATTEMPTS = 25;
 
@@ -49,8 +48,8 @@ function logSupabaseError(table: string, error: SupabaseErrorLike, context?: Rec
 
 function throwSupabaseError(table: string, error: SupabaseErrorLike): never {
   const message = supabaseErrorMessage(table, error);
-  const enriched = new Error(message);
-  (enriched as any).cause = error;
+  const enriched = new Error(message) as Error & { cause?: SupabaseErrorLike };
+  enriched.cause = error;
   throw enriched;
 }
 
@@ -78,45 +77,52 @@ async function fetchGuildBySlug(client: DbClient, slug: string): Promise<MaybeGu
 }
 
 async function fetchGuildByEntity(client: DbClient, entityId: string): Promise<MaybeGuildRow> {
-  const { data, error } = await client
-    .from("guild_roles")
-    .select("guild_id,guilds!inner(id,slug)")
+  const { data: membershipRow, error: membershipError } = await client
+    .from("house_roles")
+    .select("house_id")
     .eq("entity_id", entityId)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 
-  if (error) {
-    logSupabaseError("guild_roles", error, { entityId, source: "membership" });
-    throwSupabaseError("guild_roles", error);
+  if (membershipError) {
+    logSupabaseError("house_roles", membershipError, { entityId, source: "membership" });
+    throwSupabaseError("house_roles", membershipError);
   }
 
-  const guild = data && typeof data === "object" ? (data as { guilds?: MaybeGuildRow }).guilds : null;
-  if (guild && typeof guild === "object") {
-    return guild as MaybeGuildRow;
+  const houseId = membershipRow && typeof membershipRow === "object" ? (membershipRow as { house_id?: unknown }).house_id : null;
+  if (!houseId || typeof houseId !== "string") {
+    return null;
   }
 
-  const guildId = data && typeof data === "object" ? (data as { guild_id?: unknown }).guild_id : null;
-  if (typeof guildId === "string" && guildId) {
-    return { id: guildId };
+  const { data: houseRow, error: houseError } = await client
+    .from("houses")
+    .select("guild_id")
+    .eq("id", houseId)
+    .maybeSingle();
+
+  if (houseError) {
+    logSupabaseError("houses", houseError, { houseId, source: "membership" });
+    throwSupabaseError("houses", houseError);
   }
 
-  return null;
-}
+  const guildId = houseRow && typeof houseRow === "object" ? (houseRow as { guild_id?: unknown }).guild_id : null;
+  if (!guildId || typeof guildId !== "string") {
+    return null;
+  }
 
-async function ensureGuildMembership(client: DbClient, guildId: string, entityId: string): Promise<void> {
-  await Promise.all(
-    GUILD_OWNER_ROLES.map(async (role) => {
-      const { error } = await client
-        .from("guild_roles")
-        .upsert({ guild_id: guildId, entity_id: entityId, role }, { onConflict: "guild_id,entity_id,role" });
+  const { data: guildRow, error: guildError } = await client
+    .from("guilds")
+    .select("id,slug")
+    .eq("id", guildId)
+    .maybeSingle();
 
-      if (error) {
-        logSupabaseError("guild_roles", error, { guildId, entityId, role });
-        throwSupabaseError("guild_roles", error);
-      }
-    }),
-  );
+  if (guildError) {
+    logSupabaseError("guilds", guildError, { guildId, source: "membership" });
+    throwSupabaseError("guilds", guildError);
+  }
+
+  return guildRow as MaybeGuildRow;
 }
 
 async function createGuild(
@@ -189,7 +195,6 @@ export async function getOrCreateGuildForWorkspace(
     membershipGuild && typeof membershipGuild === "object" ? (membershipGuild as { slug?: unknown }).slug : null;
 
   if (typeof existingGuildId === "string" && existingGuildId) {
-    await ensureGuildMembership(db, existingGuildId, entityId);
     return {
       guildId: existingGuildId,
       guildSlug: typeof existingGuildSlug === "string" && existingGuildSlug ? existingGuildSlug : slug,
@@ -197,7 +202,6 @@ export async function getOrCreateGuildForWorkspace(
   }
 
   if (typeof membershipGuildId === "string" && membershipGuildId) {
-    await ensureGuildMembership(db, membershipGuildId, entityId);
     return {
       guildId: membershipGuildId,
       guildSlug: typeof membershipGuildSlug === "string" && membershipGuildSlug ? membershipGuildSlug : slug,
@@ -206,7 +210,6 @@ export async function getOrCreateGuildForWorkspace(
 
   try {
     const { guildId, guildSlug } = await createGuild(db, slug, businessName || slug);
-    await ensureGuildMembership(db, guildId, entityId);
     return { guildId, guildSlug };
   } catch (error) {
     console.error("prepareWorkspaceGuild: create path failed", { error, slug, entityId, businessName });
