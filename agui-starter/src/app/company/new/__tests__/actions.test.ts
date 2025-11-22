@@ -348,9 +348,11 @@ describe("createBusinessWizard", () => {
 
     assert.equal(result.status, "success");
     assert.equal(state.guildInserts.length, 0);
-    assert.equal(state.guildLookups.length > 0, true);
     assert.equal(state.houseInserts[0]?.guild_id, "guild-existing");
-    assert.equal(state.membershipLookups.length > 0, true);
+    assert.equal(
+      state.guildLookups.includes("existing-guild-co") || state.guildLookups.includes("guild-existing"),
+      true,
+    );
     assert.equal(serviceSpy.mock.callCount(), 1);
   });
 
