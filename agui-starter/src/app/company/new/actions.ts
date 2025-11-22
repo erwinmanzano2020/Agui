@@ -3,11 +3,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getServiceSupabase } from "@/lib/supabase-service";
 import { slugify } from "@/lib/slug";
 import { ensureEntityForUser } from "@/lib/identity/entity-server";
 import { evaluatePolicy } from "@/lib/policy/server";
 import { emitEvent } from "@/lib/events/server";
 import { currentEntityIsGM } from "@/lib/authz/server";
+import { getOrCreateGuildForWorkspace } from "@/lib/guilds/server";
 
 import { ensureCreatorEmployment, type CreatorEmploymentResult } from "./employment";
 
@@ -34,6 +36,36 @@ function coerceBusinessKind(value: string): string {
     return normalized;
   }
   return "retail";
+}
+
+function formatGuildError(error: unknown): string {
+  if (error instanceof Error) {
+    const supabaseLike = error as any;
+    const parts = [error.message];
+    if (supabaseLike?.details) parts.push(`details: ${supabaseLike.details}`);
+    if (supabaseLike?.hint) parts.push(`hint: ${supabaseLike.hint}`);
+    if (supabaseLike?.code) parts.push(`code: ${supabaseLike.code}`);
+
+    const cause = (supabaseLike?.cause ?? null) as null | Record<string, unknown>;
+    if (cause && typeof cause === "object") {
+      const causeDetails = [cause.message, cause.details, cause.hint, cause.code].filter(Boolean).join(" | ");
+      if (causeDetails) {
+        parts.push(`cause: ${causeDetails}`);
+      }
+    }
+
+    return parts.filter(Boolean).join(" | ");
+  }
+
+  if (typeof error === "object" && error) {
+    try {
+      return JSON.stringify(error);
+    } catch (stringifyError) {
+      return `Non-Error object thrown (stringify failed: ${String(stringifyError)})`;
+    }
+  }
+
+  return typeof error === "string" ? error : "Unknown error";
 }
 
 type MaybeBusinessRow = { id: string; slug: string | null; name?: string | null };
@@ -63,7 +95,7 @@ export type BusinessCreationWizardInput = {
 export type BusinessCreationWizardResult =
   | {
       status: "error";
-      message: string;
+      formError: string;
       code?: number;
       fieldErrors?: Record<string, string | null>;
     }
@@ -81,7 +113,7 @@ function isRelationMissing(error: unknown): boolean {
   return message.includes("relation") && message.includes("does not exist");
 }
 
-async function slugInUse(supabase: unknown, table: "houses" | "businesses", slug: string): Promise<boolean> {
+async function slugInUse(supabase: unknown, table: "houses", slug: string): Promise<boolean> {
   const client: any = supabase;
   const { data, error } = await client
     .from(table)
@@ -103,10 +135,6 @@ async function slugInUse(supabase: unknown, table: "houses" | "businesses", slug
 async function assertUniqueSlug(supabase: unknown, slug: string): Promise<void> {
   const fromHouses = await slugInUse(supabase, "houses", slug);
   if (fromHouses) {
-    throw new Error("Slug is already taken");
-  }
-  const fromBusinesses = await slugInUse(supabase, "businesses", slug);
-  if (fromBusinesses) {
     throw new Error("Slug is already taken");
   }
 }
@@ -183,12 +211,12 @@ export async function createBusinessWizard(
 
   const user = data?.user ?? null;
   if (!user) {
-    return { status: "error", message: "Unauthorized", code: 401 };
+    return { status: "error", formError: "Unauthorized", code: 401 };
   }
 
   const allowed = await evaluatePolicy({ action: "houses:create" }, supabase);
   if (!allowed) {
-    return { status: "error", message: "Forbidden", code: 403 };
+    return { status: "error", formError: "Forbidden", code: 403 };
   }
 
   const name = normalizeString(input.name);
@@ -198,7 +226,7 @@ export async function createBusinessWizard(
   const houseType = BUSINESS_KIND_TO_HOUSE_TYPE[businessType] ?? FALLBACK_HOUSE_TYPE;
   const logoUrl = normalizeString(input.logoUrl ?? null);
   const slogan = normalizeString(input.slogan ?? null);
-  const client: any = supabase;
+  const writeClient: any = getServiceSupabase();
 
   const fieldErrors: Record<string, string | null> = {};
   if (!name) {
@@ -209,16 +237,52 @@ export async function createBusinessWizard(
   }
 
   if (Object.keys(fieldErrors).length > 0) {
-    return { status: "error", message: "Validation failed", fieldErrors };
+    return { status: "error", formError: "Validation failed", fieldErrors };
   }
 
   try {
-    await assertUniqueSlug(client, slugCandidate);
+    await assertUniqueSlug(writeClient, slugCandidate);
   } catch (slugError) {
     return {
       status: "error",
-      message: slugError instanceof Error ? slugError.message : "Slug validation failed",
+      formError: slugError instanceof Error ? slugError.message : "Slug validation failed",
       fieldErrors: { slug: "Slug is already taken" },
+    };
+  }
+
+  const entityId = await ensureEntityForUser(user, writeClient).catch((entityError) => {
+    console.error("Failed to resolve entity for wizard creator", entityError);
+    throw entityError;
+  });
+
+  let guildId: string;
+  try {
+    console.info("wizard:guild:prepare", {
+      entityId,
+      slug: slugCandidate,
+      businessName: name,
+    });
+    const guildResult = await getOrCreateGuildForWorkspace(
+      {
+        entityId,
+        workspaceSlug: slugCandidate,
+        businessName: name,
+      },
+      writeClient,
+    );
+    guildId = guildResult.id;
+    if (!guildId) {
+      const missingGuildError = new Error("Workspace guild prepared without an id");
+      console.error("wizard:guild:missing-id", { guildResult });
+      throw missingGuildError;
+    }
+  } catch (guildError) {
+    console.error("Failed to resolve or create guild for workspace", guildError);
+    const formattedError = formatGuildError(guildError);
+    return {
+      status: "error",
+      formError: `Failed to prepare workspace guild: ${formattedError}`,
+      code: 500,
     };
   }
 
@@ -229,6 +293,7 @@ export async function createBusinessWizard(
     name,
     slug: slugCandidate,
     house_type: houseType,
+    guild_id: guildId,
   };
 
   if (logoUrl) {
@@ -238,7 +303,7 @@ export async function createBusinessWizard(
     payload.tagline = slogan;
   }
 
-  const { data: primaryInsert, error: primaryError } = await client
+  const { data: primaryInsert, error: primaryError } = await writeClient
     .from("houses")
     .insert(payload)
     .select("id, slug, name")
@@ -246,8 +311,13 @@ export async function createBusinessWizard(
 
   if (primaryError) {
     console.warn("Primary business insert failed, retrying with fallback payload", primaryError);
-    const fallbackPayload = { name, slug: slugCandidate } satisfies Record<string, unknown>;
-    const { data: fallbackInsert, error: fallbackError } = await client
+    const fallbackPayload = {
+      name,
+      slug: slugCandidate,
+      guild_id: guildId,
+      house_type: houseType,
+    } satisfies Record<string, unknown>;
+    const { data: fallbackInsert, error: fallbackError } = await writeClient
       .from("houses")
       .insert(fallbackPayload)
       .select("id, slug, name")
@@ -259,17 +329,17 @@ export async function createBusinessWizard(
   }
 
   if (insertError) {
-    return { status: "error", message: insertError.message };
+    return { status: "error", formError: insertError.message };
   }
 
   if (!insertedBusiness?.id) {
-    return { status: "error", message: "Failed to create business" };
+    return { status: "error", formError: "Failed to create business" };
   }
 
   if (primaryError && houseType) {
     // Attempt to patch in the desired house_type if the column exists but the first insert failed.
     try {
-      await client.from("houses").update({ house_type: houseType }).eq("id", insertedBusiness.id);
+      await writeClient.from("houses").update({ house_type: houseType }).eq("id", insertedBusiness.id);
     } catch (patchError) {
       console.warn("Failed to backfill house_type", patchError);
     }
@@ -281,25 +351,20 @@ export async function createBusinessWizard(
       if (logoUrl) updates.logo_url = logoUrl;
       if (slogan) updates.tagline = slogan;
       if (Object.keys(updates).length > 0) {
-        await client.from("houses").update(updates).eq("id", insertedBusiness.id);
+        await writeClient.from("houses").update(updates).eq("id", insertedBusiness.id);
       }
     } catch (metadataError) {
       console.warn("Failed to persist optional branding details", metadataError);
     }
   }
 
-  const entityId = await ensureEntityForUser(user).catch((entityError) => {
-    console.error("Failed to resolve entity for wizard creator", entityError);
-    throw entityError;
-  });
+  await assignBusinessRoles(writeClient, insertedBusiness.id, entityId);
 
-  await assignBusinessRoles(client, insertedBusiness.id, entityId);
-
-  const branch = await createDefaultBranch(client, insertedBusiness.id, slugCandidate);
+  const branch = await createDefaultBranch(writeClient, insertedBusiness.id, slugCandidate);
 
   let creatorEmploymentResult: CreatorEmploymentResult | null = null;
   try {
-    creatorEmploymentResult = await ensureCreatorEmployment(client, insertedBusiness.id, entityId);
+    creatorEmploymentResult = await ensureCreatorEmployment(writeClient, insertedBusiness.id, entityId);
     console.info("wizard: creator employment ensured", {
       businessId: insertedBusiness.id,
       branchId: branch?.id ?? null,
@@ -310,14 +375,14 @@ export async function createBusinessWizard(
     });
   } catch (employmentError) {
     console.error("Failed to ensure creator employment", employmentError);
-    return { status: "error", message: "Failed to finalize creator employment", code: 500 };
+    return { status: "error", formError: "Failed to finalize creator employment", code: 500 };
   }
 
   const isGM = await currentEntityIsGM(supabase);
 
   if (!isGM) {
     try {
-      const { data: policyRow } = await client
+      const { data: policyRow } = await writeClient
         .from("policies")
         .select("id")
         .eq("key", "houses:create")
@@ -326,7 +391,7 @@ export async function createBusinessWizard(
       const policyId = policyRow && typeof policyRow === "object" ? (policyRow as { id?: unknown }).id : null;
 
       if (typeof policyId === "string" && policyId) {
-        const { error: revokeError } = await client
+        const { error: revokeError } = await writeClient
           .from("entity_policy_grants")
           .delete()
           .eq("entity_id", entityId)

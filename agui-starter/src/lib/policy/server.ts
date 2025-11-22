@@ -19,84 +19,79 @@ function dedupePolicies(rows: PolicyRecord[]): PolicyRecord[] {
   return Array.from(seen.values());
 }
 
-async function listPoliciesForEntity(
-  client: SupabaseClient,
-  entityId: string,
-): Promise<PolicyRecord[]> {
+function extractPolicyKey(row: unknown): string {
+  if (!row || typeof row !== "object") {
+    return "";
+  }
+
+  const withAlias = (row as { policy_key?: unknown }).policy_key;
+  if (typeof withAlias === "string" && withAlias.trim().length > 0) {
+    return withAlias.trim();
+  }
+
+  const directKey = (row as { key?: unknown }).key;
+  if (typeof directKey === "string" && directKey.trim().length > 0) {
+    return directKey.trim();
+  }
+
+  const nested = (row as { policy?: unknown }).policy;
+  if (nested && typeof nested === "object" && !Array.isArray(nested)) {
+    const nestedKey = (nested as { key?: unknown }).key;
+    if (typeof nestedKey === "string" && nestedKey.trim().length > 0) {
+      return nestedKey.trim();
+    }
+  }
+
+  return "";
+}
+
+async function listPoliciesForEntity(client: SupabaseClient, entityId: string): Promise<PolicyRecord[]> {
   const { data, error } = await client
     .from("entity_policies")
-    .select("policy_id, policy:policies!inner(key)")
+    .select("policy_id, policy:policies(key)")
     .eq("entity_id", entityId);
 
   if (error) {
     throw new Error(error.message);
   }
 
-  const rows = (data ?? []).map((row) => {
+  const hydrated = new Map<string, PolicyRecord>();
+  const missingPolicyIds = new Set<string>();
+
+  for (const row of data ?? []) {
     const id = typeof (row as { policy_id?: unknown }).policy_id === "string" ? (row as { policy_id: string }).policy_id : "";
-    const key = (() => {
-      const withAlias = (row as { policy_key?: unknown }).policy_key;
-      if (typeof withAlias === "string" && withAlias.trim().length > 0) {
-        return withAlias.trim();
-      }
-      const directKey = (row as { key?: unknown }).key;
-      if (typeof directKey === "string" && directKey.trim().length > 0) {
-        return directKey.trim();
-      }
-      const nested = (row as { policy?: unknown }).policy;
-      if (nested && typeof nested === "object" && !Array.isArray(nested)) {
-        const nestedKey = (nested as { key?: unknown }).key;
-        if (typeof nestedKey === "string" && nestedKey.trim().length > 0) {
-          return nestedKey.trim();
-        }
-      }
-      return "";
-    })();
+    if (!id) {
+      continue;
+    }
 
-    const normalizedAction = key || "";
+    const key = extractPolicyKey(row);
+    if (key) {
+      hydrated.set(id, { id, key, action: key, resource: "*" });
+    } else {
+      missingPolicyIds.add(id);
+    }
+  }
 
-    return {
-      id,
-      key,
-      action: normalizedAction,
-      resource: "*",
-    } satisfies PolicyRecord;
-  });
-
-  const missingPolicyIds = rows.filter((row) => row.id && !row.key).map((row) => row.id);
-  if (missingPolicyIds.length > 0) {
+  if (missingPolicyIds.size > 0) {
     const { data: policyRows, error: policyError } = await client
       .from("policies")
       .select("id, key")
-      .in("id", missingPolicyIds);
+      .in("id", Array.from(missingPolicyIds));
 
     if (policyError) {
       throw new Error(policyError.message);
     }
 
-    const policyById = new Map<string, { key: string }>();
     for (const row of policyRows ?? []) {
       const id = typeof (row as { id?: unknown }).id === "string" ? (row as { id: string }).id : "";
       const key = typeof (row as { key?: unknown }).key === "string" ? (row as { key: string }).key : "";
-      if (id && key) {
-        policyById.set(id, { key });
-      }
-    }
-
-    for (const row of rows) {
-      const fallback = row.id ? policyById.get(row.id) : null;
-      if (fallback && !row.key) {
-        row.key = fallback.key ?? "";
-        row.action = fallback.key ?? row.action;
+      if (id && key && !hydrated.has(id)) {
+        hydrated.set(id, { id, key, action: key, resource: "*" });
       }
     }
   }
 
-  return dedupePolicies(
-    rows
-      .filter((row) => row.id && row.key)
-      .map((row) => ({ ...row, action: row.action || row.key, resource: row.resource || "*" })),
-  );
+  return dedupePolicies(Array.from(hydrated.values()));
 }
 
 export type CurrentEntityPolicies = {

@@ -141,8 +141,8 @@ export default function BusinessCreationWizard({ hadWorkspacesBefore }: Business
         setStep(3);
       } else {
         setResult(response);
-        setErrors({ ...response.fieldErrors, form: response.message });
-        setStep(0);
+        setErrors({ ...response.fieldErrors, form: response.formError });
+        setStep((prev) => (prev === 3 ? 2 : prev));
       }
     });
   };

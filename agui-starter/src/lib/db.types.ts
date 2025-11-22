@@ -294,6 +294,30 @@ export type GuildInsert = {
 
 export type GuildUpdate = Partial<GuildInsert>;
 
+export type HouseRow = {
+  id: string;
+  guild_id: string | null;
+  slug: string;
+  name: string;
+  house_type: string | null;
+  created_at: string;
+  logo_url?: string | null;
+  tagline?: string | null;
+};
+
+export type HouseInsert = {
+  id?: string;
+  guild_id?: string | null;
+  slug: string;
+  name: string;
+  house_type?: string | null;
+  created_at?: string;
+  logo_url?: string | null;
+  tagline?: string | null;
+};
+
+export type HouseUpdate = Partial<HouseInsert>;
+
 export type GuildRoleRow = {
   id: string;
   guild_id: string;
@@ -661,6 +685,7 @@ export interface Database {
       guild_roles: TableDefinition<GuildRoleRow, GuildRoleInsert, GuildRoleUpdate>;
       items: TableDefinition<ItemRow, ItemInsert, ItemUpdate>;
       item_barcodes: TableDefinition<ItemBarcodeRow, ItemBarcodeInsert, ItemBarcodeUpdate>;
+      houses: TableDefinition<HouseRow, HouseInsert, HouseUpdate>;
       house_items: TableDefinition<HouseItemRow, HouseItemInsert, HouseItemUpdate>;
       house_roles: TableDefinition<HouseRoleRow, HouseRoleInsert, HouseRoleUpdate>;
       platform_roles: TableDefinition<PlatformRolesRow, PlatformRolesInsert, PlatformRolesUpdate>;
