@@ -40,6 +40,22 @@ function makeRow(
   };
 }
 
+class SnapshotSupabaseMock {
+  constructor(private payload: { data: unknown; error: unknown }) {}
+
+  from(table: string) {
+    if (table !== "settings_values") {
+      throw new Error(`Unexpected table ${table}`);
+    }
+
+    return {
+      select: () => ({
+        in: async () => this.payload,
+      }),
+    };
+  }
+}
+
 describe("settings server helpers", () => {
   it("prefers branch overrides over business and gm values", () => {
     const { buildSnapshotFromRows: buildSnapshot } = getTestingHelpers();
@@ -78,6 +94,46 @@ describe("settings server helpers", () => {
     assert.ok(validate("receipt.show_total_savings", true));
     assert.ok(!validate("receipt.show_total_savings", "yes"));
     assert.ok(validate("pos.float_template", { hundred: 2 } as SettingsValueRow["value"]));
+  });
+
+  it("merges stored values over defaults when available", async () => {
+    const helpers = getTestingHelpers();
+    const snapshot = await helpers.loadSnapshotWithClient(
+      new SnapshotSupabaseMock({
+        data: [makeRow({ key: "pos.theme.dark_mode", scope: "GM", value: true })],
+        error: null,
+      }) as unknown as DatabaseClient,
+      { category: "pos", businessId: "biz-1", branchId: null },
+    );
+
+    const entry = snapshot["pos.theme.dark_mode"];
+    assert.ok(entry);
+    assert.strictEqual(entry?.value, true);
+    assert.strictEqual(entry?.source, "GM");
+  });
+
+  it("returns defaults when settings_values is missing", async () => {
+    const helpers = getTestingHelpers();
+    const snapshot = await helpers.loadSnapshotWithClient(
+      new SnapshotSupabaseMock({ data: null, error: { code: "PGRST205" } }) as unknown as DatabaseClient,
+      { category: "labels", businessId: null, branchId: null },
+    );
+
+    const entry = snapshot["labels.discount.manual"];
+    assert.ok(entry);
+    assert.strictEqual(entry?.value, "Manual");
+  });
+
+  it("returns defaults when access is denied", async () => {
+    const helpers = getTestingHelpers();
+    const snapshot = await helpers.loadSnapshotWithClient(
+      new SnapshotSupabaseMock({ data: null, error: { code: "42501" } }) as unknown as DatabaseClient,
+      { category: "labels", businessId: null, branchId: null },
+    );
+
+    const entry = snapshot["labels.discount.manual"];
+    assert.ok(entry);
+    assert.strictEqual(entry?.value, "Manual");
   });
 
   it("writes an audit row when a setting is updated", async () => {
