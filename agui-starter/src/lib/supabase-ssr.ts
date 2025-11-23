@@ -19,8 +19,8 @@ export type CookieOptions = {
 
 type CookieAdapter = {
   get(name: string): string | undefined;
-  set(name: string, value: string, options: CookieOptions): void;
-  remove(name: string, options: CookieOptions): void;
+  set?: (name: string, value: string, options: CookieOptions) => void;
+  remove?: (name: string, options: CookieOptions) => void;
 };
 
 type SessionCookiePayload = {
@@ -88,6 +88,7 @@ function extractTokens(payload: SessionCookiePayload | null): RestoredTokens | n
 }
 
 function persistSessionCookie(adapter: CookieAdapter, session: Session) {
+  if (!adapter.set) return;
   try {
     const cookie = buildSupabaseAuthCookie(session);
     adapter.set(cookie.name, cookie.value, cookie);
@@ -98,7 +99,7 @@ function persistSessionCookie(adapter: CookieAdapter, session: Session) {
 
 function clearSessionCookie(adapter: CookieAdapter) {
   const cookie = buildSupabaseSignOutCookie();
-  if (!cookie) return;
+  if (!cookie || !adapter.set) return;
   try {
     adapter.set(cookie.name, cookie.value, cookie);
   } catch (error) {

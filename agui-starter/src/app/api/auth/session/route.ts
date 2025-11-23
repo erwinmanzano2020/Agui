@@ -79,7 +79,7 @@ function tokensFromHash(hash?: string | null) {
 export async function POST(req: Request) {
   const cookieStore = cookies();
   const jar = await ensureCookieStore(cookieStore);
-  const supabase = await createServerSupabase({ cookieStore: jar });
+  const supabase = await createServerSupabase({ cookieStore: jar, allowCookieWrite: true });
 
   const payload = (await req.json().catch(() => ({}))) as {
     access_token?: string;
@@ -134,7 +134,7 @@ export async function DELETE() {
   const jar = await ensureCookieStore(cookieStore);
   clearSessionCookies(jar);
 
-  const supabase = await createServerSupabase({ cookieStore: jar });
+  const supabase = await createServerSupabase({ cookieStore: jar, allowCookieWrite: true });
   await supabase.auth.signOut();
 
   return NextResponse.json({ ok: true });
