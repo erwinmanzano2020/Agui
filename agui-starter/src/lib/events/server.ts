@@ -9,11 +9,24 @@ type EventKind = "invalidate" | "info";
 
 type EventPayload = Record<string, unknown> | null | undefined;
 
+type EmitEventOptions = { skipRevalidate?: boolean };
+
+function isMissingEventInfra(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const code = (error as { code?: unknown }).code;
+  return code === "PGRST202" || code === "PGRST204";
+}
+
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
-export async function emitEvent(topic: string, kind: EventKind = "info", payload: EventPayload = {}): Promise<void> {
+export async function emitEvent(
+  topic: string,
+  kind: EventKind = "info",
+  payload: EventPayload = {},
+  options: EmitEventOptions = {},
+): Promise<void> {
   if (!isNonEmptyString(topic)) {
     throw new Error("Event topic is required");
   }
@@ -29,13 +42,20 @@ export async function emitEvent(topic: string, kind: EventKind = "info", payload
   });
 
   if (error) {
+    if (isMissingEventInfra(error)) {
+      console.warn("emit_event RPC missing", error);
+      return;
+    }
     console.warn("emit_event RPC failed", error);
+    return;
   }
 
-  try {
-    revalidateTag(topic);
-  } catch (error) {
-    console.warn("Failed to revalidate topic tag", { topic, error });
+  if (!options.skipRevalidate) {
+    try {
+      revalidateTag(topic);
+    } catch (error) {
+      console.warn("Failed to revalidate topic tag", { topic, error });
+    }
   }
 
   if (topic.startsWith("tiles:user:")) {

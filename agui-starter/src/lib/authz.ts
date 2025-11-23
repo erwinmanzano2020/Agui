@@ -1,5 +1,7 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 
+import { isOptionalTableError } from "./supabase/errors";
+
 export type RoleScope = "PLATFORM" | "GUILD" | "HOUSE";
 
 export type RoleAssignments = Record<RoleScope, string[]>;
@@ -411,13 +413,13 @@ export async function getMyRoles(
     supabase.from("house_roles").select("role").eq("entity_id", entityId),
   ]);
 
-  if (platformResult.error) {
+  if (platformResult.error && !isOptionalTableError(platformResult.error)) {
     console.warn("Failed to load platform roles", platformResult.error);
   }
-  if (guildResult.error) {
+  if (guildResult.error && !isOptionalTableError(guildResult.error)) {
     console.warn("Failed to load guild roles", guildResult.error);
   }
-  if (houseResult.error) {
+  if (houseResult.error && !isOptionalTableError(houseResult.error)) {
     console.warn("Failed to load house roles", houseResult.error);
   }
 

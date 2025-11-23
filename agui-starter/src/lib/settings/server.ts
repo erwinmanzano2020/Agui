@@ -263,9 +263,9 @@ export async function getSettingsSnapshot(options: SnapshotOptions): Promise<Set
     tags.add(buildScopeTag("BRANCH", businessId ?? null, branchId));
   }
 
+  const supabase = await createServerSupabaseClient();
   const loader = unstable_cache(
     async () => {
-      const supabase = await createServerSupabaseClient();
       const keys = definitions.map((definition) => definition.key);
       if (keys.length === 0) {
         return {} satisfies SettingsSnapshot;
