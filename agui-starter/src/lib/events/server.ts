@@ -1,9 +1,9 @@
 "use server";
 
-import { revalidateTag } from "next/cache";
+import { revalidateTag } from "./revalidate.ts";
 
-import { getMyEntityId } from "@/lib/authz/server";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+type CreateServerSupabaseClient = typeof import("../supabase/server.ts")["createServerSupabaseClient"];
+type GetMyEntityId = typeof import("../authz/server.ts")["getMyEntityId"];
 
 type EventKind = "invalidate" | "info";
 
@@ -19,6 +19,41 @@ function isMissingEventInfra(error: unknown): boolean {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
+}
+
+let createServerSupabaseClient: CreateServerSupabaseClient = async (...args) => {
+  const mod = await import("../supabase/server.ts");
+  return mod.createServerSupabaseClient(...args);
+};
+
+let getMyEntityId: GetMyEntityId = async (...args) => {
+  const mod = await import("../authz/server.ts");
+  return mod.getMyEntityId(...args);
+};
+
+type EventDeps = {
+  createClient?: CreateServerSupabaseClient;
+  getEntityId?: GetMyEntityId;
+};
+
+export function __setEventDeps({ createClient, getEntityId }: EventDeps): void {
+  if (createClient) {
+    createServerSupabaseClient = createClient;
+  }
+  if (getEntityId) {
+    getMyEntityId = getEntityId;
+  }
+}
+
+export function __resetEventDeps(): void {
+  createServerSupabaseClient = async (...args) => {
+    const mod = await import("../supabase/server.ts");
+    return mod.createServerSupabaseClient(...args);
+  };
+  getMyEntityId = async (...args) => {
+    const mod = await import("../authz/server.ts");
+    return mod.getMyEntityId(...args);
+  };
 }
 
 export async function emitEvent(

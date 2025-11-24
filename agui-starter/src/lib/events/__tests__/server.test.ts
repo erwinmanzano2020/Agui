@@ -2,13 +2,18 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it, mock } from "node:test";
 
 describe("emitEvent", () => {
-  afterEach(() => {
+  afterEach(async () => {
     mock.restoreAll();
+    const { __resetRevalidateTag } = await import("../revalidate.ts");
+    const { __resetEventDeps } = await import("../server.ts");
+    __resetRevalidateTag();
+    __resetEventDeps();
   });
 
   it("returns quietly when the emit_event RPC is missing", async () => {
-    const cacheModule = await import("next/cache");
-    const revalidateTagMock = mock.method(cacheModule, "revalidateTag", () => {});
+    const revalidateModule = await import("../revalidate.ts");
+    const revalidateTagMock = mock.fn();
+    revalidateModule.__setRevalidateTag(revalidateTagMock);
 
     const supabase = {
       rpc: async () => ({
@@ -17,13 +22,11 @@ describe("emitEvent", () => {
       }),
     };
 
-    const supabaseModule = await import("@/lib/supabase/server");
-    mock.method(supabaseModule, "createServerSupabaseClient", async () => supabase as never);
-
-    const authzModule = await import("@/lib/authz/server");
-    mock.method(authzModule, "getMyEntityId", async () => "entity-1");
-
-    const { emitEvent } = await import("@/lib/events/server");
+    const { emitEvent, __setEventDeps } = await import("../server.ts");
+    __setEventDeps({
+      createClient: async () => supabase as never,
+      getEntityId: async () => "entity-1",
+    });
 
     await emitEvent("tiles_missing", "info", {});
 
@@ -31,8 +34,9 @@ describe("emitEvent", () => {
   });
 
   it("emits events and revalidates when the RPC is available", async () => {
-    const cacheModule = await import("next/cache");
-    const revalidateTagMock = mock.method(cacheModule, "revalidateTag", () => {});
+    const revalidateModule = await import("../revalidate.ts");
+    const revalidateTagMock = mock.fn();
+    revalidateModule.__setRevalidateTag(revalidateTagMock);
 
     const rpcCalls: Array<{ topic: string; payload: unknown }> = [];
     const supabase = {
@@ -42,13 +46,11 @@ describe("emitEvent", () => {
       },
     };
 
-    const supabaseModule = await import("@/lib/supabase/server");
-    mock.method(supabaseModule, "createServerSupabaseClient", async () => supabase as never);
-
-    const authzModule = await import("@/lib/authz/server");
-    mock.method(authzModule, "getMyEntityId", async () => "entity-1");
-
-    const { emitEvent } = await import("@/lib/events/server");
+    const { emitEvent, __setEventDeps } = await import("../server.ts");
+    __setEventDeps({
+      createClient: async () => supabase as never,
+      getEntityId: async () => "entity-1",
+    });
 
     await emitEvent("audit", "info", { foo: "bar" });
 
