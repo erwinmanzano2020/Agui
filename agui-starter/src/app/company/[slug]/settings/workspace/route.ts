@@ -60,7 +60,11 @@ const payloadSchema = zod.object({
     .optional(),
 });
 
-export async function POST(request: NextRequest, { params }: { params: { slug: string } }) {
+export async function POST(
+  request: NextRequest,
+  context: { params: Promise<{ slug: string }> },
+) {
+  const { slug } = await context.params;
   const body = await request.json().catch(() => null);
   const parsed = payloadSchema.safeParse(body);
   if (!parsed.success) {
@@ -68,7 +72,7 @@ export async function POST(request: NextRequest, { params }: { params: { slug: s
     return NextResponse.json({ error: { message: "Invalid payload" } }, { status: 400 });
   }
 
-  const business = await loadBusinessBySlug(params.slug);
+  const business = await loadBusinessBySlug(slug);
   if (!business) {
     return NextResponse.json({ error: { message: "Workspace not found" } }, { status: 404 });
   }
