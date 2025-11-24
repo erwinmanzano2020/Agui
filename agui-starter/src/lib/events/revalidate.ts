@@ -1,4 +1,4 @@
-import { revalidateTag as nextRevalidateTag } from "next/cache.js";
+import { revalidateTag as nextRevalidateTag } from "next/cache";
 
 // Wrapper to keep a mockable export for tests without relying on Next's module shape.
 let activeRevalidate = nextRevalidateTag;

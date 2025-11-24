@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidateTag } from "./revalidate.ts";
+import { getMyEntityId as getMyEntityIdFromRequest } from "../authz/server";
+import { createServerSupabaseClient, type ServerSupabaseFactory } from "../supabase/server";
+import { revalidateTag } from "./revalidate";
 
-type CreateServerSupabaseClient = typeof import("../supabase/server.ts")["createServerSupabaseClient"];
-type GetMyEntityId = typeof import("../authz/server.ts")["getMyEntityId"];
+type GetMyEntityId = typeof getMyEntityIdFromRequest;
 
 type EventKind = "invalidate" | "info";
 
@@ -21,39 +22,31 @@ function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.length > 0;
 }
 
-let createServerSupabaseClient: CreateServerSupabaseClient = async (...args) => {
-  const mod = await import("../supabase/server.ts");
-  return mod.createServerSupabaseClient(...args);
-};
+const defaultCreateServerSupabaseClient: ServerSupabaseFactory = createServerSupabaseClient;
 
-let getMyEntityId: GetMyEntityId = async (...args) => {
-  const mod = await import("../authz/server.ts");
-  return mod.getMyEntityId(...args);
-};
+const defaultGetMyEntityId: GetMyEntityId = getMyEntityIdFromRequest;
+
+let createServerSupabaseClientImpl: ServerSupabaseFactory = defaultCreateServerSupabaseClient;
+
+let getMyEntityId: GetMyEntityId = defaultGetMyEntityId;
 
 type EventDeps = {
-  createClient?: CreateServerSupabaseClient;
+  createClient?: ServerSupabaseFactory;
   getEntityId?: GetMyEntityId;
 };
 
-export function __setEventDeps({ createClient, getEntityId }: EventDeps): void {
+export async function __setEventDeps({ createClient, getEntityId }: EventDeps): Promise<void> {
   if (createClient) {
-    createServerSupabaseClient = createClient;
+    createServerSupabaseClientImpl = createClient;
   }
   if (getEntityId) {
     getMyEntityId = getEntityId;
   }
 }
 
-export function __resetEventDeps(): void {
-  createServerSupabaseClient = async (...args) => {
-    const mod = await import("../supabase/server.ts");
-    return mod.createServerSupabaseClient(...args);
-  };
-  getMyEntityId = async (...args) => {
-    const mod = await import("../authz/server.ts");
-    return mod.getMyEntityId(...args);
-  };
+export async function __resetEventDeps(): Promise<void> {
+  createServerSupabaseClientImpl = defaultCreateServerSupabaseClient;
+  getMyEntityId = defaultGetMyEntityId;
 }
 
 export async function emitEvent(
@@ -66,7 +59,7 @@ export async function emitEvent(
     throw new Error("Event topic is required");
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = await createServerSupabaseClientImpl();
   const entityId = await getMyEntityId(supabase).catch(() => null);
 
   const { error } = await supabase.rpc("emit_event", {

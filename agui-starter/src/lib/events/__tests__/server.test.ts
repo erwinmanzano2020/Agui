@@ -4,14 +4,14 @@ import { afterEach, describe, it, mock } from "node:test";
 describe("emitEvent", () => {
   afterEach(async () => {
     mock.restoreAll();
-    const { __resetRevalidateTag } = await import("../revalidate.ts");
-    const { __resetEventDeps } = await import("../server.ts");
+    const { __resetRevalidateTag } = await import("../revalidate");
+    const { __resetEventDeps } = await import("../server");
     __resetRevalidateTag();
-    __resetEventDeps();
+    await __resetEventDeps();
   });
 
   it("returns quietly when the emit_event RPC is missing", async () => {
-    const revalidateModule = await import("../revalidate.ts");
+    const revalidateModule = await import("../revalidate");
     const revalidateTagMock = mock.fn();
     revalidateModule.__setRevalidateTag(revalidateTagMock);
 
@@ -22,8 +22,8 @@ describe("emitEvent", () => {
       }),
     };
 
-    const { emitEvent, __setEventDeps } = await import("../server.ts");
-    __setEventDeps({
+    const { emitEvent, __setEventDeps } = await import("../server");
+    await __setEventDeps({
       createClient: async () => supabase as never,
       getEntityId: async () => "entity-1",
     });
@@ -34,7 +34,7 @@ describe("emitEvent", () => {
   });
 
   it("emits events and revalidates when the RPC is available", async () => {
-    const revalidateModule = await import("../revalidate.ts");
+    const revalidateModule = await import("../revalidate");
     const revalidateTagMock = mock.fn();
     revalidateModule.__setRevalidateTag(revalidateTagMock);
 
@@ -46,8 +46,8 @@ describe("emitEvent", () => {
       },
     };
 
-    const { emitEvent, __setEventDeps } = await import("../server.ts");
-    __setEventDeps({
+    const { emitEvent, __setEventDeps } = await import("../server");
+    await __setEventDeps({
       createClient: async () => supabase as never,
       getEntityId: async () => "entity-1",
     });
