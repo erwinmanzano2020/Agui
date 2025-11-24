@@ -53,7 +53,7 @@ type AuditPayload = {
   changed_by: string | null | undefined;
 };
 
-type MutationOptions = {
+export type SettingsMutationOptions = {
   client?: SupabaseClient<Database>;
 };
 
@@ -326,7 +326,7 @@ async function mutateSetting(
   input: SettingWriteInput,
   actorEntityId?: string | null,
   action: "set" | "reset" = "set",
-  options: MutationOptions = {},
+  options: SettingsMutationOptions = {},
 ): Promise<void> {
   const supabase = options.client ?? (await createServerSupabaseClient());
   const coordinates = await resolveScopeCoordinates(supabase, input);
@@ -408,18 +408,20 @@ async function mutateSetting(
 export async function setSetting(
   input: SettingWriteInput,
   actorEntityId?: string | null,
+  options: SettingsMutationOptions = {},
 ): Promise<void> {
-  await mutateSetting(input, actorEntityId, "set");
+  await mutateSetting(input, actorEntityId, "set", options);
 }
 
 export async function resetSettingToParent(
   input: Omit<SettingWriteInput, "value">,
   actorEntityId?: string | null,
+  options: SettingsMutationOptions = {},
 ): Promise<void> {
   if (input.scope === "GM") {
     throw new Error("GM scope cannot be reset");
   }
-  await mutateSetting(input as SettingWriteInput, actorEntityId, "reset");
+  await mutateSetting(input as SettingWriteInput, actorEntityId, "reset", options);
 }
 
 export const __settingsTesting = {
