@@ -1,5 +1,7 @@
 import type { WorkspaceRole } from "@/lib/tiles/types";
 
+export type { WorkspaceRole };
+
 export function normalizeWorkspaceRole(role: string | null | undefined): WorkspaceRole {
   switch (role) {
     case "house_owner":
