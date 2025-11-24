@@ -18,6 +18,7 @@ type HeaderStoreInput = HeaderStore | Promise<HeaderStore>;
 export interface CreateServerSupabaseOptions {
   cookieStore?: CookieStoreInput;
   headerStore?: HeaderStoreInput;
+  allowCookieWrite?: boolean;
 }
 
 function isPromiseLike<T>(value: unknown): value is Promise<T> {
@@ -43,6 +44,7 @@ export async function createServerSupabase(
 ): Promise<SupabaseServerClient> {
   const cookieStore = await resolveMaybePromise(options.cookieStore, cookies);
   const headerStore = await resolveMaybePromise(options.headerStore, headers);
+  const allowCookieWrite = options.allowCookieWrite ?? false;
 
   const mutableCookies = cookieStore as unknown as MutableCookieStore;
 
@@ -54,16 +56,18 @@ export async function createServerSupabase(
         get(name: string) {
           return cookieStore.get(name)?.value;
         },
-        set(name: string, value: string, options: CookieOptions) {
-          if (typeof mutableCookies.set === "function") {
-            mutableCookies.set(name, value, options);
-          }
-        },
-        remove(name: string, options: CookieOptions) {
-          if (typeof mutableCookies.delete === "function") {
-            mutableCookies.delete(name, options);
-          }
-        },
+        set:
+          allowCookieWrite && typeof mutableCookies.set === "function"
+            ? (name: string, value: string, options: CookieOptions) => {
+                mutableCookies.set?.(name, value, options);
+              }
+            : undefined,
+        remove:
+          allowCookieWrite && typeof mutableCookies.delete === "function"
+            ? (name: string, options: CookieOptions) => {
+                mutableCookies.delete?.(name, options);
+              }
+            : undefined,
       },
       headers: {
         "x-forwarded-for": headerStore.get("x-forwarded-for") ?? undefined,

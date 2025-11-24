@@ -19,28 +19,10 @@ import type {
 } from "./types";
 import { getEffectiveSetting } from "@/lib/settings/server";
 import { emitEvent } from "@/lib/events/server";
+import { getServiceSupabase } from "@/lib/supabase-service";
+import { isOptionalTableError } from "@/lib/supabase/errors";
 
-function normalizeWorkspaceRole(role: string | null | undefined): WorkspaceRole {
-  switch (role) {
-    case "house_owner":
-    case "business_owner":
-    case "BUSINESS_OWNER":
-      return "owner";
-    case "house_manager":
-    case "business_admin":
-    case "business_manager":
-    case "BUSINESS_ADMIN":
-    case "BUSINESS_MANAGER":
-      return "manager";
-    case "house_staff":
-    case "cashier":
-    case "business_staff":
-    case "BUSINESS_STAFF":
-      return "staff";
-    default:
-      return "guest";
-  }
-}
+import { normalizeWorkspaceRole } from "@/lib/workspaces/roles";
 
 function deriveWorkspaceRoleFromEmployment(
   roleSlug: string | null | undefined,
@@ -271,7 +253,7 @@ async function loadTileAssignments(
     .eq("entity_id", entityId);
 
   if (error) {
-    if ((error as { code?: string }).code === "42P01") {
+    if (isOptionalTableError(error)) {
       return [];
     }
     console.warn("Failed to load tile assignments", error);
@@ -303,10 +285,9 @@ async function loadAppsCatalog(supabase: SupabaseClient): Promise<AppCatalogEntr
   const { data, error } = await supabase.from("apps").select("key,name,category,tags");
 
   if (error) {
-    if ((error as { code?: string }).code === "42P01") {
-      return [];
+    if (!isOptionalTableError(error)) {
+      console.warn("Failed to load app catalog", error);
     }
-    console.warn("Failed to load app catalog", error);
     return [];
   }
 
@@ -337,10 +318,9 @@ async function loadVisibilityRules(supabase: SupabaseClient): Promise<AppVisibil
     .select("app_key, min_role, require_policies");
 
   if (error) {
-    if ((error as { code?: string }).code === "42P01") {
-      return [];
+    if (!isOptionalTableError(error)) {
+      console.warn("Failed to load app visibility rules", error);
     }
-    console.warn("Failed to load app visibility rules", error);
     return [];
   }
 
@@ -394,7 +374,9 @@ async function loadGmAccess(supabase: SupabaseClient, entityId: string): Promise
     .maybeSingle<{ roles: string[] | null }>();
 
   if (error) {
-    console.warn("Failed to load platform roles for tiles", error);
+    if (!isOptionalTableError(error)) {
+      console.warn("Failed to load platform roles for tiles", error);
+    }
     return false;
   }
 
@@ -488,14 +470,22 @@ export async function loadTilesForCurrentUser(): Promise<TilesMeResponse> {
     return { home: [], workspaces: [] } satisfies TilesMeResponse;
   }
 
+  let tilesClient: SupabaseClient;
+  try {
+    tilesClient = getServiceSupabase();
+  } catch (serviceError) {
+    console.warn("Falling back to session client for tiles", serviceError);
+    tilesClient = supabase;
+  }
+
   const policyKeys = [...authzState.policyKeys].sort();
+  const cacheKey = policyKeys.join("|");
   const cachedLoader = unstable_cache(
     async () => {
-      const supabaseForTiles = await createServerSupabaseClient();
-      const input = await buildInputForEntity(supabaseForTiles, entityId, policyKeys);
+      const input = await buildInputForEntity(tilesClient, entityId, policyKeys);
       return buildTilesResponse(input);
     },
-    ["tiles", "me", user.id, entityId, policyKeys.join("|")],
+    ["tiles", "me", user.id, entityId, cacheKey],
     { tags: [`tiles:user:${user.id}`], revalidate: 60 },
   );
 
@@ -513,11 +503,16 @@ export async function loadTilesForCurrentUser(): Promise<TilesMeResponse> {
     if (augmented.home.some((tile) => tile.kind === "start-business")) {
       try {
         const gmAccess = await loadGmAccess(supabase, entityId);
-        await emitEvent("tiles_start_business_shown", "info", {
-          actorEntityId: entityId,
-          isGM: gmAccess,
-          hadWorkspacesBefore: augmented.workspaces.length > 0,
-        });
+        await emitEvent(
+          "tiles_start_business_shown",
+          "info",
+          {
+            actorEntityId: entityId,
+            isGM: gmAccess,
+            hadWorkspacesBefore: augmented.workspaces.length > 0,
+          },
+          { skipRevalidate: true },
+        );
       } catch (eventError) {
         console.warn("Failed to emit start business telemetry", eventError);
       }
@@ -529,11 +524,16 @@ export async function loadTilesForCurrentUser(): Promise<TilesMeResponse> {
   if (response.home.some((tile) => tile.kind === "start-business")) {
     try {
       const gmAccess = await loadGmAccess(supabase, entityId);
-      await emitEvent("tiles_start_business_shown", "info", {
-        actorEntityId: entityId,
-        isGM: gmAccess,
-        hadWorkspacesBefore: response.workspaces.length > 0,
-      });
+      await emitEvent(
+        "tiles_start_business_shown",
+        "info",
+        {
+          actorEntityId: entityId,
+          isGM: gmAccess,
+          hadWorkspacesBefore: response.workspaces.length > 0,
+        },
+        { skipRevalidate: true },
+      );
     } catch (eventError) {
       console.warn("Failed to emit start business telemetry", eventError);
     }

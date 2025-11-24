@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { isOptionalTableError } from "@/lib/supabase/errors";
+
 import type { ResolutionInput } from "@/lib/scan/resolve";
 
 type NormalizedScope = "HOUSE" | "GUILD";
@@ -104,7 +106,10 @@ export async function authorizeScanContext({
         : Promise.resolve({ data: null, error: null } as const),
     ]);
 
-    if (houseRoleResult.error || guildRoleResult.error) {
+    if (
+      (houseRoleResult.error && !isOptionalTableError(houseRoleResult.error)) ||
+      (guildRoleResult.error && !isOptionalTableError(guildRoleResult.error))
+    ) {
       console.error("Failed to verify staff roles while authorizing scan", {
         houseError: houseRoleResult.error,
         guildError: guildRoleResult.error,
@@ -143,8 +148,11 @@ export async function authorizeScanContext({
       .maybeSingle<{ id: string }>();
 
     if (error) {
-      console.error("Failed to verify guild roles while authorizing scan", error);
-      return { ok: false, status: 500, error: "Failed to verify guild access" };
+      if (!isOptionalTableError(error)) {
+        console.error("Failed to verify guild roles while authorizing scan", error);
+        return { ok: false, status: 500, error: "Failed to verify guild access" };
+      }
+      return { ok: false, status: 403, error: "Guild access unavailable" };
     }
 
     if (!data) {

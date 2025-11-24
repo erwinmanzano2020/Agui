@@ -111,3 +111,5 @@ export async function createServerSupabaseClient<
 
   return client;
 }
+
+export type ServerSupabaseFactory = typeof createServerSupabaseClient;

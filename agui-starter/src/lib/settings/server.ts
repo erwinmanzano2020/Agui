@@ -6,6 +6,7 @@ import { revalidateTag, unstable_cache } from "next/cache";
 import type { Database, Json } from "@/lib/db.types";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { emitEvent } from "@/lib/events/server";
+import { isOptionalTableError } from "@/lib/supabase/errors";
 
 import {
   getSettingDefinition,
@@ -212,6 +213,36 @@ function buildSnapshotFromRows(
   return snapshot;
 }
 
+async function loadSnapshotFromStore(
+  supabase: SupabaseClient<Database>,
+  definitions: SettingDefinition[],
+  options: { businessId: string | null; branchId: string | null },
+): Promise<SettingsSnapshot> {
+  const keys = definitions.map((definition) => definition.key);
+  if (keys.length === 0) {
+    return {} satisfies SettingsSnapshot;
+  }
+
+  const { data, error } = await supabase
+    .from("settings_values")
+    .select("key,scope,business_id,branch_id,value")
+    .in("key", keys);
+
+  if (error) {
+    const fallback = buildSnapshotFromRows(definitions, [], options);
+    if (isOptionalTableError(error)) {
+      console.debug("Settings store unavailable, returning defaults", error);
+      return fallback;
+    }
+
+    console.warn("Failed to load settings snapshot", error);
+    return fallback;
+  }
+
+  const rows = (data ?? []) as SettingsValueRow[];
+  return buildSnapshotFromRows(definitions, rows, options);
+}
+
 async function maybeRevalidateTiles(
   supabase: SupabaseClient<Database>,
   key: SettingKey,
@@ -263,27 +294,9 @@ export async function getSettingsSnapshot(options: SnapshotOptions): Promise<Set
     tags.add(buildScopeTag("BRANCH", businessId ?? null, branchId));
   }
 
+  const supabase = await createServerSupabaseClient();
   const loader = unstable_cache(
-    async () => {
-      const supabase = await createServerSupabaseClient();
-      const keys = definitions.map((definition) => definition.key);
-      if (keys.length === 0) {
-        return {} satisfies SettingsSnapshot;
-      }
-
-      const { data, error } = await supabase
-        .from("settings_values")
-        .select("key,scope,business_id,branch_id,value")
-        .in("key", keys);
-
-      if (error) {
-        console.warn("Failed to load settings snapshot", error);
-        return {} satisfies SettingsSnapshot;
-      }
-
-      const rows = (data ?? []) as SettingsValueRow[];
-      return buildSnapshotFromRows(definitions, rows, { businessId, branchId });
-    },
+    async () => loadSnapshotFromStore(supabase, definitions, { businessId, branchId }),
     ["settings", "snapshot", category, businessId ?? "null", branchId ?? "null"],
     { tags: Array.from(tags), revalidate: CACHE_REVALIDATE_SECONDS },
   );
@@ -413,6 +426,14 @@ export const __settingsTesting = {
   buildSnapshotFromRows,
   coerceValue,
   isValidValue,
+  loadSnapshotWithClient: (
+    supabase: SupabaseClient<Database>,
+    options: SnapshotOptions,
+  ) =>
+    loadSnapshotFromStore(supabase, listSettingDefinitionsByCategory(options.category), {
+      businessId: options.businessId ?? null,
+      branchId: options.branchId ?? null,
+    }),
   mutateSettingWithClient: (
     client: SupabaseClient<Database>,
     input: SettingWriteInput,

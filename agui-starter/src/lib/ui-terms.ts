@@ -1,4 +1,5 @@
 import { getSupabase } from "@/lib/supabase";
+import { isOptionalTableError } from "@/lib/supabase/errors";
 
 export type UiTerms = {
   alliance: string;
@@ -34,7 +35,9 @@ export async function loadUiTerms(): Promise<UiTerms> {
       .eq("id", ROW_ID)
       .maybeSingle();
     if (error) {
-      console.warn("Failed to load UI terms", error);
+      if (!isOptionalTableError(error)) {
+        console.warn("Failed to load UI terms", error);
+      }
       return DEFAULT_TERMS;
     }
     const terms = data?.terms ?? {};
@@ -48,8 +51,16 @@ export async function loadUiTerms(): Promise<UiTerms> {
 export async function saveUiTerms(next: Partial<UiTerms>) {
   const db = getSupabase();
   if (!db) return;
-  const { error } = await db
-    .from("ui_terms")
-    .upsert({ id: ROW_ID, terms: next, updated_at: new Date().toISOString() });
-  if (error) throw new Error(error.message);
+  try {
+    const { error } = await db
+      .from("ui_terms")
+      .upsert({ id: ROW_ID, terms: next, updated_at: new Date().toISOString() });
+    if (error) {
+      if (isOptionalTableError(error)) return;
+      throw new Error(error.message);
+    }
+  } catch (error) {
+    if (isOptionalTableError(error)) return;
+    throw error;
+  }
 }
