@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { newCart, addOrBumpLine, priceLines } from "@/lib/pos/cart";
 import { loadLocalCart, saveLocalCart } from "@/lib/pos/local";
 import type { Cart } from "@/lib/pos/types";
+import type { WorkspaceSettings } from "@/lib/settings/workspace";
 
 type InventorySearchResponse = {
   items?: Array<{ id: string; name: string }>;
@@ -47,10 +48,24 @@ function deviceId() {
   return generated;
 }
 
-export default function PosClient({ companyId, companySlug }: { companyId: string; companySlug: string }) {
+function formatLabel(label: string) {
+  if (!label) return label;
+  return label.slice(0, 1).toUpperCase() + label.slice(1);
+}
+
+export default function PosClient({
+  companyId,
+  companySlug,
+  labels,
+}: {
+  companyId: string;
+  companySlug: string;
+  labels?: WorkspaceSettings["labels"];
+}) {
   const [cart, setCart] = React.useState<Cart | null>(null);
   const [scanBuf, setScanBuf] = React.useState("");
   const dev = React.useMemo(() => deviceId(), []);
+  const houseLabel = React.useMemo(() => formatLabel(labels?.house ?? companySlug), [labels?.house, companySlug]);
 
   React.useEffect(() => {
     const saved = loadLocalCart(companyId, dev);
@@ -219,7 +234,7 @@ export default function PosClient({ companyId, companySlug }: { companyId: strin
       <Card>
         <CardContent className="py-4 space-y-3">
           <div className="flex items-center justify-between">
-            <div className="text-lg font-semibold">POS — {companySlug}</div>
+            <div className="text-lg font-semibold">POS — {houseLabel}</div>
             <div className="text-xs text-muted-foreground">F9 Hold • F12 Finalize</div>
           </div>
 

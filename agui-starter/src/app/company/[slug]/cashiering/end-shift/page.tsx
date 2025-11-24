@@ -1,9 +1,9 @@
 import { notFound } from "next/navigation";
 
 import { requireAuth } from "@/lib/auth/require-auth";
-import { getSettingsSnapshot } from "@/lib/settings/server";
 import { getMyEntityId } from "@/lib/authz/server";
 import { requirePosAccess } from "@/lib/pos/access";
+import { loadWorkspaceSettings } from "@/lib/settings/workspace";
 
 import EndShiftClient from "./pageClient";
 
@@ -29,17 +29,10 @@ export default async function EndShiftPage({ params }: { params: { slug: string 
 
   await requirePosAccess(supabase, house.id, { dest: nextPath });
 
-  const snapshot = await getSettingsSnapshot({
-    category: "pos",
-    businessId: house.id,
-    branchId: house.id,
-  });
+  const workspaceSettings = await loadWorkspaceSettings(house.id);
 
-  const floatDefaults =
-    snapshot["pos.cash.float.defaults"]?.value && typeof snapshot["pos.cash.float.defaults"]?.value === "object"
-      ? (snapshot["pos.cash.float.defaults"]?.value as Record<string, number>)
-      : {};
-  const blindDropEnabled = snapshot["pos.cash.blind_drop_enabled"]?.value ?? true;
+  const floatDefaults = workspaceSettings.pos.floatDefaults;
+  const blindDropEnabled = workspaceSettings.pos.blindDropEnabled;
 
   const cashierEntityId = await getMyEntityId(supabase);
 
@@ -50,6 +43,8 @@ export default async function EndShiftPage({ params }: { params: { slug: string 
       cashierEntityId={cashierEntityId}
       blindDropEnabled={Boolean(blindDropEnabled)}
       floatDefaults={floatDefaults}
+      startShiftHint={workspaceSettings.sop.startShiftHint}
+      blindDropHint={workspaceSettings.sop.blindDropHint}
     />
   );
 }
