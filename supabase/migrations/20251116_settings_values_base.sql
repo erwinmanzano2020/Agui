@@ -53,11 +53,16 @@ values
   ('pos.theme.primary_color', 'string', 'Primary accent color for the POS', 'pos', jsonb_build_object('format', 'hex'), '"#2563eb"'::jsonb),
   ('pos.theme.dark_mode', 'boolean', 'Enable dark mode styling for POS terminals', 'pos', jsonb_build_object('label', 'Dark mode'), 'false'::jsonb),
   ('pos.float_template', 'json', 'Default float denominations prepared for openings', 'pos', jsonb_build_object('schema', 'denom->count'), json_build_object()),
+  ('labels.house', 'string', 'Label for the workspace or house entity', 'labels', jsonb_build_object('maxLength', 48), '"house"'::jsonb),
+  ('labels.branch', 'string', 'Label for a branch/location', 'labels', jsonb_build_object('maxLength', 48), '"branch"'::jsonb),
+  ('labels.pass', 'string', 'Label for guest or member passes', 'labels', jsonb_build_object('maxLength', 48), '"pass"'::jsonb),
   ('labels.discount.loyalty', 'string', 'Label for loyalty discounts', 'labels', jsonb_build_object('maxLength', 48), '"Loyalty"'::jsonb),
   ('labels.discount.wholesale', 'string', 'Label for wholesale discounts', 'labels', jsonb_build_object('maxLength', 48), '"Wholesale"'::jsonb),
   ('labels.discount.manual', 'string', 'Label for manual discounts', 'labels', jsonb_build_object('maxLength', 48), '"Manual"'::jsonb),
   ('labels.discount.promo', 'string', 'Label for promotional discounts', 'labels', jsonb_build_object('maxLength', 48), '"Promo"'::jsonb),
-  ('sop.cashier_variance_thresholds', 'json', 'Variance thresholds for cashier reconciliation alerts', 'sop', jsonb_build_object('schema', 'small/medium/large'), json_build_object('small', 5, 'medium', 15, 'large', 30))
+  ('sop.cashier_variance_thresholds', 'json', 'Variance thresholds for cashier reconciliation alerts', 'sop', jsonb_build_object('schema', 'small/medium/large'), json_build_object('small', 5, 'medium', 15, 'large', 30)),
+  ('sop.start_shift_hint', 'string', 'Guidance shown when opening a shift', 'sop', jsonb_build_object('maxLength', 240), '"Capture the float you received at the beginning of your shift."'::jsonb),
+  ('sop.blind_drop_hint', 'string', 'Guidance shown when submitting a blind drop', 'sop', jsonb_build_object('maxLength', 240), '"Enter the denominations you counted at the end of your shift."'::jsonb)
 on conflict (key) do nothing;
 
 insert into public.settings_values (key, scope, value)

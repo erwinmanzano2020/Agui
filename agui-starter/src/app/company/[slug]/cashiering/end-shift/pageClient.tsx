@@ -26,6 +26,8 @@ type Props = {
   cashierEntityId: string | null;
   blindDropEnabled: boolean;
   floatDefaults: Record<string, number>;
+  startShiftHint: string;
+  blindDropHint: string;
 };
 
 function rowsFromDefaults(defaults: Record<string, number>): DenominationRow[] {
@@ -129,6 +131,8 @@ export default function EndShiftClient({
   cashierEntityId,
   blindDropEnabled,
   floatDefaults,
+  startShiftHint,
+  blindDropHint,
 }: Props) {
   const supabase = React.useMemo(() => getSupabase(), []);
   const [openingRows, setOpeningRows] = React.useState<DenominationRow[]>(() => rowsFromDefaults(floatDefaults));
@@ -282,9 +286,7 @@ export default function EndShiftClient({
         <CardHeader>
           <div className="space-y-1">
             <h2 className="text-lg font-medium">Start shift</h2>
-            <p className="text-sm text-muted-foreground">
-              Capture the float you received at the beginning of your shift.
-            </p>
+            <p className="text-sm text-muted-foreground">{startShiftHint}</p>
           </div>
         </CardHeader>
         <CardContent>
@@ -314,9 +316,7 @@ export default function EndShiftClient({
         <CardHeader>
           <div className="space-y-1">
             <h2 className="text-lg font-medium">Submit blind drop</h2>
-            <p className="text-sm text-muted-foreground">
-              Enter the denominations you counted at the end of your shift.
-            </p>
+            <p className="text-sm text-muted-foreground">{blindDropHint}</p>
           </div>
         </CardHeader>
         <CardContent>

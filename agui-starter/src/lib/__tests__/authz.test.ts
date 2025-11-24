@@ -69,8 +69,8 @@ class MockSupabase {
   private createQuery(initialResult: QueryResult, table: string) {
     let result = initialResult;
     const query = Promise.resolve().then(() => result) as QueryPromise;
-    query.select = (_columns?: string) => query;
-    query.eq = (_column: string, _value: unknown) => query;
+    query.select = () => query;
+    query.eq = () => query;
     query.in = (column: string, values: unknown[]) => {
       const handlerResult = this.handlers?.in?.({ table, column, values });
       if (handlerResult) {
@@ -78,7 +78,7 @@ class MockSupabase {
       }
       return query;
     };
-    query.limit = (_count: number) => query;
+    query.limit = () => query;
     query.maybeSingle = async () => result;
 
     return query;
