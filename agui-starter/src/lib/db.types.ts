@@ -344,8 +344,14 @@ export type ItemRow = {
   short_name: string | null;
   brand: string | null;
   category: string | null;
+  category_id: string | null;
+  subcategory_id: string | null;
   is_sellable: boolean;
   is_raw_material: boolean;
+  is_repacked: boolean;
+  is_bundle: boolean;
+  allow_in_pos: boolean;
+  global_item_id: string | null;
   track_inventory: boolean;
   meta: Json;
   created_at: string;
@@ -360,8 +366,14 @@ export type ItemInsert = {
   short_name?: string | null;
   brand?: string | null;
   category?: string | null;
+  category_id?: string | null;
+  subcategory_id?: string | null;
   is_sellable?: boolean;
   is_raw_material?: boolean;
+  is_repacked?: boolean;
+  is_bundle?: boolean;
+  allow_in_pos?: boolean;
+  global_item_id?: string | null;
   track_inventory?: boolean;
   meta?: Json;
   created_at?: string;
@@ -378,6 +390,8 @@ export type ItemUomRow = {
   name: string | null;
   is_base: boolean;
   factor_to_base: number;
+  variant_label: string | null;
+  allow_branch_override: boolean;
   created_at: string;
   updated_at: string | null;
 };
@@ -390,6 +404,8 @@ export type ItemUomInsert = {
   name?: string | null;
   is_base?: boolean;
   factor_to_base?: number;
+  variant_label?: string | null;
+  allow_branch_override?: boolean;
   created_at?: string;
   updated_at?: string | null;
 };
@@ -425,6 +441,12 @@ export type ItemPriceRow = {
   uom_id: string | null;
   unit_price: number;
   currency: string;
+  price_type: string;
+  tier_tag: string | null;
+  cost_cents: number | null;
+  markup_percent: number | null;
+  suggested_price_cents: number | null;
+  metadata: Json;
   created_at: string;
   updated_at: string | null;
 };
@@ -436,6 +458,12 @@ export type ItemPriceInsert = {
   uom_id?: string | null;
   unit_price: number;
   currency?: string;
+  price_type?: string;
+  tier_tag?: string | null;
+  cost_cents?: number | null;
+  markup_percent?: number | null;
+  suggested_price_cents?: number | null;
+  metadata?: Json;
   created_at?: string;
   updated_at?: string | null;
 };
@@ -461,6 +489,108 @@ export type ItemPriceTierInsert = {
 };
 
 export type ItemPriceTierUpdate = Partial<ItemPriceTierInsert>;
+
+export type GlobalItemRow = {
+  id: string;
+  barcode: string | null;
+  name: string;
+  brand: string | null;
+  size: string | null;
+  default_uom: string | null;
+  default_category: string | null;
+  default_shortname: string | null;
+  created_at: string;
+};
+
+export type GlobalItemInsert = {
+  id?: string;
+  barcode?: string | null;
+  name: string;
+  brand?: string | null;
+  size?: string | null;
+  default_uom?: string | null;
+  default_category?: string | null;
+  default_shortname?: string | null;
+  created_at?: string;
+};
+
+export type GlobalItemUpdate = Partial<GlobalItemInsert>;
+
+export type ItemCostHistoryRow = {
+  id: string;
+  house_id: string;
+  item_id: string;
+  uom_id: string | null;
+  cost_cents: number;
+  currency: string;
+  note: string | null;
+  meta: Json;
+  created_at: string;
+};
+
+export type ItemCostHistoryInsert = {
+  id?: string;
+  house_id: string;
+  item_id: string;
+  uom_id?: string | null;
+  cost_cents: number;
+  currency?: string;
+  note?: string | null;
+  meta?: Json;
+  created_at?: string;
+};
+
+export type ItemCostHistoryUpdate = Partial<ItemCostHistoryInsert>;
+
+export type ItemBundleRow = {
+  id: string;
+  house_id: string;
+  bundle_parent_id: string;
+  child_item_id: string;
+  child_uom_id: string | null;
+  quantity: number;
+  cost_strategy: string;
+  created_at: string;
+};
+
+export type ItemBundleInsert = {
+  id?: string;
+  house_id: string;
+  bundle_parent_id: string;
+  child_item_id: string;
+  child_uom_id?: string | null;
+  quantity?: number;
+  cost_strategy?: string;
+  created_at?: string;
+};
+
+export type ItemBundleUpdate = Partial<ItemBundleInsert>;
+
+export type ItemRawInputRow = {
+  id: string;
+  house_id: string;
+  finished_item_id: string;
+  raw_item_id: string;
+  input_uom_id: string | null;
+  output_uom_id: string | null;
+  quantity: number;
+  expected_yield: number | null;
+  created_at: string;
+};
+
+export type ItemRawInputInsert = {
+  id?: string;
+  house_id: string;
+  finished_item_id: string;
+  raw_item_id: string;
+  input_uom_id?: string | null;
+  output_uom_id?: string | null;
+  quantity?: number;
+  expected_yield?: number | null;
+  created_at?: string;
+};
+
+export type ItemRawInputUpdate = Partial<ItemRawInputInsert>;
 
 export type HouseItemRow = {
   id: string;
@@ -807,6 +937,7 @@ export interface Database {
       entities: TableDefinition<EntityRow, EntityInsert, EntityUpdate>;
       guilds: TableDefinition<GuildRow, GuildInsert, GuildUpdate>;
       guild_roles: TableDefinition<GuildRoleRow, GuildRoleInsert, GuildRoleUpdate>;
+      global_items: TableDefinition<GlobalItemRow, GlobalItemInsert, GlobalItemUpdate>;
       items: TableDefinition<ItemRow, ItemInsert, ItemUpdate>;
       item_uoms: TableDefinition<ItemUomRow, ItemUomInsert, ItemUomUpdate>;
       item_barcodes: TableDefinition<ItemBarcodeRow, ItemBarcodeInsert, ItemBarcodeUpdate>;
@@ -816,6 +947,13 @@ export interface Database {
         ItemPriceTierInsert,
         ItemPriceTierUpdate
       >;
+      item_cost_history: TableDefinition<
+        ItemCostHistoryRow,
+        ItemCostHistoryInsert,
+        ItemCostHistoryUpdate
+      >;
+      item_bundles: TableDefinition<ItemBundleRow, ItemBundleInsert, ItemBundleUpdate>;
+      item_raw_inputs: TableDefinition<ItemRawInputRow, ItemRawInputInsert, ItemRawInputUpdate>;
       houses: TableDefinition<HouseRow, HouseInsert, HouseUpdate>;
       house_items: TableDefinition<HouseItemRow, HouseItemInsert, HouseItemUpdate>;
       house_roles: TableDefinition<HouseRoleRow, HouseRoleInsert, HouseRoleUpdate>;
