@@ -435,6 +435,65 @@ export function createInMemoryProductRepository(initial?: Partial<{
   const prices = new Map(initial?.prices?.map((row) => [row.id, row]) ?? []);
   const tiers = new Map(initial?.tiers?.map((row) => [row.id, row]) ?? []);
 
+  function makeItemRow(payload: ItemInsert, id: string, existing?: ItemRow): ItemRow {
+    return {
+      id,
+      house_id: payload.house_id ?? existing?.house_id ?? null,
+      slug: payload.slug ?? existing?.slug ?? null,
+      name: payload.name,
+      short_name: payload.short_name ?? existing?.short_name ?? null,
+      brand: payload.brand ?? existing?.brand ?? null,
+      category: payload.category ?? existing?.category ?? null,
+      category_id: payload.category_id ?? existing?.category_id ?? null,
+      subcategory_id: payload.subcategory_id ?? existing?.subcategory_id ?? null,
+      is_sellable: payload.is_sellable ?? existing?.is_sellable ?? true,
+      is_raw_material: payload.is_raw_material ?? existing?.is_raw_material ?? false,
+      is_repacked: payload.is_repacked ?? existing?.is_repacked ?? false,
+      is_bundle: payload.is_bundle ?? existing?.is_bundle ?? false,
+      allow_in_pos: payload.allow_in_pos ?? existing?.allow_in_pos ?? false,
+      global_item_id: payload.global_item_id ?? existing?.global_item_id ?? null,
+      track_inventory: payload.track_inventory ?? existing?.track_inventory ?? false,
+      meta: payload.meta ?? existing?.meta ?? {},
+      created_at: existing?.created_at ?? new Date().toISOString(),
+      updated_at: existing ? new Date().toISOString() : null,
+    } satisfies ItemRow;
+  }
+
+  function makeItemUomRow(row: ItemUomInsert, id: string, existing?: ItemUomRow): ItemUomRow {
+    return {
+      id,
+      house_id: row.house_id,
+      item_id: row.item_id,
+      code: row.code,
+      name: row.name ?? existing?.name ?? null,
+      is_base: row.is_base ?? existing?.is_base ?? false,
+      factor_to_base: row.factor_to_base ?? existing?.factor_to_base ?? 1,
+      variant_label: row.variant_label ?? existing?.variant_label ?? null,
+      allow_branch_override: row.allow_branch_override ?? existing?.allow_branch_override ?? false,
+      created_at: existing?.created_at ?? new Date().toISOString(),
+      updated_at: existing ? new Date().toISOString() : null,
+    } satisfies ItemUomRow;
+  }
+
+  function makeItemPriceRow(row: ItemPriceInsert, id: string, existing?: ItemPriceRow): ItemPriceRow {
+    return {
+      id,
+      house_id: row.house_id,
+      item_id: row.item_id,
+      uom_id: row.uom_id ?? null,
+      unit_price: row.unit_price,
+      currency: row.currency ?? existing?.currency ?? "PHP",
+      price_type: row.price_type ?? existing?.price_type ?? "base",
+      tier_tag: row.tier_tag ?? existing?.tier_tag ?? null,
+      cost_cents: row.cost_cents ?? existing?.cost_cents ?? null,
+      markup_percent: row.markup_percent ?? existing?.markup_percent ?? null,
+      suggested_price_cents: row.suggested_price_cents ?? existing?.suggested_price_cents ?? null,
+      metadata: row.metadata ?? existing?.metadata ?? {},
+      created_at: existing?.created_at ?? new Date().toISOString(),
+      updated_at: existing ? new Date().toISOString() : null,
+    } satisfies ItemPriceRow;
+  }
+
   return {
     async findBarcode(houseId, barcode) {
       for (const row of barcodes.values()) {
@@ -446,21 +505,8 @@ export function createInMemoryProductRepository(initial?: Partial<{
     },
     async upsertItem(payload) {
       const id = payload.id ?? generateId("item", idCounter++);
-      const record: ItemRow = {
-        id,
-        house_id: payload.house_id ?? null,
-        slug: payload.slug ?? null,
-        name: payload.name,
-        short_name: payload.short_name ?? null,
-        brand: payload.brand ?? null,
-        category: payload.category ?? null,
-        is_sellable: payload.is_sellable ?? true,
-        is_raw_material: payload.is_raw_material ?? false,
-        track_inventory: payload.track_inventory ?? false,
-        meta: payload.meta ?? {},
-        created_at: new Date().toISOString(),
-        updated_at: null,
-      } satisfies ItemRow;
+      const existing = payload.id ? items.get(payload.id) : undefined;
+      const record = makeItemRow(payload, id, existing);
       items.set(id, record);
       return record;
     },
@@ -471,17 +517,7 @@ export function createInMemoryProductRepository(initial?: Partial<{
           (uom) => uom.item_id === row.item_id && uom.code === row.code,
         );
         const id = existing?.id ?? row.id ?? generateId("uom", idCounter++);
-        const record: ItemUomRow = {
-          id,
-          house_id: row.house_id,
-          item_id: row.item_id,
-          code: row.code,
-          name: row.name ?? null,
-          is_base: row.is_base ?? false,
-          factor_to_base: row.factor_to_base ?? 1,
-          created_at: existing?.created_at ?? new Date().toISOString(),
-          updated_at: existing ? new Date().toISOString() : null,
-        };
+        const record = makeItemUomRow(row, id, existing);
         uoms.set(id, record);
         inserted.push(record);
       }
@@ -513,16 +549,7 @@ export function createInMemoryProductRepository(initial?: Partial<{
         (price) => price.item_id === row.item_id && price.uom_id === (row.uom_id ?? null),
       );
       const id = existing?.id ?? row.id ?? generateId("price", idCounter++);
-      const record: ItemPriceRow = {
-        id,
-        house_id: row.house_id,
-        item_id: row.item_id,
-        uom_id: row.uom_id ?? null,
-        unit_price: row.unit_price,
-        currency: row.currency ?? "PHP",
-        created_at: existing?.created_at ?? new Date().toISOString(),
-        updated_at: existing ? new Date().toISOString() : null,
-      };
+      const record = makeItemPriceRow(row, id, existing);
       prices.set(id, record);
       return record;
     },
