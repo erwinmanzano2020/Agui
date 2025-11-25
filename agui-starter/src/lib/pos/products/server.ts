@@ -99,6 +99,8 @@ export type ProductRepository = {
   ): Promise<ItemPriceTierRow[]>;
   replaceRawInputs(houseId: string, finishedItemId: string, rows: ItemRawInputInsert[]): Promise<ItemRawInputRow[]>;
   replaceBundles(houseId: string, bundleParentId: string, rows: ItemBundleInsert[]): Promise<ItemBundleRow[]>;
+  listPrices(houseId: string, itemId: string): Promise<ItemPriceRow[]>;
+  deletePrices(priceIds: string[]): Promise<void>;
   loadSnapshot(houseId: string, itemId: string): Promise<ProductSnapshot | null>;
 };
 
@@ -332,7 +334,8 @@ export async function upsertProductFromEncoding({
     if (!entry) continue;
     const code = normalizeString(entry.code);
     if (!code) continue;
-    const linkedUom = entry.uomCode ? uomByCode.get(entry.uomCode) : baseUom;
+    const linkedUom =
+      entry.uomCode === undefined ? baseUom : entry.uomCode ? uomByCode.get(entry.uomCode) : null;
     barcodes.push({
       house_id: houseId,
       item_id: item.id,
@@ -366,14 +369,21 @@ export async function upsertProductFromEncoding({
     throw new ProductValidationError("At least one price is required for POS-ready items");
   }
 
+  const normalizedPrices = [] as Array<
+    ItemPriceInsert & {
+      tiers: ProductEncodingInput["priceTiers"];
+    }
+  >;
+
   for (const entry of pricePayloads) {
     if (!entry) continue;
     const unitPrice = assertCentavos(entry.unitPrice, "unit price");
     const priceType = normalizeString(entry.priceType) ?? "RETAIL";
     const tierTag = normalizeString(entry.tierTag) ?? "default";
     const currency = normalizeString(entry.currency ?? payload.priceCurrency) ?? "PHP";
-    const linkedUom = entry.uomCode ? uomByCode.get(entry.uomCode) : baseUom;
-    const price = await store.upsertPrice({
+    const linkedUom =
+      entry.uomCode === undefined ? baseUom : entry.uomCode ? uomByCode.get(entry.uomCode) : null;
+    normalizedPrices.push({
       house_id: houseId,
       item_id: item.id,
       uom_id: linkedUom?.id ?? null,
@@ -385,7 +395,28 @@ export async function upsertProductFromEncoding({
       markup_percent: assertNonNegative(entry.markupPercent ?? null, "Markup"),
       suggested_price_cents: assertNonNegative(entry.suggestedPriceCents ?? null, "Suggested price"),
       metadata: (entry.metadata as ItemPriceInsert["metadata"]) ?? {},
+      tiers: entry.tiers,
     });
+  }
+
+  const desiredPriceKeys = new Set(
+    normalizedPrices.map((price) => `${price.uom_id ?? "__null"}::${price.price_type ?? ""}::${price.tier_tag ?? ""}`),
+  );
+  const existingPrices = await store.listPrices(houseId, item.id);
+  const stalePriceIds = existingPrices
+    .filter((price) =>
+      desiredPriceKeys.has(`${price.uom_id ?? "__null"}::${price.price_type ?? ""}::${price.tier_tag ?? ""}`)
+        ? false
+        : true,
+    )
+    .map((price) => price.id);
+
+  if (stalePriceIds.length > 0) {
+    await store.deletePrices(stalePriceIds);
+  }
+
+  for (const entry of normalizedPrices) {
+    const price = await store.upsertPrice(entry);
     const tierRows = normalizePriceTiers(houseId, price.id, entry.tiers);
     await store.replacePriceTiers(houseId, price.id, tierRows);
   }
@@ -525,6 +556,20 @@ export function createSupabaseProductRepository(client: DatabaseClient): Product
         .single();
       if (error) throw new Error(error.message);
       return data as ItemPriceRow;
+    },
+    async listPrices(houseId, itemId) {
+      const { data, error } = await client
+        .from("item_prices")
+        .select("*")
+        .eq("house_id", houseId)
+        .eq("item_id", itemId);
+      if (error) throw new Error(error.message);
+      return (data ?? []) as ItemPriceRow[];
+    },
+    async deletePrices(priceIds) {
+      if (priceIds.length === 0) return;
+      const { error } = await client.from("item_prices").delete().in("id", priceIds);
+      if (error) throw new Error(error.message);
     },
     async replacePriceTiers(houseId, priceId, tiers) {
       await client.from("item_price_tiers").delete().eq("item_price_id", priceId);
@@ -755,6 +800,15 @@ export function createInMemoryProductRepository(initial?: Partial<{
       const record = makeItemPriceRow(row, id, existing);
       prices.set(id, record);
       return record;
+    },
+    async listPrices(houseId, itemId) {
+      void houseId;
+      return Array.from(prices.values()).filter((price) => price.item_id === itemId);
+    },
+    async deletePrices(priceIds) {
+      for (const id of priceIds) {
+        prices.delete(id);
+      }
     },
     async replacePriceTiers(houseId, priceId, tierRows) {
       for (const tier of Array.from(tiers.values())) {

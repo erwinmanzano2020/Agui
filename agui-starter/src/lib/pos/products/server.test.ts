@@ -210,4 +210,98 @@ describe("pos product helpers", () => {
     });
     assert.equal(priceForBulk.unitPrice, 900);
   });
+
+  it("removes stale price rows when they are deleted in the payload", async () => {
+    const repo = createInMemoryProductRepository();
+    const initial = await upsertProductFromEncoding({
+      houseId: "house-1",
+      payload: {
+        name: "Pricey",
+        baseUom: { code: "PC" },
+        variants: [{ code: "CASE", factorToBase: 12 }],
+        barcodes: [{ code: "p-1" }],
+        prices: [
+          { uomCode: "PC", priceType: "RETAIL", tierTag: "default", unitPrice: 500 },
+          { uomCode: "PC", priceType: "WHOLESALE", tierTag: "bulk", unitPrice: 450 },
+          { uomCode: "CASE", priceType: "RETAIL", tierTag: "default", unitPrice: 5000 },
+        ],
+      },
+      repo,
+    });
+
+    assert.equal(initial.prices.length, 3);
+
+    const trimmed = await upsertProductFromEncoding({
+      houseId: "house-1",
+      payload: {
+        itemId: initial.item.id,
+        name: "Pricey",
+        baseUom: { code: "PC" },
+        variants: [{ code: "CASE", factorToBase: 12 }],
+        barcodes: [{ code: "p-1" }],
+        prices: [
+          { uomCode: "PC", priceType: "RETAIL", tierTag: "default", unitPrice: 525 },
+          { uomCode: "CASE", priceType: "RETAIL", tierTag: "default", unitPrice: 4800 },
+        ],
+      },
+      repo,
+    });
+
+    assert.equal(trimmed.prices.length, 2);
+    assert.equal(extractPrice(trimmed).unit_price, 525);
+
+    const resaved = await upsertProductFromEncoding({
+      houseId: "house-1",
+      payload: {
+        itemId: initial.item.id,
+        name: "Pricey",
+        baseUom: { code: "PC" },
+        variants: [{ code: "CASE", factorToBase: 12 }],
+        barcodes: [{ code: "p-1" }],
+        prices: [
+          { uomCode: "PC", priceType: "RETAIL", tierTag: "default", unitPrice: 525 },
+          { uomCode: "CASE", priceType: "RETAIL", tierTag: "default", unitPrice: 4800 },
+        ],
+      },
+      repo,
+    });
+
+    assert.equal(resaved.prices.length, 2);
+    assert.equal(resaved.prices.filter((price) => price.tier_tag === "default").length, 2);
+  });
+
+  it("handles null-UOM prices during save and deletion", async () => {
+    const repo = createInMemoryProductRepository();
+    const initial = await upsertProductFromEncoding({
+      houseId: "house-1",
+      payload: {
+        name: "Loose Item",
+        baseUom: { code: "PC" },
+        barcodes: [{ code: "loose" }],
+        prices: [
+          { uomCode: null, priceType: "RETAIL", tierTag: "default", unitPrice: 300 },
+          { uomCode: "PC", priceType: "WHOLESALE", tierTag: "bulk", unitPrice: 250 },
+        ],
+      },
+      repo,
+    });
+
+    assert.ok(initial.prices.some((price) => price.uom_id === null));
+
+    const updated = await upsertProductFromEncoding({
+      houseId: "house-1",
+      payload: {
+        itemId: initial.item.id,
+        name: "Loose Item",
+        baseUom: { code: "PC" },
+        barcodes: [{ code: "loose" }],
+        prices: [{ uomCode: null, priceType: "RETAIL", tierTag: "default", unitPrice: 325 }],
+      },
+      repo,
+    });
+
+    assert.equal(updated.prices.length, 1);
+    assert.equal(updated.prices[0]?.uom_id, null);
+    assert.equal(updated.prices[0]?.unit_price, 325);
+  });
 });
