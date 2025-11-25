@@ -109,7 +109,7 @@ export async function adoptItemByBarcode({
     const name = placeholderName?.trim() || "Pending item";
     const { data: insertedItem, error: itemInsertError } = await client
       .from("items")
-      .insert({ name })
+      .insert({ name, house_id: houseId })
       .select("*")
       .single();
 
@@ -124,7 +124,7 @@ export async function adoptItemByBarcode({
 
     const { error: barcodeInsertError } = await client
       .from("item_barcodes")
-      .insert({ item_id: item.id, barcode: normalizedBarcode });
+      .insert({ house_id: houseId, item_id: item.id, barcode: normalizedBarcode });
 
     if (barcodeInsertError) {
       if (barcodeInsertError.code === UNIQUE_VIOLATION) {
