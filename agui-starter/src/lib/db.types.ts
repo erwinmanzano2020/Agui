@@ -338,45 +338,129 @@ export type GuildRoleUpdate = Partial<GuildRoleInsert>;
 
 export type ItemRow = {
   id: string;
-  slug: string;
+  house_id: string | null;
+  slug: string | null;
   name: string;
-  description: string | null;
+  short_name: string | null;
   brand: string | null;
   category: string | null;
+  is_sellable: boolean;
+  is_raw_material: boolean;
+  track_inventory: boolean;
+  meta: Json;
   created_at: string;
   updated_at: string | null;
 };
 
 export type ItemInsert = {
   id?: string;
-  slug: string;
+  house_id?: string | null;
+  slug?: string | null;
   name: string;
-  description?: string | null;
+  short_name?: string | null;
   brand?: string | null;
   category?: string | null;
+  is_sellable?: boolean;
+  is_raw_material?: boolean;
+  track_inventory?: boolean;
+  meta?: Json;
   created_at?: string;
   updated_at?: string | null;
 };
 
 export type ItemUpdate = Partial<ItemInsert>;
 
+export type ItemUomRow = {
+  id: string;
+  house_id: string;
+  item_id: string;
+  code: string;
+  name: string | null;
+  is_base: boolean;
+  factor_to_base: number;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type ItemUomInsert = {
+  id?: string;
+  house_id: string;
+  item_id: string;
+  code: string;
+  name?: string | null;
+  is_base?: boolean;
+  factor_to_base?: number;
+  created_at?: string;
+  updated_at?: string | null;
+};
+
+export type ItemUomUpdate = Partial<ItemUomInsert>;
+
 export type ItemBarcodeRow = {
   id: string;
+  house_id: string;
   item_id: string;
+  uom_id: string | null;
   barcode: string;
-  is_primary: boolean | null;
+  is_primary: boolean;
   created_at: string;
 };
 
 export type ItemBarcodeInsert = {
   id?: string;
+  house_id: string;
   item_id: string;
+  uom_id?: string | null;
   barcode: string;
-  is_primary?: boolean | null;
+  is_primary?: boolean;
   created_at?: string;
 };
 
 export type ItemBarcodeUpdate = Partial<ItemBarcodeInsert>;
+
+export type ItemPriceRow = {
+  id: string;
+  house_id: string;
+  item_id: string;
+  uom_id: string | null;
+  unit_price: number;
+  currency: string;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type ItemPriceInsert = {
+  id?: string;
+  house_id: string;
+  item_id: string;
+  uom_id?: string | null;
+  unit_price: number;
+  currency?: string;
+  created_at?: string;
+  updated_at?: string | null;
+};
+
+export type ItemPriceUpdate = Partial<ItemPriceInsert>;
+
+export type ItemPriceTierRow = {
+  id: string;
+  house_id: string;
+  item_price_id: string;
+  min_quantity: number;
+  unit_price: number;
+  created_at: string;
+};
+
+export type ItemPriceTierInsert = {
+  id?: string;
+  house_id: string;
+  item_price_id: string;
+  min_quantity?: number;
+  unit_price: number;
+  created_at?: string;
+};
+
+export type ItemPriceTierUpdate = Partial<ItemPriceTierInsert>;
 
 export type HouseItemRow = {
   id: string;
@@ -403,6 +487,46 @@ export type HouseItemInsert = {
 };
 
 export type HouseItemUpdate = Partial<HouseItemInsert>;
+
+export type CustomerGroupRow = {
+  id: string;
+  house_id: string;
+  name: string;
+  description: string | null;
+  created_at: string;
+};
+
+export type CustomerGroupInsert = {
+  id?: string;
+  house_id: string;
+  name: string;
+  description?: string | null;
+  created_at?: string;
+};
+
+export type CustomerGroupUpdate = Partial<CustomerGroupInsert>;
+
+export type CustomerGroupPriceRow = {
+  id: string;
+  house_id: string;
+  customer_group_id: string;
+  item_price_id: string;
+  min_quantity: number;
+  unit_price: number;
+  created_at: string;
+};
+
+export type CustomerGroupPriceInsert = {
+  id?: string;
+  house_id: string;
+  customer_group_id: string;
+  item_price_id: string;
+  min_quantity?: number;
+  unit_price: number;
+  created_at?: string;
+};
+
+export type CustomerGroupPriceUpdate = Partial<CustomerGroupPriceInsert>;
 
 export type HouseRoleRow = {
   id: string;
@@ -684,10 +808,27 @@ export interface Database {
       guilds: TableDefinition<GuildRow, GuildInsert, GuildUpdate>;
       guild_roles: TableDefinition<GuildRoleRow, GuildRoleInsert, GuildRoleUpdate>;
       items: TableDefinition<ItemRow, ItemInsert, ItemUpdate>;
+      item_uoms: TableDefinition<ItemUomRow, ItemUomInsert, ItemUomUpdate>;
       item_barcodes: TableDefinition<ItemBarcodeRow, ItemBarcodeInsert, ItemBarcodeUpdate>;
+      item_prices: TableDefinition<ItemPriceRow, ItemPriceInsert, ItemPriceUpdate>;
+      item_price_tiers: TableDefinition<
+        ItemPriceTierRow,
+        ItemPriceTierInsert,
+        ItemPriceTierUpdate
+      >;
       houses: TableDefinition<HouseRow, HouseInsert, HouseUpdate>;
       house_items: TableDefinition<HouseItemRow, HouseItemInsert, HouseItemUpdate>;
       house_roles: TableDefinition<HouseRoleRow, HouseRoleInsert, HouseRoleUpdate>;
+      customer_groups: TableDefinition<
+        CustomerGroupRow,
+        CustomerGroupInsert,
+        CustomerGroupUpdate
+      >;
+      customer_group_prices: TableDefinition<
+        CustomerGroupPriceRow,
+        CustomerGroupPriceInsert,
+        CustomerGroupPriceUpdate
+      >;
       platform_roles: TableDefinition<PlatformRolesRow, PlatformRolesInsert, PlatformRolesUpdate>;
       policies: TableDefinition<PolicyRow, PolicyInsert, PolicyUpdate>;
       roles: TableDefinition<RoleRow, RoleInsert, RoleUpdate>;

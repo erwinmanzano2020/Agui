@@ -5,6 +5,7 @@ import { uniqueSlug } from "@/lib/slug";
 
 export type ItemRecord = {
   id: string;
+  house_id: string | null;
   name: string;
   description: string | null;
   created_at: string;
@@ -61,6 +62,7 @@ export function parseItemRecord(input: unknown): ItemRecord {
   }
 
   const id = ensureString(input.id, "Item payload missing id");
+  const house_id = typeof input.house_id === "string" ? input.house_id : null;
   const name = ensureString(input.name, "Item payload missing name");
   const created_at = ensureTimestamp(input.created_at, "Item payload missing created_at");
   const updated_at = ensureTimestamp(input.updated_at, "Item payload missing updated_at");
@@ -68,6 +70,7 @@ export function parseItemRecord(input: unknown): ItemRecord {
 
   return {
     id,
+    house_id,
     name,
     description,
     created_at,
@@ -150,28 +153,33 @@ export function parseHouseInventoryRow(input: unknown): HouseInventoryItem {
   return { house_item, item, barcodes } satisfies HouseInventoryItem;
 }
 
-export async function findItemByBarcode(code: string, supabase?: SupabaseClient | null) {
+export async function findItemByBarcode(code: string, supabase?: SupabaseClient | null, houseId?: string | null) {
   const db = supabase ?? getSupabase(); if (!db) return null;
-  const { data: row } = await db
-    .from("item_barcodes")
-    .select("item_id")
-    .eq("barcode", code)
-    .maybeSingle();
+  let query = db.from("item_barcodes").select("item_id").eq("barcode", code);
+  if (houseId) {
+    query = query.eq("house_id", houseId);
+  }
+  const { data: row } = await query.maybeSingle();
   if (!row?.item_id) return null;
-  const { data: item } = await db.from("items").select("*").eq("id", row.item_id).maybeSingle();
+  const { data: item } = await db
+    .from("items")
+    .select("*")
+    .eq("id", row.item_id)
+    .maybeSingle();
   return item ?? null;
 }
 
 export type EnsureGlobalItemOptions = {
   supabase?: SupabaseClient | null;
+  houseId: string;
   nameHint?: string;
   brand?: string;
   category?: string;
 };
 
-export async function ensureGlobalItemFromBarcode(code: string, opts: EnsureGlobalItemOptions = {}) {
+export async function ensureGlobalItemFromBarcode(code: string, opts: EnsureGlobalItemOptions) {
   const db = opts.supabase ?? getSupabase(); if (!db) throw new Error("DB unavailable");
-  const found = await findItemByBarcode(code, db);
+  const found = await findItemByBarcode(code, db, opts.houseId);
   if (found) return found;
 
   const baseName = opts.nameHint?.trim() || `Unknown ${code.slice(-6)}`;
@@ -186,7 +194,13 @@ export async function ensureGlobalItemFromBarcode(code: string, opts: EnsureGlob
   });
   const { data: item, error: e1 } = await db
     .from("items")
-    .insert({ name: baseName, slug, brand: opts.brand ?? null, category: opts.category ?? null })
+    .insert({
+      name: baseName,
+      slug,
+      brand: opts.brand ?? null,
+      category: opts.category ?? null,
+      house_id: opts.houseId,
+    })
     .select("*")
     .single();
   if (e1) throw new Error(e1.message);
@@ -195,7 +209,7 @@ export async function ensureGlobalItemFromBarcode(code: string, opts: EnsureGlob
 
   const { error: e2 } = await db
     .from("item_barcodes")
-    .insert({ item_id: insertedItem.id, barcode: code, is_primary: true });
+    .insert({ house_id: opts.houseId, item_id: insertedItem.id, barcode: code, is_primary: true });
   if (e2) throw new Error(e2.message);
   return insertedItem;
 }
