@@ -291,6 +291,7 @@ export async function getPriceForCustomerGroup({
   customerGroup: CustomerGroupRow | null;
 }> {
   const store = resolveRepository(repo, supabase);
+  const _customerGroupId = customerGroupId ?? null;
   const snapshot = await store.loadSnapshot(houseId, itemId);
   if (!snapshot) {
     throw new Error("Item not found for pricing");
@@ -302,6 +303,10 @@ export async function getPriceForCustomerGroup({
   }
 
   const tier = resolveTierForQuantity(price.tiers, quantity);
+
+  // Customer-group-aware pricing is not yet implemented; capture the intent for future work.
+  void _customerGroupId;
+
   return { unitPrice: tier ? tier.unit_price : price.unit_price, tier, customerGroup: null };
 }
 

@@ -108,4 +108,64 @@ describe("pos product helpers", () => {
     });
     assert.equal(priceForBulk.unitPrice, 900);
   });
+
+  it("upserts a price for the same item and UOM without duplicating", async () => {
+    const repo = createInMemoryProductRepository();
+    const first = await upsertProductFromEncoding({
+      houseId: "house-1",
+      payload: {
+        name: "Repriced Item",
+        baseUom: { code: "PC" },
+        basePrice: 1000,
+      },
+      repo,
+    });
+
+    const updated = await upsertProductFromEncoding({
+      houseId: "house-1",
+      payload: {
+        itemId: first.item.id,
+        name: "Repriced Item",
+        baseUom: { code: "PC" },
+        basePrice: 1250,
+      },
+      repo,
+    });
+
+    assert.equal(updated.prices.length, 1);
+    assert.equal(extractBasePrice(updated).unit_price, 1250);
+  });
+
+  it("treats null UOM prices as unique per item", async () => {
+    const repo = createInMemoryProductRepository();
+
+    const item = await repo.upsertItem({
+      house_id: "house-1",
+      name: "Service Fee",
+      slug: "service-fee",
+      short_name: "Fee",
+    });
+
+    const first = await repo.upsertPrice({
+      house_id: "house-1",
+      item_id: item.id,
+      uom_id: null,
+      unit_price: 3000,
+      currency: "PHP",
+    });
+
+    const second = await repo.upsertPrice({
+      house_id: "house-1",
+      item_id: item.id,
+      uom_id: null,
+      unit_price: 3500,
+      currency: "PHP",
+    });
+
+    const snapshot = await repo.loadSnapshot("house-1", item.id);
+    assert.ok(snapshot);
+    assert.equal(snapshot?.prices.length, 1);
+    assert.equal(second.id, first.id);
+    assert.equal(snapshot?.prices[0]?.unit_price, 3500);
+  });
 });
