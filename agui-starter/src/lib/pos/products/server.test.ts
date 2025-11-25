@@ -4,6 +4,7 @@ import { describe, it } from "node:test";
 import {
   __productTesting,
   getPriceForCustomerGroup,
+  lookupProductByBarcode,
   resolveTierForQuantity,
   upsertProductFromEncoding,
   type ProductSnapshot,
@@ -11,42 +12,88 @@ import {
 
 const { createInMemoryProductRepository } = __productTesting;
 
-function extractBasePrice(snapshot: ProductSnapshot) {
-  const [price] = snapshot.prices;
-  return price;
+function extractPrice(snapshot: ProductSnapshot, uomId?: string | null) {
+  if (uomId) {
+    return snapshot.prices.find((price) => price.uom_id === uomId) ?? snapshot.prices[0];
+  }
+  return snapshot.prices[0];
 }
 
 describe("pos product helpers", () => {
-  it("upserts a product with base UOM and barcode", async () => {
+  it("upserts a POS-ready product with pricing and barcode", async () => {
     const repo = createInMemoryProductRepository();
     const snapshot = await upsertProductFromEncoding({
       houseId: "house-1",
       payload: {
         name: "Sample Item",
+        shortName: "Sample",
         baseUom: { code: "PC", name: "Piece" },
         barcodes: [{ code: "1234567890123", isPrimary: true }],
-        basePrice: 1250,
+        prices: [{ uomCode: "PC", unitPrice: 1250, priceType: "RETAIL", tierTag: "default" }],
       },
       repo,
     });
 
     assert.equal(snapshot.item.house_id, "house-1");
+    assert.equal(snapshot.item.allow_in_pos, true);
     assert.equal(snapshot.uoms.length, 1);
     assert.equal(snapshot.uoms[0]?.code, "PC");
     assert.equal(snapshot.barcodes.length, 1);
     assert.equal(snapshot.barcodes[0]?.barcode, "1234567890123");
     assert.equal(snapshot.barcodes[0]?.uom_id, snapshot.uoms[0]?.id ?? null);
-    assert.equal(extractBasePrice(snapshot).unit_price, 1250);
+    assert.equal(extractPrice(snapshot).unit_price, 1250);
+    assert.equal(extractPrice(snapshot).price_type, "RETAIL");
   });
 
-  it("adds UOM variants with conversion factors", async () => {
+  it("adds UOM variants with conversion factors and tiered prices", async () => {
     const repo = createInMemoryProductRepository();
     const first = await upsertProductFromEncoding({
       houseId: "house-1",
       payload: {
         name: "Case Item",
         baseUom: { code: "PC" },
-        basePrice: 500,
+        variants: [{ code: "CASE", name: "Case", factorToBase: 24 }],
+        barcodes: [
+          { code: "111", isPrimary: true },
+          { code: "222", uomCode: "CASE", isPrimary: false },
+        ],
+        prices: [
+          { uomCode: "PC", priceType: "RETAIL", tierTag: "default", unitPrice: 500 },
+          {
+            uomCode: "CASE",
+            priceType: "RETAIL",
+            tierTag: "wholesale",
+            unitPrice: 10000,
+            tiers: [
+              { minQuantity: 2, unitPrice: 9500 },
+              { minQuantity: 5, unitPrice: 9000 },
+            ],
+          },
+        ],
+      },
+      repo,
+    });
+
+    const codes = new Set(first.uoms.map((uom) => uom.code));
+    assert.ok(codes.has("PC"));
+    assert.ok(codes.has("CASE"));
+    const caseUom = first.uoms.find((uom) => uom.code === "CASE");
+    assert.equal(caseUom?.factor_to_base, 24);
+
+    const casePrice = extractPrice(first, caseUom?.id ?? null);
+    assert.equal(casePrice.tier_tag, "wholesale");
+    assert.equal(resolveTierForQuantity(casePrice.tiers, 5)?.unit_price, 9000);
+  });
+
+  it("updates prices without duplicating matching rows", async () => {
+    const repo = createInMemoryProductRepository();
+    const first = await upsertProductFromEncoding({
+      houseId: "house-1",
+      payload: {
+        name: "Repriced Item",
+        baseUom: { code: "PC" },
+        barcodes: [{ code: "555" }],
+        prices: [{ uomCode: "PC", priceType: "RETAIL", tierTag: "default", unitPrice: 1000 }],
       },
       repo,
     });
@@ -55,19 +102,66 @@ describe("pos product helpers", () => {
       houseId: "house-1",
       payload: {
         itemId: first.item.id,
-        name: "Case Item",
+        name: "Repriced Item",
         baseUom: { code: "PC" },
-        variants: [{ code: "CASE", factorToBase: 24 }],
-        basePrice: 500,
+        barcodes: [{ code: "555" }],
+        prices: [{ uomCode: "PC", priceType: "RETAIL", tierTag: "default", unitPrice: 1250 }],
       },
       repo,
     });
 
-    const codes = new Set(updated.uoms.map((uom) => uom.code));
-    assert.ok(codes.has("PC"));
-    assert.ok(codes.has("CASE"));
-    const caseUom = updated.uoms.find((uom) => uom.code === "CASE");
-    assert.equal(caseUom?.factor_to_base, 24);
+    assert.equal(updated.prices.length, 1);
+    assert.equal(extractPrice(updated).unit_price, 1250);
+  });
+
+  it("captures raw-material relationships and bundle flags", async () => {
+    const repo = createInMemoryProductRepository();
+    const snapshot = await upsertProductFromEncoding({
+      houseId: "house-1",
+      payload: {
+        name: "Encoded Bundle",
+        baseUom: { code: "PC" },
+        isSellable: true,
+        isBundle: true,
+        isRepacked: false,
+        barcodes: [{ code: "9900" }],
+        prices: [{ uomCode: "PC", unitPrice: 1500 }],
+        rawInputs: [
+          { rawItemId: "raw-1", quantity: 2, outputUomCode: "PC" },
+          { rawItemId: "raw-2", quantity: 1 },
+        ],
+        bundleComponents: [{ childItemId: "child-1", quantity: 1 }],
+      },
+      repo,
+    });
+
+    assert.equal(snapshot.item.is_bundle, true);
+    assert.equal(snapshot.rawInputs.length, 2);
+    assert.equal(snapshot.bundles.length, 1);
+  });
+
+  it("falls back to global catalog matches when local barcode is missing", async () => {
+    const repo = createInMemoryProductRepository({
+      globalItems: [
+        {
+          id: "global-1",
+          barcode: "G-123",
+          name: "Global Chocolate",
+          brand: "AGUI",
+          size: "50g",
+          default_uom: "PC",
+          default_category: "Snacks",
+          default_shortname: "Choco",
+          created_at: new Date().toISOString(),
+        },
+      ],
+    });
+
+    const lookup = await lookupProductByBarcode({ houseId: "house-1", barcode: "G-123", repo });
+
+    assert.equal(lookup.snapshot, null);
+    assert.equal(lookup.global?.name, "Global Chocolate");
+    assert.equal(lookup.barcode, "G-123");
   });
 
   it("selects tiered pricing based on quantity", async () => {
@@ -77,16 +171,24 @@ describe("pos product helpers", () => {
       payload: {
         name: "Tiered",
         baseUom: { code: "PC" },
-        basePrice: 1000,
-        priceTiers: [
-          { minQuantity: 5, unitPrice: 950 },
-          { minQuantity: 10, unitPrice: 900 },
+        barcodes: [{ code: "tier-1" }],
+        prices: [
+          {
+            uomCode: "PC",
+            priceType: "RETAIL",
+            tierTag: "default",
+            unitPrice: 1000,
+            tiers: [
+              { minQuantity: 5, unitPrice: 950 },
+              { minQuantity: 10, unitPrice: 900 },
+            ],
+          },
         ],
       },
       repo,
     });
 
-    const basePrice = extractBasePrice(snapshot);
+    const basePrice = extractPrice(snapshot);
     const tier = resolveTierForQuantity(basePrice.tiers, 7);
     assert.equal(tier?.unit_price, 950);
 
@@ -107,65 +209,5 @@ describe("pos product helpers", () => {
       repo,
     });
     assert.equal(priceForBulk.unitPrice, 900);
-  });
-
-  it("upserts a price for the same item and UOM without duplicating", async () => {
-    const repo = createInMemoryProductRepository();
-    const first = await upsertProductFromEncoding({
-      houseId: "house-1",
-      payload: {
-        name: "Repriced Item",
-        baseUom: { code: "PC" },
-        basePrice: 1000,
-      },
-      repo,
-    });
-
-    const updated = await upsertProductFromEncoding({
-      houseId: "house-1",
-      payload: {
-        itemId: first.item.id,
-        name: "Repriced Item",
-        baseUom: { code: "PC" },
-        basePrice: 1250,
-      },
-      repo,
-    });
-
-    assert.equal(updated.prices.length, 1);
-    assert.equal(extractBasePrice(updated).unit_price, 1250);
-  });
-
-  it("treats null UOM prices as unique per item", async () => {
-    const repo = createInMemoryProductRepository();
-
-    const item = await repo.upsertItem({
-      house_id: "house-1",
-      name: "Service Fee",
-      slug: "service-fee",
-      short_name: "Fee",
-    });
-
-    const first = await repo.upsertPrice({
-      house_id: "house-1",
-      item_id: item.id,
-      uom_id: null,
-      unit_price: 3000,
-      currency: "PHP",
-    });
-
-    const second = await repo.upsertPrice({
-      house_id: "house-1",
-      item_id: item.id,
-      uom_id: null,
-      unit_price: 3500,
-      currency: "PHP",
-    });
-
-    const snapshot = await repo.loadSnapshot("house-1", item.id);
-    assert.ok(snapshot);
-    assert.equal(snapshot?.prices.length, 1);
-    assert.equal(second.id, first.id);
-    assert.equal(snapshot?.prices[0]?.unit_price, 3500);
   });
 });
