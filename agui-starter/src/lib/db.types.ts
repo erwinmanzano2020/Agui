@@ -872,6 +872,112 @@ export type BrandOwnerViewRow = {
   brand_name: string;
 };
 
+export type PosSaleRow = {
+  id: string;
+  house_id: string;
+  workspace_id: string | null;
+  sequence_no: number | null;
+  status: string;
+  subtotal_cents: number;
+  discount_cents: number;
+  total_cents: number;
+  amount_received_cents: number;
+  change_cents: number;
+  outstanding_cents: number;
+  customer_name: string | null;
+  customer_ref: string | null;
+  meta: Json | null;
+  created_at: string;
+  created_by: string | null;
+  closed_at: string | null;
+};
+
+export type PosSaleInsert = {
+  id?: string;
+  house_id: string;
+  workspace_id?: string | null;
+  sequence_no?: number | null;
+  status?: string;
+  subtotal_cents: number;
+  discount_cents?: number;
+  total_cents: number;
+  amount_received_cents: number;
+  change_cents: number;
+  outstanding_cents: number;
+  customer_name?: string | null;
+  customer_ref?: string | null;
+  meta?: Json | null;
+  created_at?: string;
+  created_by?: string | null;
+  closed_at?: string | null;
+};
+
+export type PosSaleUpdate = Partial<PosSaleInsert>;
+
+export type PosSaleLineRow = {
+  id: string;
+  sale_id: string;
+  house_id: string;
+  item_id: string;
+  uom_id: string | null;
+  barcode: string | null;
+  name_snapshot: string;
+  uom_label_snapshot: string | null;
+  quantity: number;
+  unit_price_cents: number;
+  line_total_cents: number;
+  tier_applied: string | null;
+  meta: Json | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type PosSaleLineInsert = {
+  id?: string;
+  sale_id: string;
+  house_id: string;
+  item_id: string;
+  uom_id?: string | null;
+  barcode?: string | null;
+  name_snapshot: string;
+  uom_label_snapshot?: string | null;
+  quantity: number;
+  unit_price_cents: number;
+  line_total_cents: number;
+  tier_applied?: string | null;
+  meta?: Json | null;
+  created_at?: string;
+  updated_at?: string | null;
+};
+
+export type PosSaleLineUpdate = Partial<PosSaleLineInsert>;
+
+export type PosSaleTenderRow = {
+  id: string;
+  sale_id: string;
+  house_id: string;
+  tender_type: string;
+  amount_cents: number;
+  reference: string | null;
+  meta: Json | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type PosSaleTenderInsert = {
+  id?: string;
+  sale_id: string;
+  house_id: string;
+  tender_type: string;
+  amount_cents: number;
+  reference?: string | null;
+  meta?: Json | null;
+  created_at?: string;
+  updated_at?: string | null;
+};
+
+export type PosSaleTenderUpdate = Partial<PosSaleTenderInsert>;
+
 type TableDefinition<RowType, InsertType, UpdateType> = {
   Row: RowType;
   Insert: InsertType;
@@ -991,6 +1097,9 @@ export interface Database {
         SettingsAuditInsert,
         SettingsAuditUpdate
       >;
+      pos_sales: TableDefinition<PosSaleRow, PosSaleInsert, PosSaleUpdate>;
+      pos_sale_lines: TableDefinition<PosSaleLineRow, PosSaleLineInsert, PosSaleLineUpdate>;
+      pos_sale_tenders: TableDefinition<PosSaleTenderRow, PosSaleTenderInsert, PosSaleTenderUpdate>;
     };
     Views: Record<string, GenericViewDefinition> & {
       v_loyalty_memberships: ViewDefinition<LoyaltyMembershipViewRow>;
