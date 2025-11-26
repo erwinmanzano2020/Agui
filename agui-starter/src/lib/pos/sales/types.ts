@@ -30,8 +30,8 @@ export type CheckoutInput = {
   houseId: string;
   cart: SalesCartSnapshot;
   tenders: TenderInput[];
+  customerId?: string | null;
   customerName?: string | null;
-  customerRef?: string | null;
   meta?: Json | Record<string, unknown> | null;
 };
 
@@ -53,4 +53,6 @@ export type SaleSummary = {
   changeCents: number;
   outstandingCents: number;
   createdAt: string;
+  customerId: string | null;
+  customerName: string | null;
 };

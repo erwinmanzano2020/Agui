@@ -73,6 +73,7 @@ export function createInMemorySaleRepository(initial?: Partial<{
         amount_received_cents: payload.amount_received_cents,
         change_cents: payload.change_cents,
         outstanding_cents: payload.outstanding_cents,
+        customer_entity_id: payload.customer_entity_id ?? null,
         customer_name: payload.customer_name ?? null,
         customer_ref: payload.customer_ref ?? null,
         meta: (payload.meta as PosSaleRow["meta"]) ?? null,
@@ -134,7 +135,7 @@ function resolveRepository(client?: SupabaseClient<Database> | SaleRepository | 
 }
 
 export async function createSale(input: CheckoutInput, client?: SupabaseClient<Database> | SaleRepository): Promise<SaleSummary> {
-  const { cart, tenders, totals, customerName, customerRef, meta } = summarizeCheckout(input);
+  const { cart, tenders, totals, customerId, customerName, meta } = summarizeCheckout(input);
   const repository = resolveRepository(client);
   const now = new Date().toISOString();
 
@@ -149,8 +150,8 @@ export async function createSale(input: CheckoutInput, client?: SupabaseClient<D
     amount_received_cents: totals.amountReceivedCents,
     change_cents: totals.changeCents,
     outstanding_cents: totals.outstandingCents,
+    customer_entity_id: customerId,
     customer_name: customerName,
-    customer_ref: customerRef,
     meta: meta as PosSaleInsert["meta"],
     created_at: now,
     created_by: null,
@@ -196,5 +197,7 @@ export async function createSale(input: CheckoutInput, client?: SupabaseClient<D
     changeCents: totals.changeCents,
     outstandingCents: totals.outstandingCents,
     createdAt: saleRow.created_at,
+    customerId: saleRow.customer_entity_id,
+    customerName: saleRow.customer_name,
   } satisfies SaleSummary;
 }

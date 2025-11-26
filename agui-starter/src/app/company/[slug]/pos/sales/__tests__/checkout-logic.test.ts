@@ -26,7 +26,7 @@ const cartState: PosCartState = {
 };
 
 function blankForm() {
-  return { cash: "", ewallet: "", credit: "", ewalletRef: "", customerName: "" };
+  return { cash: "", ewallet: "", credit: "", ewalletRef: "", customerId: "", customerName: "" };
 }
 
 test("cart totals flow into checkout state", () => {
@@ -44,10 +44,13 @@ test("mixed tenders compute change and outstanding", () => {
 test("credit requires a customer before confirming", () => {
   const creditOnly = deriveCheckoutState(cartState, { ...blankForm(), credit: "180" });
   assert.equal(creditOnly.canConfirm, false);
-  assert.equal(creditOnly.validationError, "Please select or enter a customer name for credit sales.");
+  assert.equal(creditOnly.validationError, "Credit requires a customer");
 
   const withCustomer = deriveCheckoutState(cartState, { ...blankForm(), credit: "180", customerName: "Ana" });
   assert.equal(withCustomer.canConfirm, true);
+
+  const withCustomerId = deriveCheckoutState(cartState, { ...blankForm(), credit: "180", customerId: "entity-1" });
+  assert.equal(withCustomerId.canConfirm, true);
 });
 
 test("over-credit is flagged and prevents confirmation", () => {
