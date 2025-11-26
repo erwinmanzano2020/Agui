@@ -3,6 +3,8 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requirePosAccess } from "@/lib/pos/access";
 import { getPriceForCustomerGroup, lookupProductByBarcode } from "@/lib/pos/products/server";
+import { createSale } from "@/lib/pos/sales/server";
+import type { SalesCartSnapshot, TenderInput } from "@/lib/pos/sales/types";
 
 type ResolvedUom = { id: string; code: string; label: string | null; factorToBase: number; isBase?: boolean };
 
@@ -92,4 +94,22 @@ export async function priceSaleLine(
   });
 
   return { unitPrice, tierTag: tier ? `Qty ${tier.min_quantity}+` : null } as const;
+}
+
+export async function finalizeSaleAction(
+  slug: string,
+  input: { cart: SalesCartSnapshot; tenders: TenderInput[]; customerName?: string | null; customerRef?: string | null },
+) {
+  const { house, supabase } = await resolveHouse(slug);
+
+  return createSale(
+    {
+      houseId: house.id,
+      cart: input.cart,
+      tenders: input.tenders,
+      customerName: input.customerName,
+      customerRef: input.customerRef,
+    },
+    supabase,
+  );
 }

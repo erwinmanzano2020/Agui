@@ -5,10 +5,18 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { formatMoney, type CartUom, type PosCartLine, usePosCart } from "@/lib/pos/sales-cart";
+import { useToast } from "@/components/ui/toaster";
+import type { SalesCartSnapshot, TenderInput } from "@/lib/pos/sales/types";
+import { formatMoney, type CartUom, type PosCartLine, type PosCartState, usePosCart } from "@/lib/pos/sales-cart";
 import type { WorkspaceSettings } from "@/lib/settings/workspace";
 
-import { priceSaleLine, resolveSaleScan } from "./actions";
+import { finalizeSaleAction, priceSaleLine, resolveSaleScan } from "./actions";
+import {
+  centsToInput,
+  deriveCheckoutState,
+  parseInputToCents,
+  type TenderFormState,
+} from "./checkout-helpers";
 
 type Props = {
   slug: string;
@@ -210,11 +218,193 @@ function PosScanBar({
   );
 }
 
+export function PosCheckoutPanel({
+  cartState,
+  onConfirm,
+  onResetCart,
+  onRepeatLastLine,
+  isCartPending,
+}: {
+  cartState: PosCartState;
+  onConfirm: (input: { cart: SalesCartSnapshot; tenders: TenderInput[]; customerName?: string | null }) => Promise<void>;
+  onResetCart: () => void;
+  onRepeatLastLine: () => void;
+  isCartPending: boolean;
+}) {
+  const [form, setForm] = useState<TenderFormState>({
+    cash: "",
+    ewallet: "",
+    credit: "",
+    ewalletRef: "",
+    customerName: "",
+  });
+  const [showRef, setShowRef] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSubmitting, startSubmit] = useTransition();
+
+  useEffect(() => {
+    setForm((current) => {
+      const hasCash = parseInputToCents(current.cash) > 0;
+      if (hasCash) return current;
+      return { ...current, cash: centsToInput(cartState.subtotal) };
+    });
+  }, [cartState.subtotal]);
+  const checkoutState = useMemo(() => deriveCheckoutState(cartState, form), [cartState, form]);
+  const { cartSnapshot, tenderInputs, previewTotals, requiresCustomer, creditMismatch, canConfirm, trimmedCustomer } =
+    checkoutState;
+  const totalTendered = previewTotals.amountReceivedCents + previewTotals.sumCreditCents;
+
+  const disabled = isSubmitting || isCartPending || !canConfirm;
+
+  const resetForm = () =>
+    setForm({ cash: centsToInput(cartState.subtotal), ewallet: "", credit: "", ewalletRef: "", customerName: "" });
+
+  const handleConfirm = () => {
+    startSubmit(async () => {
+      try {
+        setError(null);
+        await onConfirm({ cart: cartSnapshot, tenders: tenderInputs, customerName: trimmedCustomer || null });
+        resetForm();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Unable to finalize sale");
+      }
+    });
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="text-lg font-semibold">Checkout</div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="space-y-2 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Subtotal</span>
+            <span className="font-semibold">{formatMoney(cartSnapshot.subtotalCents)}</span>
+          </div>
+          <div className="flex items-center justify-between text-muted-foreground">
+            <span>Discount</span>
+            <span>—</span>
+          </div>
+          <div className="flex items-center justify-between font-semibold">
+            <span>Total</span>
+            <span>{formatMoney(cartSnapshot.subtotalCents)}</span>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-sm">Cash</label>
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              inputMode="decimal"
+              aria-label="Cash amount"
+              value={form.cash}
+              onChange={(event) => setForm((current) => ({ ...current, cash: event.target.value }))}
+              className="h-10 w-40 text-right"
+            />
+          </div>
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <label className="text-sm">E-wallet / Bank</label>
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                inputMode="decimal"
+                aria-label="E-wallet amount"
+                value={form.ewallet}
+                onChange={(event) => setForm((current) => ({ ...current, ewallet: event.target.value }))}
+                className="h-10 w-40 text-right"
+              />
+            </div>
+            {showRef || form.ewalletRef ? (
+              <Input
+                placeholder="Reference (optional)"
+                aria-label="E-wallet reference"
+                value={form.ewalletRef}
+                onChange={(event) => setForm((current) => ({ ...current, ewalletRef: event.target.value }))}
+                className="h-9"
+              />
+            ) : (
+              <button type="button" className="text-xs text-primary underline" onClick={() => setShowRef(true)}>
+                Add reference
+              </button>
+            )}
+          </div>
+          <div className="flex items-center justify-between">
+            <label className="text-sm">Credit / Utang</label>
+            <Input
+              type="number"
+              min={0}
+              step="0.01"
+              inputMode="decimal"
+              aria-label="Credit amount"
+              value={form.credit}
+              onChange={(event) => setForm((current) => ({ ...current, credit: event.target.value }))}
+              className="h-10 w-40 text-right"
+            />
+          </div>
+        </div>
+
+        <div className="space-y-1 rounded-md bg-muted/40 p-3 text-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Total tendered</span>
+            <span className="font-semibold">{formatMoney(totalTendered)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Change</span>
+            <span className="font-semibold">{formatMoney(previewTotals.changeCents)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-muted-foreground">Outstanding</span>
+            <span className="font-semibold">{formatMoney(previewTotals.outstandingCents)}</span>
+          </div>
+        </div>
+
+        {requiresCustomer ? (
+          <div className="space-y-1">
+            <label className="text-sm font-medium">Customer name (required for credit)</label>
+            <Input
+              aria-label="Customer name"
+              value={form.customerName}
+              onChange={(event) => setForm((current) => ({ ...current, customerName: event.target.value }))}
+              placeholder="Name or short note"
+            />
+          </div>
+        ) : null}
+
+        {creditMismatch ? (
+          <p className="text-sm text-destructive">Outstanding must match the credit amount.</p>
+        ) : null}
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+
+        <div className="flex flex-col gap-2">
+          <Button className="w-full" disabled={disabled} onClick={handleConfirm}>
+            {isSubmitting ? "Confirming..." : "Confirm sale"}
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" className="w-1/2" onClick={onRepeatLastLine} disabled={isCartPending}>
+              Repeat last line
+            </Button>
+            <Button variant="outline" className="w-1/2" onClick={onResetCart} disabled={isCartPending}>
+              Clear cart
+            </Button>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   const { state, addOrUpdateLine, updateQuantity, changeUom, removeLine, repeatLastLine, resetCart } = usePosCart();
   const [scanValue, setScanValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const toast = useToast();
 
   const parseScan = useMemo(() => {
     const regex = /^(\d+)\*(.+)$/;
@@ -305,6 +495,16 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [repeatLastLine]);
 
+  const handleConfirmSale = async (payload: {
+    cart: SalesCartSnapshot;
+    tenders: TenderInput[];
+    customerName?: string | null;
+  }) => {
+    const summary = await finalizeSaleAction(slug, payload);
+    toast.success(`Sale completed. Change: ${formatMoney(summary.changeCents)}`);
+    resetCart();
+  };
+
   return (
     <div className="flex flex-col gap-4 bg-slate-50 p-4">
       <PosHeader houseName={houseName} labels={labels} />
@@ -319,21 +519,15 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
             isPending={isPending}
           />
         </div>
-        <div className="w-full space-y-3 lg:w-80">
+        <div className="w-full space-y-3 lg:w-96">
           <PosTotals subtotal={state.subtotal} />
-          <Card>
-            <CardContent className="flex flex-col gap-2 pt-6">
-              <Button variant="outline" className="w-full" onClick={() => repeatLastLine()} disabled={isPending}>
-                Repeat last line
-              </Button>
-              <Button variant="outline" className="w-full" onClick={() => resetCart()} disabled={isPending}>
-                Clear cart
-              </Button>
-              <Button className="w-full" disabled title="Coming soon">
-                Checkout (soon)
-              </Button>
-            </CardContent>
-          </Card>
+          <PosCheckoutPanel
+            cartState={state}
+            onConfirm={handleConfirmSale}
+            onResetCart={resetCart}
+            onRepeatLastLine={repeatLastLine}
+            isCartPending={isPending}
+          />
         </div>
       </div>
     </div>
