@@ -53,16 +53,32 @@ export function buildTenderInputs(form: TenderFormState): TenderInput[] {
 export function deriveCheckoutState(cartState: PosCartState, form: TenderFormState) {
   const cartSnapshot = toCartSnapshot(cartState);
   const tenderInputs = buildTenderInputs(form);
-  const previewTotals = computePreviewTotals(cartSnapshot, tenderInputs);
+  let previewTotals: ReturnType<typeof computePreviewTotals>;
+  let validationError: string | null = null;
+  try {
+    previewTotals = computePreviewTotals(cartSnapshot, tenderInputs);
+  } catch (err) {
+    validationError = err instanceof Error ? err.message : "Invalid tender amounts";
+    const totalCents = cartSnapshot.subtotalCents - (cartSnapshot.discountCents ?? 0);
+    previewTotals = {
+      subtotalCents: cartSnapshot.subtotalCents,
+      discountCents: cartSnapshot.discountCents ?? 0,
+      totalCents,
+      amountReceivedCents: 0,
+      changeCents: 0,
+      outstandingCents: Math.max(0, totalCents),
+      sumCashCents: 0,
+      sumNonCashNonCreditCents: 0,
+      sumCreditCents: 0,
+    };
+  }
   const requiresCustomer = previewTotals.outstandingCents > 0;
-  const creditAmount = tenderInputs.find((entry) => entry.type === "CREDIT")?.amount ?? 0;
-  const creditMismatch = requiresCustomer && previewTotals.outstandingCents !== creditAmount;
   const hasLines = cartState.lines.length > 0;
   const trimmedCustomer = form.customerName.trim();
   const canConfirm =
     hasLines &&
     tenderInputs.length > 0 &&
-    !creditMismatch &&
+    !validationError &&
     (!requiresCustomer || Boolean(trimmedCustomer)) &&
     previewTotals.outstandingCents >= 0;
 
@@ -71,7 +87,7 @@ export function deriveCheckoutState(cartState: PosCartState, form: TenderFormSta
     tenderInputs,
     previewTotals,
     requiresCustomer,
-    creditMismatch,
+    validationError,
     canConfirm,
     trimmedCustomer,
   } as const;

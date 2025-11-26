@@ -37,7 +37,7 @@ test("cart totals flow into checkout state", () => {
 test("mixed tenders compute change and outstanding", () => {
   const result = deriveCheckoutState(cartState, { ...blankForm(), cash: "100", ewallet: "50", credit: "30" });
   assert.equal(result.previewTotals.changeCents, 0);
-  assert.equal(result.previewTotals.outstandingCents, 3000);
+  assert.equal(result.previewTotals.outstandingCents, 5000);
 });
 
 test("credit requires a customer before confirming", () => {
@@ -46,4 +46,10 @@ test("credit requires a customer before confirming", () => {
 
   const withCustomer = deriveCheckoutState(cartState, { ...blankForm(), credit: "180", customerName: "Ana" });
   assert.equal(withCustomer.canConfirm, true);
+});
+
+test("over-credit is flagged and prevents confirmation", () => {
+  const result = deriveCheckoutState(cartState, { ...blankForm(), credit: "200" });
+  assert.equal(result.validationError, "Credit amount exceeds remaining balance");
+  assert.equal(result.canConfirm, false);
 });

@@ -131,6 +131,7 @@ function clampTenderAmount(amount: number): number {
 }
 
 export function tallyTenderMath(totalCents: number, tenders: Array<{ type: TenderInput["type"]; amount: number }>): CheckoutTotals {
+  const normalizedTotal = clampTenderAmount(totalCents);
   const sumCash = tenders
     .filter((entry) => entry.type === "CASH")
     .reduce((sum, entry) => sum + clampTenderAmount(entry.amount), 0);
@@ -142,13 +143,19 @@ export function tallyTenderMath(totalCents: number, tenders: Array<{ type: Tende
     .reduce((sum, entry) => sum + clampTenderAmount(entry.amount), 0);
 
   const amountReceivedCents = sumCash + sumNonCashNonCredit;
-  const changeCents = Math.max(0, amountReceivedCents - totalCents + sumCredit);
-  const outstandingCents = Math.max(0, totalCents - (amountReceivedCents - changeCents));
+  const changeCents = Math.max(0, amountReceivedCents - normalizedTotal);
+  const remainingAfterNonCredit = Math.max(0, normalizedTotal - amountReceivedCents);
+
+  if (sumCredit > remainingAfterNonCredit) {
+    throw new Error("Credit amount exceeds remaining balance");
+  }
+
+  const outstandingCents = remainingAfterNonCredit - sumCredit;
 
   return {
-    subtotalCents: totalCents,
+    subtotalCents: normalizedTotal,
     discountCents: 0,
-    totalCents,
+    totalCents: normalizedTotal,
     amountReceivedCents,
     changeCents,
     outstandingCents,
@@ -180,12 +187,8 @@ export function summarizeCheckout(input: CheckoutInput): CheckoutComputation {
     throw new Error("Totals cannot be negative");
   }
 
-  if (totals.outstandingCents < 0) {
-    throw new Error("Outstanding amount cannot be negative");
-  }
-
-  if (totals.outstandingCents > 0 && totals.outstandingCents !== totals.sumCreditCents) {
-    throw new Error("Credit tender must match outstanding amount");
+  if (totals.outstandingCents < 0 || totals.outstandingCents > totals.totalCents) {
+    throw new Error("Outstanding amount is invalid");
   }
 
   const customerName = toNullableString(input.customerName);

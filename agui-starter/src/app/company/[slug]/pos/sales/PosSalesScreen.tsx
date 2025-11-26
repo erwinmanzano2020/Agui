@@ -250,7 +250,7 @@ export function PosCheckoutPanel({
     });
   }, [cartState.subtotal]);
   const checkoutState = useMemo(() => deriveCheckoutState(cartState, form), [cartState, form]);
-  const { cartSnapshot, tenderInputs, previewTotals, requiresCustomer, creditMismatch, canConfirm, trimmedCustomer } =
+  const { cartSnapshot, tenderInputs, previewTotals, requiresCustomer, validationError, canConfirm, trimmedCustomer } =
     checkoutState;
   const totalTendered = previewTotals.amountReceivedCents + previewTotals.sumCreditCents;
 
@@ -376,9 +376,7 @@ export function PosCheckoutPanel({
           </div>
         ) : null}
 
-        {creditMismatch ? (
-          <p className="text-sm text-destructive">Outstanding must match the credit amount.</p>
-        ) : null}
+        {validationError ? <p className="text-sm text-destructive">{validationError}</p> : null}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
         <div className="flex flex-col gap-2">
