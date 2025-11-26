@@ -226,7 +226,12 @@ export function PosCheckoutPanel({
   isCartPending,
 }: {
   cartState: PosCartState;
-  onConfirm: (input: { cart: SalesCartSnapshot; tenders: TenderInput[]; customerName?: string | null }) => Promise<void>;
+  onConfirm: (input: {
+    cart: SalesCartSnapshot;
+    tenders: TenderInput[];
+    customerId?: string | null;
+    customerName?: string | null;
+  }) => Promise<void>;
   onResetCart: () => void;
   onRepeatLastLine: () => void;
   isCartPending: boolean;
@@ -236,11 +241,15 @@ export function PosCheckoutPanel({
     ewallet: "",
     credit: "",
     ewalletRef: "",
+    customerId: "",
     customerName: "",
   });
   const [showRef, setShowRef] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, startSubmit] = useTransition();
+  const [isEditingCustomer, setIsEditingCustomer] = useState(false);
+  const [customerDraftName, setCustomerDraftName] = useState("");
+  const [customerDraftId, setCustomerDraftId] = useState("");
 
   useEffect(() => {
     setForm((current) => {
@@ -250,20 +259,43 @@ export function PosCheckoutPanel({
     });
   }, [cartState.subtotal]);
   const checkoutState = useMemo(() => deriveCheckoutState(cartState, form), [cartState, form]);
-  const { cartSnapshot, tenderInputs, previewTotals, requiresCustomer, validationError, canConfirm, trimmedCustomer } =
-    checkoutState;
+  const {
+    cartSnapshot,
+    tenderInputs,
+    previewTotals,
+    requiresCustomer,
+    hasCustomer,
+    validationError,
+    canConfirm,
+    trimmedCustomer,
+    trimmedCustomerId,
+  } = checkoutState;
   const totalTendered = previewTotals.amountReceivedCents + previewTotals.sumCreditCents;
 
   const disabled = isSubmitting || isCartPending || !canConfirm;
 
-  const resetForm = () =>
-    setForm({ cash: centsToInput(cartState.subtotal), ewallet: "", credit: "", ewalletRef: "", customerName: "" });
+  const resetForm = () => {
+    setForm({
+      cash: centsToInput(cartState.subtotal),
+      ewallet: "",
+      credit: "",
+      ewalletRef: "",
+      customerId: "",
+      customerName: "",
+    });
+    setIsEditingCustomer(false);
+  };
 
   const handleConfirm = () => {
     startSubmit(async () => {
       try {
         setError(null);
-        await onConfirm({ cart: cartSnapshot, tenders: tenderInputs, customerName: trimmedCustomer || null });
+        await onConfirm({
+          cart: cartSnapshot,
+          tenders: tenderInputs,
+          customerId: trimmedCustomerId || null,
+          customerName: trimmedCustomer || null,
+        });
         resetForm();
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to finalize sale");
@@ -271,12 +303,96 @@ export function PosCheckoutPanel({
     });
   };
 
+  const openCustomerEditor = () => {
+    setCustomerDraftName(form.customerName);
+    setCustomerDraftId(form.customerId);
+    setIsEditingCustomer(true);
+  };
+
+  const handleApplyCustomer = () => {
+    setForm((current) => ({
+      ...current,
+      customerName: customerDraftName.trim(),
+      customerId: customerDraftId.trim(),
+    }));
+    setIsEditingCustomer(false);
+  };
+
+  const handleClearCustomer = () => {
+    setForm((current) => ({ ...current, customerName: "", customerId: "" }));
+    setCustomerDraftId("");
+    setCustomerDraftName("");
+    setIsEditingCustomer(false);
+  };
+
+  const customerLabel = form.customerName || form.customerId ? `Customer: ${form.customerName || form.customerId}` : "Walk-in customer";
+  const customerBarClass = requiresCustomer && !hasCustomer ? "border-destructive" : "border-border";
+
   return (
     <Card>
       <CardHeader>
         <div className="text-lg font-semibold">Checkout</div>
       </CardHeader>
       <CardContent className="space-y-3">
+        <div className={`space-y-2 rounded-md border ${customerBarClass} bg-muted/40 p-3`}>
+          <div className="flex items-center justify-between gap-2">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Customer</p>
+              <p className="text-sm font-semibold text-foreground">{customerLabel}</p>
+              {requiresCustomer && !hasCustomer ? (
+                <p className="text-xs text-destructive">Select a customer to use credit.</p>
+              ) : null}
+            </div>
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button size="sm" variant="outline" onClick={openCustomerEditor} type="button">
+                Set customer
+              </Button>
+              {hasCustomer ? (
+                <Button size="sm" variant="ghost" onClick={handleClearCustomer} type="button">
+                  Clear
+                </Button>
+              ) : null}
+            </div>
+          </div>
+
+          {isEditingCustomer ? (
+            <div className="space-y-2 rounded-md border border-border bg-card/60 p-3">
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="customer-name">
+                  Customer name
+                </label>
+                <Input
+                  id="customer-name"
+                  value={customerDraftName}
+                  onChange={(event) => setCustomerDraftName(event.target.value)}
+                  placeholder="Juan Dela Cruz"
+                  aria-label="Customer name"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-medium text-muted-foreground" htmlFor="customer-id">
+                  Existing customer ID (optional)
+                </label>
+                <Input
+                  id="customer-id"
+                  value={customerDraftId}
+                  onChange={(event) => setCustomerDraftId(event.target.value)}
+                  placeholder="entity-123"
+                  aria-label="Customer identifier"
+                />
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <Button variant="ghost" size="sm" type="button" onClick={() => setIsEditingCustomer(false)}>
+                  Cancel
+                </Button>
+                <Button size="sm" type="button" onClick={handleApplyCustomer}>
+                  Apply
+                </Button>
+              </div>
+            </div>
+          ) : null}
+        </div>
+
         <div className="space-y-2 text-sm">
           <div className="flex items-center justify-between">
             <span className="text-muted-foreground">Subtotal</span>
@@ -363,18 +479,6 @@ export function PosCheckoutPanel({
             <span className="font-semibold">{formatMoney(previewTotals.outstandingCents)}</span>
           </div>
         </div>
-
-        {requiresCustomer ? (
-          <div className="space-y-1">
-            <label className="text-sm font-medium">Customer name (required for credit)</label>
-            <Input
-              aria-label="Customer name"
-              value={form.customerName}
-              onChange={(event) => setForm((current) => ({ ...current, customerName: event.target.value }))}
-              placeholder="Name or short note"
-            />
-          </div>
-        ) : null}
 
         {validationError ? <p className="text-sm text-destructive">{validationError}</p> : null}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
@@ -496,6 +600,7 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   const handleConfirmSale = async (payload: {
     cart: SalesCartSnapshot;
     tenders: TenderInput[];
+    customerId?: string | null;
     customerName?: string | null;
   }) => {
     const summary = await finalizeSaleAction(slug, payload);

@@ -98,7 +98,12 @@ export async function priceSaleLine(
 
 export async function finalizeSaleAction(
   slug: string,
-  input: { cart: SalesCartSnapshot; tenders: TenderInput[]; customerName?: string | null; customerRef?: string | null },
+  input: {
+    cart: SalesCartSnapshot;
+    tenders: TenderInput[];
+    customerId?: string | null;
+    customerName?: string | null;
+  },
 ) {
   const { house, supabase } = await resolveHouse(slug);
 
@@ -107,8 +112,8 @@ export async function finalizeSaleAction(
       houseId: house.id,
       cart: input.cart,
       tenders: input.tenders,
+      customerId: input.customerId,
       customerName: input.customerName,
-      customerRef: input.customerRef,
     },
     supabase,
   );

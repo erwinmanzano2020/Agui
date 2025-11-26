@@ -7,6 +7,7 @@ export type TenderFormState = {
   ewallet: string;
   credit: string;
   ewalletRef: string;
+  customerId: string;
   customerName: string;
 };
 
@@ -73,9 +74,11 @@ export function deriveCheckoutState(cartState: PosCartState, form: TenderFormSta
     };
   }
   const trimmedCustomer = form.customerName.trim();
+  const customerId = form.customerId.trim();
   const requiresCustomer = previewTotals.sumCreditCents > 0;
-  if (!validationError && requiresCustomer && !trimmedCustomer) {
-    validationError = "Please select or enter a customer name for credit sales.";
+  const hasCustomer = Boolean(customerId || trimmedCustomer);
+  if (!validationError && requiresCustomer && !hasCustomer) {
+    validationError = "Credit requires a customer";
   }
 
   const hasLines = cartState.lines.length > 0;
@@ -84,7 +87,7 @@ export function deriveCheckoutState(cartState: PosCartState, form: TenderFormSta
     hasLines &&
     tenderInputs.length > 0 &&
     !validationError &&
-    (!requiresCustomer || Boolean(trimmedCustomer)) &&
+    (!requiresCustomer || hasCustomer) &&
     previewTotals.outstandingCents >= 0 &&
     !hasOutstandingWithoutCredit;
 
@@ -93,8 +96,10 @@ export function deriveCheckoutState(cartState: PosCartState, form: TenderFormSta
     tenderInputs,
     previewTotals,
     requiresCustomer,
+    hasCustomer,
     validationError,
     canConfirm,
     trimmedCustomer,
+    trimmedCustomerId: customerId,
   } as const;
 }

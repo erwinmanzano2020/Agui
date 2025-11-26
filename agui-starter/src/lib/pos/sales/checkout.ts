@@ -31,8 +31,8 @@ type CheckoutComputation = {
   cart: NormalizedCart;
   tenders: NormalizedTender[];
   totals: CheckoutTotals;
+  customerId: string | null;
   customerName: string | null;
-  customerRef: string | null;
   meta: CheckoutInput["meta"];
 };
 
@@ -192,18 +192,18 @@ export function summarizeCheckout(input: CheckoutInput): CheckoutComputation {
   }
 
   const customerName = toNullableString(input.customerName);
-  if (totals.sumCreditCents > 0 && !customerName) {
-    throw new Error("Customer name is required when using credit");
+  const customerId = toNullableString(input.customerId);
+  const hasCustomer = Boolean(customerId || customerName);
+  if (totals.sumCreditCents > 0 && !hasCustomer) {
+    throw new Error("Credit requires a customer");
   }
-
-  const customerRef = toNullableString(input.customerRef);
 
   return {
     cart,
     tenders,
     totals,
+    customerId,
     customerName,
-    customerRef,
     meta: input.meta ?? null,
   } satisfies CheckoutComputation;
 }

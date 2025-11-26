@@ -884,6 +884,7 @@ export type PosSaleRow = {
   amount_received_cents: number;
   change_cents: number;
   outstanding_cents: number;
+  customer_entity_id: string | null;
   customer_name: string | null;
   customer_ref: string | null;
   meta: Json | null;
@@ -904,6 +905,7 @@ export type PosSaleInsert = {
   amount_received_cents: number;
   change_cents: number;
   outstanding_cents: number;
+  customer_entity_id?: string | null;
   customer_name?: string | null;
   customer_ref?: string | null;
   meta?: Json | null;

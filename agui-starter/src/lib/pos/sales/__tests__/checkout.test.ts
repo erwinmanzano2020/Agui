@@ -91,6 +91,18 @@ test("over-credit is rejected", () => {
   );
 });
 
+test("credit without a customer is rejected", () => {
+  assert.throws(
+    () =>
+      summarizeCheckout({
+        houseId,
+        cart: sampleCart,
+        tenders: [{ type: "CREDIT", amount: 18000 }],
+      }),
+    /Credit requires a customer/,
+  );
+});
+
 test("missing tenders is rejected", () => {
   assert.throws(
     () =>
@@ -139,6 +151,8 @@ test("createSale persists rows via in-memory repository", async () => {
   assert.equal(repo.tenders.length, 1);
   assert.equal(repo.sales[0]?.total_cents, 18000);
   assert.equal(repo.tenders[0]?.amount_cents, 18000);
+  assert.equal(repo.sales[0]?.customer_entity_id, null);
+  assert.equal(repo.sales[0]?.customer_name, null);
 });
 
 test("credit tender is stored with accurate totals", async () => {
@@ -163,6 +177,8 @@ test("credit tender is stored with accurate totals", async () => {
   assert.equal(saleRow?.change_cents, 0);
   assert.equal(saleRow?.outstanding_cents, 5000);
   assert.equal(repo.tenders.find((row) => row.tender_type === "CREDIT")?.amount_cents, 3000);
+  assert.equal(summary.customerName, "Juan");
+  assert.equal(summary.customerId, null);
 });
 
 test("over-credit sale is not persisted", async () => {
@@ -182,4 +198,24 @@ test("over-credit sale is not persisted", async () => {
   );
   assert.equal(repo.sales.length, 0);
   assert.equal(repo.tenders.length, 0);
+});
+
+test("customer id and name are stored when provided", async () => {
+  const repo = createInMemorySaleRepository();
+  const summary = await createSale(
+    {
+      houseId,
+      cart: sampleCart,
+      tenders: [{ type: "CASH", amount: 18000 }],
+      customerId: "entity-1",
+      customerName: "ACME Corp",
+    },
+    repo,
+  );
+
+  const saleRow = repo.sales[0];
+  assert.equal(saleRow?.customer_entity_id, "entity-1");
+  assert.equal(saleRow?.customer_name, "ACME Corp");
+  assert.equal(summary.customerId, "entity-1");
+  assert.equal(summary.customerName, "ACME Corp");
 });
