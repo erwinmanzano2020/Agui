@@ -72,15 +72,21 @@ export function deriveCheckoutState(cartState: PosCartState, form: TenderFormSta
       sumCreditCents: 0,
     };
   }
-  const requiresCustomer = previewTotals.outstandingCents > 0;
-  const hasLines = cartState.lines.length > 0;
   const trimmedCustomer = form.customerName.trim();
+  const requiresCustomer = previewTotals.sumCreditCents > 0;
+  if (!validationError && requiresCustomer && !trimmedCustomer) {
+    validationError = "Please select or enter a customer name for credit sales.";
+  }
+
+  const hasLines = cartState.lines.length > 0;
+  const hasOutstandingWithoutCredit = previewTotals.outstandingCents > 0 && previewTotals.sumCreditCents === 0;
   const canConfirm =
     hasLines &&
     tenderInputs.length > 0 &&
     !validationError &&
     (!requiresCustomer || Boolean(trimmedCustomer)) &&
-    previewTotals.outstandingCents >= 0;
+    previewTotals.outstandingCents >= 0 &&
+    !hasOutstandingWithoutCredit;
 
   return {
     cartSnapshot,

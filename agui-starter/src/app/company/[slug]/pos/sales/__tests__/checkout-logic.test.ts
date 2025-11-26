@@ -35,14 +35,16 @@ test("cart totals flow into checkout state", () => {
 });
 
 test("mixed tenders compute change and outstanding", () => {
-  const result = deriveCheckoutState(cartState, { ...blankForm(), cash: "100", ewallet: "50", credit: "30" });
+  const result = deriveCheckoutState(cartState, { ...blankForm(), cash: "100", ewallet: "30" });
   assert.equal(result.previewTotals.changeCents, 0);
   assert.equal(result.previewTotals.outstandingCents, 5000);
+  assert.equal(result.canConfirm, false);
 });
 
 test("credit requires a customer before confirming", () => {
   const creditOnly = deriveCheckoutState(cartState, { ...blankForm(), credit: "180" });
   assert.equal(creditOnly.canConfirm, false);
+  assert.equal(creditOnly.validationError, "Please select or enter a customer name for credit sales.");
 
   const withCustomer = deriveCheckoutState(cartState, { ...blankForm(), credit: "180", customerName: "Ana" });
   assert.equal(withCustomer.canConfirm, true);

@@ -150,7 +150,7 @@ export function tallyTenderMath(totalCents: number, tenders: Array<{ type: Tende
     throw new Error("Credit amount exceeds remaining balance");
   }
 
-  const outstandingCents = remainingAfterNonCredit - sumCredit;
+  const outstandingCents = Math.max(0, remainingAfterNonCredit - sumCredit);
 
   return {
     subtotalCents: normalizedTotal,
@@ -192,7 +192,7 @@ export function summarizeCheckout(input: CheckoutInput): CheckoutComputation {
   }
 
   const customerName = toNullableString(input.customerName);
-  if (totals.outstandingCents > 0 && !customerName) {
+  if (totals.sumCreditCents > 0 && !customerName) {
     throw new Error("Customer name is required when using credit");
   }
 
