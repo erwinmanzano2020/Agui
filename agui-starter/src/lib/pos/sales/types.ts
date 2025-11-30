@@ -96,6 +96,10 @@ export type PosReceiptSale = {
   tenders: PosReceiptTender[];
 };
 
+export type LoadSaleReceiptResult =
+  | { ok: true; sale: PosReceiptSale }
+  | { ok: false; error: "NOT_FOUND" | "FORBIDDEN" };
+
 export type RecentSaleSummary = {
   id: string;
   receiptNumber: string | null;

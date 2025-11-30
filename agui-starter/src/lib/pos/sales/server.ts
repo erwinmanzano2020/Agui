@@ -12,19 +12,31 @@ import type {
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
 
 import { summarizeCheckout } from "./checkout";
-import type { CheckoutInput, PosReceiptSale, PosReceiptTender, RecentSaleSummary } from "./types";
+import type {
+  CheckoutInput,
+  LoadSaleReceiptResult,
+  PosReceiptSale,
+  PosReceiptTender,
+  RecentSaleSummary,
+} from "./types";
 
 type SaleRepository = {
   insertSale(payload: PosSaleInsert): Promise<PosSaleRow>;
   insertSaleLines(rows: PosSaleLineInsert[]): Promise<void>;
   insertSaleTenders(rows: PosSaleTenderInsert[]): Promise<void>;
   getLatestSequenceForHouse(houseId: string): Promise<number | null>;
-  getSaleById?(saleId: string): Promise<PosSaleRow | null>;
-  listSaleLines?(saleId: string): Promise<PosSaleLineRow[]>;
-  listSaleTenders?(saleId: string): Promise<PosSaleTenderRow[]>;
+  getSaleById?(saleId: string, houseId: string): Promise<PosSaleRow | null>;
+  listSaleLines?(saleId: string, houseId: string): Promise<PosSaleLineRow[]>;
+  listSaleTenders?(saleId: string, houseId: string): Promise<PosSaleTenderRow[]>;
   listRecentSales?(houseId: string, limit: number): Promise<PosSaleRow[]>;
   listTendersForSales?(saleIds: string[]): Promise<PosSaleTenderRow[]>;
 };
+
+function forbiddenSaleAccessError() {
+  const err = new Error("Forbidden sale access") as Error & { code?: string };
+  err.code = "FORBIDDEN_SALE_ACCESS";
+  return err;
+}
 
 function resolveSupabaseRepository(client?: SupabaseClient<Database> | null): SaleRepository {
   const supabase = client ?? createServiceSupabaseClient<Database>();
@@ -62,25 +74,34 @@ function resolveSupabaseRepository(client?: SupabaseClient<Database> | null): Sa
       if (error) throw new Error(error.message);
       return data?.sequence_no ?? null;
     },
-    async getSaleById(saleId) {
-      const { data, error } = await supabase.from("pos_sales").select("*").eq("id", saleId).maybeSingle();
+    async getSaleById(saleId, houseId) {
+      const { data, error } = await supabase
+        .from("pos_sales")
+        .select("*")
+        .eq("id", saleId)
+        .maybeSingle<PosSaleRow>();
       if (error) throw new Error(error.message);
-      return (data as PosSaleRow | null) ?? null;
+      const saleRow = data ?? null;
+      if (!saleRow) return null;
+      if (saleRow.house_id !== houseId) throw forbiddenSaleAccessError();
+      return saleRow;
     },
-    async listSaleLines(saleId) {
+    async listSaleLines(saleId, houseId) {
       const { data, error } = await supabase
         .from("pos_sale_lines")
         .select("*")
         .eq("sale_id", saleId)
+        .eq("house_id", houseId)
         .order("created_at", { ascending: true });
       if (error) throw new Error(error.message);
       return (data as PosSaleLineRow[]) ?? [];
     },
-    async listSaleTenders(saleId) {
+    async listSaleTenders(saleId, houseId) {
       const { data, error } = await supabase
         .from("pos_sale_tenders")
         .select("*")
         .eq("sale_id", saleId)
+        .eq("house_id", houseId)
         .order("created_at", { ascending: true });
       if (error) throw new Error(error.message);
       return (data as PosSaleTenderRow[]) ?? [];
@@ -206,14 +227,17 @@ export function createInMemorySaleRepository(initial?: Partial<{
       if (perHouse.length === 0) return null;
       return perHouse.reduce((max, sale) => Math.max(max, sale.sequence_no ?? 0), 0);
     },
-    async getSaleById(saleId) {
-      return sales.find((sale) => sale.id === saleId) ?? null;
+    async getSaleById(saleId, houseId) {
+      const sale = sales.find((entry) => entry.id === saleId);
+      if (!sale) return null;
+      if (sale.house_id !== houseId) throw forbiddenSaleAccessError();
+      return sale;
     },
-    async listSaleLines(saleId) {
-      return lines.filter((line) => line.sale_id === saleId);
+    async listSaleLines(saleId, houseId) {
+      return lines.filter((line) => line.sale_id === saleId && line.house_id === houseId);
     },
-    async listSaleTenders(saleId) {
-      return tenders.filter((tender) => tender.sale_id === saleId);
+    async listSaleTenders(saleId, houseId) {
+      return tenders.filter((tender) => tender.sale_id === saleId && tender.house_id === houseId);
     },
     async listRecentSales(houseId, limit) {
       return sales
@@ -443,7 +467,7 @@ export async function listRecentSales(
     tenderRows = await repository.listTendersForSales(saleIds);
   } else if (repository.listSaleTenders) {
     for (const saleId of saleIds) {
-      const rows = await repository.listSaleTenders(saleId);
+      const rows = await repository.listSaleTenders(saleId, houseId);
       tenderRows.push(...rows);
     }
   }
@@ -472,20 +496,30 @@ export async function listRecentSales(
 
 export async function loadSaleReceipt(
   saleId: string,
+  houseId: string,
   client: SupabaseClient<Database> | SaleRepository | null = null,
-): Promise<PosReceiptSale | null> {
+): Promise<LoadSaleReceiptResult> {
   const repository = resolveRepository(client);
   if (!repository.getSaleById || !repository.listSaleLines || !repository.listSaleTenders) {
-    return null;
+    return { ok: false, error: "NOT_FOUND" };
   }
 
-  const saleRow = await repository.getSaleById(saleId);
-  if (!saleRow) return null;
+  let saleRow: PosSaleRow | null = null;
+  try {
+    saleRow = await repository.getSaleById(saleId, houseId);
+  } catch (error) {
+    if ((error as { code?: string })?.code === "FORBIDDEN_SALE_ACCESS") {
+      return { ok: false, error: "FORBIDDEN" };
+    }
+    throw error;
+  }
+
+  if (!saleRow) return { ok: false, error: "NOT_FOUND" };
 
   const [lines, tenders] = await Promise.all([
-    repository.listSaleLines(saleId),
-    repository.listSaleTenders(saleId),
+    repository.listSaleLines(saleId, houseId),
+    repository.listSaleTenders(saleId, houseId),
   ]);
 
-  return toReceiptSale(saleRow, lines, tenders);
+  return { ok: true, sale: toReceiptSale(saleRow, lines, tenders) };
 }

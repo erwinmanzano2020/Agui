@@ -68,8 +68,51 @@ test("loadSaleReceipt hydrates tenders and outstanding credit", async () => {
     repository,
   );
 
-  const loaded = await loadSaleReceipt(creditSale.id, repository);
-  assert.ok(loaded);
-  assert.equal(loaded?.outstandingCents, 3000);
-  assert.equal(loaded?.tenders[0]?.type, "CREDIT");
+  const loaded = await loadSaleReceipt(creditSale.id, "house-1", repository);
+  assert.ok(loaded.ok);
+  if (!loaded.ok) throw new Error("expected receipt");
+  assert.equal(loaded.sale.outstandingCents, 3000);
+  assert.equal(loaded.sale.tenders[0]?.type, "CREDIT");
+});
+
+test("receipt loading enforces house isolation", async () => {
+  const repository = createInMemorySaleRepository();
+  const otherHouseSale = await createSale(buildInput({ houseId: "house-2" }), repository);
+
+  const result = await loadSaleReceipt(otherHouseSale.id, "house-1", repository);
+
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.error, "FORBIDDEN");
+  }
+});
+
+test("loadSaleReceipt passes house to repository helpers", async () => {
+  const calls: Array<{ method: string; saleId: string; houseId: string }> = [];
+  const saleRow = { id: "sale-1", house_id: "house-1", created_at: new Date().toISOString() } as any;
+  const repository = {
+    insertSale: async () => saleRow,
+    insertSaleLines: async () => {},
+    insertSaleTenders: async () => {},
+    getLatestSequenceForHouse: async () => 0,
+    getSaleById: async (saleId: string, houseId: string) => {
+      calls.push({ method: "getSaleById", saleId, houseId });
+      return saleRow;
+    },
+    listSaleLines: async (saleId: string, houseId: string) => {
+      calls.push({ method: "listSaleLines", saleId, houseId });
+      return [];
+    },
+    listSaleTenders: async (saleId: string, houseId: string) => {
+      calls.push({ method: "listSaleTenders", saleId, houseId });
+      return [];
+    },
+  } as const;
+
+  const result = await loadSaleReceipt("sale-1", "house-1", repository as any);
+  assert.equal(result.ok, true);
+  assert.deepEqual(
+    calls.map((call) => `${call.method}:${call.houseId}`),
+    ["getSaleById:house-1", "listSaleLines:house-1", "listSaleTenders:house-1"],
+  );
 });

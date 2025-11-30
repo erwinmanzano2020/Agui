@@ -790,10 +790,13 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
     startReceiptTransition(async () => {
       try {
         setHistoryError(null);
-        const sale = await loadSaleReceiptAction(slug, saleId);
-        if (sale) {
-          setActiveReceipt(sale);
+        const result = await loadSaleReceiptAction(slug, saleId);
+        if (result.ok) {
+          setActiveReceipt(result.sale);
           setPanelView("receipt");
+        } else {
+          setActiveReceipt(null);
+          setHistoryError("Receipt not found");
         }
       } catch (err) {
         setHistoryError(err instanceof Error ? err.message : "Unable to load receipt");
