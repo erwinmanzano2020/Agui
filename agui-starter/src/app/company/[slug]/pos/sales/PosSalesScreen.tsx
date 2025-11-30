@@ -1,12 +1,14 @@
 "use client";
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
   useTransition,
   type Dispatch,
+  type ReactNode,
   type SetStateAction,
 } from "react";
 
@@ -14,17 +16,18 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toaster";
-import type { SalesCartSnapshot, TenderInput } from "@/lib/pos/sales/types";
+import type { PosReceiptSale, RecentSaleSummary, SalesCartSnapshot, TenderInput } from "@/lib/pos/sales/types";
 import { formatMoney, type CartUom, type PosCartLine, type PosCartState, usePosCart } from "@/lib/pos/sales-cart";
 import type { WorkspaceSettings } from "@/lib/settings/workspace";
 
-import { finalizeSaleAction, priceSaleLine, resolveSaleScan } from "./actions";
+import { finalizeSaleAction, listRecentSalesAction, loadSaleReceiptAction, priceSaleLine, resolveSaleScan } from "./actions";
 import {
   centsToInput,
   deriveCheckoutState,
   parseInputToCents,
   type TenderFormState,
 } from "./checkout-helpers";
+import { PosReceipt } from "./PosReceipt";
 
 type Props = {
   slug: string;
@@ -49,7 +52,7 @@ function PosHeader({ houseName, labels }: { houseName: string; labels?: Workspac
   );
 }
 
-function PosTotals({ subtotal }: { subtotal: number }) {
+function PosTotals({ subtotal, discount, total }: { subtotal: number; discount: number; total: number }) {
   return (
     <Card>
       <CardHeader>
@@ -62,11 +65,11 @@ function PosTotals({ subtotal }: { subtotal: number }) {
         </div>
         <div className="flex items-center justify-between text-muted-foreground">
           <span>Discounts</span>
-          <span>—</span>
+          <span>{discount > 0 ? formatMoney(discount) : "—"}</span>
         </div>
         <div className="flex items-center justify-between">
           <span className="text-lg font-semibold">Grand Total</span>
-          <span className="text-lg font-semibold">{formatMoney(subtotal)}</span>
+          <span className="text-lg font-semibold">{formatMoney(total)}</span>
         </div>
       </CardContent>
     </Card>
@@ -183,12 +186,14 @@ function PosScanBar({
   onSubmit,
   isPending,
   error,
+  disabled,
 }: {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
   isPending: boolean;
   error: string | null;
+  disabled?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement | null>(null);
 
@@ -217,11 +222,11 @@ function PosScanBar({
             onChange={(event) => onChange(event.target.value)}
             placeholder="Scan barcode or type item code"
             autoFocus
-            disabled={isPending}
+            disabled={isPending || disabled}
           />
         </div>
         <div className="flex items-end">
-          <Button type="submit" disabled={isPending} className="h-[42px] px-6">
+          <Button type="submit" disabled={isPending || disabled} className="h-[42px] px-6">
             {isPending ? "Loading..." : "Add"}
           </Button>
         </div>
@@ -231,16 +236,75 @@ function PosScanBar({
   );
 }
 
+function RecentSalesPanel({
+  sales,
+  isLoading,
+  onRefresh,
+  onSelect,
+  selectedId,
+  error,
+}: {
+  sales: RecentSaleSummary[];
+  isLoading: boolean;
+  onRefresh: () => void;
+  onSelect: (id: string) => void;
+  selectedId: string | null;
+  error?: string | null;
+}) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between">
+        <div>
+          <div className="text-lg font-semibold">Recent sales</div>
+          <p className="text-xs text-muted-foreground">Last 50 receipts</p>
+        </div>
+        <Button size="sm" variant="outline" onClick={onRefresh} disabled={isLoading}>
+          {isLoading ? "Loading..." : "Refresh"}
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {sales.length === 0 && !isLoading ? (
+          <p className="text-sm text-muted-foreground">No recent sales found.</p>
+        ) : null}
+        <div className="space-y-2">
+          {sales.map((sale) => {
+            const isActive = selectedId === sale.id;
+            return (
+              <button
+                key={sale.id}
+                type="button"
+                onClick={() => onSelect(sale.id)}
+                className={`w-full rounded-md border px-3 py-2 text-left transition ${
+                  isActive ? "border-primary bg-primary/5" : "border-border hover:bg-muted/60"
+                }`}
+              >
+                <div className="flex items-center justify-between text-sm font-semibold">
+                  <span>{sale.receiptNumber ?? sale.id}</span>
+                  <span>{formatMoney(sale.totalCents)}</span>
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {new Date(sale.createdAt).toLocaleString()} • {sale.tenderSummary}
+                </div>
+                {sale.customerName ? <div className="text-xs">{sale.customerName}</div> : null}
+              </button>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function PosCheckoutPanel({
-  cartState,
   form,
   setForm,
   onConfirm,
   onResetCart,
   onRepeatLastLine,
   isCartPending,
+  checkoutState,
 }: {
-  cartState: PosCartState;
   form: TenderFormState;
   setForm: Dispatch<SetStateAction<TenderFormState>>;
   onConfirm: (input: {
@@ -252,6 +316,7 @@ export function PosCheckoutPanel({
   onResetCart: () => void;
   onRepeatLastLine: () => void;
   isCartPending: boolean;
+  checkoutState: ReturnType<typeof deriveCheckoutState>;
 }) {
   const [showRef, setShowRef] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -264,10 +329,10 @@ export function PosCheckoutPanel({
     setForm((current) => {
       const hasCash = parseInputToCents(current.cash) > 0;
       if (hasCash) return current;
-      return { ...current, cash: centsToInput(cartState.subtotal) };
+      const totalDue = Math.max(0, checkoutState.cartSnapshot.subtotalCents - (checkoutState.cartSnapshot.discountCents ?? 0));
+      return { ...current, cash: centsToInput(totalDue) };
     });
-  }, [cartState.subtotal]);
-  const checkoutState = useMemo(() => deriveCheckoutState(cartState, form), [cartState, form]);
+  }, [checkoutState.cartSnapshot.discountCents, checkoutState.cartSnapshot.subtotalCents, setForm]);
   const {
     cartSnapshot,
     tenderInputs,
@@ -280,12 +345,15 @@ export function PosCheckoutPanel({
     trimmedCustomerId,
   } = checkoutState;
   const totalTendered = previewTotals.amountReceivedCents + previewTotals.sumCreditCents;
+  const discountValue = cartSnapshot.discountCents ?? 0;
+  const totalDue = Math.max(0, cartSnapshot.subtotalCents - discountValue);
 
   const disabled = isSubmitting || isCartPending || !canConfirm;
 
   const resetForm = () => {
+    const totalDue = Math.max(0, checkoutState.cartSnapshot.subtotalCents - (checkoutState.cartSnapshot.discountCents ?? 0));
     setForm({
-      cash: centsToInput(cartState.subtotal),
+      cash: centsToInput(totalDue),
       ewallet: "",
       credit: "",
       ewalletRef: "",
@@ -409,11 +477,11 @@ export function PosCheckoutPanel({
           </div>
           <div className="flex items-center justify-between text-muted-foreground">
             <span>Discount</span>
-            <span>—</span>
+            <span>{discountValue > 0 ? formatMoney(discountValue) : "—"}</span>
           </div>
           <div className="flex items-center justify-between font-semibold">
             <span>Total</span>
-            <span>{formatMoney(cartSnapshot.subtotalCents)}</span>
+            <span>{formatMoney(totalDue)}</span>
           </div>
         </div>
 
@@ -522,8 +590,19 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   });
   const [scanValue, setScanValue] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [panelView, setPanelView] = useState<"checkout" | "receipt" | "history">("checkout");
+  const [activeReceipt, setActiveReceipt] = useState<PosReceiptSale | null>(null);
+  const [recentSales, setRecentSales] = useState<RecentSaleSummary[]>([]);
+  const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [isHistoryPending, startHistoryTransition] = useTransition();
+  const [isReceiptLoading, startReceiptTransition] = useTransition();
   const toast = useToast();
+
+  const checkoutState = useMemo(() => deriveCheckoutState(state, form), [state, form]);
+  const checkoutTotal = Math.max(0, checkoutState.cartSnapshot.subtotalCents - (checkoutState.cartSnapshot.discountCents ?? 0));
+  const isCheckoutMode = panelView === "checkout";
 
   const parseScan = useMemo(() => {
     const regex = /^(\d+)\*(.+)$/;
@@ -536,7 +615,63 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
     };
   }, []);
 
+  const resetFormFields = useCallback(() => {
+    setForm({
+      cash: "",
+      ewallet: "",
+      credit: "",
+      ewalletRef: "",
+      customerId: "",
+      customerName: "",
+    });
+  }, []);
+
+  const handleNewSale = useCallback(() => {
+    resetCart();
+    resetFormFields();
+    setScanValue("");
+    setError(null);
+    setActiveReceipt(null);
+    setSelectedHistoryId(null);
+    setPanelView("checkout");
+  }, [resetCart, resetFormFields]);
+
+  const handlePrint = useCallback(() => {
+    if (typeof window !== "undefined") {
+      window.print();
+    }
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (!isCheckoutMode) return;
+      if ((event.ctrlKey && event.key.toLowerCase() === "r") || event.key === "Insert") {
+        event.preventDefault();
+        repeatLastLine();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [repeatLastLine, isCheckoutMode]);
+
+  useEffect(() => {
+    if (panelView !== "receipt") return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        handleNewSale();
+      }
+      if (event.ctrlKey && event.key.toLowerCase() === "p") {
+        event.preventDefault();
+        handlePrint();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [handleNewSale, handlePrint, panelView]);
+
   const handleLookup = (code: string, quantity: number) => {
+    if (!isCheckoutMode) return;
     startTransition(async () => {
       try {
         setError(null);
@@ -576,6 +711,7 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   };
 
   const handleSubmit = () => {
+    if (!isCheckoutMode) return;
     const trimmed = scanValue.trim();
     if (!trimmed) return;
     const parsed = parseScan(trimmed);
@@ -583,6 +719,7 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   };
 
   const handleQuantityChange = (line: PosCartLine, next: number) => {
+    if (!isCheckoutMode) return;
     startTransition(async () => {
       try {
         const price = await priceSaleLine(slug, {
@@ -599,6 +736,7 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   };
 
   const handleUomChange = (line: PosCartLine, uomId: string) => {
+    if (!isCheckoutMode) return;
     const uom = line.uoms.find((entry) => entry.id === uomId);
     if (!uom) return;
     startTransition(async () => {
@@ -616,17 +754,6 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
     });
   };
 
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if ((event.ctrlKey && event.key.toLowerCase() === "r") || event.key === "Insert") {
-        event.preventDefault();
-        repeatLastLine();
-      }
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [repeatLastLine]);
-
   const handleConfirmSale = async (payload: {
     cart: SalesCartSnapshot;
     tenders: TenderInput[];
@@ -635,35 +762,139 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   }) => {
     const summary = await finalizeSaleAction(slug, payload);
     toast.success(`Sale completed. Change: ${formatMoney(summary.changeCents)}`);
+    setActiveReceipt(summary);
+    setSelectedHistoryId(summary.id);
+    setPanelView("receipt");
     resetCart();
   };
+
+  const refreshHistory = useCallback(() => {
+    startHistoryTransition(async () => {
+      try {
+        setHistoryError(null);
+        const items = await listRecentSalesAction(slug, 50);
+        setRecentSales(items);
+      } catch (err) {
+        setHistoryError(err instanceof Error ? err.message : "Unable to load history");
+      }
+    });
+  }, [slug]);
+
+  const handleShowHistory = () => {
+    setPanelView("history");
+    refreshHistory();
+  };
+
+  const handleSelectHistorySale = (saleId: string) => {
+    setSelectedHistoryId(saleId);
+    startReceiptTransition(async () => {
+      try {
+        setHistoryError(null);
+        const sale = await loadSaleReceiptAction(slug, saleId);
+        if (sale) {
+          setActiveReceipt(sale);
+          setPanelView("receipt");
+        }
+      } catch (err) {
+        setHistoryError(err instanceof Error ? err.message : "Unable to load receipt");
+      }
+    });
+  };
+
+  let rightContent: ReactNode;
+  if (panelView === "receipt" && activeReceipt) {
+    rightContent = (
+      <div className="space-y-3">
+        <PosReceipt sale={activeReceipt} houseName={houseName} labels={labels} />
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={handlePrint}>
+            Print
+          </Button>
+          <Button variant="outline" onClick={handleShowHistory}>
+            Recent sales
+          </Button>
+          <Button onClick={handleNewSale}>New sale</Button>
+        </div>
+      </div>
+    );
+  } else if (panelView === "history") {
+    rightContent = (
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setPanelView("checkout")}>Back to checkout</Button>
+          <Button variant="outline" onClick={handleNewSale}>New sale</Button>
+        </div>
+        <RecentSalesPanel
+          sales={recentSales}
+          isLoading={isHistoryPending}
+          onRefresh={refreshHistory}
+          onSelect={handleSelectHistorySale}
+          selectedId={selectedHistoryId}
+          error={historyError}
+        />
+        {isReceiptLoading ? (
+          <Card>
+            <CardContent className="text-sm text-muted-foreground">Loading receipt...</CardContent>
+          </Card>
+        ) : activeReceipt ? (
+          <PosReceipt sale={activeReceipt} houseName={houseName} labels={labels} />
+        ) : null}
+      </div>
+    );
+  } else {
+    rightContent = (
+      <>
+        <PosTotals
+          subtotal={checkoutState.cartSnapshot.subtotalCents}
+          discount={checkoutState.cartSnapshot.discountCents ?? 0}
+          total={checkoutTotal}
+        />
+        <PosCheckoutPanel
+          form={form}
+          setForm={setForm}
+          onConfirm={handleConfirmSale}
+          onResetCart={resetCart}
+          onRepeatLastLine={repeatLastLine}
+          isCartPending={isPending}
+          checkoutState={checkoutState}
+        />
+      </>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4 bg-slate-50 p-4">
       <PosHeader houseName={houseName} labels={labels} />
+      <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="outline" onClick={handleShowHistory}>
+          Recent sales
+        </Button>
+        {activeReceipt ? (
+          <Button variant="outline" onClick={handlePrint}>
+            Print receipt
+          </Button>
+        ) : null}
+        <Button onClick={handleNewSale}>New sale</Button>
+      </div>
       <div className="flex flex-col gap-4 lg:flex-row">
         <div className="flex-1 space-y-4">
-          <PosScanBar value={scanValue} onChange={setScanValue} onSubmit={handleSubmit} isPending={isPending} error={error} />
+          <PosScanBar
+            value={scanValue}
+            onChange={setScanValue}
+            onSubmit={handleSubmit}
+            isPending={isPending}
+            disabled={!isCheckoutMode}
+            error={error}
+          />
           <PosCartTable
             lines={state.lines}
             onQuantityChange={handleQuantityChange}
             onUomChange={handleUomChange}
             onRemove={(line) => removeLine(line.id)}
-            isPending={isPending}
+            isPending={isPending || !isCheckoutMode}
           />
         </div>
-        <div className="w-full space-y-3 lg:w-96">
-          <PosTotals subtotal={state.subtotal} />
-          <PosCheckoutPanel
-            cartState={state}
-            form={form}
-            setForm={setForm}
-            onConfirm={handleConfirmSale}
-            onResetCart={resetCart}
-            onRepeatLastLine={repeatLastLine}
-            isCartPending={isPending}
-          />
-        </div>
+        <div className="w-full space-y-3 lg:w-96">{rightContent}</div>
       </div>
     </div>
   );
