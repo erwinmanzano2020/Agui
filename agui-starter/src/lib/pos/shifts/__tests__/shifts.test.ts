@@ -2,12 +2,13 @@ import assert from "node:assert";
 import test from "node:test";
 
 import { closeShift, computeShiftTotals, createInMemoryShiftRepository, openShift, PosShiftError } from "../server";
+import type { PosShiftRow } from "../types";
 
 const houseId = "house-1";
 const branchId = houseId;
 const userId = "cashier-1";
 
-function buildShiftRow(id: string) {
+function buildShiftRow(id: string, overrides: Partial<PosShiftRow> = {}): PosShiftRow {
   const now = new Date().toISOString();
   return {
     id,
@@ -28,7 +29,8 @@ function buildShiftRow(id: string) {
     created_at: now,
     updated_at: now,
     meta: {},
-  } as const;
+    ...overrides,
+  } satisfies PosShiftRow;
 }
 
 test("openShift creates a shift and prevents duplicates", async () => {
@@ -77,4 +79,58 @@ test("closeShift stores counted cash and variance", async () => {
   assert.equal(summary.shift.counted_cash_cents, 2800);
   assert.equal(summary.expectedCashCents, 1000);
   assert.equal(summary.cashOverShortCents, 1800);
+});
+
+test("closeShift forbids other cashiers without manager role", async () => {
+  const repo = createInMemoryShiftRepository({ shifts: [buildShiftRow("shift-3")] });
+
+  await assert.rejects(
+    () => closeShift({ shiftId: "shift-3", houseId, userId: "cashier-2", countedCashCents: 1000 }, repo),
+    (error: unknown) => error instanceof PosShiftError && error.code === "shift_close_forbidden",
+  );
+
+  const shift = await repo.getShiftById("shift-3");
+  assert.equal(shift?.status, "OPEN");
+});
+
+test("closeShift allows manager to close another cashier's shift", async () => {
+  const repo = createInMemoryShiftRepository({ shifts: [buildShiftRow("shift-4")] });
+
+  const summary = await closeShift(
+    {
+      shiftId: "shift-4",
+      houseId,
+      userId: "manager-1",
+      userRoles: ["manager"],
+      countedCashCents: 1200,
+    },
+    repo,
+  );
+
+  assert.equal(summary.shift.status, "CLOSED");
+  assert.equal(summary.shift.closed_by_entity_id, "manager-1");
+});
+
+test("closeShift enforces house isolation", async () => {
+  const repo = createInMemoryShiftRepository({
+    shifts: [buildShiftRow("shift-5", { house_id: "other-house", branch_id: "other-house" })],
+  });
+
+  await assert.rejects(
+    () =>
+      closeShift(
+        {
+          shiftId: "shift-5",
+          houseId,
+          userId,
+          userRoles: ["manager"],
+          countedCashCents: 900,
+        },
+        repo,
+      ),
+    (error: unknown) => error instanceof PosShiftError && error.code === "shift_forbidden",
+  );
+
+  const shift = await repo.getShiftById("shift-5");
+  assert.equal(shift?.status, "OPEN");
 });

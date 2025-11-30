@@ -1,4 +1,5 @@
 import type { Database, PosShiftRow as DbPosShiftRow } from "@/lib/db.types";
+import type { WorkspaceRole } from "@/lib/workspaces/roles";
 
 export type PosShiftStatus = Extract<DbPosShiftRow["status"], "OPEN" | "CLOSED" | "CANCELLED">;
 
@@ -15,6 +16,7 @@ export type CloseShiftInput = {
   shiftId: string;
   houseId: string;
   userId: string;
+  userRoles?: WorkspaceRole[];
   countedCashCents: number;
 };
 

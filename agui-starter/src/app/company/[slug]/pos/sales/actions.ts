@@ -230,7 +230,13 @@ export async function closeShiftAction(
   const { house, supabase, decision } = await resolveHouse(slug);
   const entityId = requireEntityId(decision);
   const summary = await closeShift(
-    { shiftId: input.shiftId, houseId: house.id, userId: entityId, countedCashCents: input.countedCashCents },
+    {
+      shiftId: input.shiftId,
+      houseId: house.id,
+      userId: entityId,
+      userRoles: decision.normalizedRoles,
+      countedCashCents: input.countedCashCents,
+    },
     supabase,
   );
   return serializeSummary(summary);

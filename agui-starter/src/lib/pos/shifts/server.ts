@@ -10,6 +10,7 @@ import type {
   PosShiftRow as DbPosShiftRow,
 } from "@/lib/db.types";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
+import type { WorkspaceRole } from "@/lib/workspaces/roles";
 
 import type { CloseShiftInput, OpenShiftInput, PosShiftSummary } from "./types";
 
@@ -235,6 +236,10 @@ function assertShiftHouse(shift: DbPosShiftRow | null, houseId: string): DbPosSh
   return shift;
 }
 
+function userHasManagerRole(roles?: WorkspaceRole[]): boolean {
+  return (roles ?? []).some((role) => role === "owner" || role === "manager");
+}
+
 export async function getOpenShiftForUser(
   input: { houseId: string; branchId?: string | null; userId: string },
   client?: RepositoryClient,
@@ -321,6 +326,16 @@ export async function closeShift(input: CloseShiftInput, client?: RepositoryClie
 
   if (summary.shift.status !== "OPEN") {
     throw new PosShiftError("Shift is already closed", "shift_not_open", 409);
+  }
+
+  const isOwner = summary.shift.opened_by_entity_id === input.userId;
+  const isManager = userHasManagerRole(input.userRoles);
+  if (!isOwner && !isManager) {
+    throw new PosShiftError(
+      "You can’t close another cashier’s shift. Ask a manager.",
+      "shift_close_forbidden",
+      403,
+    );
   }
 
   const expectedCashCents = summary.expectedCashCents;
