@@ -960,6 +960,7 @@ export type PosSaleRow = {
   created_at: string;
   created_by: string | null;
   closed_at: string | null;
+  shift_id: string | null;
 };
 
 export type PosSaleInsert = {
@@ -982,6 +983,7 @@ export type PosSaleInsert = {
   created_at?: string;
   created_by?: string | null;
   closed_at?: string | null;
+  shift_id?: string | null;
 };
 
 export type PosSaleUpdate = Partial<PosSaleInsert>;
@@ -1049,6 +1051,50 @@ export type PosSaleTenderInsert = {
 };
 
 export type PosSaleTenderUpdate = Partial<PosSaleTenderInsert>;
+
+export type PosShiftRow = {
+  id: string;
+  house_id: string;
+  branch_id: string;
+  cashier_entity_id: string;
+  opened_by_entity_id: string;
+  closed_by_entity_id: string | null;
+  opened_at: string;
+  closed_at: string | null;
+  verified_at: string | null;
+  opening_float_json: Json;
+  opening_cash_cents: number;
+  expected_cash_cents: number;
+  counted_cash_cents: number;
+  cash_over_short_cents: number;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  meta: Json;
+};
+
+export type PosShiftInsert = {
+  id?: string;
+  house_id: string;
+  branch_id: string;
+  cashier_entity_id?: string;
+  opened_by_entity_id?: string;
+  closed_by_entity_id?: string | null;
+  opened_at?: string;
+  closed_at?: string | null;
+  verified_at?: string | null;
+  opening_float_json?: Json;
+  opening_cash_cents?: number;
+  expected_cash_cents?: number;
+  counted_cash_cents?: number;
+  cash_over_short_cents?: number;
+  status?: string;
+  created_at?: string;
+  updated_at?: string;
+  meta?: Json;
+};
+
+export type PosShiftUpdate = Partial<PosShiftInsert>;
 
 export type StockMovementRow = {
   id: string;
@@ -1205,6 +1251,7 @@ export interface Database {
         SettingsAuditInsert,
         SettingsAuditUpdate
       >;
+      pos_shifts: TableDefinition<PosShiftRow, PosShiftInsert, PosShiftUpdate>;
       pos_sales: TableDefinition<PosSaleRow, PosSaleInsert, PosSaleUpdate>;
       pos_sale_lines: TableDefinition<PosSaleLineRow, PosSaleLineInsert, PosSaleLineUpdate>;
       pos_sale_tenders: TableDefinition<PosSaleTenderRow, PosSaleTenderInsert, PosSaleTenderUpdate>;

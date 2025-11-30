@@ -23,10 +23,12 @@ const sampleCart: SalesCartSnapshot = {
 };
 
 const houseId = "house-1";
+const shiftId = "shift-1";
 
 test("cash overpay returns change without outstanding", () => {
   const result = summarizeCheckout({
     houseId,
+    shiftId,
     cart: sampleCart,
     tenders: [{ type: "CASH", amount: 20000 }],
   });
@@ -38,6 +40,7 @@ test("cash overpay returns change without outstanding", () => {
 test("mixed non-credit and credit closes out sale", () => {
   const result = summarizeCheckout({
     houseId,
+    shiftId,
     cart: sampleCart,
     tenders: [
       { type: "CASH", amount: 10000 },
@@ -54,6 +57,7 @@ test("mixed non-credit and credit closes out sale", () => {
 test("partial credit leaves outstanding balance", () => {
   const result = summarizeCheckout({
     houseId,
+    shiftId,
     cart: sampleCart,
     tenders: [
       { type: "CASH", amount: 10000 },
@@ -69,6 +73,7 @@ test("partial credit leaves outstanding balance", () => {
 test("credit only exact amount is allowed", () => {
   const result = summarizeCheckout({
     houseId,
+    shiftId,
     cart: sampleCart,
     tenders: [{ type: "CREDIT", amount: 18000 }],
     customerName: "Ana",
@@ -83,6 +88,7 @@ test("over-credit is rejected", () => {
     () =>
       summarizeCheckout({
         houseId,
+        shiftId,
         cart: sampleCart,
         tenders: [{ type: "CREDIT", amount: 20000 }],
         customerName: "Ana",
@@ -96,6 +102,7 @@ test("credit without a customer is rejected", () => {
     () =>
       summarizeCheckout({
         houseId,
+        shiftId,
         cart: sampleCart,
         tenders: [{ type: "CREDIT", amount: 18000 }],
       }),
@@ -108,6 +115,7 @@ test("missing tenders is rejected", () => {
     () =>
       summarizeCheckout({
         houseId,
+        shiftId,
         cart: sampleCart,
         tenders: [],
       }),
@@ -120,6 +128,7 @@ test("negative tender is rejected", () => {
     () =>
       summarizeCheckout({
         houseId,
+        shiftId,
         cart: sampleCart,
         tenders: [{ type: "CASH", amount: -1 }],
       }),
@@ -139,6 +148,7 @@ test("createSale persists rows via in-memory repository", async () => {
   const summary = await createSale(
     {
       houseId,
+      shiftId,
       cart: sampleCart,
       tenders: [{ type: "CASH", amount: 18000 }],
     },
@@ -150,6 +160,7 @@ test("createSale persists rows via in-memory repository", async () => {
   assert.equal(repo.lines.length, sampleCart.lines.length);
   assert.equal(repo.tenders.length, 1);
   assert.equal(repo.sales[0]?.total_cents, 18000);
+  assert.equal(repo.sales[0]?.shift_id, shiftId);
   assert.equal(repo.tenders[0]?.amount_cents, 18000);
   assert.equal(repo.sales[0]?.customer_entity_id, null);
   assert.equal(repo.sales[0]?.customer_name, null);
@@ -160,6 +171,7 @@ test("credit tender is stored with accurate totals", async () => {
   const summary = await createSale(
     {
       houseId,
+      shiftId,
       cart: sampleCart,
       tenders: [
         { type: "CASH", amount: 10000 },
@@ -188,6 +200,7 @@ test("over-credit sale is not persisted", async () => {
       createSale(
         {
           houseId,
+          shiftId,
           cart: sampleCart,
           tenders: [{ type: "CREDIT", amount: 20000 }],
           customerName: "Ana",
@@ -205,6 +218,7 @@ test("customer id and name are stored when provided", async () => {
   const summary = await createSale(
     {
       houseId,
+      shiftId,
       cart: sampleCart,
       tenders: [{ type: "CASH", amount: 18000 }],
       customerId: "entity-1",

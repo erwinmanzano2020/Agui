@@ -20,7 +20,17 @@ import type { PosReceiptSale, RecentSaleSummary, SalesCartSnapshot, TenderInput 
 import { formatMoney, type CartUom, type PosCartLine, usePosCart } from "@/lib/pos/sales-cart";
 import type { WorkspaceSettings } from "@/lib/settings/workspace";
 
-import { finalizeSaleAction, listRecentSalesAction, loadSaleReceiptAction, priceSaleLine, resolveSaleScan } from "./actions";
+import {
+  closeShiftAction,
+  finalizeSaleAction,
+  listRecentSalesAction,
+  loadActiveShiftAction,
+  loadSaleReceiptAction,
+  loadShiftSummaryAction,
+  openShiftAction,
+  priceSaleLine,
+  resolveSaleScan,
+} from "./actions";
 import {
   centsToInput,
   deriveCheckoutState,
@@ -304,6 +314,9 @@ export function PosCheckoutPanel({
   onRepeatLastLine,
   isCartPending,
   checkoutState,
+  activeShift,
+  shiftError,
+  isShiftLoading,
 }: {
   form: TenderFormState;
   setForm: Dispatch<SetStateAction<TenderFormState>>;
@@ -317,6 +330,9 @@ export function PosCheckoutPanel({
   onRepeatLastLine: () => void;
   isCartPending: boolean;
   checkoutState: ReturnType<typeof deriveCheckoutState>;
+  activeShift: Awaited<ReturnType<typeof loadActiveShiftAction>>;
+  shiftError?: string | null;
+  isShiftLoading?: boolean;
 }) {
   const [showRef, setShowRef] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -348,7 +364,7 @@ export function PosCheckoutPanel({
   const discountValue = cartSnapshot.discountCents ?? 0;
   const totalDue = Math.max(0, cartSnapshot.subtotalCents - discountValue);
 
-  const disabled = isSubmitting || isCartPending || !canConfirm;
+  const disabled = isSubmitting || isCartPending || !canConfirm || !activeShift || isShiftLoading;
 
   const resetForm = () => {
     const totalDue = Math.max(0, checkoutState.cartSnapshot.subtotalCents - (checkoutState.cartSnapshot.discountCents ?? 0));
@@ -558,6 +574,10 @@ export function PosCheckoutPanel({
         </div>
 
         {validationError ? <p className="text-sm text-destructive">{validationError}</p> : null}
+        {shiftError ? <p className="text-sm text-destructive">{shiftError}</p> : null}
+        {!activeShift ? (
+          <p className="text-sm text-destructive">Open a shift before recording sales.</p>
+        ) : null}
         {error ? <p className="text-sm text-destructive">{error}</p> : null}
 
         <div className="flex flex-col gap-2">
@@ -598,11 +618,25 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   const [isPending, startTransition] = useTransition();
   const [isHistoryPending, startHistoryTransition] = useTransition();
   const [isReceiptLoading, startReceiptTransition] = useTransition();
+  const [activeShift, setActiveShift] = useState<Awaited<ReturnType<typeof loadActiveShiftAction>>>(null);
+  const [shiftError, setShiftError] = useState<string | null>(null);
+  const [openingCashInput, setOpeningCashInput] = useState("0.00");
+  const [countedCashInput, setCountedCashInput] = useState("0.00");
+  const [closePreview, setClosePreview] = useState<Awaited<ReturnType<typeof loadShiftSummaryAction>> | null>(null);
+  const [isClosingShift, setIsClosingShift] = useState(false);
+  const [isShiftPending, startShiftTransition] = useTransition();
   const toast = useToast();
 
   const checkoutState = useMemo(() => deriveCheckoutState(state, form), [state, form]);
   const checkoutTotal = Math.max(0, checkoutState.cartSnapshot.subtotalCents - (checkoutState.cartSnapshot.discountCents ?? 0));
   const isCheckoutMode = panelView === "checkout";
+  const expectedDrawer = closePreview?.expectedCashCents ?? activeShift?.expectedCashCents ?? 0;
+  const countedPreview = parseInputToCents(countedCashInput);
+  const variance = countedPreview - expectedDrawer;
+  const varianceLabel = variance === 0 ? "Balanced" : variance > 0 ? "Over" : "Short";
+  const changeFromSales = closePreview
+    ? closePreview.totalCashTenderCents + closePreview.shift.openingCashCents - closePreview.expectedCashCents
+    : null;
 
   const parseScan = useMemo(() => {
     const regex = /^(\d+)\*(.+)$/;
@@ -640,6 +674,78 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
     if (typeof window !== "undefined") {
       window.print();
     }
+  }, []);
+
+  const refreshShift = useCallback(() => {
+    startShiftTransition(async () => {
+      try {
+        const shift = await loadActiveShiftAction(slug);
+        setActiveShift(shift);
+        if (shift) {
+          setOpeningCashInput(centsToInput(shift.openingCashCents));
+          setCountedCashInput(centsToInput(shift.expectedCashCents));
+        }
+        setShiftError(null);
+      } catch (err) {
+        setShiftError(err instanceof Error ? err.message : "Unable to load shift");
+      }
+    });
+  }, [slug]);
+
+  useEffect(() => {
+    refreshShift();
+  }, [refreshShift]);
+
+  const handleOpenShift = useCallback(() => {
+    startShiftTransition(async () => {
+      try {
+        setShiftError(null);
+        const openingCashCents = parseInputToCents(openingCashInput);
+        const shift = await openShiftAction(slug, { openingCashCents });
+        setActiveShift(shift);
+        setClosePreview(null);
+        setIsClosingShift(false);
+        toast.success("Shift opened");
+      } catch (err) {
+        setShiftError(err instanceof Error ? err.message : "Unable to open shift");
+      }
+    });
+  }, [openingCashInput, slug, toast]);
+
+  const handleStartCloseShift = useCallback(() => {
+    if (!activeShift) return;
+    setIsClosingShift(true);
+    startShiftTransition(async () => {
+      try {
+        const summary = await loadShiftSummaryAction(slug, activeShift.id);
+        setClosePreview(summary);
+        setCountedCashInput(centsToInput(summary.expectedCashCents));
+        setShiftError(null);
+      } catch (err) {
+        setShiftError(err instanceof Error ? err.message : "Unable to load shift totals");
+        setIsClosingShift(false);
+      }
+    });
+  }, [activeShift, slug]);
+
+  const handleConfirmCloseShift = useCallback(() => {
+    if (!activeShift) return;
+    startShiftTransition(async () => {
+      try {
+        const countedCashCents = parseInputToCents(countedCashInput);
+        const summary = await closeShiftAction(slug, { shiftId: activeShift.id, countedCashCents });
+        setClosePreview(summary);
+        setActiveShift(null);
+        setIsClosingShift(false);
+        toast.success("Shift closed");
+      } catch (err) {
+        setShiftError(err instanceof Error ? err.message : "Unable to close shift");
+      }
+    });
+  }, [activeShift, countedCashInput, slug, toast]);
+
+  const handleCancelCloseShift = useCallback(() => {
+    setIsClosingShift(false);
   }, []);
 
   useEffect(() => {
@@ -760,6 +866,10 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
     customerId?: string | null;
     customerName?: string | null;
   }) => {
+    if (!activeShift) {
+      setError("Open a shift before recording sales.");
+      return;
+    }
     const summary = await finalizeSaleAction(slug, payload);
     toast.success(`Sale completed. Change: ${formatMoney(summary.changeCents)}`);
     setActiveReceipt(summary);
@@ -860,6 +970,9 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
           onRepeatLastLine={repeatLastLine}
           isCartPending={isPending}
           checkoutState={checkoutState}
+          activeShift={activeShift}
+          shiftError={shiftError}
+          isShiftLoading={isShiftPending}
         />
       </>
     );
@@ -868,6 +981,146 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   return (
     <div className="flex flex-col gap-4 bg-slate-50 p-4">
       <PosHeader houseName={houseName} labels={labels} />
+      <div className="rounded-md border bg-white p-4 shadow-sm">
+        {activeShift ? (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Active shift</p>
+              <p className="font-semibold">Shift #{activeShift.id}</p>
+              <p className="text-sm text-muted-foreground">
+                Opened {new Date(activeShift.openedAt).toLocaleString()} • Opening {formatMoney(activeShift.openingCashCents)}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={refreshShift} disabled={isShiftPending}>
+                Refresh
+              </Button>
+              <Button onClick={handleStartCloseShift} disabled={isShiftPending}>
+                Close shift
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-destructive">No active shift</p>
+              <p className="text-sm text-muted-foreground">Enter opening cash to start a shift.</p>
+              {shiftError ? <p className="text-xs text-destructive">{shiftError}</p> : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+              <Input
+                type="number"
+                min={0}
+                step="0.01"
+                className="w-32"
+                value={openingCashInput}
+                onChange={(event) => setOpeningCashInput(event.target.value)}
+                aria-label="Opening cash"
+              />
+              <Button onClick={handleOpenShift} disabled={isShiftPending}>
+                {isShiftPending ? "Opening..." : "Open shift"}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {isClosingShift ? (
+          <div className="mt-3 space-y-3 rounded-md border border-dashed bg-muted/40 p-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">Close shift</p>
+              <div className="flex gap-2">
+                <Button size="sm" variant="ghost" onClick={handleCancelCloseShift} disabled={isShiftPending}>
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={handleConfirmCloseShift}
+                  disabled={isShiftPending || !closePreview || !activeShift}
+                >
+                  {isShiftPending ? "Saving..." : "Confirm close"}
+                </Button>
+              </div>
+            </div>
+            {closePreview ? (
+              <div className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Opening cash</span>
+                  <span className="font-semibold">{formatMoney(closePreview.shift.openingCashCents)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Sales total</span>
+                  <span className="font-semibold">{formatMoney(closePreview.totalSalesCents)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Cash tendered</span>
+                  <span className="font-semibold">{formatMoney(closePreview.totalCashTenderCents)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Change given</span>
+                  <span className="font-semibold">{formatMoney(Math.max(0, changeFromSales ?? 0))}</span>
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-medium text-muted-foreground" htmlFor="counted-cash-input">
+                    Counted cash in drawer
+                  </label>
+                  <Input
+                    id="counted-cash-input"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    className="w-full"
+                    value={countedCashInput}
+                    onChange={(event) => setCountedCashInput(event.target.value)}
+                  />
+                </div>
+                <div className="flex items-center justify-between sm:col-span-2">
+                  <span className="text-muted-foreground">Expected cash</span>
+                  <span className="font-semibold">{formatMoney(expectedDrawer)}</span>
+                </div>
+                <div className="flex items-center justify-between sm:col-span-2">
+                  <span className="text-muted-foreground">Over / Short</span>
+                  <span className="font-semibold">
+                    {varianceLabel}: {formatMoney(Math.abs(variance))}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Loading shift totals...</p>
+            )}
+          </div>
+        ) : null}
+
+        {!activeShift && closePreview ? (
+          <div className="mt-3 space-y-1 rounded-md bg-muted/40 p-3 text-sm">
+            <p className="font-semibold">Last closed shift</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Total sales</span>
+                <span className="font-semibold">{formatMoney(closePreview.totalSalesCents)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Expected cash</span>
+                <span className="font-semibold">{formatMoney(closePreview.expectedCashCents)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Counted cash</span>
+                <span className="font-semibold">{formatMoney(closePreview.shift.countedCashCents)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Over / Short</span>
+                <span className="font-semibold">
+                  {closePreview.cashOverShortCents === 0
+                    ? "Balanced"
+                    : closePreview.cashOverShortCents > 0
+                      ? `Over ${formatMoney(closePreview.cashOverShortCents)}`
+                      : `Short ${formatMoney(Math.abs(closePreview.cashOverShortCents))}`}
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : null}
+        {shiftError && activeShift ? <p className="mt-2 text-sm text-destructive">{shiftError}</p> : null}
+      </div>
       <div className="flex flex-wrap justify-end gap-2">
         <Button variant="outline" onClick={handleShowHistory}>
           Recent sales
