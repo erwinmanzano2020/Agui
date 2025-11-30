@@ -48,6 +48,7 @@ type Supabase = SupabaseClient<Database>;
 
 type PosShiftRow = {
   id: string;
+  house_id: string;
   branch_id: string;
   cashier_entity_id: string;
   opened_at: string;
@@ -175,9 +176,7 @@ async function fetchShift(
 ): Promise<PosShiftRow> {
   const { data, error } = await supabase
     .from("pos_shifts")
-    .select(
-      "id, branch_id, cashier_entity_id, opened_at, closed_at, verified_at, opening_float_json, status",
-    )
+    .select("id, house_id, branch_id, cashier_entity_id, opened_at, closed_at, verified_at, opening_float_json, status")
     .eq("id", shiftId)
     .maybeSingle<PosShiftRow>();
 
@@ -344,6 +343,7 @@ export async function openShift(input: {
   const floatMap = normalizeDenominations(input.openingFloat ?? {});
   const openingTotal = calculateDenominationTotal(floatMap);
   const payload = {
+    house_id: branchId,
     branch_id: branchId,
     cashier_entity_id: cashierId,
     opening_float_json: denominationMapToJson(floatMap),

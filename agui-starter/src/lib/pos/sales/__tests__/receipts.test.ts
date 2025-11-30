@@ -28,6 +28,7 @@ const baseCart: CheckoutInput["cart"] = {
 function buildInput(overrides?: Partial<CheckoutInput>): CheckoutInput {
   return {
     houseId: "house-1",
+    shiftId: "shift-1",
     cart: baseCart,
     tenders: [{ type: "CASH", amount: 15000 }],
     customerId: "cust-1",
@@ -110,6 +111,7 @@ test("loadSaleReceipt passes house to repository helpers", async () => {
     created_at: new Date().toISOString(),
     created_by: null,
     closed_at: null,
+    shift_id: null,
   };
   const repository: Parameters<typeof loadSaleReceipt>[2] = {
     insertSale: async () => saleRow,

@@ -188,6 +188,7 @@ export function createInMemorySaleRepository(initial?: Partial<{
         created_at: now,
         created_by: payload.created_by ?? null,
         closed_at: payload.closed_at ?? now,
+        shift_id: payload.shift_id ?? null,
       };
       sales.push(row);
       return row;
@@ -356,6 +357,7 @@ export async function createSale(
     created_at: nowIso,
     created_by: null,
     closed_at: nowIso,
+    shift_id: input.shiftId,
   };
 
   let saleRow: PosSaleRow | null = null;

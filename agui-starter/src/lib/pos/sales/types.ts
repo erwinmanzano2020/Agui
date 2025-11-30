@@ -35,6 +35,7 @@ export type SalesCartSnapshot = {
 
 export type CheckoutInput = {
   houseId: string;
+  shiftId: string;
   cart: SalesCartSnapshot;
   tenders: TenderInput[];
   customerId?: string | null;

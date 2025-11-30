@@ -95,6 +95,7 @@ function buildSale(overrides: Partial<PosSaleRow> = {}): PosSaleRow {
     created_at: overrides.created_at ?? now,
     created_by: overrides.created_by ?? null,
     closed_at: overrides.closed_at ?? now,
+    shift_id: overrides.shift_id ?? null,
   } satisfies PosSaleRow;
 }
 
