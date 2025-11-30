@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
@@ -128,6 +136,11 @@ function PosCartTable({
                     <span className="text-xs text-muted-foreground">
                       {line.tierTag ? `Tier: ${line.tierTag}` : "Standard"}
                     </span>
+                    {line.baseUnitPrice > line.unitPrice ? (
+                      <span className="text-xs text-emerald-700">
+                        You save {formatMoney(line.baseUnitPrice - line.unitPrice)} per unit
+                      </span>
+                    ) : null}
                   </div>
                 </td>
                 <td className="px-3 py-2">
@@ -220,12 +233,16 @@ function PosScanBar({
 
 export function PosCheckoutPanel({
   cartState,
+  form,
+  setForm,
   onConfirm,
   onResetCart,
   onRepeatLastLine,
   isCartPending,
 }: {
   cartState: PosCartState;
+  form: TenderFormState;
+  setForm: Dispatch<SetStateAction<TenderFormState>>;
   onConfirm: (input: {
     cart: SalesCartSnapshot;
     tenders: TenderInput[];
@@ -236,14 +253,6 @@ export function PosCheckoutPanel({
   onRepeatLastLine: () => void;
   isCartPending: boolean;
 }) {
-  const [form, setForm] = useState<TenderFormState>({
-    cash: "",
-    ewallet: "",
-    credit: "",
-    ewalletRef: "",
-    customerId: "",
-    customerName: "",
-  });
   const [showRef, setShowRef] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, startSubmit] = useTransition();
@@ -503,6 +512,14 @@ export function PosCheckoutPanel({
 
 export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   const { state, addOrUpdateLine, updateQuantity, changeUom, removeLine, repeatLastLine, resetCart } = usePosCart();
+  const [form, setForm] = useState<TenderFormState>({
+    cash: "",
+    ewallet: "",
+    credit: "",
+    ewalletRef: "",
+    customerId: "",
+    customerName: "",
+  });
   const [scanValue, setScanValue] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -523,7 +540,7 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
     startTransition(async () => {
       try {
         setError(null);
-        const resolved = await resolveSaleScan(slug, { code, quantity });
+        const resolved = await resolveSaleScan(slug, { code, quantity, customerId: form.customerId });
         const targetUom = resolved.uoms.find((entry: CartUom) => entry.id === resolved.uomId) ?? resolved.uoms[0];
         const existing = state.lines.find(
           (line) => line.itemId === resolved.item.id && line.uomId === (targetUom?.id ?? null),
@@ -533,6 +550,7 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
           itemId: resolved.item.id,
           uomId: targetUom?.id ?? null,
           quantity: nextQuantity,
+          customerId: form.customerId,
         });
 
         addOrUpdateLine({
@@ -541,10 +559,12 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
           barcode: resolved.barcode,
           quantity: nextQuantity,
           unitPrice: priced.unitPrice,
+          baseUnitPrice: priced.baseUnitPrice,
           tierTag: priced.tierTag,
           uomId: targetUom?.id ?? null,
           uomCode: targetUom?.code ?? "",
           uomLabel: targetUom?.label ?? null,
+          specialPricing: priced.specialPricing ?? resolved.specialPricing ?? null,
           uoms: resolved.uoms,
         });
 
@@ -565,7 +585,12 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   const handleQuantityChange = (line: PosCartLine, next: number) => {
     startTransition(async () => {
       try {
-        const price = await priceSaleLine(slug, { itemId: line.itemId, uomId: line.uomId, quantity: next });
+        const price = await priceSaleLine(slug, {
+          itemId: line.itemId,
+          uomId: line.uomId,
+          quantity: next,
+          customerId: form.customerId,
+        });
         updateQuantity(line.id, next, price);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to update quantity");
@@ -578,7 +603,12 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
     if (!uom) return;
     startTransition(async () => {
       try {
-        const price = await priceSaleLine(slug, { itemId: line.itemId, uomId: uom.id, quantity: line.quantity });
+        const price = await priceSaleLine(slug, {
+          itemId: line.itemId,
+          uomId: uom.id,
+          quantity: line.quantity,
+          customerId: form.customerId,
+        });
         changeUom(line.id, uom as CartUom, price);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Unable to change UOM");
@@ -626,6 +656,8 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
           <PosTotals subtotal={state.subtotal} />
           <PosCheckoutPanel
             cartState={state}
+            form={form}
+            setForm={setForm}
             onConfirm={handleConfirmSale}
             onResetCart={resetCart}
             onRepeatLastLine={repeatLastLine}

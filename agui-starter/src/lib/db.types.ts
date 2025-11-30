@@ -623,6 +623,7 @@ export type CustomerGroupRow = {
   house_id: string;
   name: string;
   description: string | null;
+  is_active: boolean;
   created_at: string;
 };
 
@@ -631,10 +632,39 @@ export type CustomerGroupInsert = {
   house_id: string;
   name: string;
   description?: string | null;
+  is_active?: boolean;
   created_at?: string;
 };
 
 export type CustomerGroupUpdate = Partial<CustomerGroupInsert>;
+
+export type CustomerRow = {
+  id: string;
+  house_id: string;
+  name: string;
+  phone: string | null;
+  email: string | null;
+  entity_id: string | null;
+  customer_group_id: string | null;
+  meta: Json | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type CustomerInsert = {
+  id?: string;
+  house_id: string;
+  name: string;
+  phone?: string | null;
+  email?: string | null;
+  entity_id?: string | null;
+  customer_group_id?: string | null;
+  meta?: Json | null;
+  created_at?: string;
+  updated_at?: string | null;
+};
+
+export type CustomerUpdate = Partial<CustomerInsert>;
 
 export type CustomerGroupPriceRow = {
   id: string;
@@ -657,6 +687,44 @@ export type CustomerGroupPriceInsert = {
 };
 
 export type CustomerGroupPriceUpdate = Partial<CustomerGroupPriceInsert>;
+
+export type CustomerPriceRuleRow = {
+  id: string;
+  house_id: string;
+  item_id: string | null;
+  uom_id: string | null;
+  customer_id: string | null;
+  customer_group_id: string | null;
+  rule_type: "PERCENT_DISCOUNT" | "FIXED_PRICE";
+  percent_off: number | null;
+  fixed_price_cents: number | null;
+  applies_to_category_id: string | null;
+  is_active: boolean;
+  valid_from: string | null;
+  valid_to: string | null;
+  created_at: string;
+  updated_at: string | null;
+};
+
+export type CustomerPriceRuleInsert = {
+  id?: string;
+  house_id: string;
+  item_id?: string | null;
+  uom_id?: string | null;
+  customer_id?: string | null;
+  customer_group_id?: string | null;
+  rule_type: CustomerPriceRuleRow["rule_type"];
+  percent_off?: number | null;
+  fixed_price_cents?: number | null;
+  applies_to_category_id?: string | null;
+  is_active?: boolean;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  created_at?: string;
+  updated_at?: string | null;
+};
+
+export type CustomerPriceRuleUpdate = Partial<CustomerPriceRuleInsert>;
 
 export type HouseRoleRow = {
   id: string;
@@ -1070,10 +1138,16 @@ export interface Database {
         CustomerGroupInsert,
         CustomerGroupUpdate
       >;
+      customers: TableDefinition<CustomerRow, CustomerInsert, CustomerUpdate>;
       customer_group_prices: TableDefinition<
         CustomerGroupPriceRow,
         CustomerGroupPriceInsert,
         CustomerGroupPriceUpdate
+      >;
+      customer_price_rules: TableDefinition<
+        CustomerPriceRuleRow,
+        CustomerPriceRuleInsert,
+        CustomerPriceRuleUpdate
       >;
       platform_roles: TableDefinition<PlatformRolesRow, PlatformRolesInsert, PlatformRolesUpdate>;
       policies: TableDefinition<PolicyRow, PolicyInsert, PolicyUpdate>;

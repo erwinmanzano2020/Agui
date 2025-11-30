@@ -14,8 +14,10 @@ type NormalizedLine = {
   uomLabel: string | null;
   quantity: number;
   unitPriceCents: number;
+  baseUnitPriceCents: number;
   lineTotalCents: number;
   tierTag: string | null;
+  specialPricing: SalesCartLineSnapshot["specialPricing"];
 };
 
 type NormalizedCart = {
@@ -80,8 +82,13 @@ function normalizeLine(snapshot: SalesCartLineSnapshot, index: number): Normaliz
     uomLabel: snapshot.uomLabel ?? null,
     quantity: ensurePositiveNumber(snapshot.quantity, `line ${index} quantity`),
     unitPriceCents: ensureNonNegativeInteger(snapshot.unitPriceCents, `line ${index} unit price`),
+    baseUnitPriceCents: ensureNonNegativeInteger(
+      snapshot.baseUnitPriceCents ?? snapshot.unitPriceCents,
+      `line ${index} base unit price`,
+    ),
     lineTotalCents: ensureNonNegativeInteger(snapshot.lineTotalCents, `line ${index} total`),
     tierTag: snapshot.tierTag ?? null,
+    specialPricing: snapshot.specialPricing ?? null,
   } satisfies NormalizedLine;
 }
 

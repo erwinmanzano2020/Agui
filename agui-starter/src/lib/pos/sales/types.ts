@@ -16,8 +16,15 @@ export type SalesCartLineSnapshot = {
   uomLabel?: string | null;
   quantity: number;
   unitPriceCents: number;
+  baseUnitPriceCents?: number;
   lineTotalCents: number;
   tierTag?: string | null;
+  specialPricing?: {
+    id: string;
+    type: "PERCENT_DISCOUNT" | "FIXED_PRICE";
+    source: "CUSTOMER" | "GROUP";
+    percentOff?: number;
+  } | null;
 };
 
 export type SalesCartSnapshot = {
