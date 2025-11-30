@@ -1050,6 +1050,36 @@ export type PosSaleTenderInsert = {
 
 export type PosSaleTenderUpdate = Partial<PosSaleTenderInsert>;
 
+export type StockMovementRow = {
+  id: string;
+  house_id: string;
+  branch_id: string | null;
+  item_id: string;
+  uom_id: string | null;
+  quantity_delta: number;
+  movement_type: string;
+  sale_id: string | null;
+  sale_line_id: string | null;
+  is_overdrawn: boolean;
+  created_at: string;
+};
+
+export type StockMovementInsert = {
+  id?: string;
+  house_id: string;
+  branch_id?: string | null;
+  item_id: string;
+  uom_id?: string | null;
+  quantity_delta: number;
+  movement_type: string;
+  sale_id?: string | null;
+  sale_line_id?: string | null;
+  is_overdrawn?: boolean;
+  created_at?: string;
+};
+
+export type StockMovementUpdate = Partial<StockMovementInsert>;
+
 type TableDefinition<RowType, InsertType, UpdateType> = {
   Row: RowType;
   Insert: InsertType;
@@ -1178,6 +1208,7 @@ export interface Database {
       pos_sales: TableDefinition<PosSaleRow, PosSaleInsert, PosSaleUpdate>;
       pos_sale_lines: TableDefinition<PosSaleLineRow, PosSaleLineInsert, PosSaleLineUpdate>;
       pos_sale_tenders: TableDefinition<PosSaleTenderRow, PosSaleTenderInsert, PosSaleTenderUpdate>;
+      stock_movements: TableDefinition<StockMovementRow, StockMovementInsert, StockMovementUpdate>;
     };
     Views: Record<string, GenericViewDefinition> & {
       v_loyalty_memberships: ViewDefinition<LoyaltyMembershipViewRow>;
