@@ -129,9 +129,10 @@ export async function applyInventoryForSale(
 
     if (lineBundles.length > 0) {
       for (const component of lineBundles) {
-        const baseQuantity =
-          ensureNumber(component.quantity) * ensureNumber(line.quantity) *
-          (component.child_uom_id ? ensureNumber(uomById.get(component.child_uom_id)?.factor_to_base ?? 1) : 1);
+        const childFactor = component.child_uom_id
+          ? ensureNumber(uomById.get(component.child_uom_id)?.factor_to_base ?? 1)
+          : 1;
+        const baseQuantity = ensureNumber(parentBaseQuantity) * ensureNumber(component.quantity) * childFactor;
 
         const key = `${line.id}|${component.child_item_id}|${MOVEMENT_TYPE_POS_SALE}`;
         const existing = perLineItemTotals.get(key);
@@ -157,10 +158,10 @@ export async function applyInventoryForSale(
 
     if (lineRawInputs.length > 0) {
       for (const raw of lineRawInputs) {
-        const baseQuantity =
-          ensureNumber(line.quantity) *
-          ensureNumber(raw.quantity) *
-          (raw.input_uom_id ? ensureNumber(uomById.get(raw.input_uom_id)?.factor_to_base ?? 1) : 1);
+        const inputFactor = raw.input_uom_id
+          ? ensureNumber(uomById.get(raw.input_uom_id)?.factor_to_base ?? 1)
+          : 1;
+        const baseQuantity = ensureNumber(parentBaseQuantity) * ensureNumber(raw.quantity) * inputFactor;
         const baseUomId = baseUoms.get(raw.raw_item_id)?.id ?? null;
         const key = `${line.id}|${raw.raw_item_id}|${MOVEMENT_TYPE_POS_SALE}`;
         const quantityDelta = -baseQuantity;

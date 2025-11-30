@@ -166,6 +166,48 @@ test("bundle sale fans out to components", async () => {
   assert.equal(childB?.quantity_delta, -3);
 });
 
+test("bundle with non-base parent UOM scales component usage from base quantity", async () => {
+  const catalog = createInMemoryInventoryCatalogRepository({
+    items: [buildItem("bundle", { is_bundle: true }), buildItem("child")],
+    uoms: [
+      buildUom("bundle-base", "bundle", 1, { is_base: true }),
+      buildUom("bundle-case", "bundle", 6),
+      buildUom("child-base", "child", 1, { is_base: true }),
+    ],
+    bundles: [
+      {
+        id: "bundle-component-1",
+        house_id: houseId,
+        bundle_parent_id: "bundle",
+        child_item_id: "child",
+        child_uom_id: "child-base",
+        quantity: 2,
+        cost_strategy: "ALLOCATE",
+        created_at: now,
+      },
+    ],
+  });
+  const movements = createInMemoryStockMovementRepository();
+
+  await applyInventoryForSale(
+    buildSale({ id: "sale-bundle-case" }),
+    [
+      buildSaleLine({
+        id: "line-bundle-case",
+        sale_id: "sale-bundle-case",
+        item_id: "bundle",
+        uom_id: "bundle-case",
+        quantity: 1,
+      }),
+    ],
+    { catalog, movements },
+  );
+
+  assert.equal(movements.movements.length, 1);
+  assert.equal(movements.movements[0]?.item_id, "child");
+  assert.equal(movements.movements[0]?.quantity_delta, -12);
+});
+
 test("raw input deduction uses source material", async () => {
   const catalog = createInMemoryInventoryCatalogRepository({
     items: [
@@ -202,6 +244,53 @@ test("raw input deduction uses source material", async () => {
   assert.equal(movements.movements.length, 1);
   assert.equal(movements.movements[0]?.item_id, "raw");
   assert.equal(movements.movements[0]?.quantity_delta, -2000);
+});
+
+test("raw input deduction scales with non-base parent UOM", async () => {
+  const catalog = createInMemoryInventoryCatalogRepository({
+    items: [
+      buildItem("finished", { is_repacked: true, track_inventory: false }),
+      buildItem("raw", { is_raw_material: true }),
+    ],
+    uoms: [
+      buildUom("finished-base", "finished", 1, { is_base: true }),
+      buildUom("finished-case", "finished", 12),
+      buildUom("raw-base", "raw", 1, { is_base: true }),
+      buildUom("raw-kg", "raw", 1000),
+    ],
+    rawInputs: [
+      {
+        id: "ri-case",
+        house_id: houseId,
+        finished_item_id: "finished",
+        raw_item_id: "raw",
+        input_uom_id: "raw-kg",
+        output_uom_id: "finished-base",
+        quantity: 0.5,
+        expected_yield: null,
+        created_at: now,
+      },
+    ],
+  });
+  const movements = createInMemoryStockMovementRepository();
+
+  await applyInventoryForSale(
+    buildSale({ id: "sale-raw-case" }),
+    [
+      buildSaleLine({
+        id: "line-raw-case",
+        sale_id: "sale-raw-case",
+        item_id: "finished",
+        uom_id: "finished-case",
+        quantity: 2,
+      }),
+    ],
+    { catalog, movements },
+  );
+
+  assert.equal(movements.movements.length, 1);
+  assert.equal(movements.movements[0]?.item_id, "raw");
+  assert.equal(movements.movements[0]?.quantity_delta, -12000);
 });
 
 test("inventory posting is idempotent per sale line", async () => {
