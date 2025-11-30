@@ -16,14 +16,17 @@ type NormalizedLine = {
   unitPriceCents: number;
   baseUnitPriceCents: number;
   lineTotalCents: number;
+  baseLineTotalCents: number;
   tierTag: string | null;
   specialPricing: SalesCartLineSnapshot["specialPricing"];
+  savingsPerUnitCents: number;
 };
 
 type NormalizedCart = {
   subtotalCents: number;
   discountCents: number;
   totalCents: number;
+  actualSubtotalCents: number;
   lines: NormalizedLine[];
 };
 
@@ -74,21 +77,27 @@ function toNullableString(value: unknown): string | null {
 }
 
 function normalizeLine(snapshot: SalesCartLineSnapshot, index: number): NormalizedLine {
+  const baseUnitPriceCents = ensureNonNegativeInteger(
+    snapshot.baseUnitPriceCents ?? snapshot.unitPriceCents,
+    `line ${index} base unit price`,
+  );
+  const quantity = ensurePositiveNumber(snapshot.quantity, `line ${index} quantity`);
+  const savingsPerUnit = Math.max(0, baseUnitPriceCents - ensureNonNegativeInteger(snapshot.unitPriceCents, `line ${index} unit price`));
+  const unitPriceCents = ensureNonNegativeInteger(snapshot.unitPriceCents, `line ${index} unit price`);
   return {
     itemId: ensureString(snapshot.itemId, `line ${index} item id`),
     itemName: ensureString(snapshot.itemName, `line ${index} name`),
     uomId: snapshot.uomId ?? null,
     barcode: snapshot.barcode ?? null,
     uomLabel: snapshot.uomLabel ?? null,
-    quantity: ensurePositiveNumber(snapshot.quantity, `line ${index} quantity`),
-    unitPriceCents: ensureNonNegativeInteger(snapshot.unitPriceCents, `line ${index} unit price`),
-    baseUnitPriceCents: ensureNonNegativeInteger(
-      snapshot.baseUnitPriceCents ?? snapshot.unitPriceCents,
-      `line ${index} base unit price`,
-    ),
+    quantity,
+    unitPriceCents,
+    baseUnitPriceCents,
     lineTotalCents: ensureNonNegativeInteger(snapshot.lineTotalCents, `line ${index} total`),
+    baseLineTotalCents: ensureNonNegativeInteger(Math.round(baseUnitPriceCents * quantity), `line ${index} base total`),
     tierTag: snapshot.tierTag ?? null,
     specialPricing: snapshot.specialPricing ?? null,
+    savingsPerUnitCents: savingsPerUnit,
   } satisfies NormalizedLine;
 }
 
@@ -102,11 +111,19 @@ function normalizeCartSnapshot(cart: SalesCartSnapshot): NormalizedCart {
     throw new Error("Cart is empty");
   }
 
-  const subtotalCents = lines.reduce((sum, line) => sum + line.lineTotalCents, 0);
-  const discountCents = ensureNonNegativeInteger(cart.discountCents ?? 0, "discount");
+  const baseSubtotalCents = lines.reduce((sum, line) => sum + line.baseLineTotalCents, 0);
+  const subtotalCents = ensureNonNegativeInteger(cart.subtotalCents ?? baseSubtotalCents, "subtotal");
+  const discountFromLines = Math.max(0, baseSubtotalCents - lines.reduce((sum, line) => sum + line.lineTotalCents, 0));
+  const discountCents = ensureNonNegativeInteger(cart.discountCents ?? discountFromLines, "discount");
   const totalCents = Math.max(0, subtotalCents - discountCents);
 
-  return { subtotalCents, discountCents, totalCents, lines } satisfies NormalizedCart;
+  return {
+    subtotalCents,
+    discountCents,
+    totalCents,
+    actualSubtotalCents: lines.reduce((sum, line) => sum + line.lineTotalCents, 0),
+    lines,
+  } satisfies NormalizedCart;
 }
 
 function normalizeTender(tender: TenderInput, index: number): NormalizedTender {
@@ -216,7 +233,7 @@ export function summarizeCheckout(input: CheckoutInput): CheckoutComputation {
 }
 
 export function computePreviewTotals(cart: SalesCartSnapshot, tenders: TenderInput[]): CheckoutTotals {
-  const subtotal = (cart?.lines ?? []).reduce((sum, line) => sum + clampTenderAmount(line.lineTotalCents), 0);
+  const subtotal = clampTenderAmount(cart.subtotalCents);
   const discountCents = clampTenderAmount(cart.discountCents ?? 0);
   const totalCents = Math.max(0, subtotal - discountCents);
   const sanitizedTenders = (tenders ?? []).map((tender) => ({ type: tender.type, amount: clampTenderAmount(tender.amount) }));

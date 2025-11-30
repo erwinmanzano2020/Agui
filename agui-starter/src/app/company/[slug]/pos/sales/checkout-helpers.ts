@@ -23,9 +23,12 @@ export function parseInputToCents(value: string): number {
 }
 
 export function toCartSnapshot(state: PosCartState): SalesCartSnapshot {
+  const baseSubtotal = state.lines.reduce((sum, line) => sum + Math.round(line.baseUnitPrice * line.quantity), 0);
+  const actualSubtotal = state.lines.reduce((sum, line) => sum + line.lineTotal, 0);
+  const discountCents = Math.max(0, baseSubtotal - actualSubtotal);
   return {
-    subtotalCents: state.subtotal,
-    discountCents: 0,
+    subtotalCents: baseSubtotal,
+    discountCents,
     lines: state.lines.map((line) => ({
       itemId: line.itemId,
       itemName: line.itemName,

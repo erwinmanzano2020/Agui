@@ -3,8 +3,14 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requirePosAccess } from "@/lib/pos/access";
 import { getPriceForCustomerGroup, lookupProductByBarcode } from "@/lib/pos/products/server";
-import { createSale } from "@/lib/pos/sales/server";
-import type { SalesCartSnapshot, TenderInput } from "@/lib/pos/sales/types";
+import { createSale, listRecentSales, loadSaleReceipt } from "@/lib/pos/sales/server";
+import type {
+  LoadSaleReceiptResult,
+  PosReceiptSale,
+  RecentSaleSummary,
+  SalesCartSnapshot,
+  TenderInput,
+} from "@/lib/pos/sales/types";
 
 type ResolvedUom = { id: string; code: string; label: string | null; factorToBase: number; isBase?: boolean };
 
@@ -117,7 +123,7 @@ export async function finalizeSaleAction(
     customerId?: string | null;
     customerName?: string | null;
   },
-) {
+): Promise<PosReceiptSale> {
   const { house, supabase } = await resolveHouse(slug);
 
   return createSale(
@@ -130,4 +136,14 @@ export async function finalizeSaleAction(
     },
     supabase,
   );
+}
+
+export async function listRecentSalesAction(slug: string, limit = 50): Promise<RecentSaleSummary[]> {
+  const { house, supabase } = await resolveHouse(slug);
+  return listRecentSales(house.id, supabase, { limit });
+}
+
+export async function loadSaleReceiptAction(slug: string, saleId: string): Promise<LoadSaleReceiptResult> {
+  const { house, supabase } = await resolveHouse(slug);
+  return loadSaleReceipt(saleId, house.id, supabase);
 }

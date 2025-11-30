@@ -945,6 +945,7 @@ export type PosSaleRow = {
   house_id: string;
   workspace_id: string | null;
   sequence_no: number | null;
+  receipt_number: string | null;
   status: string;
   subtotal_cents: number;
   discount_cents: number;
@@ -966,6 +967,7 @@ export type PosSaleInsert = {
   house_id: string;
   workspace_id?: string | null;
   sequence_no?: number | null;
+  receipt_number?: string | null;
   status?: string;
   subtotal_cents: number;
   discount_cents?: number;

@@ -56,10 +56,55 @@ export type CheckoutTotals = {
 
 export type SaleSummary = {
   id: string;
+  receiptNumber: string;
   totalCents: number;
   changeCents: number;
   outstandingCents: number;
   createdAt: string;
   customerId: string | null;
   customerName: string | null;
+};
+
+export type PosReceiptSaleLine = {
+  name: string;
+  uomLabel: string | null;
+  quantity: number;
+  unitPriceCents: number;
+  lineTotalCents: number;
+  savingsPerUnitCents?: number;
+  tierTag?: string | null;
+};
+
+export type PosReceiptTender = {
+  type: "CASH" | "NON_CASH" | "CREDIT";
+  amountCents: number;
+  label: string;
+};
+
+export type PosReceiptSale = {
+  id: string;
+  receiptNumber: string;
+  createdAt: string;
+  customerId: string | null;
+  customerName: string | null;
+  subtotalCents: number;
+  discountCents: number;
+  totalCents: number;
+  changeCents: number;
+  outstandingCents: number;
+  lines: PosReceiptSaleLine[];
+  tenders: PosReceiptTender[];
+};
+
+export type LoadSaleReceiptResult =
+  | { ok: true; sale: PosReceiptSale }
+  | { ok: false; error: "NOT_FOUND" | "FORBIDDEN" };
+
+export type RecentSaleSummary = {
+  id: string;
+  receiptNumber: string | null;
+  createdAt: string;
+  totalCents: number;
+  customerName: string | null;
+  tenderSummary: "CASH" | "MIXED" | "CREDIT";
 };
