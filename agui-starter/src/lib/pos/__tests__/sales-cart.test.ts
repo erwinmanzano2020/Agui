@@ -18,6 +18,8 @@ function sampleLine(overrides?: Partial<PosCartLine>): PosCartLine {
     uomCode: demoUom.code,
     uomLabel: demoUom.label,
     lineTotal: 500,
+    baseUnitPrice: overrides?.baseUnitPrice ?? overrides?.unitPrice ?? 500,
+    specialPricing: null,
     uoms: [demoUom],
     ...overrides,
   };
@@ -39,7 +41,12 @@ test("cart merges identical item and uom", () => {
 
 test("changing quantity updates totals", () => {
   let state = cartReducer(createCartState(), { type: "add", payload: sampleLine({ quantity: 1 }) });
-  state = cartReducer(state, { type: "quantity", id: state.lines[0]!.id, quantity: 3, price: { unitPrice: 1000, tierTag: "bulk" } });
+  state = cartReducer(state, {
+    type: "quantity",
+    id: state.lines[0]!.id,
+    quantity: 3,
+    price: { unitPrice: 1000, baseUnitPrice: 1000, tierTag: "bulk" },
+  });
 
   assert.equal(state.lines[0]?.quantity, 3);
   assert.equal(state.lines[0]?.lineTotal, 3000);
@@ -53,7 +60,7 @@ test("changing UOM swaps identifiers", () => {
     type: "uom",
     id: state.lines[0]!.id,
     uom: caseUom,
-    price: { unitPrice: 9999, tierTag: "case" },
+    price: { unitPrice: 9999, baseUnitPrice: 9999, tierTag: "case" },
   });
 
   assert.equal(state.lines[0]?.uomId, "case");

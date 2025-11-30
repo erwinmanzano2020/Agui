@@ -18,6 +18,8 @@ import type {
   ItemUomInsert,
   ItemUomRow,
   GlobalItemRow,
+  CustomerRow,
+  CustomerPriceRuleRow,
 } from "@/lib/db.types";
 import { getServiceSupabase } from "@/lib/supabase-service";
 
@@ -102,6 +104,12 @@ export type ProductRepository = {
   listPrices(houseId: string, itemId: string): Promise<ItemPriceRow[]>;
   deletePrices(priceIds: string[]): Promise<void>;
   loadSnapshot(houseId: string, itemId: string): Promise<ProductSnapshot | null>;
+  findCustomer(houseId: string, customerId: string): Promise<CustomerRow | null>;
+  findCustomerGroup(houseId: string, customerGroupId: string): Promise<CustomerGroupRow | null>;
+  listCustomerPriceRules(
+    houseId: string,
+    filters: { customerId?: string | null; customerGroupId?: string | null },
+  ): Promise<CustomerPriceRuleRow[]>;
 };
 
 function normalizeString(value: string | null | undefined): string | null {
@@ -215,6 +223,141 @@ export function resolveUnitPrice(
 ): number {
   const tier = resolveTierForQuantity(tiers, quantity);
   return tier ? tier.unit_price : basePrice;
+}
+
+export type SpecialPricingContext = {
+  houseId: string;
+  itemId: string;
+  uomId: string | null;
+  baseUnitPriceCents: number;
+  customerId?: string | null;
+  customerGroupId?: string | null;
+  categoryId?: string | null;
+  now?: Date;
+  supabase?: DatabaseClient | null;
+  repo?: ProductRepository | null;
+};
+
+export type SpecialPricingResult = {
+  finalUnitPriceCents: number;
+  baseUnitPriceCents: number;
+  appliedRule?: {
+    id: string;
+    type: "PERCENT_DISCOUNT" | "FIXED_PRICE";
+    source: "CUSTOMER" | "GROUP";
+    percentOff?: number;
+  };
+};
+
+type RuleCandidate = {
+  rule: CustomerPriceRuleRow;
+  source: "CUSTOMER" | "GROUP";
+  specificity: number;
+  typePriority: number;
+  sourcePriority: number;
+  percentOff: number | null;
+  createdAt: number;
+};
+
+function isRuleCurrentlyActive(rule: CustomerPriceRuleRow, now: Date): boolean {
+  if (!rule.is_active) return false;
+  if (rule.valid_from && new Date(rule.valid_from).getTime() > now.getTime()) return false;
+  if (rule.valid_to && new Date(rule.valid_to).getTime() < now.getTime()) return false;
+  return true;
+}
+
+function normalizePercentOff(value: number | null): number | null {
+  if (value == null || Number.isNaN(Number(value))) return null;
+  const coerced = Math.min(100, Math.max(0, Number(value)));
+  if (!Number.isFinite(coerced)) return null;
+  return coerced;
+}
+
+function computeSpecificity(rule: CustomerPriceRuleRow, context: SpecialPricingContext): number {
+  if (rule.item_id && rule.item_id !== context.itemId) return -1;
+  if (rule.uom_id && rule.uom_id !== context.uomId) return -1;
+  if (rule.applies_to_category_id && rule.applies_to_category_id !== (context.categoryId ?? null)) return -1;
+
+  if (rule.item_id === context.itemId) {
+    if (rule.uom_id && rule.uom_id === context.uomId) return 3;
+    return 2;
+  }
+
+  if (rule.applies_to_category_id && rule.applies_to_category_id === (context.categoryId ?? null)) {
+    return 1;
+  }
+
+  return 0;
+}
+
+export async function resolveSpecialPrice(context: SpecialPricingContext): Promise<SpecialPricingResult> {
+  const base = Math.max(0, Math.trunc(context.baseUnitPriceCents));
+  if (!context.customerId && !context.customerGroupId) {
+    return { finalUnitPriceCents: base, baseUnitPriceCents: base } satisfies SpecialPricingResult;
+  }
+
+  const store = context.repo || context.supabase ? resolveRepository(context.repo, context.supabase) : null;
+  if (!store) {
+    return { finalUnitPriceCents: base, baseUnitPriceCents: base } satisfies SpecialPricingResult;
+  }
+
+  const now = context.now ?? new Date();
+  const rules = await store.listCustomerPriceRules(context.houseId, {
+    customerId: context.customerId ?? null,
+    customerGroupId: context.customerGroupId ?? null,
+  });
+
+  const candidates: RuleCandidate[] = [];
+  for (const rule of rules ?? []) {
+    if (!isRuleCurrentlyActive(rule, now)) continue;
+    const specificity = computeSpecificity(rule, context);
+    if (specificity < 0) continue;
+
+    const source: RuleCandidate["source"] = rule.customer_id ? "CUSTOMER" : "GROUP";
+    const percentOff = normalizePercentOff(rule.percent_off);
+    if (rule.rule_type === "PERCENT_DISCOUNT" && percentOff == null) continue;
+
+    candidates.push({
+      rule,
+      source,
+      specificity,
+      percentOff,
+      typePriority: rule.rule_type === "FIXED_PRICE" ? 2 : 1,
+      sourcePriority: source === "CUSTOMER" ? 2 : 1,
+      createdAt: rule.created_at ? new Date(rule.created_at).getTime() : 0,
+    });
+  }
+
+  if (candidates.length === 0) {
+    return { finalUnitPriceCents: base, baseUnitPriceCents: base } satisfies SpecialPricingResult;
+  }
+
+  const best = candidates.sort((a, b) => {
+    return (
+      b.specificity - a.specificity ||
+      b.sourcePriority - a.sourcePriority ||
+      b.typePriority - a.typePriority ||
+      b.createdAt - a.createdAt
+    );
+  })[0]!;
+
+  let final = base;
+  if (best.rule.rule_type === "FIXED_PRICE" && best.rule.fixed_price_cents != null) {
+    final = Math.max(0, best.rule.fixed_price_cents);
+  } else if (best.rule.rule_type === "PERCENT_DISCOUNT" && best.percentOff != null) {
+    final = Math.max(0, Math.round(base * (1 - best.percentOff / 100)));
+  }
+
+  return {
+    finalUnitPriceCents: final,
+    baseUnitPriceCents: base,
+    appliedRule: {
+      id: best.rule.id,
+      type: best.rule.rule_type,
+      source: best.source,
+      percentOff: best.percentOff ?? undefined,
+    },
+  } satisfies SpecialPricingResult;
 }
 
 function resolveRepository(explicit?: ProductRepository | null, supabase?: DatabaseClient | null): ProductRepository {
@@ -460,24 +603,29 @@ export async function getPriceForCustomerGroup({
   itemId,
   uomId,
   quantity,
+  customerId,
   customerGroupId,
   supabase,
   repo,
+  now,
 }: {
   houseId: string;
   itemId: string;
   uomId: string | null;
   quantity: number;
+  customerId?: string | null;
   customerGroupId?: string | null;
   supabase?: DatabaseClient | null;
   repo?: ProductRepository | null;
+  now?: Date;
 }): Promise<{
   unitPrice: number;
+  baseUnitPrice: number;
   tier: ItemPriceTierRow | null;
   customerGroup: CustomerGroupRow | null;
+  specialPricing: SpecialPricingResult["appliedRule"] | null;
 }> {
   const store = resolveRepository(repo, supabase);
-  const _customerGroupId = customerGroupId ?? null;
   const snapshot = await store.loadSnapshot(houseId, itemId);
   if (!snapshot) {
     throw new Error("Item not found for pricing");
@@ -493,11 +641,37 @@ export async function getPriceForCustomerGroup({
   }
 
   const tier = resolveTierForQuantity(price.tiers, quantity);
+  const baseUnitPrice = tier ? tier.unit_price : price.unit_price;
 
-  // Customer-group-aware pricing is not yet implemented; capture the intent for future work.
-  void _customerGroupId;
+  let effectiveCustomerGroupId = customerGroupId ?? null;
+  if (!effectiveCustomerGroupId && customerId) {
+    const customer = await store.findCustomer(houseId, customerId);
+    effectiveCustomerGroupId = customer?.customer_group_id ?? null;
+  }
 
-  return { unitPrice: tier ? tier.unit_price : price.unit_price, tier, customerGroup: null };
+  const customerGroup = effectiveCustomerGroupId
+    ? await store.findCustomerGroup(houseId, effectiveCustomerGroupId)
+    : null;
+
+  const special = await resolveSpecialPrice({
+    houseId,
+    itemId,
+    uomId,
+    baseUnitPriceCents: baseUnitPrice,
+    customerId: customerId ?? null,
+    customerGroupId: effectiveCustomerGroupId,
+    categoryId: snapshot.item.category_id ?? null,
+    now,
+    repo: store,
+  });
+
+  return {
+    unitPrice: special.finalUnitPriceCents,
+    baseUnitPrice: special.baseUnitPriceCents,
+    tier,
+    customerGroup,
+    specialPricing: special.appliedRule ?? null,
+  };
 }
 
 export function createSupabaseProductRepository(client: DatabaseClient): ProductRepository {
@@ -644,6 +818,46 @@ export function createSupabaseProductRepository(client: DatabaseClient): Product
         bundles: (bundlesRes.data ?? []) as ItemBundleRow[],
       } satisfies ProductSnapshot;
     },
+    async findCustomer(houseId, customerId) {
+      const { data, error } = await client
+        .from("customers")
+        .select("*")
+        .eq("house_id", houseId)
+        .eq("id", customerId)
+        .maybeSingle();
+      if (error && error.code !== "PGRST116") throw new Error(error.message);
+      return (data as CustomerRow | null) ?? null;
+    },
+    async findCustomerGroup(houseId, customerGroupId) {
+      const { data, error } = await client
+        .from("customer_groups")
+        .select("*")
+        .eq("house_id", houseId)
+        .eq("id", customerGroupId)
+        .maybeSingle();
+      if (error && error.code !== "PGRST116") throw new Error(error.message);
+      return (data as CustomerGroupRow | null) ?? null;
+    },
+    async listCustomerPriceRules(houseId, filters) {
+      if (!filters.customerId && !filters.customerGroupId) return [];
+      let query = client
+        .from("customer_price_rules")
+        .select("*")
+        .eq("house_id", houseId)
+        .eq("is_active", true);
+
+      if (filters.customerId && filters.customerGroupId) {
+        query = query.or(`customer_id.eq.${filters.customerId},customer_group_id.eq.${filters.customerGroupId}`);
+      } else if (filters.customerId) {
+        query = query.eq("customer_id", filters.customerId);
+      } else if (filters.customerGroupId) {
+        query = query.eq("customer_group_id", filters.customerGroupId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw new Error(error.message);
+      return (data ?? []) as CustomerPriceRuleRow[];
+    },
   } satisfies ProductRepository;
 }
 
@@ -660,6 +874,9 @@ export function createInMemoryProductRepository(initial?: Partial<{
   rawInputs: ItemRawInputRow[];
   bundles: ItemBundleRow[];
   globalItems: GlobalItemRow[];
+  customerGroups: CustomerGroupRow[];
+  customers: CustomerRow[];
+  customerPriceRules: CustomerPriceRuleRow[];
 }>): ProductRepository {
   let idCounter = 1;
   const items = new Map(initial?.items?.map((row) => [row.id, row]) ?? []);
@@ -670,6 +887,9 @@ export function createInMemoryProductRepository(initial?: Partial<{
   const rawInputs = new Map(initial?.rawInputs?.map((row) => [row.id, row]) ?? []);
   const bundles = new Map(initial?.bundles?.map((row) => [row.id, row]) ?? []);
   const globalItems = new Map(initial?.globalItems?.map((row) => [row.id, row]) ?? []);
+  const customerGroups = new Map(initial?.customerGroups?.map((row) => [row.id, row]) ?? []);
+  const customers = new Map(initial?.customers?.map((row) => [row.id, row]) ?? []);
+  const customerPriceRules = new Map(initial?.customerPriceRules?.map((row) => [row.id, row]) ?? []);
 
   function makeItemRow(payload: ItemInsert, id: string, existing?: ItemRow): ItemRow {
     return {
@@ -902,6 +1122,26 @@ export function createInMemoryProductRepository(initial?: Partial<{
         rawInputs: rawList,
         bundles: bundleList,
       } satisfies ProductSnapshot;
+    },
+    async findCustomer(houseId, customerId) {
+      const row = customers.get(customerId);
+      if (!row || row.house_id !== houseId) return null;
+      return row;
+    },
+    async findCustomerGroup(houseId, customerGroupId) {
+      const row = customerGroups.get(customerGroupId);
+      if (!row || row.house_id !== houseId) return null;
+      return row;
+    },
+    async listCustomerPriceRules(houseId, filters) {
+      if (!filters.customerId && !filters.customerGroupId) return [];
+      return Array.from(customerPriceRules.values()).filter((rule) => {
+        if (rule.house_id !== houseId) return false;
+        if (!rule.is_active) return false;
+        const matchesCustomer = filters.customerId && rule.customer_id === filters.customerId;
+        const matchesGroup = filters.customerGroupId && rule.customer_group_id === filters.customerGroupId;
+        return Boolean(matchesCustomer || matchesGroup);
+      });
     },
   } satisfies ProductRepository;
 }

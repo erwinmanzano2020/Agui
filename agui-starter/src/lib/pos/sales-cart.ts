@@ -12,8 +12,15 @@ export type PosCartLine = {
   uomLabel: string | null;
   quantity: number;
   unitPrice: number;
+  baseUnitPrice: number;
   tierTag: string | null;
   lineTotal: number;
+  specialPricing?: {
+    id: string;
+    type: "PERCENT_DISCOUNT" | "FIXED_PRICE";
+    source: "CUSTOMER" | "GROUP";
+    percentOff?: number;
+  } | null;
   uoms: CartUom[];
 };
 
@@ -25,7 +32,7 @@ export type PosCartState = {
 
 export type AddOrUpdateLineInput = Omit<PosCartLine, "lineTotal" | "id"> & { id?: string };
 
-export type PriceInfo = { unitPrice: number; tierTag: string | null };
+export type PriceInfo = { unitPrice: number; baseUnitPrice: number; tierTag: string | null; specialPricing?: PosCartLine["specialPricing"] };
 
 export type CartAction =
   | { type: "add"; payload: AddOrUpdateLineInput }
@@ -58,14 +65,17 @@ export function cartReducer(state: PosCartState, action: CartAction): PosCartSta
         const existing = nextLines[idx]!;
         const quantity = action.payload.quantity;
         const unitPrice = action.payload.unitPrice;
+        const baseUnitPrice = action.payload.baseUnitPrice;
         nextLines[idx] = {
           ...existing,
           quantity,
           unitPrice,
+          baseUnitPrice,
           tierTag: action.payload.tierTag,
           lineTotal: computeLineTotal(unitPrice, quantity),
           barcode: action.payload.barcode ?? existing.barcode,
           uoms: action.payload.uoms ?? existing.uoms,
+          specialPricing: action.payload.specialPricing ?? existing.specialPricing,
         };
       } else {
         const lineTotal = computeLineTotal(action.payload.unitPrice, action.payload.quantity);
@@ -73,6 +83,7 @@ export function cartReducer(state: PosCartState, action: CartAction): PosCartSta
           ...action.payload,
           id: incomingId,
           lineTotal,
+          specialPricing: action.payload.specialPricing ?? null,
         });
       }
 
@@ -87,11 +98,14 @@ export function cartReducer(state: PosCartState, action: CartAction): PosCartSta
         if (line.id !== action.id) return line;
         const quantity = Math.max(0, action.quantity);
         const unitPrice = action.price?.unitPrice ?? line.unitPrice;
+        const baseUnitPrice = action.price?.baseUnitPrice ?? line.baseUnitPrice;
         return {
           ...line,
           quantity,
           unitPrice,
+          baseUnitPrice,
           tierTag: action.price?.tierTag ?? line.tierTag,
+          specialPricing: action.price?.specialPricing ?? line.specialPricing,
           lineTotal: computeLineTotal(unitPrice, quantity),
         };
       });
@@ -101,6 +115,7 @@ export function cartReducer(state: PosCartState, action: CartAction): PosCartSta
       const nextLines = state.lines.map((line) => {
         if (line.id !== action.id) return line;
         const unitPrice = action.price?.unitPrice ?? line.unitPrice;
+        const baseUnitPrice = action.price?.baseUnitPrice ?? line.baseUnitPrice;
         const quantity = line.quantity;
         return {
           ...line,
@@ -108,7 +123,9 @@ export function cartReducer(state: PosCartState, action: CartAction): PosCartSta
           uomCode: action.uom.code,
           uomLabel: action.uom.label,
           unitPrice,
+          baseUnitPrice,
           tierTag: action.price?.tierTag ?? line.tierTag,
+          specialPricing: action.price?.specialPricing ?? line.specialPricing,
           lineTotal: computeLineTotal(unitPrice, quantity),
         };
       });

@@ -38,9 +38,14 @@ function resolveUom(snapshotUoms: ResolvedUom[], barcodeCode: string | null, bar
   return fromBarcode ?? baseUom;
 }
 
-export async function resolveSaleScan(slug: string, input: { code: string; quantity?: number }) {
+export async function resolveSaleScan(
+  slug: string,
+  input: { code: string; quantity?: number; customerId?: string | null; customerGroupId?: string | null },
+) {
   const { house, supabase } = await resolveHouse(slug);
   const qty = Math.max(1, Math.trunc(input.quantity ?? 1));
+  const customerId = input.customerId?.trim() || null;
+  const customerGroupId = input.customerGroupId?.trim() || null;
 
   const lookup = await lookupProductByBarcode({ houseId: house.id, barcode: input.code, supabase });
   const snapshot = lookup.snapshot;
@@ -59,11 +64,13 @@ export async function resolveSaleScan(slug: string, input: { code: string; quant
 
   const uom = resolveUom(uoms, lookup.barcode, snapshot.barcodes);
   const totalQuantity = qty;
-  const { unitPrice, tier } = await getPriceForCustomerGroup({
+  const { unitPrice, baseUnitPrice, tier, specialPricing } = await getPriceForCustomerGroup({
     houseId: house.id,
     itemId: snapshot.item.id,
     uomId: uom?.id ?? null,
     quantity: totalQuantity,
+    customerId,
+    customerGroupId,
     supabase,
   });
 
@@ -75,25 +82,31 @@ export async function resolveSaleScan(slug: string, input: { code: string; quant
     quantity: totalQuantity,
     unitPrice,
     tierTag: tier ? `Qty ${tier.min_quantity}+` : null,
+    baseUnitPrice,
+    specialPricing,
   } as const;
 }
 
 export async function priceSaleLine(
   slug: string,
-  input: { itemId: string; uomId: string | null; quantity: number },
+  input: { itemId: string; uomId: string | null; quantity: number; customerId?: string | null; customerGroupId?: string | null },
 ) {
   const { house, supabase } = await resolveHouse(slug);
   const quantity = Math.max(0, Math.trunc(input.quantity));
+  const customerId = input.customerId?.trim() || null;
+  const customerGroupId = input.customerGroupId?.trim() || null;
 
-  const { unitPrice, tier } = await getPriceForCustomerGroup({
+  const { unitPrice, baseUnitPrice, tier, specialPricing } = await getPriceForCustomerGroup({
     houseId: house.id,
     itemId: input.itemId,
     uomId: input.uomId,
     quantity,
+    customerId,
+    customerGroupId,
     supabase,
   });
 
-  return { unitPrice, tierTag: tier ? `Qty ${tier.min_quantity}+` : null } as const;
+  return { unitPrice, tierTag: tier ? `Qty ${tier.min_quantity}+` : null, baseUnitPrice, specialPricing } as const;
 }
 
 export async function finalizeSaleAction(

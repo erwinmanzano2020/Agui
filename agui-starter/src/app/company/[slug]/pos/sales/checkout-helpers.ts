@@ -34,8 +34,10 @@ export function toCartSnapshot(state: PosCartState): SalesCartSnapshot {
       uomLabel: line.uomLabel ?? null,
       quantity: line.quantity,
       unitPriceCents: line.unitPrice,
+      baseUnitPriceCents: line.baseUnitPrice,
       lineTotalCents: line.lineTotal,
       tierTag: line.tierTag,
+      specialPricing: line.specialPricing ?? null,
     })),
   } satisfies SalesCartSnapshot;
 }

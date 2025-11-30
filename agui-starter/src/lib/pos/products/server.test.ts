@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { describe, it } from "node:test";
 
 import {
@@ -9,6 +10,7 @@ import {
   upsertProductFromEncoding,
   type ProductSnapshot,
 } from "./server";
+import type { CustomerPriceRuleRow } from "@/lib/db.types";
 
 const { createInMemoryProductRepository } = __productTesting;
 
@@ -17,6 +19,26 @@ function extractPrice(snapshot: ProductSnapshot, uomId?: string | null) {
     return snapshot.prices.find((price) => price.uom_id === uomId) ?? snapshot.prices[0];
   }
   return snapshot.prices[0];
+}
+
+function buildRule(overrides: Partial<CustomerPriceRuleRow>): CustomerPriceRuleRow {
+  return {
+    id: overrides.id ?? randomUUID(),
+    house_id: overrides.house_id ?? "house-1",
+    item_id: overrides.item_id ?? "item-1",
+    uom_id: overrides.uom_id ?? null,
+    customer_id: overrides.customer_id ?? null,
+    customer_group_id: overrides.customer_group_id ?? null,
+    rule_type: overrides.rule_type ?? "PERCENT_DISCOUNT",
+    percent_off: overrides.percent_off ?? 0,
+    fixed_price_cents: overrides.fixed_price_cents ?? null,
+    applies_to_category_id: overrides.applies_to_category_id ?? null,
+    is_active: overrides.is_active ?? true,
+    valid_from: overrides.valid_from ?? null,
+    valid_to: overrides.valid_to ?? null,
+    created_at: overrides.created_at ?? new Date().toISOString(),
+    updated_at: overrides.updated_at ?? null,
+  } satisfies CustomerPriceRuleRow;
 }
 
 describe("pos product helpers", () => {
@@ -209,6 +231,63 @@ describe("pos product helpers", () => {
       repo,
     });
     assert.equal(priceForBulk.unitPrice, 900);
+  });
+
+  it("applies special pricing on top of tiered prices", async () => {
+    const repo = createInMemoryProductRepository({
+      customerPriceRules: [
+        buildRule({
+          house_id: "house-1",
+          customer_group_id: "vip-group",
+          rule_type: "PERCENT_DISCOUNT",
+          percent_off: 10,
+        }),
+      ],
+    });
+
+    const snapshot = await upsertProductFromEncoding({
+      houseId: "house-1",
+      payload: {
+        name: "Tiered Discounted",
+        baseUom: { code: "PC" },
+        barcodes: [{ code: "tier-special" }],
+        prices: [
+          {
+            uomCode: "PC",
+            priceType: "RETAIL",
+            tierTag: "default",
+            unitPrice: 1000,
+            tiers: [{ minQuantity: 5, unitPrice: 900 }],
+          },
+        ],
+      },
+      repo,
+    });
+
+    const uomId = snapshot.uoms[0]?.id ?? null;
+    const priced = await getPriceForCustomerGroup({
+      houseId: "house-1",
+      itemId: snapshot.item.id,
+      uomId,
+      quantity: 5,
+      customerGroupId: "vip-group",
+      repo,
+    });
+
+    assert.equal(priced.baseUnitPrice, 900);
+    assert.equal(priced.unitPrice, 810);
+    assert.equal(priced.specialPricing?.type, "PERCENT_DISCOUNT");
+
+    const withoutCustomer = await getPriceForCustomerGroup({
+      houseId: "house-1",
+      itemId: snapshot.item.id,
+      uomId,
+      quantity: 5,
+      repo,
+    });
+
+    assert.equal(withoutCustomer.unitPrice, 900);
+    assert.equal(withoutCustomer.specialPricing, null);
   });
 
   it("removes stale price rows when they are deleted in the payload", async () => {
