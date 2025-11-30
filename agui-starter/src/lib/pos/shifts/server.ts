@@ -280,9 +280,10 @@ export async function openShift(input: OpenShiftInput, client?: RepositoryClient
 export async function computeShiftTotals(
   input: { shiftId: string; houseId: string },
   client?: RepositoryClient,
+  options?: { shift?: DbPosShiftRow },
 ): Promise<PosShiftSummary> {
   const repository = resolveRepository(client);
-  const shift = assertShiftHouse(await repository.getShiftById(input.shiftId), input.houseId);
+  const shift = assertShiftHouse(options?.shift ?? (await repository.getShiftById(input.shiftId)), input.houseId);
   const sales = await repository.listSalesForShift(input.shiftId, input.houseId);
   const validSales = sales.filter((sale) => sale.status !== "VOID");
   const saleIds = validSales.map((sale) => sale.id);
@@ -322,13 +323,13 @@ export async function computeShiftTotals(
 export async function closeShift(input: CloseShiftInput, client?: RepositoryClient): Promise<PosShiftSummary> {
   const repository = resolveRepository(client);
   const countedCashCents = ensureNonNegativeInteger(input.countedCashCents, "Counted cash");
-  const summary = await computeShiftTotals({ shiftId: input.shiftId, houseId: input.houseId }, repository);
+  const shift = assertShiftHouse(await repository.getShiftById(input.shiftId), input.houseId);
 
-  if (summary.shift.status !== "OPEN") {
+  if (shift.status !== "OPEN") {
     throw new PosShiftError("Shift is already closed", "shift_not_open", 409);
   }
 
-  const isOwner = summary.shift.opened_by_entity_id === input.userId;
+  const isOwner = shift.opened_by_entity_id === input.userId;
   const isManager = userHasManagerRole(input.userRoles);
   if (!isOwner && !isManager) {
     throw new PosShiftError(
@@ -338,6 +339,7 @@ export async function closeShift(input: CloseShiftInput, client?: RepositoryClie
     );
   }
 
+  const summary = await computeShiftTotals({ shiftId: input.shiftId, houseId: input.houseId }, repository, { shift });
   const expectedCashCents = summary.expectedCashCents;
   const cashOverShortCents = countedCashCents - expectedCashCents;
   const closedShift = await repository.updateShift(input.shiftId, {
