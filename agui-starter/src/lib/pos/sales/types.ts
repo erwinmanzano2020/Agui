@@ -94,6 +94,7 @@ export type PosReceiptSale = {
   outstandingCents: number;
   lines: PosReceiptSaleLine[];
   tenders: PosReceiptTender[];
+  inventoryWarning?: string | null;
 };
 
 export type LoadSaleReceiptResult =

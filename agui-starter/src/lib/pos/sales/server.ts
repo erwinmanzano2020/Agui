@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
@@ -10,6 +12,14 @@ import type {
   PosSaleTenderRow,
 } from "@/lib/db.types";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
+import {
+  applyInventoryForSale,
+  createInMemoryInventoryCatalogRepository,
+  createInMemoryStockMovementRepository,
+  createSupabaseInventoryCatalogRepository,
+  createSupabaseStockMovementRepository,
+  type InventoryPostingDependencies,
+} from "../inventory/server";
 
 import { summarizeCheckout } from "./checkout";
 import type {
@@ -258,6 +268,29 @@ function resolveRepository(client?: SupabaseClient<Database> | SaleRepository | 
   return resolveSupabaseRepository(client as SupabaseClient<Database> | null);
 }
 
+function resolveInventoryDependencies(
+  client: SupabaseClient<Database> | SaleRepository | null | undefined,
+  override?: InventoryPostingDependencies,
+): InventoryPostingDependencies {
+  if (override) return override;
+
+  if (client && typeof (client as SaleRepository).insertSale === "function") {
+    return {
+      catalog: createInMemoryInventoryCatalogRepository(),
+      movements: createInMemoryStockMovementRepository(),
+    } satisfies InventoryPostingDependencies;
+  }
+
+  const supabase = client && typeof (client as SupabaseClient<Database>).from === "function"
+    ? (client as SupabaseClient<Database>)
+    : null;
+
+  return {
+    catalog: createSupabaseInventoryCatalogRepository(supabase),
+    movements: createSupabaseStockMovementRepository(supabase),
+  } satisfies InventoryPostingDependencies;
+}
+
 function formatReceiptNumber(sequence: number, now = new Date()): string {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, "0");
@@ -297,7 +330,11 @@ function isUniqueViolation(error: unknown) {
   return (error as { code?: string })?.code === "23505" || (error as Error)?.message.includes("duplicate key") === true;
 }
 
-export async function createSale(input: CheckoutInput, client?: SupabaseClient<Database> | SaleRepository): Promise<PosReceiptSale> {
+export async function createSale(
+  input: CheckoutInput,
+  client?: SupabaseClient<Database> | SaleRepository,
+  inventoryDeps?: InventoryPostingDependencies,
+): Promise<PosReceiptSale> {
   const { cart, tenders, totals, customerId, customerName, meta } = summarizeCheckout(input);
   const repository = resolveRepository(client);
   const now = new Date();
@@ -344,6 +381,7 @@ export async function createSale(input: CheckoutInput, client?: SupabaseClient<D
   }
 
   const lineRows: PosSaleLineInsert[] = cart.lines.map((line) => ({
+    id: randomUUID(),
     sale_id: saleRow!.id,
     house_id: input.houseId,
     item_id: line.itemId,
@@ -374,6 +412,30 @@ export async function createSale(input: CheckoutInput, client?: SupabaseClient<D
   await repository.insertSaleLines(lineRows);
   await repository.insertSaleTenders(tenderRows);
 
+  const saleLineRows: PosSaleLineRow[] = lineRows.map(
+    (line) =>
+      ({
+        ...line,
+        id: line.id!,
+        barcode: line.barcode ?? null,
+        uom_id: line.uom_id ?? null,
+        uom_label_snapshot: line.uom_label_snapshot ?? null,
+        tier_applied: line.tier_applied ?? null,
+        meta: (line.meta as PosSaleLineRow["meta"]) ?? null,
+        created_at: line.created_at ?? nowIso,
+        updated_at: line.updated_at ?? nowIso,
+      } satisfies PosSaleLineRow),
+  );
+
+  const inventory = resolveInventoryDependencies(client ?? null, inventoryDeps);
+  let inventoryWarning: string | null = null;
+  try {
+    await applyInventoryForSale(saleRow, saleLineRows, inventory);
+  } catch (error) {
+    console.error("Failed to post inventory", error);
+    inventoryWarning = error instanceof Error ? error.message : "Inventory posting failed";
+  }
+
   const receiptTenders = tenderRows.map((tender) => mapTenderToReceipt(tender, customerName ?? null));
 
   return {
@@ -397,6 +459,7 @@ export async function createSale(input: CheckoutInput, client?: SupabaseClient<D
       tierTag: line.tierTag,
     })),
     tenders: receiptTenders,
+    inventoryWarning,
   } satisfies PosReceiptSale;
 }
 
