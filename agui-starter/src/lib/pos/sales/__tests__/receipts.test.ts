@@ -1,6 +1,7 @@
 import assert from "node:assert";
 import test from "node:test";
 
+import type { PosSaleRow } from "@/lib/db.types";
 import { createInMemorySaleRepository, createSale, listRecentSales, loadSaleReceipt } from "../server";
 import type { CheckoutInput } from "../types";
 
@@ -89,8 +90,28 @@ test("receipt loading enforces house isolation", async () => {
 
 test("loadSaleReceipt passes house to repository helpers", async () => {
   const calls: Array<{ method: string; saleId: string; houseId: string }> = [];
-  const saleRow = { id: "sale-1", house_id: "house-1", created_at: new Date().toISOString() } as any;
-  const repository = {
+  const saleRow: PosSaleRow = {
+    id: "sale-1",
+    house_id: "house-1",
+    workspace_id: null,
+    sequence_no: null,
+    receipt_number: null,
+    status: "COMPLETED",
+    subtotal_cents: 0,
+    discount_cents: 0,
+    total_cents: 0,
+    amount_received_cents: 0,
+    change_cents: 0,
+    outstanding_cents: 0,
+    customer_entity_id: null,
+    customer_name: null,
+    customer_ref: null,
+    meta: null,
+    created_at: new Date().toISOString(),
+    created_by: null,
+    closed_at: null,
+  };
+  const repository: Parameters<typeof loadSaleReceipt>[2] = {
     insertSale: async () => saleRow,
     insertSaleLines: async () => {},
     insertSaleTenders: async () => {},
@@ -109,7 +130,7 @@ test("loadSaleReceipt passes house to repository helpers", async () => {
     },
   } as const;
 
-  const result = await loadSaleReceipt("sale-1", "house-1", repository as any);
+  const result = await loadSaleReceipt("sale-1", "house-1", repository);
   assert.equal(result.ok, true);
   assert.deepEqual(
     calls.map((call) => `${call.method}:${call.houseId}`),

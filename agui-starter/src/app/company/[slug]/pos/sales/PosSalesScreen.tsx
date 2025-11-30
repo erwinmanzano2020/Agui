@@ -17,7 +17,7 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toaster";
 import type { PosReceiptSale, RecentSaleSummary, SalesCartSnapshot, TenderInput } from "@/lib/pos/sales/types";
-import { formatMoney, type CartUom, type PosCartLine, type PosCartState, usePosCart } from "@/lib/pos/sales-cart";
+import { formatMoney, type CartUom, type PosCartLine, usePosCart } from "@/lib/pos/sales-cart";
 import type { WorkspaceSettings } from "@/lib/settings/workspace";
 
 import { finalizeSaleAction, listRecentSalesAction, loadSaleReceiptAction, priceSaleLine, resolveSaleScan } from "./actions";
