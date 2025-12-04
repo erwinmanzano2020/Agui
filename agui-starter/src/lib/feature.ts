@@ -25,7 +25,11 @@ export async function isFeatureOn(k: UiModuleKey) {
   }
 
   const effectivePermissions = applyDevPermissionsOverride(permissions);
-  if (effectivePermissions !== permissions && toggle?.enabled !== false) {
+
+  // dev override is active when permissions are empty in non-production and the toggle
+  // is not explicitly disabled; default undefined to enabled
+  const enabled = toggle?.enabled ?? true;
+  if (effectivePermissions !== permissions && enabled) {
     return true;
   }
 
