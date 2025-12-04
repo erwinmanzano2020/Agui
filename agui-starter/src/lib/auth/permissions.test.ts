@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { AppFeature, canAccessAny } from "./permissions";
+import { AppFeature, canAccess, canAccessAny } from "./permissions";
 import type { PolicyRecord } from "@/lib/policy/types";
 
 describe("canAccessAny", () => {
@@ -42,10 +42,13 @@ describe("canAccessAny", () => {
     assert.equal(canAccessAny(AppFeature.PAYROLL, [payrollPermission]), true);
   });
 
-  it("denies access when none of the features are permitted", () => {
-    assert.equal(
-      canAccessAny([AppFeature.TEAM, AppFeature.DTR_BULK], []),
-      false,
-    );
+  it("allows all features when permission set is empty (dev override)", () => {
+    assert.equal(canAccessAny([AppFeature.TEAM, AppFeature.DTR_BULK], []), true);
+  });
+});
+
+describe("canAccess", () => {
+  it("allows all features when permission set is empty (dev override)", () => {
+    assert.equal(canAccess([AppFeature.TEAM, AppFeature.PAYROLL], []), true);
   });
 });
