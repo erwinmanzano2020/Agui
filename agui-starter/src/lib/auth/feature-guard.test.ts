@@ -20,6 +20,7 @@ describe("requireAnyFeatureAccessJson", () => {
 
   afterEach(() => {
     process.env.NODE_ENV = "test";
+    process.env.NEXT_PUBLIC_VERCEL_ENV = undefined;
   });
 
   it("allows access when at least one requested feature is available", async () => {
@@ -47,6 +48,7 @@ describe("requireAnyFeatureAccessJson", () => {
 
   it("returns a 403 response when none of the features are granted in production", async () => {
     process.env.NODE_ENV = "production";
+    process.env.NEXT_PUBLIC_VERCEL_ENV = "production";
     mock.method(userPermissions, "getUserPermissions", async () => []);
 
     const response = await requireAnyFeatureAccessJson([
@@ -57,5 +59,18 @@ describe("requireAnyFeatureAccessJson", () => {
     assert.equal(response?.status, 403);
     const payload = (await response?.json()) as { error: string };
     assert.deepEqual(payload, { error: "Forbidden" });
+  });
+
+  it("allows access when preview env flag is present with empty permissions", async () => {
+    process.env.NODE_ENV = "production";
+    process.env.NEXT_PUBLIC_VERCEL_ENV = "preview";
+    mock.method(userPermissions, "getUserPermissions", async () => []);
+
+    const response = await requireAnyFeatureAccessJson([
+      AppFeature.DTR_BULK,
+      AppFeature.PAYROLL,
+    ]);
+
+    assert.equal(response, null);
   });
 });

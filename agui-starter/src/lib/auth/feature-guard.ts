@@ -7,6 +7,7 @@ import { NextResponse } from "next/server";
 import {
   canAccess,
   canAccessAny,
+  applyDevPermissionsOverride,
   type FeatureInput,
   AppFeature,
 } from "@/lib/auth/permissions";
@@ -58,14 +59,8 @@ export async function requireFeatureAccess(
   feature: FeatureInput,
   options?: { dest?: string }
 ) {
-  if (await hasFeatureAccess(feature)) {
-    return;
-  }
-
-  // Dev override: allow access when permissions are empty outside production
-  // while policy seeding is incomplete.
   const permissions = await getUserPermissions();
-  if (permissions.length === 0 && process.env.NODE_ENV !== "production") {
+  if (canAccess(feature, applyDevPermissionsOverride(permissions))) {
     return;
   }
 
@@ -77,12 +72,8 @@ export async function requireFeatureAccess(
 }
 
 export async function requireFeatureAccessJson(feature: FeatureInput) {
-  if (await hasFeatureAccess(feature)) {
-    return null;
-  }
-
   const permissions = await getUserPermissions();
-  if (permissions.length === 0 && process.env.NODE_ENV !== "production") {
+  if (canAccess(feature, applyDevPermissionsOverride(permissions))) {
     return null;
   }
 
@@ -95,12 +86,8 @@ export async function requireFeatureAccessApi(feature: AppFeature) {
 }
 
 export async function requireAnyFeatureAccessJson(features: FeatureInput) {
-  if (await hasAnyFeatureAccess(features)) {
-    return null;
-  }
-
   const permissions = await getUserPermissions();
-  if (permissions.length === 0 && process.env.NODE_ENV !== "production") {
+  if (canAccessAny(features, applyDevPermissionsOverride(permissions))) {
     return null;
   }
 

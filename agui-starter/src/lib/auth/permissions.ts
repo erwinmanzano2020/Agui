@@ -1,6 +1,15 @@
 import type { PolicyRecord, PolicyRequest } from "@/lib/policy/types";
 import { permissionSetAllows } from "@/lib/policy/matcher";
 
+const DEV_OVERRIDE_PERMISSIONS: PolicyRecord[] = [
+  {
+    id: "dev-override",
+    key: "dev-override",
+    action: "*",
+    resource: "*",
+  },
+];
+
 export enum AppFeature {
   ALLIANCES = "alliances",
   GUILDS = "guilds",
@@ -60,6 +69,34 @@ const FEATURE_DEFINITIONS: Partial<Record<AppFeature, PolicyRequest[]>> = {
 
 export type FeatureInput = AppFeature | Iterable<AppFeature>;
 
+function isNonProductionEnvironment(): boolean {
+  const nodeEnv = process.env.NODE_ENV;
+  if (nodeEnv && nodeEnv !== "production") {
+    return true;
+  }
+
+  const publicEnv = process.env.NEXT_PUBLIC_VERCEL_ENV;
+  if (publicEnv && publicEnv !== "production") {
+    return true;
+  }
+
+  return false;
+}
+
+export function shouldBypassPermissions(permissions: PolicyRecord[]): boolean {
+  return permissions.length === 0 && isNonProductionEnvironment();
+}
+
+export function applyDevPermissionsOverride(
+  permissions: PolicyRecord[],
+): PolicyRecord[] {
+  if (shouldBypassPermissions(permissions)) {
+    return DEV_OVERRIDE_PERMISSIONS;
+  }
+
+  return permissions;
+}
+
 function toArray(input: FeatureInput): AppFeature[] {
   if (typeof input === "string") {
     return [input as AppFeature];
@@ -78,12 +115,7 @@ export function canAccess(features: FeatureInput, permissions: PolicyRecord[]): 
     return true;
   }
 
-  // Temporary dev override: while policy seeding is incomplete and we run
-  // single-tenant, treat an empty permission set as full access so owners are
-  // not blocked by missing policies. Remove once real permissions are seeded.
-  if (permissions.length === 0 && process.env.NODE_ENV !== "production") {
-    return true;
-  }
+  const effectivePermissions = applyDevPermissionsOverride(permissions);
 
   return list.every((feature) => {
     const requirements = FEATURE_DEFINITIONS[feature];
@@ -92,7 +124,7 @@ export function canAccess(features: FeatureInput, permissions: PolicyRecord[]): 
     }
 
     return requirements.some((requirement) =>
-      permissionSetAllows(permissions, requirement),
+      permissionSetAllows(effectivePermissions, requirement),
     );
   });
 }
@@ -103,12 +135,7 @@ export function canAccessAny(features: FeatureInput, permissions: PolicyRecord[]
     return true;
   }
 
-  // Temporary dev override: allow all features when no policies are returned.
-  // This keeps the app usable in dev/single-tenant setups until policy data is
-  // seeded consistently across environments.
-  if (permissions.length === 0 && process.env.NODE_ENV !== "production") {
-    return true;
-  }
+  const effectivePermissions = applyDevPermissionsOverride(permissions);
 
   return list.some((feature) => {
     const requirements = FEATURE_DEFINITIONS[feature];
@@ -117,7 +144,7 @@ export function canAccessAny(features: FeatureInput, permissions: PolicyRecord[]
     }
 
     return requirements.some((requirement) =>
-      permissionSetAllows(permissions, requirement),
+      permissionSetAllows(effectivePermissions, requirement),
     );
   });
 }

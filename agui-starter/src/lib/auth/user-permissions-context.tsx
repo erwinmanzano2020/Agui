@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 
 import type { PolicyRecord } from "@/lib/policy/types";
 import { useSession, type ViewAsSelection } from "@/lib/auth/session-context";
+import { applyDevPermissionsOverride } from "@/lib/auth/permissions";
 
 const UserPermissionsContext = createContext<PolicyRecord[]>([]);
 
@@ -114,8 +115,8 @@ export function useUserPermissions(): PolicyRecord[] {
   }, [supabase, viewAs]);
 
   if (simulated === null) {
-    return base;
+    return applyDevPermissionsOverride(base);
   }
 
-  return simulated;
+  return applyDevPermissionsOverride(simulated);
 }
