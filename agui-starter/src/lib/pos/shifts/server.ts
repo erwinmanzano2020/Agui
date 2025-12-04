@@ -342,6 +342,8 @@ export async function closeShift(input: CloseShiftInput, client?: RepositoryClie
   const summary = await computeShiftTotals({ shiftId: input.shiftId, houseId: input.houseId }, repository, { shift });
   const expectedCashCents = summary.expectedCashCents;
   const cashOverShortCents = countedCashCents - expectedCashCents;
+  const currentMeta =
+    shift.meta && typeof shift.meta === "object" && !Array.isArray(shift.meta) ? (shift.meta as Record<string, unknown>) : {};
   const closedShift = await repository.updateShift(input.shiftId, {
     status: "CLOSED",
     closed_at: new Date().toISOString(),
@@ -349,6 +351,7 @@ export async function closeShift(input: CloseShiftInput, client?: RepositoryClie
     counted_cash_cents: countedCashCents,
     expected_cash_cents: expectedCashCents,
     cash_over_short_cents: cashOverShortCents,
+    meta: { ...currentMeta, closing_notes: input.closingNotes ?? null },
   });
 
   return {

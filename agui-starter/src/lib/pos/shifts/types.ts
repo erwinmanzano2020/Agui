@@ -18,6 +18,7 @@ export type CloseShiftInput = {
   userId: string;
   userRoles?: WorkspaceRole[];
   countedCashCents: number;
+  closingNotes?: string | null;
 };
 
 export type PosShiftSummary = {

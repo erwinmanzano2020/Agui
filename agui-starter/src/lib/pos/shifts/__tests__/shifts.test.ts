@@ -111,6 +111,24 @@ test("closeShift allows manager to close another cashier's shift", async () => {
   assert.equal(summary.shift.closed_by_entity_id, "manager-1");
 });
 
+test("closeShift stores optional closing notes in meta", async () => {
+  const repo = createInMemoryShiftRepository({ shifts: [buildShiftRow("shift-notes")] });
+
+  const summary = await closeShift(
+    {
+      shiftId: "shift-notes",
+      houseId,
+      userId,
+      countedCashCents: 1500,
+      closingNotes: "Counted twice with supervisor present.",
+    },
+    repo,
+  );
+
+  const meta = summary.shift.meta as Record<string, unknown>;
+  assert.equal((meta as { closing_notes?: unknown }).closing_notes, "Counted twice with supervisor present.");
+});
+
 test("closeShift enforces house isolation", async () => {
   const repo = createInMemoryShiftRepository({
     shifts: [buildShiftRow("shift-5", { house_id: "other-house", branch_id: "other-house" })],
