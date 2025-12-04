@@ -41,19 +41,23 @@ export default function DtrBulkPage() {
 
   useEffect(() => {
     (async () => {
-      const sb = getSupabase();
-      if (!sb) {
-        setMsg("Supabase not configured");
+      const response = await fetch("/api/hr/employees");
+      const payload = (await response.json().catch(() => null)) as
+        | { employees?: Emp[]; error?: string }
+        | null;
+
+      if (!response.ok || !payload || payload.error) {
+        setMsg(payload?.error ?? "Failed to load employees");
         setEmps([]);
         return;
       }
 
-      const { data } = await sb
-        .from("employees")
-        .select("id, code, full_name")
-        .neq("status", "archived")
-        .order("full_name");
-      const employees = (data ?? []) as Emp[];
+      const employees = (payload.employees ?? []).map((emp) => ({
+        id: emp.id,
+        code: emp.code ?? undefined,
+        full_name: emp.full_name,
+      } satisfies Emp));
+
       setEmps(employees);
       if (employees[0]) setEmpId(employees[0].id);
     })();

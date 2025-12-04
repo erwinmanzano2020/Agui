@@ -213,29 +213,28 @@ export default function DtrBulkClient() {
     let cancelled = false;
     (async () => {
       setLoadingEmps(true);
-      const sb = getSupabase();
-      if (!sb) {
-        if (!cancelled) {
-          setToast({ kind: "error", msg: "Supabase not configured" });
-          setLoadingEmps(false);
-        }
-        return;
-      }
+      const response = await fetch("/api/hr/employees");
+      const payload = (await response.json().catch(() => null)) as
+        | { employees?: Emp[]; error?: string }
+        | null;
 
-      const { data, error } = await sb
-        .from("employees")
-        .select("id, code, full_name")
-        .order("full_name", { ascending: true });
       if (cancelled) return;
-      if (error) {
+
+      if (!response.ok || !payload || payload.error) {
         setToast({
           kind: "error",
-          msg: `Load employees failed: ${error.message}`,
+          msg: payload?.error ?? "Load employees failed",
         });
         setLoadingEmps(false);
         return;
       }
-      const emps = (data ?? []) as Emp[];
+
+      const emps = (payload.employees ?? []).map((emp) => ({
+        id: emp.id,
+        code: emp.code ?? undefined,
+        full_name: emp.full_name,
+      } satisfies Emp));
+
       setEmployees(emps);
       if (!selectedEmpId && emps.length) setSelectedEmpId(emps[0].id);
       setLoadingEmps(false);
