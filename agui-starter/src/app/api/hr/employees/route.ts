@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireFeatureAccessApi } from "@/lib/auth/feature-guard";
+import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import { listEmployeesForHouse } from "@/lib/hr/employees-server";
@@ -46,7 +46,11 @@ async function resolveHouseForEntity(
 }
 
 export async function GET(req: NextRequest) {
-  const guard = await requireFeatureAccessApi(AppFeature.PAYROLL);
+  const guard = await requireAnyFeatureAccessApi([
+    AppFeature.PAYROLL,
+    AppFeature.TEAM,
+    AppFeature.DTR_BULK,
+  ]);
   if (guard) {
     return guard;
   }

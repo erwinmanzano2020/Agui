@@ -90,6 +90,24 @@ export function canAccess(features: FeatureInput, permissions: PolicyRecord[]): 
   });
 }
 
+export function canAccessAny(features: FeatureInput, permissions: PolicyRecord[]): boolean {
+  const list = toArray(features);
+  if (list.length === 0) {
+    return true;
+  }
+
+  return list.some((feature) => {
+    const requirements = FEATURE_DEFINITIONS[feature];
+    if (!requirements || requirements.length === 0) {
+      return true;
+    }
+
+    return requirements.some((requirement) =>
+      permissionSetAllows(permissions, requirement),
+    );
+  });
+}
+
 export function requiredPoliciesFor(feature: AppFeature): PolicyRequest[] {
   const requirements = FEATURE_DEFINITIONS[feature];
   return requirements ? requirements.slice() : [];

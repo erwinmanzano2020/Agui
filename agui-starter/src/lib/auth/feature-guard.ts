@@ -4,7 +4,12 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { NextResponse } from "next/server";
 
-import { canAccess, type FeatureInput, AppFeature } from "@/lib/auth/permissions";
+import {
+  canAccess,
+  canAccessAny,
+  type FeatureInput,
+  AppFeature,
+} from "@/lib/auth/permissions";
 import { getUserPermissions } from "@/lib/auth/user-permissions";
 
 /** Resolve current request path for redirects (server only). */
@@ -23,6 +28,11 @@ export async function resolveDestFromHeaders(): Promise<string> {
 export async function hasFeatureAccess(feature: FeatureInput): Promise<boolean> {
   const permissions = await getUserPermissions();
   return canAccess(feature, permissions);
+}
+
+export async function hasAnyFeatureAccess(feature: FeatureInput): Promise<boolean> {
+  const permissions = await getUserPermissions();
+  return canAccessAny(feature, permissions);
 }
 
 export async function requireFeatureAccess(
@@ -49,4 +59,16 @@ export async function requireFeatureAccessJson(feature: FeatureInput) {
 
 export async function requireFeatureAccessApi(feature: AppFeature) {
   return requireFeatureAccessJson(feature);
+}
+
+export async function requireAnyFeatureAccessJson(features: FeatureInput) {
+  if (await hasAnyFeatureAccess(features)) {
+    return null;
+  }
+
+  return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+}
+
+export async function requireAnyFeatureAccessApi(features: Iterable<AppFeature>) {
+  return requireAnyFeatureAccessJson(features);
 }
