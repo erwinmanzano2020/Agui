@@ -225,7 +225,7 @@ export async function loadShiftSummaryAction(slug: string, shiftId: string): Pro
 
 export async function closeShiftAction(
   slug: string,
-  input: { shiftId: string; countedCashCents: number },
+  input: { shiftId: string; countedCashCents: number; closingNotes?: string | null },
 ): Promise<SerializableShiftSummary> {
   const { house, supabase, decision } = await resolveHouse(slug);
   const entityId = requireEntityId(decision);
@@ -236,6 +236,7 @@ export async function closeShiftAction(
       userId: entityId,
       userRoles: decision.normalizedRoles,
       countedCashCents: input.countedCashCents,
+      closingNotes: input.closingNotes,
     },
     supabase,
   );

@@ -624,6 +624,7 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   const [countedCashInput, setCountedCashInput] = useState("0.00");
   const [closePreview, setClosePreview] = useState<Awaited<ReturnType<typeof loadShiftSummaryAction>> | null>(null);
   const [isClosingShift, setIsClosingShift] = useState(false);
+  const [closingNotes, setClosingNotes] = useState("");
   const [isShiftPending, startShiftTransition] = useTransition();
   const toast = useToast();
 
@@ -715,6 +716,7 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   const handleStartCloseShift = useCallback(() => {
     if (!activeShift) return;
     setIsClosingShift(true);
+    setClosingNotes("");
     startShiftTransition(async () => {
       try {
         const summary = await loadShiftSummaryAction(slug, activeShift.id);
@@ -733,16 +735,21 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
     startShiftTransition(async () => {
       try {
         const countedCashCents = parseInputToCents(countedCashInput);
-        const summary = await closeShiftAction(slug, { shiftId: activeShift.id, countedCashCents });
+        const summary = await closeShiftAction(slug, {
+          shiftId: activeShift.id,
+          countedCashCents,
+          closingNotes: closingNotes.trim() || null,
+        });
         setClosePreview(summary);
         setActiveShift(null);
         setIsClosingShift(false);
+        setClosingNotes("");
         toast.success("Shift closed");
       } catch (err) {
         setShiftError(err instanceof Error ? err.message : "Unable to close shift");
       }
     });
-  }, [activeShift, countedCashInput, slug, toast]);
+  }, [activeShift, countedCashInput, slug, toast, closingNotes]);
 
   const handleCancelCloseShift = useCallback(() => {
     setIsClosingShift(false);
@@ -1071,6 +1078,17 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
                     className="w-full"
                     value={countedCashInput}
                     onChange={(event) => setCountedCashInput(event.target.value)}
+                  />
+                </div>
+                <div className="space-y-1 sm:col-span-2">
+                  <label className="text-xs font-medium text-muted-foreground" htmlFor="closing-notes">
+                    Closing notes (optional)
+                  </label>
+                  <textarea
+                    id="closing-notes"
+                    className="min-h-[100px] w-full rounded-md border px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    value={closingNotes}
+                    onChange={(event) => setClosingNotes(event.target.value)}
                   />
                 </div>
                 <div className="flex items-center justify-between sm:col-span-2">
