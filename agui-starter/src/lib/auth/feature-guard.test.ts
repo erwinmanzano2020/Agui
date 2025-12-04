@@ -46,6 +46,24 @@ describe("requireAnyFeatureAccessJson", () => {
     assert.equal(response, null);
   });
 
+  it("allows access in non-production even when unrelated permissions exist", async () => {
+    process.env.NODE_ENV = "development";
+    const posPermission: PolicyRecord = {
+      id: "pos-read",
+      key: "pos-read",
+      action: "tiles:read",
+      resource: "pos",
+    };
+    mock.method(userPermissions, "getUserPermissions", async () => [posPermission]);
+
+    const response = await requireAnyFeatureAccessJson([
+      AppFeature.DTR_BULK,
+      AppFeature.PAYROLL,
+    ]);
+
+    assert.equal(response, null);
+  });
+
   it("returns a 403 response when none of the features are granted in production", async () => {
     process.env.NODE_ENV = "production";
     process.env.NEXT_PUBLIC_VERCEL_ENV = "production";

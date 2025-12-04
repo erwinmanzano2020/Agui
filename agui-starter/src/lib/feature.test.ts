@@ -36,4 +36,22 @@ describe("isFeatureOn", () => {
 
     assert.equal(enabled, false);
   });
+
+  it("allows modules in dev when some unrelated permissions exist", async () => {
+    process.env.NODE_ENV = "development";
+
+    mock.method(feature, "getFeatureModules", async () => emptyModules);
+    mock.method(userPermissions, "getUserPermissions", async () => [
+      {
+        id: "pos-read",
+        key: "pos-read",
+        action: "tiles:read",
+        resource: "pos",
+      },
+    ]);
+
+    const enabled = await feature.isFeatureOn("payroll");
+
+    assert.equal(enabled, true);
+  });
 });

@@ -63,6 +63,29 @@ describe("canAccessAny", () => {
     process.env.NEXT_PUBLIC_VERCEL_ENV = "preview";
     assert.equal(canAccessAny([AppFeature.TEAM, AppFeature.DTR_BULK], []), true);
   });
+
+  it("allows access in dev when permissions exist but feature policy is missing", () => {
+    process.env.NODE_ENV = "development";
+    const posPermission: PolicyRecord = {
+      id: "pos-read",
+      key: "pos-read",
+      action: "tiles:read",
+      resource: "pos",
+    };
+    assert.equal(canAccessAny(AppFeature.PAYROLL, [posPermission]), true);
+  });
+
+  it("denies access in production when feature policy is missing", () => {
+    process.env.NODE_ENV = "production";
+    process.env.NEXT_PUBLIC_VERCEL_ENV = "production";
+    const posPermission: PolicyRecord = {
+      id: "pos-read",
+      key: "pos-read",
+      action: "tiles:read",
+      resource: "pos",
+    };
+    assert.equal(canAccessAny(AppFeature.PAYROLL, [posPermission]), false);
+  });
 });
 
 describe("canAccess", () => {
@@ -86,5 +109,28 @@ describe("canAccess", () => {
     process.env.NODE_ENV = "production";
     process.env.NEXT_PUBLIC_VERCEL_ENV = "preview";
     assert.equal(canAccess([AppFeature.TEAM, AppFeature.PAYROLL], []), true);
+  });
+
+  it("allows access in dev when permissions exist but feature policy is missing", () => {
+    process.env.NODE_ENV = "development";
+    const posPermission: PolicyRecord = {
+      id: "pos-read",
+      key: "pos-read",
+      action: "tiles:read",
+      resource: "pos",
+    };
+    assert.equal(canAccess(AppFeature.PAYROLL, [posPermission]), true);
+  });
+
+  it("denies access in production when feature policy is missing", () => {
+    process.env.NODE_ENV = "production";
+    process.env.NEXT_PUBLIC_VERCEL_ENV = "production";
+    const posPermission: PolicyRecord = {
+      id: "pos-read",
+      key: "pos-read",
+      action: "tiles:read",
+      resource: "pos",
+    };
+    assert.equal(canAccess(AppFeature.PAYROLL, [posPermission]), false);
   });
 });

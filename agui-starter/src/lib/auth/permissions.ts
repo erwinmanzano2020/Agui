@@ -83,18 +83,29 @@ function isNonProductionEnvironment(): boolean {
   return false;
 }
 
-export function shouldBypassPermissions(permissions: PolicyRecord[]): boolean {
-  return permissions.length === 0 && isNonProductionEnvironment();
+export function shouldBypassPermissions(_permissions: PolicyRecord[]): boolean {
+  // In non-production, developers can explore all modules even while role
+  // policies are still being seeded. Explicit feature toggles still win.
+  return isNonProductionEnvironment();
 }
 
 export function applyDevPermissionsOverride(
   permissions: PolicyRecord[],
 ): PolicyRecord[] {
-  if (shouldBypassPermissions(permissions)) {
-    return DEV_OVERRIDE_PERMISSIONS;
+  if (!isNonProductionEnvironment()) {
+    return permissions;
   }
 
-  return permissions;
+  const existing = new Set(permissions.map((p) => p.id));
+  const merged = [...permissions];
+
+  for (const record of DEV_OVERRIDE_PERMISSIONS) {
+    if (!existing.has(record.id)) {
+      merged.push(record);
+    }
+  }
+
+  return merged;
 }
 
 function toArray(input: FeatureInput): AppFeature[] {
