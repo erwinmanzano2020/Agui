@@ -111,3 +111,39 @@ test("shifts from other houses are not returned", async () => {
   assert.equal(summary.shifts.length, 1);
   assert.equal(summary.shifts[0]?.shiftId, "shift-1");
 });
+
+test("listShiftSummariesForDate respects the provided time zone", async () => {
+  const repo = createInMemoryShiftRepository({
+    shifts: [
+      buildShiftRow("shift-early", { opened_at: "2024-01-02T03:00:00.000Z" }),
+      buildShiftRow("shift-late", { id: "shift-late", opened_at: "2024-01-02T10:00:00.000Z" }),
+    ],
+  });
+
+  const utcSummary = await listShiftSummariesForDate(
+    { houseId, userId: "cashier-1", date: "2024-01-02", timeZone: "UTC" },
+    repo,
+  );
+  assert.equal(utcSummary.shifts.length, 2);
+
+  const nySummary = await listShiftSummariesForDate(
+    { houseId, userId: "cashier-1", date: "2024-01-02", timeZone: "America/New_York" },
+    repo,
+  );
+  assert.equal(nySummary.shifts.length, 1);
+  assert.equal(nySummary.shifts[0]?.shiftId, "shift-late");
+});
+
+test("listShiftSummariesForDate falls back when timezone is invalid", async () => {
+  const repo = createInMemoryShiftRepository({
+    shifts: [buildShiftRow("shift-1", { opened_at: "2024-01-02T09:00:00.000Z" })],
+  });
+
+  const summary = await listShiftSummariesForDate(
+    { houseId, userId: "cashier-1", date: "2024-01-02", timeZone: "Mars/Olympus" },
+    repo,
+  );
+
+  assert.equal(summary.shifts.length, 1);
+  assert.equal(summary.shifts[0]?.shiftId, "shift-1");
+});

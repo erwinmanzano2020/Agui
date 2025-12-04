@@ -283,12 +283,18 @@ export async function loadShiftSummaryAction(slug: string, shiftId: string): Pro
 
 export async function loadDailyShiftSummariesAction(
   slug: string,
-  input?: { date?: string },
+  input?: { date?: string; timeZone?: string },
 ): Promise<SerializableDailyShiftSummary> {
   const { house, supabase, decision } = await resolveHouse(slug);
   const entityId = requireEntityId(decision);
   const summary = await listShiftSummariesForDate(
-    { houseId: house.id, userId: entityId, userRoles: decision.normalizedRoles, date: input?.date },
+    {
+      houseId: house.id,
+      userId: entityId,
+      userRoles: decision.normalizedRoles,
+      date: input?.date,
+      timeZone: input?.timeZone,
+    },
     supabase,
   );
   return serializeDailySummary(summary);

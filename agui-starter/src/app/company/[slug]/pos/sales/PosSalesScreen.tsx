@@ -753,6 +753,7 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   const [summaryDate, setSummaryDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [summaryCache, setSummaryCache] = useState<Record<string, SerializableDailyShiftSummary>>({});
   const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [clientTimeZone, setClientTimeZone] = useState<string>(() => "UTC");
   const toast = useToast();
 
   const checkoutState = useMemo(() => deriveCheckoutState(state, form), [state, form]);
@@ -765,7 +766,22 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   const changeFromSales = closePreview
     ? closePreview.totalCashTenderCents + closePreview.shift.openingCashCents - closePreview.expectedCashCents
     : null;
-  const currentSummary = summaryCache[summaryDate] ?? null;
+  const summaryCacheKey = `${summaryDate}|${clientTimeZone}`;
+  const currentSummary = summaryCache[summaryCacheKey] ?? null;
+
+  useEffect(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz) {
+        setClientTimeZone(tz);
+        return;
+      }
+    } catch (error) {
+      console.warn("Unable to resolve client time zone; defaulting to UTC.", error);
+    }
+    setClientTimeZone("UTC");
+  }, []);
+
 
   const parseScan = useMemo(() => {
     const regex = /^(\d+)\*(.+)$/;
@@ -1052,13 +1068,15 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   const loadSummaryForDate = useCallback(
     (date: string, options?: { force?: boolean }) => {
       startSummaryTransition(async () => {
-        if (!options?.force && summaryCache[date]) {
+        const zone = clientTimeZone || "UTC";
+        const cacheKey = `${date}|${zone}`;
+        if (!options?.force && summaryCache[cacheKey]) {
           setSummaryError(null);
           return;
         }
         try {
-          const payload = await loadDailyShiftSummariesAction(slug, { date });
-          setSummaryCache((prev) => ({ ...prev, [date]: payload }));
+          const payload = await loadDailyShiftSummariesAction(slug, { date, timeZone: zone });
+          setSummaryCache((prev) => ({ ...prev, [cacheKey]: payload }));
           setSummaryError(null);
         } catch (err) {
           setSummaryError(
@@ -1067,7 +1085,7 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
         }
       });
     },
-    [slug, summaryCache],
+    [slug, summaryCache, clientTimeZone],
   );
 
   const handleShowSummary = () => {
@@ -1084,6 +1102,12 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   const handleRefreshSummary = () => {
     loadSummaryForDate(summaryDate, { force: true });
   };
+
+  useEffect(() => {
+    if (panelView === "summary") {
+      loadSummaryForDate(summaryDate, { force: true });
+    }
+  }, [clientTimeZone, loadSummaryForDate, panelView, summaryDate]);
 
   let rightContent: ReactNode;
   if (panelView === "receipt" && activeReceipt) {

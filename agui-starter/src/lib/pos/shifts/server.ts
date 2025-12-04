@@ -375,27 +375,67 @@ function normalizeShiftSummary(summary: PosShiftSummary): PosShiftSummaryView {
   } satisfies PosShiftSummaryView;
 }
 
+function normalizeTimeZone(zone: string | undefined): string {
+  const fallback = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  if (!zone) return fallback;
+  try {
+    // Throws on invalid timezones
+    new Intl.DateTimeFormat("en-US", { timeZone: zone }).format(new Date());
+    return zone;
+  } catch (error) {
+    console.warn(`Invalid time zone provided to shift summary: ${zone}. Falling back to ${fallback}.`, error);
+    return fallback;
+  }
+}
+
+function getTimeZoneOffsetMinutes(date: Date, timeZone: string): number | null {
+  try {
+    const zonedString = date.toLocaleString("en-US", { timeZone });
+    const zonedDate = new Date(zonedString);
+    const offsetMinutes = (zonedDate.getTime() - date.getTime()) / 60000;
+    return Number.isFinite(offsetMinutes) ? offsetMinutes : null;
+  } catch (error) {
+    console.warn(`Unable to resolve time zone offset for ${timeZone}. Using UTC as fallback.`, error);
+    return null;
+  }
+}
+
+function toUtcMidnightForZone(params: { year: number; month: number; day: number; timeZone: string }): string {
+  const { year, month, day, timeZone } = params;
+  const baseline = Date.UTC(year, month - 1, day, 0, 0, 0, 0);
+  const offsetMinutes = getTimeZoneOffsetMinutes(new Date(baseline), timeZone);
+  const adjusted = offsetMinutes === null ? baseline : baseline - offsetMinutes * 60_000;
+  return new Date(adjusted).toISOString();
+}
+
 function resolveDateRange(
   dateInput: string | Date | undefined,
   timeZone: string | undefined,
 ): { start: string; end: string; label: string; timeZone: string } {
-  const zone = timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
-  const baseDate = dateInput ? new Date(dateInput) : new Date();
-  const safeDate = Number.isNaN(baseDate.getTime()) ? new Date() : baseDate;
+  const zone = normalizeTimeZone(timeZone);
   const formatter = new Intl.DateTimeFormat("en-CA", {
     timeZone: zone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
-  const parts = formatter.formatToParts(safeDate);
+  const isoDateMatch = typeof dateInput === "string" ? dateInput.match(/^(\d{4})-(\d{2})-(\d{2})$/) : null;
+  const baseDate = dateInput && !isoDateMatch ? new Date(dateInput) : new Date();
+  const safeDate = Number.isNaN(baseDate.getTime()) ? new Date() : baseDate;
+  const parts = isoDateMatch
+    ? [
+        { type: "year", value: isoDateMatch[1]! },
+        { type: "month", value: isoDateMatch[2]! },
+        { type: "day", value: isoDateMatch[3]! },
+      ]
+    : formatter.formatToParts(safeDate);
   const year = Number(parts.find((part) => part.type === "year")?.value ?? new Date().getUTCFullYear());
   const monthStr = parts.find((part) => part.type === "month")?.value ?? "01";
   const dayStr = parts.find((part) => part.type === "day")?.value ?? "01";
   const month = Number(monthStr);
   const day = Number(dayStr);
-  const start = new Date(Date.UTC(year, month - 1, day)).toISOString();
-  const end = new Date(Date.UTC(year, month - 1, day + 1)).toISOString();
+  const start = toUtcMidnightForZone({ year, month, day, timeZone: zone });
+  const end = toUtcMidnightForZone({ year, month, day: day + 1, timeZone: zone });
   const label = `${String(year).padStart(4, "0")}-${monthStr}-${dayStr}`;
 
   return { start, end, label, timeZone: zone };
