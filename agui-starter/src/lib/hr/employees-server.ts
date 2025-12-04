@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database, EmployeeRow } from "@/lib/db.types";
 
-type EmployeeRowWithHouse = EmployeeRow & { house_id?: string | null };
+type EmployeeRowWithBranch = EmployeeRow & { branch_id?: string | null };
 
 export type EmployeeListItem = {
   id: string;
@@ -12,7 +12,7 @@ export type EmployeeListItem = {
   rate_per_day: number | null;
 };
 
-function normalizeEmployee(row: EmployeeRowWithHouse): EmployeeListItem {
+function normalizeEmployee(row: EmployeeRowWithBranch): EmployeeListItem {
   return {
     id: row.id,
     code: row.code ?? null,
@@ -33,13 +33,13 @@ export async function listEmployeesForHouse(
   const { data, error } = await supabase
     .from("employees")
     .select("id, code, full_name, status, rate_per_day")
-    // house_id is present on the table even if older generated types omit it
-    .eq("house_id" as never, houseId)
+    // branch_id is the scoped link for employees in the starter schema
+    .eq("branch_id" as never, houseId)
     .order("full_name", { ascending: true });
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return ((data ?? []) as EmployeeRowWithHouse[]).map(normalizeEmployee);
+  return ((data ?? []) as EmployeeRowWithBranch[]).map(normalizeEmployee);
 }
