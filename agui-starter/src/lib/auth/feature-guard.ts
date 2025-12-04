@@ -12,6 +12,25 @@ import {
 } from "@/lib/auth/permissions";
 import { getUserPermissions } from "@/lib/auth/user-permissions";
 
+function normalizeFeatureInput(feature: FeatureInput): AppFeature[] {
+  if (typeof feature === "string") {
+    return [feature as AppFeature];
+  }
+
+  if (Symbol.iterator in Object(feature)) {
+    return Array.from(feature as Iterable<AppFeature>);
+  }
+
+  return [];
+}
+
+function logGuardDenied(features: FeatureInput, dest?: string) {
+  const featureList = normalizeFeatureInput(features);
+  const summary = featureList.length > 0 ? featureList.join(",") : "<none>";
+  const destInfo = dest ? ` dest=${dest}` : "";
+  console.warn(`Feature guard denied for features=[${summary}]${destInfo}`);
+}
+
 /** Resolve current request path for redirects (server only). */
 export async function resolveDestFromHeaders(): Promise<string> {
   try {
@@ -45,6 +64,7 @@ export async function requireFeatureAccess(
 
   const explicit = options?.dest;
   const dest = explicit && explicit.startsWith("/") ? explicit : await resolveDestFromHeaders();
+  logGuardDenied(feature, dest);
   const params = new URLSearchParams({ dest });
   redirect(`/403?${params.toString()}`);
 }
@@ -54,6 +74,7 @@ export async function requireFeatureAccessJson(feature: FeatureInput) {
     return null;
   }
 
+  logGuardDenied(feature);
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 
@@ -66,9 +87,25 @@ export async function requireAnyFeatureAccessJson(features: FeatureInput) {
     return null;
   }
 
+  logGuardDenied(features);
   return NextResponse.json({ error: "Forbidden" }, { status: 403 });
 }
 
 export async function requireAnyFeatureAccessApi(features: Iterable<AppFeature>) {
   return requireAnyFeatureAccessJson(features);
+}
+
+export async function requireAnyFeatureAccess(
+  features: FeatureInput,
+  options?: { dest?: string },
+) {
+  if (await hasAnyFeatureAccess(features)) {
+    return;
+  }
+
+  const explicit = options?.dest;
+  const dest = explicit && explicit.startsWith("/") ? explicit : await resolveDestFromHeaders();
+  logGuardDenied(features, dest);
+  const params = new URLSearchParams({ dest });
+  redirect(`/403?${params.toString()}`);
 }
