@@ -19,12 +19,14 @@ import { useToast } from "@/components/ui/toaster";
 import type { PosReceiptSale, RecentSaleSummary, SalesCartSnapshot, TenderInput } from "@/lib/pos/sales/types";
 import { formatMoney, type CartUom, type PosCartLine, usePosCart } from "@/lib/pos/sales-cart";
 import type { WorkspaceSettings } from "@/lib/settings/workspace";
+import type { SerializableDailyShiftSummary } from "./actions";
 
 import {
   closeShiftAction,
   finalizeSaleAction,
   listRecentSalesAction,
   loadActiveShiftAction,
+  loadDailyShiftSummariesAction,
   loadSaleReceiptAction,
   loadShiftSummaryAction,
   openShiftAction,
@@ -301,6 +303,127 @@ function RecentSalesPanel({
             );
           })}
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ShiftSummaryPanel({
+  summary,
+  date,
+  onDateChange,
+  onRefresh,
+  isLoading,
+  error,
+}: {
+  summary: SerializableDailyShiftSummary | null;
+  date: string;
+  onDateChange: (value: string) => void;
+  onRefresh: () => void;
+  isLoading: boolean;
+  error?: string | null;
+}) {
+  const totals = summary?.totals ?? {
+    openingCashCents: 0,
+    cashTenderCents: 0,
+    countedCashCents: 0,
+    cashOverShortCents: 0,
+    salesCents: 0,
+  };
+
+  const renderOverShort = (value: number) => {
+    if (value === 0) return "Balanced";
+    return value > 0 ? `Over ${formatMoney(value)}` : `Short ${formatMoney(Math.abs(value))}`;
+  };
+
+  const cashIn = totals.openingCashCents + totals.cashTenderCents;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="text-lg font-semibold">Shift summary</div>
+          <p className="text-xs text-muted-foreground">
+            {summary ? `Showing ${summary.date}` : "Review totals per shift"}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Input
+            type="date"
+            value={date}
+            onChange={(event) => onDateChange(event.target.value)}
+            className="w-[160px]"
+          />
+          <Button size="sm" variant="outline" onClick={onRefresh} disabled={isLoading}>
+            {isLoading ? "Loading..." : "Reload"}
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        {error ? <p className="text-destructive">{error}</p> : null}
+        {isLoading && !summary ? <p className="text-muted-foreground">Loading shift summaries...</p> : null}
+        {summary ? (
+          <>
+            <div className="grid gap-3 rounded-md bg-muted/40 p-3 sm:grid-cols-3">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Total cash in</p>
+                <p className="text-lg font-semibold">{formatMoney(cashIn)}</p>
+                <p className="text-xs text-muted-foreground">Opening + cash tender</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Total counted</p>
+                <p className="text-lg font-semibold">{formatMoney(totals.countedCashCents)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-muted-foreground">Net over / short</p>
+                <p className="text-lg font-semibold">{renderOverShort(totals.cashOverShortCents)}</p>
+              </div>
+            </div>
+            {summary.shifts.length === 0 ? (
+              <p className="text-muted-foreground">No shifts recorded for this date.</p>
+            ) : (
+              <div className="overflow-auto rounded-md border">
+                <table className="w-full text-xs sm:text-sm">
+                  <thead className="bg-muted/60">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Cashier</th>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Open / Close</th>
+                      <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Cash tender</th>
+                      <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Opening cash</th>
+                      <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Counted cash</th>
+                      <th className="px-3 py-2 text-right font-semibold text-muted-foreground">Over / Short</th>
+                      <th className="px-3 py-2 text-left font-semibold text-muted-foreground">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {summary.shifts.map((shift) => (
+                      <tr key={shift.shiftId} className="border-t">
+                        <td className="px-3 py-2 font-semibold">{shift.cashier}</td>
+                        <td className="px-3 py-2 text-muted-foreground">
+                          <div>Open {new Date(shift.openedAt).toLocaleString()}</div>
+                          <div>{shift.closedAt ? `Close ${new Date(shift.closedAt).toLocaleString()}` : "Still open"}</div>
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono">{formatMoney(shift.totalCashTenderCents)}</td>
+                        <td className="px-3 py-2 text-right font-mono">{formatMoney(shift.openingCashCents)}</td>
+                        <td className="px-3 py-2 text-right font-mono">{formatMoney(shift.countedCashCents)}</td>
+                        <td className="px-3 py-2 text-right font-semibold">{renderOverShort(shift.cashOverShortCents)}</td>
+                        <td className="px-3 py-2">
+                          {shift.closingNotes ? (
+                            <span className="block max-w-[260px] truncate" title={shift.closingNotes}>
+                              {shift.closingNotes}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -610,7 +733,7 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   });
   const [scanValue, setScanValue] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [panelView, setPanelView] = useState<"checkout" | "receipt" | "history">("checkout");
+  const [panelView, setPanelView] = useState<"checkout" | "receipt" | "history" | "summary">("checkout");
   const [activeReceipt, setActiveReceipt] = useState<PosReceiptSale | null>(null);
   const [recentSales, setRecentSales] = useState<RecentSaleSummary[]>([]);
   const [selectedHistoryId, setSelectedHistoryId] = useState<string | null>(null);
@@ -618,6 +741,7 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   const [isPending, startTransition] = useTransition();
   const [isHistoryPending, startHistoryTransition] = useTransition();
   const [isReceiptLoading, startReceiptTransition] = useTransition();
+  const [isSummaryPending, startSummaryTransition] = useTransition();
   const [activeShift, setActiveShift] = useState<Awaited<ReturnType<typeof loadActiveShiftAction>>>(null);
   const [shiftError, setShiftError] = useState<string | null>(null);
   const [openingCashInput, setOpeningCashInput] = useState("0.00");
@@ -626,6 +750,10 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   const [isClosingShift, setIsClosingShift] = useState(false);
   const [closingNotes, setClosingNotes] = useState("");
   const [isShiftPending, startShiftTransition] = useTransition();
+  const [summaryDate, setSummaryDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [summaryCache, setSummaryCache] = useState<Record<string, SerializableDailyShiftSummary>>({});
+  const [summaryError, setSummaryError] = useState<string | null>(null);
+  const [clientTimeZone, setClientTimeZone] = useState<string>(() => "UTC");
   const toast = useToast();
 
   const checkoutState = useMemo(() => deriveCheckoutState(state, form), [state, form]);
@@ -638,6 +766,22 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
   const changeFromSales = closePreview
     ? closePreview.totalCashTenderCents + closePreview.shift.openingCashCents - closePreview.expectedCashCents
     : null;
+  const summaryCacheKey = `${summaryDate}|${clientTimeZone}`;
+  const currentSummary = summaryCache[summaryCacheKey] ?? null;
+
+  useEffect(() => {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz) {
+        setClientTimeZone(tz);
+        return;
+      }
+    } catch (error) {
+      console.warn("Unable to resolve client time zone; defaulting to UTC.", error);
+    }
+    setClientTimeZone("UTC");
+  }, []);
+
 
   const parseScan = useMemo(() => {
     const regex = /^(\d+)\*(.+)$/;
@@ -921,6 +1065,50 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
     });
   };
 
+  const loadSummaryForDate = useCallback(
+    (date: string, options?: { force?: boolean }) => {
+      startSummaryTransition(async () => {
+        const zone = clientTimeZone || "UTC";
+        const cacheKey = `${date}|${zone}`;
+        if (!options?.force && summaryCache[cacheKey]) {
+          setSummaryError(null);
+          return;
+        }
+        try {
+          const payload = await loadDailyShiftSummariesAction(slug, { date, timeZone: zone });
+          setSummaryCache((prev) => ({ ...prev, [cacheKey]: payload }));
+          setSummaryError(null);
+        } catch (err) {
+          setSummaryError(
+            err instanceof Error ? err.message : "Something went wrong while loading shift summaries. Please try again.",
+          );
+        }
+      });
+    },
+    [slug, summaryCache, clientTimeZone],
+  );
+
+  const handleShowSummary = () => {
+    setPanelView("summary");
+    loadSummaryForDate(summaryDate);
+  };
+
+  const handleSummaryDateChange = (value: string) => {
+    const nextDate = value || new Date().toISOString().slice(0, 10);
+    setSummaryDate(nextDate);
+    loadSummaryForDate(nextDate);
+  };
+
+  const handleRefreshSummary = () => {
+    loadSummaryForDate(summaryDate, { force: true });
+  };
+
+  useEffect(() => {
+    if (panelView === "summary") {
+      loadSummaryForDate(summaryDate, { force: true });
+    }
+  }, [clientTimeZone, loadSummaryForDate, panelView, summaryDate]);
+
   let rightContent: ReactNode;
   if (panelView === "receipt" && activeReceipt) {
     rightContent = (
@@ -959,6 +1147,23 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
         ) : activeReceipt ? (
           <PosReceipt sale={activeReceipt} houseName={houseName} labels={labels} />
         ) : null}
+      </div>
+    );
+  } else if (panelView === "summary") {
+    rightContent = (
+      <div className="space-y-3">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => setPanelView("checkout")}>Back to checkout</Button>
+          <Button variant="outline" onClick={handleNewSale}>New sale</Button>
+        </div>
+        <ShiftSummaryPanel
+          summary={currentSummary ?? null}
+          date={summaryDate}
+          onDateChange={handleSummaryDateChange}
+          onRefresh={handleRefreshSummary}
+          isLoading={isSummaryPending}
+          error={summaryError}
+        />
       </div>
     );
   } else {
@@ -1140,6 +1345,9 @@ export default function PosSalesScreen({ slug, labels, houseName }: Props) {
         {shiftError && activeShift ? <p className="mt-2 text-sm text-destructive">{shiftError}</p> : null}
       </div>
       <div className="flex flex-wrap justify-end gap-2">
+        <Button variant="outline" onClick={handleShowSummary}>
+          Shift summary
+        </Button>
         <Button variant="outline" onClick={handleShowHistory}>
           Recent sales
         </Button>

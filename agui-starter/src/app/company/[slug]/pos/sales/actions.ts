@@ -3,8 +3,8 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requirePosAccess } from "@/lib/pos/access";
 import { getPriceForCustomerGroup, lookupProductByBarcode } from "@/lib/pos/products/server";
-import { closeShift, computeShiftTotals, getOpenShiftForUser, openShift } from "@/lib/pos/shifts/server";
-import type { PosShiftRow, PosShiftSummary } from "@/lib/pos/shifts/types";
+import { closeShift, computeShiftTotals, getOpenShiftForUser, listShiftSummariesForDate, openShift } from "@/lib/pos/shifts/server";
+import type { PosDailyShiftSummary, PosShiftRow, PosShiftSummary, PosShiftSummaryView } from "@/lib/pos/shifts/types";
 import { createSale, listRecentSales, loadSaleReceipt } from "@/lib/pos/sales/server";
 import type {
   LoadSaleReceiptResult,
@@ -33,6 +33,36 @@ type SerializableShiftSummary = {
   totalCreditTenderCents: number;
   expectedCashCents: number;
   cashOverShortCents: number;
+};
+
+type SerializableShiftSummaryView = {
+  shiftId: string;
+  cashier: string;
+  openedAt: string;
+  closedAt: string | null;
+  status: PosShiftRow["status"];
+  openingCashCents: number;
+  expectedCashCents: number;
+  countedCashCents: number;
+  cashOverShortCents: number;
+  totalSalesCents: number;
+  totalCashTenderCents: number;
+  totalNonCashTenderCents: number;
+  totalCreditTenderCents: number;
+  closingNotes: string | null;
+};
+
+export type SerializableDailyShiftSummary = {
+  date: string;
+  timeZone: string;
+  shifts: SerializableShiftSummaryView[];
+  totals: {
+    openingCashCents: number;
+    cashTenderCents: number;
+    countedCashCents: number;
+    cashOverShortCents: number;
+    salesCents: number;
+  };
 };
 
 async function resolveHouse(slug: string) {
@@ -86,6 +116,34 @@ function serializeSummary(summary: PosShiftSummary): SerializableShiftSummary {
     expectedCashCents: summary.expectedCashCents,
     cashOverShortCents: summary.cashOverShortCents,
   } satisfies SerializableShiftSummary;
+}
+
+function serializeShiftSummaryView(summary: PosShiftSummaryView): SerializableShiftSummaryView {
+  return {
+    shiftId: summary.shiftId,
+    cashier: summary.cashierLabel,
+    openedAt: summary.openedAt,
+    closedAt: summary.closedAt,
+    status: summary.status,
+    openingCashCents: summary.openingCashCents,
+    expectedCashCents: summary.expectedCashCents,
+    countedCashCents: summary.countedCashCents,
+    cashOverShortCents: summary.cashOverShortCents,
+    totalSalesCents: summary.totalSalesCents,
+    totalCashTenderCents: summary.totalCashTenderCents,
+    totalNonCashTenderCents: summary.totalNonCashTenderCents,
+    totalCreditTenderCents: summary.totalCreditTenderCents,
+    closingNotes: summary.closingNotes,
+  } satisfies SerializableShiftSummaryView;
+}
+
+function serializeDailySummary(summary: PosDailyShiftSummary): SerializableDailyShiftSummary {
+  return {
+    date: summary.date,
+    timeZone: summary.timeZone,
+    shifts: summary.shifts.map(serializeShiftSummaryView),
+    totals: summary.totals,
+  } satisfies SerializableDailyShiftSummary;
 }
 
 function requireEntityId(decision: { entityId: string | null }) {
@@ -221,6 +279,25 @@ export async function loadShiftSummaryAction(slug: string, shiftId: string): Pro
   requireEntityId(decision);
   const summary = await computeShiftTotals({ shiftId, houseId: house.id }, supabase);
   return serializeSummary(summary);
+}
+
+export async function loadDailyShiftSummariesAction(
+  slug: string,
+  input?: { date?: string; timeZone?: string },
+): Promise<SerializableDailyShiftSummary> {
+  const { house, supabase, decision } = await resolveHouse(slug);
+  const entityId = requireEntityId(decision);
+  const summary = await listShiftSummariesForDate(
+    {
+      houseId: house.id,
+      userId: entityId,
+      userRoles: decision.normalizedRoles,
+      date: input?.date,
+      timeZone: input?.timeZone,
+    },
+    supabase,
+  );
+  return serializeDailySummary(summary);
 }
 
 export async function closeShiftAction(
