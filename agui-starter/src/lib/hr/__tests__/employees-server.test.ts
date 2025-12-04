@@ -16,8 +16,10 @@ class EmployeesQueryMock {
     return this;
   }
 
-  eq(_column: string, value: string) {
-    const filtered = this.rows.filter((row) => row.branch_id === value);
+  in(_column: string, values: string[]) {
+    const filtered = this.rows.filter((row) =>
+      values.includes(row.branch_id ?? ""),
+    );
     return new EmployeesQueryMock(filtered, this.result);
   }
 
@@ -61,16 +63,24 @@ describe("listEmployeesForHouse", () => {
       { ...baseRow, id: "emp-3", code: "E-03", full_name: "Alan Turing", branch_id: "house-2" },
     ]);
 
-    const results = (await listEmployeesForHouse(supabase as never, "house-1")) as EmployeeListItem[];
+    const results = (await listEmployeesForHouse(supabase as never, ["house-1"])) as EmployeeListItem[];
 
     assert.deepEqual(results.map((row) => row.id), ["emp-1", "emp-2"]);
     assert.ok(results.every((row) => row.full_name));
     assert.ok(results.every((row) => row.code !== undefined));
   });
 
+  it("returns empty list when no branch ids provided", async () => {
+    const supabase = new SupabaseMock([baseRow]);
+
+    const results = await listEmployeesForHouse(supabase as never, []);
+
+    assert.deepEqual(results, []);
+  });
+
   it("throws on query errors", async () => {
     const supabase = new SupabaseMock([baseRow], { data: null, error: { message: "boom" } });
 
-    await assert.rejects(() => listEmployeesForHouse(supabase as never, "house-1"), /boom/);
+    await assert.rejects(() => listEmployeesForHouse(supabase as never, ["house-1"]), /boom/);
   });
 });

@@ -24,17 +24,17 @@ function normalizeEmployee(row: EmployeeRowWithBranch): EmployeeListItem {
 
 export async function listEmployeesForHouse(
   supabase: SupabaseClient<Database>,
-  houseId: string,
+  branchIds: string[],
 ): Promise<EmployeeListItem[]> {
-  if (!houseId) {
-    throw new Error("houseId is required");
+  if (!branchIds.length) {
+    return [];
   }
 
   const { data, error } = await supabase
     .from("employees")
     .select("id, code, full_name, status, rate_per_day")
     // branch_id is the scoped link for employees in the starter schema
-    .eq("branch_id" as never, houseId)
+    .in("branch_id" as never, branchIds)
     .order("full_name", { ascending: true });
 
   if (error) {
