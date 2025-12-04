@@ -260,7 +260,10 @@ export default function DtrBulkClient() {
   /** ===== Load existing DTR for scope ===== */
   useEffect(() => {
     let cancelled = false;
-    if (!scopedEmployees.length || !days.length) return;
+    if (!scopedEmployees.length || !days.length) {
+      setLoadingDtr(false);
+      return;
+    }
 
     (async () => {
       setLoadingDtr(true);
@@ -268,100 +271,109 @@ export default function DtrBulkClient() {
       const from = days[0];
       const to = days[days.length - 1];
 
-      const sb = getSupabase();
-      if (!sb) {
-        if (!cancelled) {
-          setToast({ kind: "error", msg: "Supabase not configured" });
-          setLoadingDtr(false);
+      try {
+        const sb = getSupabase();
+        if (!sb) {
+          if (!cancelled) {
+            setToast({ kind: "error", msg: "Supabase not configured" });
+          }
+          return;
         }
-        return;
-      }
 
-      if (mode === "single" && selectedEmpId) {
-        // Load up to TWO segments per day for the selected employee
-        const { data, error } = await sb
-          .from("dtr_segments")
-          .select("employee_id, work_date, start_at, end_at")
-          .eq("employee_id", selectedEmpId)
+        if (mode === "single" && selectedEmpId) {
+          // Load up to TWO segments per day for the selected employee
+          const { data, error } = await sb
+            .from("dtr_segments")
+            .select("employee_id, work_date, start_at, end_at")
+            .eq("employee_id", selectedEmpId)
+            .gte("work_date", from)
+            .lte("work_date", to)
+            .order("work_date", { ascending: true })
+            .order("start_at", { ascending: true });
+
+          if (cancelled) return;
+          if (error) {
+            setToast({
+              kind: "error",
+              msg: `Load segments failed: ${error.message}`,
+            });
+            return;
+          }
+
+          setGrid((prev) => {
+            const next = { ...prev };
+            const byDay = new Map<
+              string,
+              Array<{ start_at: string | null; end_at: string | null }>
+            >();
+            const segmentRows = (data ?? []) as ShiftSegment[];
+            segmentRows.forEach((row) => {
+              const d = String(row.work_date);
+              if (!byDay.has(d)) byDay.set(d, []);
+              byDay.get(d)!.push({ start_at: row.start_at, end_at: row.end_at });
+            });
+
+            const eid = selectedEmpId;
+            if (!next[eid]) next[eid] = {};
+            for (const d of days) {
+              const list = (byDay.get(d) || []).slice(0, 2);
+              const s1 = list[0];
+              const s2 = list[1];
+              next[eid][d] = {
+                in1: s1 ? toHHMM(s1.start_at) : "",
+                out1: s1 ? toHHMM(s1.end_at) : "",
+                in2: s2 ? toHHMM(s2.start_at) : "",
+                out2: s2 ? toHHMM(s2.end_at) : "",
+              };
+            }
+            return next;
+          });
+
+          return;
+        }
+
+        // Weekly "all employees": keep IN/OUT (first-in/last-out) from dtr_entries
+        const employeeIds = scopedEmployees.map((e) => e.id);
+        const q = sb
+          .from("dtr_entries")
+          .select("employee_id, work_date, time_in, time_out")
+          .in("employee_id", employeeIds)
           .gte("work_date", from)
-          .lte("work_date", to)
-          .order("work_date", { ascending: true })
-          .order("start_at", { ascending: true });
+          .lte("work_date", to);
+
+        const { data, error } = await q;
 
         if (cancelled) return;
         if (error) {
           setToast({
             kind: "error",
-            msg: `Load segments failed: ${error.message}`,
+            msg: `Load DTR failed: ${error.message}`,
           });
-          setLoadingDtr(false);
           return;
         }
 
         setGrid((prev) => {
           const next = { ...prev };
-          const byDay = new Map<
-            string,
-            Array<{ start_at: string | null; end_at: string | null }>
-          >();
-          const segmentRows = (data ?? []) as ShiftSegment[];
-          segmentRows.forEach((row) => {
-            const d = String(row.work_date);
-            if (!byDay.has(d)) byDay.set(d, []);
-            byDay.get(d)!.push({ start_at: row.start_at, end_at: row.end_at });
-          });
-
-          const eid = selectedEmpId;
-          if (!next[eid]) next[eid] = {};
-          for (const d of days) {
-            const list = (byDay.get(d) || []).slice(0, 2);
-            const s1 = list[0];
-            const s2 = list[1];
-            next[eid][d] = {
-              in1: s1 ? toHHMM(s1.start_at) : "",
-              out1: s1 ? toHHMM(s1.end_at) : "",
-              in2: s2 ? toHHMM(s2.start_at) : "",
-              out2: s2 ? toHHMM(s2.end_at) : "",
-            };
+          for (const row of data ?? []) {
+            const eid = row.employee_id as string;
+            const wd = String(row.work_date);
+            if (!next[eid]) continue;
+            if (!next[eid][wd])
+              next[eid][wd] = { in1: "", out1: "", in2: "", out2: "" };
+            next[eid][wd].in1 = row.time_in ? toHHMM(row.time_in) : "";
+            next[eid][wd].out1 = row.time_out ? toHHMM(row.time_out) : "";
           }
           return next;
         });
-
-        setLoadingDtr(false);
-        return;
-      }
-
-      // Weekly "all employees": keep IN/OUT (first-in/last-out) from dtr_entries
-      const q = sb
-        .from("dtr_entries")
-        .select("employee_id, work_date, time_in, time_out")
-        .gte("work_date", from)
-        .lte("work_date", to);
-
-      const { data, error } = await q;
-
-      if (cancelled) return;
-      if (error) {
-        setToast({ kind: "error", msg: `Load DTR failed: ${error.message}` });
-        setLoadingDtr(false);
-        return;
-      }
-
-      setGrid((prev) => {
-        const next = { ...prev };
-        for (const row of data ?? []) {
-          const eid = row.employee_id as string;
-          const wd = String(row.work_date);
-          if (!next[eid]) continue;
-          if (!next[eid][wd])
-            next[eid][wd] = { in1: "", out1: "", in2: "", out2: "" };
-          next[eid][wd].in1 = row.time_in ? toHHMM(row.time_in) : "";
-          next[eid][wd].out1 = row.time_out ? toHHMM(row.time_out) : "";
+      } catch (error: unknown) {
+        if (!cancelled) {
+          const message =
+            error instanceof Error ? error.message : String(error ?? "unknown error");
+          setToast({ kind: "error", msg: `Load DTR failed: ${message}` });
         }
-        return next;
-      });
-
-      setLoadingDtr(false);
+      } finally {
+        if (!cancelled) setLoadingDtr(false);
+      }
     })();
 
     return () => {
