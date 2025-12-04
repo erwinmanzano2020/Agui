@@ -31,4 +31,35 @@ export type PosShiftSummary = {
   cashOverShortCents: number;
 };
 
+export type PosShiftSummaryView = {
+  shiftId: string;
+  cashierId: string;
+  cashierLabel: string;
+  openedAt: string;
+  closedAt: string | null;
+  status: PosShiftRow["status"];
+  openingCashCents: number;
+  expectedCashCents: number;
+  countedCashCents: number;
+  cashOverShortCents: number;
+  totalSalesCents: number;
+  totalCashTenderCents: number;
+  totalNonCashTenderCents: number;
+  totalCreditTenderCents: number;
+  closingNotes: string | null;
+};
+
+export type PosDailyShiftSummary = {
+  date: string;
+  timeZone: string;
+  shifts: PosShiftSummaryView[];
+  totals: {
+    openingCashCents: number;
+    cashTenderCents: number;
+    countedCashCents: number;
+    cashOverShortCents: number;
+    salesCents: number;
+  };
+};
+
 export type DatabaseClient = import("@supabase/supabase-js").SupabaseClient<Database>;
