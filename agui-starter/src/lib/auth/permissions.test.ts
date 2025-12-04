@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { afterEach, describe, it } from "node:test";
 
 import { AppFeature, canAccess, canAccessAny } from "./permissions";
 import type { PolicyRecord } from "@/lib/policy/types";
@@ -42,13 +42,33 @@ describe("canAccessAny", () => {
     assert.equal(canAccessAny(AppFeature.PAYROLL, [payrollPermission]), true);
   });
 
+  afterEach(() => {
+    process.env.NODE_ENV = "test";
+  });
+
   it("allows all features when permission set is empty (dev override)", () => {
+    process.env.NODE_ENV = "development";
     assert.equal(canAccessAny([AppFeature.TEAM, AppFeature.DTR_BULK], []), true);
+  });
+
+  it("denies access for empty permissions in production", () => {
+    process.env.NODE_ENV = "production";
+    assert.equal(canAccessAny([AppFeature.TEAM, AppFeature.DTR_BULK], []), false);
   });
 });
 
 describe("canAccess", () => {
+  afterEach(() => {
+    process.env.NODE_ENV = "test";
+  });
+
   it("allows all features when permission set is empty (dev override)", () => {
+    process.env.NODE_ENV = "development";
     assert.equal(canAccess([AppFeature.TEAM, AppFeature.PAYROLL], []), true);
+  });
+
+  it("denies access for empty permissions in production", () => {
+    process.env.NODE_ENV = "production";
+    assert.equal(canAccess([AppFeature.TEAM, AppFeature.PAYROLL], []), false);
   });
 });

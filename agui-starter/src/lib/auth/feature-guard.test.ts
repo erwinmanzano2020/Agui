@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { beforeEach, describe, it, mock } from "node:test";
+import { afterEach, beforeEach, describe, it, mock } from "node:test";
 
 import { requireAnyFeatureAccessJson } from "./feature-guard";
 import { AppFeature } from "./permissions";
@@ -18,6 +18,10 @@ describe("requireAnyFeatureAccessJson", () => {
     mock.restoreAll();
   });
 
+  afterEach(() => {
+    process.env.NODE_ENV = "test";
+  });
+
   it("allows access when at least one requested feature is available", async () => {
     mock.method(userPermissions, "getUserPermissions", async () => [dtrBulkPermission]);
 
@@ -29,7 +33,20 @@ describe("requireAnyFeatureAccessJson", () => {
     assert.equal(response, null);
   });
 
-  it("returns a 403 response when none of the features are granted", async () => {
+  it("allows access when permissions are empty in non-production", async () => {
+    process.env.NODE_ENV = "development";
+    mock.method(userPermissions, "getUserPermissions", async () => []);
+
+    const response = await requireAnyFeatureAccessJson([
+      AppFeature.DTR_BULK,
+      AppFeature.PAYROLL,
+    ]);
+
+    assert.equal(response, null);
+  });
+
+  it("returns a 403 response when none of the features are granted in production", async () => {
+    process.env.NODE_ENV = "production";
     mock.method(userPermissions, "getUserPermissions", async () => []);
 
     const response = await requireAnyFeatureAccessJson([

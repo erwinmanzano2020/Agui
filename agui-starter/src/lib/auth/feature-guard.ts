@@ -62,6 +62,13 @@ export async function requireFeatureAccess(
     return;
   }
 
+  // Dev override: allow access when permissions are empty outside production
+  // while policy seeding is incomplete.
+  const permissions = await getUserPermissions();
+  if (permissions.length === 0 && process.env.NODE_ENV !== "production") {
+    return;
+  }
+
   const explicit = options?.dest;
   const dest = explicit && explicit.startsWith("/") ? explicit : await resolveDestFromHeaders();
   logGuardDenied(feature, dest);
@@ -71,6 +78,11 @@ export async function requireFeatureAccess(
 
 export async function requireFeatureAccessJson(feature: FeatureInput) {
   if (await hasFeatureAccess(feature)) {
+    return null;
+  }
+
+  const permissions = await getUserPermissions();
+  if (permissions.length === 0 && process.env.NODE_ENV !== "production") {
     return null;
   }
 
@@ -84,6 +96,11 @@ export async function requireFeatureAccessApi(feature: AppFeature) {
 
 export async function requireAnyFeatureAccessJson(features: FeatureInput) {
   if (await hasAnyFeatureAccess(features)) {
+    return null;
+  }
+
+  const permissions = await getUserPermissions();
+  if (permissions.length === 0 && process.env.NODE_ENV !== "production") {
     return null;
   }
 

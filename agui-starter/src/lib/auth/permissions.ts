@@ -81,7 +81,7 @@ export function canAccess(features: FeatureInput, permissions: PolicyRecord[]): 
   // Temporary dev override: while policy seeding is incomplete and we run
   // single-tenant, treat an empty permission set as full access so owners are
   // not blocked by missing policies. Remove once real permissions are seeded.
-  if (permissions.length === 0) {
+  if (permissions.length === 0 && process.env.NODE_ENV !== "production") {
     return true;
   }
 
@@ -106,7 +106,7 @@ export function canAccessAny(features: FeatureInput, permissions: PolicyRecord[]
   // Temporary dev override: allow all features when no policies are returned.
   // This keeps the app usable in dev/single-tenant setups until policy data is
   // seeded consistently across environments.
-  if (permissions.length === 0) {
+  if (permissions.length === 0 && process.env.NODE_ENV !== "production") {
     return true;
   }
 
