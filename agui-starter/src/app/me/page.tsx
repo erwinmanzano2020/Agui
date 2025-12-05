@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+import AppTile from "@/components/me/AppTile";
+import { BizIcon } from "@/components/me/icons";
+import TileGrid from "@/components/me/TileGrid";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { loadTilesForCurrentUser } from "@/lib/tiles/server";
 import type { HomeTile, WorkspaceSections } from "@/lib/tiles/types";
@@ -10,9 +13,8 @@ function workspaceRouteFromSections(workspaces: WorkspaceSections[], businessId:
   if (!workspace) {
     return null;
   }
-  const overview = workspace.sections.find((section) => section.key === "overview");
-  const fallback = workspace.sections[0];
-  return overview?.defaultRoute ?? fallback?.defaultRoute ?? null;
+  const slug = workspace.meta?.slug ?? workspace.businessId;
+  return slug ? `/company/${slug}` : null;
 }
 
 function routeForTile(tile: HomeTile, workspaces: WorkspaceSections[]): string {
@@ -68,7 +70,7 @@ export default async function MePage() {
     redirect(`/welcome?next=${encodeURIComponent("/me")}`);
   }
 
-  const [tiles] = await Promise.all([loadTilesForCurrentUser()]);
+  const tiles = await loadTilesForCurrentUser();
   const user = data.user;
 
   return (
@@ -111,6 +113,38 @@ export default async function MePage() {
           </div>
         </section>
       ) : null}
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Employment / Business</h2>
+          <p className="text-sm text-muted-foreground">Choose which workspace to open.</p>
+        </div>
+
+        {tiles.workspaces.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border p-6 text-sm text-muted-foreground">
+            No workspaces linked yet.
+          </div>
+        ) : (
+          <TileGrid className="md:!grid-cols-2 lg:!grid-cols-3">
+            {tiles.workspaces.map((workspace) => {
+              const workspaceLabel = workspace.meta?.label ?? workspace.businessId;
+              const workspaceSlug = workspace.meta?.slug ?? workspace.businessId;
+              const href = `/company/${workspaceSlug}`;
+
+              return (
+                <AppTile
+                  key={workspace.businessId}
+                  href={href}
+                  title={workspaceLabel}
+                  desc="Open workspace apps"
+                  icon={<BizIcon />}
+                  data-testid={`workspace-${workspaceSlug}`}
+                />
+              );
+            })}
+          </TileGrid>
+        )}
+      </section>
     </main>
   );
 }

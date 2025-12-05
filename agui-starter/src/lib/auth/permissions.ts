@@ -14,6 +14,7 @@ export enum AppFeature {
   ALLIANCES = "alliances",
   GUILDS = "guilds",
   TEAM = "team",
+  HR = "hr",
   SHIFTS = "shifts",
   PAYROLL = "payroll",
   DTR_BULK = "dtr-bulk",
@@ -35,6 +36,10 @@ const FEATURE_DEFINITIONS: Partial<Record<AppFeature, PolicyRequest[]>> = {
   [AppFeature.TEAM]: [
     { action: "tiles:read", resource: "team" },
     { action: "apps:discover", resource: "team" },
+  ],
+  [AppFeature.HR]: [
+    { action: "tiles:read", resource: "hr" },
+    { action: "apps:discover", resource: "hr" },
   ],
   [AppFeature.SHIFTS]: [
     { action: "tiles:read", resource: "shifts" },
