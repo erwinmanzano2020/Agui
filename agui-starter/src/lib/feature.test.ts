@@ -13,13 +13,17 @@ const modulesWithPayroll = (toggle: ModuleToggle) => ({
 describe("isFeatureOn", () => {
   afterEach(() => {
     mock.restoreAll();
-    process.env.NODE_ENV = "test";
-    process.env.NEXT_PUBLIC_VERCEL_ENV = undefined;
+    Object.assign(process.env, {
+      NODE_ENV: "test",
+      NEXT_PUBLIC_VERCEL_ENV: undefined,
+    });
   });
 
   it("allows modules when dev override is active and the toggle is not disabled", async () => {
-    process.env.NODE_ENV = "production";
-    process.env.NEXT_PUBLIC_VERCEL_ENV = "preview";
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_VERCEL_ENV: "preview",
+    });
 
     mock.method(feature, "getFeatureModules", async () => modulesWithPayroll({ enabled: true }));
     mock.method(userPermissions, "getUserPermissions", async () => []);
@@ -30,8 +34,10 @@ describe("isFeatureOn", () => {
   });
 
   it("respects explicit module disables even with dev override", async () => {
-    process.env.NODE_ENV = "production";
-    process.env.NEXT_PUBLIC_VERCEL_ENV = "preview";
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_VERCEL_ENV: "preview",
+    });
 
     mock.method(feature, "getFeatureModules", async () => modulesWithPayroll({ enabled: false }));
     mock.method(userPermissions, "getUserPermissions", async () => []);
@@ -42,7 +48,7 @@ describe("isFeatureOn", () => {
   });
 
   it("allows modules in dev when some unrelated permissions exist", async () => {
-    process.env.NODE_ENV = "development";
+    Object.assign(process.env, { NODE_ENV: "development" });
 
     mock.method(feature, "getFeatureModules", async () => modulesWithPayroll({ enabled: true }));
     mock.method(userPermissions, "getUserPermissions", async () => [

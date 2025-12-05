@@ -43,29 +43,35 @@ describe("canAccessAny", () => {
   });
 
   afterEach(() => {
-    process.env.NODE_ENV = "test";
-    process.env.NEXT_PUBLIC_VERCEL_ENV = undefined;
+    Object.assign(process.env, {
+      NODE_ENV: "test",
+      NEXT_PUBLIC_VERCEL_ENV: undefined,
+    });
   });
 
   it("allows all features when permission set is empty (dev override)", () => {
-    process.env.NODE_ENV = "development";
+    Object.assign(process.env, { NODE_ENV: "development" });
     assert.equal(canAccessAny([AppFeature.TEAM, AppFeature.DTR_BULK], []), true);
   });
 
   it("denies access for empty permissions in production", () => {
-    process.env.NODE_ENV = "production";
-    process.env.NEXT_PUBLIC_VERCEL_ENV = "production";
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_VERCEL_ENV: "production",
+    });
     assert.equal(canAccessAny([AppFeature.TEAM, AppFeature.DTR_BULK], []), false);
   });
 
   it("allows access for empty permissions in preview env even with production NODE_ENV", () => {
-    process.env.NODE_ENV = "production";
-    process.env.NEXT_PUBLIC_VERCEL_ENV = "preview";
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_VERCEL_ENV: "preview",
+    });
     assert.equal(canAccessAny([AppFeature.TEAM, AppFeature.DTR_BULK], []), true);
   });
 
   it("allows access in dev when permissions exist but feature policy is missing", () => {
-    process.env.NODE_ENV = "development";
+    Object.assign(process.env, { NODE_ENV: "development" });
     const posPermission: PolicyRecord = {
       id: "pos-read",
       key: "pos-read",
@@ -76,8 +82,10 @@ describe("canAccessAny", () => {
   });
 
   it("denies access in production when feature policy is missing", () => {
-    process.env.NODE_ENV = "production";
-    process.env.NEXT_PUBLIC_VERCEL_ENV = "production";
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_VERCEL_ENV: "production",
+    });
     const posPermission: PolicyRecord = {
       id: "pos-read",
       key: "pos-read",
@@ -88,31 +96,37 @@ describe("canAccessAny", () => {
   });
 });
 
-describe("canAccess", () => {
-  afterEach(() => {
-    process.env.NODE_ENV = "test";
-    process.env.NEXT_PUBLIC_VERCEL_ENV = undefined;
-  });
+  describe("canAccess", () => {
+    afterEach(() => {
+      Object.assign(process.env, {
+        NODE_ENV: "test",
+        NEXT_PUBLIC_VERCEL_ENV: undefined,
+      });
+    });
 
   it("allows all features when permission set is empty (dev override)", () => {
-    process.env.NODE_ENV = "development";
+    Object.assign(process.env, { NODE_ENV: "development" });
     assert.equal(canAccess([AppFeature.TEAM, AppFeature.PAYROLL], []), true);
   });
 
   it("denies access for empty permissions in production", () => {
-    process.env.NODE_ENV = "production";
-    process.env.NEXT_PUBLIC_VERCEL_ENV = "production";
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_VERCEL_ENV: "production",
+    });
     assert.equal(canAccess([AppFeature.TEAM, AppFeature.PAYROLL], []), false);
   });
 
   it("allows access for empty permissions when preview env flag is set", () => {
-    process.env.NODE_ENV = "production";
-    process.env.NEXT_PUBLIC_VERCEL_ENV = "preview";
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_VERCEL_ENV: "preview",
+    });
     assert.equal(canAccess([AppFeature.TEAM, AppFeature.PAYROLL], []), true);
   });
 
   it("allows access in dev when permissions exist but feature policy is missing", () => {
-    process.env.NODE_ENV = "development";
+    Object.assign(process.env, { NODE_ENV: "development" });
     const posPermission: PolicyRecord = {
       id: "pos-read",
       key: "pos-read",
@@ -123,8 +137,10 @@ describe("canAccess", () => {
   });
 
   it("denies access in production when feature policy is missing", () => {
-    process.env.NODE_ENV = "production";
-    process.env.NEXT_PUBLIC_VERCEL_ENV = "production";
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_VERCEL_ENV: "production",
+    });
     const posPermission: PolicyRecord = {
       id: "pos-read",
       key: "pos-read",

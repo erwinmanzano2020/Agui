@@ -12,7 +12,7 @@ const loadSchema = z.object({
   from: z.string(),
   to: z.string(),
   employeeId: z.string().optional(),
-  employeeIds: z.array(z.string()).optional(),
+  employeeIds: z.string().array().optional(),
 });
 
 const dayCell = z.object({
@@ -25,13 +25,13 @@ const dayCell = z.object({
 const saveSchema = z.object({
   action: z.enum(["save"]),
   mode: z.enum(["single", "all"]),
-  days: z.array(z.string()),
+  days: z.string().array(),
   employeeId: z.string().optional(),
-  employeeIds: z.array(z.string()).optional(),
+  employeeIds: z.string().array().optional(),
   grid: z.record(z.record(dayCell)).default({}),
 });
 
-type DayCell = z.infer<typeof dayCell>;
+type DayCell = ReturnType<(typeof dayCell)["parse"]>;
 
 type SegmentInsert = Pick<
   Database["public"]["Tables"]["dtr_segments"]["Insert"],

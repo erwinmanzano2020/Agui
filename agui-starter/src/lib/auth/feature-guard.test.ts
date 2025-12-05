@@ -19,8 +19,10 @@ describe("requireAnyFeatureAccessJson", () => {
   });
 
   afterEach(() => {
-    process.env.NODE_ENV = "test";
-    process.env.NEXT_PUBLIC_VERCEL_ENV = undefined;
+    Object.assign(process.env, {
+      NODE_ENV: "test",
+      NEXT_PUBLIC_VERCEL_ENV: undefined,
+    });
   });
 
   it("allows access when at least one requested feature is available", async () => {
@@ -35,7 +37,7 @@ describe("requireAnyFeatureAccessJson", () => {
   });
 
   it("allows access when permissions are empty in non-production", async () => {
-    process.env.NODE_ENV = "development";
+    Object.assign(process.env, { NODE_ENV: "development" });
     mock.method(userPermissions, "getUserPermissions", async () => []);
 
     const response = await requireAnyFeatureAccessJson([
@@ -47,7 +49,7 @@ describe("requireAnyFeatureAccessJson", () => {
   });
 
   it("allows access in non-production even when unrelated permissions exist", async () => {
-    process.env.NODE_ENV = "development";
+    Object.assign(process.env, { NODE_ENV: "development" });
     const posPermission: PolicyRecord = {
       id: "pos-read",
       key: "pos-read",
@@ -65,8 +67,10 @@ describe("requireAnyFeatureAccessJson", () => {
   });
 
   it("returns a 403 response when none of the features are granted in production", async () => {
-    process.env.NODE_ENV = "production";
-    process.env.NEXT_PUBLIC_VERCEL_ENV = "production";
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_VERCEL_ENV: "production",
+    });
     mock.method(userPermissions, "getUserPermissions", async () => []);
 
     const response = await requireAnyFeatureAccessJson([
@@ -80,8 +84,10 @@ describe("requireAnyFeatureAccessJson", () => {
   });
 
   it("allows access when preview env flag is present with empty permissions", async () => {
-    process.env.NODE_ENV = "production";
-    process.env.NEXT_PUBLIC_VERCEL_ENV = "preview";
+    Object.assign(process.env, {
+      NODE_ENV: "production",
+      NEXT_PUBLIC_VERCEL_ENV: "preview",
+    });
     mock.method(userPermissions, "getUserPermissions", async () => []);
 
     const response = await requireAnyFeatureAccessJson([
