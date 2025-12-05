@@ -58,6 +58,22 @@ function toISO(date: string /* YYYY-MM-DD */, hhmm: string) {
   return new Date(`${date}T${hh}:${mm}:00`).toISOString();
 }
 
+function formatError(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null) {
+    const maybeMessage = (error as { message?: unknown }).message;
+    if (typeof maybeMessage === "string" && maybeMessage.trim()) {
+      return maybeMessage;
+    }
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+  return String(error ?? "unknown error");
+}
+
 /** ===== CSV helpers ===== */
 function toCSV(rows: Array<Record<string, string>>) {
   if (!rows.length) return "";
@@ -384,8 +400,8 @@ export default function DtrBulkClient() {
         });
       } catch (error: unknown) {
         if (!cancelled) {
-          const message =
-            error instanceof Error ? error.message : String(error ?? "unknown error");
+          const message = formatError(error);
+          console.error("Load DTR failed", error);
           setToast({ kind: "error", msg: `Load DTR failed: ${message}` });
         }
       } finally {
@@ -518,8 +534,8 @@ export default function DtrBulkClient() {
       if (error) throw error;
       setToast({ kind: "success", msg: "Saved!" });
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : String(error ?? "unknown error");
+      const message = formatError(error);
+      console.error("Save DTR failed", error);
       setToast({ kind: "error", msg: `Save failed: ${message}` });
     } finally {
       setSaving(false);
