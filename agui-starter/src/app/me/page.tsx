@@ -4,6 +4,9 @@ import { redirect } from "next/navigation";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { loadTilesForCurrentUser } from "@/lib/tiles/server";
 import type { HomeTile, WorkspaceSections } from "@/lib/tiles/types";
+import AppTile from "@/components/me/AppTile";
+import TileGrid from "@/components/me/TileGrid";
+import { loadUiConfig } from "@/lib/ui-config";
 
 function workspaceRouteFromSections(workspaces: WorkspaceSections[], businessId: string): string | null {
   const workspace = workspaces.find((entry) => entry.businessId === businessId);
@@ -68,8 +71,9 @@ export default async function MePage() {
     redirect(`/welcome?next=${encodeURIComponent("/me")}`);
   }
 
-  const [tiles] = await Promise.all([loadTilesForCurrentUser()]);
+  const [tiles, uiConfig] = await Promise.all([loadTilesForCurrentUser(), loadUiConfig()]);
   const user = data.user;
+  const hrEnabled = uiConfig.flags?.hr_enabled ?? true;
 
   return (
     <main className="mx-auto flex w-full max-w-4xl flex-col gap-8 p-6">
@@ -111,6 +115,57 @@ export default async function MePage() {
           </div>
         </section>
       ) : null}
+
+      <section className="space-y-3">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Employment / Business</h2>
+          <p className="text-sm text-muted-foreground">Open the apps linked to your workspaces.</p>
+        </div>
+
+        {tiles.workspaces.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-border p-6 text-sm text-muted-foreground">
+            No workspaces linked yet.
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {tiles.workspaces.map((workspace) => {
+              const workspaceLabel = workspace.meta?.label ?? workspace.businessId;
+              const workspaceSlug = workspace.meta?.slug ?? workspace.businessId;
+              const hasHrApp = workspace.sections.some((section) => (section.apps ?? []).includes("hr"));
+              const hrHref = `/company/${workspaceSlug}/hr/employees`;
+
+              return (
+                <div
+                  key={workspace.businessId}
+                  className="space-y-3 rounded-2xl border border-border bg-white/70 p-4 shadow-sm"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-xs uppercase tracking-wide text-muted-foreground">Workspace</div>
+                      <div className="text-base font-semibold text-foreground">{workspaceLabel}</div>
+                    </div>
+                    <Link href={workspace.sections[0]?.defaultRoute ?? `/company/${workspaceSlug}`}>View workspace →</Link>
+                  </div>
+
+                  {!hrEnabled ? (
+                    <div className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
+                      HR is coming soon for this workspace.
+                    </div>
+                  ) : hasHrApp ? (
+                    <TileGrid className="md:!grid-cols-2 lg:!grid-cols-3">
+                      <AppTile href={hrHref} title="HR" desc="Employees, time & payroll" />
+                    </TileGrid>
+                  ) : (
+                    <div className="rounded-xl border border-border bg-white/60 p-4 text-sm text-muted-foreground shadow-sm">
+                      HR is not available for your role in this workspace.
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
     </main>
   );
 }

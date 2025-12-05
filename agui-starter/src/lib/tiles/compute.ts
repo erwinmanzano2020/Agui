@@ -49,7 +49,7 @@ const SECTION_DEFINITIONS: Record<WorkspaceSectionKey, { label: string; apps: st
     people: {
       label: "People",
       apps: ["employees", "hr", "payslips"],
-      buildRoute: (slug) => (slug ? `/company/${slug}/people/employees` : "/company"),
+      buildRoute: (slug) => (slug ? `/company/${slug}/hr/employees` : "/company"),
     },
     operations: {
       label: "Operations",

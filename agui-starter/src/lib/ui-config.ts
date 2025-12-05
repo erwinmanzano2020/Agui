@@ -19,6 +19,7 @@ export type ModuleToggle = { enabled: boolean; experimental?: boolean };
 
 export type UiFlags = {
   pos_enabled?: boolean;
+  hr_enabled?: boolean;
 };
 
 export type UiConfig = {
@@ -42,6 +43,7 @@ export const uiConfig: UiConfig = {
   },
   flags: {
     pos_enabled: false,
+    hr_enabled: true,
   },
 };
 
@@ -60,12 +62,14 @@ export async function loadUiConfig(): Promise<UiConfig> {
 
   const cookieEnabled = parseBoolean(cookieValue);
   const envEnabled = parseBoolean(process.env.NEXT_PUBLIC_POS_ENABLED);
+  const envHrEnabled = parseBoolean(process.env.NEXT_PUBLIC_HR_ENABLED);
 
   return {
     ...uiConfig,
     flags: {
       ...uiConfig.flags,
       pos_enabled: cookieEnabled ?? envEnabled ?? uiConfig.flags.pos_enabled ?? false,
+      hr_enabled: envHrEnabled ?? uiConfig.flags.hr_enabled ?? true,
     },
   };
 }
