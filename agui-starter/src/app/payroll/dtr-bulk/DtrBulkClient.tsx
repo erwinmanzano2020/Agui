@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "../../../components/ui/page-header";
 import { Toast } from "../../../components/ui/toast";
-import { getSupabase } from "../../../lib/supabase";
 import type { ShiftSegment } from "@/lib/types";
 
 /** ===== Types ===== */
@@ -301,36 +300,25 @@ export default function DtrBulkClient() {
         mode === "single" ? selectedEmpId || fallbackEmpId : undefined;
 
       try {
-        const sb = getSupabase();
-        if (!sb) {
-          if (!cancelled) {
-            setToast({ kind: "error", msg: "Supabase not configured" });
-          }
-          return;
-        }
-
         if (mode === "single") {
           if (!singleEmployeeId) {
             if (!cancelled) setLoadingDtr(false);
             return;
           }
-          // Load up to TWO segments per day for the selected employee
-          const { data, error } = await sb
-            .from("dtr_segments")
-            .select("employee_id, work_date, start_at, end_at")
-            .eq("employee_id", singleEmployeeId)
-            .gte("work_date", from)
-            .lte("work_date", to)
-            .order("work_date", { ascending: true })
-            .order("start_at", { ascending: true });
-
-          if (cancelled) return;
-          if (error) {
-            setToast({
-              kind: "error",
-              msg: `Load segments failed: ${error.message}`,
-            });
-            return;
+          const response = await fetch("/api/payroll/dtr-bulk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "load",
+              mode: "single",
+              from,
+              to,
+              employeeId: singleEmployeeId,
+            }),
+          });
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload?.error || response.statusText);
           }
 
           setGrid((prev) => {
@@ -339,7 +327,7 @@ export default function DtrBulkClient() {
               string,
               Array<{ start_at: string | null; end_at: string | null }>
             >();
-            const segmentRows = (data ?? []) as ShiftSegment[];
+            const segmentRows = (payload.segments ?? []) as ShiftSegment[];
             segmentRows.forEach((row) => {
               const d = String(row.work_date);
               if (!byDay.has(d)) byDay.set(d, []);
@@ -365,29 +353,31 @@ export default function DtrBulkClient() {
           return;
         }
 
-        // Weekly "all employees": keep IN/OUT (first-in/last-out) from dtr_entries
         const employeeIds = scopedEmployees.map((e) => e.id);
-        const q = sb
-          .from("dtr_entries")
-          .select("employee_id, work_date, time_in, time_out")
-          .in("employee_id", employeeIds)
-          .gte("work_date", from)
-          .lte("work_date", to);
-
-        const { data, error } = await q;
-
-        if (cancelled) return;
-        if (error) {
-          setToast({
-            kind: "error",
-            msg: `Load DTR failed: ${error.message}`,
-          });
-          return;
+        const response = await fetch("/api/payroll/dtr-bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "load",
+            mode: "all",
+            from,
+            to,
+            employeeIds,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.error || response.statusText);
         }
 
         setGrid((prev) => {
           const next = { ...prev };
-          for (const row of data ?? []) {
+          for (const row of (payload.entries ?? []) as Array<{
+            employee_id: string;
+            work_date: string;
+            time_in: string | null;
+            time_out: string | null;
+          }>) {
             const eid = row.employee_id as string;
             const wd = String(row.work_date);
             if (!next[eid]) continue;
@@ -418,120 +408,45 @@ export default function DtrBulkClient() {
   async function handleSave() {
     setSaving(true);
     try {
-      const sb = getSupabase();
-      if (!sb) {
-        setToast({ kind: "error", msg: "Supabase not configured" });
-        return;
-      }
-
       if (mode === "single" && scopedEmployees[0]) {
-        // Delete+insert segments per day (up to two), and also upsert dtr_entries time_in/out
-        const e = scopedEmployees[0];
-        for (const d of days) {
-          const cell = grid[e.id]?.[d] ?? {
-            in1: "",
-            out1: "",
-            in2: "",
-            out2: "",
-          };
-
-          // Wipe existing segments for that day
-          const del = await sb
-            .from("dtr_segments")
-            .delete()
-            .eq("employee_id", e.id)
-            .eq("work_date", d);
-          if (del.error) throw del.error;
-
-          const inserts: Array<{
-            employee_id: string;
-            work_date: string;
-            start_at: string;
-            end_at: string | null;
-          }> = [];
-
-          if (cell.in1 && cell.out1) {
-            const s = toISO(d, cell.in1);
-            const e1 = toISO(d, cell.out1);
-            if (s && e1)
-              inserts.push({
-                employee_id: e.id,
-                work_date: d,
-                start_at: s,
-                end_at: e1,
-              });
-          }
-          if (cell.in2 && cell.out2) {
-            const s = toISO(d, cell.in2);
-            const e2 = toISO(d, cell.out2);
-            if (s && e2)
-              inserts.push({
-                employee_id: e.id,
-                work_date: d,
-                start_at: s,
-                end_at: e2,
-              });
-          }
-
-          if (inserts.length > 0) {
-            const ins = await sb.from("dtr_segments").insert(inserts);
-            if (ins.error) throw ins.error;
-          }
-
-          // Also reflect first-in / last-out on dtr_entries for convenience
-          const firstInISO = inserts.length ? inserts[0].start_at : null;
-          const lastOutISO = inserts.length
-            ? inserts[inserts.length - 1].end_at
-            : null;
-
-          const up = await sb.from("dtr_entries").upsert(
-            {
-              employee_id: e.id,
-              work_date: d,
-              time_in: firstInISO,
-              time_out: lastOutISO,
-            },
-            { onConflict: "employee_id,work_date" },
-          );
-          if (up.error) throw up.error;
+        const response = await fetch("/api/payroll/dtr-bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "save",
+            mode: "single",
+            employeeId: scopedEmployees[0].id,
+            days,
+            grid,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.error || response.statusText);
         }
 
         setToast({ kind: "success", msg: "Saved!" });
         setSaving(false);
-        // reload segments for the month
         setYm((m) => m);
         return;
       }
 
-      // Weekly "all employees": upsert time_in/out (uses IN1/OUT1)
-      const payload: Array<{
-        employee_id: string;
-        work_date: string;
-        time_in: string | null;
-        time_out: string | null;
-      }> = [];
-      for (const e of scopedEmployees) {
-        const perDay = grid[e.id] || {};
-        for (const d of days) {
-          const cell = perDay[d] || { in1: "", out1: "", in2: "", out2: "" };
-          if (
-            (cell.in1 && cell.in1.trim()) ||
-            (cell.out1 && cell.out1.trim())
-          ) {
-            payload.push({
-              employee_id: e.id,
-              work_date: d,
-              time_in: toISO(d, cell.in1 || "") ?? null,
-              time_out: toISO(d, cell.out1 || "") ?? null,
-            });
-          }
-        }
+      const response = await fetch("/api/payroll/dtr-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save",
+          mode: "all",
+          employeeIds: scopedEmployees.map((e) => e.id),
+          days,
+          grid,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || response.statusText);
       }
-      const { error } = await sb
-        .from("dtr_entries")
-        .upsert(payload, { onConflict: "employee_id,work_date" });
 
-      if (error) throw error;
       setToast({ kind: "success", msg: "Saved!" });
     } catch (error: unknown) {
       const message = formatError(error);
@@ -542,7 +457,7 @@ export default function DtrBulkClient() {
     }
   }
 
-  /** ===== Export current scope to CSV (keeps IN1/OUT1) ===== */
+/** ===== Export current scope to CSV (keeps IN1/OUT1) ===== */
   function handleExportCsv() {
     const rows: Array<Record<string, string>> = [];
     for (const e of scopedEmployees) {
@@ -627,17 +542,32 @@ export default function DtrBulkClient() {
         return;
       }
 
-      const sb = getSupabase();
-      if (!sb) {
-        setToast({ kind: "error", msg: "Supabase not configured" });
-        return;
+      const gridPayload: Record<string, Record<string, DayCell>> = {};
+      for (const row of payload) {
+        if (!gridPayload[row.employee_id]) gridPayload[row.employee_id] = {};
+        gridPayload[row.employee_id][row.work_date] = {
+          in1: row.time_in ? toHHMM(row.time_in) : "",
+          out1: row.time_out ? toHHMM(row.time_out) : "",
+          in2: "",
+          out2: "",
+        };
       }
 
-      const { error } = await sb
-        .from("dtr_entries")
-        .upsert(payload, { onConflict: "employee_id,work_date" });
-
-      if (error) throw error;
+      const response = await fetch("/api/payroll/dtr-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save",
+          mode: "all",
+          employeeIds: Array.from(new Set(payload.map((p) => p.employee_id))),
+          days: Array.from(new Set(payload.map((p) => p.work_date))).sort(),
+          grid: gridPayload,
+        }),
+      });
+      const resPayload = await response.json();
+      if (!response.ok) {
+        throw new Error(resPayload?.error || response.statusText);
+      }
 
       setToast({ kind: "success", msg: `Imported ${payload.length} rows` });
 
