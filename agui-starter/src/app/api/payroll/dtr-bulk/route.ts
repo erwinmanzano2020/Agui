@@ -7,7 +7,7 @@ import type { Database } from "@/lib/db.types";
 import { getServiceSupabase } from "@/lib/supabase-service";
 
 const loadSchema = z.object({
-  action: z.literal("load"),
+  action: z.enum(["load"]),
   mode: z.enum(["single", "all"]),
   from: z.string(),
   to: z.string(),
@@ -23,7 +23,7 @@ const dayCell = z.object({
 });
 
 const saveSchema = z.object({
-  action: z.literal("save"),
+  action: z.enum(["save"]),
   mode: z.enum(["single", "all"]),
   days: z.array(z.string()),
   employeeId: z.string().optional(),

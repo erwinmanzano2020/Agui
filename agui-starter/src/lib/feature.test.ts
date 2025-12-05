@@ -3,8 +3,12 @@ import { afterEach, describe, it, mock } from "node:test";
 
 import * as feature from "./feature";
 import * as userPermissions from "@/lib/auth/user-permissions";
+import { uiConfig, type ModuleToggle } from "@/lib/ui-config";
 
-const emptyModules = { payroll: { enabled: true } } as any;
+const modulesWithPayroll = (toggle: ModuleToggle) => ({
+  ...uiConfig.modules,
+  payroll: toggle,
+});
 
 describe("isFeatureOn", () => {
   afterEach(() => {
@@ -17,7 +21,7 @@ describe("isFeatureOn", () => {
     process.env.NODE_ENV = "production";
     process.env.NEXT_PUBLIC_VERCEL_ENV = "preview";
 
-    mock.method(feature, "getFeatureModules", async () => emptyModules);
+    mock.method(feature, "getFeatureModules", async () => modulesWithPayroll({ enabled: true }));
     mock.method(userPermissions, "getUserPermissions", async () => []);
 
     const enabled = await feature.isFeatureOn("payroll");
@@ -29,7 +33,7 @@ describe("isFeatureOn", () => {
     process.env.NODE_ENV = "production";
     process.env.NEXT_PUBLIC_VERCEL_ENV = "preview";
 
-    mock.method(feature, "getFeatureModules", async () => ({ payroll: { enabled: false } } as any));
+    mock.method(feature, "getFeatureModules", async () => modulesWithPayroll({ enabled: false }));
     mock.method(userPermissions, "getUserPermissions", async () => []);
 
     const enabled = await feature.isFeatureOn("payroll");
@@ -40,7 +44,7 @@ describe("isFeatureOn", () => {
   it("allows modules in dev when some unrelated permissions exist", async () => {
     process.env.NODE_ENV = "development";
 
-    mock.method(feature, "getFeatureModules", async () => emptyModules);
+    mock.method(feature, "getFeatureModules", async () => modulesWithPayroll({ enabled: true }));
     mock.method(userPermissions, "getUserPermissions", async () => [
       {
         id: "pos-read",
