@@ -35,11 +35,14 @@ export default async function HrLayout({ children, params }: Props) {
     notFound();
   }
 
+  const companyLabel = house.name ?? house.slug ?? house.id;
+  const workspaceHref = house.slug ? `/company/${house.slug}` : `/company/${house.id}`;
+
   const hrEnabled = flags?.hr_enabled ?? true;
   if (!hrEnabled) {
     return (
       <main className="mx-auto w-full max-w-5xl space-y-6 p-6">
-        <Header name={house.name ?? house.slug ?? house.id} />
+        <Header name={companyLabel} href={workspaceHref} />
         <div className="rounded-2xl border border-dashed border-border bg-white/70 p-6 text-sm text-muted-foreground shadow-sm">
           HR is coming soon for this workspace.
         </div>
@@ -48,9 +51,6 @@ export default async function HrLayout({ children, params }: Props) {
   }
 
   const access = await resolveHrAccess(supabase, house.id);
-
-  const companyLabel = house.name ?? house.slug ?? house.id;
-  const workspaceHref = house.slug ? `/company/${house.slug}` : `/company/${house.id}`;
   const tabs = TABS.map((tab) => ({
     key: tab.key,
     label: tab.label,
