@@ -294,7 +294,7 @@ export async function POST(req: NextRequest) {
       let allowedIds = ids;
       try {
         const map = await loadEmployeeBranchMap(service, ids, branchIds);
-        allowedIds = ids.filter((id) => map.has(id));
+        allowedIds = ids.filter((id: string) => map.has(id));
       } catch (error) {
         console.error("[/api/payroll/dtr-bulk] failed to verify employees for load", error);
         return NextResponse.json({ error: "Failed to resolve employees" }, { status: 500 });
@@ -425,7 +425,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Failed to resolve employees" }, { status: 500 });
       }
 
-      const allowedIds = ids.filter((id) => employeeMap.has(id));
+      const allowedIds = ids.filter((id: string) => employeeMap.has(id));
       if (!allowedIds.length) {
         return NextResponse.json({ status: "ok" });
       }
