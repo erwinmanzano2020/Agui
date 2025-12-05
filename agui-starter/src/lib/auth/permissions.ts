@@ -1,6 +1,15 @@
 import type { PolicyRecord, PolicyRequest } from "@/lib/policy/types";
 import { permissionSetAllows } from "@/lib/policy/matcher";
 
+const DEV_OVERRIDE_PERMISSIONS: PolicyRecord[] = [
+  {
+    id: "dev-override",
+    key: "dev-override",
+    action: "*",
+    resource: "*",
+  },
+];
+
 export enum AppFeature {
   ALLIANCES = "alliances",
   GUILDS = "guilds",
@@ -60,6 +69,45 @@ const FEATURE_DEFINITIONS: Partial<Record<AppFeature, PolicyRequest[]>> = {
 
 export type FeatureInput = AppFeature | Iterable<AppFeature>;
 
+function isNonProductionEnvironment(): boolean {
+  const nodeEnv = process.env.NODE_ENV;
+  if (nodeEnv && nodeEnv !== "production") {
+    return true;
+  }
+
+  const publicEnv = process.env.NEXT_PUBLIC_VERCEL_ENV;
+  if (publicEnv && publicEnv !== "production") {
+    return true;
+  }
+
+  return false;
+}
+
+export function shouldBypassPermissions(_permissions: PolicyRecord[]): boolean {
+  // In non-production, developers can explore all modules even while role
+  // policies are still being seeded. Explicit feature toggles still win.
+  return isNonProductionEnvironment();
+}
+
+export function applyDevPermissionsOverride(
+  permissions: PolicyRecord[],
+): PolicyRecord[] {
+  if (!isNonProductionEnvironment()) {
+    return permissions;
+  }
+
+  const existing = new Set(permissions.map((p) => p.id));
+  const merged = [...permissions];
+
+  for (const record of DEV_OVERRIDE_PERMISSIONS) {
+    if (!existing.has(record.id)) {
+      merged.push(record);
+    }
+  }
+
+  return merged;
+}
+
 function toArray(input: FeatureInput): AppFeature[] {
   if (typeof input === "string") {
     return [input as AppFeature];
@@ -78,6 +126,8 @@ export function canAccess(features: FeatureInput, permissions: PolicyRecord[]): 
     return true;
   }
 
+  const effectivePermissions = applyDevPermissionsOverride(permissions);
+
   return list.every((feature) => {
     const requirements = FEATURE_DEFINITIONS[feature];
     if (!requirements || requirements.length === 0) {
@@ -85,7 +135,27 @@ export function canAccess(features: FeatureInput, permissions: PolicyRecord[]): 
     }
 
     return requirements.some((requirement) =>
-      permissionSetAllows(permissions, requirement),
+      permissionSetAllows(effectivePermissions, requirement),
+    );
+  });
+}
+
+export function canAccessAny(features: FeatureInput, permissions: PolicyRecord[]): boolean {
+  const list = toArray(features);
+  if (list.length === 0) {
+    return true;
+  }
+
+  const effectivePermissions = applyDevPermissionsOverride(permissions);
+
+  return list.some((feature) => {
+    const requirements = FEATURE_DEFINITIONS[feature];
+    if (!requirements || requirements.length === 0) {
+      return true;
+    }
+
+    return requirements.some((requirement) =>
+      permissionSetAllows(effectivePermissions, requirement),
     );
   });
 }

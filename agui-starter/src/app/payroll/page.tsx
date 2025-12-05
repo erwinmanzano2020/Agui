@@ -11,7 +11,7 @@ export default async function PayrollPage() {
   }
 
   return (
-    <RequireFeature feature={AppFeature.PAYROLL}>
+    <RequireFeature feature={AppFeature.PAYROLL} dest="/payroll">
       <PayrollPageClient />
     </RequireFeature>
   );

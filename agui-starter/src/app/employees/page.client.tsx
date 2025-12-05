@@ -10,8 +10,8 @@ import EmptyState from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { ThemedLink } from "@/components/ui/themed-link";
 import { getSupabase } from "@/lib/supabase";
-import type { Database } from "@/lib/db.types";
 import { useUiTerms } from "@/lib/ui-terms-context";
+import type { EmployeeListItem } from "@/lib/hr/employees-server";
 
 type EmployeeRow = {
   id: string;
@@ -41,34 +41,29 @@ export default function EmployeesPageClient() {
     return <Badge tone={tone}>{label}</Badge>;
   };
 
-  type EmployeeTableRow = Database["public"]["Tables"]["employees"]["Row"];
-
   const load = useCallback(async () => {
     setErr(null);
     setLoading(true);
-    const sb = getSupabase();
-    if (!sb) {
-      setErr("Supabase not configured");
+    const response = await fetch("/api/hr/employees");
+    const payload = (await response.json().catch(() => null)) as
+      | { employees?: EmployeeListItem[]; error?: string }
+      | null;
+
+    if (!response.ok || !payload || payload.error) {
+      setErr(payload?.error ?? "Failed to load employees");
       setRows([]);
       setLoading(false);
       return;
     }
-    const { data, error } = await sb
-      .from("employees")
-      .select("id, code, full_name, status, rate_per_day")
-      .order("full_name", { ascending: true });
 
-    if (error) setErr(error.message);
-    const normalized: EmployeeRow[] = (data ?? []).map((row) => {
-      const typed = row as EmployeeTableRow;
-      return {
-        id: typed.id,
-        code: typed.code ?? "",
-        full_name: typed.full_name ?? "",
-        status: typed.status ?? "active",
-        rate_per_day: typed.rate_per_day ?? null,
-      } satisfies EmployeeRow;
-    });
+    const normalized: EmployeeRow[] = (payload.employees ?? []).map((row) => ({
+      id: row.id,
+      code: row.code ?? "",
+      full_name: row.full_name ?? "",
+      status: row.status ?? "active",
+      rate_per_day: row.rate_per_day ?? null,
+    } satisfies EmployeeRow));
+
     setRows(normalized);
     setLoading(false);
   }, []);
