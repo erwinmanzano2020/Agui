@@ -1,10 +1,13 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { z } from "@/lib/z";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
 import type { Database } from "@/lib/db.types";
+import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import { getServiceSupabase } from "@/lib/supabase-service";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { z } from "@/lib/z";
 
 const loadSchema = z.object({
   action: z.enum(["load"]),
@@ -51,6 +54,122 @@ function toISO(date: string, hhmm: string) {
   return new Date(`${date}T${hh}:${mm}:00`).toISOString();
 }
 
+async function resolveHouseForEntity(
+  service: SupabaseClient<Database>,
+  entityId: string,
+  explicitHouseId?: string | null,
+): Promise<string | null> {
+  const requestedHouseId = explicitHouseId?.trim();
+  if (requestedHouseId) {
+    const { data, error } = await service
+      .from("house_roles")
+      .select("house_id")
+      .eq("entity_id", entityId)
+      .eq("house_id", requestedHouseId)
+      .maybeSingle();
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    return ((data ?? null) as { house_id?: string | null } | null)?.house_id ?? null;
+  }
+
+  const { data, error } = await service
+    .from("house_roles")
+    .select("house_id")
+    .eq("entity_id", entityId)
+    .order("created_at", { ascending: true })
+    .limit(1);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const rows = (data ?? []) as Array<{ house_id?: string | null }>;
+  return rows[0]?.house_id ?? null;
+}
+
+async function resolveBranchesForHouse(
+  service: SupabaseClient<Database>,
+  houseId: string,
+): Promise<string[]> {
+  const { data, error } = await service
+    .from("branches")
+    .select("id")
+    .eq("house_id", houseId);
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data ?? [])
+    .map((row) => (row as { id?: string | null }).id)
+    .filter((id): id is string => Boolean(id));
+}
+
+async function loadEmployeeBranchMap(
+  service: SupabaseClient<Database>,
+  employeeIds: string[],
+  branchIds: string[],
+): Promise<Map<string, string | null>> {
+  if (!employeeIds.length || !branchIds.length) {
+    return new Map();
+  }
+
+  const { data, error } = await service
+    .from("employees")
+    .select("id, branch_id")
+    .in("id", employeeIds)
+    .in("branch_id" as never, branchIds)
+    .returns<Array<{ id: string; branch_id: string | null }>>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const map = new Map<string, string | null>();
+  for (const row of data ?? []) {
+    if (row.id) {
+      map.set(row.id, row.branch_id ?? null);
+    }
+  }
+  return map;
+}
+
+async function detectSupportedColumns(
+  service: SupabaseClient<Database>,
+  table: string,
+  columns: string[],
+): Promise<Set<string>> {
+  const supported = new Set<string>();
+  await Promise.all(
+    columns.map(async (column) => {
+      const { error } = await service.from(table).select(column).limit(0);
+      if (!error) {
+        supported.add(column);
+      }
+    }),
+  );
+  return supported;
+}
+
+function applyContextColumns(
+  row: Record<string, unknown>,
+  supported: Set<string>,
+  context: { houseId: string; branchId: string | null },
+) {
+  if (supported.has("branch_id")) {
+    row.branch_id = context.branchId;
+  }
+  if (supported.has("house_id")) {
+    row.house_id = context.houseId;
+  }
+  if (supported.has("company_id")) {
+    row.company_id = context.houseId;
+  }
+}
+
 export async function POST(req: NextRequest) {
   const guard = await requireAnyFeatureAccessApi([
     AppFeature.DTR_BULK,
@@ -68,7 +187,67 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
+  }
+
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser();
+
+  if (userError) {
+    return NextResponse.json({ error: userError.message }, { status: 500 });
+  }
+
+  if (!user) {
+    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+  }
+
   const service = getServiceSupabase();
+  const url = new URL(req.url);
+
+  let entityId: string | null = null;
+  try {
+    entityId = await resolveEntityIdForUser(user, service);
+  } catch (error) {
+    console.error("[/api/payroll/dtr-bulk] failed to resolve entity", error);
+    return NextResponse.json({ error: "Failed to resolve account" }, { status: 500 });
+  }
+
+  if (!entityId) {
+    return NextResponse.json({ error: "Account not linked" }, { status: 403 });
+  }
+
+  let houseId: string | null = null;
+  try {
+    houseId = await resolveHouseForEntity(service, entityId, url.searchParams.get("houseId"));
+  } catch (error) {
+    console.error("[/api/payroll/dtr-bulk] failed to resolve house", error);
+    return NextResponse.json({ error: "Failed to resolve house" }, { status: 500 });
+  }
+
+  if (!houseId) {
+    return NextResponse.json({ error: "No accessible house" }, { status: 403 });
+  }
+
+  let branchIds: string[] = [];
+  try {
+    branchIds = await resolveBranchesForHouse(service, houseId);
+  } catch (error) {
+    console.error("[/api/payroll/dtr-bulk] failed to resolve branches", error);
+    return NextResponse.json({ error: "Failed to resolve house branches" }, { status: 500 });
+  }
+
+  if (!branchIds.length) {
+    return NextResponse.json({ error: "No accessible branches" }, { status: 403 });
+  }
+
+  const [segmentColumns, entryColumns] = await Promise.all([
+    detectSupportedColumns(service, "dtr_segments", ["branch_id", "house_id", "company_id"]),
+    detectSupportedColumns(service, "dtr_entries", ["branch_id", "house_id", "company_id"]),
+  ]);
 
   try {
     if ((body as { action?: string }).action === "load") {
@@ -81,6 +260,20 @@ export async function POST(req: NextRequest) {
             { status: 400 },
           );
         }
+
+        let branchId: string | null = null;
+        try {
+          const map = await loadEmployeeBranchMap(service, [employeeId], branchIds);
+          branchId = map.get(employeeId) ?? null;
+        } catch (error) {
+          console.error("[/api/payroll/dtr-bulk] failed to verify employee branch", error);
+          return NextResponse.json({ error: "Failed to resolve employee" }, { status: 500 });
+        }
+
+        if (!branchId) {
+          return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
+        }
+
         const { data, error } = await service
           .from("dtr_segments")
           .select("employee_id, work_date, start_at, end_at")
@@ -97,10 +290,24 @@ export async function POST(req: NextRequest) {
       if (!ids.length) {
         return NextResponse.json({ entries: [] });
       }
+
+      let allowedIds = ids;
+      try {
+        const map = await loadEmployeeBranchMap(service, ids, branchIds);
+        allowedIds = ids.filter((id) => map.has(id));
+      } catch (error) {
+        console.error("[/api/payroll/dtr-bulk] failed to verify employees for load", error);
+        return NextResponse.json({ error: "Failed to resolve employees" }, { status: 500 });
+      }
+
+      if (!allowedIds.length) {
+        return NextResponse.json({ entries: [] });
+      }
+
       const { data, error } = await service
         .from("dtr_entries")
         .select("employee_id, work_date, time_in, time_out")
-        .in("employee_id", ids)
+        .in("employee_id", allowedIds)
         .gte("work_date", payload.from)
         .lte("work_date", payload.to);
       if (error) throw error;
@@ -117,6 +324,20 @@ export async function POST(req: NextRequest) {
             { status: 400 },
           );
         }
+
+        let branchId: string | null = null;
+        try {
+          const map = await loadEmployeeBranchMap(service, [employeeId], branchIds);
+          branchId = map.get(employeeId) ?? null;
+        } catch (error) {
+          console.error("[/api/payroll/dtr-bulk] failed to verify employee for save", error);
+          return NextResponse.json({ error: "Failed to resolve employee" }, { status: 500 });
+        }
+
+        if (!branchId) {
+          return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
+        }
+
         const perDay = payload.grid[employeeId] ?? {};
         for (const day of payload.days) {
           const cell: DayCell = perDay[day] || {
@@ -138,26 +359,28 @@ export async function POST(req: NextRequest) {
             const s = toISO(day, cell.in1);
             const e1 = toISO(day, cell.out1);
             if (s && e1) {
-              inserts.push({
+              const row: Record<string, unknown> = {
                 employee_id: employeeId,
                 work_date: day,
                 start_at: s,
                 end_at: e1,
-                company_id: null,
-              });
+              };
+              applyContextColumns(row, segmentColumns, { houseId, branchId });
+              inserts.push(row as SegmentInsert);
             }
           }
           if (cell.in2 && cell.out2) {
             const s = toISO(day, cell.in2);
             const e2 = toISO(day, cell.out2);
             if (s && e2) {
-              inserts.push({
+              const row: Record<string, unknown> = {
                 employee_id: employeeId,
                 work_date: day,
                 start_at: s,
                 end_at: e2,
-                company_id: null,
-              });
+              };
+              applyContextColumns(row, segmentColumns, { houseId, branchId });
+              inserts.push(row as SegmentInsert);
             }
           }
 
@@ -171,13 +394,16 @@ export async function POST(req: NextRequest) {
           const { error: upErr } = await service
             .from("dtr_entries")
             .upsert(
-              {
-                employee_id: employeeId,
-                work_date: day,
-                time_in: firstIn,
-                time_out: lastOut,
-                company_id: null,
-              } satisfies EntryUpsert,
+              (() => {
+                const row: Record<string, unknown> = {
+                  employee_id: employeeId,
+                  work_date: day,
+                  time_in: firstIn,
+                  time_out: lastOut,
+                } satisfies Partial<EntryUpsert>;
+                applyContextColumns(row, entryColumns, { houseId, branchId });
+                return row as EntryUpsert;
+              })(),
               { onConflict: "employee_id,work_date" },
             );
           if (upErr) throw upErr;
@@ -191,8 +417,21 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ status: "ok" });
       }
 
+      let employeeMap: Map<string, string | null> = new Map();
+      try {
+        employeeMap = await loadEmployeeBranchMap(service, ids, branchIds);
+      } catch (error) {
+        console.error("[/api/payroll/dtr-bulk] failed to verify employees for bulk save", error);
+        return NextResponse.json({ error: "Failed to resolve employees" }, { status: 500 });
+      }
+
+      const allowedIds = ids.filter((id) => employeeMap.has(id));
+      if (!allowedIds.length) {
+        return NextResponse.json({ status: "ok" });
+      }
+
       const rows: EntryUpsert[] = [];
-      for (const empId of ids) {
+      for (const empId of allowedIds) {
         const perDay = payload.grid[empId] || {};
         for (const day of payload.days) {
           const cell: DayCell = perDay[day] || {
@@ -202,13 +441,17 @@ export async function POST(req: NextRequest) {
             out2: "",
           };
           if ((cell.in1 && cell.in1.trim()) || (cell.out1 && cell.out1.trim())) {
-            rows.push({
+            const row: Record<string, unknown> = {
               employee_id: empId,
               work_date: day,
               time_in: cell.in1 ? toISO(day, cell.in1) : null,
               time_out: cell.out1 ? toISO(day, cell.out1) : null,
-              company_id: null,
+            } satisfies Partial<EntryUpsert>;
+            applyContextColumns(row, entryColumns, {
+              houseId,
+              branchId: employeeMap.get(empId) ?? null,
             });
+            rows.push(row as EntryUpsert);
           }
         }
       }
@@ -225,6 +468,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: "Unsupported action" }, { status: 400 });
   } catch (error) {
+    console.error("[/api/payroll/dtr-bulk] unexpected error", error, { payload: body });
     const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
