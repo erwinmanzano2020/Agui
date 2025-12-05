@@ -50,6 +50,7 @@ export default async function HrLayout({ children, params }: Props) {
   const access = await resolveHrAccess(supabase, house.id);
 
   const companyLabel = house.name ?? house.slug ?? house.id;
+  const workspaceHref = house.slug ? `/company/${house.slug}` : `/company/${house.id}`;
   const tabs = TABS.map((tab) => ({
     key: tab.key,
     label: tab.label,
@@ -75,18 +76,18 @@ export default async function HrLayout({ children, params }: Props) {
 
   return (
     <main className="mx-auto w-full max-w-5xl space-y-6 p-6">
-      <Header name={companyLabel} />
+      <Header name={companyLabel} href={workspaceHref} />
       {showTabs ? <HrTabs tabs={tabs} /> : null}
       <div className="lg:min-w-0">{body}</div>
     </main>
   );
 }
 
-function Header({ name }: { name: string }) {
+function Header({ name, href }: { name: string; href: string }) {
   return (
     <header className="space-y-1">
       <div className="text-sm text-muted-foreground">
-        <Link href="/me" className="underline">Me</Link> → {name} → HR
+        <Link href="/me" className="underline">Me</Link> → <Link href={href} className="underline">{name}</Link> → HR
       </div>
       <div className="space-y-1">
         <h1 className="text-3xl font-semibold text-foreground">HR</h1>
