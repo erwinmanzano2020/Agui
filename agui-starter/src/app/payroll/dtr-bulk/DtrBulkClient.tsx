@@ -208,6 +208,13 @@ export default function DtrBulkClient() {
     return employees;
   }, [mode, employees, selectedEmpId]);
 
+  // Ensure we always have a selected employee in single mode once data is available
+  useEffect(() => {
+    if (mode === "single" && !selectedEmpId && employees.length) {
+      setSelectedEmpId(employees[0].id);
+    }
+  }, [mode, selectedEmpId, employees]);
+
   /** ===== Load employees once ===== */
   useEffect(() => {
     let cancelled = false;
@@ -270,6 +277,12 @@ export default function DtrBulkClient() {
 
       const from = days[0];
       const to = days[days.length - 1];
+      const fallbackEmpId =
+        mode === "single" && !selectedEmpId && employees[0]
+          ? employees[0].id
+          : undefined;
+      const singleEmployeeId =
+        mode === "single" ? selectedEmpId || fallbackEmpId : undefined;
 
       try {
         const sb = getSupabase();
@@ -280,12 +293,16 @@ export default function DtrBulkClient() {
           return;
         }
 
-        if (mode === "single" && selectedEmpId) {
+        if (mode === "single") {
+          if (!singleEmployeeId) {
+            if (!cancelled) setLoadingDtr(false);
+            return;
+          }
           // Load up to TWO segments per day for the selected employee
           const { data, error } = await sb
             .from("dtr_segments")
             .select("employee_id, work_date, start_at, end_at")
-            .eq("employee_id", selectedEmpId)
+            .eq("employee_id", singleEmployeeId)
             .gte("work_date", from)
             .lte("work_date", to)
             .order("work_date", { ascending: true })
@@ -313,7 +330,7 @@ export default function DtrBulkClient() {
               byDay.get(d)!.push({ start_at: row.start_at, end_at: row.end_at });
             });
 
-            const eid = selectedEmpId;
+            const eid = singleEmployeeId;
             if (!next[eid]) next[eid] = {};
             for (const d of days) {
               const list = (byDay.get(d) || []).slice(0, 2);
