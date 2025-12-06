@@ -204,6 +204,7 @@ export type EmployeeRow = {
   id: string;
   entity_id: string;
   brand_id: string;
+  department_id: string | null;
   code: string | null;
   full_name: string | null;
   status: string | null;
@@ -216,6 +217,7 @@ export type EmployeeInsert = {
   id?: string;
   entity_id: string;
   brand_id: string;
+  department_id?: string | null;
   code?: string | null;
   full_name?: string | null;
   status?: string | null;

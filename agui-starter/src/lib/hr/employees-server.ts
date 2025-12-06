@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database, EmployeeRow } from "@/lib/db.types";
 
-type EmployeeRowWithBranch = EmployeeRow & { branch_id?: string | null };
+type EmployeeRowWithDepartment = EmployeeRow & { department_id?: string | null };
 
 export type EmployeeListItem = {
   id: string;
@@ -12,7 +12,7 @@ export type EmployeeListItem = {
   rate_per_day: number | null;
 };
 
-function normalizeEmployee(row: EmployeeRowWithBranch): EmployeeListItem {
+function normalizeEmployee(row: EmployeeRowWithDepartment): EmployeeListItem {
   return {
     id: row.id,
     code: row.code ?? null,
@@ -24,22 +24,22 @@ function normalizeEmployee(row: EmployeeRowWithBranch): EmployeeListItem {
 
 export async function listEmployeesForHouse(
   supabase: SupabaseClient<Database>,
-  branchIds: string[],
+  departmentIds: string[],
 ): Promise<EmployeeListItem[]> {
-  if (!branchIds.length) {
+  if (!departmentIds.length) {
     return [];
   }
 
   const { data, error } = await supabase
     .from("employees")
     .select("id, code, full_name, status, rate_per_day")
-    // branch_id is the scoped link for employees in the starter schema
-    .in("branch_id" as never, branchIds)
+    // department_id is the scoped link for employees in the starter schema
+    .in("department_id" as never, departmentIds)
     .order("full_name", { ascending: true });
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return ((data ?? []) as EmployeeRowWithBranch[]).map(normalizeEmployee);
+  return ((data ?? []) as EmployeeRowWithDepartment[]).map(normalizeEmployee);
 }
