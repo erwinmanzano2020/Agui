@@ -12,6 +12,7 @@ export type HrAccessDecision = {
   allowed: boolean;
   allowedByRole: boolean;
   allowedByPolicy: boolean;
+  hasWorkspaceAccess: boolean;
   roles: string[];
   normalizedRoles: ReturnType<typeof normalizeWorkspaceRole>[];
   policyKeys: string[];
@@ -25,14 +26,16 @@ export function evaluateHrAccess(input: {
 }): HrAccessDecision {
   const normalizedRoles = input.roles.map((role) => normalizeWorkspaceRole(role));
   const allowedByRole = normalizedRoles.some((role) => role === "owner" || role === "manager");
+  const hasWorkspaceAccess = input.roles.length > 0;
 
   const policyKeys = Array.from(input.policyKeys ?? []);
   const allowedByPolicy = policyKeys.some((key) => HR_POLICY_KEYS.has(key));
 
   return {
-    allowed: allowedByRole || allowedByPolicy,
+    allowed: hasWorkspaceAccess && (allowedByRole || allowedByPolicy),
     allowedByRole,
     allowedByPolicy,
+    hasWorkspaceAccess,
     roles: input.roles,
     normalizedRoles,
     policyKeys,
@@ -43,7 +46,7 @@ export function evaluateHrAccess(input: {
 export async function resolveHrAccess(
   supabase: SupabaseClient,
   houseId: string,
-): Promise<HrAccessDecision & { hasWorkspaceAccess: boolean }> {
+): Promise<HrAccessDecision> {
   const authz = await getCurrentEntityAndPolicies(supabase, { context: "hr", debug: false });
   const entityId = authz.entityId;
 
@@ -69,8 +72,12 @@ export async function resolveHrAccess(
     }
   }
 
-  const decision = evaluateHrAccess({ roles, policyKeys: authz.policyKeys, entityId });
-  const hasWorkspaceAccess = roles.length > 0 || decision.allowedByPolicy;
+  return evaluateHrAccess({ roles, policyKeys: authz.policyKeys, entityId });
+}
 
-  return { ...decision, hasWorkspaceAccess };
+export async function requireHrAccess(
+  supabase: SupabaseClient,
+  houseId: string,
+): Promise<HrAccessDecision> {
+  return resolveHrAccess(supabase, houseId);
 }

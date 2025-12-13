@@ -4,7 +4,7 @@ const path = require("node:path");
 const outDir = path.resolve(__dirname, "..", ".test-dist");
 const serverOnlyShim = path.resolve(__dirname, "stubs", "server-only.cjs");
 const nextCacheShim = path.resolve(__dirname, "stubs", "next-cache.cjs");
-const zodShim = path.resolve(__dirname, "stubs", "zod.cjs");
+const zodShim = path.resolve(outDir, "lib", "zod-shim.js");
 const originalResolveFilename = Module._resolveFilename;
 
 Module._resolveFilename = function (request, parent, isMain, options) {
