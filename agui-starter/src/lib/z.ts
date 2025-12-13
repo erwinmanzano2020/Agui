@@ -1,5 +1,5 @@
 // src/lib/z.ts
-import { z } from "zod";
+import { z as runtimeZ } from "./zod-shim";
 import type { AnyZodObject, ZodEnum, ZodIssue, ZodTypeAny } from "zod";
 
 /**
@@ -8,7 +8,7 @@ import type { AnyZodObject, ZodEnum, ZodIssue, ZodTypeAny } from "zod";
  * Usage:
  *   import { z } from "@/lib/z";
  */
-export { z };
+export const z = runtimeZ as unknown as typeof import("zod").z;
 
 /** Default export for defensive compatibility (`import z from "@/lib/z"`). */
 export default z;
@@ -16,7 +16,7 @@ export default z;
 /**
  * Re-export the entire Zod surface so namespace imports stay functional.
  */
-export * from "zod";
+export * from "./zod-shim";
 
 /** Stable type aliases that continue working across Zod variants. */
 export type { ZodIssue, ZodTypeAny, AnyZodObject };
