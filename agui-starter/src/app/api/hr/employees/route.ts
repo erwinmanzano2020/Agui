@@ -45,7 +45,7 @@ async function resolveHouseForEntity(
   return rows[0]?.house_id ?? null;
 }
 
-async function resolveBranchesForHouse(
+async function resolveDepartmentsForHouse(
   service: SupabaseClient<Database>,
   houseId: string,
 ): Promise<string[]> {
@@ -115,16 +115,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "No accessible house" }, { status: 403 });
   }
 
-  let branchIds: string[] = [];
+  let departmentIds: string[] = [];
   try {
-    branchIds = await resolveBranchesForHouse(service, houseId);
+    departmentIds = await resolveDepartmentsForHouse(service, houseId);
   } catch (error) {
-    console.error("Failed to resolve branches for house", error);
-    return NextResponse.json({ error: "Failed to resolve house branches" }, { status: 500 });
+    console.error("Failed to resolve departments for house", error);
+    return NextResponse.json({ error: "Failed to resolve house departments" }, { status: 500 });
   }
 
   try {
-    const employees = await listEmployeesForHouse(service, branchIds);
+    const employees = await listEmployeesForHouse(service, departmentIds);
     return NextResponse.json({ employees }, { status: 200 });
   } catch (error) {
     console.error("Failed to load employees for house", error);
