@@ -1,8 +1,9 @@
 export type Employee = {
   id: string;
-  code: string;
-  full_name: string;
-  rate_per_day: number;
+  display_name: string;
+  status: "active" | "inactive";
+  employment_type: "full_time" | "part_time" | "casual";
+  branch_id: string | null;
 };
 
 export type DtrEntry = {

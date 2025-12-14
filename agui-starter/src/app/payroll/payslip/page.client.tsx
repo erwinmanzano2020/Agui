@@ -12,9 +12,13 @@ type AttMode = "PRORATE" | "DEDUCTION";
 /* ========= TYPES ========= */
 type Emp = {
   id: string;
-  code: string;
-  full_name: string;
-  rate_per_day: number;
+  display_name: string;
+  employment_type: "full_time" | "part_time" | "casual";
+  branch_id: string | null;
+  rate_per_day: number | null;
+  status?: "active" | "inactive";
+  code?: string | null;
+  full_name?: string;
 };
 
 type Dtr = {
@@ -292,11 +296,11 @@ function PayslipCard({
         <div className="info-grid">
           <div className="pair">
             <div className="k">Employee</div>
-            <div className="v">{emp.full_name}</div>
+            <div className="v">{emp.display_name}</div>
           </div>
           <div className="pair">
-            <div className="k">Code</div>
-            <div className="v">{emp.code}</div>
+            <div className="k">Employment</div>
+            <div className="v">{emp.employment_type}</div>
           </div>
         </div>
       </section>
@@ -660,7 +664,7 @@ function CoverPage({ month }: { month: string }) {
 
 function SummaryPage({ bundles }: { bundles: PayslipBundle[] }) {
   const rows = bundles.map((b) => ({
-    name: `${b.emp.full_name} (${b.emp.code})`,
+    name: `${b.emp.display_name}`,
     gross: b.summary.gross,
     ded: b.summary.totalDeductions,
     net: b.summary.net,
@@ -819,9 +823,9 @@ export default function PayrollPayslipPageClient() {
         ] = await Promise.all([
           sb
             .from("employees")
-            .select("id, code, full_name, rate_per_day")
-            .neq("status", "archived")
-            .order("full_name"),
+            .select("id, display_name, employment_type, branch_id, status")
+            .eq("status", "active")
+            .order("display_name"),
           sb
             .from("settings_payroll")
             .select("standard_minutes_per_day, ot_multiplier, attendance_mode")
@@ -835,7 +839,21 @@ export default function PayrollPayslipPageClient() {
           setErr(empError.message);
           setEmps([]);
         } else {
-          setEmps((empData || []) as Emp[]);
+          const normalized = (empData ?? []).map(
+            (row) =>
+              ({
+                id: row.id as string,
+                display_name: (row as { display_name?: string })?.display_name ?? "",
+                employment_type: (row as { employment_type?: Emp["employment_type"] })
+                  ?.employment_type ?? "full_time",
+                branch_id: (row as { branch_id?: string | null }).branch_id ?? null,
+                status: (row as { status?: Emp["status"] }).status ?? "active",
+                rate_per_day: null,
+                full_name: (row as { display_name?: string })?.display_name ?? "",
+                code: null,
+              }) as Emp,
+          );
+          setEmps(normalized);
         }
 
         if (settingsError) {
@@ -1170,7 +1188,7 @@ export default function PayrollPayslipPageClient() {
           const eff = await resolveEffectiveShift(id, d);
           const perDayStd = eff?.standard_minutes ?? fallbackStd;
 
-          const dayRate = dateRate.get(d) ?? emp.rate_per_day;
+          const dayRate = dateRate.get(d) ?? emp.rate_per_day ?? 0;
           const perMinute = perDayStd > 0 ? dayRate / perDayStd : 0;
 
           const worked = workedMinutesFor(d);
@@ -1252,7 +1270,7 @@ export default function PayrollPayslipPageClient() {
           <option value="ALL">All employees</option>
           {emps.map((e) => (
             <option key={e.id} value={e.id}>
-              {e.full_name} ({e.code})
+              {e.display_name} ({e.employment_type})
             </option>
           ))}
         </select>

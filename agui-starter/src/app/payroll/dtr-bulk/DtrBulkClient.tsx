@@ -402,7 +402,7 @@ export default function DtrBulkClient() {
     return () => {
       cancelled = true;
     };
-  }, [mode, selectedEmpId, scopedEmployees, days]);
+  }, [mode, selectedEmpId, scopedEmployees, days, employees]);
 
   /** ===== Save (bulk) ===== */
   async function handleSave() {

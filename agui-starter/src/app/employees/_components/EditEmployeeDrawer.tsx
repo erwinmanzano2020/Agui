@@ -17,10 +17,12 @@ type Props = {
 
 type Employee = {
   id: string;
-  code: string | null;
-  full_name: string | null;
-  rate_per_day: number | null;
-  status: string | null;
+  first_name: string;
+  last_name: string;
+  display_name: string;
+  status: "active" | "inactive";
+  employment_type: "full_time" | "part_time" | "casual";
+  branch_id: string | null;
 };
 
 type RateRow = {
@@ -80,7 +82,9 @@ export default function EditEmployeeDrawer({
       // Employee
       const empRes = await sb
         .from("employees")
-        .select("id, code, full_name, rate_per_day, status")
+        .select(
+          "id, first_name, last_name, display_name, status, employment_type, branch_id",
+        )
         .eq("id", employeeId)
         .maybeSingle();
 
@@ -89,10 +93,14 @@ export default function EditEmployeeDrawer({
         empRes.data
           ? {
               id: empRes.data.id,
-              code: empRes.data.code ?? null,
-              full_name: empRes.data.full_name ?? null,
-              rate_per_day: empRes.data.rate_per_day ?? null,
+              first_name: empRes.data.first_name,
+              last_name: empRes.data.last_name,
+              display_name:
+                empRes.data.display_name ||
+                `${empRes.data.first_name} ${empRes.data.last_name}`.trim(),
               status: empRes.data.status ?? "active",
+              employment_type: empRes.data.employment_type,
+              branch_id: empRes.data.branch_id ?? null,
             }
           : null,
       );
@@ -123,10 +131,12 @@ export default function EditEmployeeDrawer({
     setErr(null);
 
     const payload = {
-      code: emp.code || null,
-      full_name: emp.full_name || null,
-      status: emp.status || null,
-      // rate_per_day is managed via Compensation
+      first_name: emp.first_name,
+      last_name: emp.last_name,
+      display_name: emp.display_name || `${emp.first_name} ${emp.last_name}`.trim(),
+      status: emp.status,
+      employment_type: emp.employment_type,
+      branch_id: emp.branch_id,
     };
 
     const sb = getSupabase();
@@ -201,22 +211,13 @@ export default function EditEmployeeDrawer({
       return;
     }
 
-    // 2) If basis is Daily, mirror to employees.rate_per_day so outer page reflects immediately
-    if (cBasis === "daily") {
-      const { error: upErr } = await sb
-        .from("employees")
-        .update({ rate_per_day: amountNum })
-        .eq("id", employeeId);
-      if (upErr) setErr((prev) => prev ?? upErr.message);
-    }
-
-    // 3) Reload rates in the drawer
+    // 2) Reload rates in the drawer
     await reloadRates();
 
-    // 4) Notify parent so it can refresh immediately
+    // 3) Notify parent so it can refresh immediately
     onDataChanged?.();
 
-    // 5) Clear form
+    // 4) Clear form
     setCAmount("");
     setCDate("");
     setCNote("");
@@ -321,55 +322,80 @@ export default function EditEmployeeDrawer({
             ) : (
               <>
                 <div>
-                  <label className="block text-sm mb-1">Code</label>
+                  <label className="block text-sm mb-1">First Name</label>
                   <input
                     className="border rounded px-2 py-1 w-full"
-                    value={emp.code ?? ""}
-                    onChange={(e) =>
-                      setEmp((p) => (p ? { ...p, code: e.target.value } : p))
-                    }
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm mb-1">Full Name</label>
-                  <input
-                    className="border rounded px-2 py-1 w-full"
-                    value={emp.full_name ?? ""}
+                    value={emp.first_name}
                     onChange={(e) =>
                       setEmp((p) =>
-                        p ? { ...p, full_name: e.target.value } : p,
+                        p ? { ...p, first_name: e.target.value } : p,
                       )
                     }
                   />
                 </div>
 
                 <div>
-                  <label className="block text-sm mb-1">Status</label>
-                  <select
+                  <label className="block text-sm mb-1">Last Name</label>
+                  <input
                     className="border rounded px-2 py-1 w-full"
-                    value={emp.status ?? "active"}
+                    value={emp.last_name}
                     onChange={(e) =>
-                      setEmp((p) => (p ? { ...p, status: e.target.value } : p))
+                      setEmp((p) => (p ? { ...p, last_name: e.target.value } : p))
                     }
-                  >
-                    <option value="active">active</option>
-                    <option value="archived">archived</option>
-                  </select>
+                  />
                 </div>
 
-                <div className="text-xs text-muted-foreground">
-                  <div className="mb-1">
-                    <b>Rate/Day (read-only):</b>{" "}
-                    {emp.rate_per_day != null
-                      ? `₱${Number(emp.rate_per_day).toFixed(2)}`
-                      : "—"}
-                  </div>
+                <div>
+                  <label className="block text-sm mb-1">Display Name</label>
+                  <input
+                    className="border rounded px-2 py-1 w-full"
+                    value={emp.display_name}
+                    onChange={(e) =>
+                      setEmp((p) =>
+                        p ? { ...p, display_name: e.target.value } : p,
+                      )
+                    }
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
-                    Rates are managed in the <b>Compensation</b> tab.{" "}
-                    {currentRateHint}
+                    <label className="block text-sm mb-1">Status</label>
+                    <select
+                      className="border rounded px-2 py-1 w-full"
+                      value={emp.status}
+                      onChange={(e) =>
+                        setEmp((p) =>
+                          p ? { ...p, status: e.target.value as Employee["status"] } : p,
+                        )
+                      }
+                    >
+                      <option value="active">active</option>
+                      <option value="inactive">inactive</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm mb-1">Employment Type</label>
+                    <select
+                      className="border rounded px-2 py-1 w-full"
+                      value={emp.employment_type}
+                      onChange={(e) =>
+                        setEmp((p) =>
+                          p
+                            ? { ...p, employment_type: e.target.value as Employee["employment_type"] }
+                            : p,
+                        )
+                      }
+                    >
+                      <option value="full_time">Full-time</option>
+                      <option value="part_time">Part-time</option>
+                      <option value="casual">Casual</option>
+                    </select>
                   </div>
                 </div>
+
+                <div className="text-xs text-muted-foreground">{currentRateHint}</div>
 
                 <div className="pt-2 flex items-center gap-3">
                   <button
