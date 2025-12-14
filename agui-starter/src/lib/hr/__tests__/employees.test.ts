@@ -29,12 +29,16 @@ describe("employees access control", () => {
 
     const created = await createEmployee(repo, ownerAccess, {
       house_id: "house-1",
+      code: "E-01",
       first_name: "Ada",
       last_name: "Lovelace",
+      full_name: "Ada Lovelace",
+      rate_per_day: 1200,
       branch_id: "branch-1",
     });
 
-    assert.equal(created.display_name, "Ada Lovelace");
+    assert.equal(created.full_name, "Ada Lovelace");
+    assert.equal(created.rate_per_day, 1200);
 
     const rows = await listEmployees(repo, ownerAccess);
     assert.equal(rows.length, 1);
@@ -48,8 +52,10 @@ describe("employees access control", () => {
       () =>
         createEmployee(repo, staffAccess, {
           house_id: "house-1",
+          code: "E-02",
           first_name: "Alan",
           last_name: "Turing",
+          rate_per_day: 900,
         }),
       EmployeeAccessError,
     );
@@ -86,11 +92,39 @@ describe("employees access control", () => {
       () =>
         createEmployee(repo, ownerAccess, {
           house_id: "house-1",
+          code: "E-03",
           first_name: "Grace",
           last_name: "Hopper",
+          rate_per_day: 1100,
           branch_id: "branch-2",
         }),
       /branch/i,
     );
+  });
+
+  it("filters employees by status, branch, and search", async () => {
+    const repo = createInMemoryEmployeeRepository({
+      branches: { "branch-1": "house-1", "branch-2": "house-1" },
+      rows: [
+        buildEmployeeRow("emp-1", { house_id: "house-1", code: "EMP-1", full_name: "Ada", branch_id: "branch-1" }),
+        buildEmployeeRow("emp-2", {
+          house_id: "house-1",
+          code: "EMP-2",
+          full_name: "Grace Hopper",
+          status: "inactive",
+          branch_id: "branch-2",
+        }),
+        buildEmployeeRow("emp-3", { house_id: "house-2", code: "EMP-3", full_name: "Alan" }),
+      ],
+    });
+
+    const active = await listEmployees(repo, ownerAccess, { status: "active" });
+    assert.deepEqual(active.map((row) => row.id), ["emp-1"]);
+
+    const branchFiltered = await listEmployees(repo, ownerAccess, { branchId: "branch-2" });
+    assert.deepEqual(branchFiltered.map((row) => row.id), ["emp-2"]);
+
+    const search = await listEmployees(repo, ownerAccess, { search: "Grace" });
+    assert.deepEqual(search.map((row) => row.id), ["emp-2"]);
   });
 });

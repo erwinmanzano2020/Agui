@@ -203,6 +203,9 @@ export type BrandMembershipUpdate = Partial<BrandMembershipInsert>;
 export type EmployeeRow = {
   id: string;
   house_id: string;
+  code: string;
+  full_name: string;
+  rate_per_day: number;
   first_name: string;
   last_name: string;
   display_name: string;
@@ -216,8 +219,11 @@ export type EmployeeRow = {
 export type EmployeeInsert = {
   id?: string;
   house_id: string;
-  first_name: string;
-  last_name: string;
+  code?: string;
+  full_name?: string;
+  rate_per_day?: number;
+  first_name?: string;
+  last_name?: string;
   display_name?: string;
   status?: EmployeeRow["status"];
   employment_type?: EmployeeRow["employment_type"];

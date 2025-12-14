@@ -111,7 +111,7 @@ async function resolveBranchesForHouse(
 async function loadEmployeeBranchMap(
   service: SupabaseClient<Database>,
   employeeIds: string[],
-  workspaceId: string,
+  houseId: string,
   branchIds: string[],
 ): Promise<Map<string, string | null>> {
   if (!employeeIds.length || !branchIds.length) {
@@ -120,8 +120,8 @@ async function loadEmployeeBranchMap(
 
   const { data, error } = await service
     .from("employees")
-    .select("id, branch_id, workspace_id")
-    .eq("workspace_id", workspaceId)
+    .select("id, branch_id, house_id")
+    .eq("house_id", houseId)
     .in("id", employeeIds)
     .returns<Array<{ id: string; branch_id: string | null }>>();
 

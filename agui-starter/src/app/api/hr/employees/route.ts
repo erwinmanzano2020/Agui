@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
-import { listEmployeesForHouse } from "@/lib/hr/employees-server";
+import { listEmployeesByHouse } from "@/lib/hr/employees-server";
 import { resolveHrAccess } from "@/lib/hr/access";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const employees = await listEmployeesForHouse(service, houseId, branchIds);
+    const employees = await listEmployeesByHouse(service, houseId, {}, { allowedBranchIds: branchIds });
     return NextResponse.json({ employees }, { status: 200 });
   } catch (error) {
     console.error("Failed to load employees for house", error);

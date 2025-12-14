@@ -8,6 +8,12 @@ export type EmployeeAccessContext = {
   policyKeys?: Iterable<string>;
 };
 
+export type EmployeeListFilters = {
+  status?: EmployeeRow["status"] | "all";
+  branchId?: string | null;
+  search?: string;
+};
+
 export class EmployeeAccessError extends Error {}
 
 const ALLOWED_ROLES = new Set<WorkspaceRole>(["owner", "manager"]);
@@ -41,7 +47,7 @@ function assertManageEmployees(context: EmployeeAccessContext, targetHouseId: st
 }
 
 export type EmployeeRepository = {
-  listByHouse(houseId: string): Promise<EmployeeRow[]>;
+  listByHouse(houseId: string, filters?: EmployeeListFilters): Promise<EmployeeRow[]>;
   findById(id: string): Promise<EmployeeRow | null>;
   create(payload: EmployeeInsert): Promise<EmployeeRow>;
   update(id: string, updates: EmployeeUpdate): Promise<EmployeeRow | null>;
@@ -53,14 +59,20 @@ export function buildEmployeeRow(
 ): EmployeeRow {
   const firstName = overrides.first_name ?? "Ada";
   const lastName = overrides.last_name ?? "Lovelace";
+  const fullName = overrides.full_name ?? overrides.display_name ?? `${firstName} ${lastName}`.trim();
+  const code = overrides.code ?? `EMP-${id.slice(0, 6)}`;
+  const rate = overrides.rate_per_day ?? 0;
   const now = new Date().toISOString();
 
   return {
     id,
     house_id: overrides.house_id ?? "house-1",
+    code,
+    full_name: fullName,
+    rate_per_day: rate,
     first_name: firstName,
     last_name: lastName,
-    display_name: overrides.display_name ?? `${firstName} ${lastName}`.trim(),
+    display_name: overrides.display_name ?? fullName,
     status: overrides.status ?? "active",
     employment_type: overrides.employment_type ?? "full_time",
     branch_id: overrides.branch_id ?? null,
@@ -81,8 +93,33 @@ export function createInMemoryEmployeeRepository(initial?: {
 
   return {
     rows,
-    async listByHouse(houseId) {
-      return rows.filter((row) => row.house_id === houseId);
+    async listByHouse(houseId, filters = {}) {
+      const branchHouseMap = branches;
+      if (filters.branchId) {
+        const branchHouse = branchHouseMap[filters.branchId];
+        if (branchHouse && branchHouse !== houseId) {
+          return [];
+        }
+      }
+
+      let filtered = rows.filter((row) => row.house_id === houseId);
+
+      if (filters.status && filters.status !== "all") {
+        filtered = filtered.filter((row) => row.status === filters.status);
+      }
+
+      if (filters.branchId) {
+        filtered = filtered.filter((row) => row.branch_id === filters.branchId);
+      }
+
+      if (filters.search?.trim()) {
+        const query = filters.search.trim().toLowerCase();
+        filtered = filtered.filter((row) =>
+          row.full_name.toLowerCase().includes(query) || row.code.toLowerCase().includes(query),
+        );
+      }
+
+      return filtered.sort((a, b) => a.full_name.localeCompare(b.full_name));
     },
     async findById(id) {
       return rows.find((row) => row.id === id) ?? null;
@@ -95,13 +132,21 @@ export function createInMemoryEmployeeRepository(initial?: {
           throw new Error("Branch does not belong to the employee house");
         }
       }
+      const firstName = payload.first_name ?? "";
+      const lastName = payload.last_name ?? "";
+      const rawFullName = payload.full_name ?? payload.display_name ?? `${firstName} ${lastName}`.trim();
+      const fullName = rawFullName || "Unnamed";
+      const code = payload.code ?? `EMP-${counter++}`;
+      const rate = payload.rate_per_day ?? 0;
       const row: EmployeeRow = {
         id: payload.id ?? `emp-${counter++}`,
         house_id: payload.house_id,
-        first_name: payload.first_name,
-        last_name: payload.last_name,
-        display_name:
-          payload.display_name ?? `${payload.first_name} ${payload.last_name}`.trim(),
+        code,
+        full_name: fullName,
+        rate_per_day: rate,
+        first_name: payload.first_name ?? fullName,
+        last_name: payload.last_name ?? fullName,
+        display_name: payload.display_name ?? fullName,
         status: payload.status ?? "active",
         employment_type: payload.employment_type ?? "full_time",
         branch_id: payload.branch_id ?? null,
@@ -118,8 +163,17 @@ export function createInMemoryEmployeeRepository(initial?: {
       const merged: EmployeeRow = {
         ...existing,
         ...updates,
+        code: updates.code ?? existing.code,
+        full_name:
+          updates.full_name ??
+          updates.display_name ??
+          `${updates.first_name ?? existing.first_name} ${updates.last_name ?? existing.last_name}`.trim(),
+        rate_per_day: updates.rate_per_day ?? existing.rate_per_day,
+        first_name: updates.first_name ?? existing.first_name,
+        last_name: updates.last_name ?? existing.last_name,
         display_name:
           updates.display_name ??
+          updates.full_name ??
           `${updates.first_name ?? existing.first_name} ${updates.last_name ?? existing.last_name}`.trim(),
         updated_at: updates.updated_at ?? new Date().toISOString(),
       } satisfies EmployeeRow;
@@ -141,9 +195,10 @@ export function createInMemoryEmployeeRepository(initial?: {
 export async function listEmployees(
   repo: EmployeeRepository,
   context: EmployeeAccessContext,
+  filters: EmployeeListFilters = {},
 ): Promise<EmployeeRow[]> {
   assertManageEmployees(context, context.houseId);
-  return repo.listByHouse(context.houseId);
+  return repo.listByHouse(context.houseId, filters);
 }
 
 export async function createEmployee(
@@ -153,8 +208,19 @@ export async function createEmployee(
 ): Promise<EmployeeRow> {
   const houseId = payload.house_id ?? context.houseId;
   assertManageEmployees(context, houseId);
-  const displayName = payload.display_name ?? `${payload.first_name} ${payload.last_name}`.trim();
-  return repo.create({ ...payload, house_id: houseId, display_name: displayName });
+  const firstName = payload.first_name ?? "";
+  const lastName = payload.last_name ?? "";
+  const rawFullName = payload.full_name ?? payload.display_name ?? `${firstName} ${lastName}`.trim();
+  const fullName = rawFullName || payload.code || "";
+  const code = payload.code ?? `EMP-${Date.now()}`;
+  const displayName = payload.display_name ?? (fullName || code);
+  return repo.create({
+    ...payload,
+    code,
+    full_name: fullName || code,
+    house_id: houseId,
+    display_name: displayName,
+  });
 }
 
 export async function getEmployee(
@@ -184,6 +250,7 @@ export async function updateEmployee(
 
   const displayName =
     updates.display_name ??
+    updates.full_name ??
     `${updates.first_name ?? existing.first_name} ${updates.last_name ?? existing.last_name}`.trim();
 
   return repo.update(employeeId, {

@@ -1,7 +1,61 @@
-export default function HrEmployeesPage() {
+import { notFound } from "next/navigation";
+
+import { EmployeesClient } from "./EmployeesClient";
+import { requireAuth } from "@/lib/auth/require-auth";
+import { listBranchesForHouse, listEmployeesByHouse } from "@/lib/hr/employees-server";
+import type { EmployeeListFilters } from "@/lib/hr/employees";
+
+function normalizeFilters(
+  rawSearch: Record<string, string | string[] | undefined>,
+  allowedBranchIds: string[],
+): EmployeeListFilters & { branchId: string | null; search: string; status: string } {
+  const rawStatus = typeof rawSearch.status === "string" ? rawSearch.status : undefined;
+  const status = rawStatus === "inactive" || rawStatus === "all" ? rawStatus : "active";
+
+  const branchParam = typeof rawSearch.branch === "string" ? rawSearch.branch : undefined;
+  const branchId = branchParam && allowedBranchIds.includes(branchParam) ? branchParam : null;
+
+  const search = typeof rawSearch.q === "string" ? rawSearch.q : "";
+
+  return { status, branchId, search };
+}
+
+type Props = {
+  params: Promise<{ slug: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function HrEmployeesPage({ params, searchParams }: Props) {
+  const [{ slug }, rawSearch = {}] = await Promise.all([params, searchParams ?? Promise.resolve({})]);
+  const basePath = `/company/${slug}/hr/employees`;
+  const { supabase } = await requireAuth(basePath);
+
+  const { data: house } = await supabase
+    .from("houses")
+    .select("id, slug, name")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (!house) {
+    notFound();
+  }
+
+  const branches = await listBranchesForHouse(supabase, house.id);
+  const allowedBranchIds = branches.map((branch) => branch.id);
+  const filters = normalizeFilters(rawSearch, allowedBranchIds);
+  const branchNames = Object.fromEntries(branches.map((branch) => [branch.id, branch.name]));
+
+  const employees = await listEmployeesByHouse(supabase, house.id, filters, {
+    allowedBranchIds,
+    branchNames,
+  });
+
   return (
-    <div className="rounded-2xl border border-border bg-white/70 p-6 text-sm text-muted-foreground shadow-sm">
-      Employees tab – HR-1 will live here.
-    </div>
+    <EmployeesClient
+      basePath={basePath}
+      employees={employees}
+      branches={branches}
+      initialFilters={{ status: filters.status, branchId: filters.branchId, search: filters.search ?? "" }}
+    />
   );
 }
