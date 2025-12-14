@@ -16,10 +16,13 @@ type Shift = {
   end_time?: string | null;
 };
 
-type Employee = Pick<EmployeeRecord, "code" | "full_name" | "rate_per_day">;
+type Employee = Pick<
+  EmployeeRecord,
+  "display_name" | "status" | "employment_type" | "branch_id"
+>;
 type EmployeeTableRow = Pick<
   Database["public"]["Tables"]["employees"]["Row"],
-  "code" | "full_name" | "rate_per_day"
+  "display_name" | "status" | "employment_type" | "branch_id"
 >;
 
 type WeeklyShiftRow = { day_of_week: number; shift_id: string | null };
@@ -90,7 +93,7 @@ export default function EmployeeSchedulePage() {
 
     const empRes = await sb
       .from("employees")
-      .select("code, full_name, rate_per_day")
+      .select("display_name, status, employment_type, branch_id")
       .eq("id", employeeId)
       .maybeSingle();
     if (empRes.error) setErr(empRes.error.message);
@@ -98,9 +101,10 @@ export default function EmployeeSchedulePage() {
     setEmp(
       employeeRow
         ? {
-            code: employeeRow.code ?? "",
-            full_name: employeeRow.full_name ?? "",
-            rate_per_day: employeeRow.rate_per_day ?? 0,
+            display_name: employeeRow.display_name,
+            status: employeeRow.status,
+            employment_type: employeeRow.employment_type,
+            branch_id: employeeRow.branch_id,
           }
         : null,
     );
@@ -308,13 +312,13 @@ export default function EmployeeSchedulePage() {
         <div className="border rounded p-3 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
             <div>
-              Code: <b>{emp.code}</b>
+              Name: <b>{emp.display_name}</b>
             </div>
             <div>
-              Name: <b>{emp.full_name}</b>
+              Employment: <b>{emp.employment_type.replace(/_/g, " ")}</b>
             </div>
             <div>
-              Rate/Day: <b>₱{Number(emp.rate_per_day).toFixed(2)}</b>
+              Status: <b>{emp.status}</b>
             </div>
           </div>
         </div>

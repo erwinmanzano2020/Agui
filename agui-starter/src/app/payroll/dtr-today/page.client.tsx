@@ -8,7 +8,12 @@ import { sumFinishedMinutes, latestOut, Segment } from "@/lib/segments";
 
 type SegmentRecord = { start_at: string; end_at: string | null };
 
-type Emp = { id: string; code: string; full_name: string };
+type Emp = {
+  id: string;
+  display_name: string;
+  employment_type: "full_time" | "part_time" | "casual";
+  branch_id: string | null;
+};
 
 export default function PayrollDtrTodayPageClient() {
   const [emps, setEmps] = useState<Emp[]>([]);
@@ -48,10 +53,19 @@ export default function PayrollDtrTodayPageClient() {
 
       const { data } = await sb
         .from("employees")
-        .select("id, code, full_name")
-        .neq("status", "archived")
-        .order("full_name");
-      const employees = (data ?? []) as Emp[];
+        .select("id, display_name, employment_type, branch_id")
+        .eq("status", "active")
+        .order("display_name");
+      const employees = (data ?? []).map(
+        (row) =>
+          ({
+            id: row.id as string,
+            display_name: (row as { display_name?: string })?.display_name ?? "",
+            employment_type: (row as { employment_type?: Emp["employment_type"] })
+              ?.employment_type ?? "full_time",
+            branch_id: (row as { branch_id?: string | null }).branch_id ?? null,
+          }) as Emp,
+      );
       setEmps(employees);
       if (employees[0]) setEmployeeId(employees[0].id);
     })();
@@ -304,7 +318,7 @@ export default function PayrollDtrTodayPageClient() {
         >
           {emps.map((e) => (
             <option key={e.id} value={e.id}>
-              {e.full_name} ({e.code})
+              {e.display_name} ({e.employment_type})
             </option>
           ))}
         </select>

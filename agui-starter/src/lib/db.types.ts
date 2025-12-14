@@ -202,28 +202,28 @@ export type BrandMembershipUpdate = Partial<BrandMembershipInsert>;
 
 export type EmployeeRow = {
   id: string;
-  entity_id: string;
-  brand_id: string;
-  department_id: string | null;
-  code: string | null;
-  full_name: string | null;
-  status: string | null;
-  rate_per_day: number | null;
+  house_id: string;
+  first_name: string;
+  last_name: string;
+  display_name: string;
+  status: "active" | "inactive";
+  employment_type: "full_time" | "part_time" | "casual";
+  branch_id: string | null;
   created_at: string;
-  updated_at: string | null;
+  updated_at: string;
 };
 
 export type EmployeeInsert = {
   id?: string;
-  entity_id: string;
-  brand_id: string;
-  department_id?: string | null;
-  code?: string | null;
-  full_name?: string | null;
-  status?: string | null;
-  rate_per_day?: number | null;
+  house_id: string;
+  first_name: string;
+  last_name: string;
+  display_name?: string;
+  status?: EmployeeRow["status"];
+  employment_type?: EmployeeRow["employment_type"];
+  branch_id?: string | null;
   created_at?: string;
-  updated_at?: string | null;
+  updated_at?: string;
 };
 
 export type EmployeeUpdate = Partial<EmployeeInsert>;

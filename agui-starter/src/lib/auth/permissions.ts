@@ -88,7 +88,7 @@ function isNonProductionEnvironment(): boolean {
   return false;
 }
 
-export function shouldBypassPermissions(_permissions: PolicyRecord[]): boolean {
+export function shouldBypassPermissions(): boolean {
   // In non-production, developers can explore all modules even while role
   // policies are still being seeded. Explicit feature toggles still win.
   return isNonProductionEnvironment();

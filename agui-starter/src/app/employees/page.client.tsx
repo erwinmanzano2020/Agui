@@ -15,13 +15,13 @@ import type { EmployeeListItem } from "@/lib/hr/employees-server";
 
 type EmployeeRow = {
   id: string;
-  code: string;
-  full_name: string;
-  status: string | null;
-  rate_per_day: number | null;
+  display_name: string;
+  status: EmployeeListItem["status"];
+  employment_type: EmployeeListItem["employment_type"];
+  branch_id: string | null;
 };
 
-const OFF_STATUSES = new Set(["archived", "inactive", "terminated", "offboarded"]);
+const OFF_STATUSES = new Set(["inactive"]);
 
 export default function EmployeesPageClient() {
   const [rows, setRows] = useState<EmployeeRow[]>([]);
@@ -33,7 +33,7 @@ export default function EmployeesPageClient() {
   const teamLabel = terms.team;
   const teamLower = teamLabel.toLowerCase();
 
-  const renderStatus = (status: string | null) => {
+  const renderStatus = (status: EmployeeRow["status"]) => {
     const raw = status ?? "active";
     const normalized = raw.toLowerCase();
     const tone = OFF_STATUSES.has(normalized) ? "off" : "on";
@@ -58,10 +58,10 @@ export default function EmployeesPageClient() {
 
     const normalized: EmployeeRow[] = (payload.employees ?? []).map((row) => ({
       id: row.id,
-      code: row.code ?? "",
-      full_name: row.full_name ?? "",
-      status: row.status ?? "active",
-      rate_per_day: row.rate_per_day ?? null,
+      display_name: row.display_name,
+      status: row.status,
+      employment_type: row.employment_type,
+      branch_id: row.branch_id ?? null,
     } satisfies EmployeeRow));
 
     setRows(normalized);
@@ -83,7 +83,7 @@ export default function EmployeesPageClient() {
     }
     const { error } = await sb
       .from("employees")
-      .update({ status: "archived" })
+      .update({ status: "inactive" })
       .eq("id", id);
 
     if (error) setErr(error.message);
@@ -125,9 +125,8 @@ export default function EmployeesPageClient() {
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="text-left text-[color-mix(in_srgb,_var(--agui-on-surface)_85%,_var(--agui-surface)_15%)]">
-                <th className="p-2 font-medium">Code</th>
                 <th className="p-2 font-medium">Name</th>
-                <th className="p-2 font-medium">Rate/Day</th>
+                <th className="p-2 font-medium">Employment Type</th>
                 <th className="p-2 font-medium">Status</th>
                 <th className="p-2 font-medium">Actions</th>
               </tr>
@@ -138,18 +137,13 @@ export default function EmployeesPageClient() {
                   key={r.id}
                   className="border-t border-[color:color-mix(in_srgb,_var(--agui-card-border)_60%,_transparent)]"
                 >
-                  <td className="p-2 font-medium text-[color-mix(in_srgb,_var(--agui-on-surface)_90%,_var(--agui-surface)_10%)]">
-                    {r.code}
-                  </td>
                   <td className="p-2">
                     <ThemedLink href={`/employees/${r.id}`} className="text-sm">
-                      {r.full_name}
+                      {r.display_name}
                     </ThemedLink>
                   </td>
                   <td className="p-2">
-                    {r.rate_per_day != null
-                      ? `₱${Number(r.rate_per_day).toFixed(2)}`
-                      : "—"}
+                    <Badge tone="on">{r.employment_type.replace(/_/g, " ")}</Badge>
                   </td>
                   <td className="p-2">{renderStatus(r.status)}</td>
                   <td className="p-2">
@@ -166,7 +160,7 @@ export default function EmployeesPageClient() {
                       >
                         Edit
                       </ThemedLink>
-                      {r.status !== "archived" && (
+                      {r.status !== "inactive" && (
                         <Button
                           type="button"
                           variant="link"
@@ -175,7 +169,7 @@ export default function EmployeesPageClient() {
                           onClick={() => archive(r.id)}
                           disabled={busy}
                         >
-                          Archive
+                          Deactivate
                         </Button>
                       )}
                     </div>

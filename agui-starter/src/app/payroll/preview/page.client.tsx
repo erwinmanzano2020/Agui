@@ -8,9 +8,13 @@ import { resolveEffectiveShift } from "@/lib/shifts";
 
 type Emp = {
   id: string;
-  code: string;
-  full_name: string;
-  rate_per_day: number;
+  display_name: string;
+  employment_type: "full_time" | "part_time" | "casual";
+  branch_id: string | null;
+  rate_per_day: number | null;
+  status?: "active" | "inactive";
+  code?: string | null;
+  full_name?: string;
 };
 
 type Dtr = {
@@ -91,9 +95,9 @@ export default function PayrollPreviewPageClient() {
         ] = await Promise.all([
           sb
             .from("employees")
-            .select("id, code, full_name, rate_per_day")
-            .neq("status", "archived")
-            .order("full_name"),
+            .select("id, display_name, employment_type, branch_id, status")
+            .eq("status", "active")
+            .order("display_name"),
           sb
             .from("settings_payroll")
             .select("standard_minutes_per_day, ot_multiplier, attendance_mode")
@@ -107,7 +111,21 @@ export default function PayrollPreviewPageClient() {
           setErr(empsError.message);
           setEmps([]);
         } else {
-          setEmps((empsData || []) as Emp[]);
+          const normalized = (empsData ?? []).map(
+            (row) =>
+              ({
+                id: row.id as string,
+                display_name: (row as { display_name?: string })?.display_name ?? "",
+                employment_type: (row as { employment_type?: Emp["employment_type"] })
+                  ?.employment_type ?? "full_time",
+                branch_id: (row as { branch_id?: string | null }).branch_id ?? null,
+                status: (row as { status?: Emp["status"] }).status ?? "active",
+                rate_per_day: null,
+                full_name: (row as { display_name?: string })?.display_name ?? "",
+                code: null,
+              }) as Emp,
+          );
+          setEmps(normalized);
         }
 
         if (settingsError) {
@@ -234,7 +252,8 @@ export default function PayrollPreviewPageClient() {
           // Per-day context
           const eff = await resolveEffectiveShift(eId, r.work_date);
           const standard = eff.standard_minutes ?? fallbackStd;
-          const perMinute = emp.rate_per_day / standard;
+          const rate = Number(emp.rate_per_day ?? 0);
+          const perMinute = standard ? rate / standard : 0;
 
           // Derived shortfall (present days only)
           const capped = Math.min(reg, standard);
@@ -243,7 +262,7 @@ export default function PayrollPreviewPageClient() {
           if (attMode === "PRORATE") {
             basicPay += perMinute * capped;
           } else {
-            basicPay += emp.rate_per_day;
+            basicPay += rate;
             lateUTMins += shortfall;
             lateUTValue += perMinute * shortfall;
           }
@@ -259,7 +278,7 @@ export default function PayrollPreviewPageClient() {
 
         out.push({
           employee_id: eId,
-          name: `${emp.full_name} (${emp.code})`,
+          name: `${emp.display_name}`,
           reg: totalReg,
           ot: totalOT,
           lateUTMins,
@@ -328,7 +347,7 @@ export default function PayrollPreviewPageClient() {
           <option value="ALL">All employees</option>
           {emps.map((e) => (
             <option key={e.id} value={e.id}>
-              {e.full_name} ({e.code})
+              {e.display_name} ({e.employment_type})
             </option>
           ))}
         </select>

@@ -20,7 +20,7 @@ export async function isFeatureOn(k: UiModuleKey) {
   }
 
   const permissions = await getUserPermissions();
-  if (shouldBypassPermissions(permissions)) {
+  if (shouldBypassPermissions()) {
     return true;
   }
 

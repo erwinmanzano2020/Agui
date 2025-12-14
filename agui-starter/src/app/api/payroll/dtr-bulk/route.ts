@@ -90,7 +90,7 @@ async function resolveHouseForEntity(
   return rows[0]?.house_id ?? null;
 }
 
-async function resolveDepartmentsForHouse(
+async function resolveBranchesForHouse(
   service: SupabaseClient<Database>,
   houseId: string,
 ): Promise<string[]> {
@@ -108,21 +108,24 @@ async function resolveDepartmentsForHouse(
     .filter((id): id is string => Boolean(id));
 }
 
-async function loadEmployeeDepartmentMap(
+async function loadEmployeeBranchMap(
   service: SupabaseClient<Database>,
   employeeIds: string[],
-  departmentIds: string[],
+  workspaceId: string,
+  branchIds: string[],
 ): Promise<Map<string, string | null>> {
-  if (!employeeIds.length || !departmentIds.length) {
+  if (!employeeIds.length || !branchIds.length) {
     return new Map();
   }
 
   const { data, error } = await service
     .from("employees")
-    .select("id, department_id")
+    .select("id, branch_id, workspace_id")
+    .eq("workspace_id", workspaceId)
     .in("id", employeeIds)
-    .in("department_id" as never, departmentIds)
-    .returns<Array<{ id: string; department_id: string | null }>>();
+    .returns<Array<{ id: string; branch_id: string | null }>>();
+
+  const allowedBranches = new Set(branchIds);
 
   if (error) {
     throw new Error(error.message);
@@ -130,8 +133,9 @@ async function loadEmployeeDepartmentMap(
 
   const map = new Map<string, string | null>();
   for (const row of data ?? []) {
-    if (row.id) {
-      map.set(row.id, row.department_id ?? null);
+    const branchId = (row as { branch_id?: string | null }).branch_id ?? null;
+    if (row.id && (branchId === null || allowedBranches.has(branchId))) {
+      map.set(row.id, branchId);
     }
   }
   return map;
@@ -157,13 +161,13 @@ async function detectSupportedColumns(
 function applyContextColumns(
   row: Record<string, unknown>,
   supported: Set<string>,
-  context: { houseId: string; departmentId: string | null },
+  context: { houseId: string; branchId: string | null },
 ) {
   if (supported.has("department_id")) {
-    row.department_id = context.departmentId;
+    row.department_id = context.branchId;
   }
   if (supported.has("branch_id")) {
-    row.branch_id = context.departmentId;
+    row.branch_id = context.branchId;
   }
   if (supported.has("house_id")) {
     row.house_id = context.houseId;
@@ -184,6 +188,7 @@ export async function POST(req: NextRequest) {
   try {
     body = await req.json();
   } catch (error) {
+    console.error("[/api/payroll/dtr-bulk] invalid JSON payload", error);
     return NextResponse.json(
       { error: "Invalid JSON body" },
       { status: 400 },
@@ -235,15 +240,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No accessible house" }, { status: 403 });
   }
 
-  let departmentIds: string[] = [];
+  let branchIds: string[] = [];
   try {
-    departmentIds = await resolveDepartmentsForHouse(service, houseId);
+    branchIds = await resolveBranchesForHouse(service, houseId);
   } catch (error) {
     console.error("[/api/payroll/dtr-bulk] failed to resolve departments", error);
     return NextResponse.json({ error: "Failed to resolve house departments" }, { status: 500 });
   }
 
-  if (!departmentIds.length) {
+  if (!branchIds.length) {
     return NextResponse.json({ error: "No accessible departments" }, { status: 403 });
   }
 
@@ -274,16 +279,16 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        let departmentId: string | null = null;
+        let branchId: string | null = null;
         try {
-          const map = await loadEmployeeDepartmentMap(service, [employeeId], departmentIds);
-          departmentId = map.get(employeeId) ?? null;
+          const map = await loadEmployeeBranchMap(service, [employeeId], houseId, branchIds);
+          branchId = map.get(employeeId) ?? null;
         } catch (error) {
           console.error("[/api/payroll/dtr-bulk] failed to verify employee department", error);
           return NextResponse.json({ error: "Failed to resolve employee" }, { status: 500 });
         }
 
-        if (!departmentId) {
+        if (!branchId) {
           return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
         }
 
@@ -306,7 +311,7 @@ export async function POST(req: NextRequest) {
 
       let allowedIds = ids;
       try {
-        const map = await loadEmployeeDepartmentMap(service, ids, departmentIds);
+        const map = await loadEmployeeBranchMap(service, ids, houseId, branchIds);
         allowedIds = ids.filter((id: string) => map.has(id));
       } catch (error) {
         console.error("[/api/payroll/dtr-bulk] failed to verify employees for load", error);
@@ -338,16 +343,16 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        let departmentId: string | null = null;
+        let branchId: string | null = null;
         try {
-          const map = await loadEmployeeDepartmentMap(service, [employeeId], departmentIds);
-          departmentId = map.get(employeeId) ?? null;
+          const map = await loadEmployeeBranchMap(service, [employeeId], houseId, branchIds);
+          branchId = map.get(employeeId) ?? null;
         } catch (error) {
           console.error("[/api/payroll/dtr-bulk] failed to verify employee for save", error);
           return NextResponse.json({ error: "Failed to resolve employee" }, { status: 500 });
         }
 
-        if (!departmentId) {
+        if (!branchId) {
           return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
         }
 
@@ -378,7 +383,7 @@ export async function POST(req: NextRequest) {
                 start_at: s,
                 end_at: e1,
               };
-              applyContextColumns(row, segmentColumns, { houseId, departmentId });
+              applyContextColumns(row, segmentColumns, { houseId, branchId });
               inserts.push(row as SegmentInsert);
             }
           }
@@ -392,7 +397,7 @@ export async function POST(req: NextRequest) {
                 start_at: s,
                 end_at: e2,
               };
-              applyContextColumns(row, segmentColumns, { houseId, departmentId });
+              applyContextColumns(row, segmentColumns, { houseId, branchId });
               inserts.push(row as SegmentInsert);
             }
           }
@@ -414,7 +419,7 @@ export async function POST(req: NextRequest) {
                   time_in: firstIn,
                   time_out: lastOut,
                 } satisfies Partial<EntryUpsert>;
-                applyContextColumns(row, entryColumns, { houseId, departmentId });
+                applyContextColumns(row, entryColumns, { houseId, branchId });
                 return row as EntryUpsert;
               })(),
               { onConflict: "employee_id,work_date" },
@@ -432,7 +437,7 @@ export async function POST(req: NextRequest) {
 
       let employeeMap: Map<string, string | null> = new Map();
       try {
-        employeeMap = await loadEmployeeDepartmentMap(service, ids, departmentIds);
+        employeeMap = await loadEmployeeBranchMap(service, ids, houseId, branchIds);
       } catch (error) {
         console.error("[/api/payroll/dtr-bulk] failed to verify employees for bulk save", error);
         return NextResponse.json({ error: "Failed to resolve employees" }, { status: 500 });
@@ -462,7 +467,7 @@ export async function POST(req: NextRequest) {
             } satisfies Partial<EntryUpsert>;
             applyContextColumns(row, entryColumns, {
               houseId,
-              departmentId: employeeMap.get(empId) ?? null,
+              branchId: employeeMap.get(empId) ?? null,
             });
             rows.push(row as EntryUpsert);
           }

@@ -4,6 +4,7 @@ import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import { listEmployeesForHouse } from "@/lib/hr/employees-server";
+import { resolveHrAccess } from "@/lib/hr/access";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -45,7 +46,7 @@ async function resolveHouseForEntity(
   return rows[0]?.house_id ?? null;
 }
 
-async function resolveDepartmentsForHouse(
+async function resolveBranchesForHouse(
   service: SupabaseClient<Database>,
   houseId: string,
 ): Promise<string[]> {
@@ -115,16 +116,21 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "No accessible house" }, { status: 403 });
   }
 
-  let departmentIds: string[] = [];
+  let branchIds: string[] = [];
   try {
-    departmentIds = await resolveDepartmentsForHouse(service, houseId);
+    branchIds = await resolveBranchesForHouse(service, houseId);
   } catch (error) {
     console.error("Failed to resolve departments for house", error);
     return NextResponse.json({ error: "Failed to resolve house departments" }, { status: 500 });
   }
 
+  const hrAccess = await resolveHrAccess(service, houseId);
+  if (!hrAccess.allowed) {
+    return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+  }
+
   try {
-    const employees = await listEmployeesForHouse(service, departmentIds);
+    const employees = await listEmployeesForHouse(service, houseId, branchIds);
     return NextResponse.json({ employees }, { status: 200 });
   } catch (error) {
     console.error("Failed to load employees for house", error);

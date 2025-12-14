@@ -5,13 +5,11 @@ import type { EmployeeRow } from "@/lib/db.types";
 import type { EmployeeListItem } from "../employees-server";
 import { listEmployeesForHouse } from "../employees-server";
 
-type EmployeeRowWithDepartment = EmployeeRow & { department_id?: string | null };
-
-type QueryResult = { data: EmployeeRowWithDepartment[] | null; error: { message: string } | null };
+type QueryResult = { data: EmployeeRow[] | null; error: { message: string } | null };
 
 class EmployeesQueryMock {
   constructor(
-    private rows: EmployeeRowWithDepartment[],
+    private rows: EmployeeRow[],
     private result: QueryResult = { data: null, error: null },
   ) {}
 
@@ -19,24 +17,29 @@ class EmployeesQueryMock {
     return this;
   }
 
-  in(_column: string, values: string[]) {
-    const filtered = this.rows.filter((row) =>
-      values.includes(row.department_id ?? ""),
-    );
+  eq(_column: string, houseId: string) {
+    const filtered = this.rows.filter((row) => row.house_id === houseId);
     return new EmployeesQueryMock(filtered, this.result);
   }
 
-  async order() {
+  order() {
     const sorted = this.rows
       .slice()
-      .sort((a, b) => (a.full_name ?? "").localeCompare(b.full_name ?? ""));
-    return { data: sorted, error: this.result.error } satisfies QueryResult;
+      .sort((a, b) => (a.display_name ?? "").localeCompare(b.display_name ?? ""));
+    return new EmployeesQueryMock(sorted, this.result);
+  }
+
+  async throwOnError() {
+    if (this.result.error) {
+      throw new Error(this.result.error.message);
+    }
+    return { data: this.rows, error: this.result.error } satisfies QueryResult;
   }
 }
 
 class SupabaseMock {
   constructor(
-    private rows: EmployeeRowWithDepartment[],
+    private rows: EmployeeRow[],
     private result: QueryResult = { data: null, error: null },
   ) {}
 
@@ -48,38 +51,42 @@ class SupabaseMock {
   }
 }
 
-const baseRow: EmployeeRowWithDepartment = {
+const baseRow: EmployeeRow = {
   id: "emp-1",
-  entity_id: "ent-1",
-  brand_id: "brand-1",
-  code: "E-01",
-  full_name: "Ada Lovelace",
+  house_id: "house-1",
+  first_name: "Ada",
+  last_name: "Lovelace",
+  display_name: "Ada Lovelace",
   status: "active",
-  rate_per_day: 1000,
+  employment_type: "full_time",
+  branch_id: "branch-1",
   created_at: "2024-01-01T00:00:00Z",
-  updated_at: null,
-  department_id: "house-1",
+  updated_at: "2024-01-01T00:00:00Z",
 };
 
 describe("listEmployeesForHouse", () => {
   it("returns only employees for the requested house sorted by name", async () => {
     const supabase = new SupabaseMock([
       baseRow,
-      { ...baseRow, id: "emp-2", code: "E-02", full_name: "Grace Hopper", department_id: "house-1" },
-      { ...baseRow, id: "emp-3", code: "E-03", full_name: "Alan Turing", department_id: "house-2" },
+      { ...baseRow, id: "emp-2", display_name: "Grace Hopper", branch_id: "branch-1" },
+      { ...baseRow, id: "emp-3", display_name: "Alan Turing", house_id: "house-2", branch_id: "branch-2" },
     ]);
 
-    const results = (await listEmployeesForHouse(supabase as never, ["house-1"])) as EmployeeListItem[];
+    const results = (await listEmployeesForHouse(
+      supabase as never,
+      "house-1",
+      ["branch-1"],
+    )) as EmployeeListItem[];
 
     assert.deepEqual(results.map((row) => row.id), ["emp-1", "emp-2"]);
-    assert.ok(results.every((row) => row.full_name));
-    assert.ok(results.every((row) => row.code !== undefined));
+    assert.ok(results.every((row) => row.display_name));
+    assert.ok(results.every((row) => row.branch_id));
   });
 
-  it("returns empty list when no department ids provided", async () => {
+  it("returns empty list when no branch ids provided", async () => {
     const supabase = new SupabaseMock([baseRow]);
 
-    const results = await listEmployeesForHouse(supabase as never, []);
+    const results = await listEmployeesForHouse(supabase as never, "house-1", []);
 
     assert.deepEqual(results, []);
   });
@@ -87,6 +94,6 @@ describe("listEmployeesForHouse", () => {
   it("throws on query errors", async () => {
     const supabase = new SupabaseMock([baseRow], { data: null, error: { message: "boom" } });
 
-    await assert.rejects(() => listEmployeesForHouse(supabase as never, ["house-1"]), /boom/);
+    await assert.rejects(() => listEmployeesForHouse(supabase as never, "house-1", ["branch-1"]), /boom/);
   });
 });
