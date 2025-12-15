@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { EmployeeRow } from "@/lib/db.types";
-import { listEmployeesByHouse } from "../employees-server";
+import { getEmployeeByIdForHouse, listEmployeesByHouse } from "../employees-server";
 
-type QueryResult = { data: EmployeeRow[] | null; error: { message: string } | null };
+type QueryResult = { data: EmployeeRow[] | EmployeeRow | null; error: { message: string } | null };
 
 class EmployeesQueryMock {
   constructor(
@@ -39,6 +39,14 @@ class EmployeesQueryMock {
       throw new Error(this.result.error.message);
     }
     return { data: this.rows, error: this.result.error } satisfies QueryResult;
+  }
+
+  async maybeSingle() {
+    if (this.result.error) {
+      throw new Error(this.result.error.message);
+    }
+    const row = this.rows[0];
+    return { data: row ?? null, error: this.result.error } satisfies QueryResult;
   }
 }
 
@@ -130,5 +138,46 @@ describe("listEmployeesByHouse", () => {
 
     const searchByCode = await listEmployeesByHouse(supabase as never, "house-1", { search: "gh" });
     assert.deepEqual(searchByCode.map((row) => row.id), ["emp-2"]);
+  });
+});
+
+describe("getEmployeeByIdForHouse", () => {
+  it("returns an employee in the same house with branch details", async () => {
+    const supabase = new SupabaseMock([
+      { ...baseRow, branches: { id: "branch-1", name: "Main Branch", house_id: "house-1" } } as EmployeeRow & {
+        branches: { id: string; name: string; house_id: string };
+      },
+    ]);
+
+    const employee = await getEmployeeByIdForHouse(supabase as never, "house-1", "emp-1");
+
+    assert.ok(employee);
+    assert.equal(employee?.branch_name, "Main Branch");
+  });
+
+  it("returns null when the employee is outside the current house", async () => {
+    const supabase = new SupabaseMock([
+      { ...baseRow, house_id: "house-2", branches: { id: "branch-1", name: "Other", house_id: "house-2" } } as EmployeeRow & {
+        branches: { id: string; name: string; house_id: string };
+      },
+    ]);
+
+    const employee = await getEmployeeByIdForHouse(supabase as never, "house-1", "emp-1");
+
+    assert.equal(employee, null);
+  });
+
+  it("does not expose branches from other houses", async () => {
+    const supabase = new SupabaseMock([
+      { ...baseRow, branches: { id: "branch-x", name: "Other House", house_id: "house-2" } } as EmployeeRow & {
+        branches: { id: string; name: string; house_id: string };
+      },
+    ]);
+
+    const employee = await getEmployeeByIdForHouse(supabase as never, "house-1", "emp-1");
+
+    assert.ok(employee);
+    assert.equal(employee?.branch_id, null);
+    assert.equal(employee?.branch_name, null);
   });
 });
