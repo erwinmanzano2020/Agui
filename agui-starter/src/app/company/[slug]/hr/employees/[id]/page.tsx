@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { getEmployeeByIdForHouse } from "@/lib/hr/employees-server";
@@ -60,6 +61,9 @@ export default async function EmployeeProfilePage({ params }: Props) {
           <Badge tone={employee.status === "active" ? "on" : "off"} className="uppercase">
             {employee.status}
           </Badge>
+          <Button asChild size="sm" variant="outline">
+            <Link href={`${basePath}/edit`}>Edit</Link>
+          </Button>
         </div>
       </div>
 

@@ -2,7 +2,15 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { EmployeeRow } from "@/lib/db.types";
-import { getEmployeeByIdForHouse, listEmployeesByHouse } from "../employees-server";
+import { EmployeeAccessError } from "../employees";
+import type { HrAccessDecision } from "../access";
+import {
+  EmployeeUpdateError,
+  getEmployeeByIdForHouse,
+  listEmployeesByHouse,
+  updateEmployeeForHouseWithAccess,
+} from "../employees-server";
+import { normalizeWorkspaceRole } from "@/lib/workspaces/roles";
 
 type QueryResult = { data: EmployeeRow[] | EmployeeRow | null; error: { message: string } | null };
 
@@ -79,6 +87,91 @@ const baseRow: EmployeeRow = {
   created_at: "2024-01-01T00:00:00Z",
   updated_at: "2024-01-01T00:00:00Z",
 };
+
+type BranchRow = { id: string; house_id: string; name: string | null };
+
+class BranchQueryMock {
+  constructor(private branches: BranchRow[], private filters: Partial<BranchRow> = {}) {}
+
+  select() {
+    return this;
+  }
+
+  eq(column: keyof BranchRow, value: string) {
+    return new BranchQueryMock(
+      this.branches,
+      Object.assign({}, this.filters, { [column]: value }),
+    );
+  }
+
+  async maybeSingle<T>() {
+    const row = this.branches.find((branch) =>
+      Object.entries(this.filters).every(([key, value]) => (branch as Record<string, unknown>)[key] === value),
+    );
+
+    return { data: (row as T | null) ?? null, error: null } as const;
+  }
+}
+
+class EmployeeUpdateQueryMock {
+  constructor(
+    private employees: EmployeeRow[],
+    private branches: BranchRow[],
+    private filters: Partial<EmployeeRow> = {},
+    private mode: "select" | "update" = "select",
+    private updates: Partial<EmployeeRow> | null = null,
+  ) {}
+
+  select() {
+    return this;
+  }
+
+  eq(column: keyof EmployeeRow, value: string) {
+    return new EmployeeUpdateQueryMock(
+      this.employees,
+      this.branches,
+      Object.assign({}, this.filters, { [column]: value }),
+      this.mode,
+      this.updates,
+    );
+  }
+
+  update(payload: Partial<EmployeeRow>) {
+    return new EmployeeUpdateQueryMock(this.employees, this.branches, this.filters, "update", payload);
+  }
+
+  async maybeSingle<T>() {
+    const match = this.employees.find((row) =>
+      Object.entries(this.filters).every(([key, value]) => (row as Record<string, unknown>)[key] === value),
+    );
+
+    if (!match) {
+      return { data: null as T | null, error: null } as const;
+    }
+
+    if (this.mode === "update") {
+      Object.assign(match, this.updates ?? {});
+    }
+
+    const branch = this.branches.find((item) => item.id === match.branch_id) ?? null;
+
+    return { data: { ...match, branches: branch } as T, error: null } as const;
+  }
+}
+
+class UpdateSupabaseMock {
+  constructor(public employees: EmployeeRow[], public branches: BranchRow[]) {}
+
+  from(table: string) {
+    if (table === "employees") {
+      return new EmployeeUpdateQueryMock(this.employees, this.branches);
+    }
+    if (table === "branches") {
+      return new BranchQueryMock(this.branches);
+    }
+    throw new Error(`Unexpected table ${table}`);
+  }
+}
 
 describe("listEmployeesByHouse", () => {
   it("returns only employees for the requested house sorted by name", async () => {
@@ -179,5 +272,95 @@ describe("getEmployeeByIdForHouse", () => {
     assert.ok(employee);
     assert.equal(employee?.branch_id, null);
     assert.equal(employee?.branch_name, null);
+  });
+});
+
+describe("updateEmployeeForHouseWithAccess", () => {
+  const allowedAccess: HrAccessDecision = {
+    allowed: true,
+    allowedByPolicy: false,
+    allowedByRole: true,
+    hasWorkspaceAccess: true,
+    normalizedRoles: [normalizeWorkspaceRole("house_owner")],
+    policyKeys: [],
+    roles: ["house_owner"],
+    entityId: "entity-1",
+  };
+
+  const disallowedAccess: HrAccessDecision = {
+    ...allowedAccess,
+    allowed: false,
+    allowedByRole: false,
+    normalizedRoles: [normalizeWorkspaceRole("house_staff")],
+    roles: ["house_staff"],
+  };
+
+  it("updates core employee fields within the same house", async () => {
+    const supabase = new UpdateSupabaseMock(
+      [{ ...baseRow }],
+      [{ id: "branch-1", house_id: "house-1", name: "HQ" }],
+    );
+
+    const updated = await updateEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", "emp-1", {
+      full_name: "Updated Name",
+      status: "inactive",
+      branch_id: "branch-1",
+      rate_per_day: 1500,
+    });
+
+    assert.ok(updated);
+    assert.equal(updated?.full_name, "Updated Name");
+    assert.equal(updated?.status, "inactive");
+    assert.equal(updated?.branch_id, "branch-1");
+    assert.equal(supabase.employees[0].code, "EMP-1");
+  });
+
+  it("returns null when attempting to edit an employee outside the house", async () => {
+    const supabase = new UpdateSupabaseMock(
+      [{ ...baseRow, house_id: "house-2" }],
+      [{ id: "branch-1", house_id: "house-2", name: "Remote" }],
+    );
+
+    const result = await updateEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", "emp-1", {
+      full_name: "No Change",
+      status: "active",
+      branch_id: null,
+      rate_per_day: 1000,
+    });
+
+    assert.equal(result, null);
+  });
+
+  it("rejects users without HR privileges", async () => {
+    const supabase = new UpdateSupabaseMock([{ ...baseRow }], []);
+
+    await assert.rejects(
+      () =>
+        updateEmployeeForHouseWithAccess(supabase as never, disallowedAccess, "house-1", "emp-1", {
+          full_name: "Blocked",
+          status: "active",
+          branch_id: null,
+          rate_per_day: 900,
+        }),
+      EmployeeAccessError,
+    );
+  });
+
+  it("rejects branches from other houses", async () => {
+    const supabase = new UpdateSupabaseMock(
+      [{ ...baseRow }],
+      [{ id: "branch-x", house_id: "house-2", name: "Other" }],
+    );
+
+    await assert.rejects(
+      () =>
+        updateEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", "emp-1", {
+          full_name: "Ada Lovelace",
+          status: "active",
+          branch_id: "branch-x",
+          rate_per_day: 1200,
+        }),
+      EmployeeUpdateError,
+    );
   });
 });
