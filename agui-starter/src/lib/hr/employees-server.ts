@@ -20,6 +20,18 @@ export type EmployeeListItem = {
 
 export type BranchListItem = { id: string; name: string };
 
+export type EmployeeProfile = {
+  id: string;
+  house_id: string;
+  code: string;
+  full_name: string;
+  status: EmployeeRow["status"];
+  branch_id: string | null;
+  branch_name: string | null;
+  rate_per_day: number;
+  created_at: string;
+};
+
 export async function listBranchesForHouse(
   supabase: SupabaseClient<Database>,
   houseId: string,
@@ -88,4 +100,51 @@ export async function listEmployeesByHouse(
       display_name: employee.full_name,
     } satisfies EmployeeListItem;
   });
+}
+
+type EmployeeWithBranch = EmployeeRow & {
+  branches?: { id?: string | null; name?: string | null; house_id?: string | null } | null;
+};
+
+export async function getEmployeeByIdForHouse(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  employeeId: string,
+): Promise<EmployeeProfile | null> {
+  const { data } = await supabase
+    .from("employees")
+    .select(
+      "id, house_id, code, full_name, status, branch_id, rate_per_day, created_at, branches(id, name, house_id)",
+    )
+    .eq("house_id", houseId)
+    .eq("id", employeeId)
+    .maybeSingle<EmployeeWithBranch>();
+
+  if (!data) {
+    return null;
+  }
+
+  const employee = data;
+  const branch = employee.branches ?? null;
+  const branchBelongsToHouse = Boolean(branch && branch.id && branch.house_id === houseId);
+
+  let branchId: string | null = null;
+  let branchName: string | null = null;
+
+  if (branchBelongsToHouse && branch) {
+    branchId = branch.id ?? null;
+    branchName = branch.name ?? null;
+  }
+
+  return {
+    id: employee.id,
+    house_id: employee.house_id,
+    code: employee.code,
+    full_name: employee.full_name,
+    status: employee.status,
+    branch_id: branchId,
+    branch_name: branchName,
+    rate_per_day: Number(employee.rate_per_day ?? 0),
+    created_at: employee.created_at,
+  } satisfies EmployeeProfile;
 }
