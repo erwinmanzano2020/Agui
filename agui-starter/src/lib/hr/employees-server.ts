@@ -21,6 +21,7 @@ export type EmployeeListItem = {
 };
 
 export type BranchListItem = { id: string; name: string };
+export type BranchListResult = { branches: BranchListItem[]; error?: string };
 
 export type EmployeeProfile = {
   id: string;
@@ -46,21 +47,28 @@ export class EmployeeUpdateError extends Error {}
 export async function listBranchesForHouse(
   supabase: SupabaseClient<Database>,
   houseId: string,
-): Promise<BranchListItem[]> {
-  const { data } = await supabase
+): Promise<BranchListResult> {
+  const { data, error } = await supabase
     .from("branches")
-    .select("id, name")
+    .select("id, name, house_id")
     .eq("house_id", houseId)
-    .order("name", { ascending: true })
-    .throwOnError();
+    .order("name", { ascending: true });
 
-  return (data ?? [])
+  const rows = (data ?? [])
+    .filter((row) => (row as { house_id?: string | null }).house_id === houseId)
     .map((row) => {
       const id = (row as { id?: string | null }).id;
       const name = (row as { name?: string | null }).name;
       return id ? ({ id, name: name ?? "" } as BranchListItem) : null;
     })
     .filter((row): row is BranchListItem => Boolean(row));
+
+  if (error) {
+    console.error("Failed to load branches", error);
+    return { branches: rows, error: error.message } satisfies BranchListResult;
+  }
+
+  return { branches: rows } satisfies BranchListResult;
 }
 
 export async function listEmployeesByHouse(

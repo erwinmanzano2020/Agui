@@ -17,6 +17,7 @@ import { updateEmployeeInitialState } from "./action-types";
 type Props = {
   employee: EmployeeProfile;
   branches: BranchListItem[];
+  branchLoadError?: string;
   houseId: string;
   houseSlug: string;
 };
@@ -35,7 +36,7 @@ function FieldError({ message }: { message?: string[] }) {
   return <p className="text-sm text-destructive">{message[0]}</p>;
 }
 
-export function EditEmployeeForm({ employee, branches, houseId, houseSlug }: Props) {
+export function EditEmployeeForm({ employee, branches, branchLoadError, houseId, houseSlug }: Props) {
   const [state, formAction] = useFormState(updateEmployeeAction, updateEmployeeInitialState);
   const router = useRouter();
   const toast = useToast();
@@ -99,6 +100,7 @@ export function EditEmployeeForm({ employee, branches, houseId, houseSlug }: Pro
             name="branch_id"
             defaultValue={employee.branch_id ?? ""}
             className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground shadow-sm"
+            disabled={Boolean(branchLoadError)}
           >
             {branchOptions.map((branch) => (
               <option key={branch.id || "unassigned"} value={branch.id}>
@@ -106,6 +108,9 @@ export function EditEmployeeForm({ employee, branches, houseId, houseSlug }: Pro
               </option>
             ))}
           </select>
+          {branchLoadError ? (
+            <p className="text-sm text-destructive">Unable to load branches. Try again later.</p>
+          ) : null}
           <FieldError message={state.fieldErrors?.branch_id} />
         </label>
 

@@ -10,11 +10,7 @@ import {
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
-import {
-  updateEmployeeInitialState,
-  type EmployeeUpdateFormInput,
-  type UpdateEmployeeState,
-} from "./action-types";
+import { type UpdateEmployeeState } from "./action-types";
 
 const StatusSchema = z.enum(["active", "inactive"]);
 

@@ -40,10 +40,10 @@ export default async function HrEmployeesPage({ params, searchParams }: Props) {
     notFound();
   }
 
-  const branches = await listBranchesForHouse(supabase, house.id);
-  const allowedBranchIds = branches.map((branch) => branch.id);
+  const branchResult = await listBranchesForHouse(supabase, house.id);
+  const allowedBranchIds = branchResult.branches.map((branch) => branch.id);
   const filters = normalizeFilters(rawSearch, allowedBranchIds);
-  const branchNames = Object.fromEntries(branches.map((branch) => [branch.id, branch.name]));
+  const branchNames = Object.fromEntries(branchResult.branches.map((branch) => [branch.id, branch.name]));
 
   const employees = await listEmployeesByHouse(supabase, house.id, filters, {
     allowedBranchIds,
@@ -54,7 +54,8 @@ export default async function HrEmployeesPage({ params, searchParams }: Props) {
     <EmployeesClient
       basePath={basePath}
       employees={employees}
-      branches={branches}
+      branches={branchResult.branches}
+      branchLoadError={branchResult.error}
       initialFilters={{ status: filters.status, branchId: filters.branchId, search: filters.search ?? "" }}
     />
   );

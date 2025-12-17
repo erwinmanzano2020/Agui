@@ -22,7 +22,7 @@ export default async function EditEmployeePage({ params }: Props) {
     notFound();
   }
 
-  const [employee, branches] = await Promise.all([
+  const [employee, branchResult] = await Promise.all([
     getEmployeeByIdForHouse(supabase, house.id, id),
     listBranchesForHouse(supabase, house.id),
   ]);
@@ -44,7 +44,13 @@ export default async function EditEmployeePage({ params }: Props) {
         → Edit
       </div>
 
-      <EditEmployeeForm employee={employee} branches={branches} houseId={house.id} houseSlug={slug} />
+      <EditEmployeeForm
+        employee={employee}
+        branches={branchResult.branches}
+        branchLoadError={branchResult.error}
+        houseId={house.id}
+        houseSlug={slug}
+      />
     </div>
   );
 }

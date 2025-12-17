@@ -7,6 +7,7 @@ import type { HrAccessDecision } from "../access";
 import {
   EmployeeUpdateError,
   getEmployeeByIdForHouse,
+  listBranchesForHouse,
   listEmployeesByHouse,
   updateEmployeeForHouseWithAccess,
 } from "../employees-server";
@@ -89,6 +90,70 @@ const baseRow: EmployeeRow = {
 };
 
 type BranchRow = { id: string; house_id: string; name: string | null };
+
+class BranchListQueryMock {
+  constructor(
+    private branches: BranchRow[],
+    private filters: Partial<BranchRow> = {},
+    private result: { error: { message: string } | null } = { error: null },
+  ) {}
+
+  select() {
+    return this;
+  }
+
+  eq(column: keyof BranchRow, value: string) {
+    return new BranchListQueryMock(this.branches, Object.assign({}, this.filters, { [column]: value }), this.result);
+  }
+
+  async order() {
+    const filtered = this.branches
+      .filter((branch) =>
+        Object.entries(this.filters).every(([key, value]) => (branch as Record<string, unknown>)[key] === value),
+      )
+      .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+
+    return { data: filtered, error: this.result.error } as const;
+  }
+}
+
+class BranchListSupabaseMock {
+  constructor(private branches: BranchRow[], private result: { error: { message: string } | null } = { error: null }) {}
+
+  from(table: string) {
+    if (table !== "branches") {
+      throw new Error(`Unexpected table ${table}`);
+    }
+    return new BranchListQueryMock(this.branches, {}, this.result);
+  }
+}
+
+describe("listBranchesForHouse", () => {
+  it("returns only branches for the requested house and sorts by name", async () => {
+    const supabase = new BranchListSupabaseMock([
+      { id: "branch-2", house_id: "house-1", name: "Zeta" },
+      { id: "branch-1", house_id: "house-1", name: "Alpha" },
+      { id: "branch-x", house_id: "house-2", name: "Other" },
+    ]);
+
+    const result = await listBranchesForHouse(supabase as never, "house-1");
+
+    assert.deepEqual(result.branches.map((branch) => branch.id), ["branch-1", "branch-2"]);
+    assert.equal(result.error, undefined);
+  });
+
+  it("returns an error flag while filtering results when the query fails", async () => {
+    const supabase = new BranchListSupabaseMock(
+      [{ id: "branch-1", house_id: "house-1", name: "Alpha" }],
+      { error: { message: "permission denied" } },
+    );
+
+    const result = await listBranchesForHouse(supabase as never, "house-1");
+
+    assert.deepEqual(result.branches.map((branch) => branch.id), ["branch-1"]);
+    assert.equal(result.error, "permission denied");
+  });
+});
 
 class BranchQueryMock {
   constructor(private branches: BranchRow[], private filters: Partial<BranchRow> = {}) {}
