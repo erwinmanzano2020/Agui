@@ -26,6 +26,7 @@ type Props = {
   basePath: string;
   employees: EmployeeListItem[];
   branches: BranchListItem[];
+  branchLoadError?: string;
   initialFilters: Filters;
 };
 
@@ -35,7 +36,7 @@ function formatCurrency(amount: number) {
   );
 }
 
-export function EmployeesClient({ basePath, employees, branches, initialFilters }: Props) {
+export function EmployeesClient({ basePath, employees, branches, branchLoadError, initialFilters }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -115,7 +116,7 @@ export function EmployeesClient({ basePath, employees, branches, initialFilters 
                 className="min-w-[160px] rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground shadow-sm"
                 defaultValue={initialFilters.branchId ?? ""}
                 onChange={(e) => applyFilters({ branchId: e.target.value || null })}
-                disabled={pending}
+                disabled={pending || Boolean(branchLoadError)}
               >
                 {branchOptions.map((branch) => (
                   <option key={branch.id || "all"} value={branch.id}>
@@ -123,6 +124,9 @@ export function EmployeesClient({ basePath, employees, branches, initialFilters 
                   </option>
                 ))}
               </select>
+              {branchLoadError ? (
+                <span className="text-xs text-destructive">Unable to load branches right now.</span>
+              ) : null}
             </label>
           </div>
 
