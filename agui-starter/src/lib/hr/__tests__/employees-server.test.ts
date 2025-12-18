@@ -83,7 +83,6 @@ const baseRow: EmployeeRow = {
   last_name: "Lovelace",
   display_name: "Ada Lovelace",
   status: "active",
-  employment_type: "full_time",
   branch_id: "branch-1",
   created_at: "2024-01-01T00:00:00Z",
   updated_at: "2024-01-01T00:00:00Z",

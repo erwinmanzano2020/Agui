@@ -16,7 +16,6 @@ export type EmployeeListItem = {
   branch_id: string | null;
   branch_name: string | null;
   rate_per_day: number;
-  employment_type: EmployeeRow["employment_type"];
   display_name: string;
 };
 
@@ -84,7 +83,7 @@ export async function listEmployeesByHouse(
 
   let query = supabase
     .from("employees")
-    .select("id, house_id, code, full_name, status, branch_id, rate_per_day, employment_type")
+    .select("id, house_id, code, full_name, status, branch_id, rate_per_day")
     .eq("house_id", houseId);
 
   if (filters.status && filters.status !== "all") {
@@ -115,7 +114,6 @@ export async function listEmployeesByHouse(
       branch_id: branchId,
       branch_name: branchId ? branchNameLookup[branchId] ?? null : null,
       rate_per_day: Number(employee.rate_per_day ?? 0),
-      employment_type: employee.employment_type,
       display_name: employee.full_name,
     } satisfies EmployeeListItem;
   });

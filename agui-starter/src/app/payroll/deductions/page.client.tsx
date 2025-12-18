@@ -8,7 +8,6 @@ import { getSupabase } from "@/lib/supabase";
 type Emp = {
   id: string;
   display_name: string;
-  employment_type: "full_time" | "part_time" | "casual";
   branch_id: string | null;
 };
 type Ded = {
@@ -77,7 +76,7 @@ export default function PayrollDeductionsPageClient() {
 
         const { data, error } = await sb
           .from("employees")
-          .select("id, display_name, employment_type, branch_id")
+          .select("id, display_name, branch_id")
           .eq("status", "active")
           .order("display_name");
 
@@ -92,8 +91,6 @@ export default function PayrollDeductionsPageClient() {
               ({
                 id: row.id as string,
                 display_name: (row as { display_name?: string })?.display_name ?? "",
-                employment_type: (row as { employment_type?: Emp["employment_type"] })
-                  ?.employment_type ?? "full_time",
                 branch_id: (row as { branch_id?: string | null }).branch_id ?? null,
               }) as Emp,
           );
@@ -254,7 +251,7 @@ export default function PayrollDeductionsPageClient() {
         >
           {emps.map((e) => (
             <option key={e.id} value={e.id}>
-              {e.display_name} ({e.employment_type})
+              {e.display_name}
             </option>
           ))}
         </select>
