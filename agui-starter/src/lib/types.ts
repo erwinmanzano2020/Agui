@@ -2,7 +2,6 @@ export type Employee = {
   id: string;
   display_name: string;
   status: "active" | "inactive";
-  employment_type: "full_time" | "part_time" | "casual";
   branch_id: string | null;
 };
 

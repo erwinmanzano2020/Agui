@@ -9,7 +9,6 @@ import { resolveEffectiveShift } from "@/lib/shifts";
 type Emp = {
   id: string;
   display_name: string;
-  employment_type: "full_time" | "part_time" | "casual";
   branch_id: string | null;
   rate_per_day: number | null;
   status?: "active" | "inactive";
@@ -95,7 +94,7 @@ export default function PayrollPreviewPageClient() {
         ] = await Promise.all([
           sb
             .from("employees")
-            .select("id, display_name, employment_type, branch_id, status")
+            .select("id, display_name, branch_id, status")
             .eq("status", "active")
             .order("display_name"),
           sb
@@ -116,8 +115,6 @@ export default function PayrollPreviewPageClient() {
               ({
                 id: row.id as string,
                 display_name: (row as { display_name?: string })?.display_name ?? "",
-                employment_type: (row as { employment_type?: Emp["employment_type"] })
-                  ?.employment_type ?? "full_time",
                 branch_id: (row as { branch_id?: string | null }).branch_id ?? null,
                 status: (row as { status?: Emp["status"] }).status ?? "active",
                 rate_per_day: null,
@@ -347,7 +344,7 @@ export default function PayrollPreviewPageClient() {
           <option value="ALL">All employees</option>
           {emps.map((e) => (
             <option key={e.id} value={e.id}>
-              {e.display_name} ({e.employment_type})
+              {e.display_name}
             </option>
           ))}
         </select>

@@ -18,11 +18,11 @@ type Shift = {
 
 type Employee = Pick<
   EmployeeRecord,
-  "display_name" | "status" | "employment_type" | "branch_id"
+  "display_name" | "status" | "branch_id"
 >;
 type EmployeeTableRow = Pick<
   Database["public"]["Tables"]["employees"]["Row"],
-  "display_name" | "status" | "employment_type" | "branch_id"
+  "display_name" | "status" | "branch_id"
 >;
 
 type WeeklyShiftRow = { day_of_week: number; shift_id: string | null };
@@ -93,7 +93,7 @@ export default function EmployeeSchedulePage() {
 
     const empRes = await sb
       .from("employees")
-      .select("display_name, status, employment_type, branch_id")
+      .select("display_name, status, branch_id")
       .eq("id", employeeId)
       .maybeSingle();
     if (empRes.error) setErr(empRes.error.message);
@@ -103,7 +103,6 @@ export default function EmployeeSchedulePage() {
         ? {
             display_name: employeeRow.display_name,
             status: employeeRow.status,
-            employment_type: employeeRow.employment_type,
             branch_id: employeeRow.branch_id,
           }
         : null,
@@ -313,9 +312,6 @@ export default function EmployeeSchedulePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
             <div>
               Name: <b>{emp.display_name}</b>
-            </div>
-            <div>
-              Employment: <b>{emp.employment_type.replace(/_/g, " ")}</b>
             </div>
             <div>
               Status: <b>{emp.status}</b>
