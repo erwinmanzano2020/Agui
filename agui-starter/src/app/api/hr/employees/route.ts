@@ -129,11 +129,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Not allowed" }, { status: 403 });
   }
 
-  try {
-    const employees = await listEmployeesByHouse(service, houseId, {}, { allowedBranchIds: branchIds });
-    return NextResponse.json({ employees }, { status: 200 });
-  } catch (error) {
-    console.error("Failed to load employees for house", error);
-    return NextResponse.json({ error: "Failed to load employees" }, { status: 500 });
+  const employeesResult = await listEmployeesByHouse(service, houseId, {}, { allowedBranchIds: branchIds });
+  if (employeesResult.error) {
+    console.error("Failed to load employees for house", employeesResult.error);
   }
+
+  return NextResponse.json(
+    { employees: employeesResult.employees, error: employeesResult.error },
+    { status: 200 },
+  );
 }
