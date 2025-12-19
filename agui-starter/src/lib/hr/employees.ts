@@ -58,7 +58,7 @@ export function buildEmployeeRow(
   overrides: Partial<EmployeeRow> = {},
 ): EmployeeRow {
   const fullName = overrides.full_name ?? "Ada Lovelace";
-  const code = overrides.code ?? `EMP-${id.slice(0, 6)}`;
+  const code = overrides.code ?? `EI-${id.slice(0, 6)}`;
   const rate = overrides.rate_per_day ?? 0;
   const now = new Date().toISOString();
 
@@ -127,7 +127,7 @@ export function createInMemoryEmployeeRepository(initial?: {
         }
       }
       const fullName = (payload.full_name ?? "").trim() || "Unnamed";
-      const code = payload.code ?? `EMP-${counter++}`;
+      const code = payload.code ?? `EI-${String(counter++).padStart(3, "0")}`;
       const rate = payload.rate_per_day ?? 0;
       const row: EmployeeRow = {
         id: payload.id ?? `emp-${counter++}`,

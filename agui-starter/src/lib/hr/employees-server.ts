@@ -300,6 +300,10 @@ export async function createEmployeeForHouse(
   houseId: string,
   payload: EmployeeCreateInput,
 ): Promise<EmployeeProfile> {
+  if (!houseId?.trim()) {
+    throw new EmployeeCreateError("house_id is required for employee creation");
+  }
+
   const branchId = payload.branch_id?.trim() || null;
   if (branchId) {
     await ensureBranchInHouse(supabase, houseId, branchId);

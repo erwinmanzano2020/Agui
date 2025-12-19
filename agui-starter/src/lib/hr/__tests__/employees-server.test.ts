@@ -234,6 +234,7 @@ class EmployeeInsertQueryMock {
     private employees: EmployeeRow[],
     private branches: BranchRow[],
     private insertError: { message: string } | null = null,
+    private codeCounters: Map<string, number> = new Map(),
   ) {}
 
   insert(payload: Partial<EmployeeRow>) {
@@ -245,17 +246,26 @@ class EmployeeInsertQueryMock {
       };
     }
 
-      const newRow: EmployeeRow = {
-        id: payload.id ?? `emp-${this.employees.length + 1}`,
-        house_id: payload.house_id as string,
-        code: payload.code ?? "EMP-NEW",
-        full_name: payload.full_name as string,
-        rate_per_day: payload.rate_per_day ?? 0,
-        status: (payload.status as EmployeeRow["status"]) ?? "active",
-        branch_id: (payload.branch_id as string | null) ?? null,
-        created_at: payload.created_at ?? "2024-01-02T00:00:00Z",
-        updated_at: payload.updated_at ?? "2024-01-02T00:00:00Z",
-      };
+    const houseId = (payload.house_id as string | undefined) ?? null;
+    if (!houseId) {
+      throw new Error("house_id is required");
+    }
+
+    const next = this.codeCounters.get(houseId) ?? 1;
+    const code = payload.code && payload.code.trim().length > 0 ? payload.code : `EI-${String(next).padStart(3, "0")}`;
+    this.codeCounters.set(houseId, next + 1);
+
+    const newRow: EmployeeRow = {
+      id: payload.id ?? `emp-${this.employees.length + 1}`,
+      house_id: houseId,
+      code,
+      full_name: payload.full_name as string,
+      rate_per_day: payload.rate_per_day ?? 0,
+      status: (payload.status as EmployeeRow["status"]) ?? "active",
+      branch_id: (payload.branch_id as string | null) ?? null,
+      created_at: payload.created_at ?? "2024-01-02T00:00:00Z",
+      updated_at: payload.updated_at ?? "2024-01-02T00:00:00Z",
+    };
     this.employees.push(newRow);
     return {
       select: () => ({
@@ -273,11 +283,12 @@ class CreateSupabaseMock {
     public employees: EmployeeRow[],
     public branches: BranchRow[],
     private insertError: { message: string } | null = null,
+    private codeCounters: Map<string, number> = new Map(),
   ) {}
 
   from(table: string) {
     if (table === "employees") {
-      return new EmployeeInsertQueryMock(this.employees, this.branches, this.insertError);
+      return new EmployeeInsertQueryMock(this.employees, this.branches, this.insertError, this.codeCounters);
     }
     if (table === "branches") {
       return new BranchQueryMock(this.branches);
@@ -433,7 +444,38 @@ describe("createEmployeeForHouseWithAccess", () => {
     assert.equal(created.full_name, "New Hire");
     assert.equal(created.branch_id, "branch-1");
     assert.equal(created.house_id, "house-1");
+    assert.match(created.code, /^EI-\d{3}$/);
     assert.equal(supabase.employees.length, 1);
+  });
+
+  it("generates distinct codes per house when code is omitted", async () => {
+    const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
+
+    const first = await createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
+      full_name: "First Hire",
+      rate_per_day: 800,
+    });
+    const second = await createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
+      full_name: "Second Hire",
+      rate_per_day: 900,
+    });
+
+    assert.notEqual(first.code, second.code);
+    assert.ok(first.code.startsWith("EI-"));
+    assert.ok(second.code.startsWith("EI-"));
+  });
+
+  it("raises an error when house_id is missing", async () => {
+    const supabase = new CreateSupabaseMock([], []);
+
+    await assert.rejects(
+      () =>
+        createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "", {
+          full_name: "No House",
+          rate_per_day: 750,
+        }),
+      EmployeeCreateError,
+    );
   });
 
   it("rejects creation when the branch belongs to another house", async () => {
