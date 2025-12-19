@@ -7,6 +7,10 @@
 - [ ] Added/updated tests for tenancy + access control
 - [ ] Implementation Digest included (files changed, helpers, tenancy enforcement, UI behavior, tests, non-changes, follow-ups)
 - [ ] Data Access Plan included (client split, tables touched, tenancy scoping, RLS expectation)
+- [ ] Updated db-contract.md if DB/RLS/tenancy changed
+- [ ] Updated access-control.md if roles/permissions/guards changed
+- [ ] Added Devlog entry for user-facing module changes
+- [ ] Runbook updated if debugging procedure changed
 
 ## Summary
 - What changed and why
@@ -26,6 +30,12 @@
 - Tests added/updated:
 - Notable non-changes:
 - Follow-ups:
+
+## Devlog
+- Devlog entry path:
+
+## Contracts
+- Contracts touched (db-contract/access-control/runbook):
 
 ## Testing
 - [ ] `npm run lint`
