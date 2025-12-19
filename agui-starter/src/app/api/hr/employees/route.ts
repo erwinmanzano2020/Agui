@@ -1,5 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
+import { jsonError, jsonOk } from "@/lib/api/http";
+import { logApiError, logApiWarning } from "@/lib/api/logging";
 import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
@@ -9,6 +11,8 @@ import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, HouseRoleRow } from "@/lib/db.types";
+
+const ROUTE_NAME = "api/hr/employees";
 
 async function resolveHouseForEntity(
   service: SupabaseClient<Database>,
@@ -74,18 +78,23 @@ export async function GET(req: NextRequest) {
     return guard;
   }
 
-  const supabase = await createServerSupabaseClient();
-  if (!supabase) {
-    return NextResponse.json({ error: "Supabase not configured" }, { status: 503 });
+  let supabase: SupabaseClient<Database>;
+  try {
+    supabase = await createServerSupabaseClient();
+  } catch (error) {
+    logApiError({ route: ROUTE_NAME, action: "init_supabase_client", error });
+    return jsonError(503, "Supabase not configured");
   }
 
   const { data: userResult, error: userError } = await supabase.auth.getUser();
   if (userError) {
-    return NextResponse.json({ error: userError.message }, { status: 500 });
+    logApiError({ route: ROUTE_NAME, action: "get_user", error: userError });
+    return jsonError(500, "Failed to load user", { code: userError.code });
   }
 
   if (!userResult.user) {
-    return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
+    logApiWarning({ route: ROUTE_NAME, action: "unauthenticated" });
+    return jsonError(401, "Not authenticated");
   }
 
   const authed = supabase;
@@ -94,12 +103,18 @@ export async function GET(req: NextRequest) {
   try {
     entityId = await resolveEntityIdForUser(userResult.user, admin);
   } catch (error) {
-    console.error("Failed to resolve entity for employees lookup", error);
-    return NextResponse.json({ error: "Failed to resolve account" }, { status: 500 });
+    logApiError({
+      route: ROUTE_NAME,
+      action: "resolve_entity",
+      userId: userResult.user.id,
+      error,
+    });
+    return jsonError(500, "Failed to resolve account");
   }
 
   if (!entityId) {
-    return NextResponse.json({ error: "Account not linked" }, { status: 403 });
+    logApiWarning({ route: ROUTE_NAME, action: "entity_not_linked", userId: userResult.user.id });
+    return jsonError(403, "Account not linked");
   }
 
   const url = new URL(req.url);
@@ -109,34 +124,67 @@ export async function GET(req: NextRequest) {
   try {
     houseId = await resolveHouseForEntity(authed, entityId, requestedHouseId);
   } catch (error) {
-    console.error("Failed to resolve house for employees lookup", error);
-    return NextResponse.json({ error: "Failed to resolve house" }, { status: 500 });
+    logApiError({
+      route: ROUTE_NAME,
+      action: "resolve_house",
+      userId: userResult.user.id,
+      entityId,
+      error,
+    });
+    return jsonError(500, "Failed to resolve house");
   }
 
   if (!houseId) {
-    return NextResponse.json({ error: "No accessible house" }, { status: 403 });
+    logApiWarning({
+      route: ROUTE_NAME,
+      action: "no_accessible_house",
+      userId: userResult.user.id,
+      entityId,
+    });
+    return jsonError(403, "No accessible house");
   }
 
   let branchIds: string[] = [];
   try {
     branchIds = await resolveBranchesForHouse(authed, houseId);
   } catch (error) {
-    console.error("Failed to resolve departments for house", error);
-    return NextResponse.json({ error: "Failed to resolve house departments" }, { status: 500 });
+    logApiError({
+      route: ROUTE_NAME,
+      action: "resolve_branches",
+      userId: userResult.user.id,
+      entityId,
+      houseId,
+      error,
+    });
+    return jsonError(500, "Failed to resolve house departments");
   }
 
   const hrAccess = await resolveHrAccess(authed, houseId);
   if (!hrAccess.allowed) {
-    return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+    logApiWarning({
+      route: ROUTE_NAME,
+      action: "hr_access_denied",
+      userId: userResult.user.id,
+      entityId,
+      houseId,
+      details: { allowedByPolicy: hrAccess.allowedByPolicy, allowedByRole: hrAccess.allowedByRole },
+    });
+    return jsonError(403, "Not allowed");
   }
 
   const employeesResult = await listEmployeesByHouse(authed, houseId, {}, { allowedBranchIds: branchIds });
   if (employeesResult.error) {
-    console.error("Failed to load employees for house", employeesResult.error);
+    logApiError({
+      route: ROUTE_NAME,
+      action: "list_employees",
+      userId: userResult.user.id,
+      entityId,
+      houseId,
+      error: employeesResult.error,
+      details: { branchCount: branchIds.length },
+    });
+    return jsonError(500, "Failed to load employees", { message: employeesResult.error });
   }
 
-  return NextResponse.json(
-    { employees: employeesResult.employees, error: employeesResult.error },
-    { status: 200 },
-  );
+  return jsonOk({ employees: employeesResult.employees });
 }
