@@ -42,3 +42,8 @@ Document the intended access model before (or while) coding. Include:
 ## Keeping this doc current
 - When the canvas changes, update this file in the same PR.
 - If a PR adds new access patterns, update the Data Access Plan section examples.
+
+## Canonical source of truth
+- Repository docs are the canonical source of truth for Agui development guardrails.
+- Chat, planning docs, and incident notes are non-authoritative until reflected here.
+- Codex must update repo docs (contracts, runbooks, devlogs) whenever rules, contracts, or behaviors change.

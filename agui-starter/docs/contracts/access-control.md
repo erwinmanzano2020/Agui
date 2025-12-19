@@ -15,3 +15,8 @@
 ## Client rules
 - UI data queries → authenticated client (`createServerSupabaseClient`) so RLS applies.
 - `service_role` → admin-only steps (entity resolution, backfills, operational maintenance).
+
+## Related docs
+- DB contract: `docs/contracts/db-contract.md`
+- RLS debug runbook: `docs/runbooks/supabase-rls-debug.md`
+- Devlog index (incidents/history): `docs/devlog/index.md`

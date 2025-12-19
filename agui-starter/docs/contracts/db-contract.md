@@ -6,3 +6,4 @@
 - **Rule:** All UI-facing reads/writes must be house-scoped.
 - **Legacy rows:** Some `employees.house_id` values may be `NULL`. Apply an effective-house fallback (e.g., derive from linked employment/role when present) while cleaning up data; new writes must always set `house_id`. Deprecate and migrate away from `NULL` `house_id` rows.
 - **Naming conventions:** Do not rename tables to match UI labels. Keep DB table names stable; UI labels can differ.
+- **Related docs:** access-control contract (`docs/contracts/access-control.md`), RLS debug runbook (`docs/runbooks/supabase-rls-debug.md`), devlog index (`docs/devlog/index.md`).

@@ -37,6 +37,12 @@
 ## Contracts
 - Contracts touched (db-contract/access-control/runbook):
 
+## Docs & Contracts Sync (Required when applicable)
+- [ ] DB contract updated (schema, RLS, tenancy rules)
+- [ ] Access-control contract updated (roles, permissions, scope)
+- [ ] Devlog entry added (bugs, incidents, non-trivial behavior changes)
+- [ ] Relevant runbook referenced/updated (debugging or infra work)
+
 ## Testing
 - [ ] `npm run lint`
 - [ ] `npm run typecheck`
