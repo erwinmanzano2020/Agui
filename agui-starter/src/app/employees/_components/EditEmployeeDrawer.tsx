@@ -21,7 +21,6 @@ type Employee = {
   last_name: string;
   display_name: string;
   status: "active" | "inactive";
-  employment_type: "full_time" | "part_time" | "casual";
   branch_id: string | null;
 };
 
@@ -82,9 +81,7 @@ export default function EditEmployeeDrawer({
       // Employee
       const empRes = await sb
         .from("employees")
-        .select(
-          "id, first_name, last_name, display_name, status, employment_type, branch_id",
-        )
+        .select("id, first_name, last_name, display_name, status, branch_id")
         .eq("id", employeeId)
         .maybeSingle();
 
@@ -99,7 +96,6 @@ export default function EditEmployeeDrawer({
                 empRes.data.display_name ||
                 `${empRes.data.first_name} ${empRes.data.last_name}`.trim(),
               status: empRes.data.status ?? "active",
-              employment_type: empRes.data.employment_type,
               branch_id: empRes.data.branch_id ?? null,
             }
           : null,
@@ -135,7 +131,6 @@ export default function EditEmployeeDrawer({
       last_name: emp.last_name,
       display_name: emp.display_name || `${emp.first_name} ${emp.last_name}`.trim(),
       status: emp.status,
-      employment_type: emp.employment_type,
       branch_id: emp.branch_id,
     };
 
@@ -358,41 +353,20 @@ export default function EditEmployeeDrawer({
                   />
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <div>
-                    <label className="block text-sm mb-1">Status</label>
-                    <select
-                      className="border rounded px-2 py-1 w-full"
-                      value={emp.status}
-                      onChange={(e) =>
-                        setEmp((p) =>
-                          p ? { ...p, status: e.target.value as Employee["status"] } : p,
-                        )
-                      }
-                    >
-                      <option value="active">active</option>
-                      <option value="inactive">inactive</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm mb-1">Employment Type</label>
-                    <select
-                      className="border rounded px-2 py-1 w-full"
-                      value={emp.employment_type}
-                      onChange={(e) =>
-                        setEmp((p) =>
-                          p
-                            ? { ...p, employment_type: e.target.value as Employee["employment_type"] }
-                            : p,
-                        )
-                      }
-                    >
-                      <option value="full_time">Full-time</option>
-                      <option value="part_time">Part-time</option>
-                      <option value="casual">Casual</option>
-                    </select>
-                  </div>
+                <div>
+                  <label className="block text-sm mb-1">Status</label>
+                  <select
+                    className="border rounded px-2 py-1 w-full"
+                    value={emp.status}
+                    onChange={(e) =>
+                      setEmp((p) =>
+                        p ? { ...p, status: e.target.value as Employee["status"] } : p,
+                      )
+                    }
+                  >
+                    <option value="active">active</option>
+                    <option value="inactive">inactive</option>
+                  </select>
                 </div>
 
                 <div className="text-xs text-muted-foreground">{currentRateHint}</div>

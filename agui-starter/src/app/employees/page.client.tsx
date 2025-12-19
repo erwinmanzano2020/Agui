@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import EmptyState from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
+import EmptyState from "@/components/ui/empty-state";
 import { ThemedLink } from "@/components/ui/themed-link";
 import { getSupabase } from "@/lib/supabase";
 import { useUiTerms } from "@/lib/ui-terms-context";
@@ -17,7 +17,6 @@ type EmployeeRow = {
   id: string;
   display_name: string;
   status: EmployeeListItem["status"];
-  employment_type: EmployeeListItem["employment_type"];
   branch_id: string | null;
 };
 
@@ -60,7 +59,6 @@ export default function EmployeesPageClient() {
       id: row.id,
       display_name: row.display_name,
       status: row.status,
-      employment_type: row.employment_type,
       branch_id: row.branch_id ?? null,
     } satisfies EmployeeRow));
 
@@ -126,7 +124,6 @@ export default function EmployeesPageClient() {
             <thead>
               <tr className="text-left text-[color-mix(in_srgb,_var(--agui-on-surface)_85%,_var(--agui-surface)_15%)]">
                 <th className="p-2 font-medium">Name</th>
-                <th className="p-2 font-medium">Employment Type</th>
                 <th className="p-2 font-medium">Status</th>
                 <th className="p-2 font-medium">Actions</th>
               </tr>
@@ -141,9 +138,6 @@ export default function EmployeesPageClient() {
                     <ThemedLink href={`/employees/${r.id}`} className="text-sm">
                       {r.display_name}
                     </ThemedLink>
-                  </td>
-                  <td className="p-2">
-                    <Badge tone="on">{r.employment_type.replace(/_/g, " ")}</Badge>
                   </td>
                   <td className="p-2">{renderStatus(r.status)}</td>
                   <td className="p-2">

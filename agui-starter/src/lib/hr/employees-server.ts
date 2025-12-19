@@ -16,9 +16,10 @@ export type EmployeeListItem = {
   branch_id: string | null;
   branch_name: string | null;
   rate_per_day: number;
-  employment_type: EmployeeRow["employment_type"];
   display_name: string;
 };
+
+export type EmployeeListResult = { employees: EmployeeListItem[]; error?: string };
 
 export type BranchListItem = { id: string; name: string };
 export type BranchListResult = { branches: BranchListItem[]; error?: string };
@@ -76,15 +77,15 @@ export async function listEmployeesByHouse(
   houseId: string,
   filters: EmployeeListFilters = {},
   options: { allowedBranchIds?: string[]; branchNames?: Record<string, string> } = {},
-): Promise<EmployeeListItem[]> {
+): Promise<EmployeeListResult> {
   const allowedBranches = options.allowedBranchIds ?? null;
   if (filters.branchId && allowedBranches && !allowedBranches.includes(filters.branchId)) {
-    return [];
+    return { employees: [] } satisfies EmployeeListResult;
   }
 
   let query = supabase
     .from("employees")
-    .select("id, house_id, code, full_name, status, branch_id, rate_per_day, employment_type")
+    .select("id, house_id, code, full_name, status, branch_id, rate_per_day")
     .eq("house_id", houseId);
 
   if (filters.status && filters.status !== "all") {
@@ -100,10 +101,10 @@ export async function listEmployeesByHouse(
     query = query.or(`full_name.ilike.${term},code.ilike.${term}`);
   }
 
-  const { data } = await query.order("full_name", { ascending: true }).throwOnError();
+  const { data, error } = await query.order("full_name", { ascending: true });
   const branchNameLookup = options.branchNames ?? {};
 
-  return (data ?? []).map((row) => {
+  const employees = (data ?? []).map((row) => {
     const employee = row as EmployeeRow;
     const branchId = employee.branch_id ?? null;
     return {
@@ -115,10 +116,16 @@ export async function listEmployeesByHouse(
       branch_id: branchId,
       branch_name: branchId ? branchNameLookup[branchId] ?? null : null,
       rate_per_day: Number(employee.rate_per_day ?? 0),
-      employment_type: employee.employment_type,
       display_name: employee.full_name,
     } satisfies EmployeeListItem;
   });
+
+  if (error) {
+    console.error("Failed to load employees", error);
+    return { employees, error: error.message } satisfies EmployeeListResult;
+  }
+
+  return { employees } satisfies EmployeeListResult;
 }
 
 type BranchLookupRow = { id?: string | null; house_id?: string | null; name?: string | null };

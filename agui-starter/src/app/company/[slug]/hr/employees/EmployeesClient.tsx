@@ -27,6 +27,7 @@ type Props = {
   employees: EmployeeListItem[];
   branches: BranchListItem[];
   branchLoadError?: string;
+  employeeLoadError?: string;
   initialFilters: Filters;
 };
 
@@ -36,7 +37,14 @@ function formatCurrency(amount: number) {
   );
 }
 
-export function EmployeesClient({ basePath, employees, branches, branchLoadError, initialFilters }: Props) {
+export function EmployeesClient({
+  basePath,
+  employees,
+  branches,
+  branchLoadError,
+  employeeLoadError,
+  initialFilters,
+}: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const pathname = usePathname();
@@ -92,6 +100,11 @@ export function EmployeesClient({ basePath, employees, branches, branchLoadError
       </header>
 
       <Card className="space-y-4 p-4">
+        {employeeLoadError ? (
+          <div className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            Employees cannot be loaded right now. {employeeLoadError}
+          </div>
+        ) : null}
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div className="flex flex-col gap-3 md:flex-row md:items-center">
             <label className="flex flex-col gap-1 text-sm text-muted-foreground">

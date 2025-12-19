@@ -40,14 +40,7 @@ class EmployeesQueryMock {
 
   order() {
     const sorted = this.rows.slice().sort((a, b) => a.full_name.localeCompare(b.full_name));
-    return new EmployeesQueryMock(sorted, this.result);
-  }
-
-  async throwOnError() {
-    if (this.result.error) {
-      throw new Error(this.result.error.message);
-    }
-    return { data: this.rows, error: this.result.error } satisfies QueryResult;
+    return Promise.resolve({ data: sorted, error: this.result.error } as const);
   }
 
   async maybeSingle() {
@@ -83,7 +76,6 @@ const baseRow: EmployeeRow = {
   last_name: "Lovelace",
   display_name: "Ada Lovelace",
   status: "active",
-  employment_type: "full_time",
   branch_id: "branch-1",
   created_at: "2024-01-01T00:00:00Z",
   updated_at: "2024-01-01T00:00:00Z",
@@ -249,10 +241,10 @@ describe("listEmployeesByHouse", () => {
     const results = await listEmployeesByHouse(supabase as never, "house-1");
 
     assert.deepEqual(
-      results.map((row) => row.id),
+      results.employees.map((row) => row.id),
       ["emp-1", "emp-2"],
     );
-    assert.ok(results.every((row) => row.full_name));
+    assert.ok(results.employees.every((row) => row.full_name));
   });
 
   it("honors branch filters within the same house", async () => {
@@ -269,7 +261,7 @@ describe("listEmployeesByHouse", () => {
       { allowedBranchIds: allowedBranches },
     );
 
-    assert.deepEqual(results.map((row) => row.id), ["emp-1"]);
+    assert.deepEqual(results.employees.map((row) => row.id), ["emp-1"]);
   });
 
   it("blocks branch filters outside the allowed set", async () => {
@@ -282,7 +274,7 @@ describe("listEmployeesByHouse", () => {
       { allowedBranchIds: ["branch-1"] },
     );
 
-    assert.deepEqual(results, []);
+    assert.deepEqual(results.employees, []);
   });
 
   it("filters by status and search", async () => {
@@ -292,10 +284,22 @@ describe("listEmployeesByHouse", () => {
     ]);
 
     const inactive = await listEmployeesByHouse(supabase as never, "house-1", { status: "inactive" });
-    assert.deepEqual(inactive.map((row) => row.id), ["emp-2"]);
+    assert.deepEqual(inactive.employees.map((row) => row.id), ["emp-2"]);
 
     const searchByCode = await listEmployeesByHouse(supabase as never, "house-1", { search: "gh" });
-    assert.deepEqual(searchByCode.map((row) => row.id), ["emp-2"]);
+    assert.deepEqual(searchByCode.employees.map((row) => row.id), ["emp-2"]);
+  });
+
+  it("surfaces query errors while returning any partial data", async () => {
+    const supabase = new SupabaseMock(
+      [baseRow],
+      { data: null, error: { message: "permission denied for table employees" } },
+    );
+
+    const result = await listEmployeesByHouse(supabase as never, "house-1");
+
+    assert.deepEqual(result.employees.map((row) => row.id), ["emp-1"]);
+    assert.equal(result.error, "permission denied for table employees");
   });
 });
 

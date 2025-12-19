@@ -88,10 +88,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Not authenticated" }, { status: 401 });
   }
 
-  const service = getServiceSupabase();
+  const authed = supabase;
+  const admin = getServiceSupabase();
   let entityId: string | null = null;
   try {
-    entityId = await resolveEntityIdForUser(userResult.user, service);
+    entityId = await resolveEntityIdForUser(userResult.user, admin);
   } catch (error) {
     console.error("Failed to resolve entity for employees lookup", error);
     return NextResponse.json({ error: "Failed to resolve account" }, { status: 500 });
@@ -106,7 +107,7 @@ export async function GET(req: NextRequest) {
 
   let houseId: string | null = null;
   try {
-    houseId = await resolveHouseForEntity(service, entityId, requestedHouseId);
+    houseId = await resolveHouseForEntity(authed, entityId, requestedHouseId);
   } catch (error) {
     console.error("Failed to resolve house for employees lookup", error);
     return NextResponse.json({ error: "Failed to resolve house" }, { status: 500 });
@@ -118,22 +119,24 @@ export async function GET(req: NextRequest) {
 
   let branchIds: string[] = [];
   try {
-    branchIds = await resolveBranchesForHouse(service, houseId);
+    branchIds = await resolveBranchesForHouse(authed, houseId);
   } catch (error) {
     console.error("Failed to resolve departments for house", error);
     return NextResponse.json({ error: "Failed to resolve house departments" }, { status: 500 });
   }
 
-  const hrAccess = await resolveHrAccess(service, houseId);
+  const hrAccess = await resolveHrAccess(authed, houseId);
   if (!hrAccess.allowed) {
     return NextResponse.json({ error: "Not allowed" }, { status: 403 });
   }
 
-  try {
-    const employees = await listEmployeesByHouse(service, houseId, {}, { allowedBranchIds: branchIds });
-    return NextResponse.json({ employees }, { status: 200 });
-  } catch (error) {
-    console.error("Failed to load employees for house", error);
-    return NextResponse.json({ error: "Failed to load employees" }, { status: 500 });
+  const employeesResult = await listEmployeesByHouse(authed, houseId, {}, { allowedBranchIds: branchIds });
+  if (employeesResult.error) {
+    console.error("Failed to load employees for house", employeesResult.error);
   }
+
+  return NextResponse.json(
+    { employees: employeesResult.employees, error: employeesResult.error },
+    { status: 200 },
+  );
 }

@@ -210,7 +210,6 @@ export type EmployeeRow = {
   last_name: string;
   display_name: string;
   status: "active" | "inactive";
-  employment_type: "full_time" | "part_time" | "casual";
   branch_id: string | null;
   created_at: string;
   updated_at: string;
@@ -226,7 +225,6 @@ export type EmployeeInsert = {
   last_name?: string;
   display_name?: string;
   status?: EmployeeRow["status"];
-  employment_type?: EmployeeRow["employment_type"];
   branch_id?: string | null;
   created_at?: string;
   updated_at?: string;
