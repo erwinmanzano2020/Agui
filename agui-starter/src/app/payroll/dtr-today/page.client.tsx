@@ -10,7 +10,7 @@ type SegmentRecord = { start_at: string; end_at: string | null };
 
 type Emp = {
   id: string;
-  display_name: string;
+  full_name: string;
   branch_id: string | null;
 };
 
@@ -52,14 +52,14 @@ export default function PayrollDtrTodayPageClient() {
 
       const { data } = await sb
         .from("employees")
-        .select("id, display_name, branch_id")
+        .select("id, full_name, branch_id")
         .eq("status", "active")
-        .order("display_name");
+        .order("full_name");
       const employees = (data ?? []).map(
         (row) =>
           ({
             id: row.id as string,
-            display_name: (row as { display_name?: string })?.display_name ?? "",
+            full_name: (row as { full_name?: string })?.full_name ?? "",
             branch_id: (row as { branch_id?: string | null }).branch_id ?? null,
           }) as Emp,
       );
@@ -315,7 +315,7 @@ export default function PayrollDtrTodayPageClient() {
         >
           {emps.map((e) => (
             <option key={e.id} value={e.id}>
-              {e.display_name}
+              {e.full_name}
             </option>
           ))}
         </select>

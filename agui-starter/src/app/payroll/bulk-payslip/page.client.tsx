@@ -10,7 +10,7 @@ const COMPANY_NAME = "Vangie Store";
 
 type Emp = {
   id: string;
-  display_name: string;
+  full_name: string;
   branch_id: string | null;
   rate_per_day: number | null;
   status?: "active" | "inactive";
@@ -161,9 +161,9 @@ export default function BulkPayslipPageClient() {
         ] = await Promise.all([
           sb
             .from("employees")
-            .select("id, display_name, branch_id, status")
+            .select("id, full_name, branch_id, status")
             .eq("status", "active")
-            .order("display_name"),
+            .order("full_name"),
           sb
             .from("settings_payroll")
             .select("standard_minutes_per_day, ot_multiplier, attendance_mode")
@@ -181,7 +181,7 @@ export default function BulkPayslipPageClient() {
             (row) =>
               ({
                 id: row.id as string,
-                display_name: (row as { display_name?: string })?.display_name ?? "",
+                full_name: (row as { full_name?: string })?.full_name ?? "",
                 branch_id: (row as { branch_id?: string | null }).branch_id ?? null,
                 rate_per_day: null,
                 status: (row as { status?: Emp["status"] }).status ?? "active",
@@ -601,7 +601,7 @@ function PayslipCard(props: {
         <div className="text-sm text-muted-foreground">{/* left blank */}</div>
         <div className="text-right text-sm">
           <div>
-            <span className="font-medium">Employee:</span> {emp.display_name}
+            <span className="font-medium">Employee:</span> {emp.full_name}
           </div>
         </div>
       </div>

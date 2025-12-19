@@ -206,13 +206,10 @@ export type EmployeeRow = {
   code: string;
   full_name: string;
   rate_per_day: number;
-  first_name: string;
-  last_name: string;
-  display_name: string;
   status: "active" | "inactive";
   branch_id: string | null;
   created_at: string;
-  updated_at: string;
+  updated_at: string | null;
 };
 
 export type EmployeeInsert = {
@@ -221,13 +218,10 @@ export type EmployeeInsert = {
   code?: string;
   full_name?: string;
   rate_per_day?: number;
-  first_name?: string;
-  last_name?: string;
-  display_name?: string;
   status?: EmployeeRow["status"];
   branch_id?: string | null;
   created_at?: string;
-  updated_at?: string;
+  updated_at?: string | null;
 };
 
 export type EmployeeUpdate = Partial<EmployeeInsert>;

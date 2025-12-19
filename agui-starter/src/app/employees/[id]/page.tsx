@@ -5,7 +5,6 @@ import { useParams, useSearchParams } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
 import EditEmployeeDrawer from "../_components/EditEmployeeDrawer";
 
-import type { Employee as EmployeeRecord } from "@/lib/types";
 import type { Database } from "@/lib/db.types";
 
 type Shift = {
@@ -16,14 +15,12 @@ type Shift = {
   end_time?: string | null;
 };
 
-type Employee = Pick<
-  EmployeeRecord,
-  "display_name" | "status" | "branch_id"
->;
-type EmployeeTableRow = Pick<
-  Database["public"]["Tables"]["employees"]["Row"],
-  "display_name" | "status" | "branch_id"
->;
+type Employee = {
+  full_name: string;
+  status: "active" | "inactive";
+  branch_id: string | null;
+};
+type EmployeeTableRow = Pick<Database["public"]["Tables"]["employees"]["Row"], "full_name" | "status" | "branch_id">;
 
 type WeeklyShiftRow = { day_of_week: number; shift_id: string | null };
 type OverrideRow = {
@@ -93,7 +90,7 @@ export default function EmployeeSchedulePage() {
 
     const empRes = await sb
       .from("employees")
-      .select("display_name, status, branch_id")
+      .select("full_name, status, branch_id")
       .eq("id", employeeId)
       .maybeSingle();
     if (empRes.error) setErr(empRes.error.message);
@@ -101,7 +98,7 @@ export default function EmployeeSchedulePage() {
     setEmp(
       employeeRow
         ? {
-            display_name: employeeRow.display_name,
+            full_name: employeeRow.full_name,
             status: employeeRow.status,
             branch_id: employeeRow.branch_id,
           }
@@ -311,7 +308,7 @@ export default function EmployeeSchedulePage() {
         <div className="border rounded p-3 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
             <div>
-              Name: <b>{emp.display_name}</b>
+              Name: <b>{emp.full_name}</b>
             </div>
             <div>
               Status: <b>{emp.status}</b>

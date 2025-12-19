@@ -3,7 +3,11 @@ export type ZodIssue = { message?: string };
 export type ZodParseSuccess<T> = { success: true; data: T };
 export type ZodParseFailure = {
   success: false;
-  error: { issues: ZodIssue[]; errors: ZodIssue[]; flatten: () => { formErrors: string[] } };
+  error: {
+    issues: ZodIssue[];
+    errors: ZodIssue[];
+    flatten: () => { formErrors: string[]; fieldErrors: Record<string, string[]> };
+  };
 };
 
 export type ZodParseResult<T> = ZodParseSuccess<T> | ZodParseFailure;
@@ -31,7 +35,7 @@ function failure(message: string): ZodParseFailure {
     error: {
       issues: [issue],
       errors: [issue],
-      flatten: () => ({ formErrors: [message] }),
+      flatten: () => ({ formErrors: [message], fieldErrors: {} }),
     },
   };
 }
@@ -98,7 +102,17 @@ function createSchema<T>(validator: (value: unknown) => ZodParseResult<T>): ZodS
           },
         });
         if (issues.length > 0) {
-          return { success: false, error: { issues, errors: issues, flatten: () => ({ formErrors: issues.map((issue) => issue.message ?? "Invalid value") }) } };
+          return {
+            success: false,
+            error: {
+              issues,
+              errors: issues,
+              flatten: () => ({
+                formErrors: issues.map((issue) => issue.message ?? "Invalid value"),
+                fieldErrors: {},
+              }),
+            },
+          };
         }
         return success(baseResult.data);
       });
