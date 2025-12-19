@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { EmployeeAccessError } from "@/lib/hr/employees";
-import type { Database, EmployeeRow } from "@/lib/db.types";
+import type { Database, EmployeeRow, EmployeeInsert } from "@/lib/db.types";
 import type { HrAccessDecision } from "./access";
 import type { EmployeeListFilters } from "./employees";
 
@@ -44,6 +44,14 @@ export type EmployeeUpdateInput = {
 };
 
 export class EmployeeUpdateError extends Error {}
+export class EmployeeCreateError extends Error {}
+
+export type EmployeeCreateInput = {
+  full_name: string;
+  status?: EmployeeRow["status"];
+  branch_id?: string | null;
+  rate_per_day: number;
+};
 
 export async function listBranchesForHouse(
   supabase: SupabaseClient<Database>,
@@ -282,4 +290,72 @@ export async function updateEmployeeForHouseWithAccess(
   }
 
   return updateEmployeeForHouse(supabase, houseId, employeeId, patch);
+}
+
+function assertHrCreateAccess(access: HrAccessDecision) {
+  if (!access.allowed || !access.hasWorkspaceAccess) {
+    throw new EmployeeAccessError("Not allowed to create employees for this house");
+  }
+}
+
+export async function createEmployeeForHouse(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  payload: EmployeeCreateInput,
+): Promise<EmployeeProfile> {
+  const branchId = payload.branch_id?.trim() || null;
+  if (branchId) {
+    await ensureBranchInHouse(supabase, houseId, branchId);
+  }
+
+  const insert: EmployeeInsert = {
+    house_id: houseId,
+    full_name: payload.full_name,
+    display_name: payload.full_name,
+    first_name: payload.full_name,
+    last_name: payload.full_name,
+    status: payload.status ?? "active",
+    branch_id: branchId,
+    rate_per_day: payload.rate_per_day,
+  };
+
+  const { data, error } = await supabase
+    .from("employees")
+    .insert(insert)
+    .select(
+      "id, house_id, code, full_name, status, branch_id, rate_per_day, created_at, branches(id, name, house_id)",
+    )
+    .maybeSingle<EmployeeWithBranch>();
+
+  if (error) {
+    throw new EmployeeCreateError(error.message);
+  }
+
+  if (!data) {
+    throw new EmployeeCreateError("Employee was not created");
+  }
+
+  const branchBelongsToHouse = Boolean(data.branches && data.branches.id && data.branches.house_id === houseId);
+
+  return {
+    id: data.id,
+    house_id: data.house_id,
+    code: data.code,
+    full_name: data.full_name,
+    status: data.status,
+    branch_id: branchBelongsToHouse ? data.branches?.id ?? null : null,
+    branch_name: branchBelongsToHouse ? data.branches?.name ?? null : null,
+    rate_per_day: Number(data.rate_per_day ?? 0),
+    created_at: data.created_at,
+  } satisfies EmployeeProfile;
+}
+
+export async function createEmployeeForHouseWithAccess(
+  supabase: SupabaseClient<Database>,
+  access: HrAccessDecision,
+  houseId: string,
+  payload: EmployeeCreateInput,
+): Promise<EmployeeProfile> {
+  assertHrCreateAccess(access);
+  return createEmployeeForHouse(supabase, houseId, payload);
 }

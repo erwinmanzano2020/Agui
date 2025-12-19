@@ -2,6 +2,7 @@
 
 ## HR
 - [HR employees RLS incident (authenticated client fix)](hr/hr-employees-rls-incident.md)
+- [HR employee creation (house-scoped)](hr/employee-create-house.md)
 - Contracts and runbook:
   - DB contract: `../contracts/db-contract.md`
   - Access-control contract: `../contracts/access-control.md`

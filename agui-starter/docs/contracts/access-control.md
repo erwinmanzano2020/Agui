@@ -9,6 +9,11 @@
 - **Payroll:** run, finalize
 - **Payslips:** view, download
 
+### HR insert rules
+- Use the authenticated Supabase client for all employee creates; do **not** use `service_role` for inserts.
+- `employees.house_id` must match the active house (no cross-house writes).
+- `branch_id`, when provided, must belong to the same house; reject or fail fast otherwise.
+
 ## Feature gates
 - Use `AppFeature` flags to gate HR/Payroll/DTR actions consistently.
 

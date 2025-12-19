@@ -5,7 +5,9 @@ import type { EmployeeRow } from "@/lib/db.types";
 import { EmployeeAccessError } from "../employees";
 import type { HrAccessDecision } from "../access";
 import {
+  EmployeeCreateError,
   EmployeeUpdateError,
+  createEmployeeForHouseWithAccess,
   getEmployeeByIdForHouse,
   listBranchesForHouse,
   listEmployeesByHouse,
@@ -230,6 +232,66 @@ class UpdateSupabaseMock {
   }
 }
 
+class EmployeeInsertQueryMock {
+  constructor(
+    private employees: EmployeeRow[],
+    private branches: BranchRow[],
+    private insertError: { message: string } | null = null,
+  ) {}
+
+  insert(payload: Partial<EmployeeRow>) {
+    if (this.insertError) {
+      return {
+        select: () => ({
+          maybeSingle: async () => ({ data: null, error: this.insertError } as const),
+        }),
+      };
+    }
+
+    const newRow: EmployeeRow = {
+      id: payload.id ?? `emp-${this.employees.length + 1}`,
+      house_id: payload.house_id as string,
+      code: payload.code ?? "EMP-NEW",
+      full_name: payload.full_name as string,
+      rate_per_day: payload.rate_per_day ?? 0,
+      first_name: payload.first_name ?? payload.full_name ?? "",
+      last_name: payload.last_name ?? payload.full_name ?? "",
+      display_name: payload.display_name ?? (payload.full_name as string),
+      status: (payload.status as EmployeeRow["status"]) ?? "active",
+      branch_id: (payload.branch_id as string | null) ?? null,
+      created_at: payload.created_at ?? "2024-01-02T00:00:00Z",
+      updated_at: payload.updated_at ?? "2024-01-02T00:00:00Z",
+    };
+    this.employees.push(newRow);
+    return {
+      select: () => ({
+        maybeSingle: async <T>() => ({
+          data: { ...newRow, branches: this.branches.find((b) => b.id === newRow.branch_id) ?? null } as T,
+          error: null,
+        }),
+      }),
+    };
+  }
+}
+
+class CreateSupabaseMock {
+  constructor(
+    public employees: EmployeeRow[],
+    public branches: BranchRow[],
+    private insertError: { message: string } | null = null,
+  ) {}
+
+  from(table: string) {
+    if (table === "employees") {
+      return new EmployeeInsertQueryMock(this.employees, this.branches, this.insertError);
+    }
+    if (table === "branches") {
+      return new BranchQueryMock(this.branches);
+    }
+    throw new Error(`Unexpected table ${table}`);
+  }
+}
+
 describe("listEmployeesByHouse", () => {
   it("returns only employees for the requested house sorted by name", async () => {
     const supabase = new SupabaseMock([
@@ -341,6 +403,84 @@ describe("getEmployeeByIdForHouse", () => {
     assert.ok(employee);
     assert.equal(employee?.branch_id, null);
     assert.equal(employee?.branch_name, null);
+  });
+});
+
+describe("createEmployeeForHouseWithAccess", () => {
+  const allowedAccess: HrAccessDecision = {
+    allowed: true,
+    allowedByPolicy: false,
+    allowedByRole: true,
+    hasWorkspaceAccess: true,
+    normalizedRoles: [normalizeWorkspaceRole("house_owner")],
+    policyKeys: [],
+    roles: ["house_owner"],
+    entityId: "entity-1",
+  };
+
+  const disallowedAccess: HrAccessDecision = {
+    ...allowedAccess,
+    allowed: false,
+    allowedByRole: false,
+    normalizedRoles: [normalizeWorkspaceRole("house_staff")],
+    roles: ["house_staff"],
+  };
+
+  it("creates an employee within the same house and returns branch details", async () => {
+    const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
+
+    const created = await createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
+      full_name: "New Hire",
+      status: "active",
+      branch_id: "branch-1",
+      rate_per_day: 900,
+    });
+
+    assert.equal(created.full_name, "New Hire");
+    assert.equal(created.branch_id, "branch-1");
+    assert.equal(created.house_id, "house-1");
+    assert.equal(supabase.employees.length, 1);
+  });
+
+  it("rejects creation when the branch belongs to another house", async () => {
+    const supabase = new CreateSupabaseMock([], [{ id: "branch-x", house_id: "house-2", name: "Other" }]);
+
+    await assert.rejects(
+      () =>
+        createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
+          full_name: "Wrong Branch",
+          rate_per_day: 800,
+          branch_id: "branch-x",
+        }),
+      EmployeeUpdateError,
+    );
+    assert.equal(supabase.employees.length, 0);
+  });
+
+  it("rejects users without HR privileges", async () => {
+    const supabase = new CreateSupabaseMock([], []);
+
+    await assert.rejects(
+      () =>
+        createEmployeeForHouseWithAccess(supabase as never, disallowedAccess, "house-1", {
+          full_name: "Blocked Hire",
+          rate_per_day: 700,
+        }),
+      EmployeeAccessError,
+    );
+  });
+
+  it("surfaces insertion errors", async () => {
+    const supabase = new CreateSupabaseMock([], [], { message: "permission denied" });
+
+    await assert.rejects(
+      () =>
+        createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
+          full_name: "Insert Error",
+          rate_per_day: 750,
+        }),
+      EmployeeCreateError,
+    );
   });
 });
 
