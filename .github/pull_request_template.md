@@ -6,9 +6,17 @@
 - [ ] Verified grants only after confirming client + RLS correctness
 - [ ] Added/updated tests for tenancy + access control
 - [ ] Implementation Digest included (files changed, helpers, tenancy enforcement, UI behavior, tests, non-changes, follow-ups)
+- [ ] Data Access Plan included (client split, tables touched, tenancy scoping, RLS expectation)
 
 ## Summary
 - What changed and why
+
+## Data Access Plan
+- Authenticated client usage:
+- service_role usage:
+- Tables touched:
+- Tenancy scoping:
+- RLS expectation:
 
 ## Implementation Digest
 - Files changed:
