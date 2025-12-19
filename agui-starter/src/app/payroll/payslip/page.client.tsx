@@ -12,12 +12,11 @@ type AttMode = "PRORATE" | "DEDUCTION";
 /* ========= TYPES ========= */
 type Emp = {
   id: string;
-  display_name: string;
+  full_name: string;
   branch_id: string | null;
   rate_per_day: number | null;
   status?: "active" | "inactive";
   code?: string | null;
-  full_name?: string;
 };
 
 type Dtr = {
@@ -295,7 +294,7 @@ function PayslipCard({
         <div className="info-grid">
           <div className="pair">
             <div className="k">Employee</div>
-            <div className="v">{emp.display_name}</div>
+            <div className="v">{emp.full_name}</div>
           </div>
         </div>
       </section>
@@ -659,7 +658,7 @@ function CoverPage({ month }: { month: string }) {
 
 function SummaryPage({ bundles }: { bundles: PayslipBundle[] }) {
   const rows = bundles.map((b) => ({
-    name: `${b.emp.display_name}`,
+    name: `${b.emp.full_name}`,
     gross: b.summary.gross,
     ded: b.summary.totalDeductions,
     net: b.summary.net,
@@ -818,9 +817,9 @@ export default function PayrollPayslipPageClient() {
         ] = await Promise.all([
           sb
             .from("employees")
-            .select("id, display_name, branch_id, status")
+            .select("id, full_name, branch_id, status")
             .eq("status", "active")
-            .order("display_name"),
+            .order("full_name"),
           sb
             .from("settings_payroll")
             .select("standard_minutes_per_day, ot_multiplier, attendance_mode")
@@ -838,11 +837,10 @@ export default function PayrollPayslipPageClient() {
             (row) =>
               ({
                 id: row.id as string,
-                display_name: (row as { display_name?: string })?.display_name ?? "",
+                full_name: (row as { full_name?: string })?.full_name ?? "",
                 branch_id: (row as { branch_id?: string | null }).branch_id ?? null,
                 status: (row as { status?: Emp["status"] }).status ?? "active",
                 rate_per_day: null,
-                full_name: (row as { display_name?: string })?.display_name ?? "",
                 code: null,
               }) as Emp,
           );
@@ -1263,7 +1261,7 @@ export default function PayrollPayslipPageClient() {
           <option value="ALL">All employees</option>
           {emps.map((e) => (
             <option key={e.id} value={e.id}>
-              {e.display_name}
+              {e.full_name}
             </option>
           ))}
         </select>

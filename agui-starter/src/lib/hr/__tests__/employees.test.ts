@@ -30,8 +30,6 @@ describe("employees access control", () => {
     const created = await createEmployee(repo, ownerAccess, {
       house_id: "house-1",
       code: "E-01",
-      first_name: "Ada",
-      last_name: "Lovelace",
       full_name: "Ada Lovelace",
       rate_per_day: 1200,
       branch_id: "branch-1",
@@ -53,9 +51,8 @@ describe("employees access control", () => {
         createEmployee(repo, staffAccess, {
           house_id: "house-1",
           code: "E-02",
-          first_name: "Alan",
-          last_name: "Turing",
           rate_per_day: 900,
+          full_name: "Alan Turing",
         }),
       EmployeeAccessError,
     );
@@ -69,7 +66,7 @@ describe("employees access control", () => {
     assert.equal(canManageEmployees(ownerAccess, "house-2"), false);
 
     await assert.rejects(
-      () => updateEmployee(repo, ownerAccess, "emp-1", { last_name: "Restricted" }),
+      () => updateEmployee(repo, ownerAccess, "emp-1", { full_name: "Restricted" }),
       EmployeeAccessError,
     );
   });
@@ -93,8 +90,7 @@ describe("employees access control", () => {
         createEmployee(repo, ownerAccess, {
           house_id: "house-1",
           code: "E-03",
-          first_name: "Grace",
-          last_name: "Hopper",
+          full_name: "Grace Hopper",
           rate_per_day: 1100,
           branch_id: "branch-2",
         }),

@@ -74,9 +74,6 @@ const baseRow: EmployeeRow = {
   code: "EMP-1",
   full_name: "Ada Lovelace",
   rate_per_day: 1000,
-  first_name: "Ada",
-  last_name: "Lovelace",
-  display_name: "Ada Lovelace",
   status: "active",
   branch_id: "branch-1",
   created_at: "2024-01-01T00:00:00Z",
@@ -248,20 +245,17 @@ class EmployeeInsertQueryMock {
       };
     }
 
-    const newRow: EmployeeRow = {
-      id: payload.id ?? `emp-${this.employees.length + 1}`,
-      house_id: payload.house_id as string,
-      code: payload.code ?? "EMP-NEW",
-      full_name: payload.full_name as string,
-      rate_per_day: payload.rate_per_day ?? 0,
-      first_name: payload.first_name ?? payload.full_name ?? "",
-      last_name: payload.last_name ?? payload.full_name ?? "",
-      display_name: payload.display_name ?? (payload.full_name as string),
-      status: (payload.status as EmployeeRow["status"]) ?? "active",
-      branch_id: (payload.branch_id as string | null) ?? null,
-      created_at: payload.created_at ?? "2024-01-02T00:00:00Z",
-      updated_at: payload.updated_at ?? "2024-01-02T00:00:00Z",
-    };
+      const newRow: EmployeeRow = {
+        id: payload.id ?? `emp-${this.employees.length + 1}`,
+        house_id: payload.house_id as string,
+        code: payload.code ?? "EMP-NEW",
+        full_name: payload.full_name as string,
+        rate_per_day: payload.rate_per_day ?? 0,
+        status: (payload.status as EmployeeRow["status"]) ?? "active",
+        branch_id: (payload.branch_id as string | null) ?? null,
+        created_at: payload.created_at ?? "2024-01-02T00:00:00Z",
+        updated_at: payload.updated_at ?? "2024-01-02T00:00:00Z",
+      };
     this.employees.push(newRow);
     return {
       select: () => ({

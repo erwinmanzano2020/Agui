@@ -16,7 +16,6 @@ export type EmployeeListItem = {
   branch_id: string | null;
   branch_name: string | null;
   rate_per_day: number;
-  display_name: string;
 };
 
 export type EmployeeListResult = { employees: EmployeeListItem[]; error?: string };
@@ -124,7 +123,6 @@ export async function listEmployeesByHouse(
       branch_id: branchId,
       branch_name: branchId ? branchNameLookup[branchId] ?? null : null,
       rate_per_day: Number(employee.rate_per_day ?? 0),
-      display_name: employee.full_name,
     } satisfies EmployeeListItem;
   });
 
@@ -234,7 +232,6 @@ export async function updateEmployeeForHouse(
 
   const updates: Partial<EmployeeRow> = {
     full_name: patch.full_name,
-    display_name: patch.full_name,
     status: patch.status,
     branch_id: patch.branch_id,
     rate_per_day: patch.rate_per_day,
@@ -311,9 +308,6 @@ export async function createEmployeeForHouse(
   const insert: EmployeeInsert = {
     house_id: houseId,
     full_name: payload.full_name,
-    display_name: payload.full_name,
-    first_name: payload.full_name,
-    last_name: payload.full_name,
     status: payload.status ?? "active",
     branch_id: branchId,
     rate_per_day: payload.rate_per_day,
