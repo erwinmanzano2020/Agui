@@ -1,18 +1,26 @@
-## What changed
-- [ ] Full-file replacement? If yes, list files:
-- [ ] User-facing pages affected:
-- [ ] API routes touched:
+## Checklist
+- [ ] Uses authenticated Supabase client for UI-facing queries
+- [ ] service_role used only for admin-only steps (entity resolution/backfill)
+- [ ] API returns non-200 on Supabase error (no silent 200 + error)
+- [ ] Verified RLS policy behavior (SELECT/INSERT/UPDATE) for affected tables
+- [ ] Verified grants only after confirming client + RLS correctness
+- [ ] Added/updated tests for tenancy + access control
+- [ ] Implementation Digest included (files changed, helpers, tenancy enforcement, UI behavior, tests, non-changes, follow-ups)
 
-## Validation (tick all before requesting review)
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` succeeds locally (or CI is green)
-- [ ] Date handling tested (Asia/Manila) and **no `new Date(string)` without TZ**
-- [ ] API endpoints return **valid JSON** (no 502 / non-JSON)
-- [ ] Supabase queries: checked for null/undefined, correct table/columns
+## Summary
+- What changed and why
 
-## Screens / Evidence
-Paste Replit preview URL or screenshots here.
+## Implementation Digest
+- Files changed:
+- Helpers added/updated:
+- Tenancy enforcement (house_id and scope):
+- UI behavior:
+- Tests added/updated:
+- Notable non-changes:
+- Follow-ups:
 
-## Request
-@codex review
-
+## Testing
+- [ ] `npm run lint`
+- [ ] `npm run typecheck`
+- [ ] `npm run build`
+- [ ] `npm run test`
