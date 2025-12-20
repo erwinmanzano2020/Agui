@@ -8,6 +8,7 @@
 - Preferred identifiers: `PHONE`, `EMAIL`, `auth_uid`.
 - Recommended future additions: non-guessable QR token or card token for scan flows.
 - HR enrollment: employee creation may supply email/phone; resolve against `entity_identifiers` first, otherwise create a new `entities` row and store the identifiers (one marked primary, preferring email).
+- Phone normalization (PH default): canonical storage uses E.164 `+63…`, but legacy lookups also check local digits-only `09…` to avoid duplicate entities from older rows.
 
 ## Principles
 - Authentication/identity flows should resolve through identifiers → `entity_id`, not via app-facing labels.

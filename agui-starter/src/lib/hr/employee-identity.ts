@@ -36,12 +36,48 @@ export function normalizeEmployeeEmail(email: string | null | undefined): string
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export function normalizeEmployeePhone(phone: string | null | undefined): string | null {
+export type NormalizedPhone = { e164: string; legacyLocal: string };
+
+export function normalizeEmployeePhoneDetails(phone: string | null | undefined): NormalizedPhone | null {
   if (typeof phone !== "string") return null;
   const cleaned = phone.trim().replace(/[^\d+]/g, "");
   if (!cleaned) return null;
-  const normalized = cleaned.startsWith("+") ? cleaned : `+${cleaned}`;
-  return normalized;
+
+  // PH-focused normalization: accept +63 / 63 / 09 / 9xxxxxxxxx
+  const startsWithPlus63 = cleaned.startsWith("+63");
+  const startsWith63 = cleaned.startsWith("63");
+  const startsWith09 = cleaned.startsWith("09");
+  const startsWith9 = cleaned.startsWith("9");
+
+  if (startsWithPlus63 || startsWith63) {
+    const digits = cleaned.replace(/^\+?63/, "");
+    if (!digits) return null;
+    const legacyLocal = `0${digits}`;
+    const e164 = `+63${digits}`;
+    return { e164, legacyLocal };
+  }
+
+  if (startsWith09) {
+    const digits = cleaned.slice(1); // drop leading 0
+    if (!digits) return null;
+    const e164 = `+63${digits}`;
+    const legacyLocal = `0${digits}`;
+    return { e164, legacyLocal };
+  }
+
+  if (startsWith9 && cleaned.length >= 10) {
+    // treat as missing leading 0
+    const digits = cleaned;
+    const e164 = `+63${digits}`;
+    const legacyLocal = `0${digits}`;
+    return { e164, legacyLocal };
+  }
+
+  return null;
+}
+
+export function normalizeEmployeePhone(phone: string | null | undefined): string | null {
+  return normalizeEmployeePhoneDetails(phone)?.e164 ?? null;
 }
 
 async function findExistingEntityId(
@@ -55,6 +91,43 @@ async function findExistingEntityId(
         .select("entity_id")
         .eq(variant.type as keyof Database["public"]["Tables"]["entity_identifiers"]["Row"], variant.normalize(identifier.type) as never)
         .eq(variant.value as keyof Database["public"]["Tables"]["entity_identifiers"]["Row"], identifier.value as never)
+        .maybeSingle();
+
+      if (error) {
+        if (isMissingColumnError(error)) {
+          continue;
+        }
+        throw new Error(error.message);
+      }
+
+      if (data?.entity_id) {
+        return data.entity_id as string;
+      }
+    } catch (error) {
+      if (isMissingColumnError(error)) {
+        continue;
+      }
+      throw error instanceof Error ? error : new Error(String(error));
+    }
+  }
+
+  return null;
+}
+
+async function findLegacyEntityByPhone(
+  supabase: SupabaseClient<Database>,
+  legacyPhone: string,
+): Promise<string | null> {
+  for (const variant of COLUMN_VARIANTS) {
+    if (variant.type !== "kind" || variant.value !== "value_norm") {
+      continue;
+    }
+    try {
+      const { data, error } = await supabase
+        .from("entity_identifiers")
+        .select("entity_id")
+        .eq(variant.type as keyof Database["public"]["Tables"]["entity_identifiers"]["Row"], variant.normalize("PHONE") as never)
+        .eq(variant.value as keyof Database["public"]["Tables"]["entity_identifiers"]["Row"], legacyPhone as never)
         .maybeSingle();
 
       if (error) {
@@ -121,14 +194,14 @@ export async function findOrCreateEntityForEmployee(
   input: { fullName: string; email?: string | null; phone?: string | null },
 ): Promise<{ entityId: string | null }> {
   const email = normalizeEmployeeEmail(input.email);
-  const phone = normalizeEmployeePhone(input.phone);
+  const phoneDetails = normalizeEmployeePhoneDetails(input.phone);
 
   const identifiers: Array<{ type: IdentifierType; value: string }> = [];
   if (email) {
     identifiers.push({ type: "EMAIL", value: email });
   }
-  if (phone) {
-    identifiers.push({ type: "PHONE", value: phone });
+  if (phoneDetails?.e164) {
+    identifiers.push({ type: "PHONE", value: phoneDetails.e164 });
   }
 
   if (identifiers.length === 0) {
@@ -142,7 +215,14 @@ export async function findOrCreateEntityForEmployee(
     }
   }
 
-  const label = input.fullName?.trim() || email || phone || "Employee";
+  if (phoneDetails?.legacyLocal) {
+    const legacy = await findLegacyEntityByPhone(supabase, phoneDetails.legacyLocal);
+    if (legacy) {
+      return { entityId: legacy };
+    }
+  }
+
+  const label = input.fullName?.trim() || email || input.phone || "Employee";
   const { data: entity, error: entityError } = await supabase
     .from("entities")
     .insert({ display_name: label })

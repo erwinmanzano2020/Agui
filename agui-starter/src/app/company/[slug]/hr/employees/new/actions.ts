@@ -11,7 +11,7 @@ import {
 import {
   findOrCreateEntityForEmployee,
   normalizeEmployeeEmail,
-  normalizeEmployeePhone,
+  normalizeEmployeePhoneDetails,
 } from "@/lib/hr/employee-identity";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
@@ -108,8 +108,8 @@ export async function createEmployeeAction(
     } satisfies CreateEmployeeState;
   }
 
-  const normalizedPhone = normalizeEmployeePhone(parsed.data.phone ?? null);
-  if (parsed.data.phone && (!normalizedPhone || normalizedPhone.replace(/\D/g, "").length < 7)) {
+  const normalizedPhone = normalizeEmployeePhoneDetails(parsed.data.phone ?? null);
+  if (parsed.data.phone && !normalizedPhone) {
     return {
       status: "error",
       fieldErrors: { phone: ["Enter a valid phone number"] },
@@ -132,7 +132,7 @@ export async function createEmployeeAction(
     const entityResult = await findOrCreateEntityForEmployee(supabase, {
       fullName: parsed.data.full_name,
       email: normalizedEmail,
-      phone: normalizedPhone,
+      phone: normalizedPhone?.e164 ?? null,
     });
     entityId = entityResult.entityId;
   } catch (error) {

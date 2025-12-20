@@ -12,7 +12,11 @@ import {
   listEmployeesByHouse,
 } from "@/lib/hr/employees-server";
 import { resolveHrAccess } from "@/lib/hr/access";
-import { findOrCreateEntityForEmployee, normalizeEmployeeEmail, normalizeEmployeePhone } from "@/lib/hr/employee-identity";
+import {
+  findOrCreateEntityForEmployee,
+  normalizeEmployeeEmail,
+  normalizeEmployeePhoneDetails,
+} from "@/lib/hr/employee-identity";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
@@ -362,8 +366,8 @@ export async function POST(req: NextRequest) {
     return jsonError(400, "Fix the highlighted fields and try again.", { fieldErrors: { email: ["Enter a valid email"] } });
   }
 
-  const normalizedPhone = normalizeEmployeePhone(parsed.data.phone ?? null);
-  if (parsed.data.phone && (!normalizedPhone || normalizedPhone.replace(/\D/g, "").length < 7)) {
+  const normalizedPhone = normalizeEmployeePhoneDetails(parsed.data.phone ?? null);
+  if (parsed.data.phone && !normalizedPhone) {
     return jsonError(400, "Fix the highlighted fields and try again.", {
       fieldErrors: { phone: ["Enter a valid phone number"] },
     });
@@ -374,7 +378,7 @@ export async function POST(req: NextRequest) {
     const entityResult = await findOrCreateEntityForEmployee(authed, {
       fullName: parsed.data.full_name,
       email: normalizedEmail,
-      phone: normalizedPhone,
+      phone: normalizedPhone?.e164 ?? null,
     });
     resolvedEntityId = entityResult.entityId;
   } catch (error) {

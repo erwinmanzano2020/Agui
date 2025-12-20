@@ -172,4 +172,21 @@ describe("findOrCreateEntityForEmployee", () => {
     assert.equal(entities.length, 0);
     assert.equal(identifiers.length, 1);
   });
+
+  it("matches legacy phone identifiers before creating new entities", async () => {
+    const identifiers: IdentifierRow[] = [{ entity_id: "entity-legacy", kind: "phone", value_norm: "09171234567" }];
+    const entities: EntityRow[] = [];
+    const supabase = new SupabaseIdentityMock(identifiers, ["entity_id", "kind", "value_norm"], entities);
+
+    for (const phone of ["+639171234567", "639171234567", "09171234567", "9171234567"]) {
+      const result = await findOrCreateEntityForEmployee(supabase as never, {
+        fullName: "Phone Legacy",
+        phone,
+      });
+
+      assert.equal(result.entityId, "entity-legacy");
+      assert.equal(entities.length, 0);
+      assert.equal(identifiers.length, 1);
+    }
+  });
 });
