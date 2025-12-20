@@ -7,4 +7,4 @@
 - **Legacy rows:** Some `employees.house_id` values may be `NULL`. Apply an effective-house fallback (e.g., derive from linked employment/role when present) while cleaning up data; new writes must always set `house_id`. Deprecate and migrate away from `NULL` `house_id` rows.
 - **Employee creation:** Inserts must set `house_id`, use `full_name` for names (no `display_name` column), default `status` to `active` unless explicitly provided, ensure `branch_id` belongs to the same house before insert, and rely on DB-generated `code` (per house, concurrency-safe).
 - **Naming conventions:** Do not rename tables to match UI labels. Keep DB table names stable; UI labels can differ.
-- **Related docs:** access-control contract (`docs/contracts/access-control.md`), RLS debug runbook (`docs/runbooks/supabase-rls-debug.md`), devlog index (`docs/devlog/index.md`).
+- **Related docs:** access-control contract (`docs/contracts/access-control.md`), identity contract (`docs/contracts/identity-contract.md`), RLS debug runbook (`docs/runbooks/supabase-rls-debug.md`), devlog index (`docs/devlog/index.md`).
