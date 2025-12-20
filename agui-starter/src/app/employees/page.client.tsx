@@ -15,7 +15,7 @@ import type { EmployeeListItem } from "@/lib/hr/employees-server";
 
 type EmployeeRow = {
   id: string;
-  display_name: string;
+  full_name: string;
   status: EmployeeListItem["status"];
   branch_id: string | null;
 };
@@ -57,7 +57,7 @@ export default function EmployeesPageClient() {
 
     const normalized: EmployeeRow[] = (payload.employees ?? []).map((row) => ({
       id: row.id,
-      display_name: row.display_name,
+      full_name: row.full_name,
       status: row.status,
       branch_id: row.branch_id ?? null,
     } satisfies EmployeeRow));
@@ -136,7 +136,7 @@ export default function EmployeesPageClient() {
                 >
                   <td className="p-2">
                     <ThemedLink href={`/employees/${r.id}`} className="text-sm">
-                      {r.display_name}
+                      {r.full_name}
                     </ThemedLink>
                   </td>
                   <td className="p-2">{renderStatus(r.status)}</td>

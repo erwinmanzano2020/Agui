@@ -1,6 +1,6 @@
 export type Employee = {
   id: string;
-  display_name: string;
+  full_name: string;
   status: "active" | "inactive";
   branch_id: string | null;
 };

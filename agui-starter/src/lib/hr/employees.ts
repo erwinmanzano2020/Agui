@@ -57,10 +57,8 @@ export function buildEmployeeRow(
   id: string,
   overrides: Partial<EmployeeRow> = {},
 ): EmployeeRow {
-  const firstName = overrides.first_name ?? "Ada";
-  const lastName = overrides.last_name ?? "Lovelace";
-  const fullName = overrides.full_name ?? overrides.display_name ?? `${firstName} ${lastName}`.trim();
-  const code = overrides.code ?? `EMP-${id.slice(0, 6)}`;
+  const fullName = overrides.full_name ?? "Ada Lovelace";
+  const code = overrides.code ?? `EI-${id.slice(0, 6)}`;
   const rate = overrides.rate_per_day ?? 0;
   const now = new Date().toISOString();
 
@@ -70,9 +68,6 @@ export function buildEmployeeRow(
     code,
     full_name: fullName,
     rate_per_day: rate,
-    first_name: firstName,
-    last_name: lastName,
-    display_name: overrides.display_name ?? fullName,
     status: overrides.status ?? "active",
     branch_id: overrides.branch_id ?? null,
     created_at: overrides.created_at ?? now,
@@ -131,11 +126,8 @@ export function createInMemoryEmployeeRepository(initial?: {
           throw new Error("Branch does not belong to the employee house");
         }
       }
-      const firstName = payload.first_name ?? "";
-      const lastName = payload.last_name ?? "";
-      const rawFullName = payload.full_name ?? payload.display_name ?? `${firstName} ${lastName}`.trim();
-      const fullName = rawFullName || "Unnamed";
-      const code = payload.code ?? `EMP-${counter++}`;
+      const fullName = (payload.full_name ?? "").trim() || "Unnamed";
+      const code = payload.code ?? `EI-${String(counter++).padStart(3, "0")}`;
       const rate = payload.rate_per_day ?? 0;
       const row: EmployeeRow = {
         id: payload.id ?? `emp-${counter++}`,
@@ -143,9 +135,6 @@ export function createInMemoryEmployeeRepository(initial?: {
         code,
         full_name: fullName,
         rate_per_day: rate,
-        first_name: payload.first_name ?? fullName,
-        last_name: payload.last_name ?? fullName,
-        display_name: payload.display_name ?? fullName,
         status: payload.status ?? "active",
         branch_id: payload.branch_id ?? null,
         created_at: now,
@@ -162,17 +151,8 @@ export function createInMemoryEmployeeRepository(initial?: {
         ...existing,
         ...updates,
         code: updates.code ?? existing.code,
-        full_name:
-          updates.full_name ??
-          updates.display_name ??
-          `${updates.first_name ?? existing.first_name} ${updates.last_name ?? existing.last_name}`.trim(),
+        full_name: updates.full_name?.trim() || existing.full_name,
         rate_per_day: updates.rate_per_day ?? existing.rate_per_day,
-        first_name: updates.first_name ?? existing.first_name,
-        last_name: updates.last_name ?? existing.last_name,
-        display_name:
-          updates.display_name ??
-          updates.full_name ??
-          `${updates.first_name ?? existing.first_name} ${updates.last_name ?? existing.last_name}`.trim(),
         updated_at: updates.updated_at ?? new Date().toISOString(),
       } satisfies EmployeeRow;
 
@@ -206,18 +186,13 @@ export async function createEmployee(
 ): Promise<EmployeeRow> {
   const houseId = payload.house_id ?? context.houseId;
   assertManageEmployees(context, houseId);
-  const firstName = payload.first_name ?? "";
-  const lastName = payload.last_name ?? "";
-  const rawFullName = payload.full_name ?? payload.display_name ?? `${firstName} ${lastName}`.trim();
-  const fullName = rawFullName || payload.code || "";
+  const fullName = (payload.full_name ?? "").trim() || payload.code || "";
   const code = payload.code ?? `EMP-${Date.now()}`;
-  const displayName = payload.display_name ?? (fullName || code);
   return repo.create({
     ...payload,
     code,
     full_name: fullName || code,
     house_id: houseId,
-    display_name: displayName,
   });
 }
 
@@ -246,14 +221,8 @@ export async function updateEmployee(
     throw new EmployeeAccessError("Cannot move employee across houses");
   }
 
-  const displayName =
-    updates.display_name ??
-    updates.full_name ??
-    `${updates.first_name ?? existing.first_name} ${updates.last_name ?? existing.last_name}`.trim();
-
   return repo.update(employeeId, {
     ...updates,
     house_id: existing.house_id,
-    display_name: displayName,
   });
 }

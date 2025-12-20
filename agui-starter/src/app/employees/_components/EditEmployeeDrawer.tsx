@@ -17,9 +17,7 @@ type Props = {
 
 type Employee = {
   id: string;
-  first_name: string;
-  last_name: string;
-  display_name: string;
+  full_name: string;
   status: "active" | "inactive";
   branch_id: string | null;
 };
@@ -81,7 +79,7 @@ export default function EditEmployeeDrawer({
       // Employee
       const empRes = await sb
         .from("employees")
-        .select("id, first_name, last_name, display_name, status, branch_id")
+        .select("id, full_name, status, branch_id")
         .eq("id", employeeId)
         .maybeSingle();
 
@@ -90,11 +88,7 @@ export default function EditEmployeeDrawer({
         empRes.data
           ? {
               id: empRes.data.id,
-              first_name: empRes.data.first_name,
-              last_name: empRes.data.last_name,
-              display_name:
-                empRes.data.display_name ||
-                `${empRes.data.first_name} ${empRes.data.last_name}`.trim(),
+              full_name: empRes.data.full_name,
               status: empRes.data.status ?? "active",
               branch_id: empRes.data.branch_id ?? null,
             }
@@ -127,9 +121,7 @@ export default function EditEmployeeDrawer({
     setErr(null);
 
     const payload = {
-      first_name: emp.first_name,
-      last_name: emp.last_name,
-      display_name: emp.display_name || `${emp.first_name} ${emp.last_name}`.trim(),
+      full_name: emp.full_name,
       status: emp.status,
       branch_id: emp.branch_id,
     };
@@ -317,37 +309,13 @@ export default function EditEmployeeDrawer({
             ) : (
               <>
                 <div>
-                  <label className="block text-sm mb-1">First Name</label>
+                  <label className="block text-sm mb-1">Full Name</label>
                   <input
                     className="border rounded px-2 py-1 w-full"
-                    value={emp.first_name}
+                    value={emp.full_name}
                     onChange={(e) =>
                       setEmp((p) =>
-                        p ? { ...p, first_name: e.target.value } : p,
-                      )
-                    }
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm mb-1">Last Name</label>
-                  <input
-                    className="border rounded px-2 py-1 w-full"
-                    value={emp.last_name}
-                    onChange={(e) =>
-                      setEmp((p) => (p ? { ...p, last_name: e.target.value } : p))
-                    }
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm mb-1">Display Name</label>
-                  <input
-                    className="border rounded px-2 py-1 w-full"
-                    value={emp.display_name}
-                    onChange={(e) =>
-                      setEmp((p) =>
-                        p ? { ...p, display_name: e.target.value } : p,
+                        p ? { ...p, full_name: e.target.value } : p,
                       )
                     }
                   />
