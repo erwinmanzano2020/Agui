@@ -72,6 +72,7 @@ const baseRow: EmployeeRow = {
   id: "emp-1",
   house_id: "house-1",
   code: "EMP-1",
+  entity_id: null,
   full_name: "Ada Lovelace",
   rate_per_day: 1000,
   status: "active",
@@ -259,6 +260,7 @@ class EmployeeInsertQueryMock {
       id: payload.id ?? `emp-${this.employees.length + 1}`,
       house_id: houseId,
       code,
+      entity_id: (payload.entity_id as string | null | undefined) ?? null,
       full_name: payload.full_name as string,
       rate_per_day: payload.rate_per_day ?? 0,
       status: (payload.status as EmployeeRow["status"]) ?? "active",
@@ -444,6 +446,7 @@ describe("createEmployeeForHouseWithAccess", () => {
     assert.equal(created.full_name, "New Hire");
     assert.equal(created.branch_id, "branch-1");
     assert.equal(created.house_id, "house-1");
+    assert.equal(created.entity_id, null);
     assert.match(created.code, /^EI-\d{3}$/);
     assert.equal(supabase.employees.length, 1);
   });
@@ -463,6 +466,19 @@ describe("createEmployeeForHouseWithAccess", () => {
     assert.notEqual(first.code, second.code);
     assert.ok(first.code.startsWith("EI-"));
     assert.ok(second.code.startsWith("EI-"));
+  });
+
+  it("persists provided entity_id on create", async () => {
+    const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
+
+    const created = await createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
+      full_name: "Linked Hire",
+      rate_per_day: 950,
+      entity_id: "entity-abc",
+    });
+
+    assert.equal(created.entity_id, "entity-abc");
+    assert.equal(supabase.employees[0].entity_id, "entity-abc");
   });
 
   it("raises an error when house_id is missing", async () => {

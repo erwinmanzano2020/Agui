@@ -11,6 +11,7 @@ export type EmployeeListItem = {
   id: string;
   house_id: string;
   code: string;
+  entity_id: string | null;
   full_name: string;
   status: EmployeeRow["status"];
   branch_id: string | null;
@@ -27,6 +28,7 @@ export type EmployeeProfile = {
   id: string;
   house_id: string;
   code: string;
+  entity_id: string | null;
   full_name: string;
   status: EmployeeRow["status"];
   branch_id: string | null;
@@ -49,6 +51,7 @@ export type EmployeeCreateInput = {
   full_name: string;
   status?: EmployeeRow["status"];
   branch_id?: string | null;
+  entity_id?: string | null;
   rate_per_day: number;
 };
 
@@ -92,7 +95,7 @@ export async function listEmployeesByHouse(
 
   let query = supabase
     .from("employees")
-    .select("id, house_id, code, full_name, status, branch_id, rate_per_day")
+    .select("id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day")
     .eq("house_id", houseId);
 
   if (filters.status && filters.status !== "all") {
@@ -118,6 +121,7 @@ export async function listEmployeesByHouse(
       id: employee.id,
       house_id: employee.house_id,
       code: employee.code,
+      entity_id: employee.entity_id ?? null,
       full_name: employee.full_name,
       status: employee.status,
       branch_id: branchId,
@@ -148,7 +152,7 @@ export async function getEmployeeByIdForHouse(
   const { data } = await supabase
     .from("employees")
     .select(
-      "id, house_id, code, full_name, status, branch_id, rate_per_day, created_at, branches(id, name, house_id)",
+      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, created_at, branches(id, name, house_id)",
     )
     .eq("house_id", houseId)
     .eq("id", employeeId)
@@ -174,6 +178,7 @@ export async function getEmployeeByIdForHouse(
     id: employee.id,
     house_id: employee.house_id,
     code: employee.code,
+    entity_id: employee.entity_id ?? null,
     full_name: employee.full_name,
     status: employee.status,
     branch_id: branchId,
@@ -243,7 +248,7 @@ export async function updateEmployeeForHouse(
     .eq("id", employeeId)
     .eq("house_id", houseId)
     .select(
-      "id, house_id, code, full_name, status, branch_id, rate_per_day, created_at, branches(id, name, house_id)",
+      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, created_at, branches(id, name, house_id)",
     )
     .maybeSingle<EmployeeWithBranch>();
 
@@ -266,6 +271,7 @@ export async function updateEmployeeForHouse(
     id: data.id,
     house_id: data.house_id,
     code: data.code,
+    entity_id: data.entity_id ?? null,
     full_name: data.full_name,
     status: data.status,
     branch_id: branchId,
@@ -314,6 +320,7 @@ export async function createEmployeeForHouse(
     full_name: payload.full_name,
     status: payload.status ?? "active",
     branch_id: branchId,
+    entity_id: payload.entity_id ?? null,
     rate_per_day: payload.rate_per_day,
   };
 
@@ -321,7 +328,7 @@ export async function createEmployeeForHouse(
     .from("employees")
     .insert(insert)
     .select(
-      "id, house_id, code, full_name, status, branch_id, rate_per_day, created_at, branches(id, name, house_id)",
+      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, created_at, branches(id, name, house_id)",
     )
     .maybeSingle<EmployeeWithBranch>();
 
@@ -339,6 +346,7 @@ export async function createEmployeeForHouse(
     id: data.id,
     house_id: data.house_id,
     code: data.code,
+    entity_id: data.entity_id ?? null,
     full_name: data.full_name,
     status: data.status,
     branch_id: branchBelongsToHouse ? data.branches?.id ?? null : null,

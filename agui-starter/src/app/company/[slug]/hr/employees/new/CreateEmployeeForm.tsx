@@ -39,6 +39,8 @@ function SubmitButton({ disabled }: { disabled: boolean }) {
 export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadError }: Props) {
   const [state, formAction] = useFormState<CreateEmployeeState, FormData>(createEmployeeAction, createEmployeeInitialState);
   const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
   const [rate, setRate] = useState("");
   const [branchId, setBranchId] = useState("");
   const [status, setStatus] = useState("active");
@@ -51,7 +53,11 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
   );
 
   const parsedRate = Number.parseFloat(rate);
-  const isValid = fullName.trim().length >= 2 && Number.isFinite(parsedRate) && parsedRate > 0;
+  const emailPattern = /^\S+@\S+\.\S+$/;
+  const phoneDigits = phone.replace(/\D/g, "");
+  const emailOk = !email.trim() || emailPattern.test(email.trim());
+  const phoneOk = !phone.trim() || phoneDigits.length >= 7;
+  const isValid = fullName.trim().length >= 2 && Number.isFinite(parsedRate) && parsedRate > 0 && emailOk && phoneOk;
 
   useEffect(() => {
     if (state.status === "success") {
@@ -91,6 +97,32 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
             required
           />
           <FieldError message={state.fieldErrors?.full_name} />
+        </label>
+
+        <label className="block space-y-1 text-sm text-muted-foreground">
+          Email (optional)
+          <Input
+            name="email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="name@example.com"
+          />
+          {!emailOk ? <p className="text-sm text-destructive">Enter a valid email.</p> : null}
+          <FieldError message={state.fieldErrors?.email} />
+        </label>
+
+        <label className="block space-y-1 text-sm text-muted-foreground">
+          Phone (optional)
+          <Input
+            name="phone"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="+63 917 123 4567"
+            inputMode="tel"
+          />
+          {!phoneOk ? <p className="text-sm text-destructive">Enter a valid phone number.</p> : null}
+          <FieldError message={state.fieldErrors?.phone} />
         </label>
 
         <label className="block space-y-1 text-sm text-muted-foreground">

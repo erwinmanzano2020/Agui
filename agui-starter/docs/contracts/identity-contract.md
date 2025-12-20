@@ -7,6 +7,7 @@
 ## Identifier usage (current)
 - Preferred identifiers: `PHONE`, `EMAIL`, `auth_uid`.
 - Recommended future additions: non-guessable QR token or card token for scan flows.
+- HR enrollment: employee creation may supply email/phone; resolve against `entity_identifiers` first, otherwise create a new `entities` row and store the identifiers (one marked primary, preferring email).
 
 ## Principles
 - Authentication/identity flows should resolve through identifiers → `entity_id`, not via app-facing labels.
