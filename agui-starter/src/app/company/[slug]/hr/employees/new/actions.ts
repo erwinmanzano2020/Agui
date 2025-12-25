@@ -130,14 +130,19 @@ export async function createEmployeeAction(
   let entityId: string | null = null;
   try {
     const entityResult = await findOrCreateEntityForEmployee(supabase, {
+      houseId: parsed.data.houseId,
       fullName: parsed.data.full_name,
       email: normalizedEmail,
       phone: normalizedPhone?.e164 ?? null,
     });
     entityId = entityResult.entityId;
   } catch (error) {
+    const message = error instanceof Error ? error.message : "Unable to link employee identity right now.";
+    if (message.toLowerCase().includes("not allowed")) {
+      return { status: "error", message: "You are not allowed to create identities for this house." } satisfies CreateEmployeeState;
+    }
     console.error("Failed to resolve employee entity", error);
-    return { status: "error", message: "Unable to link employee identity right now." } satisfies CreateEmployeeState;
+    return { status: "error", message } satisfies CreateEmployeeState;
   }
 
   try {

@@ -5,6 +5,7 @@
 - [HR employee creation (house-scoped)](hr/employee-create-house.md)
 - [HR employee code autogen + schema alignment](hr/employee-code-autogen.md)
 - [HR employee identity alignment](hr/employee-identity-alignment.md)
+- [HR employee identity RPC](hr/employee-identity-rpc.md)
 - [HR employee ↔ entity link](hr/employee-entity-link.md)
 - Contracts and runbook:
   - DB contract: `../contracts/db-contract.md`

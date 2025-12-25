@@ -14,6 +14,7 @@
 - Authentication/identity flows should resolve through identifiers → `entity_id`, not via app-facing labels.
 - Employee codes, loyalty numbers, and similar labels are **not** identifiers; they are house/module-scoped labels.
 - Keep identifiers stable, non-guessable when possible, and avoid overloading business labels for login.
+- Identity creation for HR flows uses the `hr_find_or_create_entity_for_employee` RPC (security definer, HR-scoped); do not grant broad table access to `entities`/`entity_identifiers`.
 
 ## Related docs
 - DB contract: `./db-contract.md`

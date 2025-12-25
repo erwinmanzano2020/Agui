@@ -376,20 +376,25 @@ export async function POST(req: NextRequest) {
   let resolvedEntityId: string | null = null;
   try {
     const entityResult = await findOrCreateEntityForEmployee(authed, {
+      houseId,
       fullName: parsed.data.full_name,
       email: normalizedEmail,
       phone: normalizedPhone?.e164 ?? null,
     });
     resolvedEntityId = entityResult.entityId;
   } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     logApiError({
       route: ROUTE_NAME,
       action: "link_entity",
       userId: userResult.user.id,
       entityId,
       houseId,
-      error,
+      error: message,
     });
+    if (message.toLowerCase().includes("not allowed")) {
+      return jsonError(403, "Not allowed to link identity", { message });
+    }
     return jsonError(500, "Failed to link employee identity");
   }
 
