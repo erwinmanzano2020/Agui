@@ -7,6 +7,7 @@
 - [HR employee identity alignment](hr/employee-identity-alignment.md)
 - [HR employee identity RPC](hr/employee-identity-rpc.md)
 - [HR employee ↔ entity link](hr/employee-entity-link.md)
+- [HR employee lookup-first identity + dedupe](hr/employee-lookup-first-and-dedupe.md)
 - Contracts and runbook:
   - DB contract: `../contracts/db-contract.md`
   - Access-control contract: `../contracts/access-control.md`

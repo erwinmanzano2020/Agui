@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireHrAccess } from "@/lib/hr/access";
 import {
   EmployeeCreateError,
+  EmployeeDuplicateIdentityError,
   EmployeeUpdateError,
   createEmployeeForHouseWithAccess,
 } from "@/lib/hr/employees-server";
@@ -164,6 +165,13 @@ export async function createEmployeeAction(
         status: "error",
         message: "Select a branch within this house.",
         fieldErrors: { branch_id: ["Choose a branch for this workspace"] },
+      } satisfies CreateEmployeeState;
+    }
+
+    if (error instanceof EmployeeDuplicateIdentityError) {
+      return {
+        status: "error",
+        message: "An active employee with this identity already exists in this house.",
       } satisfies CreateEmployeeState;
     }
 

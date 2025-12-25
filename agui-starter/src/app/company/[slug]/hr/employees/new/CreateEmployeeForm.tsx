@@ -73,7 +73,7 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
       <div className="space-y-1">
         <h1 className="text-2xl font-semibold text-foreground">Add employee</h1>
         <p className="text-sm text-muted-foreground">
-          Create a new employee within this house. Branches are scoped to this workspace.
+          Create a new employee within this house. Branches are scoped to this workspace and email/phone are used to link identity.
         </p>
       </div>
 
@@ -100,7 +100,7 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
         </label>
 
         <label className="block space-y-1 text-sm text-muted-foreground">
-          Email (optional)
+          Email (optional, for identity linking)
           <Input
             name="email"
             type="email"
@@ -113,7 +113,7 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
         </label>
 
         <label className="block space-y-1 text-sm text-muted-foreground">
-          Phone (optional)
+          Phone (optional, for identity linking)
           <Input
             name="phone"
             value={phone}

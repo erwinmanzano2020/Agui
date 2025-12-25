@@ -29,7 +29,12 @@ describe("findOrCreateEntityForEmployee", () => {
   it("links to an existing entity when the identifier already exists", async () => {
     const supabase = new SupabaseRpcMock(async (_name, params) => {
       assert.equal(params.p_house_id, "house-1");
-      assert.equal(params.p_email, "person@example.com");
+      const identifiers = params.p_identifiers as Array<{ identifier_type: string; identifier_value: string }>;
+      assert.deepEqual(identifiers, [
+        { identifier_type: "EMAIL", identifier_value: "person@example.com" },
+        { identifier_type: "PHONE", identifier_value: "+639171234567" },
+        { identifier_type: "PHONE", identifier_value: "09171234567" },
+      ]);
       return { data: "entity-123", error: null };
     });
 
@@ -75,9 +80,11 @@ describe("findOrCreateEntityForEmployee", () => {
 
   it("matches legacy phone identifiers before creating new entities", async () => {
     const supabase = new SupabaseRpcMock(async (_name, params) => {
-      const normalized = normalizeEmployeePhoneDetails((params as { p_phone?: string }).p_phone ?? null);
-      const key = normalized?.legacyLocal ?? "none";
-      return { data: key === "09171234567" ? "entity-legacy" : "entity-new", error: null };
+      const identifiers = (params as { p_identifiers?: Array<{ identifier_value: string }> }).p_identifiers ?? [];
+      const phones = identifiers.map((item) => item.identifier_value);
+      const normalized = normalizeEmployeePhoneDetails(phones[0] ?? null);
+      const legacy = normalized?.legacyLocal ?? null;
+      return { data: legacy === "09171234567" ? "entity-legacy" : "entity-new", error: null };
     });
 
     for (const phone of ["+639171234567", "639171234567", "09171234567", "9171234567"]) {

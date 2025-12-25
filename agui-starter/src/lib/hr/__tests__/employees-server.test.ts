@@ -236,17 +236,56 @@ class EmployeeInsertQueryMock {
     private branches: BranchRow[],
     private insertError: { message: string } | null = null,
     private codeCounters: Map<string, number> = new Map(),
+    private filters: Partial<EmployeeRow> = {},
+    private mode: "select" | "insert" = "select",
+    private pendingInsert: Partial<EmployeeRow> | null = null,
   ) {}
 
+  select() {
+    return this;
+  }
+
+  eq(column: keyof EmployeeRow, value: string) {
+    return new EmployeeInsertQueryMock(
+      this.employees,
+      this.branches,
+      this.insertError,
+      this.codeCounters,
+      Object.assign({}, this.filters, { [column]: value }),
+      this.mode,
+      this.pendingInsert,
+    );
+  }
+
+  limit() {
+    return this;
+  }
+
   insert(payload: Partial<EmployeeRow>) {
-    if (this.insertError) {
-      return {
-        select: () => ({
-          maybeSingle: async () => ({ data: null, error: this.insertError } as const),
-        }),
-      };
+    return new EmployeeInsertQueryMock(
+      this.employees,
+      this.branches,
+      this.insertError,
+      this.codeCounters,
+      this.filters,
+      "insert",
+      payload,
+    );
+  }
+
+  async maybeSingle<T>() {
+    if (this.mode === "select") {
+      const match = this.employees.find((row) =>
+        Object.entries(this.filters).every(([key, value]) => (row as Record<string, unknown>)[key] === value),
+      );
+      return { data: (match as T | null) ?? null, error: null } as const;
     }
 
+    if (this.insertError) {
+      return { data: null as T | null, error: this.insertError } as const;
+    }
+
+    const payload = this.pendingInsert ?? {};
     const houseId = (payload.house_id as string | undefined) ?? null;
     if (!houseId) {
       throw new Error("house_id is required");
@@ -269,14 +308,12 @@ class EmployeeInsertQueryMock {
       updated_at: payload.updated_at ?? "2024-01-02T00:00:00Z",
     };
     this.employees.push(newRow);
+
+    const branch = this.branches.find((b) => b.id === newRow.branch_id) ?? null;
     return {
-      select: () => ({
-        maybeSingle: async <T>() => ({
-          data: { ...newRow, branches: this.branches.find((b) => b.id === newRow.branch_id) ?? null } as T,
-          error: null,
-        }),
-      }),
-    };
+      data: { ...newRow, branches: branch } as T,
+      error: null,
+    } as const;
   }
 }
 
@@ -479,6 +516,54 @@ describe("createEmployeeForHouseWithAccess", () => {
 
     assert.equal(created.entity_id, "entity-abc");
     assert.equal(supabase.employees[0].entity_id, "entity-abc");
+  });
+
+  it("rejects creation when an active employee already has the same identity in the house", async () => {
+    const supabase = new CreateSupabaseMock(
+      [
+        {
+          ...baseRow,
+          id: "emp-existing",
+          entity_id: "entity-dup",
+          status: "active",
+        },
+      ],
+      [{ id: "branch-1", house_id: "house-1", name: "HQ" }],
+    );
+
+    await assert.rejects(
+      () =>
+        createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
+          full_name: "Duplicate Hire",
+          rate_per_day: 900,
+          entity_id: "entity-dup",
+        }),
+      EmployeeCreateError,
+    );
+    assert.equal(supabase.employees.length, 1);
+  });
+
+  it("allows rehiring when the prior matching identity is inactive", async () => {
+    const supabase = new CreateSupabaseMock(
+      [
+        {
+          ...baseRow,
+          id: "emp-inactive",
+          entity_id: "entity-returning",
+          status: "inactive",
+        },
+      ],
+      [{ id: "branch-1", house_id: "house-1", name: "HQ" }],
+    );
+
+    const created = await createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
+      full_name: "Rehire",
+      rate_per_day: 900,
+      entity_id: "entity-returning",
+    });
+
+    assert.equal(created.entity_id, "entity-returning");
+    assert.equal(supabase.employees.length, 2);
   });
 
   it("raises an error when house_id is missing", async () => {

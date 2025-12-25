@@ -61,16 +61,26 @@ export async function findOrCreateEntityForEmployee(
   const email = normalizeEmployeeEmail(input.email);
   const phoneDetails = normalizeEmployeePhoneDetails(input.phone);
 
-  if (!email && !phoneDetails) {
+  const identifiers: Array<{ identifier_type: "EMAIL" | "PHONE"; identifier_value: string }> = [];
+  if (email) {
+    identifiers.push({ identifier_type: "EMAIL", identifier_value: email });
+  }
+  if (phoneDetails?.e164) {
+    identifiers.push({ identifier_type: "PHONE", identifier_value: phoneDetails.e164 });
+    if (phoneDetails.legacyLocal !== phoneDetails.e164) {
+      identifiers.push({ identifier_type: "PHONE", identifier_value: phoneDetails.legacyLocal });
+    }
+  }
+
+  if (identifiers.length === 0) {
     return { entityId: null };
   }
 
-  const label = input.fullName?.trim() || email || input.phone || "Employee";
+  const label = input.fullName?.trim() || email || phoneDetails?.e164 || phoneDetails?.legacyLocal || "Employee";
   const { data, error } = await supabase.rpc("hr_find_or_create_entity_for_employee", {
     p_house_id: input.houseId,
     p_display_name: label,
-    p_email: email,
-    p_phone: phoneDetails?.e164 ?? input.phone ?? null,
+    p_identifiers: identifiers,
   });
 
   if (error) {

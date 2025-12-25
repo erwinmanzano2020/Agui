@@ -7,6 +7,7 @@ import { AppFeature } from "@/lib/auth/permissions";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import {
   EmployeeCreateError,
+  EmployeeDuplicateIdentityError,
   EmployeeUpdateError,
   createEmployeeForHouseWithAccess,
   listEmployeesByHouse,
@@ -411,6 +412,11 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (error instanceof EmployeeUpdateError) {
       return jsonError(400, "Select a branch within this house", { fieldErrors: { branch_id: ["Invalid branch"] } });
+    }
+    if (error instanceof EmployeeDuplicateIdentityError) {
+      return jsonError(409, "An active employee with this identity already exists in this house.", {
+        message: error.message,
+      });
     }
     if (error instanceof EmployeeCreateError) {
       return jsonError(500, "Failed to create employee", { message: error.message });

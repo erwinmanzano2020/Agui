@@ -46,6 +46,12 @@ export type EmployeeUpdateInput = {
 
 export class EmployeeUpdateError extends Error {}
 export class EmployeeCreateError extends Error {}
+export class EmployeeDuplicateIdentityError extends EmployeeCreateError {
+  constructor(message: string, public employeeId?: string | null) {
+    super(message);
+    this.name = "EmployeeDuplicateIdentityError";
+  }
+}
 
 export type EmployeeCreateInput = {
   full_name: string;
@@ -315,12 +321,35 @@ export async function createEmployeeForHouse(
     await ensureBranchInHouse(supabase, houseId, branchId);
   }
 
+  const entityId = payload.entity_id?.trim() || null;
+  if (entityId) {
+    const { data: existing, error: existingError } = await supabase
+      .from("employees")
+      .select("id, status")
+      .eq("house_id", houseId)
+      .eq("entity_id", entityId)
+      .eq("status", "active")
+      .limit(1)
+      .maybeSingle<EmployeeRow>();
+
+    if (existingError) {
+      throw new Error(existingError.message);
+    }
+
+    if (existing) {
+      throw new EmployeeDuplicateIdentityError(
+        "An active employee with this identity already exists in this house.",
+        existing.id,
+      );
+    }
+  }
+
   const insert: EmployeeInsert = {
     house_id: houseId,
     full_name: payload.full_name,
     status: payload.status ?? "active",
     branch_id: branchId,
-    entity_id: payload.entity_id ?? null,
+    entity_id: entityId,
     rate_per_day: payload.rate_per_day,
   };
 
