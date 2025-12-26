@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
   const parsed = LookupSchema.safeParse(payload);
   if (!parsed.success) {
     const details = parsed.error.flatten().formErrors;
-    return jsonError(400, "Fix the highlighted fields and try again.", { message: details[0] });
+    return jsonError(400, "Fix the highlighted fields and try again.", { message: details[0] ?? "Missing houseId." });
   }
 
   const normalizedEmail = normalizeEmployeeEmail(parsed.data.email ?? null);
@@ -82,6 +82,18 @@ export async function POST(req: NextRequest) {
   if (!normalizedEmail && !normalizedPhone) {
     return jsonError(400, "Provide an email or phone to look up an identity.");
   }
+
+  logApiWarning({
+    route: ROUTE_NAME,
+    action: "lookup_request",
+    userId: userResult.user.id,
+    entityId,
+    houseId: parsed.data.houseId,
+    details: {
+      emailProvided: Boolean(normalizedEmail),
+      phoneProvided: Boolean(normalizedPhone),
+    },
+  });
 
   try {
     const hrAccess = await resolveHrAccess(supabase, parsed.data.houseId);

@@ -185,6 +185,35 @@ describe("lookupEntitiesForEmployee", () => {
       /schema cache stale/,
     );
   });
+
+  it("matches phone identifiers with local and E.164 forms", async () => {
+    const supabase = new SupabaseRpcMock(async (_name, params) => {
+      const phone = (params as { p_identifiers?: { phone?: string } }).p_identifiers?.phone;
+      return {
+        data: [
+          {
+            entity_id: phone === "+639171234567" ? "entity-e164" : "entity-local",
+            display_name: "Match",
+            matched_identifiers: [{ type: "PHONE", value_masked: "•••4567" }],
+            match_confidence: "single",
+          },
+        ],
+        error: null,
+      };
+    });
+
+    const e164Match = await lookupEntitiesForEmployee(supabase as never, {
+      houseId: "house-1",
+      phone: "+63 917 123 4567",
+    });
+    assert.equal(e164Match[0]?.entityId, "entity-e164");
+
+    const localMatch = await lookupEntitiesForEmployee(supabase as never, {
+      houseId: "house-1",
+      phone: "09171234567",
+    });
+    assert.equal(localMatch[0]?.entityId, "entity-e164");
+  });
 });
 
 describe("getIdentitySummariesForEmployees", () => {

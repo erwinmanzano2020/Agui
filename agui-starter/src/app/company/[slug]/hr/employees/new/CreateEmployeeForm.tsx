@@ -95,6 +95,13 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
     setLookupError(null);
     setLookupMessage(null);
     startLookup(async () => {
+      if (!houseId?.trim()) {
+        setLookupError("Missing house context. Reload and try again.");
+        setLookupMatches([]);
+        setSelectedEntityId(null);
+        return;
+      }
+
       if (!email.trim() && !phone.trim()) {
         setLookupError("Enter an email or phone to look up an identity.");
         setLookupMatches([]);

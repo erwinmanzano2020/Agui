@@ -11,6 +11,7 @@
 - `PGRST202` / `PGRST205`: missing RPC/table or access denied.
 - `PGRST` errors generally indicate RLS/grant issues; follow the debug order above.
 - Identity RPCs: `hr_find_or_create_entity_for_employee` (identifier map JSON arg) and `hr_lookup_entities_by_identifiers` must be executable by `authenticated`; permission errors here will surface as “unable to link identity” or “unable to look up identity” in HR flows.
+- Function missing in schema cache: confirm the RPC exists (`select proname from pg_proc where proname like 'hr_%identity%';`), run migrations, then `notify pgrst, 'reload schema';` to refresh PostgREST. Verify grants with `has_function_privilege(<role>, '<schema>.<fn>', 'execute')`.
 
 ## Copy/paste checks
 - Role grants for a table:

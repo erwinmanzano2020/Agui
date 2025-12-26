@@ -197,9 +197,13 @@ export function EmployeesClient({
                       {employee.identity ? (
                         <div className="space-y-1">
                           <Badge tone="on" className="border-border">Linked</Badge>
+                          <div className="text-xs text-muted-foreground">
+                            {employee.identity.displayName || "Person identity"}
+                          </div>
                           {employee.identity.identifiers?.[0] ? (
                             <div className="text-xs text-muted-foreground">
                               {employee.identity.identifiers[0].type}: {employee.identity.identifiers[0].value_masked}
+                              {employee.identity.identifiers[0].is_primary ? " • primary" : ""}
                             </div>
                           ) : null}
                         </div>
