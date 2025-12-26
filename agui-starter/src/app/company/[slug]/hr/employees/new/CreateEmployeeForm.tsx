@@ -265,7 +265,12 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
                 <button
                   key={match.entityId}
                   type="button"
-                  onClick={() => setSelectedEntityId(match.entityId)}
+                  onClick={() => {
+                    setSelectedEntityId(match.entityId);
+                    if (!fullName.trim() && match.displayName) {
+                      setFullName(match.displayName);
+                    }
+                  }}
                   className={`rounded-md border px-3 py-2 text-left text-sm transition focus:outline-none focus:ring-2 focus:ring-primary ${
                     selectedEntityId === match.entityId ? "border-primary bg-primary/5" : "border-border bg-background"
                   }`}

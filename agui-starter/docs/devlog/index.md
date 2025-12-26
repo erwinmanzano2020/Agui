@@ -9,6 +9,7 @@
 - [HR employee ↔ entity link](hr/employee-entity-link.md)
 - [HR employee lookup-first identity flow](hr/employee-lookup-first.md)
 - [HR employee lookup-first identity + dedupe](hr/employee-lookup-first-and-dedupe.md)
+- [HR identity lookup reliability](hr/employee-identity-lookup-reliability.md)
 - Contracts and runbook:
   - DB contract: `../contracts/db-contract.md`
   - Access-control contract: `../contracts/access-control.md`

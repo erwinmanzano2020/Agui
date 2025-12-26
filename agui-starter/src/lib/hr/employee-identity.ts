@@ -62,6 +62,16 @@ export type IdentityLookupMatch = {
   matchConfidence: "none" | "single" | "multiple";
 };
 
+function mapSchemaCacheError(message: string): Error {
+  const lowered = message.toLowerCase();
+  if (lowered.includes("function") && lowered.includes("schema")) {
+    return new Error(
+      "Identity RPC unavailable (schema cache stale or migration missing). Run latest migrations and reload PostgREST schema.",
+    );
+  }
+  return new Error(message);
+}
+
 export async function findOrCreateEntityForEmployee(
   supabase: SupabaseClient<Database>,
   input: { houseId: string; fullName: string; email?: string | null; phone?: string | null },
@@ -92,7 +102,7 @@ export async function findOrCreateEntityForEmployee(
   });
 
   if (error) {
-    throw new Error(error.message);
+    throw mapSchemaCacheError(error.message);
   }
 
   return { entityId: (data as string | null | undefined) ?? null };
@@ -118,7 +128,7 @@ export async function lookupEntitiesForEmployee(
   });
 
   if (error) {
-    throw new Error(error.message);
+    throw mapSchemaCacheError(error.message);
   }
 
   const rows = (data as unknown as Array<Record<string, unknown>> | null) ?? [];
@@ -151,7 +161,7 @@ export async function getIdentitySummariesForEmployees(
   });
 
   if (error) {
-    throw new Error(error.message);
+    throw mapSchemaCacheError(error.message);
   }
 
   const rows = (data as Array<Record<string, unknown>> | null) ?? [];

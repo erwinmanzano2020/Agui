@@ -533,13 +533,19 @@ describe("createEmployeeForHouseWithAccess", () => {
     );
 
     await assert.rejects(
-      () =>
+      async () =>
         createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
           full_name: "Duplicate Hire",
           rate_per_day: 900,
           entity_id: "entity-dup",
         }),
-      EmployeeDuplicateIdentityError,
+      (error: unknown) => {
+        assert.ok(error instanceof EmployeeDuplicateIdentityError);
+        assert.equal(error.employeeId, "emp-existing");
+        assert.equal(error.employeeCode, "EMP-1");
+        assert.equal(error.employeeName, "Ada Lovelace");
+        return true;
+      },
     );
     assert.equal(supabase.employees.length, 1);
   });

@@ -400,6 +400,13 @@ export async function POST(req: NextRequest) {
         houseId,
         error: message,
       });
+      if (message.toLowerCase().includes("schema")) {
+        return jsonError(
+          503,
+          "Identity service unavailable: run latest migrations and reload PostgREST schema.",
+          { message },
+        );
+      }
       if (message.toLowerCase().includes("not allowed")) {
         return jsonError(403, "Not allowed to link identity", { message });
       }

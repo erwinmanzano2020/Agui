@@ -104,6 +104,11 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     logApiError({ route: ROUTE_NAME, action: "lookup", userId: userResult.user.id, entityId, error: message });
+    if (message.toLowerCase().includes("schema")) {
+      return jsonError(503, "Identity lookup unavailable: run latest migrations and reload PostgREST schema.", {
+        message,
+      });
+    }
     if (message.toLowerCase().includes("not allowed")) {
       return jsonError(403, "Not allowed to look up identities", { message });
     }

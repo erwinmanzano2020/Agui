@@ -118,6 +118,23 @@ describe("findOrCreateEntityForEmployee", () => {
       }),
     );
   });
+
+  it("surfaces schema cache errors with actionable text", async () => {
+    const supabase = new SupabaseRpcMock(async () => ({
+      data: null,
+      error: { message: "Could not find the function hr_find_or_create_entity_for_employee in the schema cache" },
+    }));
+
+    await assert.rejects(
+      () =>
+        findOrCreateEntityForEmployee(supabase as never, {
+          houseId: "house-1",
+          fullName: "Missing RPC",
+          email: "missing@example.com",
+        }),
+      /schema cache stale/,
+    );
+  });
 });
 
 describe("lookupEntitiesForEmployee", () => {
@@ -155,6 +172,18 @@ describe("lookupEntitiesForEmployee", () => {
     const matches = await lookupEntitiesForEmployee(supabase as never, { houseId: "house-1" });
     assert.equal(matches.length, 0);
     assert.equal(supabase.calls.length, 0);
+  });
+
+  it("surfaces schema cache errors with actionable text", async () => {
+    const supabase = new SupabaseRpcMock(async () => ({
+      data: null,
+      error: { message: "Could not find the function hr_lookup_entities_by_identifiers in the schema cache" },
+    }));
+
+    await assert.rejects(
+      () => lookupEntitiesForEmployee(supabase as never, { houseId: "house-1", email: "a@b.com" }),
+      /schema cache stale/,
+    );
   });
 });
 
