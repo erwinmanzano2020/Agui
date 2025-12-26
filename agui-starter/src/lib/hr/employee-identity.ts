@@ -54,6 +54,14 @@ export function normalizeEmployeePhone(phone: string | null | undefined): string
   return normalizeEmployeePhoneDetails(phone)?.e164 ?? null;
 }
 
+export type MaskedIdentifier = { type: string; value_masked: string; is_primary?: boolean };
+export type IdentityLookupMatch = {
+  entityId: string;
+  displayName: string | null;
+  matchedIdentifiers: MaskedIdentifier[];
+  matchConfidence: "none" | "single" | "multiple";
+};
+
 export async function findOrCreateEntityForEmployee(
   supabase: SupabaseClient<Database>,
   input: { houseId: string; fullName: string; email?: string | null; phone?: string | null },
@@ -88,4 +96,70 @@ export async function findOrCreateEntityForEmployee(
   }
 
   return { entityId: (data as string | null | undefined) ?? null };
+}
+
+export async function lookupEntitiesForEmployee(
+  supabase: SupabaseClient<Database>,
+  input: { houseId: string; email?: string | null; phone?: string | null },
+): Promise<IdentityLookupMatch[]> {
+  const email = normalizeEmployeeEmail(input.email);
+  const phoneDetails = normalizeEmployeePhoneDetails(input.phone);
+
+  if (!email && !phoneDetails) return [];
+
+  const identifiers = {
+    email,
+    phone: phoneDetails?.e164 ?? phoneDetails?.legacyLocal ?? null,
+  };
+
+  const { data, error } = await supabase.rpc("hr_lookup_entities_by_identifiers", {
+    p_house_id: input.houseId,
+    p_identifiers: identifiers,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const rows = (data as unknown as Array<Record<string, unknown>> | null) ?? [];
+
+  return rows
+    .map((row) => ({
+      entityId: (row.entity_id as string | null) ?? "",
+      displayName: (row.display_name as string | null) ?? null,
+      matchedIdentifiers: ((row.matched_identifiers as MaskedIdentifier[] | null) ?? []).filter(Boolean),
+      matchConfidence: ((row.match_confidence as IdentityLookupMatch["matchConfidence"] | null) ?? "multiple") as
+        | "none"
+        | "single"
+        | "multiple",
+    } satisfies IdentityLookupMatch))
+    .filter((row) => row.entityId);
+}
+
+export type IdentitySummary = { entityId: string; displayName: string | null; identifiers: MaskedIdentifier[] };
+
+export async function getIdentitySummariesForEmployees(
+  supabase: SupabaseClient<Database>,
+  input: { houseId: string; entityIds: string[] },
+): Promise<IdentitySummary[]> {
+  const uniqueIds = Array.from(new Set(input.entityIds.filter(Boolean)));
+  if (uniqueIds.length === 0) return [];
+
+  const { data, error } = await supabase.rpc("hr_get_entity_identity_summary", {
+    p_house_id: input.houseId,
+    p_entity_ids: uniqueIds,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const rows = (data as Array<Record<string, unknown>> | null) ?? [];
+  return rows
+    .map((row) => ({
+      entityId: (row.entity_id as string | null) ?? "",
+      displayName: (row.display_name as string | null) ?? null,
+      identifiers: ((row.identifiers as MaskedIdentifier[] | null) ?? []).filter(Boolean),
+    } satisfies IdentitySummary))
+    .filter((row) => row.entityId);
 }

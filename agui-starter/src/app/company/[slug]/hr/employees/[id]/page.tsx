@@ -37,7 +37,7 @@ export default async function EmployeeProfilePage({ params }: Props) {
     notFound();
   }
 
-  const employee = await getEmployeeByIdForHouse(supabase, house.id, id);
+  const employee = await getEmployeeByIdForHouse(supabase, house.id, id, { includeIdentity: true });
 
   if (!employee) {
     notFound();
@@ -94,6 +94,41 @@ export default async function EmployeeProfilePage({ params }: Props) {
             <dd className="text-base font-medium text-foreground">{formatDate(employee.created_at)}</dd>
           </div>
         </dl>
+      </Card>
+
+      <Card className="space-y-4 p-4">
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Identity</h2>
+          <p className="text-sm text-muted-foreground">
+            Linked person record with primary identifiers for HR visibility.
+          </p>
+        </div>
+        {employee.identity ? (
+          <dl className="space-y-2">
+            <div>
+              <dt className="text-sm text-muted-foreground">Display name</dt>
+              <dd className="text-base font-medium text-foreground">{employee.identity.displayName ?? "—"}</dd>
+            </div>
+            <div>
+              <dt className="text-sm text-muted-foreground">Identifiers</dt>
+              <dd className="space-y-1 text-sm text-foreground">
+                {employee.identity.identifiers?.length ? (
+                  employee.identity.identifiers.map((id) => (
+                    <div key={`${id.type}-${id.value_masked}`} className="flex items-center gap-2">
+                      <Badge className="border-border">{id.type}</Badge>
+                      <span className="text-muted-foreground">{id.value_masked}</span>
+                      {id.is_primary ? <span className="text-xs text-muted-foreground">primary</span> : null}
+                    </div>
+                  ))
+                ) : (
+                  <span className="text-muted-foreground">No identifiers stored.</span>
+                )}
+              </dd>
+            </div>
+          </dl>
+        ) : (
+          <div className="text-sm text-muted-foreground">This employee is not linked to an identity yet.</div>
+        )}
       </Card>
 
       <Card className="space-y-3 p-4">

@@ -6,6 +6,7 @@ import { EmployeeAccessError } from "../employees";
 import type { HrAccessDecision } from "../access";
 import {
   EmployeeCreateError,
+  EmployeeDuplicateIdentityError,
   EmployeeUpdateError,
   createEmployeeForHouseWithAccess,
   getEmployeeByIdForHouse,
@@ -538,7 +539,7 @@ describe("createEmployeeForHouseWithAccess", () => {
           rate_per_day: 900,
           entity_id: "entity-dup",
         }),
-      EmployeeCreateError,
+      EmployeeDuplicateIdentityError,
     );
     assert.equal(supabase.employees.length, 1);
   });

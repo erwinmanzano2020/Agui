@@ -174,3 +174,5 @@ end;
 $$;
 
 grant execute on function public.hr_find_or_create_entity_for_employee(uuid, text, jsonb) to authenticated;
+
+notify pgrst, 'reload schema';

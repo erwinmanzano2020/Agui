@@ -41,6 +41,7 @@ const CreateEmployeeSchema = z.object({
   rate_per_day: z.number(),
   email: EmailSchema,
   phone: PhoneSchema,
+  entity_id: z.string().trim().uuid().optional(),
 });
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -55,6 +56,8 @@ export async function createEmployeeAction(
   const email = typeof emailRaw === "string" ? emailRaw.trim() : "";
   const phoneRaw = formData.get("phone");
   const phone = typeof phoneRaw === "string" ? phoneRaw.trim() : "";
+  const entityIdRaw = formData.get("entity_id");
+  const entityIdInput = typeof entityIdRaw === "string" ? entityIdRaw.trim() : "";
   const rateRaw = formData.get("rate_per_day");
   const parsedRate =
     typeof rateRaw === "string"
@@ -72,6 +75,7 @@ export async function createEmployeeAction(
     rate_per_day: parsedRate,
     email: email || undefined,
     phone: phone || undefined,
+    entity_id: entityIdInput || undefined,
   });
 
   if (!parsed.success) {
@@ -128,22 +132,24 @@ export async function createEmployeeAction(
     return { status: "error", message: "You are not allowed to add employees for this house." } satisfies CreateEmployeeState;
   }
 
-  let entityId: string | null = null;
-  try {
-    const entityResult = await findOrCreateEntityForEmployee(supabase, {
-      houseId: parsed.data.houseId,
-      fullName: parsed.data.full_name,
-      email: normalizedEmail,
-      phone: normalizedPhone?.e164 ?? null,
-    });
-    entityId = entityResult.entityId;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unable to link employee identity right now.";
-    if (message.toLowerCase().includes("not allowed")) {
-      return { status: "error", message: "You are not allowed to create identities for this house." } satisfies CreateEmployeeState;
+  let entityId: string | null = parsed.data.entity_id ?? null;
+  if (!entityId) {
+    try {
+      const entityResult = await findOrCreateEntityForEmployee(supabase, {
+        houseId: parsed.data.houseId,
+        fullName: parsed.data.full_name,
+        email: normalizedEmail,
+        phone: normalizedPhone?.e164 ?? null,
+      });
+      entityId = entityResult.entityId;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to link employee identity right now.";
+      if (message.toLowerCase().includes("not allowed")) {
+        return { status: "error", message: "You are not allowed to create identities for this house." } satisfies CreateEmployeeState;
+      }
+      console.error("Failed to resolve employee entity", error);
+      return { status: "error", message } satisfies CreateEmployeeState;
     }
-    console.error("Failed to resolve employee entity", error);
-    return { status: "error", message } satisfies CreateEmployeeState;
   }
 
   try {
@@ -172,6 +178,12 @@ export async function createEmployeeAction(
       return {
         status: "error",
         message: "An active employee with this identity already exists in this house.",
+        conflict: {
+          employeeId: error.employeeId,
+          code: error.employeeCode,
+          fullName: error.employeeName,
+        },
+        selectedEntityId: parsed.data.entity_id ?? null,
       } satisfies CreateEmployeeState;
     }
 

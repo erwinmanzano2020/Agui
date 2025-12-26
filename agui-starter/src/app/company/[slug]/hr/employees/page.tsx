@@ -48,6 +48,7 @@ export default async function HrEmployeesPage({ params, searchParams }: Props) {
   const employeesResult = await listEmployeesByHouse(supabase, house.id, filters, {
     allowedBranchIds,
     branchNames,
+    includeIdentity: true,
   });
 
   return (

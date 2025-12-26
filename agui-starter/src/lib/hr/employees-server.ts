@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { EmployeeAccessError } from "@/lib/hr/employees";
 import type { Database, EmployeeRow, EmployeeInsert } from "@/lib/db.types";
+import { getIdentitySummariesForEmployees, type IdentitySummary } from "@/lib/hr/employee-identity";
 import type { HrAccessDecision } from "./access";
 import type { EmployeeListFilters } from "./employees";
 
@@ -17,6 +18,7 @@ export type EmployeeListItem = {
   branch_id: string | null;
   branch_name: string | null;
   rate_per_day: number;
+  identity?: IdentitySummary | null;
 };
 
 export type EmployeeListResult = { employees: EmployeeListItem[]; error?: string };
@@ -35,6 +37,7 @@ export type EmployeeProfile = {
   branch_name: string | null;
   rate_per_day: number;
   created_at: string;
+  identity?: IdentitySummary | null;
 };
 
 export type EmployeeUpdateInput = {
@@ -47,7 +50,12 @@ export type EmployeeUpdateInput = {
 export class EmployeeUpdateError extends Error {}
 export class EmployeeCreateError extends Error {}
 export class EmployeeDuplicateIdentityError extends EmployeeCreateError {
-  constructor(message: string, public employeeId?: string | null) {
+  constructor(
+    message: string,
+    public employeeId?: string | null,
+    public employeeCode?: string | null,
+    public employeeName?: string | null,
+  ) {
     super(message);
     this.name = "EmployeeDuplicateIdentityError";
   }
@@ -92,7 +100,7 @@ export async function listEmployeesByHouse(
   supabase: SupabaseClient<Database>,
   houseId: string,
   filters: EmployeeListFilters = {},
-  options: { allowedBranchIds?: string[]; branchNames?: Record<string, string> } = {},
+  options: { allowedBranchIds?: string[]; branchNames?: Record<string, string>; includeIdentity?: boolean } = {},
 ): Promise<EmployeeListResult> {
   const allowedBranches = options.allowedBranchIds ?? null;
   if (filters.branchId && allowedBranches && !allowedBranches.includes(filters.branchId)) {
@@ -120,7 +128,7 @@ export async function listEmployeesByHouse(
   const { data, error } = await query.order("full_name", { ascending: true });
   const branchNameLookup = options.branchNames ?? {};
 
-  const employees = (data ?? []).map((row) => {
+  const employees: EmployeeListItem[] = (data ?? []).map((row) => {
     const employee = row as EmployeeRow;
     const branchId = employee.branch_id ?? null;
     return {
@@ -135,6 +143,19 @@ export async function listEmployeesByHouse(
       rate_per_day: Number(employee.rate_per_day ?? 0),
     } satisfies EmployeeListItem;
   });
+
+  if (options.includeIdentity) {
+    const entityIds = employees.map((emp) => emp.entity_id).filter((id): id is string => Boolean(id));
+    try {
+      const summaries = await getIdentitySummariesForEmployees(supabase, { houseId, entityIds });
+      const map = new Map(summaries.map((item) => [item.entityId, item]));
+      employees.forEach((emp) => {
+        emp.identity = emp.entity_id ? map.get(emp.entity_id) ?? null : null;
+      });
+    } catch (lookupError) {
+      console.error("Failed to load employee identities", lookupError);
+    }
+  }
 
   if (error) {
     console.error("Failed to load employees", error);
@@ -154,6 +175,7 @@ export async function getEmployeeByIdForHouse(
   supabase: SupabaseClient<Database>,
   houseId: string,
   employeeId: string,
+  options: { includeIdentity?: boolean } = {},
 ): Promise<EmployeeProfile | null> {
   const { data } = await supabase
     .from("employees")
@@ -174,10 +196,23 @@ export async function getEmployeeByIdForHouse(
 
   let branchId: string | null = null;
   let branchName: string | null = null;
+  let identity: IdentitySummary | null = null;
 
   if (branchBelongsToHouse && branch) {
     branchId = branch.id ?? null;
     branchName = branch.name ?? null;
+  }
+
+  if (options.includeIdentity && employee.entity_id) {
+    try {
+      const summaries = await getIdentitySummariesForEmployees(supabase, {
+        houseId,
+        entityIds: [employee.entity_id],
+      });
+      identity = summaries[0] ?? null;
+    } catch (lookupError) {
+      console.error("Failed to load employee identity", lookupError);
+    }
   }
 
   return {
@@ -191,6 +226,7 @@ export async function getEmployeeByIdForHouse(
     branch_name: branchName,
     rate_per_day: Number(employee.rate_per_day ?? 0),
     created_at: employee.created_at,
+    identity,
   } satisfies EmployeeProfile;
 }
 
@@ -325,7 +361,7 @@ export async function createEmployeeForHouse(
   if (entityId) {
     const { data: existing, error: existingError } = await supabase
       .from("employees")
-      .select("id, status")
+      .select("id, status, code, full_name")
       .eq("house_id", houseId)
       .eq("entity_id", entityId)
       .eq("status", "active")
@@ -340,6 +376,8 @@ export async function createEmployeeForHouse(
       throw new EmployeeDuplicateIdentityError(
         "An active employee with this identity already exists in this house.",
         existing.id,
+        (existing as EmployeeRow & { code?: string }).code ?? null,
+        (existing as EmployeeRow & { full_name?: string }).full_name ?? null,
       );
     }
   }

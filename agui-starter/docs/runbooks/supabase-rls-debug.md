@@ -10,7 +10,7 @@
 - `42501`: permission denied (often missing link row or wrong client type).
 - `PGRST202` / `PGRST205`: missing RPC/table or access denied.
 - `PGRST` errors generally indicate RLS/grant issues; follow the debug order above.
-- Identity RPCs: `hr_find_or_create_entity_for_employee` (identifier map JSON arg) must be executable by `authenticated`; permission errors here will surface as “unable to link identity” in HR flows.
+- Identity RPCs: `hr_find_or_create_entity_for_employee` (identifier map JSON arg) and `hr_lookup_entities_by_identifiers` must be executable by `authenticated`; permission errors here will surface as “unable to link identity” or “unable to look up identity” in HR flows.
 
 ## Copy/paste checks
 - Role grants for a table:
