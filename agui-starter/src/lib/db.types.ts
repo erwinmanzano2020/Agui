@@ -132,7 +132,11 @@ export type EntityIdentifierRow = {
     | "other";
   issuer: string | null;
   value_norm: string;
+  identifier_type?: "EMAIL" | "PHONE" | string | null;
+  identifier_value?: string | null;
+  is_primary?: boolean | null;
   fingerprint: string;
+  value_hash?: string | null;
   meta: Json | null;
   verified_at: string | null;
   added_by_entity_id: string | null;
@@ -146,6 +150,10 @@ export type EntityIdentifierInsert = {
   kind: EntityIdentifierRow["kind"];
   issuer?: string | null;
   value_norm: string;
+  identifier_type?: EntityIdentifierRow["identifier_type"];
+  identifier_value?: string | null;
+  is_primary?: boolean | null;
+  value_hash?: string | null;
   meta?: Json | null;
   verified_at?: string | null;
   added_by_entity_id?: string | null;
@@ -204,6 +212,7 @@ export type EmployeeRow = {
   id: string;
   house_id: string;
   code: string;
+  entity_id: string | null;
   full_name: string;
   rate_per_day: number;
   status: "active" | "inactive";
@@ -216,6 +225,7 @@ export type EmployeeInsert = {
   id?: string;
   house_id: string;
   code?: string;
+  entity_id?: string | null;
   full_name?: string;
   rate_per_day?: number;
   status?: EmployeeRow["status"];

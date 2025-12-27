@@ -125,6 +125,7 @@ export type StringSchema = ZodSchema<string> & {
   max: (length: number, message?: string) => StringSchema;
   regex: (pattern: RegExp, message?: string) => StringSchema;
   trim: () => StringSchema;
+  email: (message?: string) => StringSchema;
   uuid: () => StringSchema;
 };
 
@@ -162,6 +163,10 @@ function stringSchema(validators: Array<(value: string) => ZodParseResult<string
     },
     trim() {
       return withValidator((value) => success(value.trim()));
+    },
+    email(message) {
+      const pattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      return withValidator((value) => (pattern.test(value) ? success(value) : failure(message ?? "Invalid email")));
     },
     uuid() {
       const pattern = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;

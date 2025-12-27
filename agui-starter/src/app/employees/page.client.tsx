@@ -15,6 +15,7 @@ import type { EmployeeListItem } from "@/lib/hr/employees-server";
 
 type EmployeeRow = {
   id: string;
+  entity_id: string | null;
   full_name: string;
   status: EmployeeListItem["status"];
   branch_id: string | null;
@@ -57,6 +58,7 @@ export default function EmployeesPageClient() {
 
     const normalized: EmployeeRow[] = (payload.employees ?? []).map((row) => ({
       id: row.id,
+      entity_id: row.entity_id ?? null,
       full_name: row.full_name,
       status: row.status,
       branch_id: row.branch_id ?? null,

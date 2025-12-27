@@ -5,15 +5,28 @@ import { revalidatePath } from "next/cache";
 import { requireHrAccess } from "@/lib/hr/access";
 import {
   EmployeeCreateError,
+  EmployeeDuplicateIdentityError,
   EmployeeUpdateError,
   createEmployeeForHouseWithAccess,
 } from "@/lib/hr/employees-server";
+import {
+  findOrCreateEntityForEmployee,
+  normalizeEmployeeEmail,
+  normalizeEmployeePhoneDetails,
+} from "@/lib/hr/employee-identity";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
 
 import type { CreateEmployeeState } from "./action-types";
 
 const StatusSchema = z.enum(["active", "inactive"]);
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EmailSchema = z.string().trim().regex(EMAIL_REGEX, "Enter a valid email").optional();
+const PhoneSchema = z
+  .string()
+  .trim()
+  .regex(/^\+?[0-9()[\]\s.-]{6,}$/, "Enter a valid phone number")
+  .optional();
 
 const CreateEmployeeSchema = z.object({
   houseId: z.string().trim().min(1, "Missing house context"),
@@ -26,6 +39,9 @@ const CreateEmployeeSchema = z.object({
   status: StatusSchema.default("active").optional(),
   branch_id: z.string().trim().optional(),
   rate_per_day: z.number(),
+  email: EmailSchema,
+  phone: PhoneSchema,
+  entity_id: z.string().trim().uuid().optional(),
 });
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -36,6 +52,12 @@ export async function createEmployeeAction(
 ): Promise<CreateEmployeeState> {
   const branchIdRaw = formData.get("branch_id");
   const branchId = typeof branchIdRaw === "string" ? branchIdRaw.trim() : "";
+  const emailRaw = formData.get("email");
+  const email = typeof emailRaw === "string" ? emailRaw.trim() : "";
+  const phoneRaw = formData.get("phone");
+  const phone = typeof phoneRaw === "string" ? phoneRaw.trim() : "";
+  const entityIdRaw = formData.get("entity_id");
+  const entityIdInput = typeof entityIdRaw === "string" ? entityIdRaw.trim() : "";
   const rateRaw = formData.get("rate_per_day");
   const parsedRate =
     typeof rateRaw === "string"
@@ -51,6 +73,9 @@ export async function createEmployeeAction(
     status: formData.get("status") || "active",
     branch_id: branchId || undefined,
     rate_per_day: parsedRate,
+    email: email || undefined,
+    phone: phone || undefined,
+    entity_id: entityIdInput || undefined,
   });
 
   if (!parsed.success) {
@@ -79,6 +104,24 @@ export async function createEmployeeAction(
     } satisfies CreateEmployeeState;
   }
 
+  const normalizedEmail = normalizeEmployeeEmail(parsed.data.email ?? null);
+  if (parsed.data.email && !normalizedEmail) {
+    return {
+      status: "error",
+      fieldErrors: { email: ["Enter a valid email"] },
+      message: "Fix the highlighted fields and try again.",
+    } satisfies CreateEmployeeState;
+  }
+
+  const normalizedPhone = normalizeEmployeePhoneDetails(parsed.data.phone ?? null);
+  if (parsed.data.phone && !normalizedPhone) {
+    return {
+      status: "error",
+      fieldErrors: { phone: ["Enter a valid phone number"] },
+      message: "Fix the highlighted fields and try again.",
+    } satisfies CreateEmployeeState;
+  }
+
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
     return { status: "error", message: "Authentication required." };
@@ -89,12 +132,33 @@ export async function createEmployeeAction(
     return { status: "error", message: "You are not allowed to add employees for this house." } satisfies CreateEmployeeState;
   }
 
+  let entityId: string | null = parsed.data.entity_id ?? null;
+  if (!entityId) {
+    try {
+      const entityResult = await findOrCreateEntityForEmployee(supabase, {
+        houseId: parsed.data.houseId,
+        fullName: parsed.data.full_name,
+        email: normalizedEmail,
+        phone: normalizedPhone?.e164 ?? null,
+      });
+      entityId = entityResult.entityId;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to link employee identity right now.";
+      if (message.toLowerCase().includes("not allowed")) {
+        return { status: "error", message: "You are not allowed to create identities for this house." } satisfies CreateEmployeeState;
+      }
+      console.error("Failed to resolve employee entity", error);
+      return { status: "error", message } satisfies CreateEmployeeState;
+    }
+  }
+
   try {
     const created = await createEmployeeForHouseWithAccess(supabase, access, parsed.data.houseId, {
       full_name: parsed.data.full_name,
       status: parsed.data.status ?? "active",
       branch_id: normalizedBranchId,
       rate_per_day: parsed.data.rate_per_day,
+      entity_id: entityId,
     });
 
     const listPath = `/company/${parsed.data.houseSlug}/hr/employees`;
@@ -107,6 +171,19 @@ export async function createEmployeeAction(
         status: "error",
         message: "Select a branch within this house.",
         fieldErrors: { branch_id: ["Choose a branch for this workspace"] },
+      } satisfies CreateEmployeeState;
+    }
+
+    if (error instanceof EmployeeDuplicateIdentityError) {
+      return {
+        status: "error",
+        message: "An active employee with this identity already exists in this house.",
+        conflict: {
+          employeeId: error.employeeId,
+          code: error.employeeCode,
+          fullName: error.employeeName,
+        },
+        selectedEntityId: parsed.data.entity_id ?? null,
       } satisfies CreateEmployeeState;
     }
 

@@ -6,6 +6,7 @@ import { EmployeeAccessError } from "../employees";
 import type { HrAccessDecision } from "../access";
 import {
   EmployeeCreateError,
+  EmployeeDuplicateIdentityError,
   EmployeeUpdateError,
   createEmployeeForHouseWithAccess,
   getEmployeeByIdForHouse,
@@ -72,6 +73,7 @@ const baseRow: EmployeeRow = {
   id: "emp-1",
   house_id: "house-1",
   code: "EMP-1",
+  entity_id: null,
   full_name: "Ada Lovelace",
   rate_per_day: 1000,
   status: "active",
@@ -235,17 +237,56 @@ class EmployeeInsertQueryMock {
     private branches: BranchRow[],
     private insertError: { message: string } | null = null,
     private codeCounters: Map<string, number> = new Map(),
+    private filters: Partial<EmployeeRow> = {},
+    private mode: "select" | "insert" = "select",
+    private pendingInsert: Partial<EmployeeRow> | null = null,
   ) {}
 
+  select() {
+    return this;
+  }
+
+  eq(column: keyof EmployeeRow, value: string) {
+    return new EmployeeInsertQueryMock(
+      this.employees,
+      this.branches,
+      this.insertError,
+      this.codeCounters,
+      Object.assign({}, this.filters, { [column]: value }),
+      this.mode,
+      this.pendingInsert,
+    );
+  }
+
+  limit() {
+    return this;
+  }
+
   insert(payload: Partial<EmployeeRow>) {
-    if (this.insertError) {
-      return {
-        select: () => ({
-          maybeSingle: async () => ({ data: null, error: this.insertError } as const),
-        }),
-      };
+    return new EmployeeInsertQueryMock(
+      this.employees,
+      this.branches,
+      this.insertError,
+      this.codeCounters,
+      this.filters,
+      "insert",
+      payload,
+    );
+  }
+
+  async maybeSingle<T>() {
+    if (this.mode === "select") {
+      const match = this.employees.find((row) =>
+        Object.entries(this.filters).every(([key, value]) => (row as Record<string, unknown>)[key] === value),
+      );
+      return { data: (match as T | null) ?? null, error: null } as const;
     }
 
+    if (this.insertError) {
+      return { data: null as T | null, error: this.insertError } as const;
+    }
+
+    const payload = this.pendingInsert ?? {};
     const houseId = (payload.house_id as string | undefined) ?? null;
     if (!houseId) {
       throw new Error("house_id is required");
@@ -259,6 +300,7 @@ class EmployeeInsertQueryMock {
       id: payload.id ?? `emp-${this.employees.length + 1}`,
       house_id: houseId,
       code,
+      entity_id: (payload.entity_id as string | null | undefined) ?? null,
       full_name: payload.full_name as string,
       rate_per_day: payload.rate_per_day ?? 0,
       status: (payload.status as EmployeeRow["status"]) ?? "active",
@@ -267,14 +309,12 @@ class EmployeeInsertQueryMock {
       updated_at: payload.updated_at ?? "2024-01-02T00:00:00Z",
     };
     this.employees.push(newRow);
+
+    const branch = this.branches.find((b) => b.id === newRow.branch_id) ?? null;
     return {
-      select: () => ({
-        maybeSingle: async <T>() => ({
-          data: { ...newRow, branches: this.branches.find((b) => b.id === newRow.branch_id) ?? null } as T,
-          error: null,
-        }),
-      }),
-    };
+      data: { ...newRow, branches: branch } as T,
+      error: null,
+    } as const;
   }
 }
 
@@ -444,6 +484,7 @@ describe("createEmployeeForHouseWithAccess", () => {
     assert.equal(created.full_name, "New Hire");
     assert.equal(created.branch_id, "branch-1");
     assert.equal(created.house_id, "house-1");
+    assert.equal(created.entity_id, null);
     assert.match(created.code, /^EI-\d{3}$/);
     assert.equal(supabase.employees.length, 1);
   });
@@ -463,6 +504,73 @@ describe("createEmployeeForHouseWithAccess", () => {
     assert.notEqual(first.code, second.code);
     assert.ok(first.code.startsWith("EI-"));
     assert.ok(second.code.startsWith("EI-"));
+  });
+
+  it("persists provided entity_id on create", async () => {
+    const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
+
+    const created = await createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
+      full_name: "Linked Hire",
+      rate_per_day: 950,
+      entity_id: "entity-abc",
+    });
+
+    assert.equal(created.entity_id, "entity-abc");
+    assert.equal(supabase.employees[0].entity_id, "entity-abc");
+  });
+
+  it("rejects creation when an active employee already has the same identity in the house", async () => {
+    const supabase = new CreateSupabaseMock(
+      [
+        {
+          ...baseRow,
+          id: "emp-existing",
+          entity_id: "entity-dup",
+          status: "active",
+        },
+      ],
+      [{ id: "branch-1", house_id: "house-1", name: "HQ" }],
+    );
+
+    await assert.rejects(
+      async () =>
+        createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
+          full_name: "Duplicate Hire",
+          rate_per_day: 900,
+          entity_id: "entity-dup",
+        }),
+      (error: unknown) => {
+        assert.ok(error instanceof EmployeeDuplicateIdentityError);
+        assert.equal(error.employeeId, "emp-existing");
+        assert.equal(error.employeeCode, "EMP-1");
+        assert.equal(error.employeeName, "Ada Lovelace");
+        return true;
+      },
+    );
+    assert.equal(supabase.employees.length, 1);
+  });
+
+  it("allows rehiring when the prior matching identity is inactive", async () => {
+    const supabase = new CreateSupabaseMock(
+      [
+        {
+          ...baseRow,
+          id: "emp-inactive",
+          entity_id: "entity-returning",
+          status: "inactive",
+        },
+      ],
+      [{ id: "branch-1", house_id: "house-1", name: "HQ" }],
+    );
+
+    const created = await createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
+      full_name: "Rehire",
+      rate_per_day: 900,
+      entity_id: "entity-returning",
+    });
+
+    assert.equal(created.entity_id, "entity-returning");
+    assert.equal(supabase.employees.length, 2);
   });
 
   it("raises an error when house_id is missing", async () => {

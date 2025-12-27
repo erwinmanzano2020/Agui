@@ -7,11 +7,17 @@ import { AppFeature } from "@/lib/auth/permissions";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import {
   EmployeeCreateError,
+  EmployeeDuplicateIdentityError,
   EmployeeUpdateError,
   createEmployeeForHouseWithAccess,
   listEmployeesByHouse,
 } from "@/lib/hr/employees-server";
 import { resolveHrAccess } from "@/lib/hr/access";
+import {
+  findOrCreateEntityForEmployee,
+  normalizeEmployeeEmail,
+  normalizeEmployeePhoneDetails,
+} from "@/lib/hr/employee-identity";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
@@ -74,11 +80,19 @@ async function resolveBranchesForHouse(
     .filter((id): id is string => Boolean(id));
 }
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CreateEmployeePayloadSchema = z.object({
   full_name: z.string().trim().min(2).max(200),
   branch_id: z.string().trim().uuid().optional(),
   rate_per_day: z.number().positive(),
   status: z.enum(["active", "inactive"]).default("active").optional(),
+  email: z.string().trim().regex(EMAIL_REGEX).optional(),
+  phone: z
+    .string()
+    .trim()
+    .regex(/^\+?[0-9()[\]\s.-]{6,}$/)
+    .optional(),
+  entity_id: z.string().trim().uuid().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -185,7 +199,7 @@ export async function GET(req: NextRequest) {
     return jsonError(403, "Not allowed");
   }
 
-  const employeesResult = await listEmployeesByHouse(authed, houseId, {}, { allowedBranchIds: branchIds });
+  const employeesResult = await listEmployeesByHouse(authed, houseId, {}, { allowedBranchIds: branchIds, includeIdentity: true });
   if (employeesResult.error) {
     logApiError({
       route: ROUTE_NAME,
@@ -271,6 +285,21 @@ export async function POST(req: NextRequest) {
         ? Number((body as Record<string, unknown> | null)?.rate_per_day)
         : (body as Record<string, unknown> | null)?.rate_per_day,
     status: (body as Record<string, unknown> | null)?.status,
+    email:
+      typeof (body as Record<string, unknown> | null)?.email === "string" &&
+      ((body as Record<string, unknown> | null)?.email as string).trim()
+        ? ((body as Record<string, unknown> | null)?.email as string).trim()
+        : undefined,
+    phone:
+      typeof (body as Record<string, unknown> | null)?.phone === "string" &&
+      ((body as Record<string, unknown> | null)?.phone as string).trim()
+        ? ((body as Record<string, unknown> | null)?.phone as string).trim()
+        : undefined,
+    entity_id:
+      typeof (body as Record<string, unknown> | null)?.entity_id === "string" &&
+      ((body as Record<string, unknown> | null)?.entity_id as string).trim()
+        ? ((body as Record<string, unknown> | null)?.entity_id as string).trim()
+        : undefined,
   };
 
   const parsed = CreateEmployeePayloadSchema.safeParse(normalizedPayload);
@@ -339,18 +368,73 @@ export async function POST(req: NextRequest) {
     return jsonError(400, "Select a branch within this house", { fieldErrors: { branch_id: ["Invalid branch"] } });
   }
 
+  const normalizedEmail = normalizeEmployeeEmail(parsed.data.email ?? null);
+  if (parsed.data.email && !normalizedEmail) {
+    return jsonError(400, "Fix the highlighted fields and try again.", { fieldErrors: { email: ["Enter a valid email"] } });
+  }
+
+  const normalizedPhone = normalizeEmployeePhoneDetails(parsed.data.phone ?? null);
+  if (parsed.data.phone && !normalizedPhone) {
+    return jsonError(400, "Fix the highlighted fields and try again.", {
+      fieldErrors: { phone: ["Enter a valid phone number"] },
+    });
+  }
+
+  let resolvedEntityId: string | null = parsed.data.entity_id ?? null;
+  if (!resolvedEntityId) {
+    try {
+      const entityResult = await findOrCreateEntityForEmployee(authed, {
+        houseId,
+        fullName: parsed.data.full_name,
+        email: normalizedEmail,
+        phone: normalizedPhone?.e164 ?? null,
+      });
+      resolvedEntityId = entityResult.entityId;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      logApiError({
+        route: ROUTE_NAME,
+        action: "link_entity",
+        userId: userResult.user.id,
+        entityId,
+        houseId,
+        error: message,
+      });
+      if (message.toLowerCase().includes("schema")) {
+        return jsonError(
+          503,
+          "Identity service unavailable: run latest migrations and reload PostgREST schema.",
+          { message },
+        );
+      }
+      if (message.toLowerCase().includes("not allowed")) {
+        return jsonError(403, "Not allowed to link identity", { message });
+      }
+      return jsonError(500, "Failed to link employee identity");
+    }
+  }
+
   try {
     const created = await createEmployeeForHouseWithAccess(authed, hrAccess, houseId, {
       full_name: parsed.data.full_name,
       branch_id: branchId,
       rate_per_day: parsed.data.rate_per_day,
       status: parsed.data.status ?? "active",
+      entity_id: resolvedEntityId,
     });
 
     return NextResponse.json({ employee: created }, { status: 201 });
   } catch (error) {
     if (error instanceof EmployeeUpdateError) {
       return jsonError(400, "Select a branch within this house", { fieldErrors: { branch_id: ["Invalid branch"] } });
+    }
+    if (error instanceof EmployeeDuplicateIdentityError) {
+      return jsonError(409, "An active employee with this identity already exists in this house.", {
+        message: error.message,
+        existing_employee_id: error.employeeId,
+        existing_employee_code: error.employeeCode,
+        existing_employee_name: error.employeeName,
+      });
     }
     if (error instanceof EmployeeCreateError) {
       return jsonError(500, "Failed to create employee", { message: error.message });

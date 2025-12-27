@@ -175,6 +175,7 @@ export function EmployeesClient({
                   <th className="p-2 font-medium">Code</th>
                   <th className="p-2 font-medium">Branch</th>
                   <th className="p-2 font-medium">Status</th>
+                  <th className="p-2 font-medium">Identity</th>
                   <th className="p-2 font-medium">Rate / Day</th>
                   <th className="p-2 font-medium text-right">Actions</th>
                 </tr>
@@ -191,6 +192,24 @@ export function EmployeesClient({
                     <td className="p-2">{employee.branch_name ?? "—"}</td>
                     <td className="p-2">
                       <Badge tone={employee.status === "active" ? "on" : "off"}>{employee.status}</Badge>
+                    </td>
+                    <td className="p-2">
+                      {employee.identity ? (
+                        <div className="space-y-1">
+                          <Badge tone="on" className="border-border">Linked</Badge>
+                          <div className="text-xs text-muted-foreground">
+                            {employee.identity.displayName || "Person identity"}
+                          </div>
+                          {employee.identity.identifiers?.[0] ? (
+                            <div className="text-xs text-muted-foreground">
+                              {employee.identity.identifiers[0].type}: {employee.identity.identifiers[0].value_masked}
+                              {employee.identity.identifiers[0].is_primary ? " • primary" : ""}
+                            </div>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Not linked</span>
+                      )}
                     </td>
                     <td className="p-2">{formatCurrency(employee.rate_per_day)}</td>
                     <td className="p-2 text-right">
