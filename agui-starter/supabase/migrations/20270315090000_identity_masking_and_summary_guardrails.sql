@@ -2,6 +2,20 @@
 
 -- Base masking function (text signature)
 drop function if exists public.mask_identifier_value(text, text);
+-- Remove enum overload if present to avoid stale definitions before recreation
+do $$
+begin
+  if exists (
+    select 1 from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where p.proname = 'mask_identifier_value'
+      and n.nspname = 'public'
+      and pg_catalog.pg_get_function_arguments(p.oid) like 'p_type public.entity_identifier_type%'
+  ) then
+    execute 'drop function public.mask_identifier_value(public.entity_identifier_type, text)';
+  end if;
+end;
+$$;
 
 create or replace function public.mask_identifier_value(p_type text, p_value text)
 returns text
@@ -48,22 +62,25 @@ begin
 end;
 $$;
 
--- Enum overload (if enum exists)
+-- Enum overload (if enum exists) — use dynamic SQL to avoid parser conflicts
 do $$
+declare
+  v_schema regnamespace := 'public'::regnamespace;
 begin
   if exists (
-    select 1
-    from pg_type t
+    select 1 from pg_type t
     where t.typname = 'entity_identifier_type'
-      and t.typnamespace = 'public'::regnamespace
+      and t.typnamespace = v_schema
   ) then
-    create or replace function public.mask_identifier_value(p_type public.entity_identifier_type, p_value text)
-    returns text
-    language sql
-    immutable
-    as $$
-      select public.mask_identifier_value(p_type::text, $2);
-    $$;
+    execute $fn$
+      create or replace function public.mask_identifier_value(p_type public.entity_identifier_type, p_value text)
+      returns text
+      language sql
+      immutable
+      as $$
+        select public.mask_identifier_value(p_type::text, p_value);
+      $$;
+    $fn$;
   end if;
 end;
 $$;
@@ -115,15 +132,15 @@ begin
     (
       select jsonb_agg(
         jsonb_build_object(
-          'type', coalesce(ei.identifier_type, upper(ei.kind)),
-          'value_masked', public.mask_identifier_value(coalesce(ei.identifier_type, upper(ei.kind)), coalesce(ei.identifier_value, ei.value_norm)),
+          'type', coalesce(ei.identifier_type, 'UNKNOWN'),
+          'value_masked', public.mask_identifier_value(coalesce(ei.identifier_type, 'UNKNOWN'), coalesce(ei.identifier_value, '')),
           'is_primary', coalesce(ei.is_primary, false)
         )
-        order by coalesce(ei.is_primary, false) desc, coalesce(ei.identifier_type, upper(ei.kind)) asc
+        order by coalesce(ei.is_primary, false) desc, coalesce(ei.identifier_type, 'UNKNOWN') asc
       )
       from public.entity_identifiers ei
       where ei.entity_id = e.id
-        and ((ei.identifier_type in ('EMAIL', 'PHONE')) or (ei.kind in ('email', 'phone')))
+        and (ei.identifier_type in ('EMAIL', 'PHONE'))
     ) as identifiers
   from public.entities e
   where e.id = any(p_entity_ids);
