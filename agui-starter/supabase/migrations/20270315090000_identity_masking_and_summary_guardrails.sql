@@ -75,10 +75,12 @@ begin
     execute $fn$
       create or replace function public.mask_identifier_value(p_type public.entity_identifier_type, p_value text)
       returns text
-      language sql
+      language plpgsql
       immutable
       as $$
-        select public.mask_identifier_value(p_type::text, p_value);
+      begin
+        return public.mask_identifier_value(p_type::text, p_value);
+      end;
       $$;
     $fn$;
   end if;
