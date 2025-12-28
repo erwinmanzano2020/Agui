@@ -196,17 +196,21 @@ export function EmployeesClient({
                     <td className="p-2">
                       <div className="space-y-1 text-xs text-muted-foreground">
                         <Badge
-                          tone={employee.identity ? "on" : "off"}
+                          tone={employee.entity_id ? "on" : "off"}
                           className="gap-1 border-border"
                           title={
-                            employee.identity
-                              ? "🧍 Linked identity: this employee is attached to a person record."
-                              : "⚠️ Unlinked identity: no person record yet for this employee."
+                            employee.identity_unavailable
+                              ? "Identity unavailable right now. Data fetch failed."
+                              : employee.entity_id
+                                ? "🧍 Linked identity: this employee is attached to a person record."
+                                : "⚠️ Unlinked identity: no person record yet for this employee."
                           }
                         >
-                          {employee.identity ? "🧍 Linked identity" : "⚠️ Unlinked identity"}
+                          {employee.entity_id ? "🧍 Linked identity" : "⚠️ Unlinked identity"}
                         </Badge>
-                        {employee.identity ? (
+                        {employee.identity_unavailable ? (
+                          <span className="text-muted-foreground">Identity unavailable right now.</span>
+                        ) : employee.identity ? (
                           <>
                             <div className="text-muted-foreground">
                               {employee.identity.displayName || "Person identity"}

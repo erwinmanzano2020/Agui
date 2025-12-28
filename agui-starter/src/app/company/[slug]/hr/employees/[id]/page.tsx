@@ -46,6 +46,7 @@ export default async function EmployeeProfilePage({ params }: Props) {
   const branchName = employee.branch_name ?? "Unassigned";
   const identity = employee.identity ?? null;
   const identityLinked = Boolean(employee.entity_id);
+  const identityUnavailable = employee.identity_unavailable === true;
   const emailIdentifiers = (identity?.identifiers ?? []).filter(
     (identifier) => (identifier.type ?? "").toLowerCase() === "email",
   );
@@ -123,9 +124,11 @@ export default async function EmployeeProfilePage({ params }: Props) {
             tone={identityLinked ? "on" : "off"}
             className="gap-1"
             title={
-              identityLinked
-                ? "This employee is linked to a person identity. Identifiers are read-only."
-                : "No linked identity yet. Add phone or email elsewhere to link when ready."
+              identityUnavailable
+                ? "Identity unavailable right now. Data fetch failed."
+                : identityLinked
+                  ? "This employee is linked to a person identity. Identifiers are read-only."
+                  : "No linked identity yet. Add phone or email elsewhere to link when ready."
             }
           >
             {identityLinked ? "🧍 Linked identity" : "⚠️ Unlinked identity"}
@@ -136,13 +139,19 @@ export default async function EmployeeProfilePage({ params }: Props) {
           <div>
             <dt className="text-sm text-muted-foreground">Linked entity</dt>
             <dd className="text-base font-medium text-foreground">
-              {identityLinked ? identity?.displayName || employee.full_name : "No linked identity"}
+              {identityUnavailable
+                ? "Identity unavailable right now"
+                : identityLinked
+                  ? identity?.displayName || employee.full_name
+                  : "No linked identity"}
             </dd>
           </div>
           <div>
             <dt className="text-sm text-muted-foreground">Email(s)</dt>
             <dd className="space-y-1 text-sm text-foreground">
-              {emailIdentifiers.length === 0 ? (
+              {identityUnavailable ? (
+                <span className="text-muted-foreground">Identity unavailable right now.</span>
+              ) : emailIdentifiers.length === 0 ? (
                 <span className="text-muted-foreground">No emails on record.</span>
               ) : (
                 emailIdentifiers.map((email) => (
@@ -159,7 +168,9 @@ export default async function EmployeeProfilePage({ params }: Props) {
           <div>
             <dt className="text-sm text-muted-foreground">Phone(s)</dt>
             <dd className="space-y-1 text-sm text-foreground">
-              {phoneIdentifiers.length === 0 ? (
+              {identityUnavailable ? (
+                <span className="text-muted-foreground">Identity unavailable right now.</span>
+              ) : phoneIdentifiers.length === 0 ? (
                 <span className="text-muted-foreground">No phones on record.</span>
               ) : (
                 phoneIdentifiers.map((phone) => (
@@ -176,7 +187,9 @@ export default async function EmployeeProfilePage({ params }: Props) {
           <div>
             <dt className="text-sm text-muted-foreground">Notes</dt>
             <dd className="text-sm text-muted-foreground">
-              Identity is read-only here. Manage linkage via the employee creation and lookup-first flows.
+              {identityUnavailable
+                ? "Identity is temporarily unavailable. Retry later or check the identity service."
+                : "Identity is read-only here. Manage linkage via the employee creation and lookup-first flows."}
             </dd>
           </div>
         </dl>

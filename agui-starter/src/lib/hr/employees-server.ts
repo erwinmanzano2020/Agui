@@ -19,6 +19,7 @@ export type EmployeeListItem = {
   branch_name: string | null;
   rate_per_day: number;
   identity?: IdentitySummary | null;
+  identity_unavailable?: boolean;
 };
 
 export type EmployeeListResult = { employees: EmployeeListItem[]; error?: string };
@@ -38,6 +39,7 @@ export type EmployeeProfile = {
   rate_per_day: number;
   created_at: string;
   identity?: IdentitySummary | null;
+  identity_unavailable?: boolean;
 };
 
 export type EmployeeUpdateInput = {
@@ -154,6 +156,9 @@ export async function listEmployeesByHouse(
       });
     } catch (lookupError) {
       console.error("Failed to load employee identities", lookupError);
+      employees.forEach((emp) => {
+        emp.identity_unavailable = true;
+      });
     }
   }
 
@@ -197,6 +202,7 @@ export async function getEmployeeByIdForHouse(
   let branchId: string | null = null;
   let branchName: string | null = null;
   let identity: IdentitySummary | null = null;
+  let identityUnavailable = false;
 
   if (branchBelongsToHouse && branch) {
     branchId = branch.id ?? null;
@@ -212,6 +218,7 @@ export async function getEmployeeByIdForHouse(
       identity = summaries[0] ?? null;
     } catch (lookupError) {
       console.error("Failed to load employee identity", lookupError);
+      identityUnavailable = true;
     }
   }
 
@@ -227,6 +234,7 @@ export async function getEmployeeByIdForHouse(
     rate_per_day: Number(employee.rate_per_day ?? 0),
     created_at: employee.created_at,
     identity,
+    identity_unavailable: identityUnavailable,
   } satisfies EmployeeProfile;
 }
 
