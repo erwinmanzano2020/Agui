@@ -1,7 +1,6 @@
 // agui-starter/src/app/layout.tsx
 import "./globals.css";
 import type { CSSProperties, ReactNode } from "react";
-import { Geist, Geist_Mono } from "next/font/google";
 import { AppShell } from "@/components/layout/app-shell";
 import ThemeProvider from "@/app/providers/theme-provider";
 import TenantThemeMount from "@/app/providers/tenant-theme-mount";
@@ -16,8 +15,8 @@ import SessionProviders from "@/app/providers/session";
 import CommandPaletteMount from "@/components/ui/command-palette-mount";
 import SessionHydrator from "@/lib/auth/SessionHydrator";
 
-const geistSans = Geist({ subsets: ["latin"], variable: "--font-geist-sans" });
-const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" });
+const geistSans = { variable: "font-geist-sans" };
+const geistMono = { variable: "font-geist-mono" };
 
 export const metadata = {
   title: "Agui",

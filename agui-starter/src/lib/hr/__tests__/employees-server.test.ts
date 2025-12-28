@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import type { EmployeeRow } from "@/lib/db.types";
 import type { EmployeeListItem } from "../employees-server";
-import { listEmployeesForHouse } from "../employees-server";
+import { listDepartmentIdsForHouse, listEmployeesForHouse } from "../employees-server";
 
 type EmployeeRowWithDepartment = EmployeeRow & { department_id?: string | null };
 
@@ -74,6 +74,7 @@ describe("listEmployeesForHouse", () => {
     assert.deepEqual(results.map((row) => row.id), ["emp-1", "emp-2"]);
     assert.ok(results.every((row) => row.full_name));
     assert.ok(results.every((row) => row.code !== undefined));
+    assert.ok(results.every((row) => row.entity_id));
   });
 
   it("returns empty list when no department ids provided", async () => {
@@ -88,5 +89,90 @@ describe("listEmployeesForHouse", () => {
     const supabase = new SupabaseMock([baseRow], { data: null, error: { message: "boom" } });
 
     await assert.rejects(() => listEmployeesForHouse(supabase as never, ["house-1"]), /boom/);
+  });
+
+  it("returns the first non-empty department set across supported tables", async () => {
+    const supabase = {
+      from(table: string) {
+        if (table === "departments") {
+          return {
+            select() {
+              return this;
+            },
+            async eq() {
+              return { data: [], error: null };
+            },
+          };
+        }
+        if (table === "branches") {
+          return {
+            select() {
+              return this;
+            },
+            async eq() {
+              return { data: [{ id: "branch-1" }, { id: null }], error: null };
+            },
+          };
+        }
+        throw new Error(`Unexpected table ${table}`);
+      },
+    };
+
+    const results = await listDepartmentIdsForHouse(supabase as never, "house-1");
+
+    assert.deepEqual(results, ["branch-1"]);
+  });
+
+  it("treats missing department tables as optional metadata", async () => {
+    const supabase = {
+      from(table: string) {
+        if (table === "departments") {
+          return {
+            select() {
+              return this;
+            },
+            async eq() {
+              return { data: null, error: { code: "42P01", message: "missing" } };
+            },
+          };
+        }
+        if (table === "branches") {
+          return {
+            select() {
+              return this;
+            },
+            async eq() {
+              return { data: [{ id: "branch-1" }], error: null };
+            },
+          };
+        }
+        throw new Error(`Unexpected table ${table}`);
+      },
+    };
+
+    const results = await listDepartmentIdsForHouse(supabase as never, "house-1");
+
+    assert.deepEqual(results, ["branch-1"]);
+  });
+
+  it("throws on unexpected department query errors", async () => {
+    const supabase = {
+      from(_table: string) {
+        void _table;
+        return {
+          select() {
+            return this;
+          },
+          async eq() {
+            return { data: null, error: { code: "XX000", message: "fatal" } };
+          },
+        };
+      },
+    };
+
+    await assert.rejects(
+      () => listDepartmentIdsForHouse(supabase as never, "house-1"),
+      /fatal/,
+    );
   });
 });

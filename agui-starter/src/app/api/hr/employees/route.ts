@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
-import { listEmployeesForHouse } from "@/lib/hr/employees-server";
+import { listDepartmentIdsForHouse, listEmployeesForHouse } from "@/lib/hr/employees-server";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -43,24 +43,6 @@ async function resolveHouseForEntity(
 
   const rows = (data ?? []) as Pick<HouseRoleRow, "house_id">[];
   return rows[0]?.house_id ?? null;
-}
-
-async function resolveDepartmentsForHouse(
-  service: SupabaseClient<Database>,
-  houseId: string,
-): Promise<string[]> {
-  const { data, error } = await service
-    .from("branches")
-    .select("id")
-    .eq("house_id", houseId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return (data ?? [])
-    .map((row) => (row as { id?: string | null }).id)
-    .filter((id): id is string => Boolean(id));
 }
 
 export async function GET(req: NextRequest) {
@@ -117,7 +99,7 @@ export async function GET(req: NextRequest) {
 
   let departmentIds: string[] = [];
   try {
-    departmentIds = await resolveDepartmentsForHouse(service, houseId);
+    departmentIds = await listDepartmentIdsForHouse(service, houseId);
   } catch (error) {
     console.error("Failed to resolve departments for house", error);
     return NextResponse.json({ error: "Failed to resolve house departments" }, { status: 500 });
