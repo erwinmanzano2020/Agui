@@ -4,10 +4,10 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState, useTransition } from "react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
 import type { BranchListItem, EmployeeListItem } from "@/lib/hr/employees-server";
 
 const STATUS_OPTIONS = [
@@ -194,22 +194,34 @@ export function EmployeesClient({
                       <Badge tone={employee.status === "active" ? "on" : "off"}>{employee.status}</Badge>
                     </td>
                     <td className="p-2">
-                      {employee.identity ? (
-                        <div className="space-y-1">
-                          <Badge tone="on" className="border-border">Linked</Badge>
-                          <div className="text-xs text-muted-foreground">
-                            {employee.identity.displayName || "Person identity"}
-                          </div>
-                          {employee.identity.identifiers?.[0] ? (
-                            <div className="text-xs text-muted-foreground">
-                              {employee.identity.identifiers[0].type}: {employee.identity.identifiers[0].value_masked}
-                              {employee.identity.identifiers[0].is_primary ? " • primary" : ""}
+                      <div className="space-y-1 text-xs text-muted-foreground">
+                        <Badge
+                          tone={employee.identity ? "on" : "off"}
+                          className="gap-1 border-border"
+                          title={
+                            employee.identity
+                              ? "🧍 Linked identity: this employee is attached to a person record."
+                              : "⚠️ Unlinked identity: no person record yet for this employee."
+                          }
+                        >
+                          {employee.identity ? "🧍 Linked identity" : "⚠️ Unlinked identity"}
+                        </Badge>
+                        {employee.identity ? (
+                          <>
+                            <div className="text-muted-foreground">
+                              {employee.identity.displayName || "Person identity"}
                             </div>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">Not linked</span>
-                      )}
+                            {employee.identity.identifiers?.[0] ? (
+                              <div className="text-muted-foreground">
+                                {employee.identity.identifiers[0].type}: {employee.identity.identifiers[0].value_masked}
+                                {employee.identity.identifiers[0].is_primary ? " • primary" : ""}
+                              </div>
+                            ) : null}
+                          </>
+                        ) : (
+                          <span className="text-muted-foreground">Visible for HR only</span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-2">{formatCurrency(employee.rate_per_day)}</td>
                     <td className="p-2 text-right">
