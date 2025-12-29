@@ -4,6 +4,16 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/db.types";
 
+function logIdentityRpcFailure(operation: string, error: unknown) {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? (error as { code?: string }).code ?? null
+      : null;
+  const message = error instanceof Error ? error.message : String(error);
+
+  console.warn(`[identity] ${operation} failed`, { code, message });
+}
+
 export function normalizeEmployeeEmail(email: string | null | undefined): string | null {
   if (typeof email !== "string") return null;
   const trimmed = email.trim().toLowerCase();
@@ -102,6 +112,7 @@ export async function findOrCreateEntityForEmployee(
   });
 
   if (error) {
+    logIdentityRpcFailure("hr_find_or_create_entity_for_employee", error);
     throw mapSchemaCacheError(error.message);
   }
 
@@ -128,6 +139,7 @@ export async function lookupEntitiesForEmployee(
   });
 
   if (error) {
+    logIdentityRpcFailure("hr_lookup_entities_by_identifiers", error);
     throw mapSchemaCacheError(error.message);
   }
 
@@ -161,6 +173,7 @@ export async function getIdentitySummariesForEmployees(
   });
 
   if (error) {
+    logIdentityRpcFailure("hr_get_entity_identity_summary", error);
     throw mapSchemaCacheError(error.message);
   }
 
