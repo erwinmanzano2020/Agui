@@ -72,17 +72,17 @@ begin
     where t.typname = 'entity_identifier_type'
       and t.typnamespace = v_schema
   ) then
-    execute $fn$
+    execute format($fmt$
       create or replace function public.mask_identifier_value(p_type public.entity_identifier_type, p_value text)
       returns text
-      language plpgsql
-      immutable
-      as $$
+      as $body$
       begin
         return public.mask_identifier_value(p_type::text, p_value);
       end;
-      $$;
-    $fn$;
+      $body$
+      language plpgsql
+      immutable;
+    $fmt$);
   end if;
 end;
 $$;
