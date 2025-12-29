@@ -44,6 +44,15 @@ export default async function EmployeeProfilePage({ params }: Props) {
   }
 
   const branchName = employee.branch_name ?? "Unassigned";
+  const identity = employee.identity ?? null;
+  const identityLinked = Boolean(employee.entity_id);
+  const identityUnavailable = employee.identity_unavailable === true;
+  const emailIdentifiers = (identity?.identifiers ?? []).filter(
+    (identifier) => (identifier.type ?? "").toLowerCase() === "email",
+  );
+  const phoneIdentifiers = (identity?.identifiers ?? []).filter(
+    (identifier) => (identifier.type ?? "").toLowerCase() === "phone",
+  );
 
   return (
     <div className="space-y-4">
@@ -68,18 +77,23 @@ export default async function EmployeeProfilePage({ params }: Props) {
       </div>
 
       <Card className="space-y-4 p-4">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Summary</h2>
-          <p className="text-sm text-muted-foreground">Core details for this employee.</p>
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Employment</h2>
+            <p className="text-sm text-muted-foreground">House-scoped job details for this worker.</p>
+          </div>
+          <Badge tone={employee.status === "active" ? "on" : "off"} className="uppercase">
+            {employee.status}
+          </Badge>
         </div>
         <dl className="grid gap-4 md:grid-cols-2">
           <div>
-            <dt className="text-sm text-muted-foreground">Name</dt>
-            <dd className="text-base font-medium text-foreground">{employee.full_name}</dd>
+            <dt className="text-sm text-muted-foreground">Employee code</dt>
+            <dd className="text-base font-medium text-foreground">{employee.code}</dd>
           </div>
           <div>
-            <dt className="text-sm text-muted-foreground">Code</dt>
-            <dd className="text-base font-medium text-foreground">{employee.code}</dd>
+            <dt className="text-sm text-muted-foreground">Status</dt>
+            <dd className="text-base font-medium text-foreground">{employee.status === "active" ? "Active" : "Inactive"}</dd>
           </div>
           <div>
             <dt className="text-sm text-muted-foreground">Branch</dt>
@@ -89,46 +103,96 @@ export default async function EmployeeProfilePage({ params }: Props) {
             <dt className="text-sm text-muted-foreground">Rate per day</dt>
             <dd className="text-base font-medium text-foreground">{formatCurrency(employee.rate_per_day)}</dd>
           </div>
-          <div>
-            <dt className="text-sm text-muted-foreground">Created</dt>
-            <dd className="text-base font-medium text-foreground">{formatDate(employee.created_at)}</dd>
-          </div>
+          {employee.created_at ? (
+            <div>
+              <dt className="text-sm text-muted-foreground">Hire date</dt>
+              <dd className="text-base font-medium text-foreground">{formatDate(employee.created_at)}</dd>
+            </div>
+          ) : null}
         </dl>
       </Card>
 
       <Card className="space-y-4 p-4">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground">Identity</h2>
-          <p className="text-sm text-muted-foreground">
-            Linked person record with primary identifiers for HR visibility.
-          </p>
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-foreground">Identity</h2>
+            <p className="text-sm text-muted-foreground">
+              Linked person record with masked identifiers for lookup-first HR flows.
+            </p>
+          </div>
+          <Badge
+            tone={identityLinked ? "on" : "off"}
+            className="gap-1"
+            title={
+              identityUnavailable
+                ? "Identity unavailable right now. Data fetch failed."
+                : identityLinked
+                  ? "This employee is linked to a person identity. Identifiers are read-only."
+                  : "No linked identity yet. Add phone or email elsewhere to link when ready."
+            }
+          >
+            {identityLinked ? "🧍 Linked identity" : "⚠️ Unlinked identity"}
+          </Badge>
         </div>
-        {employee.identity ? (
-          <dl className="space-y-2">
-            <div>
-              <dt className="text-sm text-muted-foreground">Display name</dt>
-              <dd className="text-base font-medium text-foreground">{employee.identity.displayName ?? "—"}</dd>
-            </div>
-            <div>
-              <dt className="text-sm text-muted-foreground">Identifiers</dt>
-              <dd className="space-y-1 text-sm text-foreground">
-                {employee.identity.identifiers?.length ? (
-                  employee.identity.identifiers.map((id) => (
-                    <div key={`${id.type}-${id.value_masked}`} className="flex items-center gap-2">
-                      <Badge className="border-border">{id.type}</Badge>
-                      <span className="text-muted-foreground">{id.value_masked}</span>
-                      {id.is_primary ? <span className="text-xs text-muted-foreground">primary</span> : null}
-                    </div>
-                  ))
-                ) : (
-                  <span className="text-muted-foreground">No identifiers stored.</span>
-                )}
-              </dd>
-            </div>
-          </dl>
-        ) : (
-          <div className="text-sm text-muted-foreground">This employee is not linked to an identity yet.</div>
-        )}
+
+        <dl className="grid gap-4 md:grid-cols-2">
+          <div>
+            <dt className="text-sm text-muted-foreground">Linked entity</dt>
+            <dd className="text-base font-medium text-foreground">
+              {identityUnavailable
+                ? "Identity unavailable right now"
+                : identityLinked
+                  ? identity?.displayName || employee.full_name
+                  : "No linked identity"}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-sm text-muted-foreground">Email(s)</dt>
+            <dd className="space-y-1 text-sm text-foreground">
+              {identityUnavailable ? (
+                <span className="text-muted-foreground">Identity unavailable right now.</span>
+              ) : emailIdentifiers.length === 0 ? (
+                <span className="text-muted-foreground">No emails on record.</span>
+              ) : (
+                emailIdentifiers.map((email) => (
+                  <div key={`${email.type}-${email.value_masked}`} className="flex items-center gap-2">
+                    <span className="font-medium">{email.value_masked}</span>
+                    {email.is_primary ? (
+                      <Badge className="border-border bg-muted/60 text-xs font-normal">Primary</Badge>
+                    ) : null}
+                  </div>
+                ))
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-sm text-muted-foreground">Phone(s)</dt>
+            <dd className="space-y-1 text-sm text-foreground">
+              {identityUnavailable ? (
+                <span className="text-muted-foreground">Identity unavailable right now.</span>
+              ) : phoneIdentifiers.length === 0 ? (
+                <span className="text-muted-foreground">No phones on record.</span>
+              ) : (
+                phoneIdentifiers.map((phone) => (
+                  <div key={`${phone.type}-${phone.value_masked}`} className="flex items-center gap-2">
+                    <span className="font-medium">{phone.value_masked}</span>
+                    {phone.is_primary ? (
+                      <Badge className="border-border bg-muted/60 text-xs font-normal">Primary</Badge>
+                    ) : null}
+                  </div>
+                ))
+              )}
+            </dd>
+          </div>
+          <div>
+            <dt className="text-sm text-muted-foreground">Notes</dt>
+            <dd className="text-sm text-muted-foreground">
+              {identityUnavailable
+                ? "Identity is temporarily unavailable. Retry later or check the identity service."
+                : "Identity is read-only here. Manage linkage via the employee creation and lookup-first flows."}
+            </dd>
+          </div>
+        </dl>
       </Card>
 
       <Card className="space-y-3 p-4">
