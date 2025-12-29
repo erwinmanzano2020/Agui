@@ -1,8 +1,8 @@
 // src/lib/auth/server.ts
 import { cookies, headers } from "next/headers";
-import { createServerClient, type CookieOptions, type SupabaseClient } from "@supabase/ssr";
 
 import type { Database } from "@/lib/db.types";
+import { createServerClient, type CookieOptions, type SupabaseClient } from "@/lib/supabase-ssr";
 
 type CookieStore = Awaited<ReturnType<typeof cookies>>;
 type HeaderStore = Awaited<ReturnType<typeof headers>>;
