@@ -134,11 +134,11 @@ begin
     (
       select jsonb_agg(
         jsonb_build_object(
-          'type', coalesce(ei.identifier_type, 'UNKNOWN'),
-          'value_masked', public.mask_identifier_value(coalesce(ei.identifier_type, 'UNKNOWN'), coalesce(ei.identifier_value, '')),
+          'type', ei.identifier_type::text,
+          'value_masked', public.mask_identifier_value(ei.identifier_type::text, coalesce(ei.identifier_value, '')),
           'is_primary', coalesce(ei.is_primary, false)
         )
-        order by coalesce(ei.is_primary, false) desc, coalesce(ei.identifier_type, 'UNKNOWN') asc
+        order by coalesce(ei.is_primary, false) desc, ei.identifier_type asc nulls last
       )
       from public.entity_identifiers ei
       where ei.entity_id = e.id
