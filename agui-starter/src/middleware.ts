@@ -36,10 +36,16 @@ export function middleware(request: NextRequest) {
 
   // If we already have sb access cookie, let it through
   // (cookie names follow Supabase convention; adjust if you prefixed them)
-  const hasSession =
+  const hasLegacySession =
     request.cookies.has("sb-access-token") ||
     request.cookies.has("sb:token") ||
     request.cookies.has("supabase-auth-token");
+
+  const hasSupabaseAuthToken = request.cookies.getAll().some((cookie) =>
+    /^sb-[a-zA-Z0-9]+-auth-token$/.test(cookie.name),
+  );
+
+  const hasSession = hasLegacySession || hasSupabaseAuthToken;
 
   if (!hasSession) {
     const url = request.nextUrl.clone();
