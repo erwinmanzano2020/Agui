@@ -10,8 +10,13 @@ function logIdentityRpcFailure(operation: string, error: unknown) {
       ? (error as { code?: string }).code ?? null
       : null;
   const message = error instanceof Error ? error.message : String(error);
+  const lowered = typeof message === "string" ? message.toLowerCase() : "";
+  const missingSession =
+    code === "AuthSessionMissingError" ||
+    lowered.includes("auth session missing") ||
+    lowered.includes("not authenticated");
 
-  console.warn(`[identity] ${operation} failed`, { code, message });
+  console.warn(`[identity] ${operation} failed`, { code, message, missingSession });
 }
 
 export function normalizeEmployeeEmail(email: string | null | undefined): string | null {
@@ -177,12 +182,19 @@ export async function getIdentitySummariesForEmployees(
     throw mapSchemaCacheError(error.message);
   }
 
+  const normalizeIdentifier = (identifier: MaskedIdentifier): MaskedIdentifier => {
+    const type = typeof identifier.type === "string" && identifier.type.trim().length > 0 ? identifier.type.trim() : "other";
+    return { ...identifier, type };
+  };
+
   const rows = (data as Array<Record<string, unknown>> | null) ?? [];
   return rows
     .map((row) => ({
       entityId: (row.entity_id as string | null) ?? "",
       displayName: (row.display_name as string | null) ?? null,
-      identifiers: ((row.identifiers as MaskedIdentifier[] | null) ?? []).filter(Boolean),
+      identifiers: ((row.identifiers as MaskedIdentifier[] | null) ?? [])
+        .filter(Boolean)
+        .map(normalizeIdentifier),
     } satisfies IdentitySummary))
     .filter((row) => row.entityId);
 }

@@ -56,8 +56,14 @@ export async function requireAuth(nextPath: string): Promise<RequireAuthResult> 
     redirect(buildRedirectLocation(nextPath));
   }
 
+  console.debug("[requireAuth] auth.getUser ok", { userId: user.id });
+
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError || !sessionData?.session) {
+    console.warn("[requireAuth] auth.getSession missing session", {
+      code: sessionError?.code ?? null,
+      message: sessionError?.message ?? null,
+    });
     redirect(buildRedirectLocation(nextPath));
   }
 
