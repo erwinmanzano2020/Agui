@@ -8,6 +8,15 @@ import { getIdentitySummariesForEmployees, type IdentitySummary } from "@/lib/hr
 import type { HrAccessDecision } from "./access";
 import type { EmployeeListFilters } from "./employees";
 
+function logIdentityError(context: string, error: unknown) {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? (error as { code?: string }).code ?? null
+      : null;
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[employees] identity lookup failed (${context})`, { code, message });
+}
+
 export type EmployeeListItem = {
   id: string;
   house_id: string;
@@ -155,7 +164,7 @@ export async function listEmployeesByHouse(
         emp.identity = emp.entity_id ? map.get(emp.entity_id) ?? null : null;
       });
     } catch (lookupError) {
-      console.error("Failed to load employee identities", lookupError);
+      logIdentityError("list", lookupError);
       employees.forEach((emp) => {
         emp.identity_unavailable = true;
       });
@@ -217,7 +226,7 @@ export async function getEmployeeByIdForHouse(
       });
       identity = summaries[0] ?? null;
     } catch (lookupError) {
-      console.error("Failed to load employee identity", lookupError);
+      logIdentityError("detail", lookupError);
       identityUnavailable = true;
     }
   }

@@ -37,6 +37,8 @@ type RestoredTokens = {
   refreshToken: string;
 };
 
+type TokenSource = "supabase" | "legacy";
+
 type CreateServerClientOptions = {
   cookies: CookieAdapter;
   headers?: Record<string, string | undefined>;
@@ -107,6 +109,33 @@ function clearSessionCookie(adapter: CookieAdapter) {
   }
 }
 
+function readLegacySession(adapter: CookieAdapter): RestoredTokens | null {
+  const legacyAccess =
+    adapter.get("sb-access-token") ?? adapter.get("sb:token") ?? adapter.get("supabase-auth-token");
+  const legacyRefresh = adapter.get("sb-refresh-token") ?? adapter.get("sb:refresh-token");
+
+  if (!legacyAccess || !legacyRefresh) {
+    return null;
+  }
+
+  return { accessToken: legacyAccess, refreshToken: legacyRefresh } satisfies RestoredTokens;
+}
+
+function logCookiePresence(options: {
+  supabaseCookieName: string | null;
+  supabaseCookieValue: string | undefined;
+  hasLegacyAccess: boolean;
+  hasLegacyRefresh: boolean;
+  source: TokenSource | null;
+}) {
+  console.debug("[supabase-ssr] auth cookies", {
+    hasProjectCookie: Boolean(options.supabaseCookieValue && options.supabaseCookieName),
+    hasLegacyAccess: options.hasLegacyAccess,
+    hasLegacyRefresh: options.hasLegacyRefresh,
+    tokenSource: options.source,
+  });
+}
+
 export async function createServerClient<Database>(
   url: string,
   anonKey: string,
@@ -127,17 +156,31 @@ export async function createServerClient<Database>(
   });
 
   const cookieName = getSupabaseAuthCookieName();
-  if (cookieName) {
-    const rawValue = options.cookies.get(cookieName);
-    const tokens = extractTokens(decodeCookieValue(rawValue));
-    if (tokens) {
-      const { error } = await client.auth.setSession({
-        access_token: tokens.accessToken,
-        refresh_token: tokens.refreshToken,
+  const supabaseCookieValue = cookieName ? options.cookies.get(cookieName) : undefined;
+  const supabaseTokens = extractTokens(decodeCookieValue(supabaseCookieValue));
+  const legacyTokens = readLegacySession(options.cookies);
+  const tokenSource: TokenSource | null = supabaseTokens ? "supabase" : legacyTokens ? "legacy" : null;
+
+  logCookiePresence({
+    supabaseCookieName: cookieName,
+    supabaseCookieValue,
+    hasLegacyAccess: Boolean(options.cookies.get("sb-access-token") ?? options.cookies.get("sb:token")),
+    hasLegacyRefresh: Boolean(options.cookies.get("sb-refresh-token") ?? options.cookies.get("sb:refresh-token")),
+    source: tokenSource,
+  });
+
+  const tokens = supabaseTokens ?? legacyTokens;
+  if (tokens) {
+    const { error } = await client.auth.setSession({
+      access_token: tokens.accessToken,
+      refresh_token: tokens.refreshToken,
+    });
+    if (error) {
+      console.warn("Failed to restore Supabase session", {
+        source: tokenSource,
+        code: (error as { code?: string }).code ?? null,
+        message: (error as { message?: string }).message ?? String(error),
       });
-      if (error) {
-        console.warn("Failed to restore Supabase session", error);
-      }
     }
   }
 
