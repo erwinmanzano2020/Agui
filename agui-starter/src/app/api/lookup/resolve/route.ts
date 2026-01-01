@@ -1,7 +1,7 @@
 // src/app/api/lookup/resolve/route.ts
 import { NextResponse } from "next/server";
 import { z } from "@/lib/z";
-import { createServerSupabase } from "@/lib/auth/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 type IdentifierKind =
   | "email"
@@ -32,7 +32,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabaseClient();
   const json = await req.json().catch(() => null);
 
   const parsed = bodySchema.safeParse(json);

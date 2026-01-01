@@ -36,6 +36,7 @@ type SnapshotOptions = {
   category: SettingCategory;
   businessId?: string | null;
   branchId?: string | null;
+  client?: SupabaseClient<Database>;
 };
 
 type ScopeCoordinates = {
@@ -277,7 +278,7 @@ async function maybeRevalidateTiles(
 }
 
 export async function getSettingsSnapshot(options: SnapshotOptions): Promise<SettingsSnapshot> {
-  const { category } = options;
+  const { category, client } = options;
   const businessId = options.businessId ?? null;
   const branchId = options.branchId ?? null;
 
@@ -294,7 +295,7 @@ export async function getSettingsSnapshot(options: SnapshotOptions): Promise<Set
     tags.add(buildScopeTag("BRANCH", businessId ?? null, branchId));
   }
 
-  const supabase = await createServerSupabaseClient();
+  const supabase = client ?? (await createServerSupabaseClient());
   const loader = unstable_cache(
     async () => loadSnapshotFromStore(supabase, definitions, { businessId, branchId }),
     ["settings", "snapshot", category, businessId ?? "null", branchId ?? "null"],
@@ -311,12 +312,14 @@ export async function getSettingsSnapshot(options: SnapshotOptions): Promise<Set
 export async function getEffectiveSetting<K extends SettingKey>(
   key: K,
   context: SettingContext = {},
+  options: { client?: SupabaseClient<Database> } = {},
 ): Promise<SettingValueMap[K]> {
   const definition = getSettingDefinition(key);
   const snapshot = await getSettingsSnapshot({
     category: definition.category,
     businessId: context.businessId,
     branchId: context.branchId,
+    client: options.client,
   });
   const resolved = snapshot[key];
   return (resolved?.value ?? definition.defaultValue) as SettingValueMap[K];

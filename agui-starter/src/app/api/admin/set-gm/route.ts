@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "@/lib/z";
-import { createServerSupabase } from "@/lib/auth/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 // --- Input schema ---
 const Body = z.object({
@@ -29,7 +29,7 @@ export async function POST(req: Request) {
     const json = raw ? JSON.parse(raw) : {};
     const { entityId, isGm } = Body.parse(json);
 
-    const supabase = (await createServerSupabase()) as unknown as RpcCapable;
+    const supabase = (await createServerSupabaseClient()) as unknown as RpcCapable;
 
     // must be signed in
     const { data: userRes, error: userErr } = await supabase.auth.getUser();

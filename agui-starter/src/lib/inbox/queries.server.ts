@@ -1,4 +1,4 @@
-import { createServerSupabase } from "@/lib/auth/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { AppInboxRow, AppInboxUpdate } from "@/lib/db.types";
 import { emitEvent } from "@/lib/events/server";
 
@@ -14,7 +14,7 @@ type InboxRow = Pick<
 >;
 
 export async function fetchInbox(): Promise<InboxList> {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabaseClient();
 
   const { data: unread, error: e1 } = await supabase
     .from("app_inbox")
@@ -61,7 +61,7 @@ export async function fetchInbox(): Promise<InboxList> {
 }
 
 export async function markRead(id: string) {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabaseClient();
   const patch: AppInboxUpdate = { read_at: new Date().toISOString() };
 
   const { error } = await supabase.from("app_inbox").update(patch).eq("id", id);
@@ -79,7 +79,7 @@ export async function markRead(id: string) {
 }
 
 export async function markAllRead() {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabaseClient();
   const patch: AppInboxUpdate = { read_at: new Date().toISOString() };
 
   // RLS limits scope to current entity

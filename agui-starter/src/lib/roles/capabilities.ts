@@ -1,5 +1,5 @@
 // src/lib/roles/capabilities.ts
-import { createServerSupabase } from "@/lib/auth/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export type BrandRef = { id: string; slug: string; name: string };
 export type Capabilities = {
@@ -43,7 +43,7 @@ function rowsToBrandRefs(rows: ReadonlyArray<RowWithBrand> | null | undefined): 
 }
 
 export async function getCapabilities(userId: string, email?: string): Promise<Capabilities> {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabaseClient();
 
   const [loyaltyQ, employeeQ, ownerQ] = await Promise.all([
     supabase.from("loyalty_memberships").select("brand:brands(id,slug,name)").eq("user_id", userId),

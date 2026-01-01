@@ -37,6 +37,13 @@ function formatCurrency(amount: number) {
   );
 }
 
+function splitIdentityIdentifiers(identity: EmployeeListItem["identity"] | null | undefined) {
+  const identifiers = identity?.identifiers ?? [];
+  const emails = identifiers.filter((identifier) => identifier.type === "EMAIL");
+  const phones = identifiers.filter((identifier) => identifier.type === "PHONE");
+  return { emails, phones };
+}
+
 export function EmployeesClient({
   basePath,
   employees,
@@ -194,38 +201,51 @@ export function EmployeesClient({
                       <Badge tone={employee.status === "active" ? "on" : "off"}>{employee.status}</Badge>
                     </td>
                     <td className="p-2">
-                      <div className="space-y-1 text-xs text-muted-foreground">
-                        <Badge
-                          tone={employee.entity_id ? "on" : "off"}
-                          className="gap-1 border-border"
-                          title={
-                            employee.identity_unavailable
-                              ? "Identity unavailable right now. Data fetch failed."
-                              : employee.entity_id
-                                ? "🧍 Linked identity: this employee is attached to a person record."
-                                : "⚠️ Unlinked identity: no person record yet for this employee."
-                          }
-                        >
-                          {employee.entity_id ? "🧍 Linked identity" : "⚠️ Unlinked identity"}
-                        </Badge>
-                        {employee.identity_unavailable ? (
-                          <span className="text-muted-foreground">Identity unavailable right now.</span>
-                        ) : employee.identity ? (
-                          <>
-                            <div className="text-muted-foreground">
-                              {employee.identity.displayName || "Person identity"}
-                            </div>
-                            {employee.identity.identifiers?.[0] ? (
-                              <div className="text-muted-foreground">
-                                {employee.identity.identifiers[0].type}: {employee.identity.identifiers[0].value_masked}
-                                {employee.identity.identifiers[0].is_primary ? " • primary" : ""}
+                      {(() => {
+                        const isLinked = Boolean(employee.entity_id);
+                        const identityUnavailable = employee.identity_unavailable === true;
+                        const { emails, phones } = splitIdentityIdentifiers(employee.identity);
+                        const emailLabel = emails[0]?.value_masked ?? null;
+                        const phoneLabel = phones[0]?.value_masked ?? null;
+
+                        return (
+                          <div className="space-y-1 text-xs text-muted-foreground">
+                            <Badge
+                              tone={isLinked && !identityUnavailable ? "on" : "off"}
+                              className="gap-1 border-border"
+                              title={
+                                identityUnavailable
+                                  ? "Identity unavailable right now. Try refreshing or retry later."
+                                  : isLinked
+                                    ? "🧍 Linked identity: this employee is attached to a person record."
+                                    : "⚠️ Not linked to a person identity yet."
+                              }
+                            >
+                              {identityUnavailable
+                                ? "⚠️ Identity unavailable"
+                                : isLinked
+                                  ? "🧍 Linked identity"
+                                  : "⚠️ Not linked"}
+                            </Badge>
+                            {identityUnavailable ? (
+                              <span className="text-muted-foreground">
+                                Identity unavailable. Refresh or try again later.
+                              </span>
+                            ) : !isLinked ? (
+                              <span className="text-muted-foreground">Not linked</span>
+                            ) : (
+                              <div className="space-y-0.5">
+                                <div className="text-muted-foreground">
+                                  {emailLabel ? `Email: ${emailLabel}` : "No email on record"}
+                                </div>
+                                <div className="text-muted-foreground">
+                                  {phoneLabel ? `Phone: ${phoneLabel}` : "No phone on record"}
+                                </div>
                               </div>
-                            ) : null}
-                          </>
-                        ) : (
-                          <span className="text-muted-foreground">Visible for HR only</span>
-                        )}
-                      </div>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="p-2">{formatCurrency(employee.rate_per_day)}</td>
                     <td className="p-2 text-right">

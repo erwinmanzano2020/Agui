@@ -1,7 +1,7 @@
-import { createServerSupabase } from "@/lib/auth/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export async function getCurrentEntityId(): Promise<string | null> {
-  const sb = await createServerSupabase();
+  const sb = await createServerSupabaseClient();
   const { data: userRes } = await sb.auth.getUser();
   const uid = userRes?.user?.id;
   if (!uid) return null;

@@ -1,11 +1,11 @@
 // src/app/me/loyalty/page.tsx
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { createServerSupabase } from "@/lib/auth/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getCapabilitiesForUser } from "@/lib/roles/get-capabilities.server";
 
 export default async function MeLoyaltyPage() {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabaseClient();
   const { data: userRes } = await supabase.auth.getUser();
   const userId = userRes?.user?.id;
   if (!userId) redirect(`/welcome?next=${encodeURIComponent("/me/loyalty")}`);

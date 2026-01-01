@@ -2,13 +2,13 @@
 import { NextResponse } from "next/server";
 import { z } from "@/lib/z";
 import { ensureEntityForCurrentUser } from "@/lib/identity/bootstrap.server";
-import { createServerSupabase } from "@/lib/auth/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const Body = z.object({ phone: z.string().optional() });
 
 export async function POST(req: Request) {
   // Must be authenticated
-  const sb = await createServerSupabase();
+  const sb = await createServerSupabaseClient();
   const { data: s } = await sb.auth.getUser();
   if (!s?.user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 

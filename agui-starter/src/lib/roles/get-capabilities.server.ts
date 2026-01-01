@@ -1,4 +1,4 @@
-import { createServerSupabase } from "@/lib/auth/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
   BrandOwnerViewRow,
   EmployeeRosterViewRow,
@@ -37,7 +37,7 @@ function isEmailGM(email: string | null): boolean {
 }
 
 export async function getCapabilitiesForUser(userId: string): Promise<UserCapabilities> {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabaseClient();
   const { data: userRes } = await supabase.auth.getUser();
   const email = userRes?.user?.email ?? null;
 

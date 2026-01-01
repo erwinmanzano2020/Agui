@@ -2,7 +2,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
-import { createServerSupabase } from "@/lib/auth/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { EntityIdentifierInsert, Json } from "@/lib/db.types";
 import { z } from "@/lib/z";
 
@@ -23,7 +23,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabaseClient();
 
   // Require auth
   const { data: userRes, error: userErr } = await supabase.auth.getUser();

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "@/lib/z";
-import { createServerSupabase } from "@/lib/auth/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const Channel = z.enum(["cashier", "kiosk", "self-service"]);
 
@@ -23,7 +23,7 @@ function normalizeChannel(input?: string) {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabaseClient();
   const parsed = Body.parse(await req.json());
 
   const {

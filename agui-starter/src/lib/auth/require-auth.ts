@@ -1,15 +1,26 @@
 import { redirect } from "next/navigation";
-import { cookies } from "next/headers";
 import type { Session, SupabaseClient, User } from "@supabase/supabase-js";
 
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { getSupabaseAuthCookieName } from "@/lib/supabase-auth-cookie";
 
 export type RequireAuthResult = {
   supabase: SupabaseClient;
   user: User;
   session: Session;
 };
+
+function logAuthEvent(
+  level: "info" | "warn",
+  message: string,
+  details: Record<string, unknown>,
+): void {
+  const payload = {
+    ...details,
+    userId: typeof details.userId === "string" ? details.userId : undefined,
+    next: typeof details.next === "string" ? details.next : undefined,
+  };
+  console[level](`[auth] ${message}`, payload);
+}
 
 function buildRedirectLocation(nextPath: string): string {
   if (!nextPath || !nextPath.startsWith("/")) {
@@ -23,24 +34,8 @@ function buildRedirectLocation(nextPath: string): string {
 export async function requireAuth(nextPath: string): Promise<RequireAuthResult> {
   const supabase = await createServerSupabaseClient();
   if (!supabase) {
+    logAuthEvent("warn", "supabase client unavailable", { next: nextPath });
     redirect(buildRedirectLocation(nextPath));
-  }
-
-  try {
-    const cookieStore = await Promise.resolve(cookies());
-    const cookieNames = cookieStore.getAll().map((c) => c.name);
-    const projectScopedName = getSupabaseAuthCookieName();
-    const hasSbToken = cookieNames.some((name) => /^sb-[a-zA-Z0-9]+-auth-token$/.test(name));
-    const hasProjectScopedToken = projectScopedName ? cookieNames.includes(projectScopedName) : false;
-    const hasLegacy = cookieNames.some((name) => ["sb-access-token", "sb:token", "supabase-auth-token"].includes(name));
-    console.debug("[requireAuth] cookie check", {
-      hasSbToken,
-      hasProjectScopedToken,
-      hasLegacy,
-      cookieCount: cookieNames.length,
-    });
-  } catch (logError) {
-    console.warn("[requireAuth] failed to inspect cookies", logError);
   }
 
   const {
@@ -49,23 +44,26 @@ export async function requireAuth(nextPath: string): Promise<RequireAuthResult> 
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    console.warn("[requireAuth] auth.getUser failed or missing user", {
-      error: userError?.message ?? null,
+    logAuthEvent("warn", "auth.getUser missing user", {
+      next: nextPath,
       code: userError?.code ?? null,
+      message: userError?.message ?? null,
     });
     redirect(buildRedirectLocation(nextPath));
   }
 
-  console.debug("[requireAuth] auth.getUser ok", { userId: user.id });
-
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
   if (sessionError || !sessionData?.session) {
-    console.warn("[requireAuth] auth.getSession missing session", {
+    logAuthEvent("warn", "auth.getSession missing session", {
+      next: nextPath,
+      userId: user.id,
       code: sessionError?.code ?? null,
       message: sessionError?.message ?? null,
     });
     redirect(buildRedirectLocation(nextPath));
   }
+
+  logAuthEvent("info", "session restored", { next: nextPath, userId: user.id });
 
   return {
     supabase,

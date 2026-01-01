@@ -1,5 +1,5 @@
 // src/lib/identity/bootstrap.server.ts
-import { createServerSupabase } from "@/lib/auth/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
 import { headers, cookies } from "next/headers";
 
@@ -14,7 +14,7 @@ export type BootstrapInput = {
 
 export async function ensureEntityForCurrentUser(args?: BootstrapInput) {
   const parsedArgs = Input.parse(args ?? {});
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabaseClient();
   const { data: u } = await supabase.auth.getUser();
   const user = u?.user;
   if (!user) return { ok: false as const, reason: "no-session" };

@@ -388,6 +388,7 @@ async function buildInputForEntity(
   supabase: SupabaseClient,
   entityId: string,
   policyKeys: string[],
+  options: { gmStartTileOverride: boolean },
 ): Promise<BuildTilesInput> {
   const [
     loyalties,
@@ -397,7 +398,6 @@ async function buildInputForEntity(
     visibilityRules,
     inboxUnreadCount,
     gmAccess,
-    gmStartTileOverride,
   ] = await Promise.all([
     loadLoyaltyMemberships(supabase, entityId),
     loadWorkspaceDescriptors(supabase, entityId),
@@ -406,7 +406,6 @@ async function buildInputForEntity(
     loadVisibilityRules(supabase),
     loadInboxUnreadCount(supabase, entityId),
     loadGmAccess(supabase, entityId),
-    getEffectiveSetting("gm.ui.always_show_start_business_tile"),
   ]);
 
   const uniqueBusinessIds = new Set(workspaces.map((workspace) => workspace.businessId));
@@ -421,7 +420,7 @@ async function buildInputForEntity(
     apps,
     visibilityRules,
     businessCount: uniqueBusinessIds.size,
-    alwaysShowStartBusinessTile: Boolean(gmAccess && gmStartTileOverride),
+    alwaysShowStartBusinessTile: Boolean(gmAccess && options.gmStartTileOverride),
   } satisfies BuildTilesInput;
 }
 
@@ -478,14 +477,21 @@ export async function loadTilesForCurrentUser(): Promise<TilesMeResponse> {
     tilesClient = supabase;
   }
 
+  const gmStartTileOverride = Boolean(
+    await getEffectiveSetting("gm.ui.always_show_start_business_tile", {}, { client: supabase }),
+  );
+
   const policyKeys = [...authzState.policyKeys].sort();
   const cacheKey = policyKeys.join("|");
+  const gmStartCacheKey = gmStartTileOverride ? "gm-start:on" : "gm-start:off";
   const cachedLoader = unstable_cache(
     async () => {
-      const input = await buildInputForEntity(tilesClient, entityId, policyKeys);
+      const input = await buildInputForEntity(tilesClient, entityId, policyKeys, {
+        gmStartTileOverride,
+      });
       return buildTilesResponse(input);
     },
-    ["tiles", "me", user.id, entityId, cacheKey],
+    ["tiles", "me", user.id, entityId, cacheKey, gmStartCacheKey],
     { tags: [`tiles:user:${user.id}`], revalidate: 60 },
   );
 
