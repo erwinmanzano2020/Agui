@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { EmployeeAccessError } from "@/lib/hr/employees";
+import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE, EmployeeAccessError } from "@/lib/hr/employees";
 import type { Database, EmployeeRow, EmployeeInsert } from "@/lib/db.types";
 import { getIdentitySummariesForEmployees, type IdentitySummary } from "@/lib/hr/employee-identity";
 import type { HrAccessDecision } from "./access";
@@ -79,6 +79,27 @@ export type EmployeeCreateInput = {
   entity_id?: string | null;
   rate_per_day: number;
 };
+
+async function findActiveEmployeeForEntity(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  entityId: string,
+): Promise<EmployeeRow | null> {
+  const { data, error } = await supabase
+    .from("employees")
+    .select("id, status, code, full_name")
+    .eq("house_id", houseId)
+    .eq("entity_id", entityId)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle<EmployeeRow>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data as EmployeeRow | null) ?? null;
+}
 
 export async function listBranchesForHouse(
   supabase: SupabaseClient<Database>,
@@ -360,6 +381,42 @@ function assertHrCreateAccess(access: HrAccessDecision) {
   }
 }
 
+function isDuplicateActiveEmployeeError(error: { code?: unknown; message?: unknown; details?: unknown }): boolean {
+  const code =
+    typeof error.code === "string"
+      ? error.code
+      : typeof error.code === "number"
+        ? String(error.code)
+        : null;
+  const message = typeof error.message === "string" ? error.message.toLowerCase() : "";
+  const details = typeof error.details === "string" ? error.details.toLowerCase() : "";
+
+  if (code === "23505") {
+    return (
+      message.includes("employees_active_identity_per_house_idx") ||
+      details.includes("employees_active_identity_per_house_idx") ||
+      message.includes("duplicate key value") ||
+      details.includes("duplicate key value") ||
+      (message.includes("house_id") && message.includes("entity_id"))
+    );
+  }
+
+  return (
+    message.includes("employees_active_identity_per_house_idx") ||
+    message.includes("duplicate key value") ||
+    (message.includes("house_id") && message.includes("entity_id"))
+  );
+}
+
+function buildDuplicateIdentityError(existing: EmployeeRow | null): EmployeeDuplicateIdentityError {
+  return new EmployeeDuplicateIdentityError(
+    DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE,
+    existing?.id ?? null,
+    existing?.code ?? null,
+    existing?.full_name ?? null,
+  );
+}
+
 export async function createEmployeeForHouse(
   supabase: SupabaseClient<Database>,
   houseId: string,
@@ -376,26 +433,9 @@ export async function createEmployeeForHouse(
 
   const entityId = payload.entity_id?.trim() || null;
   if (entityId) {
-    const { data: existing, error: existingError } = await supabase
-      .from("employees")
-      .select("id, status, code, full_name")
-      .eq("house_id", houseId)
-      .eq("entity_id", entityId)
-      .eq("status", "active")
-      .limit(1)
-      .maybeSingle<EmployeeRow>();
-
-    if (existingError) {
-      throw new Error(existingError.message);
-    }
-
+    const existing = await findActiveEmployeeForEntity(supabase, houseId, entityId);
     if (existing) {
-      throw new EmployeeDuplicateIdentityError(
-        "An active employee with this identity already exists in this house.",
-        existing.id,
-        (existing as EmployeeRow & { code?: string }).code ?? null,
-        (existing as EmployeeRow & { full_name?: string }).full_name ?? null,
-      );
+      throw buildDuplicateIdentityError(existing);
     }
   }
 
@@ -417,6 +457,18 @@ export async function createEmployeeForHouse(
     .maybeSingle<EmployeeWithBranch>();
 
   if (error) {
+    const duplicateError = isDuplicateActiveEmployeeError(error);
+    console.error("[employees] failed to insert employee", {
+      houseId,
+      entityId,
+      code: (error as { code?: unknown }).code,
+      message: (error as { message?: unknown }).message,
+      duplicate: duplicateError,
+    });
+    if (entityId && duplicateError) {
+      const existing = await findActiveEmployeeForEntity(supabase, houseId, entityId);
+      throw buildDuplicateIdentityError(existing);
+    }
     throw new EmployeeCreateError(error.message);
   }
 

@@ -235,7 +235,7 @@ class EmployeeInsertQueryMock {
   constructor(
     private employees: EmployeeRow[],
     private branches: BranchRow[],
-    private insertError: { message: string } | null = null,
+    private insertError: { message: string; code?: string; details?: string } | null = null,
     private codeCounters: Map<string, number> = new Map(),
     private filters: Partial<EmployeeRow> = {},
     private mode: "select" | "insert" = "select",
@@ -322,7 +322,7 @@ class CreateSupabaseMock {
   constructor(
     public employees: EmployeeRow[],
     public branches: BranchRow[],
-    private insertError: { message: string } | null = null,
+    private insertError: { message: string; code?: string; details?: string } | null = null,
     private codeCounters: Map<string, number> = new Map(),
   ) {}
 
@@ -548,6 +548,35 @@ describe("createEmployeeForHouseWithAccess", () => {
       },
     );
     assert.equal(supabase.employees.length, 1);
+  });
+
+  it("maps database unique violations to duplicate identity errors", async () => {
+    const supabase = new CreateSupabaseMock(
+      [],
+      [{ id: "branch-1", house_id: "house-1", name: "HQ" }],
+      {
+        message: 'duplicate key value violates unique constraint "employees_active_identity_per_house_idx"',
+        code: "23505",
+      },
+    );
+
+    let caught: unknown = null;
+    try {
+      await createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
+        full_name: "Race Condition",
+        rate_per_day: 900,
+        entity_id: "entity-race",
+      });
+    } catch (error) {
+      caught = error;
+    }
+
+    assert.ok(
+      caught instanceof EmployeeDuplicateIdentityError,
+      `Unexpected error type: ${(caught as Error | null)?.constructor?.name ?? "none"} ${(caught as Error | null)?.message ?? ""}`,
+    );
+    assert.match((caught as Error).message, /active employee/i);
+    assert.equal(supabase.employees.length, 0);
   });
 
   it("allows rehiring when the prior matching identity is inactive", async () => {

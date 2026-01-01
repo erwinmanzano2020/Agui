@@ -44,6 +44,8 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [selectedEntityId, setSelectedEntityId] = useState<string | null>(null);
+  const [identityDecision, setIdentityDecision] = useState<"existing" | "new" | null>(null);
+  const [lookupPerformed, setLookupPerformed] = useState(false);
   const [lookupMatches, setLookupMatches] = useState<LookupMatch[]>([]);
   const [lookupMessage, setLookupMessage] = useState<string | null>(null);
   const [lookupError, setLookupError] = useState<string | null>(null);
@@ -64,7 +66,13 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
   const phoneDigits = phone.replace(/\D/g, "");
   const emailOk = !email.trim() || emailPattern.test(email.trim());
   const phoneOk = !phone.trim() || phoneDigits.length >= 7;
-  const isValid = fullName.trim().length >= 2 && Number.isFinite(parsedRate) && parsedRate > 0 && emailOk && phoneOk;
+  const hasIdentityContact = Boolean(email.trim()) || phoneDigits.length >= 7;
+  const baseValid = fullName.trim().length >= 2 && Number.isFinite(parsedRate) && parsedRate > 0 && emailOk && phoneOk;
+  const identityReady =
+    lookupPerformed &&
+    ((identityDecision === "existing" && Boolean(selectedEntityId)) ||
+      (identityDecision === "new" && hasIdentityContact && emailOk && phoneOk));
+  const canSubmit = baseValid && identityReady;
   const selectedMatch = selectedEntityId ? lookupMatches.find((m) => m.entityId === selectedEntityId) ?? null : null;
 
   useEffect(() => {
@@ -83,29 +91,34 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
       setLookupMessage(
         state.conflict.code && state.conflict.fullName
           ? `Existing active employee: ${state.conflict.code} · ${state.conflict.fullName}`
-          : "An active employee is already linked to this identity.",
+          : "This entity is already an active employee in this house.",
       );
+      setIdentityDecision("existing");
+      setLookupPerformed(true);
     }
     if (state.selectedEntityId) {
       setSelectedEntityId(state.selectedEntityId);
+      setIdentityDecision("existing");
+      setLookupPerformed(true);
     }
   }, [state.conflict, state.selectedEntityId]);
 
   const runLookup = () => {
     setLookupError(null);
     setLookupMessage(null);
+    setIdentityDecision(null);
+    setSelectedEntityId(null);
+    setLookupPerformed(false);
     startLookup(async () => {
       if (!houseId?.trim()) {
         setLookupError("Missing house context. Reload and try again.");
         setLookupMatches([]);
-        setSelectedEntityId(null);
         return;
       }
 
       if (!email.trim() && !phone.trim()) {
         setLookupError("Enter an email or phone to look up an identity.");
         setLookupMatches([]);
-        setSelectedEntityId(null);
         return;
       }
 
@@ -120,7 +133,6 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
         if (!response.ok) {
           setLookupError(payload?.message ?? "Unable to look up identities right now.");
           setLookupMatches([]);
-          setSelectedEntityId(null);
           return;
         }
 
@@ -146,9 +158,9 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
           .filter((m) => m.entityId);
 
         setLookupMatches(normalized);
+        setLookupPerformed(true);
         if (normalized.length === 0) {
           setLookupMessage("No match found — a new person identity will be created if you proceed.");
-          setSelectedEntityId(null);
         } else if (normalized.length === 1) {
           setLookupMessage("Found 1 matching person. Select to reuse the identity.");
         } else {
@@ -157,12 +169,13 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
 
         if (normalized.every((m) => m.entityId !== selectedEntityId)) {
           setSelectedEntityId(null);
+          setIdentityDecision(null);
         }
       } catch (error) {
         console.error("Identity lookup failed", error);
         setLookupError("Unable to look up identities right now.");
         setLookupMatches([]);
-        setSelectedEntityId(null);
+        setLookupPerformed(false);
       }
     });
   };
@@ -186,7 +199,7 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
 
       {state.conflict?.employeeId ? (
         <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          An active employee is already linked to this identity:{" "}
+          This entity is already an active employee in this house:{" "}
           <Link className="underline" href={`/company/${houseSlug}/hr/employees/${state.conflict.employeeId}`}>
             {state.conflict.code ? `${state.conflict.code} · ` : null}
             {state.conflict.fullName ?? "View existing record"}
@@ -200,62 +213,55 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
         <input type="hidden" name="houseSlug" value={houseSlug} />
         <input type="hidden" name="entity_id" value={selectedEntityId ?? ""} />
 
-        <label className="block space-y-1 text-sm text-muted-foreground">
-          Full name
-          <Input
-            name="full_name"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            placeholder="e.g., Ada Lovelace"
-            required
-          />
-          <FieldError message={state.fieldErrors?.full_name} />
-        </label>
-
-        <label className="block space-y-1 text-sm text-muted-foreground">
-          Email (optional, for identity linking)
-          <Input
-            name="email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="name@example.com"
-            onBlur={() => {
-              setLookupMessage(null);
-              setLookupError(null);
-            }}
-          />
-          {!emailOk ? <p className="text-sm text-destructive">Enter a valid email.</p> : null}
-          <FieldError message={state.fieldErrors?.email} />
-        </label>
-
-        <label className="block space-y-1 text-sm text-muted-foreground">
-          Phone (optional, for identity linking)
-          <Input
-            name="phone"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="+63 917 123 4567"
-            inputMode="tel"
-            onBlur={() => {
-              setLookupMessage(null);
-              setLookupError(null);
-            }}
-          />
-          {!phoneOk ? <p className="text-sm text-destructive">Enter a valid phone number.</p> : null}
-          <FieldError message={state.fieldErrors?.phone} />
-        </label>
-
-        <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-3">
-          <div className="flex items-center justify-between gap-2">
+        <div className="space-y-3 rounded-md border border-border/60 bg-muted/20 p-3">
+          <div className="flex items-center justify-between gap-3">
             <div>
-              <p className="text-sm font-medium text-foreground">Identity lookup</p>
-              <p className="text-xs text-muted-foreground">Find an existing person before creating a new one.</p>
+              <p className="text-sm font-medium text-foreground">Step 1: Look up identity</p>
+              <p className="text-xs text-muted-foreground">
+                Search for an existing person in this house using phone or email. Identities stay masked.
+              </p>
             </div>
             <Button type="button" size="sm" variant="outline" onClick={runLookup} disabled={lookupPending}>
               {lookupPending ? "Looking up…" : "Lookup identity"}
             </Button>
           </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="block space-y-1 text-sm text-muted-foreground">
+              Email (optional, for identity linking)
+              <Input
+                name="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@example.com"
+                onBlur={() => {
+                  setLookupMessage(null);
+                  setLookupError(null);
+                }}
+              />
+              {!emailOk ? <p className="text-sm text-destructive">Enter a valid email.</p> : null}
+              <FieldError message={state.fieldErrors?.email} />
+            </label>
+
+            <label className="block space-y-1 text-sm text-muted-foreground">
+              Phone (optional, for identity linking)
+              <Input
+                name="phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+63 917 123 4567"
+                inputMode="tel"
+                onBlur={() => {
+                  setLookupMessage(null);
+                  setLookupError(null);
+                }}
+              />
+              {!phoneOk ? <p className="text-sm text-destructive">Enter a valid phone number.</p> : null}
+              <FieldError message={state.fieldErrors?.phone} />
+            </label>
+          </div>
+
           {lookupError ? (
             <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
               {lookupError}
@@ -274,6 +280,7 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
                   type="button"
                   onClick={() => {
                     setSelectedEntityId(match.entityId);
+                    setIdentityDecision("existing");
                     if (!fullName.trim() && match.displayName) {
                       setFullName(match.displayName);
                     }
@@ -298,7 +305,32 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
               ))}
             </div>
           ) : null}
-          {selectedEntityId ? (
+
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={identityDecision === "new" ? "solid" : "outline"}
+              disabled={!lookupPerformed || lookupPending}
+              onClick={() => {
+                setIdentityDecision("new");
+                setSelectedEntityId(null);
+              }}
+            >
+              Use a new identity
+            </Button>
+            {lookupPerformed ? (
+              <p className="text-xs text-muted-foreground">
+                {identityDecision === "existing"
+                  ? "Selected an existing person. Proceed to confirm the employee details."
+                  : "No match? Continue with a new identity using the provided contact details."}
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">Run an identity lookup before choosing how to proceed.</p>
+            )}
+          </div>
+
+          {selectedEntityId && identityDecision === "existing" ? (
             <p className="text-xs text-foreground">
               Using existing identity:{" "}
               <span className="font-medium">
@@ -307,60 +339,93 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
               . Clear or change the lookup to select a different person.
             </p>
           ) : null}
+          {identityDecision === "new" ? (
+            <p className="text-xs text-foreground">
+              A new platform identity will be created for this employee using the email/phone above after you finish the form.
+            </p>
+          ) : null}
         </div>
 
-        <label className="block space-y-1 text-sm text-muted-foreground">
-          Branch
-          <select
-            name="branch_id"
-            value={branchId}
-            onChange={(e) => setBranchId(e.target.value)}
-            className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground shadow-sm"
-            disabled={Boolean(branchLoadError)}
-          >
-            {branchOptions.map((branch) => (
-              <option key={branch.id || "unassigned"} value={branch.id}>
-                {branch.name || "Unassigned"}
-              </option>
-            ))}
-          </select>
-          {branchLoadError ? (
-            <p className="text-sm text-destructive">Unable to load branches. Try again later.</p>
-          ) : null}
-          <FieldError message={state.fieldErrors?.branch_id} />
-        </label>
+        <fieldset
+          className="space-y-4 rounded-md border border-border/60 bg-background p-3"
+          disabled={!identityReady}
+          aria-disabled={!identityReady}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium text-foreground">Step 2: Employee details</p>
+              <p className="text-xs text-muted-foreground">Create the employee record under this house.</p>
+            </div>
+            {!identityReady ? (
+              <span className="text-xs text-muted-foreground">Complete identity selection to unlock details.</span>
+            ) : null}
+          </div>
 
-        <label className="block space-y-1 text-sm text-muted-foreground">
-          Rate per day
-          <Input
-            name="rate_per_day"
-            type="number"
-            step="0.01"
-            min="0"
-            value={rate}
-            inputMode="decimal"
-            onChange={(e) => setRate(e.target.value)}
-            required
-          />
-          <FieldError message={state.fieldErrors?.rate_per_day} />
-        </label>
+          <label className="block space-y-1 text-sm text-muted-foreground">
+            Full name
+            <Input
+              name="full_name"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              placeholder="e.g., Ada Lovelace"
+              required
+            />
+            <FieldError message={state.fieldErrors?.full_name} />
+          </label>
 
-        <label className="block space-y-1 text-sm text-muted-foreground">
-          Status
-          <select
-            name="status"
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground shadow-sm"
-          >
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
-          <FieldError message={state.fieldErrors?.status} />
-        </label>
+          <label className="block space-y-1 text-sm text-muted-foreground">
+            Branch
+            <select
+              name="branch_id"
+              value={branchId}
+              onChange={(e) => setBranchId(e.target.value)}
+              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground shadow-sm"
+              disabled={Boolean(branchLoadError)}
+            >
+              {branchOptions.map((branch) => (
+                <option key={branch.id || "unassigned"} value={branch.id}>
+                  {branch.name || "Unassigned"}
+                </option>
+              ))}
+            </select>
+            {branchLoadError ? (
+              <p className="text-sm text-destructive">Unable to load branches. Try again later.</p>
+            ) : null}
+            <FieldError message={state.fieldErrors?.branch_id} />
+          </label>
+
+          <label className="block space-y-1 text-sm text-muted-foreground">
+            Rate per day
+            <Input
+              name="rate_per_day"
+              type="number"
+              step="0.01"
+              min="0"
+              value={rate}
+              inputMode="decimal"
+              onChange={(e) => setRate(e.target.value)}
+              required
+            />
+            <FieldError message={state.fieldErrors?.rate_per_day} />
+          </label>
+
+          <label className="block space-y-1 text-sm text-muted-foreground">
+            Status
+            <select
+              name="status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="w-full rounded-md border border-border bg-white px-3 py-2 text-sm text-foreground shadow-sm"
+            >
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </select>
+            <FieldError message={state.fieldErrors?.status} />
+          </label>
+        </fieldset>
 
         <div className="flex flex-wrap gap-2">
-          <SubmitButton disabled={!isValid} />
+          <SubmitButton disabled={!canSubmit} />
           <Button asChild variant="ghost">
             <Link href={`/company/${houseSlug}/hr/employees`}>Cancel</Link>
           </Button>

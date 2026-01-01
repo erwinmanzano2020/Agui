@@ -123,4 +123,22 @@ describe("employees access control", () => {
     const search = await listEmployees(repo, ownerAccess, { search: "Grace" });
     assert.deepEqual(search.map((row) => row.id), ["emp-2"]);
   });
+
+  it("prevents multiple active employees sharing the same identity within a house", async () => {
+    const repo = createInMemoryEmployeeRepository({
+      rows: [buildEmployeeRow("emp-1", { house_id: "house-1", entity_id: "entity-1", status: "active" })],
+    });
+
+    await assert.rejects(
+      () =>
+        createEmployee(repo, ownerAccess, {
+          house_id: "house-1",
+          code: "E-04",
+          full_name: "Duplicate Person",
+          rate_per_day: 1000,
+          entity_id: "entity-1",
+        }),
+      /active employee/i,
+    );
+  });
 });

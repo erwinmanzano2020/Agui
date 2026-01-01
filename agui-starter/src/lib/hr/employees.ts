@@ -15,6 +15,7 @@ export type EmployeeListFilters = {
 };
 
 export class EmployeeAccessError extends Error {}
+export const DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE = "This entity is already an active employee in this house.";
 
 const ALLOWED_ROLES = new Set<WorkspaceRole>(["owner", "manager"]);
 const ALLOWED_POLICIES = new Set([
@@ -85,6 +86,20 @@ export function createInMemoryEmployeeRepository(initial?: {
   let counter = 1;
   const rows = [...(initial?.rows ?? [])];
   const branches = initial?.branches ?? {};
+  const enforceActiveIdentityGuardrail = (
+    houseId: string,
+    entityId: string | null,
+    status: EmployeeRow["status"],
+    ignoreId?: string,
+  ) => {
+    if (!entityId || status !== "active") return;
+    const conflict = rows.find(
+      (row) => row.id !== ignoreId && row.house_id === houseId && row.entity_id === entityId && row.status === "active",
+    );
+    if (conflict) {
+      throw new Error(DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE);
+    }
+  };
 
   return {
     rows,
@@ -130,14 +145,17 @@ export function createInMemoryEmployeeRepository(initial?: {
       const fullName = (payload.full_name ?? "").trim() || "Unnamed";
       const code = payload.code ?? `EI-${String(counter++).padStart(3, "0")}`;
       const rate = payload.rate_per_day ?? 0;
+      const entityId = payload.entity_id ?? null;
+      const status = payload.status ?? "active";
+      enforceActiveIdentityGuardrail(payload.house_id, entityId, status);
       const row: EmployeeRow = {
         id: payload.id ?? `emp-${counter++}`,
         house_id: payload.house_id,
         code,
-        entity_id: payload.entity_id ?? null,
+        entity_id: entityId,
         full_name: fullName,
         rate_per_day: rate,
-        status: payload.status ?? "active",
+        status,
         branch_id: payload.branch_id ?? null,
         created_at: now,
         updated_at: payload.updated_at ?? now,
@@ -158,6 +176,8 @@ export function createInMemoryEmployeeRepository(initial?: {
         rate_per_day: updates.rate_per_day ?? existing.rate_per_day,
         updated_at: updates.updated_at ?? new Date().toISOString(),
       } satisfies EmployeeRow;
+
+      enforceActiveIdentityGuardrail(merged.house_id, merged.entity_id, merged.status, merged.id);
 
       if (merged.branch_id) {
         const branchHouse = branches[merged.branch_id];
