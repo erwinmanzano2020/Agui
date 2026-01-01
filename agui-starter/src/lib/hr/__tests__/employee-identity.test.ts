@@ -243,6 +243,35 @@ describe("getIdentitySummariesForEmployees", () => {
     assert.equal(summaries[0]?.identifiers[0]?.value_masked, "l***@example.com");
   });
 
+  it("ignores identifiers with unknown types from the RPC response", async () => {
+    const supabase = new SupabaseRpcMock(async () => {
+      return {
+        data: [
+          {
+            entity_id: "entity-1",
+            display_name: "Masked",
+            identifiers: [
+              { type: "EMAIL", value_masked: "m***@example.com", is_primary: true },
+              { type: "unknown", value_masked: "should-skip" },
+              { type: "phone", value_masked: "•••4567" },
+            ],
+          },
+        ],
+        error: null,
+      };
+    });
+
+    const summaries = await getIdentitySummariesForEmployees(supabase as never, {
+      houseId: "house-1",
+      entityIds: ["entity-1"],
+    });
+
+    assert.equal(summaries.length, 1);
+    assert.equal(summaries[0]?.identifiers.length, 2);
+    assert.equal(summaries[0]?.identifiers[0]?.type, "EMAIL");
+    assert.equal(summaries[0]?.identifiers[1]?.type, "PHONE");
+  });
+
   it("skips RPC for empty entity ids", async () => {
     const supabase = new SupabaseRpcMock(async () => ({ data: [], error: null }));
     const summaries = await getIdentitySummariesForEmployees(supabase as never, { houseId: "house-1", entityIds: [] });

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "@/lib/z";
-import { createServerSupabase } from "@/lib/auth/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 const Body = z.object({
   brandId: z.string().uuid().optional(),
@@ -11,7 +11,7 @@ const Body = z.object({
 });
 
 export async function POST(req: Request) {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabaseClient();
   const body = Body.parse(await req.json());
 
   const { data: { user } } = await supabase.auth.getUser();

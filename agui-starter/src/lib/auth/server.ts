@@ -39,6 +39,8 @@ async function resolveMaybePromise<T>(
 
 export type SupabaseServerClient = SupabaseClient<Database>;
 
+// Canonical server-side Supabase factory used by `createServerSupabaseClient`.
+// Prefer `createServerSupabaseClient` for server routes to keep SSR auth consistent.
 export async function createServerSupabase(
   options: CreateServerSupabaseOptions = {},
 ): Promise<SupabaseServerClient> {

@@ -1,7 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies, headers } from "next/headers";
 
-import { createServerSupabase } from "@/lib/auth/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type { EntityApplicationRow } from "@/lib/db.types";
 
 type ApplicationListRow = Pick<
@@ -30,7 +30,7 @@ function resolveBaseUrl(headerStore: Headers): string {
 }
 
 export default async function AdminApplicationsPage() {
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabaseClient();
   const { data, error } = await supabase
     .from("entity_applications")
     .select("id, kind, status, applicant_entity_id, target_brand_id, decided_at, processed_at")

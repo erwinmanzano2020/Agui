@@ -69,13 +69,38 @@ export function normalizeEmployeePhone(phone: string | null | undefined): string
   return normalizeEmployeePhoneDetails(phone)?.e164 ?? null;
 }
 
-export type MaskedIdentifier = { type: string; value_masked: string; is_primary?: boolean };
+const ALLOWED_IDENTIFIER_TYPES = ["EMAIL", "PHONE"] as const;
+export type IdentityIdentifierType = (typeof ALLOWED_IDENTIFIER_TYPES)[number];
+
+type RawMaskedIdentifier = { type?: unknown; value_masked?: unknown; is_primary?: unknown };
+export type MaskedIdentifier = { type: IdentityIdentifierType; value_masked: string; is_primary?: boolean };
 export type IdentityLookupMatch = {
   entityId: string;
   displayName: string | null;
   matchedIdentifiers: MaskedIdentifier[];
   matchConfidence: "none" | "single" | "multiple";
 };
+
+function normalizeIdentifierType(input: unknown): IdentityIdentifierType | null {
+  if (typeof input !== "string") {
+    return null;
+  }
+  const upper = input.trim().toUpperCase();
+  return (ALLOWED_IDENTIFIER_TYPES as readonly string[]).includes(upper)
+    ? (upper as IdentityIdentifierType)
+    : null;
+}
+
+function sanitizeMaskedIdentifier(raw: RawMaskedIdentifier): MaskedIdentifier | null {
+  const type = normalizeIdentifierType(raw.type);
+  if (!type) {
+    return null;
+  }
+  const rawValue = typeof raw.value_masked === "string" ? raw.value_masked : "";
+  const maskedValue = rawValue.trim().length > 0 ? rawValue : "••••";
+  const isPrimary = typeof raw.is_primary === "boolean" ? raw.is_primary : undefined;
+  return { type, value_masked: maskedValue, is_primary: isPrimary };
+}
 
 function mapSchemaCacheError(message: string): Error {
   const lowered = message.toLowerCase();
@@ -154,7 +179,9 @@ export async function lookupEntitiesForEmployee(
     .map((row) => ({
       entityId: (row.entity_id as string | null) ?? "",
       displayName: (row.display_name as string | null) ?? null,
-      matchedIdentifiers: ((row.matched_identifiers as MaskedIdentifier[] | null) ?? []).filter(Boolean),
+      matchedIdentifiers: ((row.matched_identifiers as RawMaskedIdentifier[] | null) ?? [])
+        .map(sanitizeMaskedIdentifier)
+        .filter((identifier): identifier is MaskedIdentifier => Boolean(identifier)),
       matchConfidence: ((row.match_confidence as IdentityLookupMatch["matchConfidence"] | null) ?? "multiple") as
         | "none"
         | "single"
@@ -182,19 +209,14 @@ export async function getIdentitySummariesForEmployees(
     throw mapSchemaCacheError(error.message);
   }
 
-  const normalizeIdentifier = (identifier: MaskedIdentifier): MaskedIdentifier => {
-    const type = typeof identifier.type === "string" && identifier.type.trim().length > 0 ? identifier.type.trim() : "other";
-    return { ...identifier, type };
-  };
-
   const rows = (data as Array<Record<string, unknown>> | null) ?? [];
   return rows
     .map((row) => ({
       entityId: (row.entity_id as string | null) ?? "",
       displayName: (row.display_name as string | null) ?? null,
-      identifiers: ((row.identifiers as MaskedIdentifier[] | null) ?? [])
-        .filter(Boolean)
-        .map(normalizeIdentifier),
+      identifiers: ((row.identifiers as RawMaskedIdentifier[] | null) ?? [])
+        .map(sanitizeMaskedIdentifier)
+        .filter((identifier): identifier is MaskedIdentifier => Boolean(identifier)),
     } satisfies IdentitySummary))
     .filter((row) => row.entityId);
 }

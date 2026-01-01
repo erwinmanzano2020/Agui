@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { z } from "@/lib/z";
-import { createServerSupabase } from "@/lib/auth/server";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 import type {
   EntityApplicationRow,
   EntityApplicationUpdate,
@@ -14,7 +14,7 @@ const Params = z.object({ id: z.string().uuid() });
 export async function POST(_req: NextRequest, { params }: { params: RouteParams<{ id: string }> }) {
   const { id } = Params.parse(await params);
 
-  const supabase = await createServerSupabase();
+  const supabase = await createServerSupabaseClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
