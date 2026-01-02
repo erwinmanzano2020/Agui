@@ -34,12 +34,8 @@ describe("findOrCreateEntityForEmployee", () => {
   it("links to an existing entity when the identifier already exists", async () => {
     const supabase = new SupabaseRpcMock(async (_name, params) => {
       assert.equal(params.p_house_id, "house-1");
-      const identifiers = params.p_identifiers as Array<{ identifier_type: string; identifier_value: string }>;
-      assert.deepEqual(identifiers, [
-        { identifier_type: "EMAIL", identifier_value: "person@example.com" },
-        { identifier_type: "PHONE", identifier_value: "+639171234567" },
-        { identifier_type: "PHONE", identifier_value: "09171234567" },
-      ]);
+      assert.equal(params.p_email, "person@example.com");
+      assert.equal(params.p_phone, "+639171234567");
       return { data: "entity-123", error: null };
     });
 
@@ -85,9 +81,8 @@ describe("findOrCreateEntityForEmployee", () => {
 
   it("matches legacy phone identifiers before creating new entities", async () => {
     const supabase = new SupabaseRpcMock(async (_name, params) => {
-      const identifiers = (params as { p_identifiers?: Array<{ identifier_value: string }> }).p_identifiers ?? [];
-      const phones = identifiers.map((item) => item.identifier_value);
-      const normalized = normalizeEmployeePhoneDetails(phones[0] ?? null);
+      const phone = (params as { p_phone?: string | null }).p_phone ?? null;
+      const normalized = normalizeEmployeePhoneDetails(phone);
       const legacy = normalized?.legacyLocal ?? null;
       return { data: legacy === "09171234567" ? "entity-legacy" : "entity-new", error: null };
     });
@@ -132,7 +127,7 @@ describe("findOrCreateEntityForEmployee", () => {
           fullName: "Missing RPC",
           email: "missing@example.com",
         }),
-      /schema cache stale/,
+      /legacy signature/i,
     );
   });
 });
@@ -182,15 +177,15 @@ describe("lookupEntitiesForEmployee", () => {
 
     await assert.rejects(
       () => lookupEntitiesForEmployee(supabase as never, { houseId: "house-1", email: "a@b.com" }),
-      /schema cache stale/,
+      /legacy signature/i,
     );
   });
 
   it("maps missing kind column errors to actionable messages", async () => {
-    const supabase = new SupabaseRpcMock(async () => ({
-      data: null,
-      error: { message: 'column "kind" of relation "entity_identifiers" does not exist' },
-    }));
+      const supabase = new SupabaseRpcMock(async () => ({
+        data: null,
+        error: { message: 'column "kind" of relation "entity_identifiers" does not exist' },
+      }));
 
     await assert.rejects(
       () => lookupEntitiesForEmployee(supabase as never, { houseId: "house-1", email: "person@example.com" }),

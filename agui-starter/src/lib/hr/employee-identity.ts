@@ -104,14 +104,26 @@ function sanitizeMaskedIdentifier(raw: RawMaskedIdentifier): MaskedIdentifier | 
 
 function mapSchemaCacheError(message: string): Error {
   const lowered = message.toLowerCase();
-  if (lowered.includes("function") && lowered.includes("schema")) {
-    return new Error(
-      "Identity RPC unavailable (schema cache stale or migration missing). Run latest migrations and reload PostgREST schema.",
-    );
-  }
   if (lowered.includes("entity_identifiers") && lowered.includes("kind")) {
     return new Error(
       "Identity RPC expects identifier_type/identifier_value columns. Update migrations to remove legacy kind usage.",
+    );
+  }
+  if (
+    lowered.includes("could not find the function") ||
+    lowered.includes("does not exist") ||
+    lowered.includes("no rpc") ||
+    lowered.includes("pgrst202") ||
+    lowered.includes("pgrst301") ||
+    lowered.includes("function not found")
+  ) {
+    return new Error(
+      "Identity RPC mismatch: app is calling legacy signature. Update to use p_email/p_phone (not p_identifiers).",
+    );
+  }
+  if (lowered.includes("function") && lowered.includes("schema")) {
+    return new Error(
+      "Identity RPC unavailable (schema cache stale or migration missing). Run latest migrations and reload PostgREST schema.",
     );
   }
   return new Error(message);
@@ -124,18 +136,7 @@ export async function findOrCreateEntityForEmployee(
   const email = normalizeEmployeeEmail(input.email);
   const phoneDetails = normalizeEmployeePhoneDetails(input.phone);
 
-  const identifiers: Array<{ identifier_type: "EMAIL" | "PHONE"; identifier_value: string }> = [];
-  if (email) {
-    identifiers.push({ identifier_type: "EMAIL", identifier_value: email });
-  }
-  if (phoneDetails?.e164) {
-    identifiers.push({ identifier_type: "PHONE", identifier_value: phoneDetails.e164 });
-    if (phoneDetails.legacyLocal !== phoneDetails.e164) {
-      identifiers.push({ identifier_type: "PHONE", identifier_value: phoneDetails.legacyLocal });
-    }
-  }
-
-  if (identifiers.length === 0) {
+  if (!email && !phoneDetails) {
     return { entityId: null };
   }
 
@@ -143,7 +144,8 @@ export async function findOrCreateEntityForEmployee(
   const { data, error } = await supabase.rpc("hr_find_or_create_entity_for_employee", {
     p_house_id: input.houseId,
     p_display_name: label,
-    p_identifiers: identifiers,
+    p_email: email,
+    p_phone: phoneDetails?.e164 ?? phoneDetails?.legacyLocal ?? null,
   });
 
   if (error) {
