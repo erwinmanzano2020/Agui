@@ -12,6 +12,7 @@ import {
   createEmployeeForHouseWithAccess,
   listEmployeesByHouse,
 } from "@/lib/hr/employees-server";
+import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE } from "@/lib/hr/employees";
 import { resolveHrAccess } from "@/lib/hr/access";
 import {
   findOrCreateEntityForEmployee,
@@ -410,7 +411,7 @@ export async function POST(req: NextRequest) {
       if (message.toLowerCase().includes("not allowed")) {
         return jsonError(403, "Not allowed to link identity", { message });
       }
-      return jsonError(500, "Failed to link employee identity");
+      return jsonError(503, "Identity service is unavailable right now. Please retry the lookup.", { message });
     }
   }
 
@@ -429,7 +430,7 @@ export async function POST(req: NextRequest) {
       return jsonError(400, "Select a branch within this house", { fieldErrors: { branch_id: ["Invalid branch"] } });
     }
     if (error instanceof EmployeeDuplicateIdentityError) {
-      return jsonError(409, "An active employee with this identity already exists in this house.", {
+      return jsonError(409, DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE, {
         message: error.message,
         existing_employee_id: error.employeeId,
         existing_employee_code: error.employeeCode,

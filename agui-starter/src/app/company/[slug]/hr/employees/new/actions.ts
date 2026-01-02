@@ -7,6 +7,7 @@ import {
   EmployeeCreateError,
   EmployeeDuplicateIdentityError,
   EmployeeUpdateError,
+  type EmployeeCreateInput,
   createEmployeeForHouseWithAccess,
 } from "@/lib/hr/employees-server";
 import {
@@ -16,6 +17,7 @@ import {
 } from "@/lib/hr/employee-identity";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
+import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE } from "@/lib/hr/employees";
 
 import type { CreateEmployeeState } from "./action-types";
 
@@ -133,6 +135,18 @@ export async function createEmployeeAction(
   }
 
   let entityId: string | null = parsed.data.entity_id ?? null;
+  const hasIdentifierForIdentity =
+    Boolean(normalizedEmail) || Boolean(normalizedPhone?.e164) || Boolean(normalizedPhone?.legacyLocal);
+  if (!entityId && !hasIdentifierForIdentity) {
+    return {
+      status: "error",
+      message: "Look up an identity with a phone or email before creating an employee.",
+      fieldErrors: {
+        email: ["Provide a phone or email to link this employee"],
+        phone: ["Provide a phone or email to link this employee"],
+      },
+    } satisfies CreateEmployeeState;
+  }
   if (!entityId) {
     try {
       const entityResult = await findOrCreateEntityForEmployee(supabase, {
@@ -148,18 +162,23 @@ export async function createEmployeeAction(
         return { status: "error", message: "You are not allowed to create identities for this house." } satisfies CreateEmployeeState;
       }
       console.error("Failed to resolve employee entity", error);
-      return { status: "error", message } satisfies CreateEmployeeState;
+      return {
+        status: "error",
+        message: message || "Unable to link employee identity right now. Retry the lookup.",
+      } satisfies CreateEmployeeState;
     }
   }
 
+  const payload: EmployeeCreateInput = {
+    full_name: parsed.data.full_name,
+    status: parsed.data.status ?? "active",
+    branch_id: normalizedBranchId,
+    rate_per_day: parsed.data.rate_per_day,
+    entity_id: entityId,
+  };
+
   try {
-    const created = await createEmployeeForHouseWithAccess(supabase, access, parsed.data.houseId, {
-      full_name: parsed.data.full_name,
-      status: parsed.data.status ?? "active",
-      branch_id: normalizedBranchId,
-      rate_per_day: parsed.data.rate_per_day,
-      entity_id: entityId,
-    });
+    const created = await createEmployeeForHouseWithAccess(supabase, access, parsed.data.houseId, payload);
 
     const listPath = `/company/${parsed.data.houseSlug}/hr/employees`;
     revalidatePath(listPath);
@@ -177,18 +196,22 @@ export async function createEmployeeAction(
     if (error instanceof EmployeeDuplicateIdentityError) {
       return {
         status: "error",
-        message: "An active employee with this identity already exists in this house.",
+        message: DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE,
         conflict: {
           employeeId: error.employeeId,
           code: error.employeeCode,
           fullName: error.employeeName,
         },
-        selectedEntityId: parsed.data.entity_id ?? null,
+        selectedEntityId: entityId,
       } satisfies CreateEmployeeState;
     }
 
     if (error instanceof EmployeeCreateError) {
-      return { status: "error", message: error.message } satisfies CreateEmployeeState;
+      const message =
+        error.message.toLowerCase().includes("permission") || error.message.toLowerCase().includes("rls")
+          ? "You are not allowed to create employees for this house."
+          : error.message;
+      return { status: "error", message } satisfies CreateEmployeeState;
     }
 
     console.error("Failed to create employee", error);
