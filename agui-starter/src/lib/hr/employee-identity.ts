@@ -109,6 +109,11 @@ function mapSchemaCacheError(message: string): Error {
       "Identity RPC unavailable (schema cache stale or migration missing). Run latest migrations and reload PostgREST schema.",
     );
   }
+  if (lowered.includes("entity_identifiers") && lowered.includes("kind")) {
+    return new Error(
+      "Identity RPC expects identifier_type/identifier_value columns. Update migrations to remove legacy kind usage.",
+    );
+  }
   return new Error(message);
 }
 

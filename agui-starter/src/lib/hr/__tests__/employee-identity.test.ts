@@ -186,6 +186,18 @@ describe("lookupEntitiesForEmployee", () => {
     );
   });
 
+  it("maps missing kind column errors to actionable messages", async () => {
+    const supabase = new SupabaseRpcMock(async () => ({
+      data: null,
+      error: { message: 'column "kind" of relation "entity_identifiers" does not exist' },
+    }));
+
+    await assert.rejects(
+      () => lookupEntitiesForEmployee(supabase as never, { houseId: "house-1", email: "person@example.com" }),
+      /identifier_type\/identifier_value/,
+    );
+  });
+
   it("matches phone identifiers with local and E.164 forms", async () => {
     const supabase = new SupabaseRpcMock(async (_name, params) => {
       const phone = (params as { p_identifiers?: { phone?: string } }).p_identifiers?.phone;

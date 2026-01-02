@@ -44,9 +44,19 @@ export async function POST(req: NextRequest) {
   const { entityId, kind, value, issuer, meta } = parsed.data;
   const metaJson: Json | null = meta == null ? null : (meta as unknown as Json);
 
+  if (kind !== "email" && kind !== "phone") {
+    return NextResponse.json(
+      { ok: false, error: "Only email and phone identifiers are supported for linking in this environment." },
+      { status: 400 },
+    );
+  }
+
+  const identifierType = kind === "email" ? "EMAIL" : "PHONE";
+
   const row: EntityIdentifierInsert = {
     entity_id: entityId ?? currentEntityId,
-    kind,
+    identifier_type: identifierType,
+    identifier_value: value,
     value_norm: value, // normalized/hashed in trigger
     issuer: issuer ?? null,
     meta: metaJson,
@@ -56,7 +66,7 @@ export async function POST(req: NextRequest) {
   const { data, error } = await supabase
     .from("entity_identifiers")
     .insert(row)
-    .select("id, entity_id, kind, issuer, value_norm, verified_at")
+    .select("id, entity_id, identifier_type, identifier_value, issuer, value_norm, verified_at")
     .maybeSingle();
 
   if (error) {

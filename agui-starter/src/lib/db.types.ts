@@ -122,18 +122,10 @@ export type EntitlementUpdate = Partial<EntitlementInsert>;
 export type EntityIdentifierRow = {
   id: string;
   entity_id: string;
-  kind:
-    | "email"
-    | "phone"
-    | "qr"
-    | "gov_id"
-    | "loyalty_card"
-    | "employee_no"
-    | "other";
+  identifier_type: "EMAIL" | "PHONE" | string | null;
+  identifier_value: string | null;
   issuer: string | null;
   value_norm: string;
-  identifier_type?: "EMAIL" | "PHONE" | string | null;
-  identifier_value?: string | null;
   is_primary?: boolean | null;
   fingerprint: string;
   value_hash?: string | null;
@@ -147,11 +139,10 @@ export type EntityIdentifierRow = {
 export type EntityIdentifierInsert = {
   id?: string;
   entity_id: string;
-  kind: EntityIdentifierRow["kind"];
-  issuer?: string | null;
-  value_norm: string;
   identifier_type?: EntityIdentifierRow["identifier_type"];
   identifier_value?: string | null;
+  issuer?: string | null;
+  value_norm: string;
   is_primary?: boolean | null;
   value_hash?: string | null;
   meta?: Json | null;
