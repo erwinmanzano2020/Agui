@@ -31,8 +31,8 @@ type Dtr = {
 type Seg = {
   employee_id?: string;
   work_date: string;
-  start_at: string | null;
-  end_at: string | null;
+  time_in: string | null;
+  time_out: string | null;
 };
 
 type Ded = {
@@ -162,10 +162,10 @@ function DTRSplit({
       const s1 = list[0];
       const s2 = list[1];
       m.set(r.work_date, {
-        in1: s1 ? fmtHM(s1.start_at) : fmtHM(r.time_in),
-        out1: s1 ? fmtHM(s1.end_at) : fmtHM(r.time_out),
-        in2: s2 ? fmtHM(s2.start_at) : "--",
-        out2: s2 ? fmtHM(s2.end_at) : "--",
+        in1: s1 ? fmtHM(s1.time_in) : fmtHM(r.time_in),
+        out1: s1 ? fmtHM(s1.time_out) : fmtHM(r.time_out),
+        in2: s2 ? fmtHM(s2.time_in) : "--",
+        out2: s2 ? fmtHM(s2.time_out) : "--",
       });
     }
     return m;
@@ -915,12 +915,12 @@ export default function PayrollPayslipPageClient() {
           .order("work_date", { ascending: true }),
         sb
           .from("dtr_segments")
-          .select("employee_id, work_date, start_at, end_at")
+          .select("employee_id, work_date, time_in, time_out")
           .in("employee_id", ids)
           .gte("work_date", from)
           .lte("work_date", end)
           .order("work_date", { ascending: true })
-          .order("start_at", { ascending: true }),
+          .order("time_in", { ascending: true }),
         sb
           .from("payroll_deductions")
           .select("employee_id, effective_date, amount, type")
@@ -989,7 +989,7 @@ export default function PayrollPayslipPageClient() {
           const segs = segsByDate.get(date) || [];
           let mins = 0;
           for (const s of segs) {
-            if (s.start_at && s.end_at) mins += diffMinutes(s.start_at, s.end_at);
+            if (s.time_in && s.time_out) mins += diffMinutes(s.time_in, s.time_out);
           }
           if (mins > 0) return mins;
           const r = dtrByDate.get(date);
