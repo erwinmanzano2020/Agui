@@ -1,6 +1,9 @@
--- HR-2: canonical DTR segments table and RLS
+-- HR-2: destructive reset of DTR segments (Option A). Assumes no production data yet.
+begin;
 
-create table if not exists public.dtr_segments (
+drop table if exists public.dtr_segments cascade;
+
+create table public.dtr_segments (
   id uuid primary key default gen_random_uuid(),
   house_id uuid not null references public.houses(id) on delete cascade,
   employee_id uuid not null references public.employees(id) on delete cascade,
@@ -15,8 +18,8 @@ create table if not exists public.dtr_segments (
 );
 
 -- Indexes for house and employee scoped queries
-create index if not exists dtr_segments_house_date_idx on public.dtr_segments (house_id, work_date);
-create index if not exists dtr_segments_employee_date_idx on public.dtr_segments (employee_id, work_date);
+create index dtr_segments_house_date_idx on public.dtr_segments (house_id, work_date);
+create index dtr_segments_employee_date_idx on public.dtr_segments (employee_id, work_date);
 
 -- Guard cross-house access to employee rows
 create or replace function public.ensure_dtr_segment_employee_house()
@@ -71,8 +74,12 @@ create policy dtr_segments_select_house_roles
     or public.current_entity_is_gm()
   );
 
--- verify: select to_regclass('public.dtr_segments') is not null as table_exists;
--- verify: select relrowsecurity from pg_class where oid = 'public.dtr_segments'::regclass;
--- verify: select count(*) from public.dtr_segments;
--- notify pgrst, 'reload schema';
+-- verify:
+-- select column_name, data_type from information_schema.columns where table_schema = 'public' and table_name = 'dtr_segments' order by ordinal_position;
+-- select relrowsecurity from pg_class where oid = 'public.dtr_segments'::regclass;
+-- select policyname from pg_policies where schemaname = 'public' and tablename = 'dtr_segments';
+-- select tgname from pg_trigger where tgrelid = 'public.dtr_segments'::regclass and not tgisinternal;
+-- select count(*) from public.dtr_segments;
+
 notify pgrst, 'reload schema';
+commit;
