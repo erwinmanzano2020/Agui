@@ -74,3 +74,5 @@ create policy dtr_segments_select_house_roles
 -- verify: select to_regclass('public.dtr_segments') is not null as table_exists;
 -- verify: select relrowsecurity from pg_class where oid = 'public.dtr_segments'::regclass;
 -- verify: select count(*) from public.dtr_segments;
+-- notify pgrst, 'reload schema';
+notify pgrst, 'reload schema';

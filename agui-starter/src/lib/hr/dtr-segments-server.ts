@@ -10,6 +10,16 @@ const DTR_SEGMENT_COLUMNS =
 type DateRange = { start: string; end: string };
 type MinimalEmployee = Pick<EmployeeRow, "id" | "house_id" | "branch_id">;
 
+function isPermissionDenied(error: unknown): boolean {
+  const message =
+    typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: string }).message ?? "")
+      : error instanceof Error
+        ? error.message
+        : "";
+  return /permission denied/i.test(message) || /42501/.test(message);
+}
+
 function normalizeSegments(rows: DtrSegmentRow[] | null | undefined): DtrSegmentRow[] {
   return (rows ?? []).map((row) => ({
     ...row,
@@ -29,6 +39,7 @@ async function loadEmployeeForAccess(
     .maybeSingle<MinimalEmployee>();
 
   if (error) {
+    if (isPermissionDenied(error)) return null;
     throw new Error(error.message);
   }
 
@@ -51,6 +62,7 @@ export async function listDtrByHouseAndDate(
     .order("time_in", { ascending: true });
 
   if (error) {
+    if (isPermissionDenied(error)) return [];
     throw new Error(error.message);
   }
 
@@ -76,6 +88,7 @@ export async function listDtrByEmployee(
     .order("time_in", { ascending: true });
 
   if (error) {
+    if (isPermissionDenied(error)) return [];
     throw new Error(error.message);
   }
 
@@ -94,6 +107,7 @@ export async function listDtrTodayByBranch(
     .eq("branch_id", branchId);
 
   if (employeesError) {
+    if (isPermissionDenied(employeesError)) return [];
     throw new Error(employeesError.message);
   }
 

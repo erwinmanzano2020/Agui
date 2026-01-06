@@ -12,6 +12,7 @@ class QueryMock<T extends Record<string, unknown>> {
     private rows: T[],
     private filters: Filter<T>[] = [],
     private sorts: SortInstruction<T>[] = [],
+    private resultError: { message: string } | null = null,
   ) {}
 
   select() {
@@ -19,7 +20,7 @@ class QueryMock<T extends Record<string, unknown>> {
   }
 
   eq(column: keyof T, value: unknown) {
-    return new QueryMock(this.rows, [...this.filters, (row) => row[column] === value], this.sorts);
+    return new QueryMock(this.rows, [...this.filters, (row) => row[column] === value], this.sorts, this.resultError);
   }
 
   gte(column: keyof T, value: string) {
@@ -27,6 +28,7 @@ class QueryMock<T extends Record<string, unknown>> {
       this.rows,
       [...this.filters, (row) => String(row[column] ?? "") >= value],
       this.sorts,
+      this.resultError,
     );
   }
 
@@ -35,6 +37,7 @@ class QueryMock<T extends Record<string, unknown>> {
       this.rows,
       [...this.filters, (row) => String(row[column] ?? "") <= value],
       this.sorts,
+      this.resultError,
     );
   }
 
@@ -44,23 +47,29 @@ class QueryMock<T extends Record<string, unknown>> {
       this.rows,
       [...this.filters, (row) => allowed.has(String(row[column]))],
       this.sorts,
+      this.resultError,
     );
   }
 
   order(column: keyof T, options: { ascending?: boolean } = {}) {
-    return new QueryMock(this.rows, this.filters, [...this.sorts, { column, ascending: options.ascending !== false }]);
+    return new QueryMock(
+      this.rows,
+      this.filters,
+      [...this.sorts, { column, ascending: options.ascending !== false }],
+      this.resultError,
+    );
   }
 
   async maybeSingle<U>() {
     const filtered = this.applyFilters();
-    return { data: (filtered[0] as U | null) ?? null, error: null } as const;
+    return { data: (filtered[0] as U | null) ?? null, error: this.resultError } as const;
   }
 
   then<TResult1 = unknown, TResult2 = never>(
-    onfulfilled?: (value: { data: T[]; error: null }) => TResult1 | PromiseLike<TResult1>,
+    onfulfilled?: (value: { data: T[]; error: { message: string } | null }) => TResult1 | PromiseLike<TResult1>,
     onrejected?: (reason: unknown) => TResult2 | PromiseLike<TResult2>,
   ) {
-    const payload = { data: this.sortRows(this.applyFilters()), error: null } as const;
+    const payload = { data: this.sortRows(this.applyFilters()), error: this.resultError } as const;
     return Promise.resolve(payload).then(onfulfilled, onrejected);
   }
 
@@ -86,14 +95,18 @@ class QueryMock<T extends Record<string, unknown>> {
 }
 
 class SupabaseMock {
-  constructor(private segments: DtrSegmentRow[], private employees: EmployeeRow[]) {}
+  constructor(
+    private segments: DtrSegmentRow[],
+    private employees: EmployeeRow[],
+    private options: { segmentError?: { message: string } | null; employeeError?: { message: string } | null } = {},
+  ) {}
 
   from(table: string) {
     if (table === "dtr_segments") {
-      return new QueryMock(this.segments);
+      return new QueryMock(this.segments, [], [], this.options.segmentError ?? null);
     }
     if (table === "employees") {
-      return new QueryMock(this.employees);
+      return new QueryMock(this.employees, [], [], this.options.employeeError ?? null);
     }
     throw new Error(`Unexpected table ${table}`);
   }
@@ -192,5 +205,29 @@ describe("dtr segment server helpers", () => {
     const rows = await listDtrTodayByBranch(supabase as never, "branch-1", { today: "2024-10-05" });
 
     assert.deepEqual(rows.map((row) => row.id), ["seg-a"]);
+  });
+
+  it("returns an empty list when segment access is denied by RLS", async () => {
+    const supabase = new SupabaseMock(
+      [buildSegment("seg-1", { house_id: "house-1", work_date: "2024-10-02" })],
+      [buildEmployee("emp-1", "house-1")],
+      { segmentError: { message: "permission denied for table dtr_segments" } },
+    );
+
+    const rows = await listDtrByHouseAndDate(supabase as never, "house-1", "2024-10-02");
+
+    assert.deepEqual(rows, []);
+  });
+
+  it("returns an empty list when employee lookup is denied", async () => {
+    const supabase = new SupabaseMock(
+      [],
+      [buildEmployee("emp-1", "house-1")],
+      { employeeError: { message: "permission denied for table employees" } },
+    );
+
+    const rows = await listDtrByEmployee(supabase as never, "emp-1", { start: "2024-10-01", end: "2024-10-02" });
+
+    assert.deepEqual(rows, []);
   });
 });
