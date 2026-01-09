@@ -17,8 +17,8 @@ export type DtrEntry = {
 export type ShiftSegment = {
   employee_id: string;
   work_date: string; // YYYY-MM-DD
-  start_at: string | null; // HH:MM or ISO
-  end_at: string | null; // HH:MM or ISO
+  time_in: string | null; // HH:MM or ISO
+  time_out: string | null; // HH:MM or ISO
 };
 
 export type Deduction = {

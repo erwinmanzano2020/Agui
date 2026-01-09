@@ -227,6 +227,36 @@ export type EmployeeInsert = {
 
 export type EmployeeUpdate = Partial<EmployeeInsert>;
 
+export type DtrSegmentRow = {
+  id: string;
+  house_id: string;
+  employee_id: string;
+  work_date: string;
+  time_in: string | null;
+  time_out: string | null;
+  hours_worked: number | null;
+  overtime_minutes: number;
+  source: "manual" | "bulk" | "pos" | "system";
+  status: "open" | "closed" | "corrected";
+  created_at: string;
+};
+
+export type DtrSegmentInsert = {
+  id?: string;
+  house_id?: string;
+  employee_id: string;
+  work_date: string;
+  time_in?: string | null;
+  time_out?: string | null;
+  hours_worked?: number | null;
+  overtime_minutes?: number;
+  source?: DtrSegmentRow["source"];
+  status?: DtrSegmentRow["status"];
+  created_at?: string;
+};
+
+export type DtrSegmentUpdate = Partial<DtrSegmentInsert>;
+
 export type BrandOwnerRow = {
   id: string;
   entity_id: string;
@@ -1187,6 +1217,7 @@ export interface Database {
         EntitlementUpdate
       >;
       employees: TableDefinition<EmployeeRow, EmployeeInsert, EmployeeUpdate>;
+      dtr_segments: TableDefinition<DtrSegmentRow, DtrSegmentInsert, DtrSegmentUpdate>;
       brand_owners: TableDefinition<BrandOwnerRow, BrandOwnerInsert, BrandOwnerUpdate>;
       profiles: TableDefinition<ProfileRow, ProfileInsert, ProfileUpdate>;
       entities: TableDefinition<EntityRow, EntityInsert, EntityUpdate>;

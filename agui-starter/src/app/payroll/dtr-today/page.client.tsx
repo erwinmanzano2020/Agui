@@ -6,7 +6,7 @@ import { resolveEffectiveShift } from "@/lib/shifts";
 import { computeMinutes } from "@/lib/payroll";
 import { sumFinishedMinutes, latestOut, Segment } from "@/lib/segments";
 
-type SegmentRecord = { start_at: string; end_at: string | null };
+type SegmentRecord = { time_in: string; time_out: string | null };
 
 type Emp = {
   id: string;
@@ -80,13 +80,16 @@ export default function PayrollDtrTodayPageClient() {
 
     const { data } = await sb
       .from("dtr_segments")
-      .select("start_at, end_at")
+      .select("time_in, time_out")
       .eq("employee_id", employeeId)
       .eq("work_date", date)
-      .order("start_at", { ascending: true });
-    const rows = (data ?? []) as SegmentRecord[];
+      .order("time_in", { ascending: true });
+    const rows = ((data ?? []) as SegmentRecord[]).map((row) => ({
+      time_in: row.time_in,
+      time_out: row.time_out,
+    }));
     setSegments(rows);
-    setHasOpen(rows.some((row) => row.end_at === null));
+    setHasOpen(rows.some((row) => row.time_out === null));
   }, [date, employeeId]);
 
   useEffect(() => {
@@ -114,8 +117,10 @@ export default function PayrollDtrTodayPageClient() {
     const { error } = await sb.from("dtr_segments").insert({
       employee_id: employeeId,
       work_date: date,
-      start_at: startAt,
-      end_at: null,
+      time_in: startAt,
+      time_out: null,
+      source: "manual",
+      status: "open",
     });
     if (error) setMsg(error.message);
     await loadSegments();
@@ -135,8 +140,8 @@ export default function PayrollDtrTodayPageClient() {
       .select("id")
       .eq("employee_id", employeeId)
       .eq("work_date", date)
-      .is("end_at", null)
-      .order("start_at", { ascending: false })
+      .is("time_out", null)
+      .order("time_in", { ascending: false })
       .limit(1)
       .maybeSingle<{ id: string }>();
 
@@ -157,7 +162,7 @@ export default function PayrollDtrTodayPageClient() {
 
     const { error: updateError } = await sb
       .from("dtr_segments")
-      .update({ end_at: endAt })
+      .update({ time_out: endAt, status: "closed" })
       .eq("id", openSegment.id);
 
     if (updateError) setMsg(updateError.message);
@@ -276,10 +281,10 @@ export default function PayrollDtrTodayPageClient() {
   ) {
     // Persist last segment boundaries as time_in/out for reference
     const firstInISO =
-      segs.find((s) => !!s.start_at)?.start_at ??
+      segs.find((s) => !!s.time_in)?.time_in ??
       new Date(`${date}T00:00:00`).toISOString();
     const lastOutISO =
-      segs.filter((s) => !!s.end_at).slice(-1)[0]?.end_at ?? firstInISO;
+      segs.filter((s) => !!s.time_out).slice(-1)[0]?.time_out ?? firstInISO;
 
     const sb = getSupabase();
     if (!sb) {
@@ -386,9 +391,9 @@ export default function PayrollDtrTodayPageClient() {
             <ul className="list-disc ml-5">
               {segments.map((s, i) => (
                 <li key={i}>
-                  IN: {new Date(s.start_at).toLocaleTimeString()} — OUT:{" "}
-                  {s.end_at ? (
-                    new Date(s.end_at).toLocaleTimeString()
+                  IN: {new Date(s.time_in).toLocaleTimeString()} — OUT:{" "}
+                  {s.time_out ? (
+                    new Date(s.time_out).toLocaleTimeString()
                   ) : (
                     <i>OPEN</i>
                   )}

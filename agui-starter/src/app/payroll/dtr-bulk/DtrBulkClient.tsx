@@ -325,13 +325,13 @@ export default function DtrBulkClient() {
             const next = { ...prev };
             const byDay = new Map<
               string,
-              Array<{ start_at: string | null; end_at: string | null }>
+              Array<{ time_in: string | null; time_out: string | null }>
             >();
             const segmentRows = (payload.segments ?? []) as ShiftSegment[];
             segmentRows.forEach((row) => {
               const d = String(row.work_date);
               if (!byDay.has(d)) byDay.set(d, []);
-              byDay.get(d)!.push({ start_at: row.start_at, end_at: row.end_at });
+              byDay.get(d)!.push({ time_in: row.time_in, time_out: row.time_out });
             });
 
             const eid = singleEmployeeId;
@@ -341,10 +341,10 @@ export default function DtrBulkClient() {
               const s1 = list[0];
               const s2 = list[1];
               next[eid][d] = {
-                in1: s1 ? toHHMM(s1.start_at) : "",
-                out1: s1 ? toHHMM(s1.end_at) : "",
-                in2: s2 ? toHHMM(s2.start_at) : "",
-                out2: s2 ? toHHMM(s2.end_at) : "",
+                in1: s1 ? toHHMM(s1.time_in) : "",
+                out1: s1 ? toHHMM(s1.time_out) : "",
+                in2: s2 ? toHHMM(s2.time_in) : "",
+                out2: s2 ? toHHMM(s2.time_out) : "",
               };
             }
             return next;

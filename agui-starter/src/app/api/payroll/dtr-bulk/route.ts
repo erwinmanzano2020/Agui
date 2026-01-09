@@ -38,7 +38,15 @@ type DayCell = ReturnType<(typeof dayCell)["parse"]>;
 
 type SegmentInsert = Pick<
   Database["public"]["Tables"]["dtr_segments"]["Insert"],
-  "employee_id" | "work_date" | "start_at" | "end_at" | "company_id"
+  | "employee_id"
+  | "house_id"
+  | "work_date"
+  | "time_in"
+  | "time_out"
+  | "source"
+  | "status"
+  | "overtime_minutes"
+  | "hours_worked"
 >;
 type EntryUpsert = Pick<
   Database["public"]["Tables"]["dtr_entries"]["Insert"],
@@ -294,12 +302,12 @@ export async function POST(req: NextRequest) {
 
         const { data, error } = await service
           .from("dtr_segments")
-          .select("employee_id, work_date, start_at, end_at")
+          .select("employee_id, work_date, time_in, time_out")
           .eq("employee_id", employeeId)
           .gte("work_date", payload.from)
           .lte("work_date", payload.to)
           .order("work_date", { ascending: true })
-          .order("start_at", { ascending: true });
+          .order("time_in", { ascending: true });
         if (error) throw error;
         return NextResponse.json({ segments: data ?? [] });
       }
@@ -365,11 +373,11 @@ export async function POST(req: NextRequest) {
             out2: "",
           };
 
-          const del = await service
-            .from("dtr_segments")
-            .delete()
-            .eq("employee_id", employeeId)
-            .eq("work_date", day);
+        const del = await service
+          .from("dtr_segments")
+          .delete()
+          .eq("employee_id", employeeId)
+          .eq("work_date", day);
           if (del.error) throw del.error;
 
           const inserts: Array<SegmentInsert> = [];
@@ -379,9 +387,13 @@ export async function POST(req: NextRequest) {
             if (s && e1) {
               const row: Record<string, unknown> = {
                 employee_id: employeeId,
+                house_id: houseId,
                 work_date: day,
-                start_at: s,
-                end_at: e1,
+                time_in: s,
+                time_out: e1,
+                source: "manual",
+                status: "open",
+                overtime_minutes: 0,
               };
               applyContextColumns(row, segmentColumns, { houseId, branchId });
               inserts.push(row as SegmentInsert);
@@ -393,9 +405,13 @@ export async function POST(req: NextRequest) {
             if (s && e2) {
               const row: Record<string, unknown> = {
                 employee_id: employeeId,
+                house_id: houseId,
                 work_date: day,
-                start_at: s,
-                end_at: e2,
+                time_in: s,
+                time_out: e2,
+                source: "manual",
+                status: "open",
+                overtime_minutes: 0,
               };
               applyContextColumns(row, segmentColumns, { houseId, branchId });
               inserts.push(row as SegmentInsert);
@@ -407,8 +423,8 @@ export async function POST(req: NextRequest) {
             if (error) throw error;
           }
 
-          const firstIn = inserts.length ? inserts[0].start_at : null;
-          const lastOut = inserts.length ? inserts[inserts.length - 1].end_at : null;
+          const firstIn = inserts.length ? inserts[0].time_in : null;
+          const lastOut = inserts.length ? inserts[inserts.length - 1].time_out : null;
           const { error: upErr } = await service
             .from("dtr_entries")
             .upsert(

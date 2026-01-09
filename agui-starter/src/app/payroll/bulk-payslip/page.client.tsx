@@ -28,8 +28,8 @@ type Dtr = {
 type Seg = {
   employee_id: string;
   work_date: string;
-  start_at: string | null;
-  end_at: string | null;
+  time_in: string | null;
+  time_out: string | null;
 };
 
 type Ded = {
@@ -122,7 +122,7 @@ export default function BulkPayslipPageClient() {
     // sort segments per day
     for (const inner of m.values()) {
       for (const [date, arr] of inner) {
-        arr.sort((a, b) => (a.start_at || "").localeCompare(b.start_at || ""));
+        arr.sort((a, b) => (a.time_in || "").localeCompare(b.time_in || ""));
         inner.set(date, arr);
       }
     }
@@ -248,12 +248,12 @@ export default function BulkPayslipPageClient() {
           .order("work_date"),
         sb
           .from("dtr_segments")
-          .select("employee_id, work_date, start_at, end_at")
+          .select("employee_id, work_date, time_in, time_out")
           .gte("work_date", from)
           .lt("work_date", toNext)
           .order("employee_id")
           .order("work_date")
-          .order("start_at", { ascending: true }),
+          .order("time_in", { ascending: true }),
         sb
           .from("payroll_deductions")
           .select("employee_id, effective_date, amount, note, type")
@@ -434,10 +434,10 @@ export default function BulkPayslipPageClient() {
     const s1 = list[0];
     const s2 = list[1];
     return {
-      in1: s1 ? fmtHM(s1.start_at) : fmtHM(r.time_in),
-      out1: s1 ? fmtHM(s1.end_at) : fmtHM(r.time_out),
-      in2: s2 ? fmtHM(s2.start_at) : "--",
-      out2: s2 ? fmtHM(s2.end_at) : "--",
+      in1: s1 ? fmtHM(s1.time_in) : fmtHM(r.time_in),
+      out1: s1 ? fmtHM(s1.time_out) : fmtHM(r.time_out),
+      in2: s2 ? fmtHM(s2.time_in) : "--",
+      out2: s2 ? fmtHM(s2.time_out) : "--",
     };
   }
 
