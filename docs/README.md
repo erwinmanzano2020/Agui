@@ -10,3 +10,6 @@
   - [Supabase / Migrations Hygiene](./db/supabase-migrations-hygiene.md)
   - [Debugging Playbook](./engineering/debugging-playbook.md)
   - [New Chat Handoff](./engineering/new-chat-handoff.md)
+
+## Root-level checks
+Root-level npm scripts proxy to `agui-starter`, so developers and automation can safely run lint, typecheck, test, and build from the repo root.
