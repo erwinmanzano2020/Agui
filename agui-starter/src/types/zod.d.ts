@@ -24,7 +24,9 @@ declare module "zod" {
     array: () => ZodTypeAny;
     int: () => ZodTypeAny;
     positive: () => ZodTypeAny;
+    min: (value: number) => ZodTypeAny;
     max: (value: number) => ZodTypeAny;
+    or: (schema: ZodTypeAny) => ZodTypeAny;
     superRefine: (
       refinement: (value: any, ctx: { addIssue: (issue: ZodIssue) => void }) => void
     ) => ZodTypeAny;
@@ -57,6 +59,12 @@ declare module "zod" {
     string: () => StringSchema;
     number: () => ZodTypeAny;
     boolean: () => ZodTypeAny;
+    literal: <T extends string | number | boolean | null>(value: T) => ZodTypeAny;
+    coerce: {
+      number: () => ZodTypeAny;
+      string: () => ZodTypeAny;
+      boolean: () => ZodTypeAny;
+    };
     unknown: () => ZodTypeAny;
     any: () => ZodTypeAny;
     record: (key?: ZodTypeAny, value?: ZodTypeAny) => ZodTypeAny;
