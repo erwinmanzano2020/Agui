@@ -25,6 +25,8 @@
     - `time_in` / `time_out` are stored as timestamptz
     - Construction/parsing can be timezone-sensitive (e.g., `new Date(...)`)
     - Keep create/update consistent and avoid tests depending on local machine timezone
+  - Next increment once merged: HR-2.2 schedule templates + branch assignments
+    - Reference: `docs/hr/hr-2-2-schedules-freeze.md`
 
 ## 3. Non-Negotiable Guardrails
 - All HR/DTR data is house-scoped
@@ -41,7 +43,8 @@
 - Audit/correction flows
 
 ## 4.1 Next Likely HR Increments
-- HR-2.2: Schedule definition per house/employee (work windows)
+- HR-2.2: Schedule definition per house/branch (work windows)
+  - Reference: `docs/hr/hr-2-2-schedules-freeze.md`
 - HR-2.3: Overtime rules engine (house-configurable thresholds)
 - HR-2.4: DTR validation / closing workflow (optional approvals)
 - HR-2.5: Payroll rollup integration from DTR segments
