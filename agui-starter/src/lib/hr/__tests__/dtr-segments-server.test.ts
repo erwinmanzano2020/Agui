@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type { DtrSegmentRow, EmployeeRow } from "@/lib/db.types";
-import { listDtrByEmployee, listDtrByHouseAndDate, listDtrTodayByBranch } from "../dtr-segments-server";
+import {
+  DtrSegmentAccessError,
+  createDtrSegment,
+  listDtrByEmployee,
+  listDtrByHouseAndDate,
+  listDtrTodayByBranch,
+} from "../dtr-segments-server";
 
 type Filter<T> = (row: T) => boolean;
 type SortInstruction<T> = { column: keyof T; ascending: boolean };
@@ -128,6 +134,82 @@ function buildSegment(id: string, overrides: Partial<DtrSegmentRow> = {}): DtrSe
   } satisfies DtrSegmentRow;
 }
 
+class EmployeeQueryMock {
+  private id: string | null = null;
+
+  constructor(private employee: EmployeeRow | null) {}
+
+  select() {
+    return this;
+  }
+
+  eq(column: keyof EmployeeRow, value: string) {
+    if (column === "id") {
+      this.id = value;
+    }
+    return this;
+  }
+
+  async maybeSingle<T>() {
+    if (this.employee && (!this.id || this.employee.id === this.id)) {
+      return { data: this.employee as T, error: null } as const;
+    }
+    return { data: null as T | null, error: null } as const;
+  }
+}
+
+class SegmentInsertMock {
+  public inserted: DtrSegmentRow | null = null;
+
+  constructor(private options: { error?: { message: string } | null } = {}) {}
+
+  insert(payload: Partial<DtrSegmentRow>) {
+    this.inserted = {
+      id: "seg-new",
+      house_id: payload.house_id ?? "house-1",
+      employee_id: payload.employee_id ?? "emp-1",
+      work_date: payload.work_date ?? "2024-10-01",
+      time_in: payload.time_in ?? null,
+      time_out: payload.time_out ?? null,
+      hours_worked: payload.hours_worked ?? null,
+      overtime_minutes: payload.overtime_minutes ?? 0,
+      source: payload.source ?? "manual",
+      status: payload.status ?? "open",
+      created_at: new Date().toISOString(),
+    } satisfies DtrSegmentRow;
+    return this;
+  }
+
+  select() {
+    return this;
+  }
+
+  async maybeSingle<T>() {
+    return { data: (this.inserted as T) ?? null, error: this.options.error ?? null } as const;
+  }
+}
+
+class CreateSupabaseMock {
+  public insertMock: SegmentInsertMock;
+
+  constructor(
+    private employee: EmployeeRow | null,
+    options: { insertError?: { message: string } | null } = {},
+  ) {
+    this.insertMock = new SegmentInsertMock({ error: options.insertError ?? null });
+  }
+
+  from(table: string) {
+    if (table === "employees") {
+      return new EmployeeQueryMock(this.employee);
+    }
+    if (table === "dtr_segments") {
+      return this.insertMock;
+    }
+    throw new Error(`Unexpected table ${table}`);
+  }
+}
+
 function buildEmployee(id: string, houseId: string, branchId: string | null = null): EmployeeRow {
   return {
     id,
@@ -164,6 +246,24 @@ describe("dtr segment server helpers", () => {
     const rows = await listDtrByEmployee(supabase as never, "emp-1", { start: "2024-10-01", end: "2024-10-02" });
 
     assert.deepEqual(rows.map((row) => row.id), ["seg-1"]);
+  });
+
+  it("returns multiple segments for the same employee and day without merging", async () => {
+    const supabase = new SupabaseMock(
+      [
+        buildSegment("seg-1", { house_id: "house-1", employee_id: "emp-1", work_date: "2024-10-01" }),
+        buildSegment("seg-2", { house_id: "house-1", employee_id: "emp-1", work_date: "2024-10-01" }),
+      ],
+      [buildEmployee("emp-1", "house-1")],
+    );
+    const rows = await listDtrByHouseAndDate(
+      supabase as never,
+      "house-1",
+      "2024-10-01",
+      { employeeId: "emp-1" },
+    );
+    assert.equal(rows.length, 2);
+    assert.deepEqual(rows.map((row) => row.id), ["seg-1", "seg-2"]);
   });
 
   it("returns an empty array when the employee is not accessible", async () => {
@@ -229,5 +329,37 @@ describe("dtr segment server helpers", () => {
     const rows = await listDtrByEmployee(supabase as never, "emp-1", { start: "2024-10-01", end: "2024-10-02" });
 
     assert.deepEqual(rows, []);
+  });
+});
+
+describe("createDtrSegment", () => {
+  it("rejects cross-house access when the employee is in another house", async () => {
+    const employee = {
+      id: "emp-1",
+      house_id: "house-2",
+      branch_id: null,
+      code: "EMP-1",
+      full_name: "Other House",
+      status: "active",
+      entity_id: null,
+      rate_per_day: 0,
+      created_at: new Date().toISOString(),
+      updated_at: null,
+    } satisfies EmployeeRow;
+    const supabase = new CreateSupabaseMock(employee);
+
+    await assert.rejects(
+      () =>
+        createDtrSegment(supabase as never, {
+          houseId: "house-1",
+          employeeId: "emp-1",
+          workDate: "2024-10-02",
+          timeIn: "2024-10-02T08:00:00.000Z",
+          timeOut: null,
+        }),
+      DtrSegmentAccessError,
+    );
+
+    assert.equal(supabase.insertMock.inserted, null);
   });
 });

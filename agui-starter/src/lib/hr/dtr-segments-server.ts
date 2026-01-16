@@ -10,6 +10,13 @@ const DTR_SEGMENT_COLUMNS =
 type DateRange = { start: string; end: string };
 type MinimalEmployee = Pick<EmployeeRow, "id" | "house_id" | "branch_id">;
 
+export class DtrSegmentAccessError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "DtrSegmentAccessError";
+  }
+}
+
 function isPermissionDenied(error: unknown): boolean {
   const message =
     typeof error === "object" && error !== null && "message" in error
@@ -53,13 +60,19 @@ export async function listDtrByHouseAndDate(
   supabase: SupabaseClient<Database>,
   houseId: string,
   workDate: string,
+  options: { employeeId?: string } = {},
 ): Promise<DtrSegmentRow[]> {
-  const { data, error } = await supabase
+  let query = supabase
     .from("dtr_segments")
     .select(DTR_SEGMENT_COLUMNS)
     .eq("house_id", houseId)
-    .eq("work_date", workDate)
-    .order("time_in", { ascending: true });
+    .eq("work_date", workDate);
+
+  if (options.employeeId) {
+    query = query.eq("employee_id", options.employeeId);
+  }
+
+  const { data, error } = await query.order("time_in", { ascending: true });
 
   if (error) {
     if (isPermissionDenied(error)) return [];
@@ -67,6 +80,57 @@ export async function listDtrByHouseAndDate(
   }
 
   return normalizeSegments(data as DtrSegmentRow[]);
+}
+
+export async function createDtrSegment(
+  supabase: SupabaseClient<Database>,
+  input: {
+    houseId: string;
+    employeeId: string;
+    workDate: string;
+    timeIn: string;
+    timeOut: string | null;
+  },
+): Promise<DtrSegmentRow> {
+  const employee = await loadEmployeeForAccess(supabase, input.employeeId);
+  if (!employee) {
+    throw new DtrSegmentAccessError("Employee is not available for DTR entry.");
+  }
+
+  if (employee.house_id !== input.houseId) {
+    throw new DtrSegmentAccessError("Employee does not belong to this house.");
+  }
+
+  const payload = {
+    house_id: input.houseId,
+    employee_id: input.employeeId,
+    work_date: input.workDate,
+    time_in: input.timeIn,
+    time_out: input.timeOut,
+    hours_worked: null,
+    overtime_minutes: 0,
+    source: "manual",
+    status: input.timeOut ? "closed" : "open",
+  } satisfies Partial<DtrSegmentRow>;
+
+  const { data, error } = await supabase
+    .from("dtr_segments")
+    .insert(payload)
+    .select(DTR_SEGMENT_COLUMNS)
+    .maybeSingle<DtrSegmentRow>();
+
+  if (error) {
+    if (isPermissionDenied(error)) {
+      throw new DtrSegmentAccessError("Not allowed to create DTR segments for this house.");
+    }
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    throw new Error("Failed to create DTR segment.");
+  }
+
+  return normalizeSegments([data])[0];
 }
 
 export async function listDtrByEmployee(
