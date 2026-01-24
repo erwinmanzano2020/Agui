@@ -4,11 +4,17 @@ import {
   addScheduleWindowAction,
   createBranchScheduleAssignmentAction,
   createScheduleTemplateAction,
+  updateOvertimePolicyAction,
 } from "./actions";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requireHrAccess } from "@/lib/hr/access";
 import type { HrScheduleWindowRow } from "@/lib/db.types";
 import { listBranchesForHouse } from "@/lib/hr/employees-server";
+import {
+  getOvertimePolicyForHouse,
+  OVERTIME_ROUNDING_MINUTES,
+  OVERTIME_ROUNDING_MODES,
+} from "@/lib/hr/overtime-policy-server";
 import {
   getScheduleTemplateWithWindows,
   listBranchScheduleAssignments,
@@ -64,6 +70,15 @@ export default async function HrSchedulesPage({ params }: Props) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-white/60 p-6 text-sm text-muted-foreground">
         You do not have access to schedule definitions for this house.
+      </div>
+    );
+  }
+
+  const overtimePolicy = await getOvertimePolicyForHouse(supabase, house.id, { access });
+  if (!overtimePolicy) {
+    return (
+      <div className="rounded-2xl border border-dashed border-border bg-white/60 p-6 text-sm text-muted-foreground">
+        You do not have access to overtime policy settings for this house.
       </div>
     );
   }
@@ -285,6 +300,78 @@ export default async function HrSchedulesPage({ params }: Props) {
           })}
         </div>
       )}
+
+      <section className="rounded-2xl border border-border bg-white/70 p-6 shadow-sm">
+        <div className="space-y-2">
+          <h2 className="text-xl font-semibold text-foreground">Overtime policy</h2>
+          <p className="text-sm text-muted-foreground">
+            Configure the minimum overtime threshold and rounding rules for this house. Timezone is locked to
+            Asia/Manila for now.
+          </p>
+        </div>
+        <form action={updateOvertimePolicyAction} className="mt-4 grid gap-3 md:grid-cols-2">
+          <input type="hidden" name="houseId" value={house.id} />
+          <input type="hidden" name="houseSlug" value={house.slug ?? slug} />
+          <input type="hidden" name="timezone" value={overtimePolicy.timezone} />
+          <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
+            Minimum OT minutes
+            <input
+              type="number"
+              name="minOtMinutes"
+              min={0}
+              max={240}
+              defaultValue={overtimePolicy.min_ot_minutes}
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
+            Rounding mode
+            <select
+              name="roundingMode"
+              defaultValue={overtimePolicy.rounding_mode}
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            >
+              {OVERTIME_ROUNDING_MODES.map((mode) => (
+                <option key={mode} value={mode}>
+                  {mode}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
+            Rounding minutes
+            <select
+              name="roundingMinutes"
+              defaultValue={overtimePolicy.rounding_minutes}
+              className="rounded-lg border border-border bg-background px-3 py-2 text-sm"
+            >
+              {OVERTIME_ROUNDING_MINUTES.map((value) => (
+                <option key={value} value={value}>
+                  {value} minute{value === 1 ? "" : "s"}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm font-medium text-foreground">
+            Timezone
+            <input
+              type="text"
+              name="timezoneDisplay"
+              value={overtimePolicy.timezone}
+              disabled
+              className="rounded-lg border border-border bg-muted px-3 py-2 text-sm text-muted-foreground"
+            />
+          </label>
+          <div className="flex items-end">
+            <button
+              type="submit"
+              className="rounded-lg border border-border bg-foreground px-4 py-2 text-sm font-medium text-background"
+            >
+              Save overtime policy
+            </button>
+          </div>
+        </form>
+      </section>
 
       <section className="rounded-2xl border border-border bg-white/70 p-6 shadow-sm">
         <div className="space-y-2">

@@ -28,6 +28,19 @@ const TEMPLATE_COLUMNS = "id, house_id, timezone";
 const WINDOW_COLUMNS =
   "id, house_id, schedule_id, day_of_week, start_time, end_time, break_start, break_end, created_at";
 
+const ALLOWED_ROUNDING_MINUTES = new Set([1, 5, 10, 15]);
+const ALLOWED_ROUNDING_MODES = new Set(["NONE", "FLOOR", "CEIL", "NEAREST"]);
+
+export const OVERTIME_ROUNDING_MINUTES = [1, 5, 10, 15] as const;
+export const OVERTIME_ROUNDING_MODES = ["NONE", "FLOOR", "CEIL", "NEAREST"] as const;
+
+export class OvertimePolicyError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OvertimePolicyError";
+  }
+}
+
 export type DailyComputedDtr = OvertimeComputationResult & {
   house_id: string;
   employee_id: string;
@@ -94,6 +107,79 @@ async function loadOvertimePolicy(
   }
 
   return resolvePolicyDefaults(houseId, data);
+}
+
+export async function getOvertimePolicyForHouse(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  options: { access?: HrAccessDecision } = {},
+): Promise<OvertimePolicy | null> {
+  const access = await resolveAccess(supabase, houseId, options.access);
+  if (!access.allowed) return null;
+  return loadOvertimePolicy(supabase, houseId);
+}
+
+export async function upsertOvertimePolicy(
+  supabase: SupabaseClient<Database>,
+  input: {
+    houseId: string;
+    minOtMinutes: number;
+    roundingMinutes: number;
+    roundingMode: string;
+    timezone: string;
+  },
+  options: { access?: HrAccessDecision } = {},
+): Promise<OvertimePolicy> {
+  const access = await resolveAccess(supabase, input.houseId, options.access);
+  if (!access.allowed) {
+    throw new OvertimePolicyError("Access denied for overtime policy update.");
+  }
+
+  if (!Number.isFinite(input.minOtMinutes)) {
+    throw new OvertimePolicyError("Invalid min overtime minutes.");
+  }
+  if (!ALLOWED_ROUNDING_MINUTES.has(input.roundingMinutes)) {
+    throw new OvertimePolicyError("Invalid rounding minutes.");
+  }
+  if (!ALLOWED_ROUNDING_MODES.has(input.roundingMode)) {
+    throw new OvertimePolicyError("Invalid rounding mode.");
+  }
+
+  const { data: existing, error: existingError } = await supabase
+    .from("hr_overtime_policies")
+    .select(POLICY_COLUMNS)
+    .eq("house_id", input.houseId)
+    .maybeSingle<HrOvertimePolicyRow>();
+
+  if (existingError) {
+    throw new OvertimePolicyError(existingError.message);
+  }
+
+  const fallback = resolvePolicyDefaults(input.houseId, existing);
+  const createdAt = existing?.created_at ?? new Date().toISOString();
+
+  const { data: updated, error: updateError } = await supabase
+    .from("hr_overtime_policies")
+    .upsert(
+      {
+        house_id: input.houseId,
+        timezone: input.timezone ?? fallback.timezone,
+        ot_mode: fallback.ot_mode,
+        min_ot_minutes: input.minOtMinutes,
+        rounding_minutes: input.roundingMinutes,
+        rounding_mode: input.roundingMode,
+        created_at: createdAt,
+      },
+      { onConflict: "house_id" },
+    )
+    .select(POLICY_COLUMNS)
+    .maybeSingle<HrOvertimePolicyRow>();
+
+  if (updateError) {
+    throw new OvertimePolicyError(updateError.message);
+  }
+
+  return resolvePolicyDefaults(input.houseId, updated);
 }
 
 async function resolveScheduleWindowForEmployee(

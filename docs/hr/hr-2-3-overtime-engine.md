@@ -32,3 +32,13 @@
 - Break deductions (break_start/break_end).
 - Grace/late/undertime handling.
 - Payroll rollups (HR-2.5).
+
+## HR-2.3.1 Overtime Policy Editor (House-Scoped)
+- UI surfaced under HR → Schedules for house-level editing.
+- Fields exposed:
+  - `min_ot_minutes` (0–240 bound)
+  - `rounding_mode` (NONE/FLOOR/CEIL/NEAREST)
+  - `rounding_minutes` (1/5/10/15)
+  - timezone display locked to Asia/Manila
+- Policy row is created on first save (upsert by `house_id`).
+- Access is enforced via HR role checks; cross-house writes are denied.
