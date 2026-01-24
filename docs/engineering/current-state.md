@@ -25,8 +25,8 @@
     - `time_in` / `time_out` are stored as timestamptz
     - Construction/parsing can be timezone-sensitive (e.g., `new Date(...)`)
     - Keep create/update consistent and avoid tests depending on local machine timezone
-  - Next increment once merged: HR-2.2 schedule templates + branch assignments
-    - Reference: `docs/hr/hr-2-2-schedules-freeze.md`
+  - Next increment once merged: HR-2.3 overtime rules engine (house-configurable thresholds)
+    - Reference: `docs/hr/hr-2-3-overtime-engine.md`
 
 ## 3. Non-Negotiable Guardrails
 - All HR/DTR data is house-scoped
