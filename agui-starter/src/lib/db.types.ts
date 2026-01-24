@@ -321,6 +321,28 @@ export type HrBranchScheduleAssignmentInsert = {
 
 export type HrBranchScheduleAssignmentUpdate = Partial<HrBranchScheduleAssignmentInsert>;
 
+export type HrOvertimePolicyRow = {
+  house_id: string;
+  timezone: string;
+  ot_mode: string;
+  min_ot_minutes: number;
+  rounding_minutes: number;
+  rounding_mode: string;
+  created_at: string;
+};
+
+export type HrOvertimePolicyInsert = {
+  house_id: string;
+  timezone?: string;
+  ot_mode?: string;
+  min_ot_minutes?: number;
+  rounding_minutes?: number;
+  rounding_mode?: string;
+  created_at?: string;
+};
+
+export type HrOvertimePolicyUpdate = Partial<HrOvertimePolicyInsert>;
+
 export type BrandOwnerRow = {
   id: string;
   entity_id: string;
@@ -1296,6 +1318,11 @@ export interface Database {
         HrBranchScheduleAssignmentRow,
         HrBranchScheduleAssignmentInsert,
         HrBranchScheduleAssignmentUpdate
+      >;
+      hr_overtime_policies: TableDefinition<
+        HrOvertimePolicyRow,
+        HrOvertimePolicyInsert,
+        HrOvertimePolicyUpdate
       >;
       brand_owners: TableDefinition<BrandOwnerRow, BrandOwnerInsert, BrandOwnerUpdate>;
       profiles: TableDefinition<ProfileRow, ProfileInsert, ProfileUpdate>;
