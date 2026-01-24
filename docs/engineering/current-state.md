@@ -29,6 +29,8 @@
     - Reference: `docs/hr/hr-2-3-overtime-engine.md`
   - HR-2.3.1: Overtime policy editor UI (house-scoped)
     - Reference: `docs/hr/hr-2-3-overtime-engine.md`
+  - HR-2.3.2: Read-only overtime computation (derived OT minutes, no writes)
+    - Reference: `docs/hr/hr-2-3-overtime-engine.md`
 
 ## 3. Non-Negotiable Guardrails
 - All HR/DTR data is house-scoped
