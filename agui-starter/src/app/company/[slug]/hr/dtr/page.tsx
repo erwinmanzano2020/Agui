@@ -5,6 +5,7 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import type { DtrSegmentRow } from "@/lib/db.types";
 import { listDtrByHouseAndDate } from "@/lib/hr/dtr-segments-server";
 import { listEmployeesByHouse } from "@/lib/hr/employees-server";
+import { computeOvertimeForHouseDate } from "@/lib/hr/overtime-engine";
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -75,14 +76,23 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
     ? employees.filter((employee) => employee.id === filteredEmployeeId)
     : employees;
 
+  const overtimeResults = await computeOvertimeForHouseDate(supabase, {
+    houseId: house.id,
+    workDate,
+    employeeIds: visibleEmployees.map((employee) => employee.id),
+  });
+  const overtimeByEmployee = new Map(
+    overtimeResults.map((result) => [result.employeeId, result]),
+  );
+
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-border bg-white/70 p-6 shadow-sm">
         <div className="space-y-2">
           <h2 className="text-xl font-semibold text-foreground">Daily DTR</h2>
           <p className="text-sm text-muted-foreground">
-            Multiple segments per day are allowed. This view captures raw attendance only — no schedule or overtime logic
-            is applied yet.
+            Multiple segments per day are allowed. This view captures raw attendance and shows derived overtime minutes
+            computed from schedules and house policy (read-only).
           </p>
         </div>
         <form method="get" className="mt-4 flex flex-wrap items-end gap-4">
@@ -142,6 +152,38 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
                   </div>
                   <div className="text-xs text-muted-foreground">
                     Segments: {employeeSegments.length} for {workDate}
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-6 text-sm">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">Overtime (mins, derived)</span>
+                    {overtimeByEmployee.get(employee.id)?.scheduleStatus === "no_schedule" ? (
+                      <span
+                        className="text-sm font-semibold text-muted-foreground"
+                        title="No schedule assigned"
+                      >
+                        —
+                      </span>
+                    ) : (
+                      <span className="text-sm font-semibold text-foreground">
+                        {overtimeByEmployee.get(employee.id)?.rawOtMinutes ?? 0}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs text-muted-foreground">Overtime (rounded)</span>
+                    {overtimeByEmployee.get(employee.id)?.scheduleStatus === "no_schedule" ? (
+                      <span
+                        className="text-sm font-semibold text-muted-foreground"
+                        title="No schedule assigned"
+                      >
+                        —
+                      </span>
+                    ) : (
+                      <span className="text-sm font-semibold text-foreground">
+                        {overtimeByEmployee.get(employee.id)?.finalOtMinutes ?? 0}
+                      </span>
+                    )}
                   </div>
                 </div>
 

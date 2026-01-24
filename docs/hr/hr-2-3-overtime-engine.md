@@ -21,6 +21,16 @@
   - Apply `min_ot_minutes` (if below minimum, OT = 0).
   - Apply rounding if `rounding_mode != NONE`.
 
+## HR-2.3.2 Read-Only Overtime Computation Layer
+- Computation is **derived** only (no writes back to `dtr_segments` or payroll).
+- OT is computed per employee per day from:
+  - `dtr_segments` (canonical raw truth, multiple segments allowed)
+  - Schedule assignments + windows (`hr_branch_schedule_assignments`, `hr_schedule_windows`)
+  - House OT policy (`hr_overtime_policies`)
+- If no schedule is available for the day, OT is reported as `0` with reason `no_schedule`.
+- Open segments (`time_out` is null) are ignored for OT totals and reported as `open_segment`.
+- The DTR Daily page displays derived OT minutes and rounded minutes as **Computed/Derived** values.
+
 ## Timezone Handling (Deterministic)
 - Schedule times are treated as **Asia/Manila** local time-of-day (default policy timezone).
 - Conversion is deterministic:

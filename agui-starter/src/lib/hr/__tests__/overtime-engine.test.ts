@@ -1,124 +1,414 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
+import type {
+  DtrSegmentRow,
+  EmployeeRow,
+  HrBranchScheduleAssignmentRow,
+  HrOvertimePolicyRow,
+  HrScheduleWindowRow,
+} from "@/lib/db.types";
+import { evaluateHrAccess } from "../access";
 import {
   buildZonedDateTime,
-  computeOvertimeForDay,
-  getDayOfWeekInTimeZone,
+  computeDailyOvertime,
+  computeOvertimeForHouseDate,
+  getScheduleForEmployeeOnDate,
 } from "../overtime-engine";
 
-const basePolicy = {
+type Filter<T> = (row: T) => boolean;
+type SortInstruction<T> = { column: keyof T; ascending: boolean };
+
+class QueryMock<T extends Record<string, unknown>> {
+  constructor(
+    private rows: T[],
+    private filters: Filter<T>[] = [],
+    private sorts: SortInstruction<T>[] = [],
+  ) {}
+
+  select() {
+    return this;
+  }
+
+  eq(column: keyof T, value: unknown) {
+    return new QueryMock(this.rows, [...this.filters, (row) => row[column] === value], this.sorts);
+  }
+
+  in(column: keyof T, values: string[]) {
+    const allowed = new Set(values);
+    return new QueryMock(
+      this.rows,
+      [...this.filters, (row) => allowed.has(String(row[column]))],
+      this.sorts,
+    );
+  }
+
+  lte(column: keyof T, value: string) {
+    return new QueryMock(
+      this.rows,
+      [...this.filters, (row) => String(row[column] ?? "") <= value],
+      this.sorts,
+    );
+  }
+
+  order(column: keyof T, options: { ascending?: boolean } = {}) {
+    return new QueryMock(
+      this.rows,
+      this.filters,
+      [...this.sorts, { column, ascending: options.ascending !== false }],
+    );
+  }
+
+  async maybeSingle<U>() {
+    const filtered = this.applyFilters();
+    return { data: (filtered[0] as U | null) ?? null, error: null } as const;
+  }
+
+  then<TResult1 = unknown, TResult2 = never>(
+    onfulfilled?: (value: { data: T[]; error: null }) => TResult1 | PromiseLike<TResult1>,
+    onrejected?: (reason: unknown) => TResult2 | PromiseLike<TResult2>,
+  ) {
+    const payload = { data: this.sortRows(this.applyFilters()), error: null } as const;
+    return Promise.resolve(payload).then(onfulfilled, onrejected);
+  }
+
+  private applyFilters(): T[] {
+    return this.rows.filter((row) => this.filters.every((filter) => filter(row)));
+  }
+
+  private sortRows(rows: T[]): T[] {
+    if (!this.sorts.length) return rows;
+    return rows.slice().sort((a, b) => {
+      for (const instruction of this.sorts) {
+        const aVal = a[instruction.column];
+        const bVal = b[instruction.column];
+        if (aVal === bVal) continue;
+        const aStr = String(aVal ?? "");
+        const bStr = String(bVal ?? "");
+        if (aStr === bStr) continue;
+        return (aStr > bStr ? 1 : -1) * (instruction.ascending ? 1 : -1);
+      }
+      return 0;
+    });
+  }
+}
+
+class SupabaseMock {
+  constructor(
+    private data: {
+      segments: DtrSegmentRow[];
+      employees: EmployeeRow[];
+      assignments: HrBranchScheduleAssignmentRow[];
+      windows: HrScheduleWindowRow[];
+      policies: HrOvertimePolicyRow[];
+    },
+  ) {}
+
+  from(table: string) {
+    if (table === "dtr_segments") return new QueryMock(this.data.segments);
+    if (table === "employees") return new QueryMock(this.data.employees);
+    if (table === "hr_branch_schedule_assignments") return new QueryMock(this.data.assignments);
+    if (table === "hr_schedule_windows") return new QueryMock(this.data.windows);
+    if (table === "hr_overtime_policies") return new QueryMock(this.data.policies);
+    throw new Error(`Unexpected table ${table}`);
+  }
+}
+
+const accessAllowed = evaluateHrAccess({ roles: ["house_owner"], policyKeys: [], entityId: "entity-1" });
+const accessDenied = evaluateHrAccess({ roles: [], policyKeys: [], entityId: null });
+
+const baseEmployee: EmployeeRow = {
+  id: "emp-1",
+  house_id: "house-1",
+  code: "E-001",
+  full_name: "Jane Doe",
+  status: "active",
+  branch_id: "branch-1",
+  rate_per_day: 500,
+  entity_id: null,
+  created_at: "2024-01-01T00:00:00Z",
+  updated_at: null,
+};
+
+const baseAssignment: HrBranchScheduleAssignmentRow = {
+  id: "assign-1",
+  house_id: "house-1",
+  branch_id: "branch-1",
+  schedule_id: "schedule-1",
+  effective_from: "2024-01-01",
+  created_at: "2024-01-01T00:00:00Z",
+};
+
+const baseWindow: HrScheduleWindowRow = {
+  id: "window-1",
+  house_id: "house-1",
+  schedule_id: "schedule-1",
+  day_of_week: 2,
+  start_time: "09:00",
+  end_time: "17:00",
+  break_start: null,
+  break_end: null,
+  created_at: "2024-01-01T00:00:00Z",
+};
+
+const basePolicy: HrOvertimePolicyRow = {
+  house_id: "house-1",
   timezone: "Asia/Manila",
   ot_mode: "AFTER_SCHEDULE_END",
   min_ot_minutes: 10,
   rounding_minutes: 1,
   rounding_mode: "NONE",
+  created_at: "2024-01-01T00:00:00Z",
 };
 
-describe("computeOvertimeForDay", () => {
-  it("handles multiple segments with gaps and overtime after schedule end", () => {
-    const result = computeOvertimeForDay({
+function buildSegment(overrides: Partial<DtrSegmentRow> = {}): DtrSegmentRow {
+  return {
+    id: overrides.id ?? "seg-1",
+    house_id: overrides.house_id ?? "house-1",
+    employee_id: overrides.employee_id ?? "emp-1",
+    work_date: overrides.work_date ?? "2024-10-01",
+    time_in: overrides.time_in ?? "2024-10-01T09:00:00+08:00",
+    time_out:
+      overrides.time_out !== undefined
+        ? overrides.time_out
+        : "2024-10-01T17:00:00+08:00",
+    hours_worked: null,
+    overtime_minutes: 0,
+    source: "manual",
+    status: "closed",
+    created_at: "2024-10-01T17:00:00Z",
+  } satisfies DtrSegmentRow;
+}
+
+describe("overtime engine", () => {
+  it("returns no_schedule when schedule is missing", async () => {
+    const supabase = new SupabaseMock({
+      segments: [],
+      employees: [{ ...baseEmployee, branch_id: null }],
+      assignments: [],
+      windows: [],
+      policies: [basePolicy],
+    });
+
+    const schedule = await getScheduleForEmployeeOnDate(
+      supabase as never,
+      { houseId: "house-1", employeeId: "emp-1", workDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    assert.equal(schedule.status, "no_schedule");
+
+    const result = await computeDailyOvertime(
+      supabase as never,
+      { houseId: "house-1", employeeId: "emp-1", workDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    assert.equal(result?.scheduleStatus, "no_schedule");
+    assert.equal(result?.finalOtMinutes, 0);
+    assert.ok(result?.reasons.includes("no_schedule"));
+  });
+
+  it("returns zero overtime when segments end before schedule end", async () => {
+    const supabase = new SupabaseMock({
       segments: [
-        {
-          time_in: "2024-10-01T09:00:00+08:00",
-          time_out: "2024-10-01T12:00:00+08:00",
-        },
-        {
-          time_in: "2024-10-01T13:00:00+08:00",
+        buildSegment({ time_in: "2024-10-01T09:00:00+08:00", time_out: "2024-10-01T16:00:00+08:00" }),
+      ],
+      employees: [baseEmployee],
+      assignments: [baseAssignment],
+      windows: [baseWindow],
+      policies: [basePolicy],
+    });
+
+    const result = await computeDailyOvertime(
+      supabase as never,
+      { houseId: "house-1", employeeId: "emp-1", workDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    assert.equal(result?.rawOtMinutes, 0);
+    assert.equal(result?.finalOtMinutes, 0);
+  });
+
+  it("counts partial overtime for segments crossing schedule end", async () => {
+    const supabase = new SupabaseMock({
+      segments: [
+        buildSegment({ time_in: "2024-10-01T16:30:00+08:00", time_out: "2024-10-01T18:00:00+08:00" }),
+      ],
+      employees: [baseEmployee],
+      assignments: [baseAssignment],
+      windows: [baseWindow],
+      policies: [basePolicy],
+    });
+
+    const result = await computeDailyOvertime(
+      supabase as never,
+      { houseId: "house-1", employeeId: "emp-1", workDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    assert.equal(result?.rawOtMinutes, 60);
+    assert.equal(result?.finalOtMinutes, 60);
+  });
+
+  it("sums multiple overtime segments after schedule end", async () => {
+    const supabase = new SupabaseMock({
+      segments: [
+        buildSegment({
+          id: "seg-1",
+          time_in: "2024-10-01T17:00:00+08:00",
           time_out: "2024-10-01T18:00:00+08:00",
-        },
-        {
+        }),
+        buildSegment({
+          id: "seg-2",
           time_in: "2024-10-01T18:30:00+08:00",
           time_out: "2024-10-01T19:00:00+08:00",
-        },
+        }),
       ],
-      workDate: "2024-10-01",
-      scheduleWindow: {
-        start_time: "09:00",
-        end_time: "17:00",
-        timezone: "Asia/Manila",
-      },
-      policy: basePolicy,
+      employees: [baseEmployee],
+      assignments: [baseAssignment],
+      windows: [baseWindow],
+      policies: [basePolicy],
     });
 
-    assert.equal(result.worked_minutes_total, 510);
-    assert.equal(result.worked_minutes_within_schedule, 420);
-    assert.equal(result.overtime_minutes, 90);
+    const result = await computeDailyOvertime(
+      supabase as never,
+      { houseId: "house-1", employeeId: "emp-1", workDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    assert.equal(result?.rawOtMinutes, 90);
+    assert.equal(result?.finalOtMinutes, 90);
   });
 
-  it("drops overtime when below minimum threshold", () => {
-    const result = computeOvertimeForDay({
+  it("applies minimum threshold", async () => {
+    const supabase = new SupabaseMock({
       segments: [
-        {
-          time_in: "2024-10-01T16:30:00+08:00",
-          time_out: "2024-10-01T17:05:00+08:00",
-        },
+        buildSegment({ time_in: "2024-10-01T17:00:00+08:00", time_out: "2024-10-01T18:00:00+08:00" }),
       ],
-      workDate: "2024-10-01",
-      scheduleWindow: {
-        start_time: "09:00",
-        end_time: "17:00",
-        timezone: "Asia/Manila",
-      },
-      policy: basePolicy,
+      employees: [baseEmployee],
+      assignments: [baseAssignment],
+      windows: [baseWindow],
+      policies: [{ ...basePolicy, min_ot_minutes: 120 }],
     });
 
-    assert.equal(result.overtime_minutes, 0);
+    const result = await computeDailyOvertime(
+      supabase as never,
+      { houseId: "house-1", employeeId: "emp-1", workDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    assert.equal(result?.rawOtMinutes, 60);
+    assert.equal(result?.finalOtMinutes, 0);
+    assert.ok(result?.reasons.includes("below_minimum"));
   });
 
-  it("warns when schedule is missing", () => {
-    const result = computeOvertimeForDay({
+  it("applies rounding modes", async () => {
+    const baseSegments = [
+      buildSegment({ time_in: "2024-10-01T17:00:00+08:00", time_out: "2024-10-01T17:40:00+08:00" }),
+    ];
+
+    const supabaseCeil = new SupabaseMock({
+      segments: baseSegments,
+      employees: [baseEmployee],
+      assignments: [baseAssignment],
+      windows: [baseWindow],
+      policies: [{ ...basePolicy, rounding_minutes: 15, rounding_mode: "CEIL" }],
+    });
+
+    const ceilResult = await computeDailyOvertime(
+      supabaseCeil as never,
+      { houseId: "house-1", employeeId: "emp-1", workDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    assert.equal(ceilResult?.rawOtMinutes, 40);
+    assert.equal(ceilResult?.finalOtMinutes, 45);
+
+    const supabaseFloor = new SupabaseMock({
+      segments: baseSegments,
+      employees: [baseEmployee],
+      assignments: [baseAssignment],
+      windows: [baseWindow],
+      policies: [{ ...basePolicy, rounding_minutes: 15, rounding_mode: "FLOOR" }],
+    });
+
+    const floorResult = await computeDailyOvertime(
+      supabaseFloor as never,
+      { houseId: "house-1", employeeId: "emp-1", workDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    assert.equal(floorResult?.finalOtMinutes, 30);
+
+    const supabaseNearest = new SupabaseMock({
+      segments: baseSegments,
+      employees: [baseEmployee],
+      assignments: [baseAssignment],
+      windows: [baseWindow],
+      policies: [{ ...basePolicy, rounding_minutes: 15, rounding_mode: "NEAREST" }],
+    });
+
+    const nearestResult = await computeDailyOvertime(
+      supabaseNearest as never,
+      { houseId: "house-1", employeeId: "emp-1", workDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    assert.equal(nearestResult?.finalOtMinutes, 45);
+  });
+
+  it("ignores open segments but records reason", async () => {
+    const supabase = new SupabaseMock({
       segments: [
-        {
-          time_in: "2024-10-01T09:00:00+08:00",
-          time_out: "2024-10-01T10:00:00+08:00",
-        },
+        buildSegment({ time_in: "2024-10-01T17:00:00+08:00", time_out: null }),
+        buildSegment({ id: "seg-2", time_in: "2024-10-01T17:00:00+08:00", time_out: "2024-10-01T18:00:00+08:00" }),
       ],
-      workDate: "2024-10-01",
-      scheduleWindow: null,
-      policy: basePolicy,
+      employees: [baseEmployee],
+      assignments: [baseAssignment],
+      windows: [baseWindow],
+      policies: [basePolicy],
     });
 
-    assert.equal(result.overtime_minutes, 0);
-    assert.ok(result.warnings.includes("missing schedule window"));
+    const result = await computeDailyOvertime(
+      supabase as never,
+      { houseId: "house-1", employeeId: "emp-1", workDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    assert.equal(result?.rawOtMinutes, 60);
+    assert.ok(result?.reasons.includes("open_segment"));
   });
 
-  it("ignores open segments for totals while warning", () => {
-    const result = computeOvertimeForDay({
-      segments: [
-        {
-          time_in: "2024-10-01T09:00:00+08:00",
-          time_out: null,
-        },
-        {
-          time_in: "2024-10-01T10:00:00+08:00",
-          time_out: "2024-10-01T12:00:00+08:00",
-        },
-      ],
-      workDate: "2024-10-01",
-      scheduleWindow: {
-        start_time: "09:00",
-        end_time: "17:00",
-        timezone: "Asia/Manila",
-      },
-      policy: basePolicy,
+  it("denies cross-house access", async () => {
+    const supabase = new SupabaseMock({
+      segments: [buildSegment({ house_id: "house-2", employee_id: "emp-2" })],
+      employees: [{ ...baseEmployee, id: "emp-2", house_id: "house-2" }],
+      assignments: [baseAssignment],
+      windows: [baseWindow],
+      policies: [basePolicy],
     });
 
-    assert.equal(result.open_segments_count, 1);
-    assert.equal(result.worked_minutes_total, 120);
-    assert.ok(result.warnings.some((warning) => warning.includes("missing time_in/time_out")));
-  });
-});
+    const result = await computeDailyOvertime(
+      supabase as never,
+      { houseId: "house-1", employeeId: "emp-2", workDate: "2024-10-01" },
+      { access: accessDenied },
+    );
 
-describe("timezone helpers", () => {
+    assert.equal(result, null);
+
+    const batchResults = await computeOvertimeForHouseDate(
+      supabase as never,
+      { houseId: "house-1", workDate: "2024-10-01" },
+      { access: accessDenied },
+    );
+
+    assert.equal(batchResults.length, 0);
+  });
+
   it("builds deterministic Manila timestamps", () => {
     const zoned = buildZonedDateTime("2024-10-01", "17:00", "Asia/Manila");
     assert.ok(zoned);
     assert.equal(zoned?.toISOString(), "2024-10-01T09:00:00.000Z");
-  });
-
-  it("resolves Manila day of week deterministically", () => {
-    const dayOfWeek = getDayOfWeekInTimeZone("2024-10-01", "Asia/Manila");
-    assert.equal(dayOfWeek, 2);
   });
 });
