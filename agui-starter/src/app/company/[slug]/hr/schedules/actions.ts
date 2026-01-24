@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { requireHrAccess } from "@/lib/hr/access";
+import { OvertimePolicyError, upsertOvertimePolicy } from "@/lib/hr/overtime-policy-server";
 import { createBranchScheduleAssignment, ScheduleAssignmentError } from "@/lib/hr/schedules-server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
@@ -39,6 +40,19 @@ const AssignSchema = z.object({
   branchId: z.string().trim().min(1),
   scheduleId: z.string().trim().min(1),
   effectiveFrom: z.string().regex(DATE_REGEX),
+});
+
+const OvertimePolicySchema = z.object({
+  houseId: z.string().trim().min(1),
+  houseSlug: z.string().trim().min(1),
+  minOtMinutes: z.coerce.number().min(0).max(240),
+  roundingMode: z.enum(["NONE", "FLOOR", "CEIL", "NEAREST"]),
+  roundingMinutes: z.coerce.number().superRefine((value, ctx) => {
+    if (![1, 5, 10, 15].includes(value)) {
+      ctx.addIssue({ message: "Invalid rounding increment" });
+    }
+  }),
+  timezone: z.string().trim().min(1),
 });
 
 function normalizeOptionalTime(value: string | undefined) {
@@ -174,6 +188,48 @@ export async function createBranchScheduleAssignmentAction(formData: FormData) {
       return;
     }
     console.error("Failed to create branch schedule assignment", error);
+    return;
+  }
+
+  revalidatePath(`/company/${parsed.data.houseSlug}/hr/schedules`);
+}
+
+export async function updateOvertimePolicyAction(formData: FormData) {
+  const parsed = OvertimePolicySchema.safeParse({
+    houseId: formData.get("houseId"),
+    houseSlug: formData.get("houseSlug"),
+    minOtMinutes: formData.get("minOtMinutes"),
+    roundingMode: formData.get("roundingMode"),
+    roundingMinutes: formData.get("roundingMinutes"),
+    timezone: formData.get("timezone"),
+  });
+
+  if (!parsed.success) {
+    console.warn("Invalid overtime policy payload", parsed.error.flatten());
+    return;
+  }
+
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) return;
+
+  try {
+    await upsertOvertimePolicy(
+      supabase,
+      {
+        houseId: parsed.data.houseId,
+        minOtMinutes: parsed.data.minOtMinutes,
+        roundingMinutes: parsed.data.roundingMinutes,
+        roundingMode: parsed.data.roundingMode,
+        timezone: parsed.data.timezone,
+      },
+      undefined,
+    );
+  } catch (error) {
+    if (error instanceof OvertimePolicyError) {
+      console.warn("Overtime policy update denied", error.message);
+      return;
+    }
+    console.error("Failed to update overtime policy", error);
     return;
   }
 
