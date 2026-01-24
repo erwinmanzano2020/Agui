@@ -11,6 +11,7 @@ import { loadUiConfig } from "@/lib/ui-config";
 const TABS = [
   { key: "employees", label: "Employees", path: "employees" },
   { key: "dtr", label: "DTR", path: "dtr" },
+  { key: "schedules", label: "Schedules", path: "schedules" },
   { key: "payroll", label: "Payroll", path: "payroll" },
   { key: "payslips", label: "Payslips", path: "payslips" },
 ];

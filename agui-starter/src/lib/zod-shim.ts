@@ -19,6 +19,7 @@ export type ZodSchema<T> = {
   nullable: () => ZodSchema<T | null>;
   default: (value: T) => ZodSchema<T>;
   array: () => ZodSchema<T[]>;
+  or: <Other>(other: ZodSchema<Other>) => ZodSchema<T | Other>;
   superRefine: (refinement: (value: T, ctx: { addIssue: (issue: ZodIssue) => void }) => void) => ZodSchema<T>;
 };
 
@@ -91,6 +92,15 @@ function createSchema<T>(validator: (value: unknown) => ZodParseResult<T>): ZodS
         return success(parsed);
       });
     },
+    or<Other>(other: ZodSchema<Other>): ZodSchema<T | Other> {
+      return createSchema<T | Other>((value) => {
+        const first = validator(value);
+        if (first.success) return first;
+        const second = other.safeParse(value);
+        if (second.success) return second;
+        return mergeFailure(second, "Invalid value");
+      });
+    },
     superRefine(refinement) {
       return createSchema((value) => {
         const baseResult = validator(value);
@@ -129,12 +139,16 @@ export type StringSchema = ZodSchema<string> & {
   uuid: () => StringSchema;
 };
 
-function stringSchema(validators: Array<(value: string) => ZodParseResult<string>> = []): StringSchema {
+function stringSchema(
+  validators: Array<(value: string) => ZodParseResult<string>> = [],
+  preprocess?: (value: unknown) => unknown,
+): StringSchema {
   const schemaValidator = (value: unknown): ZodParseResult<string> => {
-    if (typeof value !== "string") {
+    const processed = preprocess ? preprocess(value) : value;
+    if (typeof processed !== "string") {
       return failure("Invalid string");
     }
-    let current = value;
+    let current = processed;
     for (const check of validators) {
       const result = check(current);
       if (!result.success) return result;
@@ -143,7 +157,8 @@ function stringSchema(validators: Array<(value: string) => ZodParseResult<string
     return success(current);
   };
 
-  const withValidator = (validate: (value: string) => ZodParseResult<string>) => stringSchema([...validators, validate]);
+  const withValidator = (validate: (value: string) => ZodParseResult<string>) =>
+    stringSchema([...validators, validate], preprocess);
 
   const base = createSchema(schemaValidator);
   return {
@@ -178,15 +193,20 @@ function stringSchema(validators: Array<(value: string) => ZodParseResult<string
 export type NumberSchema = ZodSchema<number> & {
   int: () => NumberSchema;
   positive: () => NumberSchema;
+  min: (limit: number) => NumberSchema;
   max: (limit: number) => NumberSchema;
 };
 
-function numberSchema(validators: Array<(value: number) => ZodParseResult<number>> = []): NumberSchema {
+function numberSchema(
+  validators: Array<(value: number) => ZodParseResult<number>> = [],
+  preprocess?: (value: unknown) => unknown,
+): NumberSchema {
   const schemaValidator = (value: unknown): ZodParseResult<number> => {
-    if (typeof value !== "number" || Number.isNaN(value)) {
+    const processed = preprocess ? preprocess(value) : value;
+    if (typeof processed !== "number" || Number.isNaN(processed)) {
       return failure("Invalid number");
     }
-    let current = value;
+    let current = processed;
     for (const check of validators) {
       const result = check(current);
       if (!result.success) return result;
@@ -195,7 +215,8 @@ function numberSchema(validators: Array<(value: number) => ZodParseResult<number
     return success(current);
   };
 
-  const withValidator = (validate: (value: number) => ZodParseResult<number>) => numberSchema([...validators, validate]);
+  const withValidator = (validate: (value: number) => ZodParseResult<number>) =>
+    numberSchema([...validators, validate], preprocess);
 
   const base = createSchema(schemaValidator);
   return {
@@ -206,14 +227,20 @@ function numberSchema(validators: Array<(value: number) => ZodParseResult<number
     positive() {
       return withValidator((value) => (value > 0 ? success(value) : failure("Expected positive number")));
     },
+    min(limit) {
+      return withValidator((value) => (value >= limit ? success(value) : failure(`Must be at least ${limit}`)));
+    },
     max(limit) {
       return withValidator((value) => (value <= limit ? success(value) : failure(`Must be at most ${limit}`)));
     },
   };
 }
 
-function booleanSchema(): ZodSchema<boolean> {
-  return createSchema((value) => (typeof value === "boolean" ? success(value) : failure("Invalid boolean")));
+function booleanSchema(preprocess?: (value: unknown) => unknown): ZodSchema<boolean> {
+  return createSchema((value) => {
+    const processed = preprocess ? preprocess(value) : value;
+    return typeof processed === "boolean" ? success(processed) : failure("Invalid boolean");
+  });
 }
 
 function unknownSchema(): ZodSchema<unknown> {
@@ -291,11 +318,42 @@ export const z = {
   enum: enumSchema,
   string: stringSchema,
   number: numberSchema,
-  boolean: booleanSchema,
+  boolean: () => booleanSchema(),
   unknown: unknownSchema,
   any: unknownSchema,
   record: recordSchema,
   object: objectSchema,
+  literal<T extends string | number | boolean | null>(value: T): ZodSchema<T> {
+    return createSchema((input) => (input === value ? success(value) : failure("Invalid literal value")));
+  },
+  coerce: {
+    number() {
+      return numberSchema([], (value) => {
+        if (typeof value === "string" && value.trim() !== "") {
+          return Number(value);
+        }
+        if (typeof value === "boolean") {
+          return Number(value);
+        }
+        return value;
+      });
+    },
+    string() {
+      return stringSchema([], (value) => {
+        if (value === undefined || value === null) return value;
+        return String(value);
+      });
+    },
+    boolean() {
+      return booleanSchema((value) => {
+        if (typeof value === "string") {
+          if (value.toLowerCase() === "true") return true;
+          if (value.toLowerCase() === "false") return false;
+        }
+        return value;
+      });
+    },
+  },
   optional<SchemaType>(schema: ZodSchema<SchemaType>) {
     return schema.optional();
   },

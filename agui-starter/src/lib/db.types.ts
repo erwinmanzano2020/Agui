@@ -257,6 +257,70 @@ export type DtrSegmentInsert = {
 
 export type DtrSegmentUpdate = Partial<DtrSegmentInsert>;
 
+export type HrScheduleTemplateRow = {
+  id: string;
+  house_id: string;
+  name: string;
+  timezone: string;
+  created_at: string;
+};
+
+export type HrScheduleTemplateInsert = {
+  id?: string;
+  house_id: string;
+  name: string;
+  timezone?: string;
+  created_at?: string;
+};
+
+export type HrScheduleTemplateUpdate = Partial<HrScheduleTemplateInsert>;
+
+export type HrScheduleWindowRow = {
+  id: string;
+  house_id: string;
+  schedule_id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  break_start: string | null;
+  break_end: string | null;
+  created_at: string;
+};
+
+export type HrScheduleWindowInsert = {
+  id?: string;
+  house_id: string;
+  schedule_id: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  break_start?: string | null;
+  break_end?: string | null;
+  created_at?: string;
+};
+
+export type HrScheduleWindowUpdate = Partial<HrScheduleWindowInsert>;
+
+export type HrBranchScheduleAssignmentRow = {
+  id: string;
+  house_id: string;
+  branch_id: string;
+  schedule_id: string;
+  effective_from: string;
+  created_at: string;
+};
+
+export type HrBranchScheduleAssignmentInsert = {
+  id?: string;
+  house_id: string;
+  branch_id: string;
+  schedule_id: string;
+  effective_from: string;
+  created_at?: string;
+};
+
+export type HrBranchScheduleAssignmentUpdate = Partial<HrBranchScheduleAssignmentInsert>;
+
 export type BrandOwnerRow = {
   id: string;
   entity_id: string;
@@ -1218,6 +1282,21 @@ export interface Database {
       >;
       employees: TableDefinition<EmployeeRow, EmployeeInsert, EmployeeUpdate>;
       dtr_segments: TableDefinition<DtrSegmentRow, DtrSegmentInsert, DtrSegmentUpdate>;
+      hr_schedule_templates: TableDefinition<
+        HrScheduleTemplateRow,
+        HrScheduleTemplateInsert,
+        HrScheduleTemplateUpdate
+      >;
+      hr_schedule_windows: TableDefinition<
+        HrScheduleWindowRow,
+        HrScheduleWindowInsert,
+        HrScheduleWindowUpdate
+      >;
+      hr_branch_schedule_assignments: TableDefinition<
+        HrBranchScheduleAssignmentRow,
+        HrBranchScheduleAssignmentInsert,
+        HrBranchScheduleAssignmentUpdate
+      >;
       brand_owners: TableDefinition<BrandOwnerRow, BrandOwnerInsert, BrandOwnerUpdate>;
       profiles: TableDefinition<ProfileRow, ProfileInsert, ProfileUpdate>;
       entities: TableDefinition<EntityRow, EntityInsert, EntityUpdate>;
