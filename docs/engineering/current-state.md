@@ -31,6 +31,9 @@
     - Reference: `docs/hr/hr-2-3-overtime-engine.md`
   - HR-2.3.2: Read-only overtime computation (derived OT minutes, no writes)
     - Reference: `docs/hr/hr-2-3-overtime-engine.md`
+  - HR-2.3.3: Payroll preview aggregation (read-only, house-scoped)
+    - Reference: `docs/hr/hr-2-3-3-payroll-preview.md`
+    - Boundary: no payroll ledger tables, no money computations, no DTR mutation
 
 ## 3. Non-Negotiable Guardrails
 - All HR/DTR data is house-scoped
@@ -50,6 +53,7 @@
 - HR-2.2: Schedule definition per house/branch (work windows)
   - Reference: `docs/hr/hr-2-2-schedules-freeze.md`
 - HR-2.3: Overtime rules engine (house-configurable thresholds)
+- HR-2.3.3: Payroll preview aggregation (read-only bridge to HR-3 payroll run tables)
 - HR-2.4: DTR validation / closing workflow (optional approvals)
 - HR-2.5: Payroll rollup integration from DTR segments
 
