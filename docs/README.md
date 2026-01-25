@@ -6,6 +6,7 @@
 - HR
   - [HR Master Plan](./hr/hr-master-plan.md)
   - [HR-1 Implementation Runbook](./hr/hr-1-implementation-runbook.md)
+  - [HR-2.3 Freeze Declaration](./hr/hr-2-3-freeze.md)
 - Engineering
   - [Supabase / Migrations Hygiene](./db/supabase-migrations-hygiene.md)
   - [Debugging Playbook](./engineering/debugging-playbook.md)

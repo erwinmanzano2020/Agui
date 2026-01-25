@@ -34,6 +34,9 @@
   - HR-2.3.3: Payroll preview aggregation (read-only, house-scoped)
     - Reference: `docs/hr/hr-2-3-3-payroll-preview.md`
     - Boundary: no payroll ledger tables, no money computations, no DTR mutation
+  - HR-2.3.x: Contract freeze (HR-2.0 → HR-2.3.3)
+    - Reference: `docs/hr/hr-2-3-freeze.md`
+    - Boundary: HR-3 starts here; HR-2.3.x is contract-stable
 
 ## 3. Non-Negotiable Guardrails
 - All HR/DTR data is house-scoped
