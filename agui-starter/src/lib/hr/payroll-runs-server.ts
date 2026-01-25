@@ -25,6 +25,9 @@ export type PayrollRunListItem = {
   status: PayrollRunStatus;
   createdBy: string | null;
   createdAt: string;
+  finalizedAt: string | null;
+  finalizedBy: string | null;
+  finalizeNote: string | null;
   itemCount: number;
 };
 
@@ -81,6 +84,20 @@ export class PayrollRunFetchError extends Error {
   }
 }
 
+export class PayrollRunFinalizedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PayrollRunFinalizedError";
+  }
+}
+
+export class PayrollRunNotFoundError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PayrollRunNotFoundError";
+  }
+}
+
 function compareDateStrings(a: string, b: string): number {
   const aParts = parseDateParts(a);
   const bParts = parseDateParts(b);
@@ -108,6 +125,9 @@ function mapRun(row: HrPayrollRunRow, itemCount: number): PayrollRunListItem {
     status: row.status,
     createdBy: row.created_by ?? null,
     createdAt: row.created_at,
+    finalizedAt: row.finalized_at ?? null,
+    finalizedBy: row.finalized_by ?? null,
+    finalizeNote: row.finalize_note ?? null,
     itemCount,
   } satisfies PayrollRunListItem;
 }
@@ -144,7 +164,9 @@ export async function listPayrollRunsForHouse(
 
   const { data, error } = await supabase
     .from("hr_payroll_runs")
-    .select("id, house_id, period_start, period_end, status, created_by, created_at")
+    .select(
+      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note",
+    )
     .eq("house_id", houseId)
     .order("created_at", { ascending: false });
 
@@ -188,7 +210,9 @@ export async function getPayrollRunWithItems(
 
   const { data, error } = await supabase
     .from("hr_payroll_runs")
-    .select("id, house_id, period_start, period_end, status, created_by, created_at")
+    .select(
+      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note",
+    )
     .eq("id", runId)
     .maybeSingle<HrPayrollRunRow>();
 
@@ -252,6 +276,72 @@ export type PayrollRunCreateInput = {
   createdBy?: string | null;
 };
 
+export async function finalizePayrollRunForHouse(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  runId: string,
+  options: { access?: HrAccessDecision } = {},
+): Promise<{ run: PayrollRunListItem; itemsCount: number }> {
+  const access = await resolveAccess(supabase, houseId, options.access);
+  if (!access.allowed) {
+    throw new PayrollRunAccessError("Not allowed to finalize payroll runs for this house.");
+  }
+
+  const { data: run, error: runError } = await supabase
+    .from("hr_payroll_runs")
+    .select(
+      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note",
+    )
+    .eq("id", runId)
+    .maybeSingle<HrPayrollRunRow>();
+
+  if (runError) {
+    throw new PayrollRunFetchError(runError.message);
+  }
+
+  if (!run || run.house_id !== houseId) {
+    throw new PayrollRunNotFoundError("Payroll run not found.");
+  }
+
+  if (run.status === "finalized") {
+    throw new PayrollRunFinalizedError("Payroll run already finalized.");
+  }
+
+  const { data: updatedRun, error: updateError } = await supabase
+    .from("hr_payroll_runs")
+    .update({
+      status: "finalized",
+      finalized_at: new Date().toISOString(),
+      finalized_by: access.entityId,
+    })
+    .eq("id", runId)
+    .select(
+      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note",
+    )
+    .maybeSingle<HrPayrollRunRow>();
+
+  if (updateError) {
+    throw new PayrollRunMutationError(updateError.message, updateError.code);
+  }
+
+  if (!updatedRun) {
+    throw new PayrollRunMutationError("Failed to finalize payroll run.");
+  }
+
+  const { data: itemsData, error: itemsError } = await supabase
+    .from("hr_payroll_run_items")
+    .select("id")
+    .eq("run_id", runId);
+
+  if (itemsError) {
+    throw new PayrollRunFetchError(itemsError.message);
+  }
+
+  const itemsCount = (itemsData as { id?: string | null }[] | null)?.length ?? 0;
+
+  return { run: mapRun(updatedRun, itemsCount), itemsCount };
+}
+
 export async function createDraftPayrollRunFromPreview(
   supabase: SupabaseClient<Database>,
   input: PayrollRunCreateInput,
@@ -291,7 +381,9 @@ export async function createDraftPayrollRunFromPreview(
       status: "draft",
       created_by: input.createdBy ?? null,
     })
-    .select("id, house_id, period_start, period_end, status, created_by, created_at")
+    .select(
+      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note",
+    )
     .maybeSingle<HrPayrollRunRow>();
 
   if (runError) {

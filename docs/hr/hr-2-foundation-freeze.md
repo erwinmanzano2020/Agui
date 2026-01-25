@@ -36,6 +36,9 @@ Columns and intended meanings:
 - No correction/audit system yet.
 - No approval workflow yet.
 
+## HR-2.1 Addendum
+- HR-2.1 requires write policies on `dtr_segments`; RLS now supports insert/update/delete for HR house roles.
+
 ## Migration Hygiene Notes (Hard-Learned Rule)
 - The migration is destructive (`DROP TABLE ... CASCADE`) and only acceptable because there is no production data.
 - After applying migrations, always notify PostgREST with: `notify pgrst, 'reload schema'`.
