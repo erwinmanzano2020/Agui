@@ -9,9 +9,12 @@ import type {
 import { evaluateHrAccess } from "../access";
 import {
   createDraftPayrollRunFromPreview,
+  finalizePayrollRunForHouse,
   getPayrollRunWithItems,
   PayrollRunAccessError,
+  PayrollRunFinalizedError,
   PayrollRunMutationError,
+  PayrollRunNotFoundError,
 } from "../payroll-runs-server";
 
 type QueryResult<T> = { data: T | null; error: { message: string; code?: string } | null };
@@ -23,8 +26,8 @@ type SortInstruction<T> = { column: keyof T; ascending: boolean };
 class QueryMock<T extends Record<string, unknown>> {
   constructor(
     protected rows: T[],
-    private filters: Filter<T>[] = [],
-    private sorts: SortInstruction<T>[] = [],
+    protected filters: Filter<T>[] = [],
+    protected sorts: SortInstruction<T>[] = [],
   ) {}
 
   select() {
@@ -65,11 +68,11 @@ class QueryMock<T extends Record<string, unknown>> {
     return Promise.resolve(payload).then(onfulfilled, onrejected);
   }
 
-  private applyFilters(): T[] {
+  protected applyFilters(): T[] {
     return this.rows.filter((row) => this.filters.every((filter) => filter(row)));
   }
 
-  private sortRows(rows: T[]): T[] {
+  protected sortRows(rows: T[]): T[] {
     if (!this.sorts.length) return rows;
     return rows.slice().sort((a, b) => {
       for (const instruction of this.sorts) {
@@ -110,9 +113,72 @@ class RunInsertQueryMock {
         status: (this.payload.status as HrPayrollRunRow["status"]) ?? "draft",
         created_by: (this.payload.created_by as string | null) ?? null,
         created_at: "2024-01-01T00:00:00Z",
+        finalized_at: (this.payload.finalized_at as string | null) ?? null,
+        finalized_by: (this.payload.finalized_by as string | null) ?? null,
+        finalize_note: (this.payload.finalize_note as string | null) ?? null,
       } satisfies HrPayrollRunRow);
     this.result.run = run;
     return { data: run as T, error: null } satisfies QueryResult<T>;
+  }
+}
+
+class RunUpdateQueryMock {
+  constructor(
+    private payload: Partial<HrPayrollRunRow>,
+    private rows: HrPayrollRunRow[],
+    private result: { error: { message: string; code?: string } | null },
+    private filters: Filter<HrPayrollRunRow>[] = [],
+  ) {}
+
+  eq(column: keyof HrPayrollRunRow, value: unknown) {
+    return new RunUpdateQueryMock(this.payload, this.rows, this.result, [
+      ...this.filters,
+      (row) => row[column] === value,
+    ]);
+  }
+
+  select() {
+    return this;
+  }
+
+  async maybeSingle<T>() {
+    if (this.result.error) {
+      return { data: null, error: this.result.error } satisfies QueryResult<T>;
+    }
+    const row = this.rows.filter((item) => this.filters.every((filter) => filter(item)))[0] ?? null;
+    if (!row) {
+      return { data: null, error: null } satisfies QueryResult<T>;
+    }
+    const updated = { ...row, ...this.payload } satisfies HrPayrollRunRow;
+    return { data: updated as T, error: null } satisfies QueryResult<T>;
+  }
+}
+
+class ItemMutationQueryMock {
+  constructor(
+    private rows: HrPayrollRunItemRow[],
+    private runStatusLookup: (runId: string) => HrPayrollRunRow["status"] | null,
+    private filters: Filter<HrPayrollRunItemRow>[] = [],
+  ) {}
+
+  eq(column: keyof HrPayrollRunItemRow, value: unknown) {
+    return new ItemMutationQueryMock(this.rows, this.runStatusLookup, [
+      ...this.filters,
+      (row) => row[column] === value,
+    ]);
+  }
+
+  then<TResult1 = unknown, TResult2 = never>(
+    onfulfilled?: (value: { data: null; error: { message: string } | null }) => TResult1 | PromiseLike<TResult1>,
+    onrejected?: (reason: unknown) => TResult2 | PromiseLike<TResult2>,
+  ) {
+    const rows = this.rows.filter((row) => this.filters.every((filter) => filter(row)));
+    const hasFinalized = rows.some((row) => this.runStatusLookup(row.run_id) === "finalized");
+    const payload = {
+      data: null,
+      error: hasFinalized ? { message: "Payroll run is finalized and cannot be modified" } : null,
+    } as const;
+    return Promise.resolve(payload).then(onfulfilled, onrejected);
   }
 }
 
@@ -120,12 +186,17 @@ class RunQueryMock extends QueryMock<HrPayrollRunRow> {
   constructor(
     rows: HrPayrollRunRow[],
     private insertResult: { run: HrPayrollRunRow | null; error: { message: string; code?: string } | null },
+    private updateResult: { error: { message: string; code?: string } | null },
   ) {
     super(rows);
   }
 
   insert(payload: Partial<HrPayrollRunRow>) {
     return new RunInsertQueryMock(payload, this.insertResult);
+  }
+
+  update(payload: Partial<HrPayrollRunRow>) {
+    return new RunUpdateQueryMock(payload, this.rows, this.updateResult);
   }
 }
 
@@ -137,14 +208,30 @@ class ItemQueryMock extends QueryMock<HrPayrollRunItemRow> {
       error: { message: string; code?: string } | null;
       called: boolean;
     },
+    private runStatusLookup: (runId: string) => HrPayrollRunRow["status"] | null,
   ) {
     super(rows);
   }
 
   async insert(payload: HrPayrollRunItemInsert[]) {
+    if (payload.some((item) => this.runStatusLookup(item.run_id) === "finalized")) {
+      return {
+        data: null,
+        error: { message: "Payroll run is finalized and cannot be modified" },
+      } as const;
+    }
     this.insertState.called = true;
     this.insertState.items.push(...payload);
     return { data: null, error: this.insertState.error } as const;
+  }
+
+  update(_payload: Partial<HrPayrollRunItemRow>) {
+    void _payload;
+    return new ItemMutationQueryMock(this.rows, this.runStatusLookup, this.filters);
+  }
+
+  delete() {
+    return new ItemMutationQueryMock(this.rows, this.runStatusLookup, this.filters);
   }
 }
 
@@ -158,15 +245,18 @@ class SupabaseMock {
     private insertState: {
       runResult: { run: HrPayrollRunRow | null; error: { message: string; code?: string } | null };
       itemResult: { items: HrPayrollRunItemInsert[]; error: { message: string; code?: string } | null; called: boolean };
+      runUpdateResult: { error: { message: string; code?: string } | null };
     },
   ) {}
 
   from(table: string) {
     if (table === "hr_payroll_runs") {
-      return new RunQueryMock(this.data.runs, this.insertState.runResult);
+      return new RunQueryMock(this.data.runs, this.insertState.runResult, this.insertState.runUpdateResult);
     }
     if (table === "hr_payroll_run_items") {
-      return new ItemQueryMock(this.data.items, this.insertState.itemResult);
+      const lookup = (runId: string) =>
+        this.data.runs.find((run) => run.id === runId)?.status ?? null;
+      return new ItemQueryMock(this.data.items, this.insertState.itemResult, lookup);
     }
     if (table === "employees") {
       return new QueryMock(this.data.employees);
@@ -184,7 +274,7 @@ describe("payroll runs", () => {
     const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
     const supabase = new SupabaseMock(
       { runs: [], items: [], employees: [] },
-      { runResult, itemResult },
+      { runResult, itemResult, runUpdateResult: { error: null } },
     );
 
     const result = await createDraftPayrollRunFromPreview(
@@ -266,7 +356,7 @@ describe("payroll runs", () => {
     const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
     const supabase = new SupabaseMock(
       { runs: [], items: [], employees: [] },
-      { runResult, itemResult },
+      { runResult, itemResult, runUpdateResult: { error: null } },
     );
 
     await assert.rejects(
@@ -312,12 +402,15 @@ describe("payroll runs", () => {
             status: "draft",
             created_by: null,
             created_at: "2024-06-02T00:00:00Z",
+            finalized_at: null,
+            finalized_by: null,
+            finalize_note: null,
           },
         ],
         items: [],
         employees: [],
       },
-      { runResult, itemResult },
+      { runResult, itemResult, runUpdateResult: { error: null } },
     );
 
     await assert.rejects(
@@ -335,7 +428,7 @@ describe("payroll runs", () => {
     };
     const supabase = new SupabaseMock(
       { runs: [], items: [], employees: [] },
-      { runResult, itemResult },
+      { runResult, itemResult, runUpdateResult: { error: null } },
     );
 
     await assert.rejects(
@@ -383,7 +476,7 @@ describe("payroll runs", () => {
     const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
     const supabase = new SupabaseMock(
       { runs: [], items: [], employees: [] },
-      { runResult, itemResult },
+      { runResult, itemResult, runUpdateResult: { error: null } },
     );
 
     const result = await createDraftPayrollRunFromPreview(
@@ -412,5 +505,183 @@ describe("payroll runs", () => {
 
     assert.equal(result.runId, "run-1");
     assert.equal(itemResult.called, false);
+  });
+
+  it("finalizes a draft run", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-1",
+            house_id: "house-1",
+            period_start: "2024-06-01",
+            period_end: "2024-06-15",
+            status: "draft",
+            created_by: null,
+            created_at: "2024-06-02T00:00:00Z",
+            finalized_at: null,
+            finalized_by: null,
+            finalize_note: null,
+          },
+        ],
+        items: [
+          {
+            id: "item-1",
+            run_id: "run-1",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_minutes: 60,
+            overtime_minutes_raw: 10,
+            overtime_minutes_rounded: 10,
+            missing_schedule_days: 0,
+            open_segment_days: 0,
+            corrected_segment_days: 0,
+            notes: {},
+            created_at: "2024-06-02T00:00:00Z",
+          },
+        ],
+        employees: [],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null } },
+    );
+
+    const result = await finalizePayrollRunForHouse(supabase as never, "house-1", "run-1", {
+      access: accessAllowed,
+    });
+
+    assert.equal(result.run.status, "finalized");
+    assert.equal(result.run.finalizedBy, "entity-1");
+    assert.equal(result.itemsCount, 1);
+  });
+
+  it("blocks finalizing an already finalized run", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-1",
+            house_id: "house-1",
+            period_start: "2024-06-01",
+            period_end: "2024-06-15",
+            status: "finalized",
+            created_by: null,
+            created_at: "2024-06-02T00:00:00Z",
+            finalized_at: "2024-06-03T00:00:00Z",
+            finalized_by: "entity-1",
+            finalize_note: null,
+          },
+        ],
+        items: [],
+        employees: [],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null } },
+    );
+
+    await assert.rejects(
+      () => finalizePayrollRunForHouse(supabase as never, "house-1", "run-1", { access: accessAllowed }),
+      PayrollRunFinalizedError,
+    );
+  });
+
+  it("denies finalizing a run from another house", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-2",
+            house_id: "house-2",
+            period_start: "2024-06-01",
+            period_end: "2024-06-15",
+            status: "draft",
+            created_by: null,
+            created_at: "2024-06-02T00:00:00Z",
+            finalized_at: null,
+            finalized_by: null,
+            finalize_note: null,
+          },
+        ],
+        items: [],
+        employees: [],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null } },
+    );
+
+    await assert.rejects(
+      () => finalizePayrollRunForHouse(supabase as never, "house-1", "run-2", { access: accessAllowed }),
+      PayrollRunNotFoundError,
+    );
+  });
+
+  it("blocks item mutation after finalization", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-3",
+            house_id: "house-1",
+            period_start: "2024-06-01",
+            period_end: "2024-06-15",
+            status: "finalized",
+            created_by: null,
+            created_at: "2024-06-02T00:00:00Z",
+            finalized_at: "2024-06-03T00:00:00Z",
+            finalized_by: "entity-1",
+            finalize_note: null,
+          },
+        ],
+        items: [
+          {
+            id: "item-1",
+            run_id: "run-3",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_minutes: 60,
+            overtime_minutes_raw: 10,
+            overtime_minutes_rounded: 10,
+            missing_schedule_days: 0,
+            open_segment_days: 0,
+            corrected_segment_days: 0,
+            notes: {},
+            created_at: "2024-06-02T00:00:00Z",
+          },
+        ],
+        employees: [],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null } },
+    );
+
+    const itemQuery = supabase.from("hr_payroll_run_items") as ItemQueryMock;
+
+    const { error: insertError } = await itemQuery.insert([
+      {
+        run_id: "run-3",
+        house_id: "house-1",
+        employee_id: "emp-2",
+        work_minutes: 10,
+        overtime_minutes_raw: 0,
+        overtime_minutes_rounded: 0,
+        missing_schedule_days: 0,
+        open_segment_days: 0,
+        corrected_segment_days: 0,
+        notes: {},
+      },
+    ]);
+    assert.equal(insertError?.message, "Payroll run is finalized and cannot be modified");
+
+    const { error: updateError } = await itemQuery
+      .update({ work_minutes: 90 })
+      .eq("id", "item-1");
+    assert.equal(updateError?.message, "Payroll run is finalized and cannot be modified");
+
+    const { error: deleteError } = await itemQuery.delete().eq("id", "item-1");
+    assert.equal(deleteError?.message, "Payroll run is finalized and cannot be modified");
   });
 });

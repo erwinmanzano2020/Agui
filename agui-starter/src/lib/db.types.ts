@@ -351,6 +351,9 @@ export type HrPayrollRunRow = {
   status: "draft" | "finalized" | "cancelled";
   created_by: string | null;
   created_at: string;
+  finalized_at: string | null;
+  finalized_by: string | null;
+  finalize_note: string | null;
 };
 
 export type HrPayrollRunInsert = {
@@ -361,6 +364,9 @@ export type HrPayrollRunInsert = {
   status?: HrPayrollRunRow["status"];
   created_by?: string | null;
   created_at?: string;
+  finalized_at?: string | null;
+  finalized_by?: string | null;
+  finalize_note?: string | null;
 };
 
 export type HrPayrollRunUpdate = Partial<HrPayrollRunInsert>;

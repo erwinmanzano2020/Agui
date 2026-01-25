@@ -40,6 +40,9 @@
   - HR-3.0: Payroll runs (draft snapshots from preview, read-only)
     - Reference: `docs/hr/hr-3-0-payroll-runs.md`
     - Boundary: no money computation, no DTR mutation, no payroll finalization
+  - HR-3.1: Finalize payroll runs (immutable snapshot lock)
+    - Reference: `docs/hr/hr-3-1-finalize-payroll-runs.md`
+    - Boundary: finalization locks the snapshot only; no pay computation yet
 
 ## 3. Non-Negotiable Guardrails
 - All HR/DTR data is house-scoped
@@ -61,6 +64,7 @@
 - HR-2.3: Overtime rules engine (house-configurable thresholds)
 - HR-2.3.3: Payroll preview aggregation (read-only bridge to HR-3 payroll run tables)
 - HR-3.0: Payroll runs (draft snapshot tables, read-only UI/API)
+- HR-3.1: Finalize payroll runs (immutable snapshot lock)
 - HR-2.4: DTR validation / closing workflow (optional approvals)
 - HR-2.5: Payroll rollup integration from DTR segments
 

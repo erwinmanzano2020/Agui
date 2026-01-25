@@ -1,12 +1,28 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { getPayrollRunWithItems } from "@/lib/hr/payroll-runs-server";
+import FinalizePayrollRunButton from "./FinalizePayrollRunButton";
 
 function formatMinutes(minutes: number) {
   const hours = minutes / 60;
   return `${minutes} min (${hours.toFixed(2)} hr)`;
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime())
+    ? "—"
+    : date.toLocaleString("en-PH", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
 }
 
 type Props = {
@@ -34,6 +50,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
   }
 
   const { run, items } = result;
+  const isFinalized = run.status === "finalized";
 
   return (
     <div className="space-y-6">
@@ -44,15 +61,32 @@ export default async function PayrollRunDetailPage({ params }: Props) {
               <Link href={`/company/${house.slug ?? slug}/hr/payroll-runs`} className="underline">
                 Payroll runs
               </Link>
-              {" "}→ Draft run
+              {" "}→ Payroll run
             </p>
             <h2 className="text-xl font-semibold text-foreground">
               {run.periodStart} → {run.periodEnd}
             </h2>
-            <p className="text-sm text-muted-foreground capitalize">Status: {run.status}</p>
+            <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              <span>Status</span>
+              <Badge tone={isFinalized ? "on" : "off"} className="uppercase">
+                {run.status}
+              </Badge>
+            </div>
           </div>
-          <div className="rounded-lg border border-dashed border-border bg-white/60 px-4 py-2 text-xs text-muted-foreground">
-            Snapshot. Read-only. No money computed.
+          <div className="flex flex-col items-end gap-3 text-xs text-muted-foreground">
+            <div className="rounded-lg border border-dashed border-border bg-white/60 px-4 py-2">
+              Snapshot. Read-only. No money computed.
+            </div>
+            {isFinalized ? (
+              <div className="space-y-1 text-right">
+                <div className="text-xs text-muted-foreground">Finalized at: {formatDateTime(run.finalizedAt)}</div>
+                <div className="text-xs text-muted-foreground">
+                  Finalized by: {run.finalizedBy ?? "—"}
+                </div>
+              </div>
+            ) : (
+              <FinalizePayrollRunButton runId={run.id} houseId={house.id} />
+            )}
           </div>
         </div>
       </section>
