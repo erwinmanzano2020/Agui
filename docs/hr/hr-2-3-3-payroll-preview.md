@@ -29,4 +29,4 @@ Provide a **read-only payroll preview** that aggregates work minutes and derived
 - Schedule times are treated as **Asia/Manila** local time-of-day using deterministic conversions.
 
 ## Known Next Step
-HR-3 payroll run tables will consume this preview output to generate actual payroll ledgers and payslips.
+HR-3 payroll runs snapshot this preview output into run items. The preview logic and output remain frozen and read-only until explicitly revised.

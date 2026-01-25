@@ -13,7 +13,7 @@ const TABS = [
   { key: "dtr", label: "DTR", path: "dtr" },
   { key: "schedules", label: "Schedules", path: "schedules" },
   { key: "payroll-preview", label: "Payroll Preview", path: "payroll-preview" },
-  { key: "payroll", label: "Payroll", path: "payroll" },
+  { key: "payroll-runs", label: "Payroll Runs", path: "payroll-runs" },
   { key: "payslips", label: "Payslips", path: "payslips" },
 ];
 

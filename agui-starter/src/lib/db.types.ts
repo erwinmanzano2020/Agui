@@ -343,6 +343,60 @@ export type HrOvertimePolicyInsert = {
 
 export type HrOvertimePolicyUpdate = Partial<HrOvertimePolicyInsert>;
 
+export type HrPayrollRunRow = {
+  id: string;
+  house_id: string;
+  period_start: string;
+  period_end: string;
+  status: "draft" | "finalized" | "cancelled";
+  created_by: string | null;
+  created_at: string;
+};
+
+export type HrPayrollRunInsert = {
+  id?: string;
+  house_id: string;
+  period_start: string;
+  period_end: string;
+  status?: HrPayrollRunRow["status"];
+  created_by?: string | null;
+  created_at?: string;
+};
+
+export type HrPayrollRunUpdate = Partial<HrPayrollRunInsert>;
+
+export type HrPayrollRunItemRow = {
+  id: string;
+  run_id: string;
+  house_id: string;
+  employee_id: string;
+  work_minutes: number;
+  overtime_minutes_raw: number;
+  overtime_minutes_rounded: number;
+  missing_schedule_days: number;
+  open_segment_days: number;
+  corrected_segment_days: number;
+  notes: Json;
+  created_at: string;
+};
+
+export type HrPayrollRunItemInsert = {
+  id?: string;
+  run_id: string;
+  house_id: string;
+  employee_id: string;
+  work_minutes?: number;
+  overtime_minutes_raw?: number;
+  overtime_minutes_rounded?: number;
+  missing_schedule_days?: number;
+  open_segment_days?: number;
+  corrected_segment_days?: number;
+  notes?: Json;
+  created_at?: string;
+};
+
+export type HrPayrollRunItemUpdate = Partial<HrPayrollRunItemInsert>;
+
 export type BrandOwnerRow = {
   id: string;
   entity_id: string;
@@ -1323,6 +1377,16 @@ export interface Database {
         HrOvertimePolicyRow,
         HrOvertimePolicyInsert,
         HrOvertimePolicyUpdate
+      >;
+      hr_payroll_runs: TableDefinition<
+        HrPayrollRunRow,
+        HrPayrollRunInsert,
+        HrPayrollRunUpdate
+      >;
+      hr_payroll_run_items: TableDefinition<
+        HrPayrollRunItemRow,
+        HrPayrollRunItemInsert,
+        HrPayrollRunItemUpdate
       >;
       brand_owners: TableDefinition<BrandOwnerRow, BrandOwnerInsert, BrandOwnerUpdate>;
       profiles: TableDefinition<ProfileRow, ProfileInsert, ProfileUpdate>;
