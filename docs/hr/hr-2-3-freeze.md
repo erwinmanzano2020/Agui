@@ -35,6 +35,7 @@ The HR-2.3.x track is now contract-stable. The following increments are frozen:
 - Read-only aggregation.
 - Aggregates work minutes and derived OT minutes.
 - No money computations, payslip generation, or payroll run creation.
+- HR-3 payroll runs only **snapshot** this output; the preview logic stays frozen.
 
 ## Guardrails (“Don’t Break This”)
 - HR-3 work must **not** mutate `dtr_segments` during preview/rollup.

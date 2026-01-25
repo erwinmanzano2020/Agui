@@ -37,6 +37,9 @@
   - HR-2.3.x: Contract freeze (HR-2.0 → HR-2.3.3)
     - Reference: `docs/hr/hr-2-3-freeze.md`
     - Boundary: HR-3 starts here; HR-2.3.x is contract-stable
+  - HR-3.0: Payroll runs (draft snapshots from preview, read-only)
+    - Reference: `docs/hr/hr-3-0-payroll-runs.md`
+    - Boundary: no money computation, no DTR mutation, no payroll finalization
 
 ## 3. Non-Negotiable Guardrails
 - All HR/DTR data is house-scoped
@@ -57,6 +60,7 @@
   - Reference: `docs/hr/hr-2-2-schedules-freeze.md`
 - HR-2.3: Overtime rules engine (house-configurable thresholds)
 - HR-2.3.3: Payroll preview aggregation (read-only bridge to HR-3 payroll run tables)
+- HR-3.0: Payroll runs (draft snapshot tables, read-only UI/API)
 - HR-2.4: DTR validation / closing workflow (optional approvals)
 - HR-2.5: Payroll rollup integration from DTR segments
 

@@ -1,7 +1,10 @@
-export default function HrPayrollPage() {
-  return (
-    <div className="rounded-2xl border border-border bg-white/70 p-6 text-sm text-muted-foreground shadow-sm">
-      Payroll runs tab – HR-3 will live here.
-    </div>
-  );
+import { redirect } from "next/navigation";
+
+type Props = {
+  params: Promise<{ slug: string }>;
+};
+
+export default async function HrPayrollPage({ params }: Props) {
+  const { slug } = await params;
+  redirect(`/company/${slug}/hr/payroll-runs`);
 }
