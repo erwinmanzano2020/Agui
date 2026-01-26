@@ -28,6 +28,15 @@ export type PayrollRunListItem = {
   finalizedAt: string | null;
   finalizedBy: string | null;
   finalizeNote: string | null;
+  postedAt: string | null;
+  postedBy: string | null;
+  postNote: string | null;
+  paidAt: string | null;
+  paidBy: string | null;
+  paymentMethod: string | null;
+  paymentNote: string | null;
+  referenceCode: string | null;
+  adjustsRunId: string | null;
   itemCount: number;
 };
 
@@ -91,6 +100,27 @@ export class PayrollRunFinalizedError extends Error {
   }
 }
 
+export class PayrollRunWrongStatusError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PayrollRunWrongStatusError";
+  }
+}
+
+export class PayrollRunAlreadyPostedError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PayrollRunAlreadyPostedError";
+  }
+}
+
+export class PayrollRunOpenSegmentsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "PayrollRunOpenSegmentsError";
+  }
+}
+
 export class PayrollRunNotFoundError extends Error {
   constructor(message: string) {
     super(message);
@@ -116,6 +146,49 @@ async function resolveAccess(
   return requireHrAccess(supabase, houseId);
 }
 
+async function loadPayrollRun(
+  supabase: SupabaseClient<Database>,
+  runId: string,
+): Promise<HrPayrollRunRow | null> {
+  const { data, error } = await supabase
+    .from("hr_payroll_runs")
+    .select(
+      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note, posted_at, posted_by, post_note, paid_at, paid_by, payment_method, payment_note, reference_code, adjusts_run_id",
+    )
+    .eq("id", runId)
+    .maybeSingle<HrPayrollRunRow>();
+
+  if (error) {
+    throw new PayrollRunFetchError(error.message);
+  }
+
+  return data ?? null;
+}
+
+async function hasOpenSegmentsInPeriod(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  periodStart: string,
+  periodEnd: string,
+): Promise<boolean> {
+  const { data, error } = await supabase
+    .from("dtr_segments")
+    .select("id")
+    .eq("house_id", houseId)
+    .gte("work_date", periodStart)
+    .lte("work_date", periodEnd)
+    .not("time_in", "is", null)
+    .is("time_out", null)
+    .eq("status", "open")
+    .limit(1);
+
+  if (error) {
+    throw new PayrollRunFetchError(error.message);
+  }
+
+  return (data ?? []).length > 0;
+}
+
 function mapRun(row: HrPayrollRunRow, itemCount: number): PayrollRunListItem {
   return {
     id: row.id,
@@ -128,6 +201,15 @@ function mapRun(row: HrPayrollRunRow, itemCount: number): PayrollRunListItem {
     finalizedAt: row.finalized_at ?? null,
     finalizedBy: row.finalized_by ?? null,
     finalizeNote: row.finalize_note ?? null,
+    postedAt: row.posted_at ?? null,
+    postedBy: row.posted_by ?? null,
+    postNote: row.post_note ?? null,
+    paidAt: row.paid_at ?? null,
+    paidBy: row.paid_by ?? null,
+    paymentMethod: row.payment_method ?? null,
+    paymentNote: row.payment_note ?? null,
+    referenceCode: row.reference_code ?? null,
+    adjustsRunId: row.adjusts_run_id ?? null,
     itemCount,
   } satisfies PayrollRunListItem;
 }
@@ -165,7 +247,7 @@ export async function listPayrollRunsForHouse(
   const { data, error } = await supabase
     .from("hr_payroll_runs")
     .select(
-      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note",
+      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note, posted_at, posted_by, post_note, paid_at, paid_by, payment_method, payment_note, reference_code, adjusts_run_id",
     )
     .eq("house_id", houseId)
     .order("created_at", { ascending: false });
@@ -208,17 +290,7 @@ export async function getPayrollRunWithItems(
     throw new PayrollRunAccessError("Not allowed to access payroll runs for this house.");
   }
 
-  const { data, error } = await supabase
-    .from("hr_payroll_runs")
-    .select(
-      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note",
-    )
-    .eq("id", runId)
-    .maybeSingle<HrPayrollRunRow>();
-
-  if (error) {
-    throw new PayrollRunFetchError(error.message);
-  }
+  const data = await loadPayrollRun(supabase, runId);
 
   if (!data) return null;
 
@@ -287,17 +359,7 @@ export async function finalizePayrollRunForHouse(
     throw new PayrollRunAccessError("Not allowed to finalize payroll runs for this house.");
   }
 
-  const { data: run, error: runError } = await supabase
-    .from("hr_payroll_runs")
-    .select(
-      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note",
-    )
-    .eq("id", runId)
-    .maybeSingle<HrPayrollRunRow>();
-
-  if (runError) {
-    throw new PayrollRunFetchError(runError.message);
-  }
+  const run = await loadPayrollRun(supabase, runId);
 
   if (!run || run.house_id !== houseId) {
     throw new PayrollRunNotFoundError("Payroll run not found.");
@@ -305,6 +367,20 @@ export async function finalizePayrollRunForHouse(
 
   if (run.status === "finalized") {
     throw new PayrollRunFinalizedError("Payroll run already finalized.");
+  }
+
+  if (run.status !== "draft") {
+    throw new PayrollRunWrongStatusError("Payroll run must be draft to finalize.");
+  }
+
+  const hasOpenSegments = await hasOpenSegmentsInPeriod(
+    supabase,
+    houseId,
+    run.period_start,
+    run.period_end,
+  );
+  if (hasOpenSegments) {
+    throw new PayrollRunOpenSegmentsError("Open DTR segments exist in this payroll period.");
   }
 
   const { data: updatedRun, error: updateError } = await supabase
@@ -316,7 +392,7 @@ export async function finalizePayrollRunForHouse(
     })
     .eq("id", runId)
     .select(
-      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note",
+      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note, posted_at, posted_by, post_note, paid_at, paid_by, payment_method, payment_note, reference_code, adjusts_run_id",
     )
     .maybeSingle<HrPayrollRunRow>();
 
@@ -382,7 +458,7 @@ export async function createDraftPayrollRunFromPreview(
       created_by: input.createdBy ?? null,
     })
     .select(
-      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note",
+      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note, posted_at, posted_by, post_note, paid_at, paid_by, payment_method, payment_note, reference_code, adjusts_run_id",
     )
     .maybeSingle<HrPayrollRunRow>();
 
@@ -392,6 +468,232 @@ export async function createDraftPayrollRunFromPreview(
 
   if (!run) {
     throw new PayrollRunMutationError("Failed to create payroll run.");
+  }
+
+  const items: HrPayrollRunItemInsert[] = preview.rows.map((row) => ({
+    run_id: run.id,
+    house_id: input.houseId,
+    employee_id: row.employeeId,
+    work_minutes: row.workMinutesTotal,
+    overtime_minutes_raw: row.derivedOtMinutesRawTotal,
+    overtime_minutes_rounded: row.derivedOtMinutesRoundedTotal,
+    missing_schedule_days: row.flags.missingScheduleDays,
+    open_segment_days: row.flags.openSegmentDays,
+    corrected_segment_days: row.flags.hasCorrectedSegments ? 1 : 0,
+    notes: row.flags.hasCorrectedSegments ? { hasCorrectedSegments: true } : {},
+  }));
+
+  if (items.length > 0) {
+    const { error: itemError } = await supabase.from("hr_payroll_run_items").insert(items);
+    if (itemError) {
+      throw new PayrollRunMutationError(itemError.message, itemError.code);
+    }
+  }
+
+  return { runId: run.id };
+}
+
+async function generatePayrollRunReference(
+  supabase: SupabaseClient<Database>,
+  periodStart: string,
+): Promise<string> {
+  const dateParts = parseDateParts(periodStart);
+  if (!dateParts) {
+    throw new PayrollRunValidationError("Invalid payroll run period start date.");
+  }
+
+  const { data, error } = await supabase.rpc("next_hr_reference_code", {
+    target_year: dateParts.year,
+  });
+
+  if (error) {
+    throw new PayrollRunMutationError(error.message, error.code);
+  }
+
+  if (!data || typeof data !== "string") {
+    throw new PayrollRunMutationError("Failed to generate payroll run reference code.");
+  }
+
+  return data;
+}
+
+export async function postPayrollRunForHouse(
+  supabase: SupabaseClient<Database>,
+  input: { houseId: string; runId: string; postNote?: string | null },
+  options: { access?: HrAccessDecision } = {},
+): Promise<PayrollRunListItem> {
+  const access = await resolveAccess(supabase, input.houseId, options.access);
+  if (!access.allowed) {
+    throw new PayrollRunAccessError("Not allowed to post payroll runs for this house.");
+  }
+
+  const run = await loadPayrollRun(supabase, input.runId);
+  if (!run || run.house_id !== input.houseId) {
+    throw new PayrollRunNotFoundError("Payroll run not found.");
+  }
+
+  if (run.status === "posted" || run.status === "paid") {
+    throw new PayrollRunAlreadyPostedError("Payroll run is already posted.");
+  }
+
+  if (run.status !== "finalized") {
+    throw new PayrollRunWrongStatusError("Payroll run must be finalized before posting.");
+  }
+
+  const hasOpenSegments = await hasOpenSegmentsInPeriod(
+    supabase,
+    input.houseId,
+    run.period_start,
+    run.period_end,
+  );
+  if (hasOpenSegments) {
+    throw new PayrollRunOpenSegmentsError("Open DTR segments exist in this payroll period.");
+  }
+
+  const referenceCode = await generatePayrollRunReference(supabase, run.period_start);
+
+  const { data: updatedRun, error: updateError } = await supabase
+    .from("hr_payroll_runs")
+    .update({
+      status: "posted",
+      posted_at: new Date().toISOString(),
+      posted_by: access.entityId,
+      post_note: input.postNote ?? null,
+      reference_code: referenceCode,
+    })
+    .eq("id", input.runId)
+    .select(
+      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note, posted_at, posted_by, post_note, paid_at, paid_by, payment_method, payment_note, reference_code, adjusts_run_id",
+    )
+    .maybeSingle<HrPayrollRunRow>();
+
+  if (updateError) {
+    throw new PayrollRunMutationError(updateError.message, updateError.code);
+  }
+
+  if (!updatedRun) {
+    throw new PayrollRunMutationError("Failed to post payroll run.");
+  }
+
+  const { data: itemsData, error: itemsError } = await supabase
+    .from("hr_payroll_run_items")
+    .select("id")
+    .eq("run_id", input.runId);
+
+  if (itemsError) {
+    throw new PayrollRunFetchError(itemsError.message);
+  }
+
+  const itemsCount = (itemsData as { id?: string | null }[] | null)?.length ?? 0;
+  return mapRun(updatedRun, itemsCount);
+}
+
+export async function markPayrollRunPaidForHouse(
+  supabase: SupabaseClient<Database>,
+  input: { houseId: string; runId: string; paymentMethod?: string | null; paymentNote?: string | null },
+  options: { access?: HrAccessDecision } = {},
+): Promise<PayrollRunListItem> {
+  const access = await resolveAccess(supabase, input.houseId, options.access);
+  if (!access.allowed) {
+    throw new PayrollRunAccessError("Not allowed to mark payroll runs as paid for this house.");
+  }
+
+  const run = await loadPayrollRun(supabase, input.runId);
+  if (!run || run.house_id !== input.houseId) {
+    throw new PayrollRunNotFoundError("Payroll run not found.");
+  }
+
+  if (run.status !== "posted") {
+    throw new PayrollRunWrongStatusError("Payroll run must be posted before marking as paid.");
+  }
+
+  const { data: updatedRun, error: updateError } = await supabase
+    .from("hr_payroll_runs")
+    .update({
+      status: "paid",
+      paid_at: new Date().toISOString(),
+      paid_by: access.entityId,
+      payment_method: input.paymentMethod ?? null,
+      payment_note: input.paymentNote ?? null,
+    })
+    .eq("id", input.runId)
+    .select(
+      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note, posted_at, posted_by, post_note, paid_at, paid_by, payment_method, payment_note, reference_code, adjusts_run_id",
+    )
+    .maybeSingle<HrPayrollRunRow>();
+
+  if (updateError) {
+    throw new PayrollRunMutationError(updateError.message, updateError.code);
+  }
+
+  if (!updatedRun) {
+    throw new PayrollRunMutationError("Failed to mark payroll run as paid.");
+  }
+
+  const { data: itemsData, error: itemsError } = await supabase
+    .from("hr_payroll_run_items")
+    .select("id")
+    .eq("run_id", input.runId);
+
+  if (itemsError) {
+    throw new PayrollRunFetchError(itemsError.message);
+  }
+
+  const itemsCount = (itemsData as { id?: string | null }[] | null)?.length ?? 0;
+  return mapRun(updatedRun, itemsCount);
+}
+
+export async function createAdjustmentRunForHouse(
+  supabase: SupabaseClient<Database>,
+  input: { houseId: string; adjustsRunId: string; note?: string | null },
+  options: { access?: HrAccessDecision } = {},
+): Promise<{ runId: string }> {
+  void input.note;
+  const access = await resolveAccess(supabase, input.houseId, options.access);
+  if (!access.allowed) {
+    throw new PayrollRunAccessError("Not allowed to create adjustment runs for this house.");
+  }
+
+  const originalRun = await loadPayrollRun(supabase, input.adjustsRunId);
+  if (!originalRun || originalRun.house_id !== input.houseId) {
+    throw new PayrollRunNotFoundError("Payroll run not found.");
+  }
+
+  if (originalRun.status !== "posted" && originalRun.status !== "paid") {
+    throw new PayrollRunWrongStatusError("Only posted payroll runs can be adjusted.");
+  }
+
+  const preview = await computePayrollPreviewForHousePeriod(
+    supabase,
+    {
+      houseId: input.houseId,
+      startDate: originalRun.period_start,
+      endDate: originalRun.period_end,
+    },
+    { access },
+  );
+
+  const { data: run, error: runError } = await supabase
+    .from("hr_payroll_runs")
+    .insert({
+      house_id: input.houseId,
+      period_start: originalRun.period_start,
+      period_end: originalRun.period_end,
+      status: "draft",
+      created_by: access.entityId,
+      adjusts_run_id: originalRun.id,
+    })
+    .select(
+      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note, posted_at, posted_by, post_note, paid_at, paid_by, payment_method, payment_note, reference_code, adjusts_run_id",
+    )
+    .maybeSingle<HrPayrollRunRow>();
+
+  if (runError) {
+    throw new PayrollRunMutationError(runError.message, runError.code);
+  }
+
+  if (!run) {
+    throw new PayrollRunMutationError("Failed to create adjustment payroll run.");
   }
 
   const items: HrPayrollRunItemInsert[] = preview.rows.map((row) => ({

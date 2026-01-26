@@ -9,12 +9,18 @@ import type {
 import { evaluateHrAccess } from "../access";
 import {
   createDraftPayrollRunFromPreview,
+  createAdjustmentRunForHouse,
   finalizePayrollRunForHouse,
   getPayrollRunWithItems,
+  markPayrollRunPaidForHouse,
+  PayrollRunAlreadyPostedError,
   PayrollRunAccessError,
   PayrollRunFinalizedError,
   PayrollRunMutationError,
   PayrollRunNotFoundError,
+  PayrollRunOpenSegmentsError,
+  PayrollRunWrongStatusError,
+  postPayrollRunForHouse,
 } from "../payroll-runs-server";
 
 type QueryResult<T> = { data: T | null; error: { message: string; code?: string } | null };
@@ -45,6 +51,44 @@ class QueryMock<T extends Record<string, unknown>> {
       [...this.filters, (row) => allowed.has(String(row[column]))],
       this.sorts,
     );
+  }
+
+  gte(column: keyof T, value: string) {
+    return new QueryMock(
+      this.rows,
+      [...this.filters, (row) => String(row[column] ?? "") >= value],
+      this.sorts,
+    );
+  }
+
+  lte(column: keyof T, value: string) {
+    return new QueryMock(
+      this.rows,
+      [...this.filters, (row) => String(row[column] ?? "") <= value],
+      this.sorts,
+    );
+  }
+
+  is(column: keyof T, value: null) {
+    return new QueryMock(
+      this.rows,
+      [...this.filters, (row) => (row[column] ?? null) === value],
+      this.sorts,
+    );
+  }
+
+  not(column: keyof T, operator: "is", value: null) {
+    void operator;
+    return new QueryMock(
+      this.rows,
+      [...this.filters, (row) => (row[column] ?? null) !== value],
+      this.sorts,
+    );
+  }
+
+  limit(count: number) {
+    const limited = this.applyFilters().slice(0, count);
+    return new QueryMock(limited, [], this.sorts);
   }
 
   order(column: keyof T, options: { ascending?: boolean } = {}) {
@@ -116,6 +160,15 @@ class RunInsertQueryMock {
         finalized_at: (this.payload.finalized_at as string | null) ?? null,
         finalized_by: (this.payload.finalized_by as string | null) ?? null,
         finalize_note: (this.payload.finalize_note as string | null) ?? null,
+        posted_at: (this.payload.posted_at as string | null) ?? null,
+        posted_by: (this.payload.posted_by as string | null) ?? null,
+        post_note: (this.payload.post_note as string | null) ?? null,
+        paid_at: (this.payload.paid_at as string | null) ?? null,
+        paid_by: (this.payload.paid_by as string | null) ?? null,
+        payment_method: (this.payload.payment_method as string | null) ?? null,
+        payment_note: (this.payload.payment_note as string | null) ?? null,
+        reference_code: (this.payload.reference_code as string | null) ?? null,
+        adjusts_run_id: (this.payload.adjusts_run_id as string | null) ?? null,
       } satisfies HrPayrollRunRow);
     this.result.run = run;
     return { data: run as T, error: null } satisfies QueryResult<T>;
@@ -173,10 +226,13 @@ class ItemMutationQueryMock {
     onrejected?: (reason: unknown) => TResult2 | PromiseLike<TResult2>,
   ) {
     const rows = this.rows.filter((row) => this.filters.every((filter) => filter(row)));
-    const hasFinalized = rows.some((row) => this.runStatusLookup(row.run_id) === "finalized");
+    const hasLocked = rows.some((row) => {
+      const status = this.runStatusLookup(row.run_id);
+      return status === "finalized" || status === "posted" || status === "paid";
+    });
     const payload = {
       data: null,
-      error: hasFinalized ? { message: "Payroll run is finalized and cannot be modified" } : null,
+      error: hasLocked ? { message: "Payroll run is locked and cannot be modified" } : null,
     } as const;
     return Promise.resolve(payload).then(onfulfilled, onrejected);
   }
@@ -214,10 +270,15 @@ class ItemQueryMock extends QueryMock<HrPayrollRunItemRow> {
   }
 
   async insert(payload: HrPayrollRunItemInsert[]) {
-    if (payload.some((item) => this.runStatusLookup(item.run_id) === "finalized")) {
+    if (
+      payload.some((item) => {
+        const status = this.runStatusLookup(item.run_id);
+        return status === "finalized" || status === "posted" || status === "paid";
+      })
+    ) {
       return {
         data: null,
-        error: { message: "Payroll run is finalized and cannot be modified" },
+        error: { message: "Payroll run is locked and cannot be modified" },
       } as const;
     }
     this.insertState.called = true;
@@ -240,12 +301,22 @@ class SupabaseMock {
     private data: {
       runs: HrPayrollRunRow[];
       items: HrPayrollRunItemRow[];
+      segments: {
+        id: string;
+        house_id: string;
+        employee_id: string;
+        work_date: string;
+        time_in: string | null;
+        time_out: string | null;
+        status: "open" | "closed" | "corrected";
+      }[];
       employees: { id: string; house_id: string; code: string; full_name: string }[];
     },
     private insertState: {
       runResult: { run: HrPayrollRunRow | null; error: { message: string; code?: string } | null };
       itemResult: { items: HrPayrollRunItemInsert[]; error: { message: string; code?: string } | null; called: boolean };
       runUpdateResult: { error: { message: string; code?: string } | null };
+      referenceCounter: Map<number, number>;
     },
   ) {}
 
@@ -261,7 +332,22 @@ class SupabaseMock {
     if (table === "employees") {
       return new QueryMock(this.data.employees);
     }
+    if (table === "dtr_segments") {
+      return new QueryMock(this.data.segments);
+    }
     throw new Error(`Unexpected table ${table}`);
+  }
+
+  async rpc(name: string, args: { target_year?: number }) {
+    if (name !== "next_hr_reference_code") {
+      return { data: null, error: { message: `Unexpected RPC ${name}` } };
+    }
+    const year = args.target_year ?? 0;
+    const current = this.insertState.referenceCounter.get(year) ?? 0;
+    const nextValue = current + 1;
+    this.insertState.referenceCounter.set(year, nextValue);
+    const reference = `HR-${year}-${String(nextValue).padStart(6, "0")}`;
+    return { data: reference, error: null };
   }
 }
 
@@ -273,8 +359,8 @@ describe("payroll runs", () => {
     const runResult = { run: null, error: null };
     const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
     const supabase = new SupabaseMock(
-      { runs: [], items: [], employees: [] },
-      { runResult, itemResult, runUpdateResult: { error: null } },
+      { runs: [], items: [], segments: [], employees: [] },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
     );
 
     const result = await createDraftPayrollRunFromPreview(
@@ -355,8 +441,8 @@ describe("payroll runs", () => {
     const runResult = { run: null, error: null };
     const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
     const supabase = new SupabaseMock(
-      { runs: [], items: [], employees: [] },
-      { runResult, itemResult, runUpdateResult: { error: null } },
+      { runs: [], items: [], segments: [], employees: [] },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
     );
 
     await assert.rejects(
@@ -405,12 +491,22 @@ describe("payroll runs", () => {
             finalized_at: null,
             finalized_by: null,
             finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
           },
         ],
         items: [],
+        segments: [],
         employees: [],
       },
-      { runResult, itemResult, runUpdateResult: { error: null } },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
     );
 
     await assert.rejects(
@@ -427,8 +523,8 @@ describe("payroll runs", () => {
       called: false,
     };
     const supabase = new SupabaseMock(
-      { runs: [], items: [], employees: [] },
-      { runResult, itemResult, runUpdateResult: { error: null } },
+      { runs: [], items: [], segments: [], employees: [] },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
     );
 
     await assert.rejects(
@@ -475,8 +571,8 @@ describe("payroll runs", () => {
     const runResult = { run: null, error: null };
     const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
     const supabase = new SupabaseMock(
-      { runs: [], items: [], employees: [] },
-      { runResult, itemResult, runUpdateResult: { error: null } },
+      { runs: [], items: [], segments: [], employees: [] },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
     );
 
     const result = await createDraftPayrollRunFromPreview(
@@ -524,6 +620,15 @@ describe("payroll runs", () => {
             finalized_at: null,
             finalized_by: null,
             finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
           },
         ],
         items: [
@@ -542,9 +647,10 @@ describe("payroll runs", () => {
             created_at: "2024-06-02T00:00:00Z",
           },
         ],
+        segments: [],
         employees: [],
       },
-      { runResult, itemResult, runUpdateResult: { error: null } },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
     );
 
     const result = await finalizePayrollRunForHouse(supabase as never, "house-1", "run-1", {
@@ -573,12 +679,22 @@ describe("payroll runs", () => {
             finalized_at: "2024-06-03T00:00:00Z",
             finalized_by: "entity-1",
             finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
           },
         ],
         items: [],
+        segments: [],
         employees: [],
       },
-      { runResult, itemResult, runUpdateResult: { error: null } },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
     );
 
     await assert.rejects(
@@ -604,12 +720,22 @@ describe("payroll runs", () => {
             finalized_at: null,
             finalized_by: null,
             finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
           },
         ],
         items: [],
+        segments: [],
         employees: [],
       },
-      { runResult, itemResult, runUpdateResult: { error: null } },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
     );
 
     await assert.rejects(
@@ -635,6 +761,15 @@ describe("payroll runs", () => {
             finalized_at: "2024-06-03T00:00:00Z",
             finalized_by: "entity-1",
             finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
           },
         ],
         items: [
@@ -653,9 +788,10 @@ describe("payroll runs", () => {
             created_at: "2024-06-02T00:00:00Z",
           },
         ],
+        segments: [],
         employees: [],
       },
-      { runResult, itemResult, runUpdateResult: { error: null } },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
     );
 
     const itemQuery = supabase.from("hr_payroll_run_items") as ItemQueryMock;
@@ -674,14 +810,563 @@ describe("payroll runs", () => {
         notes: {},
       },
     ]);
-    assert.equal(insertError?.message, "Payroll run is finalized and cannot be modified");
+    assert.equal(insertError?.message, "Payroll run is locked and cannot be modified");
 
     const { error: updateError } = await itemQuery
       .update({ work_minutes: 90 })
       .eq("id", "item-1");
-    assert.equal(updateError?.message, "Payroll run is finalized and cannot be modified");
+    assert.equal(updateError?.message, "Payroll run is locked and cannot be modified");
 
     const { error: deleteError } = await itemQuery.delete().eq("id", "item-1");
-    assert.equal(deleteError?.message, "Payroll run is finalized and cannot be modified");
+    assert.equal(deleteError?.message, "Payroll run is locked and cannot be modified");
+  });
+
+  it("blocks item mutation after posting", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-4",
+            house_id: "house-1",
+            period_start: "2024-06-01",
+            period_end: "2024-06-15",
+            status: "posted",
+            created_by: null,
+            created_at: "2024-06-02T00:00:00Z",
+            finalized_at: "2024-06-03T00:00:00Z",
+            finalized_by: "entity-1",
+            finalize_note: null,
+            posted_at: "2024-06-04T00:00:00Z",
+            posted_by: "entity-1",
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: "HR-2024-000004",
+            adjusts_run_id: null,
+          },
+        ],
+        items: [
+          {
+            id: "item-1",
+            run_id: "run-4",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_minutes: 60,
+            overtime_minutes_raw: 10,
+            overtime_minutes_rounded: 10,
+            missing_schedule_days: 0,
+            open_segment_days: 0,
+            corrected_segment_days: 0,
+            notes: {},
+            created_at: "2024-06-02T00:00:00Z",
+          },
+        ],
+        segments: [],
+        employees: [],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
+    );
+
+    const itemQuery = supabase.from("hr_payroll_run_items") as ItemQueryMock;
+
+    const { error: updateError } = await itemQuery
+      .update({ work_minutes: 90 })
+      .eq("id", "item-1");
+    assert.equal(updateError?.message, "Payroll run is locked and cannot be modified");
+  });
+
+  it("posts a finalized run with a reference code", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-10",
+            house_id: "house-1",
+            period_start: "2024-05-01",
+            period_end: "2024-05-15",
+            status: "finalized",
+            created_by: null,
+            created_at: "2024-05-02T00:00:00Z",
+            finalized_at: "2024-05-03T00:00:00Z",
+            finalized_by: "entity-1",
+            finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
+          },
+        ],
+        items: [],
+        segments: [],
+        employees: [],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
+    );
+
+    const result = await postPayrollRunForHouse(
+      supabase as never,
+      {
+        houseId: "house-1",
+        runId: "run-10",
+        postNote: "Ready to pay",
+      },
+      { access: accessAllowed },
+    );
+
+    assert.equal(result.status, "posted");
+    assert.equal(result.referenceCode, "HR-2024-000001");
+    assert.equal(result.postedBy, "entity-1");
+  });
+
+  it("rejects posting when not finalized", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-11",
+            house_id: "house-1",
+            period_start: "2024-05-01",
+            period_end: "2024-05-15",
+            status: "draft",
+            created_by: null,
+            created_at: "2024-05-02T00:00:00Z",
+            finalized_at: null,
+            finalized_by: null,
+            finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
+          },
+        ],
+        items: [],
+        segments: [],
+        employees: [],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
+    );
+
+    await assert.rejects(
+      () =>
+        postPayrollRunForHouse(supabase as never, { houseId: "house-1", runId: "run-11" }, {
+          access: accessAllowed,
+        }),
+      PayrollRunWrongStatusError,
+    );
+  });
+
+  it("rejects posting when open segments exist", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-12",
+            house_id: "house-1",
+            period_start: "2024-05-01",
+            period_end: "2024-05-15",
+            status: "finalized",
+            created_by: null,
+            created_at: "2024-05-02T00:00:00Z",
+            finalized_at: "2024-05-03T00:00:00Z",
+            finalized_by: "entity-1",
+            finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
+          },
+        ],
+        items: [
+          {
+            id: "item-12",
+            run_id: "run-12",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_minutes: 60,
+            overtime_minutes_raw: 0,
+            overtime_minutes_rounded: 0,
+            missing_schedule_days: 0,
+            open_segment_days: 1,
+            corrected_segment_days: 0,
+            notes: {},
+            created_at: "2024-05-02T00:00:00Z",
+          },
+        ],
+        segments: [
+          {
+            id: "seg-1",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_date: "2024-05-02",
+            time_in: "2024-05-02T08:00:00Z",
+            time_out: null,
+            status: "open",
+          },
+        ],
+        employees: [],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
+    );
+
+    await assert.rejects(
+      () =>
+        postPayrollRunForHouse(supabase as never, { houseId: "house-1", runId: "run-12" }, {
+          access: accessAllowed,
+        }),
+      PayrollRunOpenSegmentsError,
+    );
+  });
+
+  it("blocks finalize when open segments exist for employees outside the run items", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-19",
+            house_id: "house-1",
+            period_start: "2024-05-01",
+            period_end: "2024-05-15",
+            status: "draft",
+            created_by: null,
+            created_at: "2024-05-02T00:00:00Z",
+            finalized_at: null,
+            finalized_by: null,
+            finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
+          },
+        ],
+        items: [
+          {
+            id: "item-19",
+            run_id: "run-19",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_minutes: 60,
+            overtime_minutes_raw: 0,
+            overtime_minutes_rounded: 0,
+            missing_schedule_days: 0,
+            open_segment_days: 0,
+            corrected_segment_days: 0,
+            notes: {},
+            created_at: "2024-05-02T00:00:00Z",
+          },
+        ],
+        segments: [
+          {
+            id: "seg-2",
+            house_id: "house-1",
+            employee_id: "emp-2",
+            work_date: "2024-05-10",
+            time_in: "2024-05-10T08:00:00Z",
+            time_out: null,
+            status: "open",
+          },
+        ],
+        employees: [],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
+    );
+
+    await assert.rejects(
+      () => finalizePayrollRunForHouse(supabase as never, "house-1", "run-19", { access: accessAllowed }),
+      PayrollRunOpenSegmentsError,
+    );
+  });
+
+  it("rejects posting when already posted", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-13",
+            house_id: "house-1",
+            period_start: "2024-05-01",
+            period_end: "2024-05-15",
+            status: "posted",
+            created_by: null,
+            created_at: "2024-05-02T00:00:00Z",
+            finalized_at: "2024-05-03T00:00:00Z",
+            finalized_by: "entity-1",
+            finalize_note: null,
+            posted_at: "2024-05-04T00:00:00Z",
+            posted_by: "entity-1",
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: "HR-2024-000001",
+            adjusts_run_id: null,
+          },
+        ],
+        items: [],
+        segments: [],
+        employees: [],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
+    );
+
+    await assert.rejects(
+      () =>
+        postPayrollRunForHouse(supabase as never, { houseId: "house-1", runId: "run-13" }, {
+          access: accessAllowed,
+        }),
+      PayrollRunAlreadyPostedError,
+    );
+  });
+
+  it("marks a posted run as paid", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-14",
+            house_id: "house-1",
+            period_start: "2024-05-01",
+            period_end: "2024-05-15",
+            status: "posted",
+            created_by: null,
+            created_at: "2024-05-02T00:00:00Z",
+            finalized_at: "2024-05-03T00:00:00Z",
+            finalized_by: "entity-1",
+            finalize_note: null,
+            posted_at: "2024-05-04T00:00:00Z",
+            posted_by: "entity-1",
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: "HR-2024-000002",
+            adjusts_run_id: null,
+          },
+        ],
+        items: [],
+        segments: [],
+        employees: [],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
+    );
+
+    const result = await markPayrollRunPaidForHouse(
+      supabase as never,
+      {
+        houseId: "house-1",
+        runId: "run-14",
+        paymentMethod: "Bank transfer",
+        paymentNote: "Paid in full",
+      },
+      { access: accessAllowed },
+    );
+
+    assert.equal(result.status, "paid");
+    assert.equal(result.paymentMethod, "Bank transfer");
+    assert.equal(result.paidBy, "entity-1");
+  });
+
+  it("rejects marking paid when not posted", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-15",
+            house_id: "house-1",
+            period_start: "2024-05-01",
+            period_end: "2024-05-15",
+            status: "finalized",
+            created_by: null,
+            created_at: "2024-05-02T00:00:00Z",
+            finalized_at: "2024-05-03T00:00:00Z",
+            finalized_by: "entity-1",
+            finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
+          },
+        ],
+        items: [],
+        segments: [],
+        employees: [],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
+    );
+
+    await assert.rejects(
+      () =>
+        markPayrollRunPaidForHouse(supabase as never, { houseId: "house-1", runId: "run-15" }, {
+          access: accessAllowed,
+        }),
+      PayrollRunWrongStatusError,
+    );
+  });
+
+  it("rejects adjustment runs for mismatched houses", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-16",
+            house_id: "house-2",
+            period_start: "2024-05-01",
+            period_end: "2024-05-15",
+            status: "posted",
+            created_by: null,
+            created_at: "2024-05-02T00:00:00Z",
+            finalized_at: "2024-05-03T00:00:00Z",
+            finalized_by: "entity-1",
+            finalize_note: null,
+            posted_at: "2024-05-04T00:00:00Z",
+            posted_by: "entity-1",
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: "HR-2024-000003",
+            adjusts_run_id: null,
+          },
+        ],
+        items: [],
+        segments: [],
+        employees: [],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
+    );
+
+    await assert.rejects(
+      () =>
+        createAdjustmentRunForHouse(
+          supabase as never,
+          { houseId: "house-1", adjustsRunId: "run-16" },
+          { access: accessAllowed },
+        ),
+      PayrollRunNotFoundError,
+    );
+  });
+
+  it("generates unique references for multiple postings in the same year", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-17",
+            house_id: "house-1",
+            period_start: "2024-06-01",
+            period_end: "2024-06-15",
+            status: "finalized",
+            created_by: null,
+            created_at: "2024-06-02T00:00:00Z",
+            finalized_at: "2024-06-03T00:00:00Z",
+            finalized_by: "entity-1",
+            finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
+          },
+          {
+            id: "run-18",
+            house_id: "house-1",
+            period_start: "2024-06-16",
+            period_end: "2024-06-30",
+            status: "finalized",
+            created_by: null,
+            created_at: "2024-06-17T00:00:00Z",
+            finalized_at: "2024-06-18T00:00:00Z",
+            finalized_by: "entity-1",
+            finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
+          },
+        ],
+        items: [],
+        segments: [],
+        employees: [],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
+    );
+
+    const first = await postPayrollRunForHouse(
+      supabase as never,
+      {
+        houseId: "house-1",
+        runId: "run-17",
+      },
+      { access: accessAllowed },
+    );
+    const second = await postPayrollRunForHouse(
+      supabase as never,
+      {
+        houseId: "house-1",
+        runId: "run-18",
+      },
+      { access: accessAllowed },
+    );
+
+    assert.equal(first.referenceCode, "HR-2024-000001");
+    assert.equal(second.referenceCode, "HR-2024-000002");
   });
 });
