@@ -49,6 +49,9 @@
   - HR-3.3: Payroll posting + paid status + adjustment runs + reference series + locks
     - Reference: `docs/hr/hr-3-3-posting-paid-adjustments.md`
     - Boundary: posted/paid runs are immutable; deductions lock after posting; corrections require adjustment runs
+  - HR-3.3 frozen
+    - Reference: `docs/hr/hr-3-3-freeze.md`
+    - Boundary: no payouts, no gov deductions, no PDFs yet
 
 ## 3. Non-Negotiable Guardrails
 - All HR/DTR data is house-scoped
