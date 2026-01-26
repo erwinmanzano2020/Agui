@@ -428,7 +428,9 @@ export async function computePayslipForPayrollRunEmployee(
     throw new PayslipAccessError("Payslip preview not found for employee.");
   }
 
-  const { employeeName: _employeeName, employeeCode: _employeeCode, ...preview } = rows[0];
+  const preview = { ...rows[0] } as PayslipPreviewRow;
+  delete (preview as Partial<PayslipPreviewRow>).employeeName;
+  delete (preview as Partial<PayslipPreviewRow>).employeeCode;
   return preview;
 }
 
