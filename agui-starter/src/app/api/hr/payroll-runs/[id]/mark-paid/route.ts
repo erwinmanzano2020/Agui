@@ -9,19 +9,17 @@ import { AppFeature } from "@/lib/auth/permissions";
 import type { Database } from "@/lib/db.types";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import {
-  finalizePayrollRunForHouse,
+  markPayrollRunPaidForHouse,
   PayrollRunAccessError,
-  PayrollRunFinalizedError,
   PayrollRunMutationError,
   PayrollRunNotFoundError,
-  PayrollRunOpenSegmentsError,
   PayrollRunWrongStatusError,
 } from "@/lib/hr/payroll-runs-server";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
 
-const ROUTE_NAME = "api/hr/payroll-runs/:id/finalize";
+const ROUTE_NAME = "api/hr/payroll-runs/:id/mark-paid";
 
 const QuerySchema = z.object({
   houseId: z.string().trim().uuid(),
@@ -29,6 +27,13 @@ const QuerySchema = z.object({
 
 const ParamsSchema = z.object({
   id: z.string().trim().uuid(),
+});
+
+const OptionalNullableString = z.string().trim().or(z.literal(null)).optional();
+
+const BodySchema = z.object({
+  paymentMethod: OptionalNullableString,
+  paymentNote: OptionalNullableString,
 });
 
 export async function POST(
@@ -92,14 +97,23 @@ export async function POST(
     });
   }
 
+  let payload: { paymentMethod?: string | null; paymentNote?: string | null };
   try {
-    const result = await finalizePayrollRunForHouse(
-      supabase,
-      parsedQuery.data.houseId,
-      parsedParams.data.id,
-    );
+    payload = BodySchema.parse(await req.json().catch(() => ({})));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Invalid request body";
+    return jsonError(400, "Fix the highlighted fields and try again.", { message });
+  }
 
-    return jsonOk({ run: result.run });
+  try {
+    const result = await markPayrollRunPaidForHouse(supabase, {
+      houseId: parsedQuery.data.houseId,
+      runId: parsedParams.data.id,
+      paymentMethod: payload.paymentMethod ?? null,
+      paymentNote: payload.paymentNote ?? null,
+    });
+
+    return jsonOk({ run: result });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (error instanceof PayrollRunAccessError) {
@@ -119,25 +133,17 @@ export async function POST(
       return jsonError(404, "Payroll run not found", { message });
     }
 
-    if (error instanceof PayrollRunFinalizedError) {
-      return jsonError(409, "Payroll run already finalized", { message });
-    }
-
     if (error instanceof PayrollRunWrongStatusError) {
-      return jsonError(409, "Payroll run cannot be finalized", { message });
-    }
-
-    if (error instanceof PayrollRunOpenSegmentsError) {
-      return jsonError(409, "Open segments exist for this period", { message });
+      return jsonError(409, "Payroll run must be posted", { message });
     }
 
     if (error instanceof PayrollRunMutationError) {
-      return jsonError(500, "Failed to finalize payroll run", { message });
+      return jsonError(500, "Failed to mark payroll run paid", { message });
     }
 
     logApiError({
       route: ROUTE_NAME,
-      action: "finalize_run",
+      action: "mark_paid",
       userId: userResult.user.id,
       entityId,
       houseId: parsedQuery.data.houseId,
@@ -145,6 +151,6 @@ export async function POST(
       error: message,
     });
 
-    return jsonError(500, "Failed to finalize payroll run", { message });
+    return jsonError(500, "Failed to mark payroll run paid", { message });
   }
 }

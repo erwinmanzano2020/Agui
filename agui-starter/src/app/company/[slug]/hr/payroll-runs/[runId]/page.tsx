@@ -4,8 +4,11 @@ import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { getPayrollRunWithItems } from "@/lib/hr/payroll-runs-server";
+import CreateAdjustmentRunButton from "./CreateAdjustmentRunButton";
 import FinalizePayrollRunButton from "./FinalizePayrollRunButton";
+import MarkPayrollRunPaidForm from "./MarkPayrollRunPaidForm";
 import PayslipPreviewPanel from "./PayslipPreviewPanel";
+import PostPayrollRunButton from "./PostPayrollRunButton";
 
 function formatMinutes(minutes: number) {
   const hours = minutes / 60;
@@ -51,7 +54,11 @@ export default async function PayrollRunDetailPage({ params }: Props) {
   }
 
   const { run, items } = result;
-  const isFinalized = run.status === "finalized";
+  const canFinalize = run.status === "draft";
+  const canPost = run.status === "finalized";
+  const canMarkPaid = run.status === "posted";
+  const canAdjust = run.status === "posted" || run.status === "paid";
+  const statusTone = run.status === "draft" ? "off" : "on";
   const houseSlug = house.slug ?? slug;
   const employees = items.map((item) => ({
     id: item.employeeId,
@@ -75,26 +82,51 @@ export default async function PayrollRunDetailPage({ params }: Props) {
             </h2>
             <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
               <span>Status</span>
-              <Badge tone={isFinalized ? "on" : "off"} className="uppercase">
+              <Badge tone={statusTone} className="uppercase">
                 {run.status}
               </Badge>
+              {run.referenceCode ? (
+                <span className="rounded-full border border-border px-2 py-1 text-xs text-foreground">
+                  Ref {run.referenceCode}
+                </span>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-col items-end gap-3 text-xs text-muted-foreground">
             <div className="rounded-lg border border-dashed border-border bg-white/60 px-4 py-2">
               Snapshot. Read-only. No money computed.
             </div>
-            {isFinalized ? (
-              <div className="space-y-1 text-right">
-                <div className="text-xs text-muted-foreground">Finalized at: {formatDateTime(run.finalizedAt)}</div>
-                <div className="text-xs text-muted-foreground">
-                  Finalized by: {run.finalizedBy ?? "—"}
-                </div>
-              </div>
-            ) : (
-              <FinalizePayrollRunButton runId={run.id} houseId={house.id} />
-            )}
+            {canFinalize ? <FinalizePayrollRunButton runId={run.id} houseId={house.id} /> : null}
+            {canPost ? <PostPayrollRunButton runId={run.id} houseId={house.id} /> : null}
           </div>
+        </div>
+        <div className="mt-6 grid gap-4 text-xs text-muted-foreground md:grid-cols-2">
+          <div className="space-y-2 rounded-xl border border-border/70 bg-white/60 p-4">
+            <div className="text-sm font-semibold text-foreground">Finalized</div>
+            <div>Finalized at: {formatDateTime(run.finalizedAt)}</div>
+            <div>Finalized by: {run.finalizedBy ?? "—"}</div>
+            {run.finalizeNote ? <div>Note: {run.finalizeNote}</div> : null}
+          </div>
+          <div className="space-y-2 rounded-xl border border-border/70 bg-white/60 p-4">
+            <div className="text-sm font-semibold text-foreground">Posted</div>
+            <div>Posted at: {formatDateTime(run.postedAt)}</div>
+            <div>Posted by: {run.postedBy ?? "—"}</div>
+            {run.postNote ? <div>Note: {run.postNote}</div> : null}
+          </div>
+          <div className="space-y-2 rounded-xl border border-border/70 bg-white/60 p-4">
+            <div className="text-sm font-semibold text-foreground">Paid</div>
+            <div>Paid at: {formatDateTime(run.paidAt)}</div>
+            <div>Paid by: {run.paidBy ?? "—"}</div>
+            <div>Method: {run.paymentMethod ?? "—"}</div>
+            {run.paymentNote ? <div>Note: {run.paymentNote}</div> : null}
+          </div>
+          {canAdjust ? (
+            <div className="flex flex-col gap-2 rounded-xl border border-border/70 bg-white/60 p-4">
+              <div className="text-sm font-semibold text-foreground">Adjustments</div>
+              <p>Create a linked adjustment run to correct posted values.</p>
+              <CreateAdjustmentRunButton runId={run.id} houseId={house.id} houseSlug={houseSlug} />
+            </div>
+          ) : null}
         </div>
       </section>
 
@@ -146,8 +178,12 @@ export default async function PayrollRunDetailPage({ params }: Props) {
           houseSlug={houseSlug}
           runId={run.id}
           employees={employees}
-          isFinalized={isFinalized}
+          runStatus={run.status}
         />
+      ) : null}
+
+      {canMarkPaid ? (
+        <MarkPayrollRunPaidForm runId={run.id} houseId={house.id} />
       ) : null}
     </div>
   );

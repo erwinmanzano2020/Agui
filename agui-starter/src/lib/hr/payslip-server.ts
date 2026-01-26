@@ -67,10 +67,10 @@ export class PayslipFetchError extends Error {
   }
 }
 
-export class PayrollRunDeductionFinalizedError extends Error {
+export class PayrollRunDeductionLockedError extends Error {
   constructor(message: string) {
     super(message);
-    this.name = "PayrollRunDeductionFinalizedError";
+    this.name = "PayrollRunDeductionLockedError";
   }
 }
 
@@ -136,7 +136,7 @@ async function loadPayrollRun(
   const { data, error } = await supabase
     .from("hr_payroll_runs")
     .select(
-      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note",
+      "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note, posted_at, posted_by, post_note, paid_at, paid_by, payment_method, payment_note, reference_code, adjusts_run_id",
     )
     .eq("id", runId)
     .maybeSingle<HrPayrollRunRow>();
@@ -461,8 +461,8 @@ export async function createPayrollRunDeduction(
     throw new PayslipAccessError("Payroll run does not belong to this house.");
   }
 
-  if (run.status === "finalized") {
-    throw new PayrollRunDeductionFinalizedError("Payroll run is finalized and cannot accept deductions.");
+  if (run.status === "posted" || run.status === "paid") {
+    throw new PayrollRunDeductionLockedError("Payroll run is posted/paid and cannot accept deductions.");
   }
 
   const { data: employee, error: employeeError } = await supabase

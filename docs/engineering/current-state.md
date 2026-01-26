@@ -46,6 +46,9 @@
   - HR-3.2: Payslip preview (snapshot-based, read-only) + optional manual deductions
     - Reference: `docs/hr/hr-3-2-payslip-preview.md`
     - Boundary: computes regular/OT/undertime from snapshots only; no government deductions or payouts
+  - HR-3.3: Payroll posting + paid status + adjustment runs + reference series + locks
+    - Reference: `docs/hr/hr-3-3-posting-paid-adjustments.md`
+    - Boundary: posted/paid runs are immutable; deductions lock after posting; corrections require adjustment runs
 
 ## 3. Non-Negotiable Guardrails
 - All HR/DTR data is house-scoped

@@ -10,7 +10,7 @@ import type { Database } from "@/lib/db.types";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import {
   createPayrollRunDeduction,
-  PayrollRunDeductionFinalizedError,
+  PayrollRunDeductionLockedError,
   PayrollRunDeductionMutationError,
   PayslipAccessError,
 } from "@/lib/hr/payslip-server";
@@ -109,8 +109,8 @@ export async function POST(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
-    if (error instanceof PayrollRunDeductionFinalizedError) {
-      return jsonError(409, "Payroll run is finalized", { message });
+    if (error instanceof PayrollRunDeductionLockedError) {
+      return jsonError(409, "Payroll run is locked", { message });
     }
 
     if (error instanceof PayslipAccessError) {

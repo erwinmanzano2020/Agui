@@ -9,19 +9,19 @@ import { AppFeature } from "@/lib/auth/permissions";
 import type { Database } from "@/lib/db.types";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import {
-  finalizePayrollRunForHouse,
   PayrollRunAccessError,
-  PayrollRunFinalizedError,
+  PayrollRunAlreadyPostedError,
   PayrollRunMutationError,
   PayrollRunNotFoundError,
   PayrollRunOpenSegmentsError,
   PayrollRunWrongStatusError,
+  postPayrollRunForHouse,
 } from "@/lib/hr/payroll-runs-server";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
 
-const ROUTE_NAME = "api/hr/payroll-runs/:id/finalize";
+const ROUTE_NAME = "api/hr/payroll-runs/:id/post";
 
 const QuerySchema = z.object({
   houseId: z.string().trim().uuid(),
@@ -29,6 +29,12 @@ const QuerySchema = z.object({
 
 const ParamsSchema = z.object({
   id: z.string().trim().uuid(),
+});
+
+const OptionalNullableString = z.string().trim().or(z.literal(null)).optional();
+
+const BodySchema = z.object({
+  postNote: OptionalNullableString,
 });
 
 export async function POST(
@@ -92,14 +98,22 @@ export async function POST(
     });
   }
 
+  let payload: { postNote?: string | null };
   try {
-    const result = await finalizePayrollRunForHouse(
-      supabase,
-      parsedQuery.data.houseId,
-      parsedParams.data.id,
-    );
+    payload = BodySchema.parse(await req.json().catch(() => ({})));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Invalid request body";
+    return jsonError(400, "Fix the highlighted fields and try again.", { message });
+  }
 
-    return jsonOk({ run: result.run });
+  try {
+    const result = await postPayrollRunForHouse(supabase, {
+      houseId: parsedQuery.data.houseId,
+      runId: parsedParams.data.id,
+      postNote: payload.postNote ?? null,
+    });
+
+    return jsonOk({ run: result });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (error instanceof PayrollRunAccessError) {
@@ -119,12 +133,12 @@ export async function POST(
       return jsonError(404, "Payroll run not found", { message });
     }
 
-    if (error instanceof PayrollRunFinalizedError) {
-      return jsonError(409, "Payroll run already finalized", { message });
+    if (error instanceof PayrollRunAlreadyPostedError) {
+      return jsonError(409, "Payroll run already posted", { message });
     }
 
     if (error instanceof PayrollRunWrongStatusError) {
-      return jsonError(409, "Payroll run cannot be finalized", { message });
+      return jsonError(409, "Payroll run must be finalized", { message });
     }
 
     if (error instanceof PayrollRunOpenSegmentsError) {
@@ -132,12 +146,12 @@ export async function POST(
     }
 
     if (error instanceof PayrollRunMutationError) {
-      return jsonError(500, "Failed to finalize payroll run", { message });
+      return jsonError(500, "Failed to post payroll run", { message });
     }
 
     logApiError({
       route: ROUTE_NAME,
-      action: "finalize_run",
+      action: "post_run",
       userId: userResult.user.id,
       entityId,
       houseId: parsedQuery.data.houseId,
@@ -145,6 +159,6 @@ export async function POST(
       error: message,
     });
 
-    return jsonError(500, "Failed to finalize payroll run", { message });
+    return jsonError(500, "Failed to post payroll run", { message });
   }
 }

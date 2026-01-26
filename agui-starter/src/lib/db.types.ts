@@ -366,12 +366,21 @@ export type HrPayrollRunRow = {
   house_id: string;
   period_start: string;
   period_end: string;
-  status: "draft" | "finalized" | "cancelled";
+  status: "draft" | "finalized" | "posted" | "paid" | "cancelled";
   created_by: string | null;
   created_at: string;
   finalized_at: string | null;
   finalized_by: string | null;
   finalize_note: string | null;
+  posted_at: string | null;
+  posted_by: string | null;
+  post_note: string | null;
+  paid_at: string | null;
+  paid_by: string | null;
+  payment_method: string | null;
+  payment_note: string | null;
+  reference_code: string | null;
+  adjusts_run_id: string | null;
 };
 
 export type HrPayrollRunInsert = {
@@ -385,6 +394,15 @@ export type HrPayrollRunInsert = {
   finalized_at?: string | null;
   finalized_by?: string | null;
   finalize_note?: string | null;
+  posted_at?: string | null;
+  posted_by?: string | null;
+  post_note?: string | null;
+  paid_at?: string | null;
+  paid_by?: string | null;
+  payment_method?: string | null;
+  payment_note?: string | null;
+  reference_code?: string | null;
+  adjusts_run_id?: string | null;
 };
 
 export type HrPayrollRunUpdate = Partial<HrPayrollRunInsert>;
@@ -444,6 +462,18 @@ export type HrPayrollRunDeductionInsert = {
 };
 
 export type HrPayrollRunDeductionUpdate = Partial<HrPayrollRunDeductionInsert>;
+
+export type HrReferenceCounterRow = {
+  year: number;
+  last_value: number;
+};
+
+export type HrReferenceCounterInsert = {
+  year: number;
+  last_value?: number;
+};
+
+export type HrReferenceCounterUpdate = Partial<HrReferenceCounterInsert>;
 
 export type BrandOwnerRow = {
   id: string;
@@ -1442,6 +1472,11 @@ export interface Database {
         HrPayrollRunDeductionInsert,
         HrPayrollRunDeductionUpdate
       >;
+      hr_reference_counters: TableDefinition<
+        HrReferenceCounterRow,
+        HrReferenceCounterInsert,
+        HrReferenceCounterUpdate
+      >;
       brand_owners: TableDefinition<BrandOwnerRow, BrandOwnerInsert, BrandOwnerUpdate>;
       profiles: TableDefinition<ProfileRow, ProfileInsert, ProfileUpdate>;
       entities: TableDefinition<EntityRow, EntityInsert, EntityUpdate>;
@@ -1524,6 +1559,7 @@ export interface Database {
         void
       >;
       current_entity_id: FunctionDefinition<Record<string, never>, string | null>;
+      next_hr_reference_code: FunctionDefinition<{ target_year: number }, string>;
     };
   };
 }

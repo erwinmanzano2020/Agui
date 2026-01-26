@@ -52,12 +52,12 @@ export default function PayslipPreviewPanel({
   houseSlug,
   runId,
   employees,
-  isFinalized,
+  runStatus,
 }: {
   houseSlug: string;
   runId: string;
   employees: EmployeeSummary[];
-  isFinalized: boolean;
+  runStatus: "draft" | "finalized" | "posted" | "paid" | "cancelled";
 }) {
   const [rows, setRows] = useState<PayslipPreviewRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -68,6 +68,7 @@ export default function PayslipPreviewPanel({
   const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const deductionsLocked = runStatus === "posted" || runStatus === "paid";
 
   const loadPayslips = useCallback(async () => {
     setLoading(true);
@@ -227,8 +228,8 @@ export default function PayslipPreviewPanel({
               Cash advances, uniforms, and other one-off adjustments.
             </p>
           </div>
-          {isFinalized ? (
-            <Badge tone="off">Finalized: deductions locked</Badge>
+          {deductionsLocked ? (
+            <Badge tone="off">Locked after posting</Badge>
           ) : null}
         </div>
 
@@ -240,7 +241,7 @@ export default function PayslipPreviewPanel({
               className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm"
               value={employeeId}
               onChange={(event) => setEmployeeId(event.target.value)}
-              disabled={isFinalized}
+              disabled={deductionsLocked}
             >
               {employees.map((employee) => (
                 <option key={employee.id} value={employee.id}>
@@ -256,7 +257,7 @@ export default function PayslipPreviewPanel({
               value={label}
               onChange={(event) => setLabel(event.target.value)}
               placeholder="Cash advance"
-              disabled={isFinalized}
+              disabled={deductionsLocked}
             />
           </div>
           <div className="space-y-2">
@@ -269,13 +270,13 @@ export default function PayslipPreviewPanel({
               type="number"
               step="0.01"
               min="0"
-              disabled={isFinalized}
+              disabled={deductionsLocked}
             />
           </div>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" size="sm" disabled={isFinalized || saving}>
+          <Button type="submit" size="sm" disabled={deductionsLocked || saving}>
             {saving ? "Saving..." : "Add deduction"}
           </Button>
           {message ? <span className="text-xs text-muted-foreground">{message}</span> : null}
