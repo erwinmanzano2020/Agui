@@ -343,6 +343,24 @@ export type HrOvertimePolicyInsert = {
 
 export type HrOvertimePolicyUpdate = Partial<HrOvertimePolicyInsert>;
 
+export type HrPayPolicyRow = {
+  house_id: string;
+  minutes_per_day_default: number;
+  derive_minutes_from_schedule: boolean;
+  ot_multiplier: number;
+  created_at: string;
+};
+
+export type HrPayPolicyInsert = {
+  house_id: string;
+  minutes_per_day_default?: number;
+  derive_minutes_from_schedule?: boolean;
+  ot_multiplier?: number;
+  created_at?: string;
+};
+
+export type HrPayPolicyUpdate = Partial<HrPayPolicyInsert>;
+
 export type HrPayrollRunRow = {
   id: string;
   house_id: string;
@@ -402,6 +420,30 @@ export type HrPayrollRunItemInsert = {
 };
 
 export type HrPayrollRunItemUpdate = Partial<HrPayrollRunItemInsert>;
+
+export type HrPayrollRunDeductionRow = {
+  id: string;
+  run_id: string;
+  house_id: string;
+  employee_id: string;
+  label: string;
+  amount: number;
+  created_by: string;
+  created_at: string;
+};
+
+export type HrPayrollRunDeductionInsert = {
+  id?: string;
+  run_id: string;
+  house_id: string;
+  employee_id: string;
+  label: string;
+  amount: number;
+  created_by: string;
+  created_at?: string;
+};
+
+export type HrPayrollRunDeductionUpdate = Partial<HrPayrollRunDeductionInsert>;
 
 export type BrandOwnerRow = {
   id: string;
@@ -1384,6 +1426,7 @@ export interface Database {
         HrOvertimePolicyInsert,
         HrOvertimePolicyUpdate
       >;
+      hr_pay_policies: TableDefinition<HrPayPolicyRow, HrPayPolicyInsert, HrPayPolicyUpdate>;
       hr_payroll_runs: TableDefinition<
         HrPayrollRunRow,
         HrPayrollRunInsert,
@@ -1393,6 +1436,11 @@ export interface Database {
         HrPayrollRunItemRow,
         HrPayrollRunItemInsert,
         HrPayrollRunItemUpdate
+      >;
+      hr_payroll_run_deductions: TableDefinition<
+        HrPayrollRunDeductionRow,
+        HrPayrollRunDeductionInsert,
+        HrPayrollRunDeductionUpdate
       >;
       brand_owners: TableDefinition<BrandOwnerRow, BrandOwnerInsert, BrandOwnerUpdate>;
       profiles: TableDefinition<ProfileRow, ProfileInsert, ProfileUpdate>;

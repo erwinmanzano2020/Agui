@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { getPayrollRunWithItems } from "@/lib/hr/payroll-runs-server";
 import FinalizePayrollRunButton from "./FinalizePayrollRunButton";
+import PayslipPreviewPanel from "./PayslipPreviewPanel";
 
 function formatMinutes(minutes: number) {
   const hours = minutes / 60;
@@ -51,6 +52,12 @@ export default async function PayrollRunDetailPage({ params }: Props) {
 
   const { run, items } = result;
   const isFinalized = run.status === "finalized";
+  const houseSlug = house.slug ?? slug;
+  const employees = items.map((item) => ({
+    id: item.employeeId,
+    name: item.employeeName,
+    code: item.employeeCode,
+  }));
 
   return (
     <div className="space-y-6">
@@ -58,7 +65,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="space-y-2">
             <p className="text-sm text-muted-foreground">
-              <Link href={`/company/${house.slug ?? slug}/hr/payroll-runs`} className="underline">
+              <Link href={`/company/${houseSlug}/hr/payroll-runs`} className="underline">
                 Payroll runs
               </Link>
               {" "}→ Payroll run
@@ -133,6 +140,15 @@ export default async function PayrollRunDetailPage({ params }: Props) {
           </div>
         </section>
       )}
+
+      {items.length > 0 ? (
+        <PayslipPreviewPanel
+          houseSlug={houseSlug}
+          runId={run.id}
+          employees={employees}
+          isFinalized={isFinalized}
+        />
+      ) : null}
     </div>
   );
 }

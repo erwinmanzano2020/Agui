@@ -43,6 +43,9 @@
   - HR-3.1: Finalize payroll runs (immutable snapshot lock)
     - Reference: `docs/hr/hr-3-1-finalize-payroll-runs.md`
     - Boundary: finalization locks the snapshot only; no pay computation yet
+  - HR-3.2: Payslip preview (snapshot-based, read-only) + optional manual deductions
+    - Reference: `docs/hr/hr-3-2-payslip-preview.md`
+    - Boundary: computes regular/OT/undertime from snapshots only; no government deductions or payouts
 
 ## 3. Non-Negotiable Guardrails
 - All HR/DTR data is house-scoped
