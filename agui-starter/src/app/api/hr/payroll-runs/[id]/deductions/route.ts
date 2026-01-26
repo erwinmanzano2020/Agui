@@ -30,6 +30,12 @@ const BodySchema = z.object({
   amount: z.coerce.number().positive(),
 });
 
+type BodyPayload = {
+  employeeId: string;
+  label: string;
+  amount: number;
+};
+
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -82,7 +88,7 @@ export async function POST(
     });
   }
 
-  let payload: z.infer<typeof BodySchema>;
+  let payload: BodyPayload;
   try {
     payload = BodySchema.parse(await req.json());
   } catch (error) {

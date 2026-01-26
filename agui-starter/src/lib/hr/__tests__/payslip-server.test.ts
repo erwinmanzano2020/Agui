@@ -36,7 +36,7 @@ class QueryMock<T extends Record<string, unknown>> {
 
   insert(payload: Record<string, unknown>) {
     const id = `ded-${this.rows.length + 1}`;
-    return new InsertMock(this.rows, { id, ...payload } as T);
+    return new InsertMock(this.rows, ({ id, ...payload } as unknown) as T);
   }
 
   eq(column: keyof T, value: unknown) {
@@ -70,7 +70,7 @@ class QueryMock<T extends Record<string, unknown>> {
 
   async maybeSingle<U>() {
     const filtered = this.applyFilters();
-    return { data: (filtered[0] as U | null) ?? null, error: null } as const;
+    return { data: ((filtered[0] as unknown) as U | null) ?? null, error: null } as const;
   }
 
   then<TResult1 = unknown, TResult2 = never>(
@@ -111,7 +111,7 @@ class InsertMock<T extends Record<string, unknown>> {
 
   async maybeSingle<U>() {
     this.rows.push(this.payload);
-    return { data: this.payload as U, error: null } as const;
+    return { data: (this.payload as unknown) as U, error: null } as const;
   }
 }
 
