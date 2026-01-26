@@ -165,45 +165,21 @@ async function loadPayrollRun(
   return data ?? null;
 }
 
-async function loadRunEmployeeIds(
-  supabase: SupabaseClient<Database>,
-  runId: string,
-): Promise<string[]> {
-  const { data, error } = await supabase
-    .from("hr_payroll_run_items")
-    .select("employee_id")
-    .eq("run_id", runId);
-
-  if (error) {
-    throw new PayrollRunFetchError(error.message);
-  }
-
-  return Array.from(
-    new Set(
-      (data as { employee_id?: string | null }[] | null)
-        ?.map((row) => row.employee_id)
-        .filter((id): id is string => Boolean(id)) ?? [],
-    ),
-  );
-}
-
 async function hasOpenSegmentsInPeriod(
   supabase: SupabaseClient<Database>,
   houseId: string,
-  employeeIds: string[],
   periodStart: string,
   periodEnd: string,
 ): Promise<boolean> {
-  if (employeeIds.length === 0) return false;
-
   const { data, error } = await supabase
     .from("dtr_segments")
     .select("id")
     .eq("house_id", houseId)
-    .in("employee_id", employeeIds)
     .gte("work_date", periodStart)
     .lte("work_date", periodEnd)
+    .not("time_in", "is", null)
     .is("time_out", null)
+    .eq("status", "open")
     .limit(1);
 
   if (error) {
@@ -397,11 +373,9 @@ export async function finalizePayrollRunForHouse(
     throw new PayrollRunWrongStatusError("Payroll run must be draft to finalize.");
   }
 
-  const employeeIds = await loadRunEmployeeIds(supabase, runId);
   const hasOpenSegments = await hasOpenSegmentsInPeriod(
     supabase,
     houseId,
-    employeeIds,
     run.period_start,
     run.period_end,
   );
@@ -566,11 +540,9 @@ export async function postPayrollRunForHouse(
     throw new PayrollRunWrongStatusError("Payroll run must be finalized before posting.");
   }
 
-  const employeeIds = await loadRunEmployeeIds(supabase, input.runId);
   const hasOpenSegments = await hasOpenSegmentsInPeriod(
     supabase,
     input.houseId,
-    employeeIds,
     run.period_start,
     run.period_end,
   );

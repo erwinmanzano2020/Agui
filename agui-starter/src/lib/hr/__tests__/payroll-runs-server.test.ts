@@ -77,6 +77,15 @@ class QueryMock<T extends Record<string, unknown>> {
     );
   }
 
+  not(column: keyof T, operator: "is", value: null) {
+    void operator;
+    return new QueryMock(
+      this.rows,
+      [...this.filters, (row) => (row[column] ?? null) !== value],
+      this.sorts,
+    );
+  }
+
   limit(count: number) {
     const limited = this.applyFilters().slice(0, count);
     return new QueryMock(limited, [], this.sorts);
@@ -292,7 +301,15 @@ class SupabaseMock {
     private data: {
       runs: HrPayrollRunRow[];
       items: HrPayrollRunItemRow[];
-      segments: { id: string; house_id: string; employee_id: string; work_date: string; time_out: string | null }[];
+      segments: {
+        id: string;
+        house_id: string;
+        employee_id: string;
+        work_date: string;
+        time_in: string | null;
+        time_out: string | null;
+        status: "open" | "closed" | "corrected";
+      }[];
       employees: { id: string; house_id: string; code: string; full_name: string }[];
     },
     private insertState: {
@@ -1006,7 +1023,9 @@ describe("payroll runs", () => {
             house_id: "house-1",
             employee_id: "emp-1",
             work_date: "2024-05-02",
+            time_in: "2024-05-02T08:00:00Z",
             time_out: null,
+            status: "open",
           },
         ],
         employees: [],
@@ -1019,6 +1038,72 @@ describe("payroll runs", () => {
         postPayrollRunForHouse(supabase as never, { houseId: "house-1", runId: "run-12" }, {
           access: accessAllowed,
         }),
+      PayrollRunOpenSegmentsError,
+    );
+  });
+
+  it("blocks finalize when open segments exist for employees outside the run items", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-19",
+            house_id: "house-1",
+            period_start: "2024-05-01",
+            period_end: "2024-05-15",
+            status: "draft",
+            created_by: null,
+            created_at: "2024-05-02T00:00:00Z",
+            finalized_at: null,
+            finalized_by: null,
+            finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
+          },
+        ],
+        items: [
+          {
+            id: "item-19",
+            run_id: "run-19",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_minutes: 60,
+            overtime_minutes_raw: 0,
+            overtime_minutes_rounded: 0,
+            missing_schedule_days: 0,
+            open_segment_days: 0,
+            corrected_segment_days: 0,
+            notes: {},
+            created_at: "2024-05-02T00:00:00Z",
+          },
+        ],
+        segments: [
+          {
+            id: "seg-2",
+            house_id: "house-1",
+            employee_id: "emp-2",
+            work_date: "2024-05-10",
+            time_in: "2024-05-10T08:00:00Z",
+            time_out: null,
+            status: "open",
+          },
+        ],
+        employees: [],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
+    );
+
+    await assert.rejects(
+      () => finalizePayrollRunForHouse(supabase as never, "house-1", "run-19", { access: accessAllowed }),
       PayrollRunOpenSegmentsError,
     );
   });
