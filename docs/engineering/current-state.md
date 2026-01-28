@@ -51,7 +51,10 @@
     - Boundary: posted/paid runs are immutable; deductions lock after posting; corrections require adjustment runs
   - HR-3.3 frozen
     - Reference: `docs/hr/hr-3-3-freeze.md`
-    - Boundary: no payouts, no gov deductions, no PDFs yet
+    - Boundary: no payouts, no gov deductions
+  - HR-3.4.1: Payslip PDF (single employee, on-demand)
+    - Reference: `docs/hr/hr-3-4-1-payslip-pdf.md`
+    - Boundary: single-employee only, no bulk/merged export, no branding, no storage
 
 ## 3. Non-Negotiable Guardrails
 - All HR/DTR data is house-scoped

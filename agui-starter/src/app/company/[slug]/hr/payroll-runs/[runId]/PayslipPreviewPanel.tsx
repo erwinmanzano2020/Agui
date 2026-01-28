@@ -69,6 +69,7 @@ export default function PayslipPreviewPanel({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const deductionsLocked = runStatus === "posted" || runStatus === "paid";
+  const exportLocked = runStatus === "draft";
 
   const loadPayslips = useCallback(async () => {
     setLoading(true);
@@ -162,6 +163,7 @@ export default function PayslipPreviewPanel({
               <th className="px-6 py-3">Other deductions</th>
               <th className="px-6 py-3">Net pay</th>
               <th className="px-6 py-3">Flags</th>
+              <th className="px-6 py-3">Payslip PDF</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border/70">
@@ -204,13 +206,34 @@ export default function PayslipPreviewPanel({
                     {row.flags.openSegment ? <Badge tone="warn">Open segment</Badge> : null}
                   </div>
                 </td>
+                <td className="px-6 py-3">
+                  {exportLocked ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled
+                      title="Finalize run first to export."
+                    >
+                      Download PDF
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" asChild>
+                      <a
+                        href={`/api/hr/payroll-runs/${runId}/payslips/${row.employeeId}/pdf`}
+                        title="Download Payslip PDF"
+                      >
+                        Download PDF
+                      </a>
+                    </Button>
+                  )}
+                </td>
               </tr>
             ))}
             {!loading && rows.length === 0 ? (
               <tr>
                 <td
                   className="px-6 py-6 text-center text-sm text-muted-foreground"
-                  colSpan={7}
+                  colSpan={8}
                 >
                   No payslip previews available for this run.
                 </td>
