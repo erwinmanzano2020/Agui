@@ -169,12 +169,16 @@ export async function GET(
       netPay: row.netPay,
       format: (parsedQuery.data.format ?? "a4") as PayslipPdfFormat,
     });
+    const pdfBuffer = pdfBytes.buffer.slice(
+      pdfBytes.byteOffset,
+      pdfBytes.byteOffset + pdfBytes.byteLength,
+    ) as ArrayBuffer;
 
     const refSegment = run.reference_code ?? run.id;
     const safeEmployeeName = sanitizeFilename(row.employeeName || "employee");
     const filename = `Payslip-${refSegment}-${safeEmployeeName || "employee"}.pdf`;
 
-    return new Response(pdfBytes, {
+    return new Response(pdfBuffer, {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
