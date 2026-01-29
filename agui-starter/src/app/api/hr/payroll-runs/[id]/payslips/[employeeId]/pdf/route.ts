@@ -151,6 +151,7 @@ export async function GET(
       return jsonError(404, "Payslip preview not found");
     }
 
+    const pdfDeductionsTotal = row.deductionsTotal + row.undertimeDeduction;
     const pdfBytes = generatePayslipPdf({
       employeeName: row.employeeName,
       employeeCode: row.employeeCode,
@@ -163,8 +164,9 @@ export async function GET(
       paidAt: run.paid_at,
       regularPay: row.regularPay,
       overtimePay: row.overtimePay,
+      undertimeDeduction: row.undertimeDeduction,
       deductions: row.otherDeductions,
-      deductionsTotal: row.deductionsTotal,
+      deductionsTotal: pdfDeductionsTotal,
       grossPay: row.grossPay,
       netPay: row.netPay,
       format: (parsedQuery.data.format ?? "a4") as PayslipPdfFormat,

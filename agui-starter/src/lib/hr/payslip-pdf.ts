@@ -19,6 +19,7 @@ export type PayslipPdfInput = {
   paidAt?: string | null;
   regularPay: number;
   overtimePay: number;
+  undertimeDeduction: number;
   deductions: { label: string; amount: number }[];
   deductionsTotal: number;
   grossPay: number;
@@ -165,8 +166,13 @@ export function generatePayslipPdf(input: PayslipPdfInput): Uint8Array {
   cursorY += sectionGap;
 
   drawLine("Deductions", { bold: true, size: headingSize });
+  if (normalizeAmount(input.undertimeDeduction) > 0) {
+    drawLabelValue("Undertime deduction", formatCurrency(normalizeAmount(input.undertimeDeduction)));
+  }
   if (input.deductions.length === 0) {
-    drawLine("No manual deductions.");
+    if (normalizeAmount(input.undertimeDeduction) <= 0) {
+      drawLine("No manual deductions.");
+    }
   } else {
     input.deductions.forEach((deduction) => {
       ensureSpace();

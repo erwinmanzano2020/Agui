@@ -239,4 +239,18 @@ describe("GET /api/hr/payroll-runs/[id]/payslips/[employeeId]/pdf", () => {
     const contentDisposition = response.headers.get("content-disposition") ?? "";
     assert.ok(contentDisposition.includes(`Payslip-${supabase.referenceCode}`));
   });
+
+  it("includes undertime deductions in the PDF output", async () => {
+    const response = await GET(
+      new Request(
+        `http://localhost/api/hr/payroll-runs/${supabase.runId}/payslips/${supabase.employeeId}/pdf`,
+      ) as NextRequest,
+      { params: Promise.resolve({ id: supabase.runId, employeeId: supabase.employeeId }) },
+    );
+
+    assert.equal(response.status, 200);
+    const buffer = await response.arrayBuffer();
+    const text = new TextDecoder().decode(new Uint8Array(buffer));
+    assert.ok(text.includes("Undertime deduction"));
+  });
 });
