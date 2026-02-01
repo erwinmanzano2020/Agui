@@ -2,7 +2,7 @@ import "server-only";
 
 import { jsPDF } from "jspdf";
 
-import { parseDateParts } from "./overtime-engine";
+import { formatCurrency, formatDate, formatDateTime, normalizeAmount } from "./pdf-format";
 
 export type PayslipPdfFormat = "a4" | "letter";
 
@@ -27,59 +27,14 @@ export type PayslipPdfInput = {
   format?: PayslipPdfFormat;
 };
 
-const currencyFormatter = new Intl.NumberFormat("en-PH", {
-  style: "currency",
-  currency: "PHP",
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 2,
-});
-
-const dateFormatter = new Intl.DateTimeFormat("en-PH", {
-  timeZone: "Asia/Manila",
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-});
-
-const dateTimeFormatter = new Intl.DateTimeFormat("en-PH", {
-  timeZone: "Asia/Manila",
-  year: "numeric",
-  month: "short",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-
-function formatCurrency(value: number): string {
-  return currencyFormatter.format(Number.isFinite(value) ? value : 0);
-}
-
-function formatDate(value?: string | null): string {
-  if (!value) return "—";
-  const dateParts = parseDateParts(value);
-  if (dateParts) {
-    const date = new Date(Date.UTC(dateParts.year, dateParts.month - 1, dateParts.day));
-    if (Number.isNaN(date.getTime())) return "—";
-    return dateFormatter.format(date);
+export function renderPayslipPdf(
+  doc: jsPDF,
+  input: PayslipPdfInput,
+  options: { startOnNewPage?: boolean } = {},
+) {
+  if (options.startOnNewPage) {
+    doc.addPage();
   }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return dateFormatter.format(date);
-}
-
-function formatDateTime(value?: string | null): string {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return dateTimeFormatter.format(date);
-}
-
-function normalizeAmount(value: number): number {
-  return Number.isFinite(value) ? value : 0;
-}
-
-export function generatePayslipPdf(input: PayslipPdfInput): Uint8Array {
-  const doc = new jsPDF({ unit: "pt", format: input.format ?? "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const pageHeight = doc.internal.pageSize.getHeight();
   const margin = 48;
@@ -194,15 +149,28 @@ export function generatePayslipPdf(input: PayslipPdfInput): Uint8Array {
   drawLabelValue("Gross Pay", formatCurrency(normalizeAmount(input.grossPay)));
   drawLabelValue("Net Pay", formatCurrency(normalizeAmount(input.netPay)));
 
+  const signatureDate = input.postedAt ?? input.finalizedAt;
+  const signatureLabel = input.postedAt ? "Posted" : "Finalized";
+
   cursorY += sectionGap * 2;
 
-  ensureSpace(3);
+  ensureSpace(4);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(bodySize);
-  doc.text("Prepared by: ____________________", margin, cursorY);
+  doc.text("HR Signature: ____________________", margin, cursorY);
   cursorY += lineHeight * 2;
-  doc.text("Received by: ____________________", margin, cursorY);
+  doc.text("Employee Signature: ________________", margin, cursorY);
+  cursorY += lineHeight * 2;
+  doc.text(
+    `${signatureLabel} Date: ${signatureDate ? formatDate(signatureDate) : "—"}`,
+    margin,
+    cursorY,
+  );
+}
 
+export function generatePayslipPdf(input: PayslipPdfInput): Uint8Array {
+  const doc = new jsPDF({ unit: "pt", format: input.format ?? "a4" });
+  renderPayslipPdf(doc, input);
   const buffer = doc.output("arraybuffer") as ArrayBuffer;
   return new Uint8Array(buffer);
 }
