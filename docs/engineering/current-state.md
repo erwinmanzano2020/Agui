@@ -58,6 +58,9 @@
   - HR-3.4.2: Payroll run PDF export (register + payslips)
     - Reference: `docs/hr/hr-3-4-2-run-pdf-export.md`
     - Boundary: merged register summary + payslips, no storage, snapshot-based only
+  - HR-3.4.2 freeze
+    - Reference: `docs/hr/hr-3-4-2-freeze.md`
+    - Boundary: no storage/caching, no gov deductions, no payout integration
 
 ## 3. Non-Negotiable Guardrails
 - All HR/DTR data is house-scoped
