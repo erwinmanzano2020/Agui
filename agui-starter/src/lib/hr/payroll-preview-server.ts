@@ -4,7 +4,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database, DtrSegmentRow, EmployeeRow } from "@/lib/db.types";
 import { requireHrAccess, type HrAccessDecision } from "./access";
-import { computeOvertimeForHouseDate, parseDateParts } from "./overtime-engine";
+import { computeOvertimeForHouseDate, getScheduleForEmployeeOnDate, parseDateParts } from "./overtime-engine";
+import { computeDailyRateBreakdown } from "./payroll-math";
 import { isWorkDateMismatch, toManilaDate } from "./timezone";
 
 const DTR_SEGMENT_COLUMNS =
@@ -61,12 +62,6 @@ export class PayrollPreviewValidationError extends Error {
     super(message);
     this.name = "PayrollPreviewValidationError";
   }
-}
-
-function diffMinutes(startMs: number, endMs: number): number {
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return 0;
-  if (endMs <= startMs) return 0;
-  return Math.floor((endMs - startMs) / 60000);
 }
 
 function compareDateStrings(a: string, b: string): number {
@@ -274,10 +269,6 @@ export async function computePayrollPreviewForHousePeriod(
       openSegmentDays.set(employee.id, daySet);
     }
 
-    const startMs = segment.time_in ? Date.parse(segment.time_in) : NaN;
-    const endMs = segment.time_out ? Date.parse(segment.time_out) : NaN;
-    row.workMinutesTotal += diffMinutes(startMs, endMs);
-
     const dateMap = segmentsByEmployeeDate.get(employee.id) ?? new Map<string, DtrSegmentRow[]>();
     const bucket = dateMap.get(manilaWorkDate) ?? [];
     bucket.push(segment);
@@ -317,6 +308,30 @@ export async function computePayrollPreviewForHousePeriod(
         row.flags.missingScheduleDays += 1;
       }
     });
+  }
+
+  for (const [employeeId, dateMap] of segmentsByEmployeeDate.entries()) {
+    const row = rowsByEmployee.get(employeeId);
+    if (!row) continue;
+    for (const [date, segmentsForDate] of dateMap.entries()) {
+      const schedule = await getScheduleForEmployeeOnDate(
+        supabase,
+        { houseId: input.houseId, employeeId, workDate: date },
+        { access },
+      );
+      const breakdown = computeDailyRateBreakdown(
+        segmentsForDate,
+        schedule.status === "ok"
+          ? {
+              scheduledStartTs: schedule.scheduledStartTs,
+              scheduledEndTs: schedule.scheduledEndTs,
+              breakStartTs: schedule.breakStartTs ?? null,
+              breakEndTs: schedule.breakEndTs ?? null,
+            }
+          : null,
+      );
+      row.workMinutesTotal += breakdown.regularMinutes;
+    }
   }
 
   rowsByEmployee.forEach((row, employeeId) => {

@@ -22,7 +22,7 @@ If no policy row exists, defaults are applied:
 
 ## Computation (per employee)
 - Determine scheduled minutes per day:
-  - If `derive_minutes_from_schedule = true`, use schedule windows per day; fallback to `minutes_per_day_default` if missing.
+  - If `derive_minutes_from_schedule = true`, use schedule windows per day; missing or invalid schedules yield 0 minutes and increment `missingScheduleDays`.
   - Otherwise, use `minutes_per_day_default * number_of_days_in_period`.
 - Regular minutes = min(total work minutes, scheduled minutes)
 - Undertime minutes = scheduled minutes − regular minutes
@@ -34,13 +34,13 @@ If no policy row exists, defaults are applied:
 - Gross pay = regular pay + OT pay
 - Manual deductions = sum of `hr_payroll_run_deductions`
 - Net pay = gross pay − undertime deduction − manual deductions
+- Early clock-ins (before schedule start) are ignored; only post-schedule-end work can count as OT.
 
 ## Flags
-- `missingScheduleDays` if any schedule days are missing (fallback applied)
+- `missingScheduleDays` if any schedule days are missing or invalid
 - `openSegment` if payroll run snapshot indicates open segments
 
 ## Guardrails
 - No mutations to `dtr_segments`
 - Uses snapshot data only for pay computation
 - Read-only preview: no payouts, no accounting posting
-
