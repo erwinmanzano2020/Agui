@@ -4,8 +4,11 @@ import { describe, it } from "node:test";
 import {
   assertManilaReasonableSegment,
   formatManilaTimeForUi,
+  isWorkDateMismatch,
   normalizeManilaTimestamp,
   toManilaTimestamp,
+  toManilaDate,
+  toManilaTimeHHmm,
   toManilaTimestamptz,
 } from "../timezone";
 
@@ -61,5 +64,18 @@ describe("timezone helpers", () => {
   it("roundtrips Manila time selection for UI", () => {
     const stamp = toManilaTimestamptz("2026-01-02", "07:00");
     assert.equal(formatManilaTimeForUi(stamp), "07:00");
+  });
+
+  it("derives Manila-local date and time helpers", () => {
+    assert.equal(toManilaDate("2026-01-01T23:00:00+00:00"), "2026-01-02");
+    assert.equal(toManilaTimeHHmm("2026-01-02T09:30:00+00:00"), "17:30");
+    assert.equal(
+      isWorkDateMismatch(
+        "2026-01-02",
+        "2026-01-01T23:00:00+00:00",
+        "2026-01-02T08:00:00+00:00",
+      ),
+      false,
+    );
   });
 });

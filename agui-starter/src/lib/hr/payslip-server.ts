@@ -13,7 +13,7 @@ import type {
 } from "@/lib/db.types";
 import { requireHrAccess, type HrAccessDecision } from "./access";
 import { getScheduleForEmployeeOnDate, parseDateParts } from "./overtime-engine";
-import { assertManilaReasonableSegment } from "./timezone";
+import { isWorkDateMismatch, toManilaDate } from "./timezone";
 
 export type PayPolicySnapshot = {
   houseId: string;
@@ -488,27 +488,22 @@ export async function computePayslipsForPayrollRun(
     });
 
     const mismatchDates = new Set<string>();
+    const attendanceDates = new Set<string>();
+    const workedMinutesByDate = new Map<string, number>();
+
     segments.forEach((segment) => {
-      if (!segment.work_date) return;
-      const validation = assertManilaReasonableSegment(
-        segment.time_in,
-        segment.time_out,
-        segment.work_date,
-      );
-      if (!validation.ok) {
-        mismatchDates.add(segment.work_date);
+      if (!segment.time_in) return;
+      const manilaWorkDate = toManilaDate(segment.time_in) ?? segment.work_date;
+      if (!manilaWorkDate) return;
+      if (isWorkDateMismatch(segment.work_date, segment.time_in, segment.time_out)) {
+        mismatchDates.add(segment.work_date ?? manilaWorkDate);
       }
+      attendanceDates.add(manilaWorkDate);
+      if (!segment.time_out) return;
+      const minutes = diffMinutes(segment.time_in, segment.time_out);
+      if (minutes <= 0) return;
+      workedMinutesByDate.set(manilaWorkDate, (workedMinutesByDate.get(manilaWorkDate) ?? 0) + minutes);
     });
-
-    const filteredSegments = segments.filter(
-      (segment) => segment.work_date && !mismatchDates.has(segment.work_date),
-    );
-
-    const attendanceDates = new Set(
-      filteredSegments
-        .map((segment) => segment.work_date)
-        .filter((value): value is string => Boolean(value)),
-    );
     const allDates = listDatesBetween(run.period_start, run.period_end);
     const absentDays = allDates.filter((date) => !attendanceDates.has(date)).length;
     const attendedDateList = Array.from(attendanceDates).sort();
@@ -524,14 +519,6 @@ export async function computePayslipsForPayrollRun(
       access,
     );
 
-    const workedMinutesByDate = filteredSegments.reduce((acc, segment) => {
-      if (!segment.work_date || !segment.time_in || !segment.time_out) return acc;
-      const minutes = diffMinutes(segment.time_in, segment.time_out);
-      if (minutes <= 0) return acc;
-      acc.set(segment.work_date, (acc.get(segment.work_date) ?? 0) + minutes);
-      return acc;
-    }, new Map<string, number>());
-
     let undertimeMinutes = 0;
     attendedDateList.forEach((date) => {
       const scheduledMinutes = scheduleForAttendance.minutesByDate.get(date) ?? 0;
@@ -543,18 +530,9 @@ export async function computePayslipsForPayrollRun(
     });
 
     const deductions = await loadRunDeductions(supabase, input.runId, item.employee_id);
-    const safeWorkMinutes =
-      mismatchDates.size > 0
-        ? Array.from(workedMinutesByDate.values()).reduce((sum, minutes) => sum + minutes, 0)
-        : asNumber(item.work_minutes);
-    const safeItem = {
-      ...item,
-      work_minutes: safeWorkMinutes,
-      overtime_minutes_rounded: mismatchDates.size > 0 ? 0 : item.overtime_minutes_rounded,
-    };
     const preview = computePayslipPreview({
       run,
-      item: safeItem,
+      item,
       employee,
       policy,
       scheduleMinutesTotal: schedule.totalMinutes,

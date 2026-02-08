@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, DtrSegmentRow, EmployeeRow } from "@/lib/db.types";
 import { requireHrAccess, type HrAccessDecision } from "./access";
 import { computeOvertimeForHouseDate, parseDateParts } from "./overtime-engine";
-import { assertManilaReasonableSegment } from "./timezone";
+import { isWorkDateMismatch, toManilaDate } from "./timezone";
 
 const DTR_SEGMENT_COLUMNS =
   "id, house_id, employee_id, work_date, time_in, time_out, status";
@@ -230,12 +230,7 @@ export async function computePayrollPreviewForHousePeriod(
   segments.forEach((segment) => {
     const employee = employeeMap.get(segment.employee_id);
     if (!employee || !segment.work_date) return;
-    const validation = assertManilaReasonableSegment(
-      segment.time_in,
-      segment.time_out,
-      segment.work_date,
-    );
-    if (!validation.ok) {
+    if (isWorkDateMismatch(segment.work_date, segment.time_in, segment.time_out)) {
       const mismatchSet = timezoneMismatchDays.get(employee.id) ?? new Set<string>();
       mismatchSet.add(segment.work_date);
       timezoneMismatchDays.set(employee.id, mismatchSet);
@@ -271,13 +266,11 @@ export async function computePayrollPreviewForHousePeriod(
       row.flags.hasCorrectedSegments = true;
     }
 
-    if (timezoneMismatchDays.get(employee.id)?.has(segment.work_date)) {
-      return;
-    }
+    const manilaWorkDate = toManilaDate(segment.time_in) ?? segment.work_date;
 
     if (!segment.time_out) {
       const daySet = openSegmentDays.get(employee.id) ?? new Set<string>();
-      daySet.add(segment.work_date);
+      daySet.add(manilaWorkDate);
       openSegmentDays.set(employee.id, daySet);
     }
 
@@ -286,9 +279,9 @@ export async function computePayrollPreviewForHousePeriod(
     row.workMinutesTotal += diffMinutes(startMs, endMs);
 
     const dateMap = segmentsByEmployeeDate.get(employee.id) ?? new Map<string, DtrSegmentRow[]>();
-    const bucket = dateMap.get(segment.work_date) ?? [];
+    const bucket = dateMap.get(manilaWorkDate) ?? [];
     bucket.push(segment);
-    dateMap.set(segment.work_date, bucket);
+    dateMap.set(manilaWorkDate, bucket);
     segmentsByEmployeeDate.set(employee.id, dateMap);
   });
 
@@ -318,11 +311,8 @@ export async function computePayrollPreviewForHousePeriod(
       if (!row) return;
       if (!segmentsByEmployeeDate.get(result.employeeId)?.has(date)) return;
 
-      const mismatchSet = timezoneMismatchDays.get(result.employeeId);
-      if (!mismatchSet?.has(date)) {
-        row.derivedOtMinutesRawTotal += result.rawOtMinutes;
-        row.derivedOtMinutesRoundedTotal += result.finalOtMinutes;
-      }
+      row.derivedOtMinutesRawTotal += result.rawOtMinutes;
+      row.derivedOtMinutesRoundedTotal += result.finalOtMinutes;
       if (result.scheduleStatus === "no_schedule") {
         row.flags.missingScheduleDays += 1;
       }

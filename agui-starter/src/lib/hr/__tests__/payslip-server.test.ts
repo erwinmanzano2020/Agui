@@ -427,7 +427,7 @@ describe("payslip preview", () => {
     assert.equal(payslip.undertimeDeduction, 180);
   });
 
-  it("flags timezone mismatches and zeros OT", async () => {
+  it("flags timezone mismatches without zeroing totals", async () => {
     const supabase = new SupabaseMock(
       buildBaseData({
         items: [
@@ -471,8 +471,8 @@ describe("payslip preview", () => {
     );
 
     assert.equal(payslip.flags.timezoneMismatchDays, 1);
-    assert.equal(payslip.overtimeMinutes, 0);
-    assert.equal(payslip.workMinutes, 0);
+    assert.ok(payslip.overtimeMinutes > 0);
+    assert.ok(payslip.workMinutes > 0);
   });
 
   it("treats days without segments as absences (no undertime)", async () => {

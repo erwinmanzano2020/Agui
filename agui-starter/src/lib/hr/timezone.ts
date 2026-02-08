@@ -148,6 +148,34 @@ export function formatManilaTimeForUi(value?: string | Date | null): string {
   return getManilaTimeString(date).slice(0, 5);
 }
 
+export function toManilaDate(value?: string | Date | null): string | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  return formatDateParts(getManilaDateParts(date));
+}
+
+export function toManilaTimeHHmm(value?: string | Date | null): string | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return getManilaTimeString(date).slice(0, 5);
+}
+
+export function isWorkDateMismatch(
+  workDate: string | null | undefined,
+  timeIn: string | null | undefined,
+  timeOut?: string | null,
+): boolean {
+  if (!workDate || !timeIn) return false;
+  const manilaDateIn = toManilaDate(timeIn);
+  if (manilaDateIn && manilaDateIn !== workDate) return true;
+  if (timeOut) {
+    const manilaDateOut = toManilaDate(timeOut);
+    if (manilaDateOut && manilaDateOut !== workDate) return true;
+  }
+  return false;
+}
+
 export function getManilaDateFromIso(value?: string | null): string | null {
   if (!value) return null;
   const date = new Date(value);
