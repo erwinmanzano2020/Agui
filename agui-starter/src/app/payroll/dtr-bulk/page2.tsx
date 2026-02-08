@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
+import { toManilaTimestamp } from "@/lib/hr/timezone";
 import { resolveEffectiveShift } from "@/lib/shifts";
 import {
   computeMinutes,
@@ -191,22 +192,32 @@ export default function DtrBulkPage() {
           overtime_minutes: number;
         }> = [];
         if (cell?.in1 && cell?.out1) {
+          const timeIn = toManilaTimestamp(date, `${cell.in1}:00`);
+          const timeOut = toManilaTimestamp(date, `${cell.out1}:00`);
+          if (!timeIn || !timeOut) {
+            throw new Error("Invalid segment time");
+          }
           inserts.push({
             employee_id: empId,
             work_date: date,
-            time_in: new Date(`${date}T${cell.in1}:00`).toISOString(),
-            time_out: new Date(`${date}T${cell.out1}:00`).toISOString(),
+            time_in: timeIn,
+            time_out: timeOut,
             source: "manual",
             status: "open",
             overtime_minutes: 0,
           });
         }
         if (cell?.in2 && cell?.out2) {
+          const timeIn = toManilaTimestamp(date, `${cell.in2}:00`);
+          const timeOut = toManilaTimestamp(date, `${cell.out2}:00`);
+          if (!timeIn || !timeOut) {
+            throw new Error("Invalid segment time");
+          }
           inserts.push({
             employee_id: empId,
             work_date: date,
-            time_in: new Date(`${date}T${cell.in2}:00`).toISOString(),
-            time_out: new Date(`${date}T${cell.out2}:00`).toISOString(),
+            time_in: timeIn,
+            time_out: timeOut,
             source: "manual",
             status: "open",
             overtime_minutes: 0,

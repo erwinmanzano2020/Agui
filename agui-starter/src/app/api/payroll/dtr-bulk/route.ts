@@ -5,6 +5,7 @@ import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
 import type { Database } from "@/lib/db.types";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
+import { toManilaTimestamp } from "@/lib/hr/timezone";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
@@ -59,7 +60,7 @@ function toISO(date: string, hhmm: string) {
   const hh = Math.min(23, parseInt(m[1] || "0", 10)).toString().padStart(2, "0");
   const mmRaw = m[3] ? parseInt(m[3], 10) : 0;
   const mm = Math.min(59, isNaN(mmRaw) ? 0 : mmRaw).toString().padStart(2, "0");
-  return new Date(`${date}T${hh}:${mm}:00`).toISOString();
+  return toManilaTimestamp(date, `${hh}:${mm}:00`);
 }
 
 async function resolveHouseForEntity(

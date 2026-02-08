@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "../../../components/ui/page-header";
 import { Toast } from "../../../components/ui/toast";
+import { getManilaTimeString, toManilaTimestamp } from "@/lib/hr/timezone";
 import type { ShiftSegment } from "@/lib/types";
 
 /** ===== Types ===== */
@@ -37,11 +38,11 @@ function daysForMonth(ym: string /* YYYY-MM */) {
   for (let day = 1; day <= last; day++) out.push(iso(new Date(y, m - 1, day)));
   return out;
 }
-const pad2 = (n: number) => String(n).padStart(2, "0");
 function toHHMM(isoStr?: string | null) {
   if (!isoStr) return "";
   const d = new Date(isoStr);
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const manilaTime = getManilaTimeString(d);
+  return manilaTime.slice(0, 5);
 }
 function toISO(date: string /* YYYY-MM-DD */, hhmm: string) {
   // Accepts "7", "730", "7:30", "07:30"
@@ -54,7 +55,7 @@ function toISO(date: string /* YYYY-MM-DD */, hhmm: string) {
   const mm = Math.min(59, isNaN(mmRaw) ? 0 : mmRaw)
     .toString()
     .padStart(2, "0");
-  return new Date(`${date}T${hh}:${mm}:00`).toISOString();
+  return toManilaTimestamp(date, `${hh}:${mm}:00`);
 }
 
 function formatError(error: unknown) {
