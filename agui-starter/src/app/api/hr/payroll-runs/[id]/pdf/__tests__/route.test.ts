@@ -50,6 +50,20 @@ class PayrollRunPdfSupabaseMock {
     },
   ];
 
+  segments = this.employees.map((employee, index) => ({
+    id: `segment-${index + 1}`,
+    house_id: this.houseId,
+    employee_id: employee.id,
+    work_date: "2024-01-10",
+    time_in: "2024-01-10T09:00:00.000Z",
+    time_out: "2024-01-10T17:00:00.000Z",
+    hours_worked: 8,
+    overtime_minutes: 0,
+    source: "manual",
+    status: "closed",
+    created_at: "2024-01-10T17:00:00.000Z",
+  }));
+
   auth: {
     getUser: () => Promise<{ data: { user: { id: string } | null }; error: null }>;
   } = {
@@ -70,16 +84,21 @@ class PayrollRunPdfSupabaseMock {
       },
       lte: () => query,
       gte: () => query,
-      order: async (): QueryResult<T> => ({
-        data: (Array.isArray(data) ? this.applyFilters(data, filters) : []) as T,
-        error: null,
-      }),
+      order: () => query,
       maybeSingle: async (): QueryResult<T> => ({
         data: (Array.isArray(data)
           ? this.applyFilters(data, filters)[0] ?? null
           : this.applyFilters([data], filters)[0] ?? null) as T,
         error: null,
       }),
+      then: <TResult1 = unknown, TResult2 = never>(
+        onfulfilled?: (value: { data: T; error: null }) => TResult1 | PromiseLike<TResult1>,
+        onrejected?: (reason: unknown) => TResult2 | PromiseLike<TResult2>,
+      ) =>
+        Promise.resolve({
+          data: (Array.isArray(data) ? this.applyFilters(data, filters) : []) as T,
+          error: null,
+        }).then(onfulfilled, onrejected),
     };
     return query;
   }
@@ -99,7 +118,7 @@ class PayrollRunPdfSupabaseMock {
 
   from(table: string) {
     if (table === "dtr_segments") {
-      throw new Error("dtr_segments should not be accessed for payroll run PDFs");
+      return this.buildQuery(this.segments);
     }
 
     if (table === "hr_payroll_runs") {

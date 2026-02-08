@@ -43,7 +43,7 @@ type PayslipPreviewRow = {
   deductionsTotal: number;
   grossPay: number;
   netPay: number;
-  flags: { missingScheduleDays: number; openSegment: boolean };
+  flags: { missingScheduleDays: number; openSegment: boolean; absentDays?: number };
   employeeName: string;
   employeeCode: string;
 };

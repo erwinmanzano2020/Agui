@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import type {
+  DtrSegmentRow,
   EmployeeRow,
   HrBranchScheduleAssignmentRow,
   HrPayPolicyRow,
@@ -56,6 +57,14 @@ class QueryMock<T extends Record<string, unknown>> {
     return new QueryMock(
       this.rows,
       [...this.filters, (row) => String(row[column] ?? "") <= value],
+      this.sorts,
+    );
+  }
+
+  gte(column: keyof T, value: string) {
+    return new QueryMock(
+      this.rows,
+      [...this.filters, (row) => String(row[column] ?? "") >= value],
       this.sorts,
     );
   }
@@ -118,6 +127,7 @@ class InsertMock<T extends Record<string, unknown>> {
 type MockData = {
   runs: HrPayrollRunRow[];
   items: HrPayrollRunItemRow[];
+  segments: DtrSegmentRow[];
   employees: EmployeeRow[];
   deductions: HrPayrollRunDeductionRow[];
   policies: HrPayPolicyRow[];
@@ -131,6 +141,7 @@ class SupabaseMock {
   from(table: string) {
     if (table === "hr_payroll_runs") return new QueryMock(this.data.runs);
     if (table === "hr_payroll_run_items") return new QueryMock(this.data.items);
+    if (table === "dtr_segments") return new QueryMock(this.data.segments);
     if (table === "employees") return new QueryMock(this.data.employees);
     if (table === "hr_payroll_run_deductions") return new QueryMock(this.data.deductions);
     if (table === "hr_pay_policies") return new QueryMock(this.data.policies);
@@ -191,6 +202,21 @@ function buildBaseData(overrides: Partial<MockData> = {}) {
         corrected_segment_days: 0,
         notes: {},
         created_at: "2024-01-01T00:00:00Z",
+      },
+    ],
+    segments: [
+      {
+        id: "segment-1",
+        house_id: houseId,
+        employee_id: employeeId,
+        work_date: "2024-01-01",
+        time_in: "2024-01-01T09:00:00.000Z",
+        time_out: "2024-01-01T17:00:00.000Z",
+        hours_worked: 8,
+        overtime_minutes: 0,
+        source: "manual",
+        status: "closed",
+        created_at: "2024-01-01T17:00:00.000Z",
       },
     ],
     employees: [
@@ -373,6 +399,21 @@ describe("payslip preview", () => {
             created_at: "2024-01-01T00:00:00Z",
           },
         ],
+        segments: [
+          {
+            id: "segment-1",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_date: "2024-01-01",
+            time_in: "2024-01-01T09:00:00.000Z",
+            time_out: "2024-01-01T14:00:00.000Z",
+            hours_worked: 5,
+            overtime_minutes: 0,
+            source: "manual",
+            status: "closed",
+            created_at: "2024-01-01T14:00:00.000Z",
+          },
+        ],
       }),
     );
 
@@ -384,6 +425,139 @@ describe("payslip preview", () => {
 
     assert.equal(payslip.undertimeMinutes, 180);
     assert.equal(payslip.undertimeDeduction, 180);
+  });
+
+  it("treats days without segments as absences (no undertime)", async () => {
+    const supabase = new SupabaseMock(
+      buildBaseData({
+        runs: [
+          {
+            id: "run-1",
+            house_id: "house-1",
+            period_start: "2024-01-01",
+            period_end: "2024-01-31",
+            status: "draft",
+            created_by: null,
+            created_at: "2024-01-01T00:00:00Z",
+            finalized_at: null,
+            finalized_by: null,
+            finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
+          },
+        ],
+        items: [
+          {
+            id: "item-1",
+            run_id: "run-1",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_minutes: 480,
+            overtime_minutes_raw: 0,
+            overtime_minutes_rounded: 0,
+            missing_schedule_days: 0,
+            open_segment_days: 0,
+            corrected_segment_days: 0,
+            notes: {},
+            created_at: "2024-01-01T00:00:00Z",
+          },
+        ],
+        segments: [
+          {
+            id: "segment-1",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_date: "2024-01-15",
+            time_in: "2024-01-15T09:00:00.000Z",
+            time_out: "2024-01-15T17:00:00.000Z",
+            hours_worked: 8,
+            overtime_minutes: 0,
+            source: "manual",
+            status: "closed",
+            created_at: "2024-01-15T17:00:00.000Z",
+          },
+        ],
+      }),
+    );
+
+    const payslip = await computePayslipForPayrollRunEmployee(
+      supabase as never,
+      { houseId: "house-1", runId: "run-1", employeeId: "emp-1" },
+      { access: baseAccess },
+    );
+
+    assert.equal(payslip.undertimeMinutes, 0);
+    assert.ok(payslip.netPay > 0);
+  });
+
+  it("applies undertime only for attended days with partial work", async () => {
+    const supabase = new SupabaseMock(
+      buildBaseData({
+        segments: [
+          {
+            id: "segment-1",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_date: "2024-01-01",
+            time_in: "2024-01-01T09:00:00.000Z",
+            time_out: "2024-01-01T12:00:00.000Z",
+            hours_worked: 3,
+            overtime_minutes: 0,
+            source: "manual",
+            status: "closed",
+            created_at: "2024-01-01T12:00:00.000Z",
+          },
+        ],
+      }),
+    );
+
+    const payslip = await computePayslipForPayrollRunEmployee(
+      supabase as never,
+      { houseId: "house-1", runId: "run-1", employeeId: "emp-1" },
+      { access: baseAccess },
+    );
+
+    assert.ok(payslip.undertimeMinutes > 0);
+  });
+
+  it("does not compute undertime when there are no segments", async () => {
+    const supabase = new SupabaseMock(
+      buildBaseData({
+        items: [
+          {
+            id: "item-1",
+            run_id: "run-1",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_minutes: 0,
+            overtime_minutes_raw: 0,
+            overtime_minutes_rounded: 0,
+            missing_schedule_days: 0,
+            open_segment_days: 0,
+            corrected_segment_days: 0,
+            notes: {},
+            created_at: "2024-01-01T00:00:00Z",
+          },
+        ],
+        segments: [],
+      }),
+    );
+
+    const payslip = await computePayslipForPayrollRunEmployee(
+      supabase as never,
+      { houseId: "house-1", runId: "run-1", employeeId: "emp-1" },
+      { access: baseAccess },
+    );
+
+    assert.equal(payslip.undertimeMinutes, 0);
+    assert.equal(payslip.grossPay, 0);
   });
 
   it("aggregates manual deductions", async () => {
