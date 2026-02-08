@@ -274,7 +274,12 @@ describe("payroll preview aggregation", () => {
     const supabase = new SupabaseMock({
       segments: [
         buildSegment({ id: "seg-1", work_date: "2024-10-01" }),
-        buildSegment({ id: "seg-2", work_date: "2024-10-02" }),
+        buildSegment({
+          id: "seg-2",
+          work_date: "2024-10-02",
+          time_in: "2024-10-02T09:00:00+08:00",
+          time_out: "2024-10-02T17:00:00+08:00",
+        }),
       ],
       employees: [baseEmployee],
       assignments: [],
@@ -314,6 +319,35 @@ describe("payroll preview aggregation", () => {
     const row = result.rows[0];
     assert.equal(row.workMinutesTotal, 240);
     assert.equal(row.flags.openSegmentDays, 1);
+  });
+
+  it("skips timezone-mismatched segments in OT totals", async () => {
+    const supabase = new SupabaseMock({
+      segments: [
+        buildSegment({
+          id: "seg-1",
+          time_in: "2024-10-01T07:00:00+00:00",
+          time_out: "2024-10-01T18:30:00+00:00",
+        }),
+      ],
+      employees: [baseEmployee],
+      assignments: [baseAssignment],
+      windows: [baseWindow],
+      policies: [basePolicy],
+      branches: [{ id: "branch-1", house_id: "house-1" }],
+    });
+
+    const result = await computePayrollPreviewForHousePeriod(
+      supabase as never,
+      { houseId: "house-1", startDate: "2024-10-01", endDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    const row = result.rows[0];
+    assert.equal(row.flags.timezoneMismatchDays, 1);
+    assert.equal(row.derivedOtMinutesRawTotal, 0);
+    assert.equal(row.derivedOtMinutesRoundedTotal, 0);
+    assert.equal(row.workMinutesTotal, 0);
   });
 
   it("matches overtime engine totals", async () => {

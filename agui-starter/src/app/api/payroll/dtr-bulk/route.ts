@@ -5,7 +5,7 @@ import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
 import type { Database } from "@/lib/db.types";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
-import { toManilaTimestamp } from "@/lib/hr/timezone";
+import { assertManilaReasonableSegment, toManilaTimestamptz } from "@/lib/hr/timezone";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
@@ -60,7 +60,7 @@ function toISO(date: string, hhmm: string) {
   const hh = Math.min(23, parseInt(m[1] || "0", 10)).toString().padStart(2, "0");
   const mmRaw = m[3] ? parseInt(m[3], 10) : 0;
   const mm = Math.min(59, isNaN(mmRaw) ? 0 : mmRaw).toString().padStart(2, "0");
-  return toManilaTimestamp(date, `${hh}:${mm}:00`);
+  return toManilaTimestamptz(date, `${hh}:${mm}:00`);
 }
 
 async function resolveHouseForEntity(
@@ -386,6 +386,12 @@ export async function POST(req: NextRequest) {
             const s = toISO(day, cell.in1);
             const e1 = toISO(day, cell.out1);
             if (s && e1) {
+              const validation = assertManilaReasonableSegment(s, e1, day);
+              if (!validation.ok) {
+                throw new Error(
+                  `Invalid segment ${day} (in1/out1): ${validation.reasons.join(", ")}`,
+                );
+              }
               const row: Record<string, unknown> = {
                 employee_id: employeeId,
                 house_id: houseId,
@@ -404,6 +410,12 @@ export async function POST(req: NextRequest) {
             const s = toISO(day, cell.in2);
             const e2 = toISO(day, cell.out2);
             if (s && e2) {
+              const validation = assertManilaReasonableSegment(s, e2, day);
+              if (!validation.ok) {
+                throw new Error(
+                  `Invalid segment ${day} (in2/out2): ${validation.reasons.join(", ")}`,
+                );
+              }
               const row: Record<string, unknown> = {
                 employee_id: employeeId,
                 house_id: houseId,

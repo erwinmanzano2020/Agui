@@ -43,7 +43,12 @@ type PayslipPreviewRow = {
   deductionsTotal: number;
   grossPay: number;
   netPay: number;
-  flags: { missingScheduleDays: number; openSegment: boolean; absentDays?: number };
+  flags: {
+    missingScheduleDays: number;
+    openSegment: boolean;
+    absentDays?: number;
+    timezoneMismatchDays?: number;
+  };
   employeeName: string;
   employeeCode: string;
 };
@@ -204,6 +209,9 @@ export default function PayslipPreviewPanel({
                       <Badge tone="warn">Missing schedule</Badge>
                     ) : null}
                     {row.flags.openSegment ? <Badge tone="warn">Open segment</Badge> : null}
+                    {row.flags.timezoneMismatchDays ? (
+                      <Badge tone="warn">Timezone mismatch</Badge>
+                    ) : null}
                   </div>
                 </td>
                 <td className="px-6 py-3">

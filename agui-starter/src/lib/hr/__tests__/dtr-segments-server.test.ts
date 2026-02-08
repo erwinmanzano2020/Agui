@@ -124,8 +124,8 @@ function buildSegment(id: string, overrides: Partial<DtrSegmentRow> = {}): DtrSe
     house_id: overrides.house_id ?? "house-1",
     employee_id: overrides.employee_id ?? "emp-1",
     work_date: overrides.work_date ?? "2024-10-01",
-    time_in: overrides.time_in ?? "2024-10-01T08:00:00Z",
-    time_out: overrides.time_out ?? "2024-10-01T16:00:00Z",
+    time_in: overrides.time_in ?? "2024-10-01T08:00:00+08:00",
+    time_out: overrides.time_out ?? "2024-10-01T16:00:00+08:00",
     hours_worked: overrides.hours_worked ?? 8,
     overtime_minutes: overrides.overtime_minutes ?? 0,
     source: overrides.source ?? "manual",
@@ -285,19 +285,19 @@ describe("dtr segment server helpers", () => {
         employee_id: "emp-1",
         house_id: "house-1",
         work_date: "2024-10-05",
-        time_in: "2024-10-05T08:00:00Z",
+        time_in: "2024-10-05T08:00:00+08:00",
       }),
       buildSegment("seg-b", {
         employee_id: "emp-2",
         house_id: "house-1",
         work_date: "2024-10-04",
-        time_in: "2024-10-04T08:00:00Z",
+        time_in: "2024-10-04T08:00:00+08:00",
       }),
       buildSegment("seg-c", {
         employee_id: "emp-3",
         house_id: "house-2",
         work_date: "2024-10-05",
-        time_in: "2024-10-05T09:00:00Z",
+        time_in: "2024-10-05T09:00:00+08:00",
       }),
     ];
     const supabase = new SupabaseMock(segments, employees);

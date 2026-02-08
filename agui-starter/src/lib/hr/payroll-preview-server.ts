@@ -5,6 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, DtrSegmentRow, EmployeeRow } from "@/lib/db.types";
 import { requireHrAccess, type HrAccessDecision } from "./access";
 import { computeOvertimeForHouseDate, parseDateParts } from "./overtime-engine";
+import { assertManilaReasonableSegment } from "./timezone";
 
 const DTR_SEGMENT_COLUMNS =
   "id, house_id, employee_id, work_date, time_in, time_out, status";
@@ -29,6 +30,7 @@ export type PayrollPreviewRow = {
     missingScheduleDays: number;
     openSegmentDays: number;
     hasCorrectedSegments: boolean;
+    timezoneMismatchDays: number;
   };
 };
 
@@ -223,6 +225,22 @@ export async function computePayrollPreviewForHousePeriod(
   const rowsByEmployee = new Map<string, PayrollPreviewRow>();
   const segmentsByEmployeeDate = new Map<string, Map<string, DtrSegmentRow[]>>();
   const openSegmentDays = new Map<string, Set<string>>();
+  const timezoneMismatchDays = new Map<string, Set<string>>();
+
+  segments.forEach((segment) => {
+    const employee = employeeMap.get(segment.employee_id);
+    if (!employee || !segment.work_date) return;
+    const validation = assertManilaReasonableSegment(
+      segment.time_in,
+      segment.time_out,
+      segment.work_date,
+    );
+    if (!validation.ok) {
+      const mismatchSet = timezoneMismatchDays.get(employee.id) ?? new Set<string>();
+      mismatchSet.add(segment.work_date);
+      timezoneMismatchDays.set(employee.id, mismatchSet);
+    }
+  });
 
   segments.forEach((segment) => {
     const employee = employeeMap.get(segment.employee_id);
@@ -241,6 +259,7 @@ export async function computePayrollPreviewForHousePeriod(
           missingScheduleDays: 0,
           openSegmentDays: 0,
           hasCorrectedSegments: false,
+          timezoneMismatchDays: 0,
         },
       });
     }
@@ -250,6 +269,10 @@ export async function computePayrollPreviewForHousePeriod(
 
     if (segment.status === "corrected") {
       row.flags.hasCorrectedSegments = true;
+    }
+
+    if (timezoneMismatchDays.get(employee.id)?.has(segment.work_date)) {
+      return;
     }
 
     if (!segment.time_out) {
@@ -295,8 +318,11 @@ export async function computePayrollPreviewForHousePeriod(
       if (!row) return;
       if (!segmentsByEmployeeDate.get(result.employeeId)?.has(date)) return;
 
-      row.derivedOtMinutesRawTotal += result.rawOtMinutes;
-      row.derivedOtMinutesRoundedTotal += result.finalOtMinutes;
+      const mismatchSet = timezoneMismatchDays.get(result.employeeId);
+      if (!mismatchSet?.has(date)) {
+        row.derivedOtMinutesRawTotal += result.rawOtMinutes;
+        row.derivedOtMinutesRoundedTotal += result.finalOtMinutes;
+      }
       if (result.scheduleStatus === "no_schedule") {
         row.flags.missingScheduleDays += 1;
       }
@@ -307,6 +333,10 @@ export async function computePayrollPreviewForHousePeriod(
     const openDays = openSegmentDays.get(employeeId);
     if (openDays) {
       row.flags.openSegmentDays = openDays.size;
+    }
+    const mismatchDays = timezoneMismatchDays.get(employeeId);
+    if (mismatchDays) {
+      row.flags.timezoneMismatchDays = mismatchDays.size;
     }
   });
 

@@ -6,7 +6,11 @@ import { computeMinutes } from "@/lib/payroll";
 import { sumFinishedMinutes, latestOut, Segment } from "@/lib/segments";
 import { resolveEffectiveShift } from "@/lib/shifts";
 import { getSupabase } from "@/lib/supabase";
-import { getManilaTimeString, toManilaTimestamp } from "@/lib/hr/timezone";
+import {
+  assertManilaReasonableSegment,
+  getManilaTimeString,
+  toManilaTimestamptz,
+} from "@/lib/hr/timezone";
 
 type SegmentRecord = { time_in: string; time_out: string | null };
 
@@ -107,9 +111,14 @@ export default function PayrollDtrTodayPageClient() {
     }
 
     const now = new Date();
-    const startAt = toManilaTimestamp(date, getManilaTimeString(now));
+    const startAt = toManilaTimestamptz(date, getManilaTimeString(now));
     if (!startAt) {
       setMsg("Invalid clock-in time");
+      return;
+    }
+    const validation = assertManilaReasonableSegment(startAt, null, date);
+    if (!validation.ok) {
+      setMsg("Invalid clock-in timestamp");
       return;
     }
     const sb = getSupabase();
@@ -160,9 +169,14 @@ export default function PayrollDtrTodayPageClient() {
     }
 
     const now = new Date();
-    const endAt = toManilaTimestamp(date, getManilaTimeString(now));
+    const endAt = toManilaTimestamptz(date, getManilaTimeString(now));
     if (!endAt) {
       setMsg("Invalid clock-out time");
+      return;
+    }
+    const validation = assertManilaReasonableSegment(endAt, null, date);
+    if (!validation.ok) {
+      setMsg("Invalid clock-out timestamp");
       return;
     }
 
@@ -187,9 +201,14 @@ export default function PayrollDtrTodayPageClient() {
       std: shift.standard_minutes ?? null,
     });
 
-    const timeInStamp = toManilaTimestamp(date, `${timeIn}:00`);
-    const timeOutStamp = toManilaTimestamp(date, `${timeOut}:00`);
+    const timeInStamp = toManilaTimestamptz(date, `${timeIn}:00`);
+    const timeOutStamp = toManilaTimestamptz(date, `${timeOut}:00`);
     if (!timeInStamp || !timeOutStamp) {
+      setMsg("Invalid time input");
+      return;
+    }
+    const validation = assertManilaReasonableSegment(timeInStamp, timeOutStamp, date);
+    if (!validation.ok) {
       setMsg("Invalid time input");
       return;
     }
@@ -290,7 +309,7 @@ export default function PayrollDtrTodayPageClient() {
     // Persist last segment boundaries as time_in/out for reference
     const firstInISO =
       segs.find((s) => !!s.time_in)?.time_in ??
-      toManilaTimestamp(date, "00:00:00");
+      toManilaTimestamptz(date, "00:00:00");
     if (!firstInISO) {
       setMsg("Invalid rollup timestamp");
       return;

@@ -3,7 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database, DtrSegmentRow, EmployeeRow } from "@/lib/db.types";
-import { normalizeManilaTimestamp } from "@/lib/hr/timezone";
+import { assertManilaReasonableSegment, normalizeManilaTimestamp } from "@/lib/hr/timezone";
 
 const DTR_SEGMENT_COLUMNS =
   "id, house_id, employee_id, work_date, time_in, time_out, hours_worked, overtime_minutes, source, status, created_at";
@@ -109,6 +109,14 @@ export async function createDtrSegment(
 
   if (!normalizedTimeIn || (input.timeOut && !normalizedTimeOut)) {
     throw new Error("Invalid DTR segment timestamps.");
+  }
+  const validation = assertManilaReasonableSegment(
+    normalizedTimeIn,
+    normalizedTimeOut,
+    input.workDate,
+  );
+  if (!validation.ok) {
+    throw new Error(`Unreasonable DTR segment timestamps: ${validation.reasons.join(", ")}`);
   }
 
   const payload = {

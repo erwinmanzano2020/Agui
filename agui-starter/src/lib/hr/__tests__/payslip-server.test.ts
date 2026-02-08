@@ -210,8 +210,8 @@ function buildBaseData(overrides: Partial<MockData> = {}) {
         house_id: houseId,
         employee_id: employeeId,
         work_date: "2024-01-01",
-        time_in: "2024-01-01T09:00:00.000Z",
-        time_out: "2024-01-01T17:00:00.000Z",
+        time_in: "2024-01-01T09:00:00+08:00",
+        time_out: "2024-01-01T17:00:00+08:00",
         hours_worked: 8,
         overtime_minutes: 0,
         source: "manual",
@@ -405,8 +405,8 @@ describe("payslip preview", () => {
             house_id: "house-1",
             employee_id: "emp-1",
             work_date: "2024-01-01",
-            time_in: "2024-01-01T09:00:00.000Z",
-            time_out: "2024-01-01T14:00:00.000Z",
+            time_in: "2024-01-01T09:00:00+08:00",
+            time_out: "2024-01-01T14:00:00+08:00",
             hours_worked: 5,
             overtime_minutes: 0,
             source: "manual",
@@ -425,6 +425,54 @@ describe("payslip preview", () => {
 
     assert.equal(payslip.undertimeMinutes, 180);
     assert.equal(payslip.undertimeDeduction, 180);
+  });
+
+  it("flags timezone mismatches and zeros OT", async () => {
+    const supabase = new SupabaseMock(
+      buildBaseData({
+        items: [
+          {
+            id: "item-1",
+            run_id: "run-1",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_minutes: 690,
+            overtime_minutes_raw: 120,
+            overtime_minutes_rounded: 120,
+            missing_schedule_days: 0,
+            open_segment_days: 0,
+            corrected_segment_days: 0,
+            notes: {},
+            created_at: "2024-01-01T00:00:00Z",
+          },
+        ],
+        segments: [
+          {
+            id: "segment-1",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_date: "2024-01-01",
+            time_in: "2024-01-01T07:00:00+00:00",
+            time_out: "2024-01-01T18:30:00+00:00",
+            hours_worked: 11.5,
+            overtime_minutes: 0,
+            source: "manual",
+            status: "closed",
+            created_at: "2024-01-01T18:30:00Z",
+          },
+        ],
+      }),
+    );
+
+    const payslip = await computePayslipForPayrollRunEmployee(
+      supabase as never,
+      { houseId: "house-1", runId: "run-1", employeeId: "emp-1" },
+      { access: baseAccess },
+    );
+
+    assert.equal(payslip.flags.timezoneMismatchDays, 1);
+    assert.equal(payslip.overtimeMinutes, 0);
+    assert.equal(payslip.workMinutes, 0);
   });
 
   it("treats days without segments as absences (no undertime)", async () => {
@@ -475,8 +523,8 @@ describe("payslip preview", () => {
             house_id: "house-1",
             employee_id: "emp-1",
             work_date: "2024-01-15",
-            time_in: "2024-01-15T09:00:00.000Z",
-            time_out: "2024-01-15T17:00:00.000Z",
+            time_in: "2024-01-15T09:00:00+08:00",
+            time_out: "2024-01-15T17:00:00+08:00",
             hours_worked: 8,
             overtime_minutes: 0,
             source: "manual",
@@ -506,8 +554,8 @@ describe("payslip preview", () => {
             house_id: "house-1",
             employee_id: "emp-1",
             work_date: "2024-01-01",
-            time_in: "2024-01-01T09:00:00.000Z",
-            time_out: "2024-01-01T12:00:00.000Z",
+            time_in: "2024-01-01T09:00:00+08:00",
+            time_out: "2024-01-01T12:00:00+08:00",
             hours_worked: 3,
             overtime_minutes: 0,
             source: "manual",
