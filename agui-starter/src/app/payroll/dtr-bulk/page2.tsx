@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
-import { toManilaTimestamp } from "@/lib/hr/timezone";
+import { toManilaOffsetTimestampFromDate, toManilaTimestamp } from "@/lib/hr/timezone";
 import { resolveEffectiveShift } from "@/lib/shifts";
 import {
   computeMinutes,
@@ -267,6 +267,9 @@ export default function DtrBulkPage() {
         const shift = await resolveEffectiveShift(empId, date);
         const timeIn = new Date(firstInISO);
         const timeOut = new Date(lastOutISO);
+        if (Number.isNaN(timeIn.getTime()) || Number.isNaN(timeOut.getTime())) {
+          throw new Error("Invalid rollup timestamp");
+        }
         const { regular, ot } = computeMinutes(date, timeIn, timeOut, shift);
 
         // Optional extras: late/undertime (present-day only logic handled in helpers)
@@ -277,8 +280,8 @@ export default function DtrBulkPage() {
           {
             employee_id: empId,
             work_date: date,
-            time_in: timeIn.toISOString(),
-            time_out: timeOut.toISOString(),
+            time_in: toManilaOffsetTimestampFromDate(timeIn),
+            time_out: toManilaOffsetTimestampFromDate(timeOut),
             minutes_regular: regular,
             minutes_ot: ot,
             minutes_late: late,

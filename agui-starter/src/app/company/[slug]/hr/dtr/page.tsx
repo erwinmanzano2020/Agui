@@ -5,7 +5,8 @@ import { requireAuth } from "@/lib/auth/require-auth";
 import type { DtrSegmentRow } from "@/lib/db.types";
 import { listDtrByHouseAndDate } from "@/lib/hr/dtr-segments-server";
 import { listEmployeesByHouse } from "@/lib/hr/employees-server";
-import { computeOvertimeForHouseDate } from "@/lib/hr/overtime-engine";
+import { computeOvertimeForHouseDate, getScheduleForEmployeeOnDate } from "@/lib/hr/overtime-engine";
+import { formatManilaTimeFromIso } from "@/lib/hr/timezone";
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -19,6 +20,15 @@ function formatTimeInput(value: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return date.toISOString().slice(11, 16);
+}
+
+function diffMinutesFromIso(start?: string | null, end?: string | null) {
+  if (!start || !end) return 0;
+  const startDate = new Date(start);
+  const endDate = new Date(end);
+  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return 0;
+  if (endDate.getTime() <= startDate.getTime()) return 0;
+  return Math.floor((endDate.getTime() - startDate.getTime()) / 60000);
 }
 
 function groupSegments(segments: DtrSegmentRow[]) {
@@ -85,6 +95,20 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
     overtimeResults.map((result) => [result.employeeId, result]),
   );
 
+  const scheduleResults = await Promise.all(
+    visibleEmployees.map(async (employee) => ({
+      employeeId: employee.id,
+      schedule: await getScheduleForEmployeeOnDate(supabase, {
+        houseId: house.id,
+        employeeId: employee.id,
+        workDate,
+      }),
+    })),
+  );
+  const scheduleByEmployee = new Map(
+    scheduleResults.map((result) => [result.employeeId, result.schedule]),
+  );
+
   return (
     <div className="space-y-6">
       <section className="rounded-2xl border border-border bg-white/70 p-6 shadow-sm">
@@ -143,6 +167,14 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
         <div className="space-y-4">
           {visibleEmployees.map((employee) => {
             const employeeSegments = segmentsByEmployee.get(employee.id) ?? [];
+            const schedule = scheduleByEmployee.get(employee.id);
+            const scheduleStart =
+              schedule?.status === "ok" ? schedule.scheduledStartTs : null;
+            const scheduleEnd =
+              schedule?.status === "ok" ? schedule.scheduledEndTs : null;
+            const lastOut = employeeSegments.filter((segment) => segment.time_out).slice(-1)[0]
+              ?.time_out;
+            const derivedOtMinutes = Math.max(0, diffMinutesFromIso(scheduleEnd, lastOut ?? null));
             return (
               <section key={employee.id} className="rounded-2xl border border-border bg-white/70 p-5 shadow-sm">
                 <div className="flex flex-wrap items-center justify-between gap-4">
@@ -236,6 +268,52 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
                     </ul>
                   )}
                 </div>
+
+                <details className="mt-4 rounded-xl border border-border/70 bg-background/60 p-3 text-xs text-muted-foreground">
+                  <summary className="cursor-pointer text-xs font-medium text-foreground">Debug</summary>
+                  <div className="mt-3 space-y-2">
+                    <div className="grid gap-1 sm:grid-cols-2">
+                      <div>
+                        <div className="text-[11px] uppercase text-muted-foreground">Schedule start</div>
+                        <div>{formatManilaTimeFromIso(scheduleStart)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[11px] uppercase text-muted-foreground">Schedule end</div>
+                        <div>{formatManilaTimeFromIso(scheduleEnd)}</div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-[11px] uppercase text-muted-foreground">Derived OT (mins)</div>
+                      <div>
+                        {derivedOtMinutes}{" "}
+                        <span className="text-muted-foreground">
+                          {lastOut && scheduleEnd
+                            ? `(${formatManilaTimeFromIso(lastOut)} - ${formatManilaTimeFromIso(scheduleEnd)})`
+                            : "(—)"}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      {employeeSegments.map((segment) => (
+                        <div key={`${segment.id}-debug`} className="rounded-lg border border-border/60 bg-background/80 p-2">
+                          <div className="text-[11px] uppercase text-muted-foreground">Segment {segment.id}</div>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <div>
+                              <div className="text-[11px] uppercase text-muted-foreground">time_in</div>
+                              <div className="font-mono text-[11px] text-foreground">{segment.time_in ?? "—"}</div>
+                              <div className="text-[11px]">Manila: {formatManilaTimeFromIso(segment.time_in)}</div>
+                            </div>
+                            <div>
+                              <div className="text-[11px] uppercase text-muted-foreground">time_out</div>
+                              <div className="font-mono text-[11px] text-foreground">{segment.time_out ?? "—"}</div>
+                              <div className="text-[11px]">Manila: {formatManilaTimeFromIso(segment.time_out)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </details>
 
                 <form action={createDtrSegmentAction} className="mt-4 flex flex-wrap items-end gap-3">
                   <input type="hidden" name="houseId" value={house.id} />

@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database, DtrSegmentRow, EmployeeRow } from "@/lib/db.types";
+import { normalizeManilaTimestamp } from "@/lib/hr/timezone";
 
 const DTR_SEGMENT_COLUMNS =
   "id, house_id, employee_id, work_date, time_in, time_out, hours_worked, overtime_minutes, source, status, created_at";
@@ -101,12 +102,21 @@ export async function createDtrSegment(
     throw new DtrSegmentAccessError("Employee does not belong to this house.");
   }
 
+  const normalizedTimeIn = normalizeManilaTimestamp(input.timeIn, input.workDate);
+  const normalizedTimeOut = input.timeOut
+    ? normalizeManilaTimestamp(input.timeOut, input.workDate)
+    : null;
+
+  if (!normalizedTimeIn || (input.timeOut && !normalizedTimeOut)) {
+    throw new Error("Invalid DTR segment timestamps.");
+  }
+
   const payload = {
     house_id: input.houseId,
     employee_id: input.employeeId,
     work_date: input.workDate,
-    time_in: input.timeIn,
-    time_out: input.timeOut,
+    time_in: normalizedTimeIn,
+    time_out: normalizedTimeOut,
     hours_worked: null,
     overtime_minutes: 0,
     source: "manual",
