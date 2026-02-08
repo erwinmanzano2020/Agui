@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   assertManilaReasonableSegment,
+  formatManilaTimeForUi,
   normalizeManilaTimestamp,
   toManilaTimestamp,
   toManilaTimestamptz,
@@ -44,5 +45,21 @@ describe("timezone helpers", () => {
     assert.equal(validation.ok, false);
     assert.ok(validation.reasons.includes("unexpected_offset"));
     assert.ok(validation.reasons.includes("time_out_date_mismatch"));
+  });
+
+  it("formats Manila UI times from UTC-labeled timestamps", () => {
+    assert.equal(
+      formatManilaTimeForUi("2026-01-01T23:00:00+00:00"),
+      "07:00",
+    );
+    assert.equal(
+      formatManilaTimeForUi("2026-01-02T09:30:00+00:00"),
+      "17:30",
+    );
+  });
+
+  it("roundtrips Manila time selection for UI", () => {
+    const stamp = toManilaTimestamptz("2026-01-02", "07:00");
+    assert.equal(formatManilaTimeForUi(stamp), "07:00");
   });
 });

@@ -6,7 +6,7 @@ import type { DtrSegmentRow } from "@/lib/db.types";
 import { listDtrByHouseAndDate } from "@/lib/hr/dtr-segments-server";
 import { listEmployeesByHouse } from "@/lib/hr/employees-server";
 import { computeOvertimeForHouseDate, getScheduleForEmployeeOnDate } from "@/lib/hr/overtime-engine";
-import { formatManilaTimeFromIso } from "@/lib/hr/timezone";
+import { formatManilaTimeForUi, formatManilaTimeFromIso } from "@/lib/hr/timezone";
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -16,10 +16,7 @@ function normalizeDate(value: string | undefined, fallback: string) {
 }
 
 function formatTimeInput(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toISOString().slice(11, 16);
+  return formatManilaTimeForUi(value);
 }
 
 function diffMinutesFromIso(start?: string | null, end?: string | null) {

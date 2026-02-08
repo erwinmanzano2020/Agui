@@ -141,6 +141,13 @@ export function formatManilaTimeFromIso(value?: string | null): string {
   return getManilaTimeString(date).slice(0, 5);
 }
 
+export function formatManilaTimeForUi(value?: string | Date | null): string {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return getManilaTimeString(date).slice(0, 5);
+}
+
 export function getManilaDateFromIso(value?: string | null): string | null {
   if (!value) return null;
   const date = new Date(value);
