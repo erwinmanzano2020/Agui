@@ -47,6 +47,8 @@ export type ScheduleResolution =
       windowId: string;
       scheduledStartTs: string;
       scheduledEndTs: string;
+      breakStartTs?: string | null;
+      breakEndTs?: string | null;
       timeZone: string;
     }
   | { status: "no_schedule"; reason?: string };
@@ -341,7 +343,7 @@ async function loadScheduleWindows(
   if (scheduleIds.length === 0) return [];
   const { data, error } = await supabase
     .from("hr_schedule_windows")
-    .select("id, house_id, schedule_id, day_of_week, start_time, end_time")
+    .select("id, house_id, schedule_id, day_of_week, start_time, end_time, break_start, break_end")
     .eq("house_id", houseId)
     .in("schedule_id", scheduleIds)
     .eq("day_of_week", dayOfWeek)
@@ -410,6 +412,14 @@ export async function getScheduleForEmployeeOnDate(
   if (!scheduledStart || !scheduledEnd) {
     return { status: "no_schedule", reason: "invalid_schedule_time" };
   }
+  const scheduledBreakStart =
+    window.break_start && window.break_end
+      ? buildZonedDateTime(input.workDate, window.break_start, DEFAULT_TIMEZONE)
+      : null;
+  const scheduledBreakEnd =
+    window.break_start && window.break_end
+      ? buildZonedDateTime(input.workDate, window.break_end, DEFAULT_TIMEZONE)
+      : null;
 
   return {
     status: "ok",
@@ -418,6 +428,8 @@ export async function getScheduleForEmployeeOnDate(
     windowId: window.id,
     scheduledStartTs: scheduledStart.toISOString(),
     scheduledEndTs: scheduledEnd.toISOString(),
+    breakStartTs: scheduledBreakStart ? scheduledBreakStart.toISOString() : null,
+    breakEndTs: scheduledBreakEnd ? scheduledBreakEnd.toISOString() : null,
     timeZone: DEFAULT_TIMEZONE,
   };
 }

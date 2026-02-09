@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 
 import { requireHrAccess } from "@/lib/hr/access";
 import { createDtrSegment, DtrSegmentAccessError } from "@/lib/hr/dtr-segments-server";
+import { assertManilaReasonableSegment, toManilaTimestamptz } from "@/lib/hr/timezone";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
 
@@ -29,7 +30,7 @@ const UpdateSchema = z.object({
 });
 
 function toTimestamp(workDate: string, timeValue: string) {
-  return new Date(`${workDate}T${timeValue}:00`).toISOString();
+  return toManilaTimestamptz(workDate, `${timeValue}:00`);
 }
 
 export async function createDtrSegmentAction(formData: FormData) {
@@ -58,12 +59,28 @@ export async function createDtrSegmentAction(formData: FormData) {
   }
 
   try {
+    const timeIn = toTimestamp(parsed.data.workDate, parsed.data.timeIn);
+    const timeOut = parsed.data.timeOut ? toTimestamp(parsed.data.workDate, parsed.data.timeOut) : null;
+    if (!timeIn || (parsed.data.timeOut && !timeOut)) {
+      console.warn("Invalid DTR segment timestamps");
+      return;
+    }
+    const validation = assertManilaReasonableSegment(
+      timeIn,
+      timeOut,
+      parsed.data.workDate,
+    );
+    if (!validation.ok) {
+      console.warn("Rejected DTR segment timestamps", validation.reasons);
+      return;
+    }
+
     await createDtrSegment(supabase, {
       houseId: parsed.data.houseId,
       employeeId: parsed.data.employeeId,
       workDate: parsed.data.workDate,
-      timeIn: toTimestamp(parsed.data.workDate, parsed.data.timeIn),
-      timeOut: parsed.data.timeOut ? toTimestamp(parsed.data.workDate, parsed.data.timeOut) : null,
+      timeIn,
+      timeOut,
     });
   } catch (error) {
     if (error instanceof DtrSegmentAccessError) {
@@ -104,6 +121,19 @@ export async function updateDtrSegmentAction(formData: FormData) {
 
   const timeIn = toTimestamp(parsed.data.workDate, parsed.data.timeIn);
   const timeOut = parsed.data.timeOut ? toTimestamp(parsed.data.workDate, parsed.data.timeOut) : null;
+  if (!timeIn || (parsed.data.timeOut && !timeOut)) {
+    console.warn("Invalid DTR segment timestamps");
+    return;
+  }
+  const validation = assertManilaReasonableSegment(
+    timeIn,
+    timeOut,
+    parsed.data.workDate,
+  );
+  if (!validation.ok) {
+    console.warn("Rejected DTR segment timestamps", validation.reasons);
+    return;
+  }
 
   const { data, error } = await supabase
     .from("dtr_segments")

@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
   Database,
+  DtrSegmentRow,
   EmployeeRow,
   HrPayPolicyRow,
   HrPayrollRunDeductionRow,
@@ -12,6 +13,8 @@ import type {
 } from "@/lib/db.types";
 import { requireHrAccess, type HrAccessDecision } from "./access";
 import { getScheduleForEmployeeOnDate, parseDateParts } from "./overtime-engine";
+import { computeDailyRateBreakdown } from "./payroll-math";
+import { isWorkDateMismatch, toManilaDate } from "./timezone";
 
 export type PayPolicySnapshot = {
   houseId: string;
@@ -38,7 +41,19 @@ export type PayslipPreview = {
   deductionsTotal: number;
   grossPay: number;
   netPay: number;
-  flags: { missingScheduleDays: number; openSegment: boolean };
+  flags: {
+    missingScheduleDays: number;
+    openSegment: boolean;
+    absentDays: number;
+    timezoneMismatchDays: number;
+  };
+  diagnostics?: {
+    daysWorked?: number;
+    dailyRate?: number | null;
+    gross?: number | null;
+    paidMinutes?: number;
+    scheduledMinutes?: number;
+  };
 };
 
 export type PayslipPreviewRow = PayslipPreview & {
@@ -88,18 +103,13 @@ const DEFAULT_POLICY: PayPolicySnapshot = {
   otMultiplier: 1.0,
 };
 
+const DTR_SEGMENT_COLUMNS =
+  "id, house_id, employee_id, work_date, time_in, time_out, status";
+
 function asNumber(value: number | string | null | undefined): number {
   if (typeof value === "number") return value;
   if (typeof value === "string" && value.trim()) return Number(value);
   return 0;
-}
-
-function diffMinutes(startIso: string, endIso: string): number {
-  const start = new Date(startIso);
-  const end = new Date(endIso);
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
-  if (end.getTime() <= start.getTime()) return 0;
-  return Math.floor((end.getTime() - start.getTime()) / 60000);
 }
 
 function listDatesBetween(startDate: string, endDate: string): string[] {
@@ -199,6 +209,24 @@ async function loadRunDeductions(
   return (data as HrPayrollRunDeductionRow[] | null) ?? [];
 }
 
+async function loadSegmentsForPeriod(
+  supabase: SupabaseClient<Database>,
+  input: { houseId: string; employeeId: string; startDate: string; endDate: string },
+): Promise<DtrSegmentRow[]> {
+  const { data, error } = await supabase
+    .from("dtr_segments")
+    .select(DTR_SEGMENT_COLUMNS)
+    .eq("house_id", input.houseId)
+    .eq("employee_id", input.employeeId)
+    .gte("work_date", input.startDate)
+    .lte("work_date", input.endDate)
+    .order("work_date", { ascending: true })
+    .order("time_in", { ascending: true });
+
+  if (error) throw new PayslipFetchError(error.message);
+  return (data as DtrSegmentRow[] | null) ?? [];
+}
+
 export async function getPayPolicyForHouse(
   supabase: SupabaseClient<Database>,
   houseId: string,
@@ -253,6 +281,7 @@ async function computeScheduleMinutes(
 
   let totalMinutes = 0;
   let missingScheduleDays = 0;
+  let scheduleDayCount = 0;
 
   for (const workDate of dates) {
     const schedule = await getScheduleForEmployeeOnDate(
@@ -263,20 +292,89 @@ async function computeScheduleMinutes(
 
     if (schedule.status !== "ok" || !schedule.scheduledStartTs || !schedule.scheduledEndTs) {
       missingScheduleDays += 1;
-      totalMinutes += input.policy.minutesPerDayDefault;
       continue;
     }
 
-    const minutes = diffMinutes(schedule.scheduledStartTs, schedule.scheduledEndTs);
-    if (minutes <= 0) {
+    const breakdown = computeDailyRateBreakdown([], {
+      scheduledStartTs: schedule.scheduledStartTs,
+      scheduledEndTs: schedule.scheduledEndTs,
+      breakStartTs: schedule.breakStartTs ?? null,
+      breakEndTs: schedule.breakEndTs ?? null,
+    });
+    if (breakdown.scheduledMinutes <= 0 || breakdown.flags.includes("invalid_schedule")) {
       missingScheduleDays += 1;
-      totalMinutes += input.policy.minutesPerDayDefault;
     } else {
-      totalMinutes += minutes;
+      totalMinutes += breakdown.scheduledMinutes;
+      scheduleDayCount += 1;
     }
   }
 
-  return { totalMinutes, missingScheduleDays, dayCount };
+  return {
+    totalMinutes,
+    missingScheduleDays,
+    dayCount: scheduleDayCount,
+  };
+}
+
+async function computeScheduleMinutesForDates(
+  supabase: SupabaseClient<Database>,
+  input: {
+    houseId: string;
+    employeeId: string;
+    dates: string[];
+    policy: PayPolicySnapshot;
+  },
+  access: HrAccessDecision,
+): Promise<{ totalMinutes: number; missingScheduleDays: number; minutesByDate: Map<string, number> }> {
+  if (input.dates.length === 0) {
+    return { totalMinutes: 0, missingScheduleDays: 0, minutesByDate: new Map() };
+  }
+
+  if (!input.policy.deriveMinutesFromSchedule) {
+    const minutesByDate = new Map<string, number>();
+    input.dates.forEach((date) => {
+      minutesByDate.set(date, input.policy.minutesPerDayDefault);
+    });
+    return {
+      totalMinutes: input.policy.minutesPerDayDefault * input.dates.length,
+      missingScheduleDays: 0,
+      minutesByDate,
+    };
+  }
+
+  let totalMinutes = 0;
+  let missingScheduleDays = 0;
+  const minutesByDate = new Map<string, number>();
+
+  for (const workDate of input.dates) {
+    const schedule = await getScheduleForEmployeeOnDate(
+      supabase,
+      { houseId: input.houseId, employeeId: input.employeeId, workDate },
+      { access },
+    );
+
+    if (schedule.status !== "ok" || !schedule.scheduledStartTs || !schedule.scheduledEndTs) {
+      missingScheduleDays += 1;
+      minutesByDate.set(workDate, 0);
+      continue;
+    }
+
+    const breakdown = computeDailyRateBreakdown([], {
+      scheduledStartTs: schedule.scheduledStartTs,
+      scheduledEndTs: schedule.scheduledEndTs,
+      breakStartTs: schedule.breakStartTs ?? null,
+      breakEndTs: schedule.breakEndTs ?? null,
+    });
+    if (breakdown.scheduledMinutes <= 0 || breakdown.flags.includes("invalid_schedule")) {
+      missingScheduleDays += 1;
+      minutesByDate.set(workDate, 0);
+    } else {
+      totalMinutes += breakdown.scheduledMinutes;
+      minutesByDate.set(workDate, breakdown.scheduledMinutes);
+    }
+  }
+
+  return { totalMinutes, missingScheduleDays, minutesByDate };
 }
 
 function computePayslipPreview(input: {
@@ -287,28 +385,42 @@ function computePayslipPreview(input: {
   scheduleMinutesTotal: number;
   scheduleDayCount: number;
   missingScheduleDays: number;
+  undertimeMinutes: number;
+  absentDays: number;
+  timezoneMismatchDays: number;
   deductions: HrPayrollRunDeductionRow[];
+  regularMinutesForPay?: number;
+  regularPayOverride?: number;
+  undertimeDeductionOverride?: number;
+  diagnostics?: {
+    daysWorked?: number;
+    dailyRate?: number | null;
+    gross?: number | null;
+    paidMinutes?: number;
+    scheduledMinutes?: number;
+  };
 }): PayslipPreview {
   const ratePerDay = asNumber(input.employee.rate_per_day);
   const workMinutes = asNumber(input.item.work_minutes);
   const scheduleMinutesPerDay =
-    input.scheduleDayCount > 0
-      ? input.scheduleMinutesTotal / input.scheduleDayCount
-      : input.policy.minutesPerDayDefault;
+    input.scheduleDayCount > 0 ? input.scheduleMinutesTotal / input.scheduleDayCount : 0;
   const perMinuteRate =
     scheduleMinutesPerDay > 0 ? ratePerDay / scheduleMinutesPerDay : 0;
 
-  const regularMinutes = Math.min(workMinutes, input.scheduleMinutesTotal);
-  const undertimeMinutes = Math.max(input.scheduleMinutesTotal - regularMinutes, 0);
+  const regularMinutes =
+    input.regularMinutesForPay ?? Math.min(workMinutes, input.scheduleMinutesTotal);
+  const undertimeMinutes = Math.max(input.undertimeMinutes, 0);
 
   const hasMissingSchedule = input.missingScheduleDays > 0;
   const overtimeMinutes = hasMissingSchedule
     ? 0
     : asNumber(input.item.overtime_minutes_rounded);
 
-  const regularPay = perMinuteRate * regularMinutes;
+  const regularPay =
+    input.regularPayOverride ?? perMinuteRate * regularMinutes;
   const overtimePay = perMinuteRate * overtimeMinutes * input.policy.otMultiplier;
-  const undertimeDeduction = perMinuteRate * undertimeMinutes;
+  const undertimeDeduction =
+    input.undertimeDeductionOverride ?? perMinuteRate * undertimeMinutes;
   const grossPay = regularPay + overtimePay;
 
   const otherDeductions = input.deductions.map((deduction) => ({
@@ -339,7 +451,10 @@ function computePayslipPreview(input: {
     flags: {
       missingScheduleDays: input.missingScheduleDays,
       openSegment: input.item.open_segment_days > 0,
+      absentDays: input.absentDays,
+      timezoneMismatchDays: input.timezoneMismatchDays,
     },
+    diagnostics: input.diagnostics,
   };
 }
 
@@ -391,6 +506,121 @@ export async function computePayslipsForPayrollRun(
       access,
     );
 
+    const segments = await loadSegmentsForPeriod(supabase, {
+      houseId: input.houseId,
+      employeeId: item.employee_id,
+      startDate: run.period_start,
+      endDate: run.period_end,
+    });
+
+    const mismatchDates = new Set<string>();
+    const attendanceDates = new Set<string>();
+    const segmentsByDate = new Map<string, DtrSegmentRow[]>();
+    const closedSegmentsByDate = new Map<string, DtrSegmentRow[]>();
+
+    segments.forEach((segment) => {
+      if (!segment.time_in) return;
+      const manilaWorkDate = toManilaDate(segment.time_in) ?? segment.work_date;
+      if (!manilaWorkDate) return;
+      if (isWorkDateMismatch(segment.work_date, segment.time_in, segment.time_out)) {
+        mismatchDates.add(segment.work_date ?? manilaWorkDate);
+      }
+      attendanceDates.add(manilaWorkDate);
+      const bucket = segmentsByDate.get(manilaWorkDate) ?? [];
+      bucket.push(segment);
+      segmentsByDate.set(manilaWorkDate, bucket);
+      if (segment.status === "closed") {
+        const closedBucket = closedSegmentsByDate.get(manilaWorkDate) ?? [];
+        closedBucket.push(segment);
+        closedSegmentsByDate.set(manilaWorkDate, closedBucket);
+      }
+    });
+
+    const workedMinutesByDate = new Map<string, number>();
+    const closedMinutesByDate = new Map<string, number>();
+    for (const date of attendanceDates) {
+      const schedule = await getScheduleForEmployeeOnDate(
+        supabase,
+        { houseId: input.houseId, employeeId: item.employee_id, workDate: date },
+        { access },
+      );
+      const breakdown = computeDailyRateBreakdown(
+        segmentsByDate.get(date) ?? [],
+        schedule.status === "ok"
+          ? {
+              scheduledStartTs: schedule.scheduledStartTs,
+              scheduledEndTs: schedule.scheduledEndTs,
+              breakStartTs: schedule.breakStartTs ?? null,
+              breakEndTs: schedule.breakEndTs ?? null,
+            }
+          : null,
+      );
+      workedMinutesByDate.set(date, breakdown.regularMinutes);
+      const closedBreakdown = computeDailyRateBreakdown(
+        closedSegmentsByDate.get(date) ?? [],
+        schedule.status === "ok"
+          ? {
+              scheduledStartTs: schedule.scheduledStartTs,
+              scheduledEndTs: schedule.scheduledEndTs,
+              breakStartTs: schedule.breakStartTs ?? null,
+              breakEndTs: schedule.breakEndTs ?? null,
+            }
+          : null,
+      );
+      closedMinutesByDate.set(date, closedBreakdown.regularMinutes);
+    }
+    const allDates = listDatesBetween(run.period_start, run.period_end);
+    const absentDays = allDates.filter((date) => !attendanceDates.has(date)).length;
+    const attendedDateList = Array.from(attendanceDates).sort();
+
+    const scheduleForAttendance = await computeScheduleMinutesForDates(
+      supabase,
+      {
+        houseId: input.houseId,
+        employeeId: item.employee_id,
+        dates: attendedDateList,
+        policy,
+      },
+      access,
+    );
+
+    let undertimeMinutes = 0;
+    attendedDateList.forEach((date) => {
+      const scheduledMinutes = scheduleForAttendance.minutesByDate.get(date) ?? 0;
+      if (scheduledMinutes <= 0) return;
+      const workedMinutes = workedMinutesByDate.get(date) ?? 0;
+      if (workedMinutes < scheduledMinutes) {
+        undertimeMinutes += scheduledMinutes - workedMinutes;
+      }
+    });
+
+    const ratePerDay = asNumber(employee.rate_per_day);
+    let regularMinutesForPay = 0;
+    let regularPayOverride = 0;
+    let undertimeDeductionOverride = 0;
+    let daysWorked = 0;
+    let diagnosticsPaidMinutes = 0;
+    let diagnosticsScheduledMinutes = 0;
+    attendedDateList.forEach((date) => {
+      const scheduledMinutes = scheduleForAttendance.minutesByDate.get(date) ?? 0;
+      if (scheduledMinutes <= 0) return;
+      const workedMinutes = workedMinutesByDate.get(date) ?? 0;
+      const cappedMinutes = Math.min(workedMinutes, scheduledMinutes);
+      regularMinutesForPay += cappedMinutes;
+      regularPayOverride += ratePerDay;
+      const undertimeMinutesForDay = Math.max(0, scheduledMinutes - cappedMinutes);
+      undertimeDeductionOverride += ratePerDay * (undertimeMinutesForDay / scheduledMinutes);
+      diagnosticsPaidMinutes += cappedMinutes;
+      diagnosticsScheduledMinutes += scheduledMinutes;
+      const closedMinutes = closedMinutesByDate.get(date) ?? 0;
+      if (closedMinutes > 0) {
+        daysWorked += 1;
+      }
+    });
+    const diagnosticsRate = ratePerDay > 0 ? ratePerDay : null;
+    const diagnosticsGross =
+      diagnosticsRate !== null ? diagnosticsRate * daysWorked : null;
+
     const deductions = await loadRunDeductions(supabase, input.runId, item.employee_id);
     const preview = computePayslipPreview({
       run,
@@ -400,7 +630,20 @@ export async function computePayslipsForPayrollRun(
       scheduleMinutesTotal: schedule.totalMinutes,
       scheduleDayCount: schedule.dayCount,
       missingScheduleDays: schedule.missingScheduleDays,
+      undertimeMinutes,
+      absentDays,
+      timezoneMismatchDays: mismatchDates.size,
       deductions,
+      regularMinutesForPay,
+      regularPayOverride,
+      undertimeDeductionOverride,
+      diagnostics: {
+        daysWorked,
+        dailyRate: diagnosticsRate,
+        gross: diagnosticsGross,
+        paidMinutes: diagnosticsPaidMinutes || undefined,
+        scheduledMinutes: diagnosticsScheduledMinutes || undefined,
+      },
     });
 
     rows.push({

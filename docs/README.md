@@ -8,6 +8,10 @@
   - [HR-1 Implementation Runbook](./hr/hr-1-implementation-runbook.md)
   - [HR-2.3 Freeze Declaration](./hr/hr-2-3-freeze.md)
   - [HR-3.3 Freeze Declaration](./hr/hr-3-3-freeze.md)
+  - [HR-3.4.2 Freeze — Run PDF Export (Merged)](./hr/hr-3-4-2-freeze.md)
+  - [HR-3.4.2c Timestamp Fix Notes](./hr/hr-3-4-2c-timestamp-fix.md)
+- Admin
+  - [HR DTR Timezone Repair](./admin/hr-dtr-timezone-repair.md)
 - Engineering
   - [Supabase / Migrations Hygiene](./db/supabase-migrations-hygiene.md)
   - [Debugging Playbook](./engineering/debugging-playbook.md)

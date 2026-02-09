@@ -15,6 +15,7 @@ import {
   computeOvertimeForHouseDate,
   getScheduleForEmployeeOnDate,
 } from "../overtime-engine";
+import { toManilaTimestamp } from "../timezone";
 
 type Filter<T> = (row: T) => boolean;
 type SortInstruction<T> = { column: keyof T; ascending: boolean };
@@ -378,6 +379,51 @@ describe("overtime engine", () => {
 
     assert.equal(result?.rawOtMinutes, 60);
     assert.ok(result?.reasons.includes("open_segment"));
+  });
+
+  it("does not inflate OT when segment matches schedule in Manila time", async () => {
+    const scheduleWindow = { ...baseWindow, start_time: "07:00", end_time: "17:30" };
+    const timeIn = toManilaTimestamp("2024-10-01", "07:00");
+    const timeOut = toManilaTimestamp("2024-10-01", "17:30");
+    assert.ok(timeIn);
+    assert.ok(timeOut);
+
+    const supabase = new SupabaseMock({
+      segments: [buildSegment({ time_in: timeIn, time_out: timeOut })],
+      employees: [baseEmployee],
+      assignments: [baseAssignment],
+      windows: [scheduleWindow],
+      policies: [basePolicy],
+    });
+
+    const result = await computeDailyOvertime(
+      supabase as never,
+      { houseId: "house-1", employeeId: "emp-1", workDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    assert.equal(result?.rawOtMinutes, 0);
+    assert.equal(result?.finalOtMinutes, 0);
+
+    const timeOutLate = toManilaTimestamp("2024-10-01", "18:30");
+    assert.ok(timeOutLate);
+
+    const supabaseLate = new SupabaseMock({
+      segments: [buildSegment({ time_in: timeIn, time_out: timeOutLate })],
+      employees: [baseEmployee],
+      assignments: [baseAssignment],
+      windows: [scheduleWindow],
+      policies: [basePolicy],
+    });
+
+    const lateResult = await computeDailyOvertime(
+      supabaseLate as never,
+      { houseId: "house-1", employeeId: "emp-1", workDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    assert.equal(lateResult?.rawOtMinutes, 60);
+    assert.equal(lateResult?.finalOtMinutes, 60);
   });
 
   it("denies cross-house access", async () => {

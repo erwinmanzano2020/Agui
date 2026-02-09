@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
+import { toManilaOffsetTimestampFromDate, toManilaTimestamp } from "@/lib/hr/timezone";
 import { resolveEffectiveShift } from "@/lib/shifts";
 import {
   computeMinutes,
@@ -191,22 +192,32 @@ export default function DtrBulkPage() {
           overtime_minutes: number;
         }> = [];
         if (cell?.in1 && cell?.out1) {
+          const timeIn = toManilaTimestamp(date, `${cell.in1}:00`);
+          const timeOut = toManilaTimestamp(date, `${cell.out1}:00`);
+          if (!timeIn || !timeOut) {
+            throw new Error("Invalid segment time");
+          }
           inserts.push({
             employee_id: empId,
             work_date: date,
-            time_in: new Date(`${date}T${cell.in1}:00`).toISOString(),
-            time_out: new Date(`${date}T${cell.out1}:00`).toISOString(),
+            time_in: timeIn,
+            time_out: timeOut,
             source: "manual",
             status: "open",
             overtime_minutes: 0,
           });
         }
         if (cell?.in2 && cell?.out2) {
+          const timeIn = toManilaTimestamp(date, `${cell.in2}:00`);
+          const timeOut = toManilaTimestamp(date, `${cell.out2}:00`);
+          if (!timeIn || !timeOut) {
+            throw new Error("Invalid segment time");
+          }
           inserts.push({
             employee_id: empId,
             work_date: date,
-            time_in: new Date(`${date}T${cell.in2}:00`).toISOString(),
-            time_out: new Date(`${date}T${cell.out2}:00`).toISOString(),
+            time_in: timeIn,
+            time_out: timeOut,
             source: "manual",
             status: "open",
             overtime_minutes: 0,
@@ -256,6 +267,9 @@ export default function DtrBulkPage() {
         const shift = await resolveEffectiveShift(empId, date);
         const timeIn = new Date(firstInISO);
         const timeOut = new Date(lastOutISO);
+        if (Number.isNaN(timeIn.getTime()) || Number.isNaN(timeOut.getTime())) {
+          throw new Error("Invalid rollup timestamp");
+        }
         const { regular, ot } = computeMinutes(date, timeIn, timeOut, shift);
 
         // Optional extras: late/undertime (present-day only logic handled in helpers)
@@ -266,8 +280,8 @@ export default function DtrBulkPage() {
           {
             employee_id: empId,
             work_date: date,
-            time_in: timeIn.toISOString(),
-            time_out: timeOut.toISOString(),
+            time_in: toManilaOffsetTimestampFromDate(timeIn),
+            time_out: toManilaOffsetTimestampFromDate(timeOut),
             minutes_regular: regular,
             minutes_ot: ot,
             minutes_late: late,

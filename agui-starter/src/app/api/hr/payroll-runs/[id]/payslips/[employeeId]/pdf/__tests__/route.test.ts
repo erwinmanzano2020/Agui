@@ -33,16 +33,37 @@ class PayslipPdfSupabaseMock {
       select: () => query,
       eq: () => query,
       in: () => query,
+      gte: () => query,
       lte: () => query,
-      order: async (): QueryResult<T> => ({ data, error: null }),
+      order: () => query,
       maybeSingle: async (): QueryResult<T> => ({ data, error: null }),
+      then: <TResult1 = unknown, TResult2 = never>(
+        onfulfilled?: (value: { data: T; error: null }) => TResult1 | PromiseLike<TResult1>,
+        onrejected?: (reason: unknown) => TResult2 | PromiseLike<TResult2>,
+      ) => Promise.resolve({ data, error: null }).then(onfulfilled, onrejected),
     };
     return query;
   }
 
+  segments = [
+    {
+      id: "segment-1",
+      house_id: this.houseId,
+      employee_id: this.employeeId,
+      work_date: "2024-01-01",
+      time_in: "2024-01-01T09:00:00+08:00",
+      time_out: "2024-01-01T17:00:00+08:00",
+      hours_worked: 8,
+      overtime_minutes: 0,
+      source: "manual",
+      status: "closed",
+      created_at: "2024-01-01T17:00:00.000Z",
+    },
+  ];
+
   from(table: string) {
     if (table === "dtr_segments") {
-      throw new Error("dtr_segments should not be accessed for payslip PDFs");
+      return this.buildQuery(this.segments);
     }
 
     if (table === "hr_payroll_runs") {

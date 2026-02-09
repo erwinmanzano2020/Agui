@@ -19,6 +19,11 @@ function formatCurrency(value: number) {
   return currencyFormatter.format(Number.isFinite(value) ? value : 0);
 }
 
+function formatCurrencyOptional(value?: number | null) {
+  if (!Number.isFinite(value ?? NaN)) return "—";
+  return formatCurrency(value ?? 0);
+}
+
 type EmployeeSummary = {
   id: string;
   name: string;
@@ -43,7 +48,19 @@ type PayslipPreviewRow = {
   deductionsTotal: number;
   grossPay: number;
   netPay: number;
-  flags: { missingScheduleDays: number; openSegment: boolean };
+  flags: {
+    missingScheduleDays: number;
+    openSegment: boolean;
+    absentDays?: number;
+    timezoneMismatchDays?: number;
+  };
+  diagnostics?: {
+    daysWorked?: number;
+    dailyRate?: number | null;
+    gross?: number | null;
+    paidMinutes?: number;
+    scheduledMinutes?: number;
+  };
   employeeName: string;
   employeeCode: string;
 };
@@ -68,6 +85,7 @@ export default function PayslipPreviewPanel({
   const [amount, setAmount] = useState("");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
   const deductionsLocked = runStatus === "posted" || runStatus === "paid";
   const exportLocked = runStatus === "draft";
 
@@ -141,9 +159,25 @@ export default function PayslipPreviewPanel({
             Computed from payroll run snapshots. Open segments are ignored for pay.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={loadPayslips} disabled={loading}>
-          {loading ? "Refreshing..." : "Refresh"}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={showDiagnostics}
+              onChange={(event) => setShowDiagnostics(event.target.checked)}
+            />
+            Show diagnostics
+          </label>
+          <span
+            className="text-xs text-muted-foreground"
+            title="Diagnostics are for sanity-checking only. Payroll math is based on schedule-bounded minutes + policies."
+          >
+            Diagnostics are for sanity-checking only.
+          </span>
+          <Button variant="outline" size="sm" onClick={loadPayslips} disabled={loading}>
+            {loading ? "Refreshing..." : "Refresh"}
+          </Button>
+        </div>
       </div>
 
       {error ? (
@@ -157,6 +191,13 @@ export default function PayslipPreviewPanel({
           <thead className="bg-muted/40 text-xs uppercase text-muted-foreground">
             <tr>
               <th className="px-6 py-3">Employee</th>
+              {showDiagnostics ? (
+                <>
+                  <th className="px-6 py-3">Days worked</th>
+                  <th className="px-6 py-3">Rate / day</th>
+                  <th className="px-6 py-3">Gross</th>
+                </>
+              ) : null}
               <th className="px-6 py-3">Regular pay</th>
               <th className="px-6 py-3">OT pay</th>
               <th className="px-6 py-3">Undertime deduction</th>
@@ -180,6 +221,19 @@ export default function PayslipPreviewPanel({
                   </div>
                   <div className="text-xs text-muted-foreground">{row.employeeCode}</div>
                 </td>
+                {showDiagnostics ? (
+                  <>
+                    <td className="px-6 py-3">
+                      {row.diagnostics?.daysWorked ?? "—"}
+                    </td>
+                    <td className="px-6 py-3">
+                      {formatCurrencyOptional(row.diagnostics?.dailyRate)}
+                    </td>
+                    <td className="px-6 py-3">
+                      {formatCurrencyOptional(row.diagnostics?.gross)}
+                    </td>
+                  </>
+                ) : null}
                 <td className="px-6 py-3 font-medium text-foreground">
                   {formatCurrency(row.regularPay)}
                 </td>
@@ -204,6 +258,9 @@ export default function PayslipPreviewPanel({
                       <Badge tone="warn">Missing schedule</Badge>
                     ) : null}
                     {row.flags.openSegment ? <Badge tone="warn">Open segment</Badge> : null}
+                    {row.flags.timezoneMismatchDays ? (
+                      <Badge tone="warn">Timezone mismatch</Badge>
+                    ) : null}
                   </div>
                 </td>
                 <td className="px-6 py-3">
@@ -233,7 +290,7 @@ export default function PayslipPreviewPanel({
               <tr>
                 <td
                   className="px-6 py-6 text-center text-sm text-muted-foreground"
-                  colSpan={8}
+                  colSpan={showDiagnostics ? 11 : 8}
                 >
                   No payslip previews available for this run.
                 </td>

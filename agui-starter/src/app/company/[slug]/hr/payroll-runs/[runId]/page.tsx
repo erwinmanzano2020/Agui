@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { getPayrollRunWithItems } from "@/lib/hr/payroll-runs-server";
 import CreateAdjustmentRunButton from "./CreateAdjustmentRunButton";
+import DownloadPayrollRunPdfButton from "./DownloadPayrollRunPdfButton";
 import FinalizePayrollRunButton from "./FinalizePayrollRunButton";
 import MarkPayrollRunPaidForm from "./MarkPayrollRunPaidForm";
 import PayslipPreviewPanel from "./PayslipPreviewPanel";
@@ -96,6 +97,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
             <div className="rounded-lg border border-dashed border-border bg-white/60 px-4 py-2">
               Snapshot. Read-only. No money computed.
             </div>
+            <DownloadPayrollRunPdfButton runId={run.id} runStatus={run.status} />
             {canFinalize ? <FinalizePayrollRunButton runId={run.id} houseId={house.id} /> : null}
             {canPost ? <PostPayrollRunButton runId={run.id} houseId={house.id} /> : null}
           </div>

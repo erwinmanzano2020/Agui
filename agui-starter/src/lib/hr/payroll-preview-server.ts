@@ -4,7 +4,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database, DtrSegmentRow, EmployeeRow } from "@/lib/db.types";
 import { requireHrAccess, type HrAccessDecision } from "./access";
-import { computeOvertimeForHouseDate, parseDateParts } from "./overtime-engine";
+import { computeOvertimeForHouseDate, getScheduleForEmployeeOnDate, parseDateParts } from "./overtime-engine";
+import { computeDailyRateBreakdown } from "./payroll-math";
+import { isWorkDateMismatch, toManilaDate } from "./timezone";
 
 const DTR_SEGMENT_COLUMNS =
   "id, house_id, employee_id, work_date, time_in, time_out, status";
@@ -29,6 +31,7 @@ export type PayrollPreviewRow = {
     missingScheduleDays: number;
     openSegmentDays: number;
     hasCorrectedSegments: boolean;
+    timezoneMismatchDays: number;
   };
 };
 
@@ -59,12 +62,6 @@ export class PayrollPreviewValidationError extends Error {
     super(message);
     this.name = "PayrollPreviewValidationError";
   }
-}
-
-function diffMinutes(startMs: number, endMs: number): number {
-  if (!Number.isFinite(startMs) || !Number.isFinite(endMs)) return 0;
-  if (endMs <= startMs) return 0;
-  return Math.floor((endMs - startMs) / 60000);
 }
 
 function compareDateStrings(a: string, b: string): number {
@@ -223,6 +220,17 @@ export async function computePayrollPreviewForHousePeriod(
   const rowsByEmployee = new Map<string, PayrollPreviewRow>();
   const segmentsByEmployeeDate = new Map<string, Map<string, DtrSegmentRow[]>>();
   const openSegmentDays = new Map<string, Set<string>>();
+  const timezoneMismatchDays = new Map<string, Set<string>>();
+
+  segments.forEach((segment) => {
+    const employee = employeeMap.get(segment.employee_id);
+    if (!employee || !segment.work_date) return;
+    if (isWorkDateMismatch(segment.work_date, segment.time_in, segment.time_out)) {
+      const mismatchSet = timezoneMismatchDays.get(employee.id) ?? new Set<string>();
+      mismatchSet.add(segment.work_date);
+      timezoneMismatchDays.set(employee.id, mismatchSet);
+    }
+  });
 
   segments.forEach((segment) => {
     const employee = employeeMap.get(segment.employee_id);
@@ -241,6 +249,7 @@ export async function computePayrollPreviewForHousePeriod(
           missingScheduleDays: 0,
           openSegmentDays: 0,
           hasCorrectedSegments: false,
+          timezoneMismatchDays: 0,
         },
       });
     }
@@ -252,20 +261,18 @@ export async function computePayrollPreviewForHousePeriod(
       row.flags.hasCorrectedSegments = true;
     }
 
+    const manilaWorkDate = toManilaDate(segment.time_in) ?? segment.work_date;
+
     if (!segment.time_out) {
       const daySet = openSegmentDays.get(employee.id) ?? new Set<string>();
-      daySet.add(segment.work_date);
+      daySet.add(manilaWorkDate);
       openSegmentDays.set(employee.id, daySet);
     }
 
-    const startMs = segment.time_in ? Date.parse(segment.time_in) : NaN;
-    const endMs = segment.time_out ? Date.parse(segment.time_out) : NaN;
-    row.workMinutesTotal += diffMinutes(startMs, endMs);
-
     const dateMap = segmentsByEmployeeDate.get(employee.id) ?? new Map<string, DtrSegmentRow[]>();
-    const bucket = dateMap.get(segment.work_date) ?? [];
+    const bucket = dateMap.get(manilaWorkDate) ?? [];
     bucket.push(segment);
-    dateMap.set(segment.work_date, bucket);
+    dateMap.set(manilaWorkDate, bucket);
     segmentsByEmployeeDate.set(employee.id, dateMap);
   });
 
@@ -303,10 +310,38 @@ export async function computePayrollPreviewForHousePeriod(
     });
   }
 
+  for (const [employeeId, dateMap] of segmentsByEmployeeDate.entries()) {
+    const row = rowsByEmployee.get(employeeId);
+    if (!row) continue;
+    for (const [date, segmentsForDate] of dateMap.entries()) {
+      const schedule = await getScheduleForEmployeeOnDate(
+        supabase,
+        { houseId: input.houseId, employeeId, workDate: date },
+        { access },
+      );
+      const breakdown = computeDailyRateBreakdown(
+        segmentsForDate,
+        schedule.status === "ok"
+          ? {
+              scheduledStartTs: schedule.scheduledStartTs,
+              scheduledEndTs: schedule.scheduledEndTs,
+              breakStartTs: schedule.breakStartTs ?? null,
+              breakEndTs: schedule.breakEndTs ?? null,
+            }
+          : null,
+      );
+      row.workMinutesTotal += breakdown.regularMinutes;
+    }
+  }
+
   rowsByEmployee.forEach((row, employeeId) => {
     const openDays = openSegmentDays.get(employeeId);
     if (openDays) {
       row.flags.openSegmentDays = openDays.size;
+    }
+    const mismatchDays = timezoneMismatchDays.get(employeeId);
+    if (mismatchDays) {
+      row.flags.timezoneMismatchDays = mismatchDays.size;
     }
   });
 
