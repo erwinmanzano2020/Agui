@@ -384,6 +384,7 @@ function computePayslipPreview(input: {
   deductions: HrPayrollRunDeductionRow[];
   regularMinutesForPay?: number;
   regularPayOverride?: number;
+  undertimeDeductionOverride?: number;
 }): PayslipPreview {
   const ratePerDay = asNumber(input.employee.rate_per_day);
   const workMinutes = asNumber(input.item.work_minutes);
@@ -404,7 +405,8 @@ function computePayslipPreview(input: {
   const regularPay =
     input.regularPayOverride ?? perMinuteRate * regularMinutes;
   const overtimePay = perMinuteRate * overtimeMinutes * input.policy.otMultiplier;
-  const undertimeDeduction = perMinuteRate * undertimeMinutes;
+  const undertimeDeduction =
+    input.undertimeDeductionOverride ?? perMinuteRate * undertimeMinutes;
   const grossPay = regularPay + overtimePay;
 
   const otherDeductions = input.deductions.map((deduction) => ({
@@ -561,13 +563,16 @@ export async function computePayslipsForPayrollRun(
     const ratePerDay = asNumber(employee.rate_per_day);
     let regularMinutesForPay = 0;
     let regularPayOverride = 0;
+    let undertimeDeductionOverride = 0;
     attendedDateList.forEach((date) => {
       const scheduledMinutes = scheduleForAttendance.minutesByDate.get(date) ?? 0;
       if (scheduledMinutes <= 0) return;
       const workedMinutes = workedMinutesByDate.get(date) ?? 0;
       const cappedMinutes = Math.min(workedMinutes, scheduledMinutes);
       regularMinutesForPay += cappedMinutes;
-      regularPayOverride += ratePerDay * (cappedMinutes / scheduledMinutes);
+      regularPayOverride += ratePerDay;
+      const undertimeMinutesForDay = Math.max(0, scheduledMinutes - cappedMinutes);
+      undertimeDeductionOverride += ratePerDay * (undertimeMinutesForDay / scheduledMinutes);
     });
 
     const deductions = await loadRunDeductions(supabase, input.runId, item.employee_id);
@@ -585,6 +590,7 @@ export async function computePayslipsForPayrollRun(
       deductions,
       regularMinutesForPay,
       regularPayOverride,
+      undertimeDeductionOverride,
     });
 
     rows.push({

@@ -644,8 +644,9 @@ describe("payslip preview", () => {
       { access: baseAccess },
     );
 
-    assert.ok(payslip.regularPay < 500);
+    assert.equal(payslip.regularPay, 500);
     assert.equal(payslip.undertimeMinutes, 30);
+    assert.ok(payslip.undertimeDeduction > 0);
   });
 
   it("respects break windows when computing regular pay", async () => {
@@ -712,6 +713,138 @@ describe("payslip preview", () => {
 
     assert.equal(payslip.regularPay, 500);
     assert.equal(payslip.undertimeMinutes, 0);
+  });
+
+  it("does not double-deduct undertime across varying schedules", async () => {
+    const supabase = new SupabaseMock(
+      buildBaseData({
+        employees: [
+          {
+            ...buildBaseData().employees[0],
+            rate_per_day: 500,
+          },
+        ],
+        runs: [
+          {
+            id: "run-1",
+            house_id: "house-1",
+            period_start: "2026-01-01",
+            period_end: "2026-01-31",
+            status: "draft",
+            created_by: null,
+            created_at: "2026-02-01T00:00:00Z",
+            finalized_at: null,
+            finalized_by: null,
+            finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
+          },
+        ],
+        items: [
+          {
+            id: "item-1",
+            run_id: "run-1",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_minutes: 1200,
+            overtime_minutes_raw: 0,
+            overtime_minutes_rounded: 0,
+            missing_schedule_days: 0,
+            open_segment_days: 0,
+            corrected_segment_days: 0,
+            notes: {},
+            created_at: "2026-02-01T00:00:00Z",
+          },
+        ],
+        segments: [
+          {
+            id: "segment-1",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_date: "2026-01-02",
+            time_in: "2026-01-02T07:00:00+08:00",
+            time_out: "2026-01-02T17:00:00+08:00",
+            hours_worked: 10,
+            overtime_minutes: 0,
+            source: "manual",
+            status: "closed",
+            created_at: "2026-01-02T17:00:00.000Z",
+          },
+          {
+            id: "segment-2",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_date: "2026-01-25",
+            time_in: "2026-01-25T07:30:00+08:00",
+            time_out: "2026-01-25T17:30:00+08:00",
+            hours_worked: 10,
+            overtime_minutes: 0,
+            source: "manual",
+            status: "closed",
+            created_at: "2026-01-25T17:30:00.000Z",
+          },
+        ],
+        assignments: [
+          {
+            id: "assign-1",
+            house_id: "house-1",
+            branch_id: "branch-1",
+            schedule_id: "schedule-1",
+            effective_from: "2026-01-01",
+            created_at: "2026-01-01T00:00:00Z",
+          },
+          {
+            id: "assign-2",
+            house_id: "house-1",
+            branch_id: "branch-1",
+            schedule_id: "schedule-2",
+            effective_from: "2026-01-20",
+            created_at: "2026-01-20T00:00:00Z",
+          },
+        ],
+        windows: [
+          {
+            id: "window-1",
+            house_id: "house-1",
+            schedule_id: "schedule-1",
+            day_of_week: 5,
+            start_time: "07:00:00",
+            end_time: "17:30:00",
+            break_start: null,
+            break_end: null,
+            created_at: "2026-01-01T00:00:00Z",
+          },
+          {
+            id: "window-2",
+            house_id: "house-1",
+            schedule_id: "schedule-2",
+            day_of_week: 0,
+            start_time: "07:30:00",
+            end_time: "17:30:00",
+            break_start: null,
+            break_end: null,
+            created_at: "2026-01-20T00:00:00Z",
+          },
+        ],
+      }),
+    );
+
+    const payslip = await computePayslipForPayrollRunEmployee(
+      supabase as never,
+      { houseId: "house-1", runId: "run-1", employeeId: "emp-1" },
+      { access: baseAccess },
+    );
+
+    assert.equal(payslip.regularPay, 1000);
+    assert.ok(Math.abs(payslip.undertimeDeduction - 23.81) < 0.02);
+    assert.ok(Math.abs(payslip.netPay - (payslip.regularPay - payslip.undertimeDeduction)) < 0.01);
   });
 
   it("only counts overtime after schedule end", async () => {
