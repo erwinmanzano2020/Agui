@@ -715,6 +715,98 @@ describe("payslip preview", () => {
     assert.equal(payslip.undertimeMinutes, 0);
   });
 
+  it("computes diagnostics days worked from closed schedule overlap", async () => {
+    const supabase = new SupabaseMock(
+      buildBaseData({
+        segments: [
+          {
+            id: "segment-1",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_date: "2024-01-01",
+            time_in: "2024-01-01T09:00:00+08:00",
+            time_out: "2024-01-01T17:00:00+08:00",
+            hours_worked: 8,
+            overtime_minutes: 0,
+            source: "manual",
+            status: "closed",
+            created_at: "2024-01-01T17:00:00.000Z",
+          },
+        ],
+      }),
+    );
+
+    const payslip = await computePayslipForPayrollRunEmployee(
+      supabase as never,
+      { houseId: "house-1", runId: "run-1", employeeId: "emp-1" },
+      { access: baseAccess },
+    );
+
+    assert.equal(payslip.diagnostics?.daysWorked, 1);
+    assert.equal(payslip.diagnostics?.gross, payslip.ratePerDay);
+  });
+
+  it("does not count diagnostics days worked without schedule overlap", async () => {
+    const supabase = new SupabaseMock(
+      buildBaseData({
+        segments: [
+          {
+            id: "segment-1",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_date: "2024-01-01",
+            time_in: "2024-01-01T05:00:00+08:00",
+            time_out: "2024-01-01T06:00:00+08:00",
+            hours_worked: 1,
+            overtime_minutes: 0,
+            source: "manual",
+            status: "closed",
+            created_at: "2024-01-01T06:00:00.000Z",
+          },
+        ],
+      }),
+    );
+
+    const payslip = await computePayslipForPayrollRunEmployee(
+      supabase as never,
+      { houseId: "house-1", runId: "run-1", employeeId: "emp-1" },
+      { access: baseAccess },
+    );
+
+    assert.equal(payslip.diagnostics?.daysWorked, 0);
+    assert.equal(payslip.diagnostics?.gross, 0);
+  });
+
+  it("ignores open segments when counting days worked", async () => {
+    const supabase = new SupabaseMock(
+      buildBaseData({
+        segments: [
+          {
+            id: "segment-1",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_date: "2024-01-01",
+            time_in: "2024-01-01T09:00:00+08:00",
+            time_out: null,
+            hours_worked: null,
+            overtime_minutes: 0,
+            source: "manual",
+            status: "open",
+            created_at: "2024-01-01T09:00:00.000Z",
+          },
+        ],
+      }),
+    );
+
+    const payslip = await computePayslipForPayrollRunEmployee(
+      supabase as never,
+      { houseId: "house-1", runId: "run-1", employeeId: "emp-1" },
+      { access: baseAccess },
+    );
+
+    assert.equal(payslip.diagnostics?.daysWorked, 0);
+  });
+
   it("does not double-deduct undertime across varying schedules", async () => {
     const supabase = new SupabaseMock(
       buildBaseData({

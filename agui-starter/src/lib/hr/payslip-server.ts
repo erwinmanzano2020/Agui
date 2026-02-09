@@ -47,6 +47,13 @@ export type PayslipPreview = {
     absentDays: number;
     timezoneMismatchDays: number;
   };
+  diagnostics?: {
+    daysWorked?: number;
+    dailyRate?: number | null;
+    gross?: number | null;
+    paidMinutes?: number;
+    scheduledMinutes?: number;
+  };
 };
 
 export type PayslipPreviewRow = PayslipPreview & {
@@ -385,6 +392,13 @@ function computePayslipPreview(input: {
   regularMinutesForPay?: number;
   regularPayOverride?: number;
   undertimeDeductionOverride?: number;
+  diagnostics?: {
+    daysWorked?: number;
+    dailyRate?: number | null;
+    gross?: number | null;
+    paidMinutes?: number;
+    scheduledMinutes?: number;
+  };
 }): PayslipPreview {
   const ratePerDay = asNumber(input.employee.rate_per_day);
   const workMinutes = asNumber(input.item.work_minutes);
@@ -440,6 +454,7 @@ function computePayslipPreview(input: {
       absentDays: input.absentDays,
       timezoneMismatchDays: input.timezoneMismatchDays,
     },
+    diagnostics: input.diagnostics,
   };
 }
 
@@ -501,6 +516,7 @@ export async function computePayslipsForPayrollRun(
     const mismatchDates = new Set<string>();
     const attendanceDates = new Set<string>();
     const segmentsByDate = new Map<string, DtrSegmentRow[]>();
+    const closedSegmentsByDate = new Map<string, DtrSegmentRow[]>();
 
     segments.forEach((segment) => {
       if (!segment.time_in) return;
@@ -513,9 +529,15 @@ export async function computePayslipsForPayrollRun(
       const bucket = segmentsByDate.get(manilaWorkDate) ?? [];
       bucket.push(segment);
       segmentsByDate.set(manilaWorkDate, bucket);
+      if (segment.status === "closed") {
+        const closedBucket = closedSegmentsByDate.get(manilaWorkDate) ?? [];
+        closedBucket.push(segment);
+        closedSegmentsByDate.set(manilaWorkDate, closedBucket);
+      }
     });
 
     const workedMinutesByDate = new Map<string, number>();
+    const closedMinutesByDate = new Map<string, number>();
     for (const date of attendanceDates) {
       const schedule = await getScheduleForEmployeeOnDate(
         supabase,
@@ -534,6 +556,18 @@ export async function computePayslipsForPayrollRun(
           : null,
       );
       workedMinutesByDate.set(date, breakdown.regularMinutes);
+      const closedBreakdown = computeDailyRateBreakdown(
+        closedSegmentsByDate.get(date) ?? [],
+        schedule.status === "ok"
+          ? {
+              scheduledStartTs: schedule.scheduledStartTs,
+              scheduledEndTs: schedule.scheduledEndTs,
+              breakStartTs: schedule.breakStartTs ?? null,
+              breakEndTs: schedule.breakEndTs ?? null,
+            }
+          : null,
+      );
+      closedMinutesByDate.set(date, closedBreakdown.regularMinutes);
     }
     const allDates = listDatesBetween(run.period_start, run.period_end);
     const absentDays = allDates.filter((date) => !attendanceDates.has(date)).length;
@@ -564,6 +598,9 @@ export async function computePayslipsForPayrollRun(
     let regularMinutesForPay = 0;
     let regularPayOverride = 0;
     let undertimeDeductionOverride = 0;
+    let daysWorked = 0;
+    let diagnosticsPaidMinutes = 0;
+    let diagnosticsScheduledMinutes = 0;
     attendedDateList.forEach((date) => {
       const scheduledMinutes = scheduleForAttendance.minutesByDate.get(date) ?? 0;
       if (scheduledMinutes <= 0) return;
@@ -573,7 +610,16 @@ export async function computePayslipsForPayrollRun(
       regularPayOverride += ratePerDay;
       const undertimeMinutesForDay = Math.max(0, scheduledMinutes - cappedMinutes);
       undertimeDeductionOverride += ratePerDay * (undertimeMinutesForDay / scheduledMinutes);
+      diagnosticsPaidMinutes += cappedMinutes;
+      diagnosticsScheduledMinutes += scheduledMinutes;
+      const closedMinutes = closedMinutesByDate.get(date) ?? 0;
+      if (closedMinutes > 0) {
+        daysWorked += 1;
+      }
     });
+    const diagnosticsRate = ratePerDay > 0 ? ratePerDay : null;
+    const diagnosticsGross =
+      diagnosticsRate !== null ? diagnosticsRate * daysWorked : null;
 
     const deductions = await loadRunDeductions(supabase, input.runId, item.employee_id);
     const preview = computePayslipPreview({
@@ -591,6 +637,13 @@ export async function computePayslipsForPayrollRun(
       regularMinutesForPay,
       regularPayOverride,
       undertimeDeductionOverride,
+      diagnostics: {
+        daysWorked,
+        dailyRate: diagnosticsRate,
+        gross: diagnosticsGross,
+        paidMinutes: diagnosticsPaidMinutes || undefined,
+        scheduledMinutes: diagnosticsScheduledMinutes || undefined,
+      },
     });
 
     rows.push({
