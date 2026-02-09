@@ -382,6 +382,8 @@ function computePayslipPreview(input: {
   absentDays: number;
   timezoneMismatchDays: number;
   deductions: HrPayrollRunDeductionRow[];
+  regularMinutesForPay?: number;
+  regularPayOverride?: number;
 }): PayslipPreview {
   const ratePerDay = asNumber(input.employee.rate_per_day);
   const workMinutes = asNumber(input.item.work_minutes);
@@ -390,7 +392,8 @@ function computePayslipPreview(input: {
   const perMinuteRate =
     scheduleMinutesPerDay > 0 ? ratePerDay / scheduleMinutesPerDay : 0;
 
-  const regularMinutes = Math.min(workMinutes, input.scheduleMinutesTotal);
+  const regularMinutes =
+    input.regularMinutesForPay ?? Math.min(workMinutes, input.scheduleMinutesTotal);
   const undertimeMinutes = Math.max(input.undertimeMinutes, 0);
 
   const hasMissingSchedule = input.missingScheduleDays > 0;
@@ -398,7 +401,8 @@ function computePayslipPreview(input: {
     ? 0
     : asNumber(input.item.overtime_minutes_rounded);
 
-  const regularPay = perMinuteRate * regularMinutes;
+  const regularPay =
+    input.regularPayOverride ?? perMinuteRate * regularMinutes;
   const overtimePay = perMinuteRate * overtimeMinutes * input.policy.otMultiplier;
   const undertimeDeduction = perMinuteRate * undertimeMinutes;
   const grossPay = regularPay + overtimePay;
@@ -554,6 +558,18 @@ export async function computePayslipsForPayrollRun(
       }
     });
 
+    const ratePerDay = asNumber(employee.rate_per_day);
+    let regularMinutesForPay = 0;
+    let regularPayOverride = 0;
+    attendedDateList.forEach((date) => {
+      const scheduledMinutes = scheduleForAttendance.minutesByDate.get(date) ?? 0;
+      if (scheduledMinutes <= 0) return;
+      const workedMinutes = workedMinutesByDate.get(date) ?? 0;
+      const cappedMinutes = Math.min(workedMinutes, scheduledMinutes);
+      regularMinutesForPay += cappedMinutes;
+      regularPayOverride += ratePerDay * (cappedMinutes / scheduledMinutes);
+    });
+
     const deductions = await loadRunDeductions(supabase, input.runId, item.employee_id);
     const preview = computePayslipPreview({
       run,
@@ -567,6 +583,8 @@ export async function computePayslipsForPayrollRun(
       absentDays,
       timezoneMismatchDays: mismatchDates.size,
       deductions,
+      regularMinutesForPay,
+      regularPayOverride,
     });
 
     rows.push({
