@@ -312,6 +312,7 @@ describe("GET /api/hr/payroll-runs/[id]/pdf", () => {
     const buffer = await response.arrayBuffer();
     const text = new TextDecoder().decode(new Uint8Array(buffer));
     assert.ok(text.includes("Register Summary"));
+    assert.ok(text.includes("Total Gross Pay"));
     assert.ok(text.includes("Ana Rivera"));
   });
 

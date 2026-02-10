@@ -43,6 +43,11 @@ export function renderPayslipPdf(
   const titleSize = 18;
   const headingSize = 13;
   const bodySize = 11;
+  const labelSize = 10;
+  const tableRowHeight = 16;
+  const tableBorderWidth = 0.6;
+  const tablePadding = 6;
+  const amountFont = "courier";
 
   let cursorY = margin;
 
@@ -61,13 +66,61 @@ export function renderPayslipPdf(
     cursorY += lineHeight;
   };
 
-  const drawLabelValue = (label: string, value: string) => {
+  const drawSectionHeader = (text: string) => {
+    ensureSpace();
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(headingSize);
+    doc.text(text, margin, cursorY);
+    cursorY += lineHeight;
+  };
+
+  const drawDivider = () => {
+    ensureSpace();
+    doc.setDrawColor(220);
+    doc.setLineWidth(tableBorderWidth);
+    doc.line(margin, cursorY, pageWidth - margin, cursorY);
+    cursorY += lineHeight / 2;
+  };
+
+  const drawTableHeader = (label: string, valueLabel: string) => {
+    ensureSpace();
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(labelSize);
+    doc.text(label, margin + tablePadding, cursorY);
+    doc.text(valueLabel, pageWidth - margin - tablePadding, cursorY, { align: "right" });
+    cursorY += tableRowHeight;
+  };
+
+  const drawTableRow = (label: string, value: string) => {
     ensureSpace();
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(bodySize);
-    doc.text(label, margin, cursorY);
-    doc.text(value, pageWidth - margin, cursorY, { align: "right" });
-    cursorY += lineHeight;
+    doc.setFontSize(labelSize);
+    doc.text(label, margin + tablePadding, cursorY);
+    doc.setFont(amountFont, "normal");
+    doc.setFontSize(labelSize);
+    doc.text(value, pageWidth - margin - tablePadding, cursorY, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    cursorY += tableRowHeight;
+  };
+
+  const drawTotalsCard = (rows: Array<[string, string]>) => {
+    const cardHeight = rows.length * tableRowHeight + tablePadding * 2;
+    ensureSpace(Math.ceil(cardHeight / lineHeight));
+    doc.setDrawColor(200);
+    doc.setLineWidth(tableBorderWidth);
+    doc.rect(margin, cursorY, pageWidth - margin * 2, cardHeight);
+    const startY = cursorY + tablePadding + tableRowHeight - 4;
+    const originalY = cursorY;
+    cursorY = startY;
+    rows.forEach(([label, value]) => {
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(labelSize);
+      doc.text(label, margin + tablePadding, cursorY);
+      doc.setFont(amountFont, "bold");
+      doc.text(value, pageWidth - margin - tablePadding, cursorY, { align: "right" });
+      cursorY += tableRowHeight;
+    });
+    cursorY = originalY + cardHeight + sectionGap;
   };
 
   doc.setFont("helvetica", "bold");
@@ -75,11 +128,7 @@ export function renderPayslipPdf(
   doc.text("Payslip", margin, cursorY);
   cursorY += lineHeight + 4;
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(headingSize);
-  doc.text("Employee", margin, cursorY);
-  cursorY += lineHeight;
-
+  drawSectionHeader("Employee");
   doc.setFont("helvetica", "normal");
   doc.setFontSize(bodySize);
   doc.text(input.employeeName, margin, cursorY);
@@ -114,15 +163,22 @@ export function renderPayslipPdf(
 
   cursorY += sectionGap;
 
-  drawLine("Earnings", { bold: true, size: headingSize });
-  drawLabelValue("Regular Pay", formatCurrency(normalizeAmount(input.regularPay)));
-  drawLabelValue("OT Pay", formatCurrency(normalizeAmount(input.overtimePay)));
+  drawSectionHeader("Earnings");
+  drawTableHeader("Description", "Amount");
+  drawDivider();
+  drawTableRow("Regular Pay", formatCurrency(normalizeAmount(input.regularPay)));
+  drawTableRow("OT Pay", formatCurrency(normalizeAmount(input.overtimePay)));
 
   cursorY += sectionGap;
 
-  drawLine("Deductions", { bold: true, size: headingSize });
+  drawSectionHeader("Deductions");
+  drawTableHeader("Description", "Amount");
+  drawDivider();
   if (normalizeAmount(input.undertimeDeduction) > 0) {
-    drawLabelValue("Undertime deduction", formatCurrency(normalizeAmount(input.undertimeDeduction)));
+    drawTableRow(
+      "Undertime deduction",
+      formatCurrency(normalizeAmount(input.undertimeDeduction)),
+    );
   }
   if (input.deductions.length === 0) {
     if (normalizeAmount(input.undertimeDeduction) <= 0) {
@@ -130,31 +186,27 @@ export function renderPayslipPdf(
     }
   } else {
     input.deductions.forEach((deduction) => {
-      ensureSpace();
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(bodySize);
-      doc.text(deduction.label, margin, cursorY);
-      doc.text(formatCurrency(normalizeAmount(deduction.amount)), pageWidth - margin, cursorY, {
-        align: "right",
-      });
-      cursorY += lineHeight;
+      drawTableRow(deduction.label, formatCurrency(normalizeAmount(deduction.amount)));
     });
   }
 
-  drawLabelValue("Total Deductions", formatCurrency(normalizeAmount(input.deductionsTotal)));
+  drawDivider();
+  drawTableRow("Total Deductions", formatCurrency(normalizeAmount(input.deductionsTotal)));
 
   cursorY += sectionGap;
 
-  drawLine("Totals", { bold: true, size: headingSize });
-  drawLabelValue("Gross Pay", formatCurrency(normalizeAmount(input.grossPay)));
-  drawLabelValue("Net Pay", formatCurrency(normalizeAmount(input.netPay)));
+  drawSectionHeader("Totals");
+  drawTotalsCard([
+    ["Total Gross Pay", formatCurrency(normalizeAmount(input.grossPay))],
+    ["Net Pay", formatCurrency(normalizeAmount(input.netPay))],
+  ]);
 
   const signatureDate = input.postedAt ?? input.finalizedAt;
   const signatureLabel = input.postedAt ? "Posted" : "Finalized";
 
-  cursorY += sectionGap * 2;
+  cursorY += sectionGap;
 
-  ensureSpace(4);
+  ensureSpace(5);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(bodySize);
   doc.text("HR Signature: ____________________", margin, cursorY);

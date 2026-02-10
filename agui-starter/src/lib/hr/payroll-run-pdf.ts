@@ -39,6 +39,10 @@ export function generatePayrollRunPdf(input: PayrollRunPdfInput): Uint8Array {
   const titleSize = 18;
   const headingSize = 13;
   const bodySize = 11;
+  const labelSize = 10;
+  const cardPadding = 10;
+  const cardLineGap = 4;
+  const cardBorderWidth = 0.6;
 
   let cursorY = margin;
 
@@ -47,14 +51,6 @@ export function generatePayrollRunPdf(input: PayrollRunPdfInput): Uint8Array {
       doc.addPage();
       cursorY = margin;
     }
-  };
-
-  const drawLine = (text: string, options: { bold?: boolean; size?: number } = {}) => {
-    ensureSpace();
-    doc.setFont("helvetica", options.bold ? "bold" : "normal");
-    doc.setFontSize(options.size ?? bodySize);
-    doc.text(text, margin, cursorY);
-    cursorY += lineHeight;
   };
 
   const drawLabelValue = (label: string, value: string) => {
@@ -66,42 +62,71 @@ export function generatePayrollRunPdf(input: PayrollRunPdfInput): Uint8Array {
     cursorY += lineHeight;
   };
 
+  const drawSectionHeader = (text: string) => {
+    ensureSpace();
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(headingSize);
+    doc.text(text, margin, cursorY);
+    cursorY += lineHeight;
+  };
+
+  const drawKeyValueRow = (label: string, value: string) => {
+    ensureSpace();
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(labelSize);
+    doc.text(label, margin + cardPadding, cursorY);
+    doc.setFont("courier", "normal");
+    doc.setFontSize(labelSize);
+    doc.text(value, pageWidth - margin - cardPadding, cursorY, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    cursorY += lineHeight - cardLineGap;
+  };
+
+  const drawCard = (rows: Array<[string, string]>) => {
+    const cardHeight =
+      cardPadding * 2 + rows.length * (lineHeight - cardLineGap) + cardLineGap;
+    ensureSpace(Math.ceil(cardHeight / lineHeight));
+    doc.setDrawColor(200);
+    doc.setLineWidth(cardBorderWidth);
+    doc.rect(margin, cursorY, pageWidth - margin * 2, cardHeight);
+    const startY = cursorY + cardPadding + lineHeight - cardLineGap;
+    const originalY = cursorY;
+    cursorY = startY;
+    rows.forEach(([label, value]) => drawKeyValueRow(label, value));
+    cursorY = originalY + cardHeight + sectionGap;
+  };
+
   doc.setFont("helvetica", "bold");
   doc.setFontSize(titleSize);
   doc.text("Register Summary", margin, cursorY);
   cursorY += lineHeight + 4;
 
-  drawLine(`House: ${input.houseName}`);
-  drawLine(`Period: ${formatDate(input.periodStart)} – ${formatDate(input.periodEnd)}`);
-  drawLine(`Run Status: ${input.runStatus}`);
-  drawLine(`Reference Code: ${input.runReferenceCode ?? "(not posted)"}`);
+  drawSectionHeader("Run Details");
+  drawCard([
+    ["House", input.houseName],
+    ["Period", `${formatDate(input.periodStart)} – ${formatDate(input.periodEnd)}`],
+    ["Run Status", input.runStatus],
+    ["Reference Code", input.runReferenceCode ?? "(not posted)"],
+  ]);
 
-  cursorY += sectionGap;
+  drawSectionHeader("Totals");
+  drawCard([
+    ["Total employees", String(input.summary.totalEmployees)],
+    ["Total regular pay", formatCurrency(normalizeAmount(input.summary.totalRegularPay))],
+    ["Total OT pay", formatCurrency(normalizeAmount(input.summary.totalOvertimePay))],
+    [
+      "Total undertime deductions",
+      formatCurrency(normalizeAmount(input.summary.totalUndertimeDeductions)),
+    ],
+    [
+      "Total manual deductions",
+      formatCurrency(normalizeAmount(input.summary.totalManualDeductions)),
+    ],
+    ["Total Gross Pay", formatCurrency(normalizeAmount(input.summary.totalGrossPay))],
+    ["Total net", formatCurrency(normalizeAmount(input.summary.totalNetPay))],
+  ]);
 
-  drawLine("Totals", { bold: true, size: headingSize });
-  drawLabelValue("Total employees", String(input.summary.totalEmployees));
-  drawLabelValue(
-    "Total regular pay",
-    formatCurrency(normalizeAmount(input.summary.totalRegularPay)),
-  );
-  drawLabelValue(
-    "Total OT pay",
-    formatCurrency(normalizeAmount(input.summary.totalOvertimePay)),
-  );
-  drawLabelValue(
-    "Total undertime deductions",
-    formatCurrency(normalizeAmount(input.summary.totalUndertimeDeductions)),
-  );
-  drawLabelValue(
-    "Total manual deductions",
-    formatCurrency(normalizeAmount(input.summary.totalManualDeductions)),
-  );
-  drawLabelValue("Total gross", formatCurrency(normalizeAmount(input.summary.totalGrossPay)));
-  drawLabelValue("Total net", formatCurrency(normalizeAmount(input.summary.totalNetPay)));
-
-  cursorY += sectionGap;
-
-  drawLine("Diagnostics", { bold: true, size: headingSize });
+  drawSectionHeader("Diagnostics");
   drawLabelValue(
     "Missing schedule days",
     String(Math.max(0, Math.floor(input.summary.missingScheduleDays))),
