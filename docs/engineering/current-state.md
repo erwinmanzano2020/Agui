@@ -67,6 +67,12 @@
   - HR-3.5 freeze
     - Reference: `docs/hr/hr-3-5-freeze.md`
     - Boundary: signed employee QR, kiosk token auth, 10s debounce, idempotent sync by `clientEventId`
+  - HR-3.5.1: Kiosk devices admin (provision + disable + rotate + monitor)
+    - Reference: `docs/hr/hr-3-5-1-kiosk-devices.md`
+    - Boundary: admin lifecycle + monitoring only; no biometric/self-service/payroll logic
+  - HR-3.5.1a: Kiosk setup wizard (token verify + hardening guidance)
+    - Reference: `docs/hr/hr-3-5-1a-kiosk-setup-wizard.md`
+    - Boundary: onboarding UX + ping verification; no payroll/schedule logic
 
 ## 3. Non-Negotiable Guardrails
 - All HR/DTR data is house-scoped

@@ -14,10 +14,10 @@ export function createSupabaseKioskRepo(supabase: SupabaseClient): KioskRepo {
       return data;
     },
 
-    async touchDevice(deviceId, seenAt) {
+    async touchDevice(deviceId) {
       const { error } = await supabase
         .from("hr_kiosk_devices")
-        .update({ last_seen_at: seenAt })
+        .update({ last_seen_at: new Date().toISOString() })
         .eq("id", deviceId);
       if (error) throw new Error(error.message);
     },
@@ -86,8 +86,9 @@ export function createSupabaseKioskRepo(supabase: SupabaseClient): KioskRepo {
       return data;
     },
 
-    async insertKioskEvent({ houseId, branchId, employeeId, eventType, occurredAt, metadata }) {
+    async insertKioskEvent({ deviceId, houseId, branchId, employeeId, eventType, occurredAt, metadata }) {
       const { error } = await supabase.from("hr_kiosk_events").insert({
+        device_id: deviceId,
         house_id: houseId,
         branch_id: branchId,
         employee_id: employeeId ?? null,
@@ -96,6 +97,13 @@ export function createSupabaseKioskRepo(supabase: SupabaseClient): KioskRepo {
         metadata: metadata ?? {},
       });
       if (error) throw new Error(error.message);
+
+      const { error: updateDeviceError } = await supabase
+        .from("hr_kiosk_devices")
+        .update({ last_event_at: occurredAt })
+        .eq("id", deviceId)
+        .eq("house_id", houseId);
+      if (updateDeviceError) throw new Error(updateDeviceError.message);
     },
 
     async hasSyncClientEventId(houseId, branchId, clientEventId) {

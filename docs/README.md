@@ -10,6 +10,8 @@
   - [HR-3.3 Freeze Declaration](./hr/hr-3-3-freeze.md)
   - [HR-3.4.2 Freeze — Run PDF Export (Merged)](./hr/hr-3-4-2-freeze.md)
   - [HR-3.4.2c Timestamp Fix Notes](./hr/hr-3-4-2c-timestamp-fix.md)
+  - [HR-3.5.1 Kiosk Devices Admin](./hr/hr-3-5-1-kiosk-devices.md)
+  - [HR-3.5.1a Kiosk Setup Wizard](./hr/hr-3-5-1a-kiosk-setup-wizard.md)
 - Admin
   - [HR DTR Timezone Repair](./admin/hr-dtr-timezone-repair.md)
 - Engineering
