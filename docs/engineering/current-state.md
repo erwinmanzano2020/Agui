@@ -61,6 +61,12 @@
   - HR-3.4.2 freeze
     - Reference: `docs/hr/hr-3-4-2-freeze.md`
     - Boundary: no storage/caching, no gov deductions, no payout integration
+  - HR-3.5: Kiosk clock-in/out (QR, branch-scoped, offline queue)
+    - Reference: `docs/hr/hr-3-5-kiosk.md`
+    - Boundary: raw attendance capture only (`dtr_segments`, `source='system'`), no payroll/schedule/OT logic
+  - HR-3.5 freeze
+    - Reference: `docs/hr/hr-3-5-freeze.md`
+    - Boundary: signed employee QR, kiosk token auth, 10s debounce, idempotent sync by `clientEventId`
 
 ## 3. Non-Negotiable Guardrails
 - All HR/DTR data is house-scoped
