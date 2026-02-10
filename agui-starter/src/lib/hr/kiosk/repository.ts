@@ -104,6 +104,7 @@ export function createSupabaseKioskRepo(supabase: SupabaseClient): KioskRepo {
         .select("id")
         .eq("house_id", houseId)
         .eq("branch_id", branchId)
+        .eq("event_type", "sync_success")
         .eq("metadata->>clientEventId", clientEventId)
         .limit(1)
         .maybeSingle();

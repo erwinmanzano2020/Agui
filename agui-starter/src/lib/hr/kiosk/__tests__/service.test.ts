@@ -9,6 +9,7 @@ import {
   type KioskRepo,
   type KioskSegment,
   KioskAuthError,
+  KioskConflictError,
   processKioskScan,
   processKioskSync,
 } from "@/lib/hr/kiosk/service";
@@ -106,6 +107,7 @@ describe("kiosk service", () => {
           (item) =>
             item.house_id === house &&
             item.branch_id === branch &&
+            item.event_type === "sync_success" &&
             String(item.metadata.clientEventId ?? "") === clientEventId,
         );
       },
@@ -197,6 +199,54 @@ describe("kiosk service", () => {
       occurredAt: "2026-02-01T09:00:05Z",
     });
     assert.equal(second.action, "debounced");
+  });
+
+
+  it("rejects stale occurredAt when closing open segment", async () => {
+    const qrToken = createEmployeeQrToken({ employeeId, houseId });
+    segments.push({
+      id: "segment-open",
+      employee_id: employeeId,
+      house_id: houseId,
+      work_date: "2026-02-01",
+      time_in: "2026-02-01T08:00:00+08:00",
+      time_out: null,
+      status: "open",
+    });
+
+    await assert.rejects(
+      () =>
+        processKioskScan(repo, {
+          kioskToken,
+          qrToken,
+          occurredAt: "2026-02-01T07:59:00+08:00",
+        }),
+      (error: unknown) => error instanceof KioskConflictError,
+    );
+
+    assert.equal(segments[0]?.time_out, null);
+    assert.equal(segments[0]?.status, "open");
+    const rejectEvent = events.find((item) => item.event_type === "reject");
+    assert.equal(rejectEvent?.metadata.reason, "stale_occurred_at");
+  });
+
+  it("retries sync after sync_fail with same clientEventId", async () => {
+    const qrToken = createEmployeeQrToken({ employeeId, houseId });
+    events.push({
+      house_id: houseId,
+      branch_id: branchId,
+      employee_id: employeeId,
+      event_type: "sync_fail",
+      occurred_at: "2026-02-01T09:00:00+08:00",
+      metadata: { clientEventId: "event-retry" },
+    });
+
+    const sync = await processKioskSync(repo, {
+      kioskToken,
+      events: [{ qrToken, occurredAt: "2026-02-01T10:00:00+08:00", clientEventId: "event-retry" }],
+    });
+
+    assert.equal(sync.results[0]?.status, "processed");
   });
 
   it("sync is idempotent via clientEventId", async () => {

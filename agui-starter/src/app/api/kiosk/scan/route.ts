@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { createSupabaseKioskRepo } from "@/lib/hr/kiosk/repository";
-import { KioskAuthError, processKioskScan } from "@/lib/hr/kiosk/service";
+import { KioskAuthError, KioskConflictError, processKioskScan } from "@/lib/hr/kiosk/service";
 import { createServiceSupabaseClient } from "@/lib/supabase/service";
 
 type ScanBody = {
@@ -40,6 +40,9 @@ export async function POST(request: Request) {
   } catch (error) {
     if (error instanceof KioskAuthError) {
       return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    if (error instanceof KioskConflictError) {
+      return NextResponse.json({ error: error.message, ...error.details }, { status: 409 });
     }
     const message = error instanceof Error ? error.message : "Failed kiosk scan.";
     return NextResponse.json({ error: message }, { status: 400 });

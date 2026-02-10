@@ -89,6 +89,16 @@ function diffSeconds(a: string, b: string): number {
 
 export class KioskAuthError extends Error {}
 
+export class KioskConflictError extends Error {
+  readonly details: Record<string, unknown>;
+
+  constructor(message: string, details: Record<string, unknown>) {
+    super(message);
+    this.name = "KioskConflictError";
+    this.details = details;
+  }
+}
+
 export async function processKioskScan(
   repo: KioskRepo,
   input: {
@@ -182,6 +192,32 @@ export async function processKioskScan(
   }
 
   if (latestOpen) {
+    const timeInMs = latestOpen.time_in ? new Date(latestOpen.time_in).getTime() : Number.NaN;
+    const occurredAtMs = new Date(occurredAt).getTime();
+    if (!Number.isNaN(timeInMs) && occurredAtMs <= timeInMs) {
+      await repo.insertKioskEvent({
+        houseId: device.house_id,
+        branchId: device.branch_id,
+        employeeId: employee.id,
+        eventType: "reject",
+        occurredAt,
+        metadata: {
+          reason: "stale_occurred_at",
+          timeIn: latestOpen.time_in,
+          occurredAt,
+          clientEventId: input.clientId ?? null,
+          segmentId: latestOpen.id,
+        },
+      });
+      throw new KioskConflictError("occurredAt is earlier than or equal to open segment time_in.", {
+        reason: "stale_occurred_at",
+        employee: { id: employee.id, code: employee.code, displayName: getDisplayName(employee) },
+        segmentId: latestOpen.id,
+        timeIn: latestOpen.time_in,
+        occurredAt,
+      });
+    }
+
     const closed = await repo.closeSegment(latestOpen.id, occurredAt);
     if (!closed) throw new Error("Failed to close open segment.");
     await repo.insertKioskEvent({
