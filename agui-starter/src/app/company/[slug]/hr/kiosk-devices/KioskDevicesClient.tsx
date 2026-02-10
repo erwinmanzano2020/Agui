@@ -154,7 +154,7 @@ export function KioskDevicesClient({ houseId, branches, initialDevices }: Props)
             {devices.map((device) => (
               <tr key={device.id} className="border-b align-top">
                 <td>{device.name}</td>
-                <td>{device.branches?.[0]?.name ?? device.branch_id}</td>
+                <td>{device.branch?.name ?? device.branch_id}</td>
                 <td>{device.is_active ? "enabled" : "disabled"}</td>
                 <td>{formatManila(device.created_at)}</td>
                 <td>{formatManila(device.last_seen_at)}</td>

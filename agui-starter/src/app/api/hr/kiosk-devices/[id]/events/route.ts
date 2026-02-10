@@ -9,6 +9,7 @@ const QuerySchema = z.object({
   houseId: z.string().uuid(),
   limit: z.coerce.number().int().positive().max(200).optional(),
 });
+const ParamsSchema = z.object({ id: z.string().uuid() });
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createServerSupabaseClient();
@@ -22,11 +23,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   });
   if (!parsed.success) return jsonError(400, "Invalid query", { issues: parsed.error.issues });
 
-  const { id } = await params;
+  const parsedParams = ParamsSchema.safeParse(await params);
+  if (!parsedParams.success) return jsonError(400, "Invalid device id");
+
   try {
     const events = await listKioskDeviceEvents(supabase, {
       houseId: parsed.data.houseId,
-      deviceId: id,
+      deviceId: parsedParams.data.id,
       limit: parsed.data.limit,
     });
     return jsonOk({ events });

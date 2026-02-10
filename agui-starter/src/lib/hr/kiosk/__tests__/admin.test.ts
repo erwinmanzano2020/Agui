@@ -5,6 +5,7 @@ import * as access from "@/lib/hr/access";
 import {
   KioskAdminError,
   createKioskDeviceForBranch,
+  listKioskDevicesForHouse,
   rotateKioskDeviceToken,
   setKioskDeviceEnabled,
 } from "@/lib/hr/kiosk/admin";
@@ -151,5 +152,47 @@ describe("kiosk admin", () => {
       () => setKioskDeviceEnabled(supabase as never, { houseId: "house-2", deviceId: "device-1", enabled: false }),
       (error: unknown) => error instanceof KioskAdminError && error.status === 404,
     );
+  });
+
+  it("returns branch relation as an object for UI branch name display", async () => {
+    const supabase = {
+      from(table: string) {
+        if (table !== "hr_kiosk_devices") {
+          throw new Error("unexpected table");
+        }
+
+        return {
+          select() {
+            return this;
+          },
+          eq() {
+            return this;
+          },
+          order() {
+            return Promise.resolve({
+              data: [
+                {
+                  id: "device-1",
+                  house_id: "house-1",
+                  branch_id: "branch-1",
+                  name: "Frontdesk",
+                  is_active: true,
+                  created_at: new Date().toISOString(),
+                  last_seen_at: null,
+                  last_event_at: null,
+                  disabled_at: null,
+                  disabled_by: null,
+                  branch: { id: "branch-1", name: "Main Branch" },
+                },
+              ],
+              error: null,
+            });
+          },
+        };
+      },
+    };
+
+    const devices = await listKioskDevicesForHouse(supabase as never, "house-1");
+    assert.equal(devices[0]?.branch?.name, "Main Branch");
   });
 });

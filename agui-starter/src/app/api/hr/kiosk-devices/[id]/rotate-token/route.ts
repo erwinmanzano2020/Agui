@@ -6,13 +6,15 @@ import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
 
 const BodySchema = z.object({ houseId: z.string().uuid() });
+const ParamsSchema = z.object({ id: z.string().uuid() });
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const supabase = await createServerSupabaseClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return jsonError(401, "Not authenticated");
 
-  const { id } = await params;
+  const parsedParams = ParamsSchema.safeParse(await params);
+  if (!parsedParams.success) return jsonError(400, "Invalid device id");
 
   const parsed = BodySchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) {
@@ -22,7 +24,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   try {
     const { plaintextToken } = await rotateKioskDeviceToken(supabase, {
       houseId: parsed.data.houseId,
-      deviceId: id,
+      deviceId: parsedParams.data.id,
     });
     return jsonOk({ token: plaintextToken });
   } catch (error) {

@@ -14,7 +14,7 @@ export type KioskDeviceAdminRow = {
   last_event_at: string | null;
   disabled_at: string | null;
   disabled_by: string | null;
-  branches?: Array<{ id: string; name: string }> | null;
+  branch?: { id: string; name: string } | null;
 };
 
 export type KioskDeviceEventRow = {
@@ -96,7 +96,7 @@ export async function listKioskDevicesForHouse(
 
   let query = supabase
     .from("hr_kiosk_devices")
-    .select("id, house_id, branch_id, name, is_active, created_at, last_seen_at, last_event_at, disabled_at, disabled_by, branches(id, name)")
+    .select("id, house_id, branch_id, name, is_active, created_at, last_seen_at, last_event_at, disabled_at, disabled_by, branch:branches(id, name)")
     .eq("house_id", houseId)
     .order("created_at", { ascending: false });
 
@@ -108,7 +108,7 @@ export async function listKioskDevicesForHouse(
   if (error) {
     throw new KioskAdminError(error.message, 500);
   }
-  return (data ?? []) as KioskDeviceAdminRow[];
+  return (data ?? []) as unknown as KioskDeviceAdminRow[];
 }
 
 export async function createKioskDeviceForBranch(
