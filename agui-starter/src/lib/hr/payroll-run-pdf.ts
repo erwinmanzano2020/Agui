@@ -2,7 +2,7 @@ import "server-only";
 
 import { jsPDF } from "jspdf";
 
-import { formatCurrency, formatDate, normalizeAmount } from "./pdf-format";
+import { formatDate, formatMoneyPHP, normalizeAmount } from "./pdf-format";
 import { renderPayslipPdf, type PayslipPdfFormat, type PayslipPdfInput } from "./payslip-pdf";
 
 export type PayrollRunPdfSummary = {
@@ -112,18 +112,18 @@ export function generatePayrollRunPdf(input: PayrollRunPdfInput): Uint8Array {
   drawSectionHeader("Totals");
   drawCard([
     ["Total employees", String(input.summary.totalEmployees)],
-    ["Total regular pay", formatCurrency(normalizeAmount(input.summary.totalRegularPay))],
-    ["Total OT pay", formatCurrency(normalizeAmount(input.summary.totalOvertimePay))],
+    ["Total regular pay", formatMoneyPHP(normalizeAmount(input.summary.totalRegularPay))],
+    ["Total OT pay", formatMoneyPHP(normalizeAmount(input.summary.totalOvertimePay))],
     [
       "Total undertime deductions",
-      formatCurrency(normalizeAmount(input.summary.totalUndertimeDeductions)),
+      formatMoneyPHP(normalizeAmount(input.summary.totalUndertimeDeductions)),
     ],
     [
       "Total manual deductions",
-      formatCurrency(normalizeAmount(input.summary.totalManualDeductions)),
+      formatMoneyPHP(normalizeAmount(input.summary.totalManualDeductions)),
     ],
-    ["Total Gross Pay", formatCurrency(normalizeAmount(input.summary.totalGrossPay))],
-    ["Total net", formatCurrency(normalizeAmount(input.summary.totalNetPay))],
+    ["Total Gross Pay", formatMoneyPHP(normalizeAmount(input.summary.totalGrossPay))],
+    ["Total net", formatMoneyPHP(normalizeAmount(input.summary.totalNetPay))],
   ]);
 
   drawSectionHeader("Diagnostics");

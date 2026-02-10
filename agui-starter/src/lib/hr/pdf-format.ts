@@ -7,6 +7,14 @@ const currencyFormatter = new Intl.NumberFormat("en-PH", {
   maximumFractionDigits: 2,
 });
 
+const currencyCodeFormatter = new Intl.NumberFormat("en-PH", {
+  style: "currency",
+  currency: "PHP",
+  currencyDisplay: "code",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
 const dateFormatter = new Intl.DateTimeFormat("en-PH", {
   timeZone: "Asia/Manila",
   year: "numeric",
@@ -22,6 +30,12 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-PH", {
   hour: "2-digit",
   minute: "2-digit",
 });
+
+export function formatMoneyPHP(value: number): string {
+  const safeValue = Number.isFinite(value) ? value : 0;
+  const formatted = currencyCodeFormatter.format(safeValue);
+  return formatted.replace(/\u00a0/g, " ");
+}
 
 export function formatCurrency(value: number): string {
   return currencyFormatter.format(Number.isFinite(value) ? value : 0);

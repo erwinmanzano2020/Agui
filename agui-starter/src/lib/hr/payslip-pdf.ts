@@ -2,7 +2,7 @@ import "server-only";
 
 import { jsPDF } from "jspdf";
 
-import { formatCurrency, formatDate, formatDateTime, normalizeAmount } from "./pdf-format";
+import { formatDate, formatDateTime, formatMoneyPHP, normalizeAmount } from "./pdf-format";
 
 export type PayslipPdfFormat = "a4" | "letter";
 
@@ -48,6 +48,7 @@ export function renderPayslipPdf(
   const tableBorderWidth = 0.6;
   const tablePadding = 6;
   const amountFont = "courier";
+  const labelColumnWidth = pageWidth - margin * 2 - tablePadding * 2 - 140;
 
   let cursorY = margin;
 
@@ -92,15 +93,17 @@ export function renderPayslipPdf(
   };
 
   const drawTableRow = (label: string, value: string) => {
-    ensureSpace();
+    const wrappedLines = doc.splitTextToSize(label, labelColumnWidth) as string[];
+    const rowHeight = tableRowHeight * Math.max(1, wrappedLines.length);
+    ensureSpace(Math.ceil(rowHeight / lineHeight));
     doc.setFont("helvetica", "normal");
     doc.setFontSize(labelSize);
-    doc.text(label, margin + tablePadding, cursorY);
+    doc.text(wrappedLines, margin + tablePadding, cursorY);
     doc.setFont(amountFont, "normal");
     doc.setFontSize(labelSize);
     doc.text(value, pageWidth - margin - tablePadding, cursorY, { align: "right" });
     doc.setFont("helvetica", "normal");
-    cursorY += tableRowHeight;
+    cursorY += rowHeight;
   };
 
   const drawTotalsCard = (rows: Array<[string, string]>) => {
@@ -166,8 +169,8 @@ export function renderPayslipPdf(
   drawSectionHeader("Earnings");
   drawTableHeader("Description", "Amount");
   drawDivider();
-  drawTableRow("Regular Pay", formatCurrency(normalizeAmount(input.regularPay)));
-  drawTableRow("OT Pay", formatCurrency(normalizeAmount(input.overtimePay)));
+  drawTableRow("Regular Pay", formatMoneyPHP(normalizeAmount(input.regularPay)));
+  drawTableRow("OT Pay", formatMoneyPHP(normalizeAmount(input.overtimePay)));
 
   cursorY += sectionGap;
 
@@ -177,7 +180,7 @@ export function renderPayslipPdf(
   if (normalizeAmount(input.undertimeDeduction) > 0) {
     drawTableRow(
       "Undertime deduction",
-      formatCurrency(normalizeAmount(input.undertimeDeduction)),
+      formatMoneyPHP(normalizeAmount(input.undertimeDeduction)),
     );
   }
   if (input.deductions.length === 0) {
@@ -186,19 +189,19 @@ export function renderPayslipPdf(
     }
   } else {
     input.deductions.forEach((deduction) => {
-      drawTableRow(deduction.label, formatCurrency(normalizeAmount(deduction.amount)));
+      drawTableRow(deduction.label, formatMoneyPHP(normalizeAmount(deduction.amount)));
     });
   }
 
   drawDivider();
-  drawTableRow("Total Deductions", formatCurrency(normalizeAmount(input.deductionsTotal)));
+  drawTableRow("Total Deductions", formatMoneyPHP(normalizeAmount(input.deductionsTotal)));
 
   cursorY += sectionGap;
 
   drawSectionHeader("Totals");
   drawTotalsCard([
-    ["Total Gross Pay", formatCurrency(normalizeAmount(input.grossPay))],
-    ["Net Pay", formatCurrency(normalizeAmount(input.netPay))],
+    ["Total Gross Pay", formatMoneyPHP(normalizeAmount(input.grossPay))],
+    ["Net Pay", formatMoneyPHP(normalizeAmount(input.netPay))],
   ]);
 
   const signatureDate = input.postedAt ?? input.finalizedAt;
