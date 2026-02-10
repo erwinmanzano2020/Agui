@@ -30,7 +30,7 @@ type KioskEvent = { occurred_at: string };
 
 type KioskRepo = {
   findDeviceByTokenHash(tokenHash: string): Promise<KioskDevice | null>;
-  touchDevice(deviceId: string, seenAt: string): Promise<void>;
+  touchDevice(deviceId: string): Promise<void>;
   findEmployeeById(employeeId: string): Promise<KioskEmployee | null>;
   findOpenSegments(employeeId: string): Promise<KioskSegment[]>;
   closeSegment(segmentId: string, timeOut: string): Promise<KioskSegment | null>;
@@ -42,6 +42,7 @@ type KioskRepo = {
   }): Promise<KioskSegment | null>;
   findLatestEmployeeEvent(houseId: string, employeeId: string): Promise<KioskEvent | null>;
   insertKioskEvent(input: {
+    deviceId: string;
     houseId: string;
     branchId: string;
     employeeId?: string | null;
@@ -116,7 +117,7 @@ export async function processKioskScan(
   }
 
   const occurredAt = normalizeOccurredAt(input.occurredAt);
-  await repo.touchDevice(device.id, occurredAt);
+  await repo.touchDevice(device.id);
 
   let qrClaims: { employeeId: string; houseId: string };
   try {
@@ -125,9 +126,11 @@ export async function processKioskScan(
     await repo.insertKioskEvent({
       houseId: device.house_id,
       branchId: device.branch_id,
+      deviceId: device.id,
       eventType: "reject",
       occurredAt,
       metadata: {
+        deviceId: device.id,
         reason: "invalid_qr",
         clientId: input.clientId ?? null,
         error: error instanceof Error ? error.message : String(error),
@@ -140,6 +143,7 @@ export async function processKioskScan(
     await repo.insertKioskEvent({
       houseId: device.house_id,
       branchId: device.branch_id,
+      deviceId: device.id,
       employeeId: qrClaims.employeeId,
       eventType: "reject",
       occurredAt,
@@ -153,6 +157,7 @@ export async function processKioskScan(
     await repo.insertKioskEvent({
       houseId: device.house_id,
       branchId: device.branch_id,
+      deviceId: device.id,
       employeeId: qrClaims.employeeId,
       eventType: "reject",
       occurredAt,
@@ -176,6 +181,7 @@ export async function processKioskScan(
   await repo.insertKioskEvent({
     houseId: device.house_id,
     branchId: device.branch_id,
+    deviceId: device.id,
     employeeId: employee.id,
     eventType: "scan",
     occurredAt,
@@ -198,6 +204,7 @@ export async function processKioskScan(
       await repo.insertKioskEvent({
         houseId: device.house_id,
         branchId: device.branch_id,
+        deviceId: device.id,
         employeeId: employee.id,
         eventType: "reject",
         occurredAt,
@@ -223,6 +230,7 @@ export async function processKioskScan(
     await repo.insertKioskEvent({
       houseId: device.house_id,
       branchId: device.branch_id,
+      deviceId: device.id,
       employeeId: employee.id,
       eventType: "clock_out",
       occurredAt,
@@ -250,6 +258,7 @@ export async function processKioskScan(
   await repo.insertKioskEvent({
     houseId: device.house_id,
     branchId: device.branch_id,
+    deviceId: device.id,
     employeeId: employee.id,
     eventType: "clock_in",
     occurredAt,
@@ -286,6 +295,8 @@ export async function processKioskSync(
     throw new KioskAuthError("Invalid kiosk token.");
   }
 
+  await repo.touchDevice(device.id);
+
   const results: Array<
     | { clientEventId: string; status: "duplicate" }
     | { clientEventId: string; status: "processed"; result: KioskScanResult }
@@ -310,6 +321,7 @@ export async function processKioskSync(
       await repo.insertKioskEvent({
         houseId: device.house_id,
         branchId: device.branch_id,
+        deviceId: device.id,
         employeeId: result.employee.id,
         eventType: "sync_success",
         occurredAt: normalizeOccurredAt(event.occurredAt),
@@ -320,6 +332,7 @@ export async function processKioskSync(
       await repo.insertKioskEvent({
         houseId: device.house_id,
         branchId: device.branch_id,
+        deviceId: device.id,
         eventType: "sync_fail",
         occurredAt: normalizeOccurredAt(event.occurredAt),
         metadata: {
