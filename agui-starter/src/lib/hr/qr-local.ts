@@ -1,10 +1,5 @@
 import "server-only";
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
-
 export class EmployeeIdQrGenerationError extends Error {
   constructor(message: string) {
     super(message);
@@ -12,24 +7,47 @@ export class EmployeeIdQrGenerationError extends Error {
   }
 }
 
+type QrEncoder = {
+  toDataURL: (
+    text: string,
+    options?: {
+      errorCorrectionLevel?: "L" | "M" | "Q" | "H";
+      margin?: number;
+      width?: number;
+      type?: string;
+    },
+  ) => Promise<string>;
+};
+
+function loadQrEncoderFromRuntime(): QrEncoder {
+  try {
+    const req = Function("return require")() as (id: string) => unknown;
+    return req("qrcode") as QrEncoder;
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new EmployeeIdQrGenerationError(`Failed to generate QR code: ${reason}`);
+  }
+}
+
 export async function generateQrPngDataUrl(token: string): Promise<string> {
   try {
-    const { stdout } = await execFileAsync(
-      "qrencode",
-      ["-o", "-", "-t", "PNG", "-s", "8", "-m", "0", token],
-      {
-        encoding: "buffer",
-        maxBuffer: 1024 * 1024,
-      },
-    );
+    const qrcode = qrEncoderLoader();
+    const dataUrl = await qrcode.toDataURL(token, {
+      type: "image/png",
+      errorCorrectionLevel: "M",
+      margin: 0,
+      width: 256,
+    });
 
-    const png = Buffer.isBuffer(stdout) ? stdout : Buffer.from(stdout);
-    if (png.byteLength === 0) {
-      throw new Error("QR output is empty");
+    if (!dataUrl.startsWith("data:image/png;base64,")) {
+      throw new Error("Unexpected QR output format");
     }
 
-    return `data:image/png;base64,${png.toString("base64")}`;
+    return dataUrl;
   } catch (error) {
+    if (error instanceof EmployeeIdQrGenerationError) {
+      throw error;
+    }
     const reason = error instanceof Error ? error.message : String(error);
     throw new EmployeeIdQrGenerationError(`Failed to generate QR code: ${reason}`);
   }
@@ -54,4 +72,11 @@ export async function mapWithConcurrency<T, R>(
 
   await Promise.all(Array.from({ length: Math.min(size, items.length) }, () => runWorker()));
   return results;
+}
+
+
+let qrEncoderLoader: () => QrEncoder = loadQrEncoderFromRuntime;
+
+export function setQrEncoderLoaderForTest(loader: (() => QrEncoder) | null): void {
+  qrEncoderLoader = loader ?? loadQrEncoderFromRuntime;
 }
