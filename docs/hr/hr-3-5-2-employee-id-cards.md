@@ -40,3 +40,10 @@
 - Photo upload/placement flow.
 - Admin template customization (branding, fonts, field placement).
 - Optional card back side and policy/legal footer variants.
+
+
+## HR-3.5.2a hardening
+- Local-only QR generation inside app runtime (no external QR APIs).
+- Export hard-fails when QR generation fails (no QR placeholders).
+- Bulk print cap: maximum 200 employee IDs per request.
+- Bulk QR generation uses bounded concurrency to avoid unbounded fan-out.

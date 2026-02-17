@@ -41,17 +41,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
     return jsonError(404, "Employee not found");
   }
 
-  const bytes = await generateEmployeeIdCardPdf(card);
-  const filename = `EmployeeID-${sanitizeFilename(card.code)}-${sanitizeFilename(card.id)}.pdf`;
+  try {
+    const bytes = await generateEmployeeIdCardPdf(card);
+    const filename = `EmployeeID-${sanitizeFilename(card.code)}-${sanitizeFilename(card.id)}.pdf`;
 
-  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 
-  return new Response(buffer, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="${filename}"`,
-      "Cache-Control": "no-store",
-    },
-  });
+    return new Response(buffer, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch {
+    return jsonError(500, "Failed to generate QR code");
+  }
 }

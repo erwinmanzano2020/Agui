@@ -48,6 +48,20 @@ describe("POST /api/hr/employee-ids/print", () => {
     assert.equal(response.status, 400);
   });
 
+  it("rejects requests over the employee cap", async () => {
+    const tooMany = Array.from({ length: 201 }, (_, index) => `emp-${index}`);
+    const response = await POST(
+      new Request("http://localhost/api/hr/employee-ids/print", {
+        method: "POST",
+        body: JSON.stringify({ houseId: "00000000-0000-0000-0000-000000000111", employeeIds: tooMany }),
+      }) as NextRequest,
+    );
+
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.match(String(body?.error ?? ""), /Too many employees requested/);
+  });
+
   it("forbids cross-house ids", async () => {
     const response = await POST(
       new Request("http://localhost/api/hr/employee-ids/print", {
@@ -85,5 +99,26 @@ describe("POST /api/hr/employee-ids/print", () => {
     ]);
     const buffer = await response.arrayBuffer();
     assert.ok(buffer.byteLength > 0);
+  });
+
+  it("returns 500 when qr generation fails", async () => {
+    const pdf = await import("@/lib/hr/employee-id-card-pdf");
+    mock.method(pdf, "generateEmployeeIdCardsSheetPdf", async () => {
+      throw new Error("boom");
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/hr/employee-ids/print", {
+        method: "POST",
+        body: JSON.stringify({
+          houseId: "00000000-0000-0000-0000-000000000111",
+          employeeIds: ["00000000-0000-0000-0000-000000000001"],
+        }),
+      }) as NextRequest,
+    );
+
+    assert.equal(response.status, 500);
+    const body = await response.json();
+    assert.match(String(body?.error ?? ""), /Failed to generate QR code/);
   });
 });

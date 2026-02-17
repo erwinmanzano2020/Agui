@@ -5,32 +5,16 @@ import { jsPDF } from "jspdf";
 import type { EmployeeIdCardRow } from "@/lib/hr/employee-id-cards";
 import { orderEmployeeIdCards } from "@/lib/hr/employee-id-cards";
 import { createEmployeeQrToken } from "@/lib/hr/kiosk/qr";
+import { generateQrPngDataUrl, mapWithConcurrency } from "@/lib/hr/qr-local";
 
 const CR80_WIDTH_MM = 85.6;
 const CR80_HEIGHT_MM = 53.98;
-
-async function resolveQrDataUrl(token: string, size = 180): Promise<string | null> {
-  try {
-    const url = new URL("https://api.qrserver.com/v1/create-qr-code/");
-    url.searchParams.set("size", `${size}x${size}`);
-    url.searchParams.set("data", token);
-    url.searchParams.set("ecc", "M");
-    url.searchParams.set("margin", "0");
-    const response = await fetch(url, { cache: "no-store" });
-    if (!response.ok) return null;
-    const contentType = response.headers.get("content-type") ?? "image/png";
-    const bytes = Buffer.from(await response.arrayBuffer());
-    return `data:${contentType};base64,${bytes.toString("base64")}`;
-  } catch {
-    return null;
-  }
-}
+const QR_CONCURRENCY = 8;
 
 function drawCard(
   doc: jsPDF,
   row: EmployeeIdCardRow,
-  token: string,
-  qrDataUrl: string | null,
+  qrDataUrl: string,
   x: number,
   y: number,
 ) {
@@ -59,15 +43,7 @@ function drawCard(
   doc.text("PHOTO", x + 18, y + 30, { align: "center" });
   doc.text("(paste here)", x + 18, y + 35, { align: "center" });
 
-  if (qrDataUrl) {
-    doc.addImage(qrDataUrl, "PNG", x + 49, y + 16, 32, 32);
-  } else {
-    doc.setDrawColor(120);
-    doc.rect(x + 49, y + 16, 32, 32);
-    doc.setFontSize(6);
-    doc.text("QR unavailable", x + 65, y + 32, { align: "center" });
-    doc.text(token.slice(0, 16), x + 65, y + 36, { align: "center" });
-  }
+  doc.addImage(qrDataUrl, "PNG", x + 49, y + 16, 32, 32);
 
   doc.setFontSize(6);
   doc.text("Scan at kiosk", x + 3, y + 48);
@@ -76,10 +52,10 @@ function drawCard(
 
 export async function generateEmployeeIdCardPdf(row: EmployeeIdCardRow): Promise<Uint8Array> {
   const token = createEmployeeQrToken({ employeeId: row.id, houseId: row.houseId });
-  const qrDataUrl = await resolveQrDataUrl(token);
+  const qrDataUrl = await generateQrPngDataUrl(token);
 
   const doc = new jsPDF({ unit: "mm", format: [CR80_HEIGHT_MM, CR80_WIDTH_MM], orientation: "landscape" });
-  drawCard(doc, row, token, qrDataUrl, 0, 0);
+  drawCard(doc, row, qrDataUrl, 0, 0);
 
   const buffer = doc.output("arraybuffer") as ArrayBuffer;
   return new Uint8Array(buffer);
@@ -105,13 +81,10 @@ export async function generateEmployeeIdCardsSheetPdf(
   const startY = (297 - totalHeight) / 2;
   const cardsPerPage = cols * rowsPerPage;
 
-  const tokenMap = await Promise.all(
-    sortedRows.map(async (row) => {
-      const token = createEmployeeQrToken({ employeeId: row.id, houseId: row.houseId });
-      const qrDataUrl = await resolveQrDataUrl(token);
-      return { token, qrDataUrl };
-    }),
-  );
+  const qrDataUrls = await mapWithConcurrency(sortedRows, QR_CONCURRENCY, async (row) => {
+    const token = createEmployeeQrToken({ employeeId: row.id, houseId: row.houseId });
+    return generateQrPngDataUrl(token);
+  });
 
   sortedRows.forEach((row, index) => {
     const pageIndex = Math.floor(index / cardsPerPage);
@@ -124,7 +97,7 @@ export async function generateEmployeeIdCardsSheetPdf(
     const colSlot = slot % cols;
     const x = startX + colSlot * (CR80_WIDTH_MM + horizontalGap);
     const y = startY + rowSlot * (CR80_HEIGHT_MM + verticalGap);
-    drawCard(doc, row, tokenMap[index].token, tokenMap[index].qrDataUrl, x, y);
+    drawCard(doc, row, qrDataUrls[index], x, y);
 
     if (includeCutGuides) {
       doc.setDrawColor(190);

@@ -11,6 +11,7 @@ import { listEmployeeIdCards } from "@/lib/hr/employee-id-cards-server";
 import { z } from "@/lib/z";
 
 const HouseIdSchema = z.string().trim().uuid();
+const MAX_EMPLOYEE_IDS = 200;
 
 export async function POST(req: NextRequest) {
   const guard = await requireAnyFeatureAccessApi([AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK]);
@@ -30,6 +31,10 @@ export async function POST(req: NextRequest) {
 
   if (!Array.isArray(raw.employeeIds) || raw.employeeIds.length === 0) {
     return jsonError(400, "employeeIds must contain at least one employee");
+  }
+
+  if (raw.employeeIds.length > MAX_EMPLOYEE_IDS) {
+    return jsonError(400, "Too many employees requested");
   }
 
   const employeeIds = raw.employeeIds.filter((id): id is string => typeof id === "string");
@@ -58,17 +63,21 @@ export async function POST(req: NextRequest) {
     return jsonError(403, "One or more employees are outside this house.");
   }
 
-  const ordered = orderEmployeeIdCards(selected);
-  const bytes = await generateEmployeeIdCardsSheetPdf(ordered, { layout, includeCutGuides });
+  try {
+    const ordered = orderEmployeeIdCards(selected);
+    const bytes = await generateEmployeeIdCardsSheetPdf(ordered, { layout, includeCutGuides });
 
-  const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
+    const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 
-  return new Response(buffer, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": 'attachment; filename="EmployeeIDs-A4.pdf"',
-      "Cache-Control": "no-store",
-    },
-  });
+    return new Response(buffer, {
+      status: 200,
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": 'attachment; filename="EmployeeIDs-A4.pdf"',
+        "Cache-Control": "no-store",
+      },
+    });
+  } catch {
+    return jsonError(500, "Failed to generate QR code");
+  }
 }

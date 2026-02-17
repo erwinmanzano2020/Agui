@@ -58,4 +58,20 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", () => {
     const buffer = await response.arrayBuffer();
     assert.ok(buffer.byteLength > 0);
   });
+
+  it("returns 500 when qr generation fails", async () => {
+    const pdf = await import("@/lib/hr/employee-id-card-pdf");
+    mock.method(pdf, "generateEmployeeIdCardPdf", async () => {
+      throw new Error("boom");
+    });
+
+    const response = await GET(
+      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
+      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
+    );
+
+    assert.equal(response.status, 500);
+    const body = await response.json();
+    assert.match(String(body?.error ?? ""), /Failed to generate QR code/);
+  });
 });
