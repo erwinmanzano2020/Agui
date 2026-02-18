@@ -16,6 +16,7 @@ const TABS = [
   { key: "payroll-runs", label: "Payroll Runs", path: "payroll-runs" },
   { key: "payslips", label: "Payslips", path: "payslips" },
   { key: "kiosk-devices", label: "Kiosk Devices", path: "kiosk-devices" },
+  { key: "employee-ids", label: "Employee IDs", path: "employee-ids" },
 ];
 
 type Props = {
