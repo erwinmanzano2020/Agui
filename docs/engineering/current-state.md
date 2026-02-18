@@ -104,3 +104,7 @@
 - Used as a copy-paste context for new ChatGPT threads
 
 > Context: HR-1 and HR-2.0 foundations are frozen. Canonical DTR model is dtr_segments as documented in docs/hr/hr-2-foundation-freeze.md.
+
+- **HR 3.5.2 — Employee ID Cards (CR80) + QR Issuance**
+    - Status: done
+    - Reference: `docs/hr/hr-3-5-2-employee-id-cards.md`
