@@ -59,7 +59,7 @@ describe("POST /api/hr/employee-ids/print", () => {
 
     assert.equal(response.status, 400);
     const body = await response.json();
-    assert.match(String(body?.error ?? ""), /Too many employees requested/);
+    assert.deepEqual(body, { error: "Too many employees requested" });
   });
 
   it("forbids cross-house ids", async () => {
@@ -92,6 +92,9 @@ describe("POST /api/hr/employee-ids/print", () => {
     );
 
     assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-type"), "application/pdf");
+    assert.equal(response.headers.get("content-disposition"), 'attachment; filename="EmployeeIDs-A4.pdf"');
+    assert.equal(response.headers.get("cache-control"), "no-store");
     assert.deepEqual(generateCalls[0], [
       "00000000-0000-0000-0000-000000000001",
       "00000000-0000-0000-0000-000000000002",

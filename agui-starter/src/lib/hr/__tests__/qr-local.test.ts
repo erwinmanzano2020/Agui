@@ -18,7 +18,19 @@ describe("generateQrPngDataUrl", () => {
     }));
 
     const url = await generateQrPngDataUrl("sample-token");
-    assert.match(url, /^data:image\/png;base64,/);
+    assert.ok(url.startsWith("data:image/png;base64,"));
+  });
+
+  it("throws when QR encoder returns non-PNG data URL prefix", async () => {
+    setQrEncoderLoaderForTest(() => ({
+      toDataURL: async () => "data:image/jpeg;base64,AAA=",
+    }));
+
+    await assert.rejects(
+      () => generateQrPngDataUrl("sample-token"),
+      (error: unknown) =>
+        error instanceof EmployeeIdQrGenerationError && /Unexpected QR output format/.test(error.message),
+    );
   });
 
   it("throws EmployeeIdQrGenerationError on generator failure", async () => {

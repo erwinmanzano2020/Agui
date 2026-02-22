@@ -13,6 +13,7 @@
   - [HR-3.5.1 Kiosk Devices Admin](./hr/hr-3-5-1-kiosk-devices.md)
   - [HR-3.5.1a Kiosk Setup Wizard](./hr/hr-3-5-1a-kiosk-setup-wizard.md)
   - [HR-3.5.2 Employee ID Cards](./hr/hr-3-5-2-employee-id-cards.md)
+  - [HR-3.5.2 Freeze Declaration](./hr/hr-3-5-2-freeze.md)
 - Admin
   - [HR DTR Timezone Repair](./admin/hr-dtr-timezone-repair.md)
 - Engineering
