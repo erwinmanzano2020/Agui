@@ -54,7 +54,12 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", () => {
     );
 
     assert.equal(response.status, 200);
-    assert.match(response.headers.get("content-type") ?? "", /application\/pdf/);
+    assert.equal(response.headers.get("content-type"), "application/pdf");
+    assert.match(
+      response.headers.get("content-disposition") ?? "",
+      /^attachment; filename="EmployeeID-EMP-001-00000000-0000-0000-0000-000000000001\.pdf"$/,
+    );
+    assert.equal(response.headers.get("cache-control"), "no-store");
     const buffer = await response.arrayBuffer();
     assert.ok(buffer.byteLength > 0);
   });
