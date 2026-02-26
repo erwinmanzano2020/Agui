@@ -123,5 +123,6 @@ describe("POST /api/hr/employee-ids/print", () => {
     assert.equal(response.status, 500);
     const body = await response.json();
     assert.match(String(body?.error ?? ""), /Failed to generate QR code/);
+    assert.equal(body?.reason, "boom");
   });
 });
