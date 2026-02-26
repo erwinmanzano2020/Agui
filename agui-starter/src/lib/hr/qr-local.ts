@@ -49,6 +49,13 @@ export async function generateQrPngDataUrl(token: string): Promise<string> {
       throw error;
     }
     const reason = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    const tokenPrefix = token.slice(0, 8);
+    console.error("[hr][qr-local] Failed to generate QR code", {
+      reason,
+      stack,
+      tokenPrefix,
+    });
     throw new EmployeeIdQrGenerationError(`Failed to generate QR code: ${reason}`);
   }
 }

@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { jsonError } from "@/lib/api/http";
 import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
@@ -55,7 +55,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
         "Cache-Control": "no-store",
       },
     });
-  } catch {
-    return jsonError(500, "Failed to generate QR code");
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    console.error("[hr][id-card.pdf] Failed to generate QR code", { reason, stack, employeeId: parsed.data.employeeId });
+    return NextResponse.json({ error: "Failed to generate QR code", reason }, { status: 500 });
   }
 }
