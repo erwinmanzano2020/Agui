@@ -66,7 +66,7 @@ class QueryMock {
 
 type MockDb = {
   employees: EmployeeRowLite[];
-  house: { id: string; name: string; logo_url: string | null };
+  house: { id: string; name: string; brand_name: string | null; logo_url: string | null };
   branches: Array<{ id: string; house_id: string; name: string | null }>;
 };
 
@@ -95,7 +95,7 @@ describe("employee-id-cards-server", () => {
           status: "active",
         },
       ],
-      house: { id: "house-1", name: "Demo House", logo_url: null },
+      house: { id: "house-1", name: "Demo House", brand_name: "Demo Brand", logo_url: null },
       branches: [{ id: "branch-1", house_id: "house-1", name: "Main Branch" }],
     });
 
@@ -104,6 +104,7 @@ describe("employee-id-cards-server", () => {
     assert.ok(card);
     assert.equal(card?.position, "Store Supervisor");
     assert.equal(card?.fullName, "Ada Lovelace");
+    assert.equal(card?.houseBrandName, "Demo Brand");
   });
 
   it("lists cards without querying employments", async () => {
@@ -119,12 +120,13 @@ describe("employee-id-cards-server", () => {
           status: "active",
         },
       ],
-      house: { id: "house-1", name: "Demo House", logo_url: null },
+      house: { id: "house-1", name: "Demo House", brand_name: null, logo_url: null },
       branches: [],
     });
 
     const cards = await listEmployeeIdCards(supabase as never, "house-1");
     assert.equal(cards.length, 1);
     assert.equal(cards[0]?.position, "Cashier");
+    assert.equal(cards[0]?.houseBrandName, null);
   });
 });

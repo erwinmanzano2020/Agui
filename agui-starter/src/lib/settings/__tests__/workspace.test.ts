@@ -62,6 +62,7 @@ describe("workspace settings loader", () => {
         ["pos.cash.float.defaults", { 100: 2, 20: 1, note: "ignore" }],
       ]),
       ui: makeSnapshot([["gm.ui.always_show_start_business_tile", true]]),
+      branding: { brandName: "Casa Brand", logoUrl: "https://example.com/logo.png" },
     });
 
     assert.deepEqual(snapshot.labels, {
@@ -86,5 +87,6 @@ describe("workspace settings loader", () => {
       floatDefaults: { 20: 1, 100: 2 },
     });
     assert.deepEqual(snapshot.ui, { alwaysShowStartBusinessTile: true });
+    assert.deepEqual(snapshot.branding, { brandName: "Casa Brand", logoUrl: "https://example.com/logo.png" });
   });
 });

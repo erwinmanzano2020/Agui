@@ -27,7 +27,7 @@ export async function listEmployeeIdCards(
 
   const [{ data: employees, error }, { data: house }, { data: branches }] = await Promise.all([
     query.order("code", { ascending: true }),
-    supabase.from("houses").select("id, name, logo_url").eq("id", houseId).maybeSingle(),
+    supabase.from("houses").select("id, name, brand_name, logo_url").eq("id", houseId).maybeSingle(),
     supabase.from("branches").select("id, name").eq("house_id", houseId),
   ]);
 
@@ -46,6 +46,7 @@ export async function listEmployeeIdCards(
     validUntil: null,
     houseId,
     houseName: house?.name ?? "",
+    houseBrandName: house?.brand_name ?? null,
     houseLogoUrl: house?.logo_url ?? null,
   }));
 }
@@ -62,7 +63,7 @@ export async function getEmployeeIdCardById(
       .eq("id", employeeId)
       .eq("house_id", houseId)
       .maybeSingle(),
-    supabase.from("houses").select("id, name, logo_url").eq("id", houseId).maybeSingle(),
+    supabase.from("houses").select("id, name, brand_name, logo_url").eq("id", houseId).maybeSingle(),
     supabase
       .from("employees")
       .select("branches(name)")
@@ -88,6 +89,7 @@ export async function getEmployeeIdCardById(
     validUntil: null,
     houseId,
     houseName: house?.name ?? "",
+    houseBrandName: house?.brand_name ?? null,
     houseLogoUrl: house?.logo_url ?? null,
   };
 }

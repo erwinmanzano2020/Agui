@@ -12,23 +12,37 @@ type RecordedMutation = { kind: "set" | "reset"; input: Record<string, unknown>;
 const { buildWorkspaceSettingOperations } = __workspaceSettingsUpdateTesting;
 
 class SupabaseRolesMock {
+  houseUpdates: Array<{ values: Record<string, unknown>; id: string }> = [];
+
   constructor(private roles: string[]) {}
 
   from(table: string) {
-    if (table !== "house_roles") {
-      throw new Error(`Unexpected table ${table}`);
-    }
-
-    return {
-      select: () => ({
-        eq: () => ({
+    if (table === "house_roles") {
+      return {
+        select: () => ({
           eq: () => ({
-            data: this.roles.map((role) => ({ role })),
-            error: null,
+            eq: () => ({
+              data: this.roles.map((role) => ({ role })),
+              error: null,
+            }),
           }),
         }),
-      }),
-    };
+      };
+    }
+
+    if (table === "houses") {
+      return {
+        update: (values: Record<string, unknown>) => ({
+          eq: (column: string, id: string) => {
+            if (column !== "id") throw new Error(`Unexpected filter ${column}`);
+            this.houseUpdates.push({ values, id });
+            return { error: null };
+          },
+        }),
+      };
+    }
+
+    throw new Error(`Unexpected table ${table}`);
   }
 }
 
@@ -66,6 +80,7 @@ describe("workspace settings update", () => {
         receipt: { footerText: "Thanks" },
         sop: { cashierVarianceThresholds: { small: 1, medium: 2, large: 3 } },
         pos: { blindDropEnabled: false, overagePool: { enabled: true, maxOffsetRatio: 0.25 } },
+        branding: { brandName: "Collective Brand", logoUrl: "https://cdn.example.com/logo.png" },
       },
       {
         client: supabase as never,
@@ -95,8 +110,34 @@ describe("workspace settings update", () => {
     );
 
     assert.ok(calls.every((call) => call.actor === "entity-1"));
+    assert.deepEqual(supabase.houseUpdates, [
+      {
+        id: "house-1",
+        values: { brand_name: "Collective Brand", logo_url: "https://cdn.example.com/logo.png" },
+      },
+    ]);
   });
 
+
+
+  it("rejects invalid logo URL", async () => {
+    const supabase = new SupabaseRolesMock(["BUSINESS_OWNER"]);
+
+    await assert.rejects(
+      () =>
+        updateWorkspaceSettings(
+          "house-1",
+          { branding: { logoUrl: "ftp://example.com/logo.png" } },
+          { client: supabase as never, actorEntityId: "entity-1", reload: false },
+        ),
+      (error) =>
+        error instanceof WorkspaceSettingsUpdateError &&
+        error.status === 400 &&
+        error.message === "Logo URL must start with http:// or https://",
+    );
+
+    assert.deepEqual(supabase.houseUpdates, []);
+  });
   it("rejects unauthorized updates", async () => {
     const supabase = new SupabaseRolesMock(["BUSINESS_STAFF"]);
     const calls: RecordedMutation[] = [];
