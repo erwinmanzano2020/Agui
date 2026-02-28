@@ -73,7 +73,7 @@ function drawCard(
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8.5);
-  doc.text(row.position?.trim() || "Staff", centerX, y + HEADER_HEIGHT_MM + 13);
+  doc.text(row.position?.trim() || "", centerX, y + HEADER_HEIGHT_MM + 13);
 
   doc.setFontSize(7);
   doc.text(`Branch: ${row.branchName?.trim() || "Main Branch"}`, centerX, y + HEADER_HEIGHT_MM + 18);

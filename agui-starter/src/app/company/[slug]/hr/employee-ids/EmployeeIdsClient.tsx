@@ -81,6 +81,7 @@ export function EmployeeIdsClient({
             <th className="py-2">Select</th>
             <th>Name</th>
             <th>Code</th>
+            <th>Position</th>
             <th>Branch</th>
             <th>Actions</th>
           </tr>
@@ -93,6 +94,7 @@ export function EmployeeIdsClient({
               </td>
               <td>{employee.fullName ?? employee.code}</td>
               <td>{employee.code}</td>
+              <td>{employee.position ?? "—"}</td>
               <td>{employee.branchName ?? "—"}</td>
               <td className="space-x-2 py-2">
                 <a

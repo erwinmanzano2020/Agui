@@ -41,6 +41,7 @@ const CreateEmployeeSchema = z.object({
   status: StatusSchema.default("active").optional(),
   branch_id: z.string().trim().optional(),
   rate_per_day: z.number(),
+  position_title: z.string().trim().max(120, "Position is too long").optional(),
   email: EmailSchema,
   phone: PhoneSchema,
   entity_id: z.string().trim().uuid().optional(),
@@ -75,6 +76,7 @@ export async function createEmployeeAction(
     status: formData.get("status") || "active",
     branch_id: branchId || undefined,
     rate_per_day: parsedRate,
+    position_title: typeof formData.get("position_title") === "string" ? String(formData.get("position_title")).trim() || undefined : undefined,
     email: email || undefined,
     phone: phone || undefined,
     entity_id: entityIdInput || undefined,
@@ -175,6 +177,7 @@ export async function createEmployeeAction(
     branch_id: normalizedBranchId,
     rate_per_day: parsed.data.rate_per_day,
     entity_id: entityId,
+    position_title: parsed.data.position_title?.trim() || null,
   };
 
   try {

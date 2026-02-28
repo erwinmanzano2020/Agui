@@ -103,6 +103,10 @@ export default async function EmployeeProfilePage({ params }: Props) {
             <dd className="text-base font-medium text-foreground">{employee.status === "active" ? "Active" : "Inactive"}</dd>
           </div>
           <div>
+            <dt className="text-sm text-muted-foreground">Position/Role</dt>
+            <dd className="text-base font-medium text-foreground">{employee.position_title ?? "—"}</dd>
+          </div>
+          <div>
             <dt className="text-sm text-muted-foreground">Branch</dt>
             <dd className="text-base font-medium text-foreground">{branchName}</dd>
           </div>

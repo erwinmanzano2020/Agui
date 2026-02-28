@@ -115,6 +115,12 @@ export function EditEmployeeForm({ employee, branches, branchLoadError, houseId,
         </label>
 
         <label className="block space-y-1 text-sm text-muted-foreground">
+          Position/Role
+          <Input name="position_title" defaultValue={employee.position_title ?? ""} placeholder="e.g., Cashier" />
+          <FieldError message={state.fieldErrors?.position_title} />
+        </label>
+
+        <label className="block space-y-1 text-sm text-muted-foreground">
           Rate per day
           <Input
             name="rate_per_day"

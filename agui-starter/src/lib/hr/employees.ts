@@ -72,6 +72,7 @@ export function buildEmployeeRow(
     rate_per_day: rate,
     status: overrides.status ?? "active",
     branch_id: overrides.branch_id ?? null,
+    position_title: overrides.position_title ?? null,
     created_at: overrides.created_at ?? now,
     updated_at: overrides.updated_at ?? now,
   } satisfies EmployeeRow;
@@ -157,6 +158,7 @@ export function createInMemoryEmployeeRepository(initial?: {
         rate_per_day: rate,
         status,
         branch_id: payload.branch_id ?? null,
+        position_title: payload.position_title ?? null,
         created_at: now,
         updated_at: payload.updated_at ?? now,
       } satisfies EmployeeRow;
@@ -174,6 +176,7 @@ export function createInMemoryEmployeeRepository(initial?: {
         entity_id: updates.entity_id ?? existing.entity_id ?? null,
         full_name: updates.full_name?.trim() || existing.full_name,
         rate_per_day: updates.rate_per_day ?? existing.rate_per_day,
+        position_title: updates.position_title ?? existing.position_title ?? null,
         updated_at: updates.updated_at ?? new Date().toISOString(),
       } satisfies EmployeeRow;
 

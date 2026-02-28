@@ -26,6 +26,7 @@ const EmployeeUpdateSchema = z.object({
   status: StatusSchema,
   branch_id: z.string().trim().optional(),
   rate_per_day: z.number(),
+  position_title: z.string().trim().max(120, "Position is too long").optional(),
 });
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -52,6 +53,7 @@ export async function updateEmployeeAction(
     status: formData.get("status"),
     branch_id: branchId || undefined,
     rate_per_day: parsedRate,
+    position_title: typeof formData.get("position_title") === "string" ? String(formData.get("position_title")).trim() || undefined : undefined,
   });
 
   if (!parsed.success) {
@@ -98,6 +100,7 @@ export async function updateEmployeeAction(
     const updated = await updateEmployeeForHouseWithAccess(service, access, houseId, employeeId, {
       ...payload,
       branch_id: normalizedBranchId,
+      position_title: payload.position_title?.trim() || null,
     });
 
     if (!updated) {
