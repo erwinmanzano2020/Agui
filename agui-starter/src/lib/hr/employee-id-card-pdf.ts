@@ -183,16 +183,15 @@ function drawCard(
   doc.setLineWidth(0.35);
   doc.roundedRect(photoX, photoY, photoW, photoH, 0.9, 0.9);
 
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(5.5);
-  doc.text("PHOTO", photoX + photoW / 2, photoY + photoH + 3, { align: "center" });
+  doc.setTextColor(175, 175, 175);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(4.8);
-  doc.text("Paste 1×1 or 2×2", photoX + photoW / 2, photoY + photoH + 5.2, { align: "center" });
+  doc.setFontSize(5.2);
+  doc.text("PHOTO", photoX + photoW / 2, photoY + photoH / 2, { align: "center", baseline: "middle" });
 
+  doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.4);
-  doc.text(row.code, photoX, photoY + photoH + 8.2);
+  doc.text(row.code, photoX, photoY + photoH + 4.5);
 
   const centerX = photoX + photoW + 4;
   const centerW = 34;
@@ -254,11 +253,11 @@ function drawCard(
   doc.setFontSize(4.8);
   doc.text(getQrCaption(), qrX + qrSize / 2, qrY + qrSize + 2.8, { align: "center" });
 
-  const signatureY = y + CR80_HEIGHT_MM - SAFE_MARGIN_MM - 2.5;
+  const signatureY = y + CR80_HEIGHT_MM - SAFE_MARGIN_MM - 1.8;
   const sigX = x + SAFE_MARGIN_MM;
   const sigW = 28;
   doc.setFontSize(5.4);
-  doc.text("Signature", sigX, signatureY - 1.8);
+  doc.text("Signature", sigX, signatureY - 1.6);
   doc.setLineWidth(0.15);
   doc.line(sigX, signatureY, sigX + sigW, signatureY);
 }
