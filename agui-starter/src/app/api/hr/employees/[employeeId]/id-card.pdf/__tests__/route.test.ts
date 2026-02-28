@@ -20,9 +20,12 @@ beforeEach(async () => {
     id: "00000000-0000-0000-0000-000000000001",
     code: "EMP-001",
     fullName: "A",
+    position: "Cashier",
     branchName: "Main",
+    validUntil: null,
     houseId: "00000000-0000-0000-0000-000000000111",
     houseName: "Demo House",
+    houseLogoUrl: null,
   }));
 
   const pdf = await import("@/lib/hr/employee-id-card-pdf");

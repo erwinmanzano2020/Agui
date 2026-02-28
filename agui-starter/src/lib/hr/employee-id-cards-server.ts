@@ -12,7 +12,7 @@ export async function listEmployeeIdCards(
 ): Promise<EmployeeIdCardRow[]> {
   let query = supabase
     .from("employees")
-    .select("id, code, full_name, house_id, branch_id")
+    .select("id, code, full_name, position_title, house_id, branch_id")
     .eq("house_id", houseId)
     .eq("status", "active");
 
@@ -27,7 +27,7 @@ export async function listEmployeeIdCards(
 
   const [{ data: employees, error }, { data: house }, { data: branches }] = await Promise.all([
     query.order("code", { ascending: true }),
-    supabase.from("houses").select("id, name").eq("id", houseId).maybeSingle(),
+    supabase.from("houses").select("id, name, logo_url").eq("id", houseId).maybeSingle(),
     supabase.from("branches").select("id, name").eq("house_id", houseId),
   ]);
 
@@ -41,9 +41,12 @@ export async function listEmployeeIdCards(
     id: employee.id,
     code: employee.code,
     fullName: employee.full_name ?? null,
+    position: employee.position_title ?? null,
     branchName: employee.branch_id ? branchNames.get(employee.branch_id) ?? null : null,
+    validUntil: null,
     houseId,
     houseName: house?.name ?? "House",
+    houseLogoUrl: house?.logo_url ?? null,
   }));
 }
 
@@ -55,11 +58,11 @@ export async function getEmployeeIdCardById(
   const [{ data: employee, error }, { data: house }, { data: branch }] = await Promise.all([
     supabase
       .from("employees")
-      .select("id, code, full_name, house_id, branch_id")
+      .select("id, code, full_name, position_title, house_id, branch_id")
       .eq("id", employeeId)
       .eq("house_id", houseId)
       .maybeSingle(),
-    supabase.from("houses").select("id, name").eq("id", houseId).maybeSingle(),
+    supabase.from("houses").select("id, name, logo_url").eq("id", houseId).maybeSingle(),
     supabase
       .from("employees")
       .select("branches(name)")
@@ -80,8 +83,11 @@ export async function getEmployeeIdCardById(
     id: employee.id,
     code: employee.code,
     fullName: employee.full_name ?? null,
+    position: employee.position_title ?? null,
     branchName: branch?.branches?.name ?? null,
+    validUntil: null,
     houseId,
     houseName: house?.name ?? "House",
+    houseLogoUrl: house?.logo_url ?? null,
   };
 }

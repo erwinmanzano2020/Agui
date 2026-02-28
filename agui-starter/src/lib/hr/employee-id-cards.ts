@@ -2,9 +2,12 @@ export type EmployeeIdCardRow = {
   id: string;
   code: string;
   fullName: string | null;
+  position: string | null;
   branchName: string | null;
+  validUntil: string | null;
   houseId: string;
   houseName: string;
+  houseLogoUrl: string | null;
 };
 
 export function employeeIdCardSortKey(row: Pick<EmployeeIdCardRow, "code" | "id">): string {

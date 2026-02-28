@@ -208,6 +208,7 @@ export type EmployeeRow = {
   rate_per_day: number;
   status: "active" | "inactive";
   branch_id: string | null;
+  position_title?: string | null;
   created_at: string;
   updated_at: string | null;
 };
@@ -221,6 +222,7 @@ export type EmployeeInsert = {
   rate_per_day?: number;
   status?: EmployeeRow["status"];
   branch_id?: string | null;
+  position_title?: string | null;
   created_at?: string;
   updated_at?: string | null;
 };

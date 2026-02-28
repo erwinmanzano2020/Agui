@@ -86,6 +86,7 @@ const CreateEmployeePayloadSchema = z.object({
   full_name: z.string().trim().min(2).max(200),
   branch_id: z.string().trim().uuid().optional(),
   rate_per_day: z.number().positive(),
+  position_title: z.string().trim().max(120).optional(),
   status: z.enum(["active", "inactive"]).default("active").optional(),
   email: z.string().trim().regex(EMAIL_REGEX).optional(),
   phone: z
@@ -286,6 +287,11 @@ export async function POST(req: NextRequest) {
         ? Number((body as Record<string, unknown> | null)?.rate_per_day)
         : (body as Record<string, unknown> | null)?.rate_per_day,
     status: (body as Record<string, unknown> | null)?.status,
+    position_title:
+      typeof (body as Record<string, unknown> | null)?.position_title === "string" &&
+      ((body as Record<string, unknown> | null)?.position_title as string).trim()
+        ? ((body as Record<string, unknown> | null)?.position_title as string).trim()
+        : undefined,
     email:
       typeof (body as Record<string, unknown> | null)?.email === "string" &&
       ((body as Record<string, unknown> | null)?.email as string).trim()
@@ -422,6 +428,7 @@ export async function POST(req: NextRequest) {
       rate_per_day: parsed.data.rate_per_day,
       status: parsed.data.status ?? "active",
       entity_id: resolvedEntityId,
+      position_title: parsed.data.position_title?.trim() || null,
     });
 
     return NextResponse.json({ employee: created }, { status: 201 });

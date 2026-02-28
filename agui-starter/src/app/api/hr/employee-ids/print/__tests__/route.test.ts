@@ -19,9 +19,9 @@ beforeEach(async () => {
 
   const cards = await import("@/lib/hr/employee-id-cards-server");
   mock.method(cards, "listEmployeeIdCards", async () => [
-    { id: "00000000-0000-0000-0000-000000000003", code: "EMP-003", fullName: null, branchName: null, houseId: "h", houseName: "house" },
-    { id: "00000000-0000-0000-0000-000000000001", code: "EMP-001", fullName: null, branchName: null, houseId: "h", houseName: "house" },
-    { id: "00000000-0000-0000-0000-000000000002", code: "EMP-002", fullName: null, branchName: null, houseId: "h", houseName: "house" },
+    { id: "00000000-0000-0000-0000-000000000003", code: "EMP-003", fullName: null, position: null, branchName: null, validUntil: null, houseId: "h", houseName: "house", houseLogoUrl: null },
+    { id: "00000000-0000-0000-0000-000000000001", code: "EMP-001", fullName: null, position: null, branchName: null, validUntil: null, houseId: "h", houseName: "house", houseLogoUrl: null },
+    { id: "00000000-0000-0000-0000-000000000002", code: "EMP-002", fullName: null, position: null, branchName: null, validUntil: null, houseId: "h", houseName: "house", houseLogoUrl: null },
   ]);
 
   const pdf = await import("@/lib/hr/employee-id-card-pdf");
