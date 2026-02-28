@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { afterEach, describe, it, mock } from "node:test";
 import { jsPDF } from "jspdf";
 
-import { fitTextToBox } from "@/lib/hr/employee-id-card-pdf";
+import { fitTextToBox, getHeaderBrandName, resolveHouseLogo } from "@/lib/hr/employee-id-card-pdf";
+
+afterEach(() => {
+  mock.restoreAll();
+});
 
 describe("fitTextToBox", () => {
   it("fits long names into two lines with a floor font size", () => {
@@ -34,5 +38,33 @@ describe("fitTextToBox", () => {
 
     assert.equal(result.lines.length, 1);
     assert.match(result.lines[0], /…$/);
+  });
+});
+
+describe("header branding fallback", () => {
+  it("returns null when house name is missing and never returns Store/House fallback text", () => {
+    assert.equal(getHeaderBrandName(""), null);
+    assert.equal(getHeaderBrandName("   "), null);
+    assert.equal(getHeaderBrandName(null), null);
+    assert.notEqual(getHeaderBrandName(""), "Store");
+    assert.notEqual(getHeaderBrandName(""), "House");
+  });
+
+  it("returns house name when present", () => {
+    assert.equal(getHeaderBrandName("Demo House"), "Demo House");
+  });
+});
+
+describe("resolveHouseLogo", () => {
+  it("returns null for unsupported logo content types", async () => {
+    mock.method(globalThis, "fetch", async () =>
+      new Response("<svg></svg>", {
+        status: 200,
+        headers: { "content-type": "image/svg+xml" },
+      }),
+    );
+
+    const result = await resolveHouseLogo("https://example.com/logo.svg", new Map());
+    assert.equal(result, null);
   });
 });

@@ -39,6 +39,11 @@ function cleanText(text: string | null | undefined): string {
   return text?.trim() ?? "";
 }
 
+export function getHeaderBrandName(houseName: string | null | undefined): string | null {
+  const normalized = cleanText(houseName);
+  return normalized.length > 0 ? normalized : null;
+}
+
 function formatValidUntil(value: string | null): string | null {
   if (!value) {
     return null;
@@ -99,7 +104,7 @@ function getQrCaption(): string {
   return DEFAULT_QR_CAPTION;
 }
 
-async function resolveHouseLogo(logoUrl: string | null, cache: Map<string, HouseLogo | null>): Promise<HouseLogo | null> {
+export async function resolveHouseLogo(logoUrl: string | null, cache: Map<string, HouseLogo | null>): Promise<HouseLogo | null> {
   const url = cleanText(logoUrl);
   if (!url) {
     return null;
@@ -116,11 +121,16 @@ async function resolveHouseLogo(logoUrl: string | null, cache: Map<string, House
       return null;
     }
 
-    const contentType = response.headers.get("content-type")?.toLocaleLowerCase() ?? "";
+    const contentType = response.headers.get("content-type")?.toLocaleLowerCase().split(";")[0]?.trim() ?? "";
+    const isPng = contentType === "image/png";
+    const isJpeg = contentType === "image/jpeg" || contentType === "image/jpg";
+    if (!isPng && !isJpeg) {
+      cache.set(url, null);
+      return null;
+    }
+
     const arrayBuffer = await response.arrayBuffer();
     const base64 = Buffer.from(arrayBuffer).toString("base64");
-
-    const isJpeg = contentType.includes("jpeg") || contentType.includes("jpg");
     const mimeType = isJpeg ? "image/jpeg" : "image/png";
     const format: "PNG" | "JPEG" = isJpeg ? "JPEG" : "PNG";
     const logo = { dataUrl: `data:${mimeType};base64,${base64}`, format };
@@ -147,14 +157,15 @@ function drawCard(
   doc.setFillColor(...HEADER_BG);
   doc.rect(x, y, CR80_WIDTH_MM, HEADER_HEIGHT_MM, "F");
 
-  const headerName = cleanText(row.houseName) || "Store";
+  const headerName = getHeaderBrandName(row.houseName);
+  const hasHeaderName = headerName !== null;
   const headerTextY = y + 4;
   const headerSubtextY = y + 7.1;
 
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
 
-  if (houseLogo) {
+  if (houseLogo && hasHeaderName) {
     const logoSize = 5.5;
     const logoX = x + SAFE_MARGIN_MM;
     const logoY = y + (HEADER_HEIGHT_MM - logoSize) / 2;
@@ -165,12 +176,18 @@ function drawCard(
     doc.setFont("helvetica", "normal");
     doc.setFontSize(5.2);
     doc.text(STAFF_ID_SUBTEXT, logoX + logoSize + 1.8, headerSubtextY);
-  } else {
+  } else if (hasHeaderName) {
     doc.setFontSize(9.1);
     doc.text(headerName, x + CR80_WIDTH_MM / 2, headerTextY, { align: "center" });
     doc.setFont("helvetica", "normal");
     doc.setFontSize(5.2);
     doc.text(STAFF_ID_SUBTEXT, x + CR80_WIDTH_MM / 2, headerSubtextY, { align: "center" });
+  } else {
+    doc.setFontSize(7.2);
+    doc.text(STAFF_ID_SUBTEXT, x + CR80_WIDTH_MM / 2, y + HEADER_HEIGHT_MM / 2 + 0.8, {
+      align: "center",
+      baseline: "middle",
+    });
   }
 
   doc.setTextColor(0, 0, 0);
