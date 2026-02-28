@@ -11,6 +11,24 @@ const CR80_WIDTH_MM = 85.6;
 const CR80_HEIGHT_MM = 53.98;
 const QR_CONCURRENCY = 8;
 
+const SAFE_MARGIN_MM = 3;
+const HEADER_HEIGHT_MM = 9;
+const HEADER_BG = [55, 65, 81] as const;
+
+function formatValidUntil(value: string | null): string {
+  if (!value) {
+    return "Valid Until: —";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "Valid Until: —";
+  }
+
+  const month = parsed.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
+  return `Valid Until: ${month} ${parsed.getUTCFullYear()}`;
+}
+
 function drawCard(
   doc: jsPDF,
   row: EmployeeIdCardRow,
@@ -22,32 +40,63 @@ function drawCard(
   doc.setLineWidth(0.2);
   doc.rect(x, y, CR80_WIDTH_MM, CR80_HEIGHT_MM);
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
-  doc.text(row.houseName, x + 3, y + 4);
+  doc.setFillColor(...HEADER_BG);
+  doc.rect(x, y, CR80_WIDTH_MM, HEADER_HEIGHT_MM, "F");
+
+  const headerCenterY = y + HEADER_HEIGHT_MM / 2 + 1;
+
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(9.5);
+  doc.text(row.houseName, x + CR80_WIDTH_MM / 2, headerCenterY, { align: "center", baseline: "middle" });
+  doc.setTextColor(0, 0, 0);
+
+  const photoX = x + SAFE_MARGIN_MM;
+  const photoY = y + HEADER_HEIGHT_MM + 2;
+  const photoW = 21;
+  const photoH = 28;
+  doc.setDrawColor(120);
+  doc.setLineWidth(0.2);
+  doc.rect(photoX, photoY, photoW, photoH);
 
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(14);
-  doc.text(row.code, x + 3, y + 12);
+  doc.setFontSize(8.5);
+  doc.text(row.code, photoX, photoY + photoH + 4);
 
-  if (row.branchName) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.text(`Branch: ${row.branchName}`, x + 3, y + 17);
-  }
+  const centerX = photoX + photoW + 4;
+  const centerW = 34;
+  const name = row.fullName?.trim() || "Employee Name";
 
-  doc.setDrawColor(120);
-  doc.rect(x + 3, y + 20, 30, 24);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
+  doc.text(name, centerX, y + HEADER_HEIGHT_MM + 6.5, { maxWidth: centerW });
+
   doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.text(row.position?.trim() || "Staff", centerX, y + HEADER_HEIGHT_MM + 13);
+
   doc.setFontSize(7);
-  doc.text("PHOTO", x + 18, y + 30, { align: "center" });
-  doc.text("(paste here)", x + 18, y + 35, { align: "center" });
+  doc.text(`Branch: ${row.branchName?.trim() || "Main Branch"}`, centerX, y + HEADER_HEIGHT_MM + 18);
 
-  doc.addImage(qrDataUrl, "PNG", x + 49, y + 16, 32, 32);
+  doc.setFontSize(6.8);
+  doc.text(formatValidUntil(row.validUntil), centerX, y + HEADER_HEIGHT_MM + 23);
 
+  const qrSize = 20;
+  const qrX = x + CR80_WIDTH_MM - SAFE_MARGIN_MM - qrSize;
+  const qrY = y + HEADER_HEIGHT_MM + 3;
+  doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(5.5);
+  doc.text("AGUI HR • Scan at kiosk", qrX + qrSize / 2, qrY + qrSize + 3, { align: "center" });
+
+  const signatureY = y + CR80_HEIGHT_MM - SAFE_MARGIN_MM - 2.5;
+  const sigX = x + SAFE_MARGIN_MM;
+  const sigW = 28;
   doc.setFontSize(6);
-  doc.text("Scan at kiosk", x + 3, y + 48);
-  doc.text("If QR is damaged, contact HR for reprint.", x + 3, y + 51.5);
+  doc.text("Employee Signature", sigX, signatureY - 1.8);
+  doc.setLineWidth(0.15);
+  doc.line(sigX, signatureY, sigX + sigW, signatureY);
 }
 
 export async function generateEmployeeIdCardPdf(row: EmployeeIdCardRow): Promise<Uint8Array> {
