@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import type { NextRequest } from "next/server";
 
 let GET: typeof import("../route").GET;
+let runtime: typeof import("../route").runtime;
 
 beforeEach(async () => {
   const featureGuard = await import("@/lib/auth/feature-guard");
@@ -27,7 +28,7 @@ beforeEach(async () => {
   const pdf = await import("@/lib/hr/employee-id-card-pdf");
   mock.method(pdf, "generateEmployeeIdCardPdf", async () => new Uint8Array([1, 2, 3]));
 
-  ({ GET } = await import("../route"));
+  ({ GET, runtime } = await import("../route"));
 });
 
 afterEach(() => {
@@ -35,6 +36,10 @@ afterEach(() => {
 });
 
 describe("GET /api/hr/employees/[employeeId]/id-card.pdf", () => {
+  it("uses nodejs runtime", () => {
+    assert.equal(runtime, "nodejs");
+  });
+
   it("requires hr access", async () => {
     const access = await import("@/lib/hr/access");
     mock.method(access, "requireHrAccess", async () => ({ allowed: false } as never));
@@ -77,7 +82,6 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", () => {
 
     assert.equal(response.status, 500);
     const body = await response.json();
-    assert.match(String(body?.error ?? ""), /Failed to generate QR code/);
-    assert.equal(body?.reason, "boom");
+    assert.deepEqual(body, { error: "Failed to generate QR code" });
   });
 });

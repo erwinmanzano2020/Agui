@@ -21,6 +21,12 @@ describe("generateQrPngDataUrl", () => {
     assert.ok(url.startsWith("data:image/png;base64,"));
   });
 
+
+  it("loads QR encoder through runtime import by default", async () => {
+    const url = await generateQrPngDataUrl("sample-token-default-loader");
+    assert.ok(url.startsWith("data:image/png;base64,"));
+  });
+
   it("throws when QR encoder returns non-PNG data URL prefix", async () => {
     setQrEncoderLoaderForTest(() => ({
       toDataURL: async () => "data:image/jpeg;base64,AAA=",

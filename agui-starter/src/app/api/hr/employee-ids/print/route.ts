@@ -13,6 +13,8 @@ import { z } from "@/lib/z";
 const HouseIdSchema = z.string().trim().uuid();
 const MAX_EMPLOYEE_IDS = 200;
 
+export const runtime = "nodejs";
+
 export async function POST(req: NextRequest) {
   const guard = await requireAnyFeatureAccessApi([AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK]);
   if (guard) return guard;
@@ -81,6 +83,6 @@ export async function POST(req: NextRequest) {
     const reason = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : undefined;
     console.error("[hr][employee-ids/print] Failed to generate QR code", { reason, stack, houseId });
-    return NextResponse.json({ error: "Failed to generate QR code", reason }, { status: 500 });
+    return NextResponse.json({ error: "Failed to generate QR code" }, { status: 500 });
   }
 }
