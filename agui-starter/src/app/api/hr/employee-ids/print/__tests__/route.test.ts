@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import type { NextRequest } from "next/server";
 
 let POST: typeof import("../route").POST;
+let runtime: typeof import("../route").runtime;
 let generateCalls: string[][] = [];
 
 beforeEach(async () => {
@@ -29,7 +30,7 @@ beforeEach(async () => {
     return new Uint8Array([7, 8, 9]);
   });
 
-  ({ POST } = await import("../route"));
+  ({ POST, runtime } = await import("../route"));
 });
 
 afterEach(() => {
@@ -37,6 +38,10 @@ afterEach(() => {
 });
 
 describe("POST /api/hr/employee-ids/print", () => {
+  it("uses nodejs runtime", () => {
+    assert.equal(runtime, "nodejs");
+  });
+
   it("validates employeeIds non-empty", async () => {
     const response = await POST(
       new Request("http://localhost/api/hr/employee-ids/print", {
@@ -122,7 +127,6 @@ describe("POST /api/hr/employee-ids/print", () => {
 
     assert.equal(response.status, 500);
     const body = await response.json();
-    assert.match(String(body?.error ?? ""), /Failed to generate QR code/);
-    assert.equal(body?.reason, "boom");
+    assert.deepEqual(body, { error: "Failed to generate QR code" });
   });
 });

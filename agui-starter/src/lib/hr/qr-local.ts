@@ -1,4 +1,5 @@
 import "server-only";
+import QRCode from "qrcode";
 
 export class EmployeeIdQrGenerationError extends Error {
   constructor(message: string) {
@@ -19,20 +20,11 @@ type QrEncoder = {
   ) => Promise<string>;
 };
 
-function loadQrEncoderFromRuntime(): QrEncoder {
-  try {
-    const req = Function("return require")() as (id: string) => unknown;
-    return req("qrcode") as QrEncoder;
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : String(error);
-    throw new EmployeeIdQrGenerationError(`Failed to generate QR code: ${reason}`);
-  }
-}
+let qrEncoder: QrEncoder = QRCode;
 
 export async function generateQrPngDataUrl(token: string): Promise<string> {
   try {
-    const qrcode = qrEncoderLoader();
-    const dataUrl = await qrcode.toDataURL(token, {
+    const dataUrl = await qrEncoder.toDataURL(token, {
       type: "image/png",
       errorCorrectionLevel: "M",
       margin: 0,
@@ -45,9 +37,6 @@ export async function generateQrPngDataUrl(token: string): Promise<string> {
 
     return dataUrl;
   } catch (error) {
-    if (error instanceof EmployeeIdQrGenerationError) {
-      throw error;
-    }
     const reason = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : undefined;
     const tokenPrefix = token.slice(0, 8);
@@ -81,9 +70,16 @@ export async function mapWithConcurrency<T, R>(
   return results;
 }
 
+export function setQrEncoderLoaderForTest(loader: (() => QrEncoder | Promise<QrEncoder>) | null): void {
+  if (!loader) {
+    qrEncoder = QRCode;
+    return;
+  }
 
-let qrEncoderLoader: () => QrEncoder = loadQrEncoderFromRuntime;
-
-export function setQrEncoderLoaderForTest(loader: (() => QrEncoder) | null): void {
-  qrEncoderLoader = loader ?? loadQrEncoderFromRuntime;
+  qrEncoder = {
+    toDataURL: async (text, options) => {
+      const encoder = await loader();
+      return encoder.toDataURL(text, options);
+    },
+  };
 }

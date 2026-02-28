@@ -11,6 +11,8 @@ import { z } from "@/lib/z";
 
 const ParamsSchema = z.object({ employeeId: z.string().trim().uuid() });
 
+export const runtime = "nodejs";
+
 function sanitizeFilename(value: string): string {
   return value.replace(/[^a-zA-Z0-9-_]+/g, "-").slice(0, 60);
 }
@@ -59,6 +61,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
     const reason = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : undefined;
     console.error("[hr][id-card.pdf] Failed to generate QR code", { reason, stack, employeeId: parsed.data.employeeId });
-    return NextResponse.json({ error: "Failed to generate QR code", reason }, { status: 500 });
+    return NextResponse.json({ error: "Failed to generate QR code" }, { status: 500 });
   }
 }
