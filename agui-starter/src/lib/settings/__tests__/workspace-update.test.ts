@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  updateWorkspaceBranding,
   updateWorkspaceSettings,
   WorkspaceSettingsUpdateError,
   __workspaceSettingsUpdateTesting,
@@ -92,7 +93,12 @@ describe("workspace settings update", () => {
     );
 
     assert.deepEqual(
-      calls.map((entry) => ({ key: entry.input.key, scope: entry.input.scope, value: (entry.input as { value?: unknown }).value, kind: entry.kind })),
+      calls.map((entry) => ({
+        key: entry.input.key,
+        scope: entry.input.scope,
+        value: (entry.input as { value?: unknown }).value,
+        kind: entry.kind,
+      })),
       [
         { kind: "set", key: "labels.house", scope: "BUSINESS", value: "Collective" },
         { kind: "reset", key: "labels.pass", scope: "BUSINESS", value: undefined },
@@ -118,16 +124,31 @@ describe("workspace settings update", () => {
     ]);
   });
 
+  it("updates branding directly on houses and preserves empty brand names", async () => {
+    const supabase = new SupabaseRolesMock(["BUSINESS_OWNER"]);
 
+    await updateWorkspaceBranding(
+      "house-1",
+      { brandName: "", logoUrl: "https://cdn.example.com/brand.png" },
+      { client: supabase as never, actorEntityId: "entity-1", reload: false },
+    );
+
+    assert.deepEqual(supabase.houseUpdates, [
+      {
+        id: "house-1",
+        values: { brand_name: "", logo_url: "https://cdn.example.com/brand.png" },
+      },
+    ]);
+  });
 
   it("rejects invalid logo URL", async () => {
     const supabase = new SupabaseRolesMock(["BUSINESS_OWNER"]);
 
     await assert.rejects(
       () =>
-        updateWorkspaceSettings(
+        updateWorkspaceBranding(
           "house-1",
-          { branding: { logoUrl: "ftp://example.com/logo.png" } },
+          { logoUrl: "ftp://example.com/logo.png" },
           { client: supabase as never, actorEntityId: "entity-1", reload: false },
         ),
       (error) =>
@@ -138,6 +159,7 @@ describe("workspace settings update", () => {
 
     assert.deepEqual(supabase.houseUpdates, []);
   });
+
   it("rejects unauthorized updates", async () => {
     const supabase = new SupabaseRolesMock(["BUSINESS_STAFF"]);
     const calls: RecordedMutation[] = [];

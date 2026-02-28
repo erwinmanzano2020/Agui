@@ -73,6 +73,11 @@ export type WorkspaceSettingsUpdateOptions = {
   writeOptions?: SettingsMutationOptions;
 };
 
+export type WorkspaceBrandingUpdateValues = {
+  brandName?: string | null;
+  logoUrl?: string | null;
+};
+
 const DEFAULT_ALLOWED_ROLES: WorkspaceRole[] = ["owner", "manager"];
 
 function normalizeStringValue(value?: string | null): string | null | undefined {
@@ -306,6 +311,43 @@ export async function updateWorkspaceSettings(
   }
 
   return loadWorkspaceSettings(houseId);
+}
+
+export async function updateWorkspaceBranding(
+  houseId: string,
+  values: WorkspaceBrandingUpdateValues,
+  options: Omit<WorkspaceSettingsUpdateOptions, "writer" | "resetter"> = {},
+): Promise<WorkspaceSettings["branding"] | null> {
+  const { supabase } = await ensureWorkspaceSettingsAccess(houseId, options);
+  const brandingUpdates: { brand_name?: string | null; logo_url?: string | null } = {};
+
+  if (typeof values.brandName !== "undefined") {
+    brandingUpdates.brand_name = values.brandName;
+  }
+
+  if (typeof values.logoUrl !== "undefined") {
+    const logoUrl = normalizeLogoUrlValue(values.logoUrl);
+    if (typeof logoUrl === "undefined") {
+      throw new WorkspaceSettingsUpdateError(400, "Logo URL must start with http:// or https://");
+    }
+    brandingUpdates.logo_url = logoUrl;
+  }
+
+  if (Object.keys(brandingUpdates).length === 0) {
+    return options.reload === false ? null : loadWorkspaceSettings(houseId).then((settings) => settings.branding);
+  }
+
+  const { error } = await supabase.from("houses").update(brandingUpdates).eq("id", houseId);
+  if (error) {
+    throw new WorkspaceSettingsUpdateError(500, "Unable to update branding");
+  }
+
+  if (options.reload === false) {
+    return null;
+  }
+
+  const settings = await loadWorkspaceSettings(houseId);
+  return settings.branding;
 }
 
 export const __workspaceSettingsUpdateTesting = {
