@@ -45,7 +45,7 @@ export async function listEmployeeIdCards(
     branchName: employee.branch_id ? branchNames.get(employee.branch_id) ?? null : null,
     validUntil: null,
     houseId,
-    houseName: house?.name ?? "House",
+    houseName: house?.name ?? "Store",
     houseLogoUrl: house?.logo_url ?? null,
   }));
 }
@@ -87,7 +87,7 @@ export async function getEmployeeIdCardById(
     branchName: branch?.branches?.name ?? null,
     validUntil: null,
     houseId,
-    houseName: house?.name ?? "House",
+    houseName: house?.name ?? "Store",
     houseLogoUrl: house?.logo_url ?? null,
   };
 }
