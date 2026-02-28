@@ -550,6 +550,7 @@ export type HouseRow = {
   guild_id: string | null;
   slug: string;
   name: string;
+  brand_name?: string | null;
   house_type: string | null;
   created_at: string;
   logo_url?: string | null;
@@ -561,6 +562,7 @@ export type HouseInsert = {
   guild_id?: string | null;
   slug: string;
   name: string;
+  brand_name?: string | null;
   house_type?: string | null;
   created_at?: string;
   logo_url?: string | null;

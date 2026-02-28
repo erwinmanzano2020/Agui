@@ -46,6 +46,10 @@ export type WorkspaceSettingsUpdateValues = {
   ui?: {
     alwaysShowStartBusinessTile?: boolean | null;
   };
+  branding?: {
+    brandName?: string | null;
+    logoUrl?: string | null;
+  };
 };
 
 export class WorkspaceSettingsUpdateError extends Error {
@@ -76,6 +80,20 @@ function normalizeStringValue(value?: string | null): string | null | undefined 
   if (value === null) return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+
+function normalizeLogoUrlValue(value?: string | null): string | null | undefined {
+  const normalized = normalizeStringValue(value);
+  if (typeof normalized === "undefined" || normalized === null) {
+    return normalized;
+  }
+
+  if (!/^https?:\/\//i.test(normalized)) {
+    return undefined;
+  }
+
+  return normalized;
 }
 
 function normalizeBooleanValue(value?: boolean | null): boolean | null | undefined {
@@ -240,8 +258,24 @@ export async function updateWorkspaceSettings(
 ): Promise<WorkspaceSettings | null> {
   const { supabase, actorEntityId } = await ensureWorkspaceSettingsAccess(houseId, options);
   const operations = buildWorkspaceSettingOperations(values);
+  const brandingUpdates: { brand_name?: string | null; logo_url?: string | null } = {};
 
-  if (operations.length === 0) {
+  if (values.branding) {
+    const brandName = normalizeStringValue(values.branding.brandName);
+    if (typeof brandName !== "undefined") {
+      brandingUpdates.brand_name = brandName;
+    }
+
+    const logoUrl = normalizeLogoUrlValue(values.branding.logoUrl);
+    if (typeof values.branding.logoUrl !== "undefined" && typeof logoUrl === "undefined") {
+      throw new WorkspaceSettingsUpdateError(400, "Logo URL must start with http:// or https://");
+    }
+    if (typeof logoUrl !== "undefined") {
+      brandingUpdates.logo_url = logoUrl;
+    }
+  }
+
+  if (operations.length === 0 && Object.keys(brandingUpdates).length === 0) {
     return options.reload === false ? null : loadWorkspaceSettings(houseId);
   }
 
@@ -260,6 +294,13 @@ export async function updateWorkspaceSettings(
     }
   }
 
+  if (Object.keys(brandingUpdates).length > 0) {
+    const { error } = await supabase.from("houses").update(brandingUpdates).eq("id", houseId);
+    if (error) {
+      throw new WorkspaceSettingsUpdateError(500, "Unable to update branding");
+    }
+  }
+
   if (options.reload === false) {
     return null;
   }
@@ -271,4 +312,5 @@ export const __workspaceSettingsUpdateTesting = {
   buildWorkspaceSettingOperations,
   normalizeStringValue,
   normalizeThresholds,
+  normalizeLogoUrlValue,
 };

@@ -56,6 +56,12 @@ const payloadSchema = zod.object({
         })
         .optional(),
       ui: zod.object({ alwaysShowStartBusinessTile: zod.boolean().nullable().optional() }).optional(),
+      branding: zod
+        .object({
+          brandName: zod.string().nullable().optional(),
+          logoUrl: zod.string().nullable().optional(),
+        })
+        .optional(),
     })
     .optional(),
 });

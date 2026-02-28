@@ -3,6 +3,7 @@ import "server-only";
 import { getSettingsSnapshot } from "@/lib/settings/server";
 import type { SettingCategory, SettingKey } from "@/lib/settings/catalog";
 import type { SettingsSnapshot } from "@/lib/settings/types";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
 
 export type WorkspaceSettings = {
   labels: {
@@ -33,6 +34,10 @@ export type WorkspaceSettings = {
   };
   ui: {
     alwaysShowStartBusinessTile: boolean;
+  };
+  branding: {
+    brandName: string | null;
+    logoUrl: string | null;
   };
 };
 
@@ -66,6 +71,10 @@ export const WORKSPACE_SETTINGS_DEFAULTS: WorkspaceSettings = {
   ui: {
     alwaysShowStartBusinessTile: false,
   },
+  branding: {
+    brandName: null,
+    logoUrl: null,
+  },
 };
 
 type WorkspaceSnapshotBundle = {
@@ -74,12 +83,15 @@ type WorkspaceSnapshotBundle = {
   sop: SettingsSnapshot;
   pos: SettingsSnapshot;
   ui: SettingsSnapshot;
+  branding: WorkspaceSettings["branding"];
 };
 
 type SnapshotLoader = (
   category: SettingCategory,
   context: { businessId: string; branchId: string | null },
 ) => Promise<SettingsSnapshot>;
+
+type BrandingLoader = (businessId: string) => Promise<WorkspaceSettings["branding"]>;
 
 function pickString(snapshot: SettingsSnapshot, key: SettingKey, fallback: string) {
   const value = snapshot[key]?.value;
@@ -179,36 +191,65 @@ export function normalizeWorkspaceSettings(bundle: WorkspaceSnapshotBundle): Wor
         base.ui.alwaysShowStartBusinessTile,
       ),
     },
+    branding: {
+      brandName: bundle.branding.brandName ?? base.branding.brandName,
+      logoUrl: bundle.branding.logoUrl ?? base.branding.logoUrl,
+    },
   };
 }
 
+
+
+async function loadWorkspaceBranding(businessId: string): Promise<WorkspaceSettings["branding"]> {
+  const supabase = await createServerSupabaseClient();
+  const { data, error } = await supabase
+    .from("houses")
+    .select("brand_name,logo_url")
+    .eq("id", businessId)
+    .maybeSingle<{ brand_name?: string | null; logo_url?: string | null }>();
+
+  if (error) {
+    console.warn("Failed to load workspace branding", error);
+    return WORKSPACE_SETTINGS_DEFAULTS.branding;
+  }
+
+  return {
+    brandName: data?.brand_name ?? null,
+    logoUrl: data?.logo_url ?? null,
+  };
+}
 function logMetric(event: string, payload: Record<string, unknown>) {
   console.info(`metric#${event}`, payload);
 }
 
 export async function loadWorkspaceSettings(businessId: string): Promise<WorkspaceSettings> {
-  return loadWorkspaceSettingsWithLoader(businessId, async (category, context) =>
-    getSettingsSnapshot({ category, businessId: context.businessId, branchId: context.branchId }),
+  return loadWorkspaceSettingsWithLoader(
+    businessId,
+    async (category, context) =>
+      getSettingsSnapshot({ category, businessId: context.businessId, branchId: context.branchId }),
+    loadWorkspaceBranding,
   );
 }
 
 export async function loadWorkspaceSettingsWithLoader(
   businessId: string,
   loader: SnapshotLoader,
+  brandingLoader: BrandingLoader = async () => WORKSPACE_SETTINGS_DEFAULTS.branding,
 ): Promise<WorkspaceSettings> {
   const branchId = businessId;
   const start = performance.now();
 
   try {
-    const [labels, receipt, sop, pos, ui] = await Promise.all([
+    const [labels, receipt, sop, pos, ui, branding] = await Promise.all([
       loader("labels", { businessId, branchId }),
       loader("receipt", { businessId, branchId }),
       loader("sop", { businessId, branchId }),
       loader("pos", { businessId, branchId }),
       loader("ui", { businessId, branchId }),
+      brandingLoader(businessId),
     ]);
 
-    const normalized = normalizeWorkspaceSettings({ labels, receipt, sop, pos, ui });
+    const normalized = normalizeWorkspaceSettings({ labels, receipt, sop, pos, ui, branding });
     logMetric("settings_workspace_load_ms", { businessId, duration: Math.round(performance.now() - start) });
     return normalized;
   } catch (error) {

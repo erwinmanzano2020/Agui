@@ -25,6 +25,7 @@ beforeEach(async () => {
     validUntil: null,
     houseId: "00000000-0000-0000-0000-000000000111",
     houseName: "Demo House",
+    houseBrandName: null,
     houseLogoUrl: null,
   }));
 

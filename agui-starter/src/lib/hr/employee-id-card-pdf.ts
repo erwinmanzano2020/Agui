@@ -39,9 +39,17 @@ function cleanText(text: string | null | undefined): string {
   return text?.trim() ?? "";
 }
 
-export function getHeaderBrandName(houseName: string | null | undefined): string | null {
-  const normalized = cleanText(houseName);
-  return normalized.length > 0 ? normalized : null;
+export function getHeaderBrandName(
+  brandName: string | null | undefined,
+  houseName: string | null | undefined,
+): string | null {
+  const brand = cleanText(brandName);
+  if (brand.length > 0) {
+    return brand;
+  }
+
+  const house = cleanText(houseName);
+  return house.length > 0 ? house : null;
 }
 
 function formatValidUntil(value: string | null): string | null {
@@ -157,7 +165,7 @@ function drawCard(
   doc.setFillColor(...HEADER_BG);
   doc.rect(x, y, CR80_WIDTH_MM, HEADER_HEIGHT_MM, "F");
 
-  const headerName = getHeaderBrandName(row.houseName);
+  const headerName = getHeaderBrandName(row.houseBrandName, row.houseName);
   const hasHeaderName = headerName !== null;
   const headerTextY = y + 4;
   const headerSubtextY = y + 7.1;

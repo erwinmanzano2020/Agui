@@ -7,8 +7,9 @@ import { loadBusinessBySlug } from "@/lib/workspaces/server";
 
 export const dynamic = "force-dynamic";
 
-export default async function CompanySettingsPage({ params }: { params: { slug: string } }) {
-  const business = await loadBusinessBySlug(params.slug);
+export default async function CompanySettingsPage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const business = await loadBusinessBySlug(slug);
   if (!business) {
     notFound();
   }
@@ -26,7 +27,7 @@ export default async function CompanySettingsPage({ params }: { params: { slug: 
         <p className="text-sm text-muted-foreground">Customize what your team sees across POS and cashiering.</p>
       </div>
       <WorkspaceSettingsForm
-        businessSlug={business.slug ?? params.slug}
+        businessSlug={business.slug ?? slug}
         canEdit={canEdit}
         initialValues={workspaceSettings}
       />

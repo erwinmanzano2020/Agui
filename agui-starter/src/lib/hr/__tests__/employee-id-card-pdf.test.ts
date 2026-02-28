@@ -43,15 +43,19 @@ describe("fitTextToBox", () => {
 
 describe("header branding fallback", () => {
   it("returns null when house name is missing and never returns Store/House fallback text", () => {
-    assert.equal(getHeaderBrandName(""), null);
-    assert.equal(getHeaderBrandName("   "), null);
-    assert.equal(getHeaderBrandName(null), null);
-    assert.notEqual(getHeaderBrandName(""), "Store");
-    assert.notEqual(getHeaderBrandName(""), "House");
+    assert.equal(getHeaderBrandName("", ""), null);
+    assert.equal(getHeaderBrandName("   ", ""), null);
+    assert.equal(getHeaderBrandName(null, null), null);
+    assert.notEqual(getHeaderBrandName("", ""), "Store");
+    assert.notEqual(getHeaderBrandName("", ""), "House");
   });
 
-  it("returns house name when present", () => {
-    assert.equal(getHeaderBrandName("Demo House"), "Demo House");
+  it("uses brand name when present", () => {
+    assert.equal(getHeaderBrandName("Demo Brand", "Demo House"), "Demo Brand");
+  });
+
+  it("falls back to house name when brand is empty", () => {
+    assert.equal(getHeaderBrandName(null, "Demo House"), "Demo House");
   });
 });
 

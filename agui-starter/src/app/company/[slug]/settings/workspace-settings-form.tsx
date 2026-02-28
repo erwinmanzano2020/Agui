@@ -45,6 +45,10 @@ type FormState = {
   ui: {
     alwaysShowStartBusinessTile: boolean;
   };
+  branding: {
+    brandName: string;
+    logoUrl: string;
+  };
 };
 
 function toFormState(settings: WorkspaceSettings): FormState {
@@ -82,6 +86,10 @@ function toFormState(settings: WorkspaceSettings): FormState {
     ui: {
       alwaysShowStartBusinessTile: settings.ui.alwaysShowStartBusinessTile,
     },
+    branding: {
+      brandName: settings.branding.brandName ?? "",
+      logoUrl: settings.branding.logoUrl ?? "",
+    },
   } satisfies FormState;
 }
 
@@ -104,6 +112,7 @@ function buildPayload(state: FormState, reset: boolean): { values: WorkspaceSett
         sop: { startShiftHint: null, blindDropHint: null, cashierVarianceThresholds: null },
         pos: { blindDropEnabled: null, overagePool: { enabled: null, maxOffsetRatio: null } },
         ui: { alwaysShowStartBusinessTile: null },
+        branding: { brandName: null, logoUrl: null },
       },
     };
   }
@@ -140,6 +149,11 @@ function buildPayload(state: FormState, reset: boolean): { values: WorkspaceSett
     return { values: {}, error: "Overage pool offset must be a number." };
   }
 
+  const normalizedLogoUrl = stringOrNull(state.branding.logoUrl);
+  if (normalizedLogoUrl && !/^https?:\/\//i.test(normalizedLogoUrl)) {
+    return { values: {}, error: "Logo URL must start with http:// or https://" };
+  }
+
   return {
     values: {
       labels: {
@@ -171,6 +185,10 @@ function buildPayload(state: FormState, reset: boolean): { values: WorkspaceSett
         },
       },
       ui: { alwaysShowStartBusinessTile: state.ui.alwaysShowStartBusinessTile },
+      branding: {
+        brandName: stringOrNull(state.branding.brandName),
+        logoUrl: normalizedLogoUrl,
+      },
     },
   };
 }
@@ -350,6 +368,37 @@ export default function WorkspaceSettingsForm({
                   disabled={disabled}
                 />
               </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="space-y-1">
+            <h2 className="text-lg font-semibold">Branding</h2>
+            <p className="text-sm text-muted-foreground">Brand identity shown across business views and staff IDs.</p>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-foreground">Brand name</label>
+              <Input
+                value={form.branding.brandName}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, branding: { ...prev.branding, brandName: event.target.value } }))
+                }
+                placeholder="If empty, uses workspace name"
+                disabled={disabled}
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-foreground">Logo URL</label>
+              <Input
+                value={form.branding.logoUrl}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, branding: { ...prev.branding, logoUrl: event.target.value } }))
+                }
+                placeholder="https://example.com/logo.png"
+                disabled={disabled}
+              />
+              <p className="text-xs text-muted-foreground">PNG/JPG only; recommended square/transparent background</p>
             </div>
           </CardContent>
         </Card>

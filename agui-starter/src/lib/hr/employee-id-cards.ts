@@ -7,6 +7,7 @@ export type EmployeeIdCardRow = {
   validUntil: string | null;
   houseId: string;
   houseName: string;
+  houseBrandName: string | null;
   houseLogoUrl: string | null;
 };
 
