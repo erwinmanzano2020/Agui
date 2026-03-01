@@ -9,10 +9,17 @@ import {
   runScanActionSafely,
 } from "@/lib/hr/kiosk/scanner-fallback";
 import {
+  cleanupScanSession,
+  loadFacingModePreference,
+  persistFacingModePreference,
   shouldSubmitKeyboardWedge,
   stopStreamTracks,
+  toggleFacingMode,
   transitionCameraState,
   type CameraState,
+  type FacingMode,
+  transitionKioskMode,
+  type KioskMode,
 } from "@/lib/hr/kiosk/scan-session";
 
 type ScanResponse = {
@@ -50,6 +57,9 @@ const VERIFIED_DEVICE_ID_STORAGE_KEY = "hr-kiosk-verified-device-id";
 const VERIFIED_DEVICE_NAME_STORAGE_KEY = "hr-kiosk-verified-device-name";
 const VERIFIED_BRANCH_LABEL_STORAGE_KEY = "hr-kiosk-verified-branch-label";
 const LAST_SYNC_STORAGE_KEY = "hr-kiosk-last-sync-at";
+const IDLE_TIMEOUT_MS = 45000;
+const SUCCESS_FLASH_MS = 2500;
+const BURST_KEEP_ALIVE_MS = 10000;
 
 function generateClientEventId(): string {
   return crypto.randomUUID();
@@ -67,6 +77,8 @@ export default function KioskClient({ slug }: { slug: string }) {
   const [lastResult, setLastResult] = React.useState<ScanResponse | null>(null);
   const [error, setError] = React.useState<string | null>(null);
   const [cameraState, setCameraState] = React.useState<CameraState>("idle");
+  const [kioskMode, setKioskMode] = React.useState<KioskMode>("setup");
+  const [facingMode, setFacingMode] = React.useState<FacingMode>("user");
   const [manualQr, setManualQr] = React.useState("");
   const [scanHint, setScanHint] = React.useState<string | null>(null);
   const [lastScanAt, setLastScanAt] = React.useState<string | null>(null);
@@ -87,6 +99,8 @@ export default function KioskClient({ slug }: { slug: string }) {
   const streamRef = React.useRef<MediaStream | null>(null);
   const scanLoopRafRef = React.useRef<number | null>(null);
   const scanTimeoutRef = React.useRef<number | null>(null);
+  const successTimerRef = React.useRef<number | null>(null);
+  const burstIdleTimerRef = React.useRef<number | null>(null);
 
   const needsSetup = !kioskToken || !verifiedDeviceId;
 
@@ -99,6 +113,7 @@ export default function KioskClient({ slug }: { slug: string }) {
     const savedVerifiedDeviceName = localStorage.getItem(VERIFIED_DEVICE_NAME_STORAGE_KEY);
     const savedVerifiedBranchLabel = localStorage.getItem(VERIFIED_BRANCH_LABEL_STORAGE_KEY);
     const savedLastSyncAt = localStorage.getItem(LAST_SYNC_STORAGE_KEY);
+    const savedFacingMode = loadFacingModePreference(localStorage);
 
     setKioskToken(savedToken);
     setDraftToken(savedToken);
@@ -108,6 +123,7 @@ export default function KioskClient({ slug }: { slug: string }) {
     setDraftDisplayName(savedDisplayName);
     setVerifiedDeviceId(savedVerifiedDeviceId);
     setLastSyncAt(savedLastSyncAt);
+    setFacingMode(savedFacingMode);
     if (savedVerifiedDeviceId && (savedVerifiedDeviceName || savedVerifiedBranchLabel)) {
       setVerifiedDevice({
         id: savedVerifiedDeviceId,
@@ -125,6 +141,7 @@ export default function KioskClient({ slug }: { slug: string }) {
     }
 
     setSetupOpen(!savedToken || !savedVerifiedDeviceId);
+    setKioskMode(!savedToken || !savedVerifiedDeviceId ? "setup" : "idle");
 
     const onOnline = () => setStatus("online");
     const onOffline = () => setStatus("offline");
@@ -143,16 +160,20 @@ export default function KioskClient({ slug }: { slug: string }) {
   }, [queue]);
 
   React.useEffect(() => {
-    if (cameraState !== "scanning") {
+    if (kioskMode !== "scanning") {
       manualInputRef.current?.focus();
     }
-  }, [cameraState]);
+  }, [kioskMode]);
 
   React.useEffect(() => {
+    const mountedVideo = videoRef.current;
     return () => {
-      if (scanLoopRafRef.current) window.cancelAnimationFrame(scanLoopRafRef.current);
-      if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
-      stopStreamTracks(streamRef.current);
+      cleanupScanSession({
+        rafId: scanLoopRafRef.current,
+        timeoutIds: [scanTimeoutRef.current, successTimerRef.current, burstIdleTimerRef.current],
+        stream: streamRef.current,
+        video: mountedVideo,
+      });
     };
   }, []);
 
@@ -254,6 +275,32 @@ export default function KioskClient({ slug }: { slug: string }) {
     return () => window.clearInterval(timer);
   }, [syncQueue]);
 
+  function resetIdleTimer() {
+    if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
+    scanTimeoutRef.current = window.setTimeout(() => {
+      stopCamera();
+      setKioskMode((current) => transitionKioskMode(current, "idle_timeout"));
+      setScanHint(null);
+    }, IDLE_TIMEOUT_MS);
+  }
+
+  function clearSuccessAndBurstTimers() {
+    if (successTimerRef.current) {
+      window.clearTimeout(successTimerRef.current);
+      successTimerRef.current = null;
+    }
+    if (burstIdleTimerRef.current) {
+      window.clearTimeout(burstIdleTimerRef.current);
+      burstIdleTimerRef.current = null;
+    }
+  }
+
+  function signalScanActivity() {
+    if (kioskMode === "scanning") {
+      resetIdleTimer();
+    }
+  }
+
   async function verifyToken(tokenToVerify: string): Promise<boolean> {
     setVerifyError(null);
     try {
@@ -298,10 +345,14 @@ export default function KioskClient({ slug }: { slug: string }) {
     }
   }
 
-  async function startCameraScan() {
+  async function startCameraScan(requestedFacingMode: FacingMode = facingMode) {
     await runScanActionSafely(async () => {
       setError(null);
       setScanHint(null);
+      clearSuccessAndBurstTimers();
+      persistFacingModePreference(localStorage, requestedFacingMode);
+      setFacingMode(requestedFacingMode);
+      setKioskMode((current) => transitionKioskMode(current, "tap"));
       setCameraState((current) => transitionCameraState(current, "start"));
 
       if (scanLoopRafRef.current) {
@@ -317,16 +368,25 @@ export default function KioskClient({ slug }: { slug: string }) {
 
       let stream: MediaStream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: requestedFacingMode } });
       } catch (cameraError) {
         if (cameraError instanceof DOMException && cameraError.name === "NotAllowedError") {
+          setKioskMode((current) => transitionKioskMode(current, "scan_error"));
           setCameraState((current) => transitionCameraState(current, "deny"));
           setError("Camera permission denied");
           return;
         }
-        setCameraState((current) => transitionCameraState(current, "fail"));
-        setError("Unable to access camera.");
-        return;
+        const fallbackFacingMode: FacingMode = requestedFacingMode === "user" ? "environment" : "user";
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: fallbackFacingMode } });
+          setFacingMode(fallbackFacingMode);
+          persistFacingModePreference(localStorage, fallbackFacingMode);
+        } catch {
+          setKioskMode((current) => transitionKioskMode(current, "scan_error"));
+          setCameraState((current) => transitionCameraState(current, "fail"));
+          setError("Unable to access camera.");
+          return;
+        }
       }
 
       streamRef.current = stream;
@@ -372,10 +432,8 @@ export default function KioskClient({ slug }: { slug: string }) {
       }
 
       setCameraState((current) => transitionCameraState(current, "ready"));
-
-      scanTimeoutRef.current = window.setTimeout(() => {
-        setScanHint("No QR detected yet—try better lighting, move closer, or use manual input.");
-      }, 30000);
+      setKioskMode((current) => transitionKioskMode(current, "tap"));
+      resetIdleTimer();
 
       const strategy = getScannerStrategy("BarcodeDetector" in window);
 
@@ -401,9 +459,9 @@ export default function KioskClient({ slug }: { slug: string }) {
             }
 
             const codes = await detector.detect(video);
+            signalScanActivity();
             if (codes.length > 0 && codes[0].rawValue) {
-              stopCamera();
-              await sendScan(codes[0].rawValue);
+              await onDecoded(codes[0].rawValue);
               return;
             }
           } catch {
@@ -442,13 +500,13 @@ export default function KioskClient({ slug }: { slug: string }) {
         canvas.height = video.videoHeight;
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
         const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        signalScanActivity();
         const decoded = jsQrDecode(imageData.data, imageData.width, imageData.height, {
           inversionAttempts: "attemptBoth",
         });
 
         if (decoded?.data) {
-          stopCamera();
-          await sendScan(decoded.data);
+          await onDecoded(decoded.data);
           return;
         }
 
@@ -461,26 +519,45 @@ export default function KioskClient({ slug }: { slug: string }) {
     });
   }
 
-  function stopCamera() {
-    if (scanLoopRafRef.current) {
-      window.cancelAnimationFrame(scanLoopRafRef.current);
-      scanLoopRafRef.current = null;
+  async function onDecoded(qrToken: string) {
+    setKioskMode((current) => transitionKioskMode(current, "decoded"));
+    try {
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        navigator.vibrate(50);
+      }
+    } catch {
+      // ignore vibration failures
     }
-    if (scanTimeoutRef.current) {
-      window.clearTimeout(scanTimeoutRef.current);
-      scanTimeoutRef.current = null;
-    }
-    stopStreamTracks(streamRef.current);
-    streamRef.current = null;
+    await sendScan(qrToken);
 
-    const video = videoRef.current;
-    if (video) {
-      video.pause();
-      video.srcObject = null;
-    }
+    clearSuccessAndBurstTimers();
+    successTimerRef.current = window.setTimeout(() => {
+      setKioskMode((current) => transitionKioskMode(current, "burst"));
+    }, SUCCESS_FLASH_MS);
+    burstIdleTimerRef.current = window.setTimeout(() => {
+      stopCamera();
+      setKioskMode((current) => transitionKioskMode(current, "idle_timeout"));
+    }, BURST_KEEP_ALIVE_MS);
+    resetIdleTimer();
+  }
+
+  function stopCamera() {
+    cleanupScanSession({
+      rafId: scanLoopRafRef.current,
+      timeoutIds: [scanTimeoutRef.current, successTimerRef.current, burstIdleTimerRef.current],
+      stream: streamRef.current,
+      video: videoRef.current,
+    });
+
+    scanLoopRafRef.current = null;
+    scanTimeoutRef.current = null;
+    successTimerRef.current = null;
+    burstIdleTimerRef.current = null;
+    streamRef.current = null;
 
     setScanHint(null);
     setCameraState((current) => transitionCameraState(current, "stop"));
+    setKioskMode((current) => transitionKioskMode(current, "idle_timeout"));
   }
 
   function openSettingsWithGuard() {
@@ -565,6 +642,7 @@ export default function KioskClient({ slug }: { slug: string }) {
     setSettingsOpen(false);
     setSetupOpen(true);
     setSetupStep("welcome");
+    setKioskMode("setup");
   }
 
   function finishSetup() {
@@ -590,10 +668,11 @@ export default function KioskClient({ slug }: { slug: string }) {
     setPin(draftPin);
     setDisplayName(draftDisplayName);
     setSetupStep("harden");
+    setKioskMode("idle");
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-col gap-4 p-4">
+    <main className="mx-auto flex h-screen w-full max-w-md flex-col gap-3 overflow-hidden p-3">
       <h1 className="text-2xl font-semibold">HR Kiosk</h1>
 
       <div className="rounded border p-3 text-sm">
@@ -605,7 +684,7 @@ export default function KioskClient({ slug }: { slug: string }) {
       </div>
 
       {(setupOpen || needsSetup) && (
-        <section className="space-y-3 rounded border bg-white p-4 text-sm">
+        <section className="max-h-[65vh] space-y-3 overflow-y-auto rounded border bg-white p-4 text-sm">
           <h2 className="text-lg font-semibold">Kiosk Setup Wizard</h2>
 
           {setupStep === "welcome" && (
@@ -700,32 +779,49 @@ export default function KioskClient({ slug }: { slug: string }) {
 
       {!needsSetup && !setupOpen && (
         <>
-          <section className="space-y-2 rounded border p-3">
+          <section
+            className="flex min-h-[60vh] flex-1 flex-col items-stretch justify-center gap-3 rounded border p-3"
+            onClick={() => {
+              if (kioskMode === "idle") {
+                void startCameraScan();
+              }
+            }}
+          >
             <h2 className="font-medium">Scan QR</h2>
-            <button type="button" className="w-full rounded bg-black px-3 py-3 text-white" onClick={() => void startCameraScan()}>
-              Open Camera Scanner
-            </button>
-            {cameraState !== "idle" ? (
-              <button type="button" className="w-full rounded border px-3 py-2" onClick={stopCamera}>
-                Stop camera
+            {kioskMode === "idle" ? (
+              <button type="button" className="w-full rounded bg-black px-3 py-6 text-lg text-white" onClick={() => void startCameraScan()}>
+                Tap to Scan
               </button>
             ) : null}
-            {cameraState === "starting" ? <p className="text-xs text-muted-foreground">Starting camera…</p> : null}
-            {cameraState === "scanning" ? <p className="text-xs text-muted-foreground">Scanning…</p> : null}
+
+            {kioskMode === "scanning" || kioskMode === "success" ? (
+              <>
+                <div className="text-xs text-muted-foreground">
+                  {cameraState === "starting" ? "Starting camera…" : "Ready / Scanning…"}
+                </div>
+                <video
+                  ref={videoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="w-full flex-1 rounded border bg-black object-cover"
+                />
+                <div className="flex gap-2">
+                  <button type="button" className="w-full rounded border px-3 py-2" onClick={() => void startCameraScan(toggleFacingMode(facingMode))}>
+                    Flip camera ({facingMode === "user" ? "Front" : "Rear"})
+                  </button>
+                  <button type="button" className="w-full rounded border px-3 py-2" onClick={stopCamera}>
+                    Stop camera
+                  </button>
+                </div>
+              </>
+            ) : null}
+
             {cameraState === "permission_denied" ? <p className="text-xs text-red-600">Camera permission denied</p> : null}
-            {cameraState === "scanning" ? <p className="text-xs text-green-700">Ready</p> : null}
             {scanHint ? <p className="text-xs text-amber-700">{scanHint}</p> : null}
             {lastScanAt ? <p className="text-xs text-muted-foreground">Last scan: {new Date(lastScanAt).toLocaleTimeString()}</p> : null}
-            {cameraState !== "idle" ? (
-              <video
-                ref={videoRef}
-                autoPlay
-                muted
-                playsInline
-                className="w-full rounded border bg-black"
-              />
-            ) : null}
-            <div className="flex gap-2">
+
+            <div className="flex gap-2" onClick={(event) => event.stopPropagation()}>
               <input
                 ref={manualInputRef}
                 className="w-full rounded border p-2"
@@ -777,7 +873,7 @@ export default function KioskClient({ slug }: { slug: string }) {
       )}
 
       {settingsOpen && (
-        <section className="space-y-2 rounded border p-3 text-sm">
+        <section className="max-h-[45vh] space-y-2 overflow-y-auto rounded border p-3 text-sm">
           <h2 className="font-medium">Kiosk Settings</h2>
           <p>Device: {displayName || verifiedDevice?.name || "Unnamed"}</p>
           <p>Last sync: {lastSyncAt ?? "Never"}</p>
@@ -814,9 +910,9 @@ export default function KioskClient({ slug }: { slug: string }) {
         </section>
       )}
 
-      {lastResult && (
-        <section className="rounded border border-green-600 bg-green-50 p-3 text-sm">
-          <div className="font-medium">{lastResult.action === "clock_in" ? "Clock In" : "Clock Out"} success</div>
+      {lastResult && kioskMode === "success" && (
+        <section className="rounded border border-green-600 bg-green-50 p-4 text-center text-base">
+          <div className="text-xl font-semibold">{lastResult.action === "clock_in" ? "Clock In" : "Clock Out"} success</div>
           <div>{lastResult.employee.displayName}</div>
           <div>{lastResult.time}</div>
         </section>
