@@ -125,14 +125,15 @@ export async function handleKioskSync(request: Request) {
     clientEventId: string;
   }>;
 
-  if (events.length === 0) {
-    return NextResponse.json({ results: [] });
-  }
-
   try {
     const token = readBearerKioskToken(request);
     const supabase = createServiceSupabaseClient();
     const auth = await requireKioskDevice(supabase, token);
+
+    if (events.length === 0) {
+      return NextResponse.json({ results: [] });
+    }
+
     const repo = createSupabaseKioskRepo(supabase);
     const result = await processKioskSync(repo, { kioskToken: auth.token, events });
     return NextResponse.json(result);
