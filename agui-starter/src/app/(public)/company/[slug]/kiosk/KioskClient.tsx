@@ -8,6 +8,12 @@ import {
   loadJsQrDecoder,
   runScanActionSafely,
 } from "@/lib/hr/kiosk/scanner-fallback";
+import {
+  shouldSubmitKeyboardWedge,
+  stopStreamTracks,
+  transitionCameraState,
+  type CameraState,
+} from "@/lib/hr/kiosk/scan-session";
 
 type ScanResponse = {
   action: "clock_in" | "clock_out" | "debounced";
@@ -60,8 +66,10 @@ export default function KioskClient({ slug }: { slug: string }) {
   const [queue, setQueue] = React.useState<QueuedEvent[]>([]);
   const [lastResult, setLastResult] = React.useState<ScanResponse | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [cameraState, setCameraState] = React.useState<"idle" | "starting" | "scanning" | "permission_denied" | "error">("idle");
+  const [cameraState, setCameraState] = React.useState<CameraState>("idle");
   const [manualQr, setManualQr] = React.useState("");
+  const [scanHint, setScanHint] = React.useState<string | null>(null);
+  const [lastScanAt, setLastScanAt] = React.useState<string | null>(null);
   const [setupOpen, setSetupOpen] = React.useState(false);
   const [setupStep, setSetupStep] = React.useState<SetupStep>("welcome");
   const [verifyError, setVerifyError] = React.useState<string | null>(null);
@@ -75,6 +83,10 @@ export default function KioskClient({ slug }: { slug: string }) {
   const [settingsError, setSettingsError] = React.useState<string | null>(null);
   const pressTimerRef = React.useRef<number | null>(null);
   const manualInputRef = React.useRef<HTMLInputElement | null>(null);
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const streamRef = React.useRef<MediaStream | null>(null);
+  const scanLoopRafRef = React.useRef<number | null>(null);
+  const scanTimeoutRef = React.useRef<number | null>(null);
 
   const needsSetup = !kioskToken || !verifiedDeviceId;
 
@@ -130,6 +142,20 @@ export default function KioskClient({ slug }: { slug: string }) {
     localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
   }, [queue]);
 
+  React.useEffect(() => {
+    if (cameraState !== "scanning") {
+      manualInputRef.current?.focus();
+    }
+  }, [cameraState]);
+
+  React.useEffect(() => {
+    return () => {
+      if (scanLoopRafRef.current) window.cancelAnimationFrame(scanLoopRafRef.current);
+      if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
+      stopStreamTracks(streamRef.current);
+    };
+  }, []);
+
   const connectedLabel = React.useMemo(
     () => resolveConnectedLabel(verifiedDevice),
     [verifiedDevice],
@@ -168,6 +194,8 @@ export default function KioskClient({ slug }: { slug: string }) {
 
         const payload = (await response.json()) as ScanResponse;
         setLastResult(payload);
+        setLastScanAt(new Date().toISOString());
+        setScanHint(null);
         setError(null);
       } catch (scanError) {
         queueEvent(qrToken);
@@ -273,34 +301,90 @@ export default function KioskClient({ slug }: { slug: string }) {
   async function startCameraScan() {
     await runScanActionSafely(async () => {
       setError(null);
-      setCameraState("starting");
+      setScanHint(null);
+      setCameraState((current) => transitionCameraState(current, "start"));
+
+      if (scanLoopRafRef.current) {
+        window.cancelAnimationFrame(scanLoopRafRef.current);
+        scanLoopRafRef.current = null;
+      }
+      if (scanTimeoutRef.current) {
+        window.clearTimeout(scanTimeoutRef.current);
+        scanTimeoutRef.current = null;
+      }
+      stopStreamTracks(streamRef.current);
+      streamRef.current = null;
+
       let stream: MediaStream;
       try {
         stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       } catch (cameraError) {
         if (cameraError instanceof DOMException && cameraError.name === "NotAllowedError") {
-          setCameraState("permission_denied");
+          setCameraState((current) => transitionCameraState(current, "deny"));
           setError("Camera permission denied");
           return;
         }
-        setCameraState("error");
+        setCameraState((current) => transitionCameraState(current, "fail"));
         setError("Unable to access camera.");
         return;
       }
 
-      const video = document.createElement("video");
-      video.srcObject = stream;
-      await video.play();
-      setCameraState("scanning");
+      streamRef.current = stream;
 
-      const stopTracks = () => stream.getTracks().forEach((track) => track.stop());
+      const activeVideo = videoRef.current;
+      if (!activeVideo) {
+        stopStreamTracks(stream);
+        streamRef.current = null;
+        setCameraState((current) => transitionCameraState(current, "fail"));
+        setError("Camera preview is unavailable.");
+        return;
+      }
+
+      activeVideo.srcObject = stream;
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const onLoaded = () => {
+            activeVideo.removeEventListener("loadedmetadata", onLoaded);
+            resolve();
+          };
+          activeVideo.addEventListener("loadedmetadata", onLoaded);
+          window.setTimeout(() => {
+            activeVideo.removeEventListener("loadedmetadata", onLoaded);
+            reject(new Error("Camera preview took too long to initialize."));
+          }, 5000);
+        });
+      } catch {
+        stopStreamTracks(streamRef.current);
+        streamRef.current = null;
+        setCameraState((current) => transitionCameraState(current, "fail"));
+        setError("Unable to initialize camera preview.");
+        return;
+      }
+
+      try {
+        await activeVideo.play();
+      } catch {
+        stopStreamTracks(stream);
+        streamRef.current = null;
+        setCameraState((current) => transitionCameraState(current, "fail"));
+        setError("Unable to start camera preview.");
+        return;
+      }
+
+      setCameraState((current) => transitionCameraState(current, "ready"));
+
+      scanTimeoutRef.current = window.setTimeout(() => {
+        setScanHint("No QR detected yet—try better lighting, move closer, or use manual input.");
+      }, 30000);
+
       const strategy = getScannerStrategy("BarcodeDetector" in window);
 
       if (strategy === "barcode_detector") {
         const DetectorCtor = (window as Window & { BarcodeDetector?: new (options?: { formats?: string[] }) => { detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>> } }).BarcodeDetector;
         if (!DetectorCtor) {
-          stopTracks();
-          setCameraState("error");
+          stopStreamTracks(streamRef.current);
+          streamRef.current = null;
+          setCameraState((current) => transitionCameraState(current, "fail"));
           setError("Camera scanner is unavailable on this browser.");
           return;
         }
@@ -308,17 +392,24 @@ export default function KioskClient({ slug }: { slug: string }) {
         const detector = new DetectorCtor({ formats: ["qr_code"] });
         const run = async () => {
           try {
+            const video = videoRef.current;
+            if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
+              scanLoopRafRef.current = window.requestAnimationFrame(() => {
+                void run();
+              });
+              return;
+            }
+
             const codes = await detector.detect(video);
             if (codes.length > 0 && codes[0].rawValue) {
-              stopTracks();
-              setCameraState("idle");
+              stopCamera();
               await sendScan(codes[0].rawValue);
               return;
             }
           } catch {
             // retry loop
           }
-          window.requestAnimationFrame(() => {
+          scanLoopRafRef.current = window.requestAnimationFrame(() => {
             void run();
           });
         };
@@ -331,15 +422,17 @@ export default function KioskClient({ slug }: { slug: string }) {
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
       if (!ctx) {
-        stopTracks();
-        setCameraState("error");
+        stopStreamTracks(streamRef.current);
+        streamRef.current = null;
+        setCameraState((current) => transitionCameraState(current, "fail"));
         setError("Camera scanner canvas is unavailable.");
         return;
       }
 
       const runFallback = async () => {
-        if (video.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) {
-          window.requestAnimationFrame(() => {
+        const video = videoRef.current;
+        if (!video || video.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA || video.videoWidth === 0 || video.videoHeight === 0) {
+          scanLoopRafRef.current = window.requestAnimationFrame(() => {
             void runFallback();
           });
           return;
@@ -354,19 +447,40 @@ export default function KioskClient({ slug }: { slug: string }) {
         });
 
         if (decoded?.data) {
-          stopTracks();
-          setCameraState("idle");
+          stopCamera();
           await sendScan(decoded.data);
           return;
         }
 
-        window.requestAnimationFrame(() => {
+        scanLoopRafRef.current = window.requestAnimationFrame(() => {
           void runFallback();
         });
       };
 
       void runFallback();
     });
+  }
+
+  function stopCamera() {
+    if (scanLoopRafRef.current) {
+      window.cancelAnimationFrame(scanLoopRafRef.current);
+      scanLoopRafRef.current = null;
+    }
+    if (scanTimeoutRef.current) {
+      window.clearTimeout(scanTimeoutRef.current);
+      scanTimeoutRef.current = null;
+    }
+    stopStreamTracks(streamRef.current);
+    streamRef.current = null;
+
+    const video = videoRef.current;
+    if (video) {
+      video.pause();
+      video.srcObject = null;
+    }
+
+    setScanHint(null);
+    setCameraState((current) => transitionCameraState(current, "stop"));
   }
 
   function openSettingsWithGuard() {
@@ -591,9 +705,26 @@ export default function KioskClient({ slug }: { slug: string }) {
             <button type="button" className="w-full rounded bg-black px-3 py-3 text-white" onClick={() => void startCameraScan()}>
               Open Camera Scanner
             </button>
+            {cameraState !== "idle" ? (
+              <button type="button" className="w-full rounded border px-3 py-2" onClick={stopCamera}>
+                Stop camera
+              </button>
+            ) : null}
             {cameraState === "starting" ? <p className="text-xs text-muted-foreground">Starting camera…</p> : null}
             {cameraState === "scanning" ? <p className="text-xs text-muted-foreground">Scanning…</p> : null}
             {cameraState === "permission_denied" ? <p className="text-xs text-red-600">Camera permission denied</p> : null}
+            {cameraState === "scanning" ? <p className="text-xs text-green-700">Ready</p> : null}
+            {scanHint ? <p className="text-xs text-amber-700">{scanHint}</p> : null}
+            {lastScanAt ? <p className="text-xs text-muted-foreground">Last scan: {new Date(lastScanAt).toLocaleTimeString()}</p> : null}
+            {cameraState !== "idle" ? (
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
+                className="w-full rounded border bg-black"
+              />
+            ) : null}
             <div className="flex gap-2">
               <input
                 ref={manualInputRef}
@@ -601,6 +732,12 @@ export default function KioskClient({ slug }: { slug: string }) {
                 placeholder="Manual QR token fallback"
                 value={manualQr}
                 onChange={(event) => setManualQr(event.target.value)}
+                onKeyDown={(event) => {
+                  if (shouldSubmitKeyboardWedge(event.key, manualQr)) {
+                    event.preventDefault();
+                    void sendScan(manualQr.trim());
+                  }
+                }}
               />
               <button
                 type="button"
