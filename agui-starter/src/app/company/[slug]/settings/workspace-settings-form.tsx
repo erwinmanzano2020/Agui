@@ -9,11 +9,7 @@ import { Input } from "@/components/ui/input";
 import { supabase } from "@/lib/auth/client";
 import type { WorkspaceSettings } from "@/lib/settings/workspace";
 
-import {
-  isSupportedLogoFile,
-  LOGO_BUCKET,
-  logoExtensionFromType,
-} from "./branding-logo-upload";
+import { getLogoUrlWarning, LOGO_BUCKET, uploadBrandingLogo } from "./branding-logo-upload";
 
 type WorkspaceSettingsFormProps = {
   businessSlug: string;
@@ -26,7 +22,6 @@ type BrandingState = {
   brandName: string;
   logoUrl: string;
 };
-
 
 function toBrandingState(settings: WorkspaceSettings): BrandingState {
   return {
@@ -95,49 +90,50 @@ export default function WorkspaceSettingsForm({ businessSlug, businessId, initia
     }
   }, [branding, businessSlug, router]);
 
+  const persistUploadedLogoUrl = React.useCallback(
+    async (logoUrl: string) => {
+      const response = await fetch(`/company/${businessSlug}/settings/branding`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ logoUrl }),
+      });
+
+      const body = (await response.json().catch(() => ({}))) as {
+        branding?: { brandName: string | null; logoUrl: string | null };
+        error?: { message?: string };
+      };
+
+      if (!response.ok) {
+        throw new Error(body.error?.message ?? "Unable to save branding.");
+      }
+
+      if (body.branding) {
+        setBranding((prev) => ({
+          ...prev,
+          brandName: body.branding?.brandName ?? prev.brandName,
+          logoUrl: body.branding?.logoUrl ?? logoUrl,
+        }));
+      }
+    },
+    [businessSlug],
+  );
+
   const uploadLogo = React.useCallback(
     async (file: File) => {
-      const validation = isSupportedLogoFile(file);
-      if (!validation.ok) {
-        setBrandingStatus("error");
-        setBrandingError(validation.error);
-        return;
-      }
-
-      const extension = logoExtensionFromType(file.type);
-      if (!extension) {
-        setBrandingStatus("error");
-        setBrandingError("Logo must be a PNG or JPEG image.");
-        return;
-      }
-
       setUploadingLogo(true);
       setBrandingStatus("idle");
       setBrandingError(null);
 
       try {
-        const path = `houses/${businessId}/branding/logo.${extension}`;
-        const removePaths = ["png", "jpg"]
-          .filter((candidate) => candidate !== extension)
-          .map((candidate) => `houses/${businessId}/branding/logo.${candidate}`);
-        if (removePaths.length > 0) {
-          await supabase.storage.from(LOGO_BUCKET).remove(removePaths);
-        }
-
-        const { error: uploadError } = await supabase.storage.from(LOGO_BUCKET).upload(path, file, {
-          upsert: true,
-          contentType: file.type,
-          cacheControl: "3600",
+        const storage = supabase.storage.from(LOGO_BUCKET);
+        const result = await uploadBrandingLogo({
+          storage,
+          businessId,
+          file,
+          persistLogoUrl: persistUploadedLogoUrl,
         });
 
-        if (uploadError) {
-          throw uploadError;
-        }
-
-        const { data } = supabase.storage.from(LOGO_BUCKET).getPublicUrl(path);
-        const logoUrl = data.publicUrl;
-
-        setBranding((prev) => ({ ...prev, logoUrl }));
+        setBranding((prev) => ({ ...prev, logoUrl: result.logoUrl }));
       } catch (error) {
         console.error(error);
         setBrandingStatus("error");
@@ -146,7 +142,7 @@ export default function WorkspaceSettingsForm({ businessSlug, businessId, initia
         setUploadingLogo(false);
       }
     },
-    [businessId],
+    [businessId, persistUploadedLogoUrl],
   );
 
   const onLogoFileChange = React.useCallback(
@@ -160,6 +156,7 @@ export default function WorkspaceSettingsForm({ businessSlug, businessId, initia
   );
 
   const logoPreviewUrl = branding.logoUrl.trim();
+  const logoUrlWarning = getLogoUrlWarning(branding.logoUrl);
 
   return (
     <div className="space-y-6">
@@ -227,6 +224,7 @@ export default function WorkspaceSettingsForm({ businessSlug, businessId, initia
               disabled={brandingDisabled}
             />
             <p className="text-xs text-muted-foreground">Any http(s) image URL is allowed.</p>
+            {logoUrlWarning && <p className="text-xs text-amber-700">{logoUrlWarning}</p>}
           </div>
           <div className="flex items-center gap-3">
             <Button type="button" disabled={brandingDisabled} onClick={saveBranding}>
