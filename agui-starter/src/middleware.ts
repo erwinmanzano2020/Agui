@@ -20,6 +20,9 @@ const PUBLIC_PATHS: (string | RegExp)[] = [
   /^\/api\/identity\/bootstrap$/,    // bootstrap identity
   /^\/api\/lookup\/resolve$/,        // new lookup API
   /^\/api\/identifiers\/link$/,      // allow POST; RLS guards auth/GM
+  /^\/company\/[^/]+\/kiosk(?:\/.*)?$/,
+  /^\/api\/kiosk\/(?:ping|scan|sync)$/,
+  /^\/api\/hr\/kiosk\/(?:ping|scan|sync|verify)$/,
   // Next.js runtime/asset paths
   /^\/_next\//,
   /^\/favicon\.ico$/,
@@ -29,7 +32,7 @@ const PUBLIC_PATHS: (string | RegExp)[] = [
   /^\/sitemap\.xml$/,
 ];
 
-function isPublicPath(pathname: string) {
+export function isPublicPath(pathname: string) {
   return PUBLIC_PATHS.some((p) =>
     typeof p === "string" ? p === pathname : p.test(pathname)
   );

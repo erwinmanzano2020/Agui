@@ -1,22 +1,13 @@
 import assert from "node:assert/strict";
-import { afterEach, beforeEach, describe, it, mock } from "node:test";
+import { afterEach, describe, it, mock } from "node:test";
 
 import * as service from "@/lib/supabase/service";
 import { POST } from "../route";
 
-describe("POST /api/kiosk/ping legacy path", () => {
-  beforeEach(() => {
-    process.env.HR_KIOSK_DEVICE_TOKEN_PEPPER = "pepper";
-  });
+afterEach(() => mock.restoreAll());
 
-  afterEach(() => mock.restoreAll());
-
-  it("returns 401 when kiosk token header is missing", async () => {
-    const response = await POST(new Request("http://localhost/api/kiosk/ping", { method: "POST" }));
-    assert.equal(response.status, 401);
-  });
-
-  it("returns 200 with legacy x-kiosk-token header", async () => {
+describe("POST /api/hr/kiosk/verify", () => {
+  it("rejects token when slug does not match token house", async () => {
     mock.method(service, "createServiceSupabaseClient", () => {
       return {
         from(table: string) {
@@ -31,21 +22,26 @@ describe("POST /api/kiosk/ping legacy path", () => {
               maybeSingle: async () => ({
                 data: {
                   id: "device-1",
-                  house_id: "house-1",
-                  branch_id: "branch-1",
-                  name: "Frontdesk",
+                  house_id: "house-a",
+                  branch_id: "branch-a",
+                  name: "Front",
                   is_active: true,
                   disabled_at: null,
                 },
                 error: null,
               }),
-              update() {
-                return {
-                  eq() {
-                    return this;
-                  },
-                };
+            };
+          }
+          if (table === "houses") {
+            return {
+              select() {
+                return this;
               },
+              eq(column: string) {
+                if (column === "id") return this;
+                return this;
+              },
+              maybeSingle: async () => ({ data: { slug: "house-a" }, error: null }),
             };
           }
           if (table === "branches") {
@@ -65,12 +61,18 @@ describe("POST /api/kiosk/ping legacy path", () => {
     });
 
     const response = await POST(
-      new Request("http://localhost/api/kiosk/ping", {
+      new Request("http://localhost/api/hr/kiosk/verify", {
         method: "POST",
-        headers: { "x-kiosk-token": "legacy-token" },
+        headers: {
+          authorization: "Bearer token-a",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ slug: "house-b" }),
       }),
     );
 
-    assert.equal(response.status, 200);
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload.reason, "slug_mismatch");
   });
 });

@@ -126,12 +126,12 @@ export default function KioskClient({ slug }: { slug: string }) {
       }
 
       try {
-        const response = await fetch("/api/kiosk/scan", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "x-kiosk-token": kioskToken,
-          },
+      const response = await fetch("/api/hr/kiosk/scan", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${kioskToken}`,
+        },
           body: JSON.stringify({ qrToken, occurredAt: new Date().toISOString() }),
         });
 
@@ -156,11 +156,11 @@ export default function KioskClient({ slug }: { slug: string }) {
     if (queue.length === 0 || status !== "online" || !kioskToken) return;
 
     try {
-      const response = await fetch("/api/kiosk/sync", {
+      const response = await fetch("/api/hr/kiosk/sync", {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-kiosk-token": kioskToken,
+          authorization: `Bearer ${kioskToken}`,
         },
         body: JSON.stringify({ events: queue }),
       });
@@ -200,11 +200,13 @@ export default function KioskClient({ slug }: { slug: string }) {
   async function verifyToken(tokenToVerify: string): Promise<boolean> {
     setVerifyError(null);
     try {
-      const response = await fetch("/api/kiosk/ping", {
+      const response = await fetch("/api/hr/kiosk/verify", {
         method: "POST",
         headers: {
-          "x-kiosk-token": tokenToVerify,
+          "content-type": "application/json",
+          authorization: `Bearer ${tokenToVerify}`,
         },
+        body: JSON.stringify({ slug }),
       });
 
       const payload = (await response.json().catch(() => ({}))) as {
