@@ -3,6 +3,11 @@
 import * as React from "react";
 
 import { resolveConnectedLabel } from "@/lib/hr/kiosk/connected-label";
+import {
+  getScannerStrategy,
+  loadJsQrDecoder,
+  runScanActionSafely,
+} from "@/lib/hr/kiosk/scanner-fallback";
 
 type ScanResponse = {
   action: "clock_in" | "clock_out" | "debounced";
@@ -55,6 +60,7 @@ export default function KioskClient({ slug }: { slug: string }) {
   const [queue, setQueue] = React.useState<QueuedEvent[]>([]);
   const [lastResult, setLastResult] = React.useState<ScanResponse | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [cameraState, setCameraState] = React.useState<"idle" | "starting" | "scanning" | "permission_denied" | "error">("idle");
   const [manualQr, setManualQr] = React.useState("");
   const [setupOpen, setSetupOpen] = React.useState(false);
   const [setupStep, setSetupStep] = React.useState<SetupStep>("welcome");
@@ -68,6 +74,7 @@ export default function KioskClient({ slug }: { slug: string }) {
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [settingsError, setSettingsError] = React.useState<string | null>(null);
   const pressTimerRef = React.useRef<number | null>(null);
+  const manualInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const needsSetup = !kioskToken || !verifiedDeviceId;
 
@@ -145,12 +152,12 @@ export default function KioskClient({ slug }: { slug: string }) {
       }
 
       try {
-      const response = await fetch("/api/hr/kiosk/scan", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${kioskToken}`,
-        },
+        const response = await fetch("/api/hr/kiosk/scan", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${kioskToken}`,
+          },
           body: JSON.stringify({ qrToken, occurredAt: new Date().toISOString() }),
         });
 
@@ -166,6 +173,9 @@ export default function KioskClient({ slug }: { slug: string }) {
         queueEvent(qrToken);
         setLastResult(null);
         setError(`Offline/failed. Queued for sync. (${scanError instanceof Error ? scanError.message : "error"})`);
+      } finally {
+        setManualQr("");
+        manualInputRef.current?.focus();
       }
     },
     [kioskToken, queueEvent],
@@ -261,45 +271,102 @@ export default function KioskClient({ slug }: { slug: string }) {
   }
 
   async function startCameraScan() {
-    if (!("BarcodeDetector" in window)) {
-      setError("BarcodeDetector API is unavailable on this device/browser.");
-      return;
-    }
+    await runScanActionSafely(async () => {
+      setError(null);
+      setCameraState("starting");
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+      } catch (cameraError) {
+        if (cameraError instanceof DOMException && cameraError.name === "NotAllowedError") {
+          setCameraState("permission_denied");
+          setError("Camera permission denied");
+          return;
+        }
+        setCameraState("error");
+        setError("Unable to access camera.");
+        return;
+      }
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
       const video = document.createElement("video");
       video.srcObject = stream;
       await video.play();
+      setCameraState("scanning");
 
-      const DetectorCtor = (window as Window & { BarcodeDetector?: new (options?: { formats?: string[] }) => { detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>> } }).BarcodeDetector;
-      if (!DetectorCtor) {
-        stream.getTracks().forEach((track) => track.stop());
-        setError("BarcodeDetector API is unavailable on this device/browser.");
+      const stopTracks = () => stream.getTracks().forEach((track) => track.stop());
+      const strategy = getScannerStrategy("BarcodeDetector" in window);
+
+      if (strategy === "barcode_detector") {
+        const DetectorCtor = (window as Window & { BarcodeDetector?: new (options?: { formats?: string[] }) => { detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>> } }).BarcodeDetector;
+        if (!DetectorCtor) {
+          stopTracks();
+          setCameraState("error");
+          setError("Camera scanner is unavailable on this browser.");
+          return;
+        }
+
+        const detector = new DetectorCtor({ formats: ["qr_code"] });
+        const run = async () => {
+          try {
+            const codes = await detector.detect(video);
+            if (codes.length > 0 && codes[0].rawValue) {
+              stopTracks();
+              setCameraState("idle");
+              await sendScan(codes[0].rawValue);
+              return;
+            }
+          } catch {
+            // retry loop
+          }
+          window.requestAnimationFrame(() => {
+            void run();
+          });
+        };
+
+        void run();
         return;
       }
-      const detector = new DetectorCtor({ formats: ["qr_code"] });
 
-      const run = async () => {
-        try {
-          const codes = await detector.detect(video);
-          if (codes.length > 0 && codes[0].rawValue) {
-            stream.getTracks().forEach((track) => track.stop());
-            await sendScan(codes[0].rawValue);
-            return;
-          }
-        } catch {
-          // retry loop
+      const jsQrDecode = await loadJsQrDecoder(document);
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (!ctx) {
+        stopTracks();
+        setCameraState("error");
+        setError("Camera scanner canvas is unavailable.");
+        return;
+      }
+
+      const runFallback = async () => {
+        if (video.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) {
+          window.requestAnimationFrame(() => {
+            void runFallback();
+          });
+          return;
         }
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const decoded = jsQrDecode(imageData.data, imageData.width, imageData.height, {
+          inversionAttempts: "attemptBoth",
+        });
+
+        if (decoded?.data) {
+          stopTracks();
+          setCameraState("idle");
+          await sendScan(decoded.data);
+          return;
+        }
+
         window.requestAnimationFrame(() => {
-          void run();
+          void runFallback();
         });
       };
 
-      void run();
-    } catch {
-      setError("Unable to access camera.");
-    }
+      void runFallback();
+    });
   }
 
   function openSettingsWithGuard() {
@@ -521,16 +588,37 @@ export default function KioskClient({ slug }: { slug: string }) {
         <>
           <section className="space-y-2 rounded border p-3">
             <h2 className="font-medium">Scan QR</h2>
-            <button className="w-full rounded bg-black px-3 py-3 text-white" onClick={() => void startCameraScan()}>
+            <button type="button" className="w-full rounded bg-black px-3 py-3 text-white" onClick={() => void startCameraScan()}>
               Open Camera Scanner
             </button>
-            <input
-              className="w-full rounded border p-2"
-              placeholder="Manual QR token fallback"
-              value={manualQr}
-              onChange={(event) => setManualQr(event.target.value)}
-            />
-            <button className="w-full rounded border px-3 py-2" onClick={() => void sendScan(manualQr)}>
+            {cameraState === "starting" ? <p className="text-xs text-muted-foreground">Starting camera…</p> : null}
+            {cameraState === "scanning" ? <p className="text-xs text-muted-foreground">Scanning…</p> : null}
+            {cameraState === "permission_denied" ? <p className="text-xs text-red-600">Camera permission denied</p> : null}
+            <div className="flex gap-2">
+              <input
+                ref={manualInputRef}
+                className="w-full rounded border p-2"
+                placeholder="Manual QR token fallback"
+                value={manualQr}
+                onChange={(event) => setManualQr(event.target.value)}
+              />
+              <button
+                type="button"
+                className="rounded border px-3 py-2"
+                onClick={() => {
+                  setManualQr("");
+                  manualInputRef.current?.focus();
+                }}
+              >
+                Clear
+              </button>
+            </div>
+            <button
+              type="button"
+              className="w-full rounded border px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={!manualQr.trim()}
+              onClick={() => void sendScan(manualQr.trim())}
+            >
               Submit QR token
             </button>
           </section>
