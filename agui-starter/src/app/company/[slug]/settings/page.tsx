@@ -28,6 +28,7 @@ export default async function CompanySettingsPage({ params }: { params: Promise<
       </div>
       <WorkspaceSettingsForm
         businessSlug={business.slug ?? slug}
+        businessId={business.id}
         canEdit={canEdit}
         initialValues={workspaceSettings}
       />

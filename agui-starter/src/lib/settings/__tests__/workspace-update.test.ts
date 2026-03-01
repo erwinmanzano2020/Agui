@@ -141,6 +141,20 @@ describe("workspace settings update", () => {
     ]);
   });
 
+
+  it("persists branding logo_url values produced by uploads", async () => {
+    const supabase = new SupabaseRolesMock(["BUSINESS_OWNER"]);
+    const uploadedUrl = "https://abc.supabase.co/storage/v1/object/public/house-assets/houses/house-1/branding/logo.png";
+
+    await updateWorkspaceBranding(
+      "house-1",
+      { logoUrl: uploadedUrl },
+      { client: supabase as never, actorEntityId: "entity-1", reload: false },
+    );
+
+    assert.deepEqual(supabase.houseUpdates, [{ id: "house-1", values: { logo_url: uploadedUrl } }]);
+  });
+
   it("rejects invalid logo URL", async () => {
     const supabase = new SupabaseRolesMock(["BUSINESS_OWNER"]);
 
