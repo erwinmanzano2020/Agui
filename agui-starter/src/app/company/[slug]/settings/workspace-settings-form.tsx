@@ -6,10 +6,14 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { supabase } from "@/lib/auth/client";
 import type { WorkspaceSettings } from "@/lib/settings/workspace";
+
+import { getLogoUrlWarning, LOGO_BUCKET, uploadBrandingLogo } from "./branding-logo-upload";
 
 type WorkspaceSettingsFormProps = {
   businessSlug: string;
+  businessId: string;
   initialValues: WorkspaceSettings;
   canEdit: boolean;
 };
@@ -26,10 +30,12 @@ function toBrandingState(settings: WorkspaceSettings): BrandingState {
   };
 }
 
-export default function WorkspaceSettingsForm({ businessSlug, initialValues, canEdit }: WorkspaceSettingsFormProps) {
+export default function WorkspaceSettingsForm({ businessSlug, businessId, initialValues, canEdit }: WorkspaceSettingsFormProps) {
   const router = useRouter();
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [branding, setBranding] = React.useState<BrandingState>(() => toBrandingState(initialValues));
   const [savingBranding, setSavingBranding] = React.useState(false);
+  const [uploadingLogo, setUploadingLogo] = React.useState(false);
   const [brandingStatus, setBrandingStatus] = React.useState<"idle" | "success" | "error">("idle");
   const [brandingError, setBrandingError] = React.useState<string | null>(null);
 
@@ -37,7 +43,7 @@ export default function WorkspaceSettingsForm({ businessSlug, initialValues, can
     setBranding(toBrandingState(initialValues));
   }, [initialValues]);
 
-  const brandingDisabled = savingBranding || !canEdit;
+  const brandingDisabled = savingBranding || uploadingLogo || !canEdit;
 
   const saveBranding = React.useCallback(async () => {
     setSavingBranding(true);
@@ -84,6 +90,74 @@ export default function WorkspaceSettingsForm({ businessSlug, initialValues, can
     }
   }, [branding, businessSlug, router]);
 
+  const persistUploadedLogoUrl = React.useCallback(
+    async (logoUrl: string) => {
+      const response = await fetch(`/company/${businessSlug}/settings/branding`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ logoUrl }),
+      });
+
+      const body = (await response.json().catch(() => ({}))) as {
+        branding?: { brandName: string | null; logoUrl: string | null };
+        error?: { message?: string };
+      };
+
+      if (!response.ok) {
+        throw new Error(body.error?.message ?? "Unable to save branding.");
+      }
+
+      if (body.branding) {
+        setBranding((prev) => ({
+          ...prev,
+          brandName: body.branding?.brandName ?? prev.brandName,
+          logoUrl: body.branding?.logoUrl ?? logoUrl,
+        }));
+      }
+    },
+    [businessSlug],
+  );
+
+  const uploadLogo = React.useCallback(
+    async (file: File) => {
+      setUploadingLogo(true);
+      setBrandingStatus("idle");
+      setBrandingError(null);
+
+      try {
+        const storage = supabase.storage.from(LOGO_BUCKET);
+        const result = await uploadBrandingLogo({
+          storage,
+          businessId,
+          file,
+          persistLogoUrl: persistUploadedLogoUrl,
+        });
+
+        setBranding((prev) => ({ ...prev, logoUrl: result.logoUrl }));
+      } catch (error) {
+        console.error(error);
+        setBrandingStatus("error");
+        setBrandingError(error instanceof Error ? error.message : "Unable to upload logo.");
+      } finally {
+        setUploadingLogo(false);
+      }
+    },
+    [businessId, persistUploadedLogoUrl],
+  );
+
+  const onLogoFileChange = React.useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      await uploadLogo(file);
+      event.target.value = "";
+    },
+    [uploadLogo],
+  );
+
+  const logoPreviewUrl = branding.logoUrl.trim();
+  const logoUrlWarning = getLogoUrlWarning(branding.logoUrl);
+
   return (
     <div className="space-y-6">
       {!canEdit && (
@@ -112,6 +186,35 @@ export default function WorkspaceSettingsForm({ businessSlug, initialValues, can
               disabled={brandingDisabled}
             />
           </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Logo upload</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg"
+              onChange={onLogoFileChange}
+              className="hidden"
+              disabled={brandingDisabled}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={brandingDisabled}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              {uploadingLogo ? "Uploading…" : "Upload logo"}
+            </Button>
+            <p className="text-xs text-muted-foreground">PNG or JPEG only, up to 2MB.</p>
+            {logoPreviewUrl && (
+              <div className="rounded-md border p-2 w-fit">
+                <img
+                  src={logoPreviewUrl}
+                  alt="Workspace logo preview"
+                  className="h-16 w-auto max-w-56 object-contain"
+                />
+              </div>
+            )}
+          </div>
           <div className="space-y-1">
             <label className="text-sm font-medium text-foreground">Logo URL</label>
             <Input
@@ -121,6 +224,7 @@ export default function WorkspaceSettingsForm({ businessSlug, initialValues, can
               disabled={brandingDisabled}
             />
             <p className="text-xs text-muted-foreground">Any http(s) image URL is allowed.</p>
+            {logoUrlWarning && <p className="text-xs text-amber-700">{logoUrlWarning}</p>}
           </div>
           <div className="flex items-center gap-3">
             <Button type="button" disabled={brandingDisabled} onClick={saveBranding}>

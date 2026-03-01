@@ -71,4 +71,14 @@ describe("resolveHouseLogo", () => {
     const result = await resolveHouseLogo("https://example.com/logo.svg", new Map());
     assert.equal(result, null);
   });
+
+  it("skips logo when logo fetch fails", async () => {
+    mock.method(globalThis, "fetch", async () => {
+      throw new Error("network fail");
+    });
+
+    const result = await resolveHouseLogo("https://example.com/logo.png", new Map());
+    assert.equal(result, null);
+  });
+
 });
