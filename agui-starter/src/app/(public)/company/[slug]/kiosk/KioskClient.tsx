@@ -9,9 +9,12 @@ import {
   runScanActionSafely,
 } from "@/lib/hr/kiosk/scanner-fallback";
 import {
+  canActivateScanFromSurface,
+  canStartCameraScan,
   cleanupScanSession,
   loadFacingModePreference,
   persistFacingModePreference,
+  shouldDebounceDecodedToken,
   shouldSubmitKeyboardWedge,
   stopStreamTracks,
   toggleFacingMode,
@@ -60,6 +63,7 @@ const LAST_SYNC_STORAGE_KEY = "hr-kiosk-last-sync-at";
 const IDLE_TIMEOUT_MS = 45000;
 const SUCCESS_FLASH_MS = 2500;
 const BURST_KEEP_ALIVE_MS = 10000;
+const DECODE_DEBOUNCE_MS = 1500;
 
 function generateClientEventId(): string {
   return crypto.randomUUID();
@@ -101,6 +105,8 @@ export default function KioskClient({ slug }: { slug: string }) {
   const scanTimeoutRef = React.useRef<number | null>(null);
   const successTimerRef = React.useRef<number | null>(null);
   const burstIdleTimerRef = React.useRef<number | null>(null);
+  const isStartingRef = React.useRef(false);
+  const lastDecodedRef = React.useRef<{ value: string; at: number } | null>(null);
 
   const needsSetup = !kioskToken || !verifiedDeviceId;
 
@@ -301,6 +307,17 @@ export default function KioskClient({ slug }: { slug: string }) {
     }
   }
 
+
+  function shouldIgnoreDecodedToken(qrToken: string): boolean {
+    const last = lastDecodedRef.current;
+    const now = Date.now();
+    if (shouldDebounceDecodedToken({ nextToken: qrToken, previous: last, now, debounceMs: DECODE_DEBOUNCE_MS })) {
+      return true;
+    }
+    lastDecodedRef.current = { value: qrToken, at: now };
+    return false;
+  }
+
   async function verifyToken(tokenToVerify: string): Promise<boolean> {
     setVerifyError(null);
     try {
@@ -346,6 +363,11 @@ export default function KioskClient({ slug }: { slug: string }) {
   }
 
   async function startCameraScan(requestedFacingMode: FacingMode = facingMode) {
+    if (!canStartCameraScan({ isStarting: isStartingRef.current, cameraState })) {
+      return;
+    }
+
+    isStartingRef.current = true;
     await runScanActionSafely(async () => {
       setError(null);
       setScanHint(null);
@@ -395,6 +417,7 @@ export default function KioskClient({ slug }: { slug: string }) {
       if (!activeVideo) {
         stopStreamTracks(stream);
         streamRef.current = null;
+        setKioskMode((current) => transitionKioskMode(current, "scan_error"));
         setCameraState((current) => transitionCameraState(current, "fail"));
         setError("Camera preview is unavailable.");
         return;
@@ -416,6 +439,7 @@ export default function KioskClient({ slug }: { slug: string }) {
       } catch {
         stopStreamTracks(streamRef.current);
         streamRef.current = null;
+        setKioskMode((current) => transitionKioskMode(current, "scan_error"));
         setCameraState((current) => transitionCameraState(current, "fail"));
         setError("Unable to initialize camera preview.");
         return;
@@ -426,6 +450,7 @@ export default function KioskClient({ slug }: { slug: string }) {
       } catch {
         stopStreamTracks(stream);
         streamRef.current = null;
+        setKioskMode((current) => transitionKioskMode(current, "scan_error"));
         setCameraState((current) => transitionCameraState(current, "fail"));
         setError("Unable to start camera preview.");
         return;
@@ -442,6 +467,7 @@ export default function KioskClient({ slug }: { slug: string }) {
         if (!DetectorCtor) {
           stopStreamTracks(streamRef.current);
           streamRef.current = null;
+          setKioskMode((current) => transitionKioskMode(current, "scan_error"));
           setCameraState((current) => transitionCameraState(current, "fail"));
           setError("Camera scanner is unavailable on this browser.");
           return;
@@ -462,7 +488,6 @@ export default function KioskClient({ slug }: { slug: string }) {
             signalScanActivity();
             if (codes.length > 0 && codes[0].rawValue) {
               await onDecoded(codes[0].rawValue);
-              return;
             }
           } catch {
             // retry loop
@@ -482,6 +507,7 @@ export default function KioskClient({ slug }: { slug: string }) {
       if (!ctx) {
         stopStreamTracks(streamRef.current);
         streamRef.current = null;
+        setKioskMode((current) => transitionKioskMode(current, "scan_error"));
         setCameraState((current) => transitionCameraState(current, "fail"));
         setError("Camera scanner canvas is unavailable.");
         return;
@@ -507,7 +533,6 @@ export default function KioskClient({ slug }: { slug: string }) {
 
         if (decoded?.data) {
           await onDecoded(decoded.data);
-          return;
         }
 
         scanLoopRafRef.current = window.requestAnimationFrame(() => {
@@ -516,10 +541,14 @@ export default function KioskClient({ slug }: { slug: string }) {
       };
 
       void runFallback();
+    }).finally(() => {
+      isStartingRef.current = false;
     });
   }
 
   async function onDecoded(qrToken: string) {
+    if (shouldIgnoreDecodedToken(qrToken)) return;
+
     setKioskMode((current) => transitionKioskMode(current, "decoded"));
     try {
       if (typeof navigator !== "undefined" && "vibrate" in navigator) {
@@ -554,6 +583,7 @@ export default function KioskClient({ slug }: { slug: string }) {
     successTimerRef.current = null;
     burstIdleTimerRef.current = null;
     streamRef.current = null;
+    isStartingRef.current = false;
 
     setScanHint(null);
     setCameraState((current) => transitionCameraState(current, "stop"));
@@ -782,15 +812,23 @@ export default function KioskClient({ slug }: { slug: string }) {
           <section
             className="flex min-h-[60vh] flex-1 flex-col items-stretch justify-center gap-3 rounded border p-3"
             onClick={() => {
-              if (kioskMode === "idle") {
+              if (canActivateScanFromSurface(kioskMode)) {
                 void startCameraScan();
               }
             }}
           >
             <h2 className="font-medium">Scan QR</h2>
-            {kioskMode === "idle" ? (
-              <button type="button" className="w-full rounded bg-black px-3 py-6 text-lg text-white" onClick={() => void startCameraScan()}>
-                Tap to Scan
+            {canActivateScanFromSurface(kioskMode) ? (
+              <button
+                type="button"
+                className="w-full rounded bg-black px-3 py-6 text-lg text-white disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={cameraState === "starting"}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  void startCameraScan();
+                }}
+              >
+                {kioskMode === "error" ? "Retry Scan" : "Tap to Scan"}
               </button>
             ) : null}
 
@@ -807,17 +845,17 @@ export default function KioskClient({ slug }: { slug: string }) {
                   className="w-full flex-1 rounded border bg-black object-cover"
                 />
                 <div className="flex gap-2">
-                  <button type="button" className="w-full rounded border px-3 py-2" onClick={() => void startCameraScan(toggleFacingMode(facingMode))}>
+                  <button type="button" className="w-full rounded border px-3 py-2" disabled={cameraState === "starting"} onClick={(event) => { event.stopPropagation(); void startCameraScan(toggleFacingMode(facingMode)); }}>
                     Flip camera ({facingMode === "user" ? "Front" : "Rear"})
                   </button>
-                  <button type="button" className="w-full rounded border px-3 py-2" onClick={stopCamera}>
+                  <button type="button" className="w-full rounded border px-3 py-2" onClick={(event) => { event.stopPropagation(); stopCamera(); }}>
                     Stop camera
                   </button>
                 </div>
               </>
             ) : null}
 
-            {cameraState === "permission_denied" ? <p className="text-xs text-red-600">Camera permission denied</p> : null}
+            {cameraState === "permission_denied" ? <p className="text-xs text-red-600">Camera permission denied. Tap Retry Scan or use manual input.</p> : null}
             {scanHint ? <p className="text-xs text-amber-700">{scanHint}</p> : null}
             {lastScanAt ? <p className="text-xs text-muted-foreground">Last scan: {new Date(lastScanAt).toLocaleTimeString()}</p> : null}
 
@@ -918,7 +956,7 @@ export default function KioskClient({ slug }: { slug: string }) {
         </section>
       )}
 
-      {error && <div className="rounded border border-red-500 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="rounded border border-red-500 bg-red-50 p-3 text-sm text-red-700">{error} {kioskMode === "error" ? "Use Retry Scan above or manual entry below." : ""}</div>}
     </main>
   );
 }

@@ -3,9 +3,12 @@ import { describe, it } from "node:test";
 
 import {
   CAMERA_FACING_MODE_STORAGE_KEY,
+  canActivateScanFromSurface,
+  canStartCameraScan,
   cleanupScanSession,
   loadFacingModePreference,
   persistFacingModePreference,
+  shouldDebounceDecodedToken,
   shouldSubmitKeyboardWedge,
   stopStreamTracks,
   toggleFacingMode,
@@ -114,6 +117,42 @@ describe("kiosk scan session", () => {
     assert.equal(paused, 1);
     assert.equal(video.srcObject, null);
   });
+
+
+  it("allows scan activation from idle and error surfaces", () => {
+    assert.equal(canActivateScanFromSurface("idle"), true);
+    assert.equal(canActivateScanFromSurface("error"), true);
+    assert.equal(canActivateScanFromSurface("scanning"), false);
+  });
+
+  it("prevents double-start while starting or already scanning", () => {
+    assert.equal(canStartCameraScan({ isStarting: true, cameraState: "idle" }), false);
+    assert.equal(canStartCameraScan({ isStarting: false, cameraState: "scanning" }), false);
+    assert.equal(canStartCameraScan({ isStarting: false, cameraState: "idle" }), true);
+  });
+
+  it("debounces immediate duplicate decode values", () => {
+    assert.equal(
+      shouldDebounceDecodedToken({
+        nextToken: "same-token",
+        previous: { value: "same-token", at: 1000 },
+        now: 2000,
+        debounceMs: 1500,
+      }),
+      true,
+    );
+
+    assert.equal(
+      shouldDebounceDecodedToken({
+        nextToken: "new-token",
+        previous: { value: "same-token", at: 1000 },
+        now: 1200,
+        debounceMs: 1500,
+      }),
+      false,
+    );
+  });
+
   it("stopStreamTracks stops all tracks", () => {
     let stopped = 0;
     const stream = {

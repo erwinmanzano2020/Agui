@@ -46,6 +46,31 @@ export function toggleFacingMode(facingMode: FacingMode): FacingMode {
   return facingMode === "user" ? "environment" : "user";
 }
 
+
+
+export function canActivateScanFromSurface(mode: KioskMode): boolean {
+  return mode === "idle" || mode === "error";
+}
+
+export function canStartCameraScan(options: {
+  isStarting: boolean;
+  cameraState: CameraState;
+}): boolean {
+  const { isStarting, cameraState } = options;
+  return !isStarting && cameraState !== "scanning";
+}
+
+export function shouldDebounceDecodedToken(options: {
+  nextToken: string;
+  previous: { value: string; at: number } | null;
+  now: number;
+  debounceMs: number;
+}): boolean {
+  const { nextToken, previous, now, debounceMs } = options;
+  if (!previous) return false;
+  return previous.value === nextToken && now - previous.at < debounceMs;
+}
+
 export function stopStreamTracks(stream: MediaStream | null | undefined): number {
   if (!stream) return 0;
   const tracks = stream.getTracks();
