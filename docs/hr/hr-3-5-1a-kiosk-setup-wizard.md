@@ -12,7 +12,7 @@ Make kiosk onboarding foolproof for HR/owners by guiding first-run setup and red
 2. **Enter Kiosk Token**
    - User pastes token from HR Kiosk Devices admin.
 3. **Verify Connection**
-   - Calls `POST /api/kiosk/ping` with `x-kiosk-token`.
+   - Calls `POST /api/hr/kiosk/verify` with `Authorization: Bearer <deviceToken>` and the current workspace `slug`.
    - Handles friendly outcomes:
      - connected
      - invalid token
@@ -42,12 +42,13 @@ Make kiosk onboarding foolproof for HR/owners by guiding first-run setup and red
   - local queue clear
   - full kiosk reset
 
-## API: `POST /api/kiosk/ping`
+## API: `POST /api/hr/kiosk/*`
 
-- Auth via `x-kiosk-token`.
+- Auth via `Authorization: Bearer <deviceToken>`.
 - Responses:
   - `401` missing/invalid token
   - `403` disabled device (`reason: "device_disabled"`)
+  - `403` slug mismatch during verify (`reason: "slug_mismatch"`)
   - `200` valid token + device metadata (`id`, `name`, `branch_id`, `branch_name`, `house_id`)
 - On success, updates `hr_kiosk_devices.last_seen_at`.
 
