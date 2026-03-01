@@ -2,6 +2,8 @@
 
 import * as React from "react";
 
+import { resolveConnectedLabel } from "@/lib/hr/kiosk/connected-label";
+
 type ScanResponse = {
   action: "clock_in" | "clock_out" | "debounced";
   employee: { id: string; code: string | null; displayName: string };
@@ -34,6 +36,8 @@ const PIN_STORAGE_KEY = "hr-kiosk-pin";
 const QUEUE_STORAGE_KEY = "hr-kiosk-queue";
 const DISPLAY_NAME_STORAGE_KEY = "hr-kiosk-display-name";
 const VERIFIED_DEVICE_ID_STORAGE_KEY = "hr-kiosk-verified-device-id";
+const VERIFIED_DEVICE_NAME_STORAGE_KEY = "hr-kiosk-verified-device-name";
+const VERIFIED_BRANCH_LABEL_STORAGE_KEY = "hr-kiosk-verified-branch-label";
 const LAST_SYNC_STORAGE_KEY = "hr-kiosk-last-sync-at";
 
 function generateClientEventId(): string {
@@ -73,6 +77,8 @@ export default function KioskClient({ slug }: { slug: string }) {
     const savedQueue = localStorage.getItem(QUEUE_STORAGE_KEY);
     const savedDisplayName = localStorage.getItem(DISPLAY_NAME_STORAGE_KEY) ?? "";
     const savedVerifiedDeviceId = localStorage.getItem(VERIFIED_DEVICE_ID_STORAGE_KEY);
+    const savedVerifiedDeviceName = localStorage.getItem(VERIFIED_DEVICE_NAME_STORAGE_KEY);
+    const savedVerifiedBranchLabel = localStorage.getItem(VERIFIED_BRANCH_LABEL_STORAGE_KEY);
     const savedLastSyncAt = localStorage.getItem(LAST_SYNC_STORAGE_KEY);
 
     setKioskToken(savedToken);
@@ -83,6 +89,14 @@ export default function KioskClient({ slug }: { slug: string }) {
     setDraftDisplayName(savedDisplayName);
     setVerifiedDeviceId(savedVerifiedDeviceId);
     setLastSyncAt(savedLastSyncAt);
+    if (savedVerifiedDeviceId && (savedVerifiedDeviceName || savedVerifiedBranchLabel)) {
+      setVerifiedDevice({
+        id: savedVerifiedDeviceId,
+        name: savedVerifiedDeviceName ?? savedDisplayName ?? "",
+        branch_id: savedVerifiedBranchLabel ?? "",
+        branch_name: savedVerifiedBranchLabel,
+      });
+    }
     if (savedQueue) {
       try {
         setQueue(JSON.parse(savedQueue) as QueuedEvent[]);
@@ -108,6 +122,11 @@ export default function KioskClient({ slug }: { slug: string }) {
   React.useEffect(() => {
     localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
   }, [queue]);
+
+  const connectedLabel = React.useMemo(
+    () => resolveConnectedLabel(verifiedDevice),
+    [verifiedDevice],
+  );
 
   const queueEvent = React.useCallback((qrToken: string) => {
     const event: QueuedEvent = {
@@ -323,6 +342,8 @@ export default function KioskClient({ slug }: { slug: string }) {
     setSettingsError(null);
     if (draftToken !== kioskToken) {
       localStorage.removeItem(VERIFIED_DEVICE_ID_STORAGE_KEY);
+      localStorage.removeItem(VERIFIED_DEVICE_NAME_STORAGE_KEY);
+      localStorage.removeItem(VERIFIED_BRANCH_LABEL_STORAGE_KEY);
       setVerifiedDeviceId(null);
       setSetupOpen(true);
       setSetupStep("verify");
@@ -346,6 +367,8 @@ export default function KioskClient({ slug }: { slug: string }) {
     localStorage.removeItem(QUEUE_STORAGE_KEY);
     localStorage.removeItem(DISPLAY_NAME_STORAGE_KEY);
     localStorage.removeItem(VERIFIED_DEVICE_ID_STORAGE_KEY);
+    localStorage.removeItem(VERIFIED_DEVICE_NAME_STORAGE_KEY);
+    localStorage.removeItem(VERIFIED_BRANCH_LABEL_STORAGE_KEY);
     localStorage.removeItem(LAST_SYNC_STORAGE_KEY);
 
     setKioskToken("");
@@ -377,6 +400,8 @@ export default function KioskClient({ slug }: { slug: string }) {
 
     if (verifiedDevice?.id) {
       localStorage.setItem(VERIFIED_DEVICE_ID_STORAGE_KEY, verifiedDevice.id);
+      localStorage.setItem(VERIFIED_DEVICE_NAME_STORAGE_KEY, verifiedDevice.name ?? "");
+      localStorage.setItem(VERIFIED_BRANCH_LABEL_STORAGE_KEY, verifiedDevice.branch_name ?? verifiedDevice.branch_id);
       setVerifiedDeviceId(verifiedDevice.id);
     }
 
@@ -392,6 +417,10 @@ export default function KioskClient({ slug }: { slug: string }) {
 
       <div className="rounded border p-3 text-sm">
         Status: <strong>{status === "online" ? "Online" : "Offline"}</strong> (Queued: {queue.length})
+      </div>
+
+      <div className="rounded border p-3 text-sm" data-testid="kiosk-connected-banner">
+        {connectedLabel ?? "Not verified yet (offline mode)"}
       </div>
 
       {(setupOpen || needsSetup) && (
@@ -434,7 +463,7 @@ export default function KioskClient({ slug }: { slug: string }) {
               </button>
               {verifiedDevice ? (
                 <div className="rounded border border-green-500 bg-green-50 p-2">
-                  ✅ Connected — {verifiedDevice.name} ({verifiedDevice.branch_name ?? verifiedDevice.branch_id})
+                  ✅ {connectedLabel}
                 </div>
               ) : null}
               {verifyError ? <div className="rounded border border-red-500 bg-red-50 p-2">❌ {verifyError}</div> : null}
