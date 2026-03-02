@@ -3,6 +3,11 @@
 import * as React from "react";
 
 import { resolveConnectedLabel } from "@/lib/hr/kiosk/connected-label";
+import {
+  shouldAutoFocusWedge,
+  type KioskMode as WedgeKioskMode,
+  type SetupStep as WedgeSetupStep,
+} from "@/lib/hr/kiosk/wedge-focus";
 
 type ScanResponse = {
   action: "clock_in" | "clock_out" | "debounced";
@@ -29,8 +34,8 @@ type PingResponse = {
   house_id: string;
 };
 
-type SetupStep = "welcome" | "token" | "verify" | "confirm" | "harden";
-type KioskMode = "setup" | "ready" | "sleep" | "flash_result";
+type SetupStep = WedgeSetupStep;
+type KioskMode = WedgeKioskMode;
 type FlashTone = "time_in" | "time_out" | "error";
 
 const TOKEN_STORAGE_KEY = "hr-kiosk-token";
@@ -293,10 +298,10 @@ export default function KioskClient({ slug }: { slug: string }) {
   }, [syncQueue]);
 
   React.useEffect(() => {
-    if (kioskMode === "ready") {
+    if (shouldAutoFocusWedge({ kioskMode, settingsOpen, setupOpen, setupStep })) {
       focusWedgeInput();
     }
-  }, [focusWedgeInput, kioskMode]);
+  }, [focusWedgeInput, kioskMode, settingsOpen, setupOpen, setupStep]);
 
   React.useEffect(() => {
     resetIdleTimer();
@@ -499,10 +504,12 @@ export default function KioskClient({ slug }: { slug: string }) {
         autoComplete="off"
         className="pointer-events-none absolute -left-[9999px] h-1 w-1 opacity-0"
         onBlur={() => {
-          if (kioskMode === "ready") focusWedgeInput();
+          if (shouldAutoFocusWedge({ kioskMode, settingsOpen, setupOpen, setupStep })) {
+            focusWedgeInput();
+          }
         }}
         onKeyDown={(event) => {
-          if (needsSetup || kioskMode === "sleep") return;
+          if (needsSetup || kioskMode === "sleep" || settingsOpen || setupOpen) return;
           resetIdleTimer();
 
           if (event.key === "Enter") {
