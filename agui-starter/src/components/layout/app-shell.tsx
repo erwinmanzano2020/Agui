@@ -23,6 +23,7 @@ import {
   UsersIcon,
 } from "@/components/icons/lucide";
 import { pluralize } from "@/lib/utils";
+import { isPublicShellBypassPath } from "@/components/layout/app-shell-visibility";
 
 type NavItem = { name: string; href: string; icon: ReactNode };
 
@@ -60,8 +61,7 @@ export function AppShell({
     [terms.alliance, terms.guild, terms.team]
   );
   const pathname = usePathname();
-  const isHome = pathname === "/";
-  const isPublicRoute = pathname?.startsWith("/apply") || pathname?.startsWith("/auth/");
+  const isPublicRoute = isPublicShellBypassPath(pathname);
 
   // responsive + collapsible
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile
@@ -78,10 +78,10 @@ export function AppShell({
     ];
   }, [baseNav, posEnabled]);
   const activeNav = nav.find((item) => item.href === pathname);
-  const headerTitle = isHome ? "Home" : activeNav?.name ?? "Agui Dashboard";
+  const headerTitle = pathname === "/" ? "Home" : activeNav?.name ?? "Agui Dashboard";
   const isGM = roles.PLATFORM.includes("game_master");
 
-  if (pathname === "/" || isPublicRoute) {
+  if (isPublicRoute) {
     return <>{children}</>;
   }
 

@@ -5,6 +5,7 @@ import * as React from "react";
 import { resolveConnectedLabel } from "@/lib/hr/kiosk/connected-label";
 import {
   shouldAutoFocusWedge,
+  shouldCaptureWedgeInput,
   type KioskMode as WedgeKioskMode,
   type SetupStep as WedgeSetupStep,
 } from "@/lib/hr/kiosk/wedge-focus";
@@ -491,7 +492,7 @@ export default function KioskClient({ slug }: { slug: string }) {
 
   return (
     <main
-      className="relative mx-auto flex h-screen w-full max-w-md flex-col overflow-hidden p-3"
+      className="relative mx-auto flex min-h-[100dvh] max-h-[100dvh] w-full max-w-md flex-col overflow-hidden p-3"
       onPointerDown={() => {
         if (!needsSetup) {
           resetIdleTimer();
@@ -509,7 +510,7 @@ export default function KioskClient({ slug }: { slug: string }) {
           }
         }}
         onKeyDown={(event) => {
-          if (needsSetup || kioskMode === "sleep" || settingsOpen || setupOpen) return;
+          if (!shouldCaptureWedgeInput({ kioskMode, settingsOpen, setupOpen, setupStep }) || needsSetup) return;
           resetIdleTimer();
 
           if (event.key === "Enter") {
@@ -611,7 +612,7 @@ export default function KioskClient({ slug }: { slug: string }) {
       )}
 
       <button
-        className="mt-3 self-end rounded px-2 py-1 text-xs text-muted-foreground underline"
+        className="fixed bottom-4 right-4 z-30 rounded border bg-background/95 px-3 py-2 text-xs text-muted-foreground shadow"
         onClick={openSettingsWithGuard}
         onMouseDown={startLongPress}
         onMouseUp={stopLongPress}
@@ -626,24 +627,26 @@ export default function KioskClient({ slug }: { slug: string }) {
       {error ? <div className="mt-2 rounded border border-red-500 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
       {settingsOpen && (
-        <section className="mt-2 max-h-[45vh] space-y-2 overflow-y-auto rounded border p-3 text-sm">
-          <h2 className="font-medium">Kiosk Settings</h2>
-          <p>Device: {displayName || verifiedDevice?.name || "Unnamed"}</p>
-          <p>Last sync: {lastSyncAt ?? "Never"}</p>
-          <p>Queue length: {queue.length}</p>
-          <p>Connectivity: {status}</p>
+        <div className="absolute inset-0 z-40 flex items-end justify-center bg-black/50 p-3 sm:items-center">
+          <section className="max-h-[85dvh] w-full space-y-2 overflow-y-auto rounded border bg-background p-3 text-sm shadow-xl">
+            <h2 className="font-medium">Kiosk Settings</h2>
+            <p>Device: {displayName || verifiedDevice?.name || "Unnamed"}</p>
+            <p>Last sync: {lastSyncAt ?? "Never"}</p>
+            <p>Queue length: {queue.length}</p>
+            <p>Connectivity: {status}</p>
 
-          <input className="w-full rounded border p-2" placeholder="Kiosk token" value={draftToken} onChange={(event) => setDraftToken(event.target.value)} />
-          <input className="w-full rounded border p-2" placeholder="Display name" value={draftDisplayName} onChange={(event) => setDraftDisplayName(event.target.value)} />
-          <input className="w-full rounded border p-2" placeholder="PIN (leave blank to disable)" type="password" value={draftPin} onChange={(event) => setDraftPin(event.target.value)} />
+            <input className="w-full rounded border p-2" placeholder="Kiosk token" value={draftToken} onChange={(event) => setDraftToken(event.target.value)} />
+            <input className="w-full rounded border p-2" placeholder="Display name" value={draftDisplayName} onChange={(event) => setDraftDisplayName(event.target.value)} />
+            <input className="w-full rounded border p-2" placeholder="PIN (leave blank to disable)" type="password" value={draftPin} onChange={(event) => setDraftPin(event.target.value)} />
 
-          <div className="flex flex-wrap gap-2">
-            <button className="rounded border px-3 py-2" onClick={saveSettings}>Save settings</button>
-            <button className="rounded border px-3 py-2" onClick={() => setSettingsOpen(false)}>Close</button>
-            <button className="rounded border px-3 py-2" onClick={clearQueue}>Clear local queue</button>
-            <button className="rounded border px-3 py-2" onClick={resetKiosk}>Reset kiosk</button>
-          </div>
-        </section>
+            <div className="flex flex-wrap gap-2">
+              <button className="rounded border px-3 py-2" onClick={saveSettings}>Save settings</button>
+              <button className="rounded border px-3 py-2" onClick={() => setSettingsOpen(false)}>Close</button>
+              <button className="rounded border px-3 py-2" onClick={clearQueue}>Clear local queue</button>
+              <button className="rounded border px-3 py-2" onClick={resetKiosk}>Reset kiosk</button>
+            </div>
+          </section>
+        </div>
       )}
 
       {kioskMode === "sleep" && (

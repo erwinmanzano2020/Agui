@@ -18,3 +18,12 @@ export function shouldAutoFocusWedge(input: {
   if (setupOpen) return false;
   return true;
 }
+
+export function shouldCaptureWedgeInput(input: {
+  kioskMode: KioskMode;
+  settingsOpen: boolean;
+  setupOpen: boolean;
+  setupStep: SetupStep;
+}): boolean {
+  return shouldAutoFocusWedge(input);
+}

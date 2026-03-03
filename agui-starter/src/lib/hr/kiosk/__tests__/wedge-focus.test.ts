@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { shouldAutoFocusWedge } from "@/lib/hr/kiosk/wedge-focus";
+import { shouldAutoFocusWedge, shouldCaptureWedgeInput } from "@/lib/hr/kiosk/wedge-focus";
 
 describe("wedge focus helper", () => {
   it("does not refocus while settingsOpen is true", () => {
@@ -46,6 +46,33 @@ describe("wedge focus helper", () => {
         setupStep: "confirm",
       }),
       false,
+    );
+  });
+});
+
+
+describe("wedge capture helper", () => {
+  it("does not capture while settings modal is open", () => {
+    assert.equal(
+      shouldCaptureWedgeInput({
+        kioskMode: "ready",
+        settingsOpen: true,
+        setupOpen: false,
+        setupStep: "welcome",
+      }),
+      false,
+    );
+  });
+
+  it("captures again after settings modal closes in ready mode", () => {
+    assert.equal(
+      shouldCaptureWedgeInput({
+        kioskMode: "ready",
+        settingsOpen: false,
+        setupOpen: false,
+        setupStep: "welcome",
+      }),
+      true,
     );
   });
 });
