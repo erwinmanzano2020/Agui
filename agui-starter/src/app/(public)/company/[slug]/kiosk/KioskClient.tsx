@@ -4,26 +4,11 @@ import * as React from "react";
 
 import { resolveConnectedLabel } from "@/lib/hr/kiosk/connected-label";
 import {
-  getScannerStrategy,
-  loadJsQrDecoder,
-  runScanActionSafely,
-} from "@/lib/hr/kiosk/scanner-fallback";
-import {
-  canActivateScanFromSurface,
-  canStartCameraScan,
-  cleanupScanSession,
-  loadFacingModePreference,
-  persistFacingModePreference,
-  shouldDebounceDecodedToken,
-  shouldSubmitKeyboardWedge,
-  stopStreamTracks,
-  toggleFacingMode,
-  transitionCameraState,
-  type CameraState,
-  type FacingMode,
-  transitionKioskMode,
-  type KioskMode,
-} from "@/lib/hr/kiosk/scan-session";
+  shouldAutoFocusWedge,
+  shouldCaptureWedgeInput,
+  type KioskMode as WedgeKioskMode,
+  type SetupStep as WedgeSetupStep,
+} from "@/lib/hr/kiosk/wedge-focus";
 
 type ScanResponse = {
   action: "clock_in" | "clock_out" | "debounced";
@@ -50,7 +35,9 @@ type PingResponse = {
   house_id: string;
 };
 
-type SetupStep = "welcome" | "token" | "verify" | "confirm" | "harden";
+type SetupStep = WedgeSetupStep;
+type KioskMode = WedgeKioskMode;
+type FlashTone = "time_in" | "time_out" | "error";
 
 const TOKEN_STORAGE_KEY = "hr-kiosk-token";
 const PIN_STORAGE_KEY = "hr-kiosk-pin";
@@ -60,13 +47,19 @@ const VERIFIED_DEVICE_ID_STORAGE_KEY = "hr-kiosk-verified-device-id";
 const VERIFIED_DEVICE_NAME_STORAGE_KEY = "hr-kiosk-verified-device-name";
 const VERIFIED_BRANCH_LABEL_STORAGE_KEY = "hr-kiosk-verified-branch-label";
 const LAST_SYNC_STORAGE_KEY = "hr-kiosk-last-sync-at";
-const IDLE_TIMEOUT_MS = 45000;
-const SUCCESS_FLASH_MS = 2500;
-const BURST_KEEP_ALIVE_MS = 10000;
-const DECODE_DEBOUNCE_MS = 1500;
+
+const IDLE_TIMEOUT_MS = 180_000;
+const FLASH_RESULT_MS = 700;
+const WEDGE_SUBMIT_TIMEOUT_MS = 120;
+const DECODE_DEBOUNCE_MS = 1200;
 
 function generateClientEventId(): string {
   return crypto.randomUUID();
+}
+
+function isValidQrTokenFormat(qrToken: string): boolean {
+  const parts = qrToken.split(".");
+  return qrToken.startsWith("v1.") && parts.length === 3 && parts.every((part) => part.trim().length > 0);
 }
 
 export default function KioskClient({ slug }: { slug: string }) {
@@ -80,12 +73,8 @@ export default function KioskClient({ slug }: { slug: string }) {
   const [queue, setQueue] = React.useState<QueuedEvent[]>([]);
   const [lastResult, setLastResult] = React.useState<ScanResponse | null>(null);
   const [error, setError] = React.useState<string | null>(null);
-  const [cameraState, setCameraState] = React.useState<CameraState>("idle");
   const [kioskMode, setKioskMode] = React.useState<KioskMode>("setup");
-  const [facingMode, setFacingMode] = React.useState<FacingMode>("user");
-  const [manualQr, setManualQr] = React.useState("");
-  const [scanHint, setScanHint] = React.useState<string | null>(null);
-  const [lastScanAt, setLastScanAt] = React.useState<string | null>(null);
+  const [flashTone, setFlashTone] = React.useState<FlashTone | null>(null);
   const [setupOpen, setSetupOpen] = React.useState(false);
   const [setupStep, setSetupStep] = React.useState<SetupStep>("welcome");
   const [verifyError, setVerifyError] = React.useState<string | null>(null);
@@ -97,96 +86,18 @@ export default function KioskClient({ slug }: { slug: string }) {
   const [lastSyncAt, setLastSyncAt] = React.useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [settingsError, setSettingsError] = React.useState<string | null>(null);
+
   const pressTimerRef = React.useRef<number | null>(null);
-  const manualInputRef = React.useRef<HTMLInputElement | null>(null);
-  const videoRef = React.useRef<HTMLVideoElement | null>(null);
-  const streamRef = React.useRef<MediaStream | null>(null);
-  const scanLoopRafRef = React.useRef<number | null>(null);
-  const scanTimeoutRef = React.useRef<number | null>(null);
-  const successTimerRef = React.useRef<number | null>(null);
-  const burstIdleTimerRef = React.useRef<number | null>(null);
-  const isStartingRef = React.useRef(false);
+  const wedgeInputRef = React.useRef<HTMLInputElement | null>(null);
+  const wedgeBufferRef = React.useRef("");
+  const wedgeTimerRef = React.useRef<number | null>(null);
+  const idleTimerRef = React.useRef<number | null>(null);
+  const flashTimerRef = React.useRef<number | null>(null);
   const lastDecodedRef = React.useRef<{ value: string; at: number } | null>(null);
 
   const needsSetup = !kioskToken || !verifiedDeviceId;
 
-  React.useEffect(() => {
-    const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY) ?? "";
-    const savedPin = localStorage.getItem(PIN_STORAGE_KEY) ?? "";
-    const savedQueue = localStorage.getItem(QUEUE_STORAGE_KEY);
-    const savedDisplayName = localStorage.getItem(DISPLAY_NAME_STORAGE_KEY) ?? "";
-    const savedVerifiedDeviceId = localStorage.getItem(VERIFIED_DEVICE_ID_STORAGE_KEY);
-    const savedVerifiedDeviceName = localStorage.getItem(VERIFIED_DEVICE_NAME_STORAGE_KEY);
-    const savedVerifiedBranchLabel = localStorage.getItem(VERIFIED_BRANCH_LABEL_STORAGE_KEY);
-    const savedLastSyncAt = localStorage.getItem(LAST_SYNC_STORAGE_KEY);
-    const savedFacingMode = loadFacingModePreference(localStorage);
-
-    setKioskToken(savedToken);
-    setDraftToken(savedToken);
-    setPin(savedPin);
-    setDraftPin(savedPin);
-    setDisplayName(savedDisplayName);
-    setDraftDisplayName(savedDisplayName);
-    setVerifiedDeviceId(savedVerifiedDeviceId);
-    setLastSyncAt(savedLastSyncAt);
-    setFacingMode(savedFacingMode);
-    if (savedVerifiedDeviceId && (savedVerifiedDeviceName || savedVerifiedBranchLabel)) {
-      setVerifiedDevice({
-        id: savedVerifiedDeviceId,
-        name: savedVerifiedDeviceName ?? savedDisplayName ?? "",
-        branch_id: savedVerifiedBranchLabel ?? "",
-        branch_name: savedVerifiedBranchLabel,
-      });
-    }
-    if (savedQueue) {
-      try {
-        setQueue(JSON.parse(savedQueue) as QueuedEvent[]);
-      } catch {
-        setQueue([]);
-      }
-    }
-
-    setSetupOpen(!savedToken || !savedVerifiedDeviceId);
-    setKioskMode(!savedToken || !savedVerifiedDeviceId ? "setup" : "idle");
-
-    const onOnline = () => setStatus("online");
-    const onOffline = () => setStatus("offline");
-
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-
-    return () => {
-      window.removeEventListener("online", onOnline);
-      window.removeEventListener("offline", onOffline);
-    };
-  }, []);
-
-  React.useEffect(() => {
-    localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
-  }, [queue]);
-
-  React.useEffect(() => {
-    if (kioskMode !== "scanning") {
-      manualInputRef.current?.focus();
-    }
-  }, [kioskMode]);
-
-  React.useEffect(() => {
-    const mountedVideo = videoRef.current;
-    return () => {
-      cleanupScanSession({
-        rafId: scanLoopRafRef.current,
-        timeoutIds: [scanTimeoutRef.current, successTimerRef.current, burstIdleTimerRef.current],
-        stream: streamRef.current,
-        video: mountedVideo,
-      });
-    };
-  }, []);
-
-  const connectedLabel = React.useMemo(
-    () => resolveConnectedLabel(verifiedDevice),
-    [verifiedDevice],
-  );
+  const connectedLabel = React.useMemo(() => resolveConnectedLabel(verifiedDevice), [verifiedDevice]);
 
   const queueEvent = React.useCallback((qrToken: string) => {
     const event: QueuedEvent = {
@@ -197,44 +108,99 @@ export default function KioskClient({ slug }: { slug: string }) {
     setQueue((prev) => [...prev, event]);
   }, []);
 
-  const sendScan = React.useCallback(
-    async (qrToken: string) => {
-      if (!kioskToken) {
-        setError("Complete kiosk setup first.");
-        return;
+  const focusWedgeInput = React.useCallback(() => {
+    window.requestAnimationFrame(() => {
+      wedgeInputRef.current?.focus();
+    });
+  }, []);
+
+  const resetIdleTimer = React.useCallback(() => {
+    if (idleTimerRef.current) {
+      window.clearTimeout(idleTimerRef.current);
+    }
+    if (needsSetup || kioskMode === "setup") {
+      return;
+    }
+
+    idleTimerRef.current = window.setTimeout(() => {
+      setKioskMode("sleep");
+    }, IDLE_TIMEOUT_MS);
+  }, [kioskMode, needsSetup]);
+
+  const showFlashAndReturn = React.useCallback((tone: FlashTone) => {
+    setFlashTone(tone);
+    setKioskMode("flash_result");
+    if (flashTimerRef.current) {
+      window.clearTimeout(flashTimerRef.current);
+    }
+    flashTimerRef.current = window.setTimeout(() => {
+      setKioskMode("ready");
+      setFlashTone(null);
+      focusWedgeInput();
+    }, FLASH_RESULT_MS);
+  }, [focusWedgeInput]);
+
+  const processToken = React.useCallback(async (rawQrToken: string) => {
+    const qrToken = rawQrToken.trim();
+    if (!qrToken) return;
+
+    if (!isValidQrTokenFormat(qrToken)) {
+      setError("Invalid QR token format.");
+      setLastResult(null);
+      showFlashAndReturn("error");
+      return;
+    }
+
+    const now = Date.now();
+    const previous = lastDecodedRef.current;
+    if (previous && previous.value === qrToken && now - previous.at < DECODE_DEBOUNCE_MS) {
+      return;
+    }
+    lastDecodedRef.current = { value: qrToken, at: now };
+
+    if (!kioskToken) {
+      setError("Complete kiosk setup first.");
+      setLastResult(null);
+      showFlashAndReturn("error");
+      return;
+    }
+
+    try {
+      const response = await fetch("/api/hr/kiosk/scan", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          authorization: `Bearer ${kioskToken}`,
+        },
+        body: JSON.stringify({ qrToken, occurredAt: new Date().toISOString() }),
+      });
+
+      if (!response.ok) {
+        const payload = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(payload.error ?? "Scan failed");
       }
 
-      try {
-        const response = await fetch("/api/hr/kiosk/scan", {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            authorization: `Bearer ${kioskToken}`,
-          },
-          body: JSON.stringify({ qrToken, occurredAt: new Date().toISOString() }),
-        });
+      const payload = (await response.json()) as ScanResponse;
+      setLastResult(payload);
+      setError(null);
+      showFlashAndReturn(payload.action === "clock_out" ? "time_out" : "time_in");
+    } catch (scanError) {
+      queueEvent(qrToken);
+      setLastResult(null);
+      setError(`Offline/failed. Queued for sync. (${scanError instanceof Error ? scanError.message : "error"})`);
+      showFlashAndReturn("error");
+    }
+  }, [kioskToken, queueEvent, showFlashAndReturn]);
 
-        if (!response.ok) {
-          const payload = (await response.json().catch(() => ({}))) as { error?: string };
-          throw new Error(payload.error ?? "Scan failed");
-        }
-
-        const payload = (await response.json()) as ScanResponse;
-        setLastResult(payload);
-        setLastScanAt(new Date().toISOString());
-        setScanHint(null);
-        setError(null);
-      } catch (scanError) {
-        queueEvent(qrToken);
-        setLastResult(null);
-        setError(`Offline/failed. Queued for sync. (${scanError instanceof Error ? scanError.message : "error"})`);
-      } finally {
-        setManualQr("");
-        manualInputRef.current?.focus();
-      }
-    },
-    [kioskToken, queueEvent],
-  );
+  const flushWedgeBuffer = React.useCallback(() => {
+    const token = wedgeBufferRef.current;
+    wedgeBufferRef.current = "";
+    if (wedgeTimerRef.current) {
+      window.clearTimeout(wedgeTimerRef.current);
+      wedgeTimerRef.current = null;
+    }
+    void processToken(token);
+  }, [processToken]);
 
   const syncQueue = React.useCallback(async () => {
     if (queue.length === 0 || status !== "online" || !kioskToken) return;
@@ -260,11 +226,6 @@ export default function KioskClient({ slug }: { slug: string }) {
       };
 
       const completed = new Set(payload.results.filter((item) => item.status !== "error").map((item) => item.clientEventId));
-      const latestProcessed = payload.results.find((item) => item.status === "processed" && item.result?.employee);
-      if (latestProcessed?.result) {
-        setLastResult(latestProcessed.result);
-      }
-
       setQueue((prev) => prev.filter((event) => !completed.has(event.clientEventId)));
       const now = new Date().toISOString();
       setLastSyncAt(now);
@@ -275,48 +236,86 @@ export default function KioskClient({ slug }: { slug: string }) {
   }, [kioskToken, queue, status]);
 
   React.useEffect(() => {
+    const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY) ?? "";
+    const savedPin = localStorage.getItem(PIN_STORAGE_KEY) ?? "";
+    const savedQueue = localStorage.getItem(QUEUE_STORAGE_KEY);
+    const savedDisplayName = localStorage.getItem(DISPLAY_NAME_STORAGE_KEY) ?? "";
+    const savedVerifiedDeviceId = localStorage.getItem(VERIFIED_DEVICE_ID_STORAGE_KEY);
+    const savedVerifiedDeviceName = localStorage.getItem(VERIFIED_DEVICE_NAME_STORAGE_KEY);
+    const savedVerifiedBranchLabel = localStorage.getItem(VERIFIED_BRANCH_LABEL_STORAGE_KEY);
+    const savedLastSyncAt = localStorage.getItem(LAST_SYNC_STORAGE_KEY);
+
+    setKioskToken(savedToken);
+    setDraftToken(savedToken);
+    setPin(savedPin);
+    setDraftPin(savedPin);
+    setDisplayName(savedDisplayName);
+    setDraftDisplayName(savedDisplayName);
+    setVerifiedDeviceId(savedVerifiedDeviceId);
+    setLastSyncAt(savedLastSyncAt);
+
+    if (savedVerifiedDeviceId && (savedVerifiedDeviceName || savedVerifiedBranchLabel)) {
+      setVerifiedDevice({
+        id: savedVerifiedDeviceId,
+        name: savedVerifiedDeviceName ?? savedDisplayName ?? "",
+        branch_id: savedVerifiedBranchLabel ?? "",
+        branch_name: savedVerifiedBranchLabel,
+      });
+    }
+
+    if (savedQueue) {
+      try {
+        setQueue(JSON.parse(savedQueue) as QueuedEvent[]);
+      } catch {
+        setQueue([]);
+      }
+    }
+
+    const requiresSetup = !savedToken || !savedVerifiedDeviceId;
+    setSetupOpen(requiresSetup);
+    setKioskMode(requiresSetup ? "setup" : "ready");
+
+    const onOnline = () => setStatus("online");
+    const onOffline = () => setStatus("offline");
+
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
+  }, [queue]);
+
+  React.useEffect(() => {
     const timer = window.setInterval(() => {
       void syncQueue();
     }, 15000);
     return () => window.clearInterval(timer);
   }, [syncQueue]);
 
-  function resetIdleTimer() {
-    if (scanTimeoutRef.current) window.clearTimeout(scanTimeoutRef.current);
-    scanTimeoutRef.current = window.setTimeout(() => {
-      stopCamera();
-      setKioskMode((current) => transitionKioskMode(current, "idle_timeout"));
-      setScanHint(null);
-    }, IDLE_TIMEOUT_MS);
-  }
-
-  function clearSuccessAndBurstTimers() {
-    if (successTimerRef.current) {
-      window.clearTimeout(successTimerRef.current);
-      successTimerRef.current = null;
+  React.useEffect(() => {
+    if (shouldAutoFocusWedge({ kioskMode, settingsOpen, setupOpen, setupStep })) {
+      focusWedgeInput();
     }
-    if (burstIdleTimerRef.current) {
-      window.clearTimeout(burstIdleTimerRef.current);
-      burstIdleTimerRef.current = null;
-    }
-  }
+  }, [focusWedgeInput, kioskMode, settingsOpen, setupOpen, setupStep]);
 
-  function signalScanActivity() {
-    if (kioskMode === "scanning") {
-      resetIdleTimer();
-    }
-  }
+  React.useEffect(() => {
+    resetIdleTimer();
+  }, [resetIdleTimer]);
 
-
-  function shouldIgnoreDecodedToken(qrToken: string): boolean {
-    const last = lastDecodedRef.current;
-    const now = Date.now();
-    if (shouldDebounceDecodedToken({ nextToken: qrToken, previous: last, now, debounceMs: DECODE_DEBOUNCE_MS })) {
-      return true;
-    }
-    lastDecodedRef.current = { value: qrToken, at: now };
-    return false;
-  }
+  React.useEffect(() => {
+    return () => {
+      if (pressTimerRef.current) window.clearTimeout(pressTimerRef.current);
+      if (idleTimerRef.current) window.clearTimeout(idleTimerRef.current);
+      if (flashTimerRef.current) window.clearTimeout(flashTimerRef.current);
+      if (wedgeTimerRef.current) window.clearTimeout(wedgeTimerRef.current);
+    };
+  }, []);
 
   async function verifyToken(tokenToVerify: string): Promise<boolean> {
     setVerifyError(null);
@@ -362,234 +361,6 @@ export default function KioskClient({ slug }: { slug: string }) {
     }
   }
 
-  async function startCameraScan(requestedFacingMode: FacingMode = facingMode) {
-    if (!canStartCameraScan({ isStarting: isStartingRef.current, cameraState })) {
-      return;
-    }
-
-    isStartingRef.current = true;
-    await runScanActionSafely(async () => {
-      setError(null);
-      setScanHint(null);
-      clearSuccessAndBurstTimers();
-      persistFacingModePreference(localStorage, requestedFacingMode);
-      setFacingMode(requestedFacingMode);
-      setKioskMode((current) => transitionKioskMode(current, "tap"));
-      setCameraState((current) => transitionCameraState(current, "start"));
-
-      if (scanLoopRafRef.current) {
-        window.cancelAnimationFrame(scanLoopRafRef.current);
-        scanLoopRafRef.current = null;
-      }
-      if (scanTimeoutRef.current) {
-        window.clearTimeout(scanTimeoutRef.current);
-        scanTimeoutRef.current = null;
-      }
-      stopStreamTracks(streamRef.current);
-      streamRef.current = null;
-
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: requestedFacingMode } });
-      } catch (cameraError) {
-        if (cameraError instanceof DOMException && cameraError.name === "NotAllowedError") {
-          setKioskMode((current) => transitionKioskMode(current, "scan_error"));
-          setCameraState((current) => transitionCameraState(current, "deny"));
-          setError("Camera permission denied");
-          return;
-        }
-        const fallbackFacingMode: FacingMode = requestedFacingMode === "user" ? "environment" : "user";
-        try {
-          stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: fallbackFacingMode } });
-          setFacingMode(fallbackFacingMode);
-          persistFacingModePreference(localStorage, fallbackFacingMode);
-        } catch {
-          setKioskMode((current) => transitionKioskMode(current, "scan_error"));
-          setCameraState((current) => transitionCameraState(current, "fail"));
-          setError("Unable to access camera.");
-          return;
-        }
-      }
-
-      streamRef.current = stream;
-
-      const activeVideo = videoRef.current;
-      if (!activeVideo) {
-        stopStreamTracks(stream);
-        streamRef.current = null;
-        setKioskMode((current) => transitionKioskMode(current, "scan_error"));
-        setCameraState((current) => transitionCameraState(current, "fail"));
-        setError("Camera preview is unavailable.");
-        return;
-      }
-
-      activeVideo.srcObject = stream;
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const onLoaded = () => {
-            activeVideo.removeEventListener("loadedmetadata", onLoaded);
-            resolve();
-          };
-          activeVideo.addEventListener("loadedmetadata", onLoaded);
-          window.setTimeout(() => {
-            activeVideo.removeEventListener("loadedmetadata", onLoaded);
-            reject(new Error("Camera preview took too long to initialize."));
-          }, 5000);
-        });
-      } catch {
-        stopStreamTracks(streamRef.current);
-        streamRef.current = null;
-        setKioskMode((current) => transitionKioskMode(current, "scan_error"));
-        setCameraState((current) => transitionCameraState(current, "fail"));
-        setError("Unable to initialize camera preview.");
-        return;
-      }
-
-      try {
-        await activeVideo.play();
-      } catch {
-        stopStreamTracks(stream);
-        streamRef.current = null;
-        setKioskMode((current) => transitionKioskMode(current, "scan_error"));
-        setCameraState((current) => transitionCameraState(current, "fail"));
-        setError("Unable to start camera preview.");
-        return;
-      }
-
-      setCameraState((current) => transitionCameraState(current, "ready"));
-      setKioskMode((current) => transitionKioskMode(current, "tap"));
-      resetIdleTimer();
-
-      const strategy = getScannerStrategy("BarcodeDetector" in window);
-
-      if (strategy === "barcode_detector") {
-        const DetectorCtor = (window as Window & { BarcodeDetector?: new (options?: { formats?: string[] }) => { detect: (source: ImageBitmapSource) => Promise<Array<{ rawValue?: string }>> } }).BarcodeDetector;
-        if (!DetectorCtor) {
-          stopStreamTracks(streamRef.current);
-          streamRef.current = null;
-          setKioskMode((current) => transitionKioskMode(current, "scan_error"));
-          setCameraState((current) => transitionCameraState(current, "fail"));
-          setError("Camera scanner is unavailable on this browser.");
-          return;
-        }
-
-        const detector = new DetectorCtor({ formats: ["qr_code"] });
-        const run = async () => {
-          try {
-            const video = videoRef.current;
-            if (!video || video.videoWidth === 0 || video.videoHeight === 0) {
-              scanLoopRafRef.current = window.requestAnimationFrame(() => {
-                void run();
-              });
-              return;
-            }
-
-            const codes = await detector.detect(video);
-            signalScanActivity();
-            if (codes.length > 0 && codes[0].rawValue) {
-              await onDecoded(codes[0].rawValue);
-            }
-          } catch {
-            // retry loop
-          }
-          scanLoopRafRef.current = window.requestAnimationFrame(() => {
-            void run();
-          });
-        };
-
-        void run();
-        return;
-      }
-
-      const jsQrDecode = await loadJsQrDecoder(document);
-      const canvas = document.createElement("canvas");
-      const ctx = canvas.getContext("2d", { willReadFrequently: true });
-      if (!ctx) {
-        stopStreamTracks(streamRef.current);
-        streamRef.current = null;
-        setKioskMode((current) => transitionKioskMode(current, "scan_error"));
-        setCameraState((current) => transitionCameraState(current, "fail"));
-        setError("Camera scanner canvas is unavailable.");
-        return;
-      }
-
-      const runFallback = async () => {
-        const video = videoRef.current;
-        if (!video || video.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA || video.videoWidth === 0 || video.videoHeight === 0) {
-          scanLoopRafRef.current = window.requestAnimationFrame(() => {
-            void runFallback();
-          });
-          return;
-        }
-
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        signalScanActivity();
-        const decoded = jsQrDecode(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: "attemptBoth",
-        });
-
-        if (decoded?.data) {
-          await onDecoded(decoded.data);
-        }
-
-        scanLoopRafRef.current = window.requestAnimationFrame(() => {
-          void runFallback();
-        });
-      };
-
-      void runFallback();
-    }).finally(() => {
-      isStartingRef.current = false;
-    });
-  }
-
-  async function onDecoded(qrToken: string) {
-    if (shouldIgnoreDecodedToken(qrToken)) return;
-
-    setKioskMode((current) => transitionKioskMode(current, "decoded"));
-    try {
-      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
-        navigator.vibrate(50);
-      }
-    } catch {
-      // ignore vibration failures
-    }
-    await sendScan(qrToken);
-
-    clearSuccessAndBurstTimers();
-    successTimerRef.current = window.setTimeout(() => {
-      setKioskMode((current) => transitionKioskMode(current, "burst"));
-    }, SUCCESS_FLASH_MS);
-    burstIdleTimerRef.current = window.setTimeout(() => {
-      stopCamera();
-      setKioskMode((current) => transitionKioskMode(current, "idle_timeout"));
-    }, BURST_KEEP_ALIVE_MS);
-    resetIdleTimer();
-  }
-
-  function stopCamera() {
-    cleanupScanSession({
-      rafId: scanLoopRafRef.current,
-      timeoutIds: [scanTimeoutRef.current, successTimerRef.current, burstIdleTimerRef.current],
-      stream: streamRef.current,
-      video: videoRef.current,
-    });
-
-    scanLoopRafRef.current = null;
-    scanTimeoutRef.current = null;
-    successTimerRef.current = null;
-    burstIdleTimerRef.current = null;
-    streamRef.current = null;
-    isStartingRef.current = false;
-
-    setScanHint(null);
-    setCameraState((current) => transitionCameraState(current, "stop"));
-    setKioskMode((current) => transitionKioskMode(current, "idle_timeout"));
-  }
-
   function openSettingsWithGuard() {
     if (pin) {
       const entered = window.prompt("Enter kiosk PIN", "");
@@ -628,6 +399,7 @@ export default function KioskClient({ slug }: { slug: string }) {
     setPin(draftPin);
     setDisplayName(draftDisplayName);
     setSettingsError(null);
+
     if (draftToken !== kioskToken) {
       localStorage.removeItem(VERIFIED_DEVICE_ID_STORAGE_KEY);
       localStorage.removeItem(VERIFIED_DEVICE_NAME_STORAGE_KEY);
@@ -636,6 +408,7 @@ export default function KioskClient({ slug }: { slug: string }) {
       setSetupOpen(true);
       setSetupStep("verify");
       setVerifyError("Token changed. Re-verify connection.");
+      setKioskMode("setup");
     }
   }
 
@@ -698,30 +471,83 @@ export default function KioskClient({ slug }: { slug: string }) {
     setPin(draftPin);
     setDisplayName(draftDisplayName);
     setSetupStep("harden");
-    setKioskMode("idle");
+    setKioskMode("ready");
+    setSetupOpen(false);
+    setError(null);
+    focusWedgeInput();
   }
 
+  function wakeKiosk() {
+    if (kioskMode !== "sleep") return;
+    setKioskMode("ready");
+    resetIdleTimer();
+    focusWedgeInput();
+  }
+
+  const flashView = flashTone === "time_in"
+    ? { classes: "border-green-700 bg-green-100 text-green-900", icon: "✅", title: "TIME IN" }
+    : flashTone === "time_out"
+      ? { classes: "border-blue-700 bg-blue-100 text-blue-900", icon: "✅", title: "TIME OUT" }
+      : { classes: "border-red-700 bg-red-100 text-red-900", icon: "❌", title: "ERROR / INVALID QR" };
+
   return (
-    <main className="mx-auto flex h-screen w-full max-w-md flex-col gap-3 overflow-hidden p-3">
+    <main
+      className="relative mx-auto flex min-h-[100dvh] max-h-[100dvh] w-full max-w-md flex-col overflow-hidden p-3"
+      onPointerDown={() => {
+        if (!needsSetup) {
+          resetIdleTimer();
+        }
+      }}
+    >
+      <input
+        ref={wedgeInputRef}
+        aria-hidden
+        autoComplete="off"
+        className="pointer-events-none absolute -left-[9999px] h-1 w-1 opacity-0"
+        onBlur={() => {
+          if (shouldAutoFocusWedge({ kioskMode, settingsOpen, setupOpen, setupStep })) {
+            focusWedgeInput();
+          }
+        }}
+        onKeyDown={(event) => {
+          if (!shouldCaptureWedgeInput({ kioskMode, settingsOpen, setupOpen, setupStep }) || needsSetup) return;
+          resetIdleTimer();
+
+          if (event.key === "Enter") {
+            event.preventDefault();
+            flushWedgeBuffer();
+            return;
+          }
+
+          if (event.key === "Backspace") {
+            wedgeBufferRef.current = wedgeBufferRef.current.slice(0, -1);
+            return;
+          }
+
+          if (event.key.length === 1) {
+            wedgeBufferRef.current += event.key;
+            if (wedgeTimerRef.current) {
+              window.clearTimeout(wedgeTimerRef.current);
+            }
+            wedgeTimerRef.current = window.setTimeout(() => {
+              flushWedgeBuffer();
+            }, WEDGE_SUBMIT_TIMEOUT_MS);
+          }
+        }}
+      />
+
       <h1 className="text-2xl font-semibold">HR Kiosk</h1>
-
-      <div className="rounded border p-3 text-sm">
-        Status: <strong>{status === "online" ? "Online" : "Offline"}</strong> (Queued: {queue.length})
-      </div>
-
-      <div className="rounded border p-3 text-sm" data-testid="kiosk-connected-banner">
-        {connectedLabel ?? "Not verified yet (offline mode)"}
-      </div>
+      <div className="mt-2 rounded border p-2 text-xs">Status: <strong>{status}</strong> · Queued: {queue.length} · Last sync: {lastSyncAt ?? "Never"}</div>
+      <div className="mt-2 rounded border p-2 text-xs" data-testid="kiosk-connected-banner">{connectedLabel ?? "Not verified yet (offline mode)"}</div>
 
       {(setupOpen || needsSetup) && (
-        <section className="max-h-[65vh] space-y-3 overflow-y-auto rounded border bg-white p-4 text-sm">
+        <section className="mt-3 max-h-[62vh] space-y-3 overflow-y-auto rounded border bg-white p-4 text-sm">
           <h2 className="text-lg font-semibold">Kiosk Setup Wizard</h2>
 
           {setupStep === "welcome" && (
             <div className="space-y-2">
               <p>Workspace: <strong>{slug}</strong></p>
               <p>Branch context: <strong>{verifiedDevice?.branch_name ?? "Not yet verified"}</strong></p>
-              <p>This kiosk records clock-ins/outs and needs internet occasionally for sync.</p>
               <button className="rounded border px-3 py-2" onClick={() => setSetupStep("token")}>Start setup</button>
             </div>
           )}
@@ -729,12 +555,7 @@ export default function KioskClient({ slug }: { slug: string }) {
           {setupStep === "token" && (
             <div className="space-y-2">
               <label className="block font-medium">Enter kiosk token</label>
-              <input
-                className="w-full rounded border p-2"
-                value={draftToken}
-                onChange={(event) => setDraftToken(event.target.value)}
-                placeholder="Paste x-kiosk-token"
-              />
+              <input className="w-full rounded border p-2" value={draftToken} onChange={(event) => setDraftToken(event.target.value)} placeholder="Paste x-kiosk-token" />
               <div className="flex gap-2">
                 <button className="rounded border px-3 py-2" onClick={() => setSetupStep("welcome")}>Back</button>
                 <button className="rounded border px-3 py-2" disabled={!draftToken.trim()} onClick={() => setSetupStep("verify")}>Continue</button>
@@ -744,46 +565,25 @@ export default function KioskClient({ slug }: { slug: string }) {
 
           {setupStep === "verify" && (
             <div className="space-y-2">
-              <p>Verify connection and token before finishing setup.</p>
               <button className="rounded border px-3 py-2" onClick={async () => {
                 const ok = await verifyToken(draftToken.trim());
                 if (ok) setSetupStep("confirm");
               }} disabled={!draftToken.trim()}>
                 Verify connection
               </button>
-              {verifiedDevice ? (
-                <div className="rounded border border-green-500 bg-green-50 p-2">
-                  ✅ {connectedLabel}
-                </div>
-              ) : null}
+              {verifiedDevice ? <div className="rounded border border-green-500 bg-green-50 p-2">✅ {connectedLabel}</div> : null}
               {verifyError ? <div className="rounded border border-red-500 bg-red-50 p-2">❌ {verifyError}</div> : null}
               <div className="flex gap-2">
                 <button className="rounded border px-3 py-2" onClick={() => setSetupStep("token")}>Back</button>
-                <button className="rounded border px-3 py-2" onClick={() => { setAllowOfflineSetup(true); setSetupStep("confirm"); }}>
-                  Continue offline
-                </button>
+                <button className="rounded border px-3 py-2" onClick={() => { setAllowOfflineSetup(true); setSetupStep("confirm"); }}>Continue offline</button>
               </div>
             </div>
           )}
 
           {setupStep === "confirm" && (
             <div className="space-y-2">
-              <label className="block font-medium">Device name</label>
-              <input
-                className="w-full rounded border p-2"
-                value={draftDisplayName}
-                onChange={(event) => setDraftDisplayName(event.target.value)}
-                placeholder="Front Door Kiosk"
-              />
-              <label className="block font-medium">Optional settings PIN</label>
-              <input
-                className="w-full rounded border p-2"
-                value={draftPin}
-                onChange={(event) => setDraftPin(event.target.value)}
-                placeholder="Set PIN (device-local)"
-                type="password"
-              />
-              <p className="text-xs text-muted-foreground">PIN is stored only on this device (localStorage).</p>
+              <input className="w-full rounded border p-2" placeholder="Display name" value={draftDisplayName} onChange={(event) => setDraftDisplayName(event.target.value)} />
+              <input className="w-full rounded border p-2" placeholder="PIN (optional)" type="password" value={draftPin} onChange={(event) => setDraftPin(event.target.value)} />
               <div className="flex gap-2">
                 <button className="rounded border px-3 py-2" onClick={() => setSetupStep("verify")}>Back</button>
                 <button className="rounded border px-3 py-2" onClick={finishSetup}>Finish setup</button>
@@ -791,172 +591,82 @@ export default function KioskClient({ slug }: { slug: string }) {
             </div>
           )}
 
-          {setupStep === "harden" && (
-            <div className="space-y-2">
-              <h3 className="font-medium">Lockscreen / Hardening Tips</h3>
-              <ul className="list-disc space-y-1 pl-5">
-                <li>Keep screen on.</li>
-                <li>Auto-start browser on boot.</li>
-                <li>Add kiosk URL to home screen.</li>
-                <li>Pin the app (Android screen pinning).</li>
-                <li>Keep charger connected.</li>
-              </ul>
-              <button className="rounded border px-3 py-2" onClick={() => setSetupOpen(false)}>Done</button>
+          {setupStep === "harden" ? <div className="rounded border border-green-500 bg-green-50 p-2">✅ Setup complete. Scanner ready.</div> : null}
+        </section>
+      )}
+
+      {!needsSetup && !setupOpen && (
+        <section className="relative mt-3 flex flex-1 flex-col items-center justify-center rounded border bg-slate-50 p-4 text-center">
+          <div className="text-sm text-muted-foreground">Scanner kiosk</div>
+          <div className="mt-3 text-4xl font-bold">Scan ID</div>
+          <div className="mt-2 text-sm text-muted-foreground">Present employee QR to scanner</div>
+
+          {kioskMode === "flash_result" && (
+            <div className={`absolute inset-4 z-20 flex flex-col items-center justify-center rounded-xl border-2 ${flashView.classes}`}>
+              <div className="text-4xl">{flashView.icon}</div>
+              <div className="mt-2 text-3xl font-semibold">{flashView.title}</div>
+              {lastResult?.employee ? <div className="mt-2 text-lg">{lastResult.employee.displayName}</div> : null}
             </div>
           )}
         </section>
       )}
 
-      {!needsSetup && !setupOpen && (
-        <>
-          <section
-            className="flex min-h-[60vh] flex-1 flex-col items-stretch justify-center gap-3 rounded border p-3"
-            onClick={() => {
-              if (canActivateScanFromSurface(kioskMode)) {
-                void startCameraScan();
-              }
-            }}
-          >
-            <h2 className="font-medium">Scan QR</h2>
-            {canActivateScanFromSurface(kioskMode) ? (
-              <button
-                type="button"
-                className="w-full rounded bg-black px-3 py-6 text-lg text-white disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={cameraState === "starting"}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  void startCameraScan();
-                }}
-              >
-                {kioskMode === "error" ? "Retry Scan" : "Tap to Scan"}
-              </button>
-            ) : null}
+      <button
+        className="fixed bottom-4 right-4 z-30 rounded border bg-background/95 px-3 py-2 text-xs text-muted-foreground shadow"
+        onClick={openSettingsWithGuard}
+        onMouseDown={startLongPress}
+        onMouseUp={stopLongPress}
+        onMouseLeave={stopLongPress}
+        onTouchStart={startLongPress}
+        onTouchEnd={stopLongPress}
+      >
+        Settings
+      </button>
 
-            {kioskMode === "scanning" || kioskMode === "success" ? (
-              <>
-                <div className="text-xs text-muted-foreground">
-                  {cameraState === "starting" ? "Starting camera…" : "Ready / Scanning…"}
-                </div>
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  className="w-full flex-1 rounded border bg-black object-cover"
-                />
-                <div className="flex gap-2">
-                  <button type="button" className="w-full rounded border px-3 py-2" disabled={cameraState === "starting"} onClick={(event) => { event.stopPropagation(); void startCameraScan(toggleFacingMode(facingMode)); }}>
-                    Flip camera ({facingMode === "user" ? "Front" : "Rear"})
-                  </button>
-                  <button type="button" className="w-full rounded border px-3 py-2" onClick={(event) => { event.stopPropagation(); stopCamera(); }}>
-                    Stop camera
-                  </button>
-                </div>
-              </>
-            ) : null}
-
-            {cameraState === "permission_denied" ? <p className="text-xs text-red-600">Camera permission denied. Tap Retry Scan or use manual input.</p> : null}
-            {scanHint ? <p className="text-xs text-amber-700">{scanHint}</p> : null}
-            {lastScanAt ? <p className="text-xs text-muted-foreground">Last scan: {new Date(lastScanAt).toLocaleTimeString()}</p> : null}
-
-            <div className="flex gap-2" onClick={(event) => event.stopPropagation()}>
-              <input
-                ref={manualInputRef}
-                className="w-full rounded border p-2"
-                placeholder="Manual QR token fallback"
-                value={manualQr}
-                onChange={(event) => setManualQr(event.target.value)}
-                onKeyDown={(event) => {
-                  if (shouldSubmitKeyboardWedge(event.key, manualQr)) {
-                    event.preventDefault();
-                    void sendScan(manualQr.trim());
-                  }
-                }}
-              />
-              <button
-                type="button"
-                className="rounded border px-3 py-2"
-                onClick={() => {
-                  setManualQr("");
-                  manualInputRef.current?.focus();
-                }}
-              >
-                Clear
-              </button>
-            </div>
-            <button
-              type="button"
-              className="w-full rounded border px-3 py-2 disabled:cursor-not-allowed disabled:opacity-60"
-              disabled={!manualQr.trim()}
-              onClick={() => void sendScan(manualQr.trim())}
-            >
-              Submit QR token
-            </button>
-          </section>
-
-          <button
-            className="self-end rounded px-2 py-1 text-xs text-muted-foreground underline"
-            onClick={openSettingsWithGuard}
-            onMouseDown={startLongPress}
-            onMouseUp={stopLongPress}
-            onMouseLeave={stopLongPress}
-            onTouchStart={startLongPress}
-            onTouchEnd={stopLongPress}
-          >
-            Settings
-          </button>
-
-          {settingsError ? <div className="rounded border border-red-500 bg-red-50 p-3 text-sm text-red-700">{settingsError}</div> : null}
-        </>
-      )}
+      {settingsError ? <div className="mt-2 rounded border border-red-500 bg-red-50 p-3 text-sm text-red-700">{settingsError}</div> : null}
+      {error ? <div className="mt-2 rounded border border-red-500 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
 
       {settingsOpen && (
-        <section className="max-h-[45vh] space-y-2 overflow-y-auto rounded border p-3 text-sm">
-          <h2 className="font-medium">Kiosk Settings</h2>
-          <p>Device: {displayName || verifiedDevice?.name || "Unnamed"}</p>
-          <p>Last sync: {lastSyncAt ?? "Never"}</p>
-          <p>Queue length: {queue.length}</p>
-          <p>Connectivity: {status}</p>
+        <div className="absolute inset-0 z-40 flex items-end justify-center bg-black/50 p-3 sm:items-center">
+          <section className="max-h-[85dvh] w-full space-y-2 overflow-y-auto rounded border bg-background p-3 text-sm shadow-xl">
+            <h2 className="font-medium">Kiosk Settings</h2>
+            <p>Device: {displayName || verifiedDevice?.name || "Unnamed"}</p>
+            <p>Last sync: {lastSyncAt ?? "Never"}</p>
+            <p>Queue length: {queue.length}</p>
+            <p>Connectivity: {status}</p>
 
-          <input
-            className="w-full rounded border p-2"
-            placeholder="Kiosk token"
-            value={draftToken}
-            onChange={(event) => setDraftToken(event.target.value)}
-          />
-          <input
-            className="w-full rounded border p-2"
-            placeholder="Display name"
-            value={draftDisplayName}
-            onChange={(event) => setDraftDisplayName(event.target.value)}
-          />
-          <input
-            className="w-full rounded border p-2"
-            placeholder="PIN (leave blank to disable)"
-            type="password"
-            value={draftPin}
-            onChange={(event) => setDraftPin(event.target.value)}
-          />
+            <input className="w-full rounded border p-2" placeholder="Kiosk token" value={draftToken} onChange={(event) => setDraftToken(event.target.value)} />
+            <input className="w-full rounded border p-2" placeholder="Display name" value={draftDisplayName} onChange={(event) => setDraftDisplayName(event.target.value)} />
+            <input className="w-full rounded border p-2" placeholder="PIN (leave blank to disable)" type="password" value={draftPin} onChange={(event) => setDraftPin(event.target.value)} />
 
-          <div className="flex flex-wrap gap-2">
-            <button className="rounded border px-3 py-2" onClick={saveSettings}>Save settings</button>
-            <button className="rounded border px-3 py-2" onClick={() => setSettingsOpen(false)}>Close</button>
-            <button className="rounded border px-3 py-2" onClick={clearQueue}>Clear local queue</button>
-            <button className="rounded border px-3 py-2" onClick={resetKiosk}>Reset kiosk</button>
+            <div className="flex flex-wrap gap-2">
+              <button className="rounded border px-3 py-2" onClick={saveSettings}>Save settings</button>
+              <button className="rounded border px-3 py-2" onClick={() => setSettingsOpen(false)}>Close</button>
+              <button className="rounded border px-3 py-2" onClick={clearQueue}>Clear local queue</button>
+              <button className="rounded border px-3 py-2" onClick={resetKiosk}>Reset kiosk</button>
+            </div>
+          </section>
+        </div>
+      )}
+
+      {kioskMode === "sleep" && (
+        <div
+          role="button"
+          tabIndex={0}
+          className="absolute inset-0 z-40 flex items-center justify-center bg-black/70 text-center text-white"
+          onClick={wakeKiosk}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              wakeKiosk();
+            }
+          }}
+        >
+          <div>
+            <div className="text-2xl font-semibold">Tap anywhere to wake</div>
           </div>
-          <p className="text-xs text-muted-foreground">PIN is local-only. If compromised, rotate kiosk token from HR admin.</p>
-        </section>
+        </div>
       )}
-
-      {lastResult && kioskMode === "success" && (
-        <section className="rounded border border-green-600 bg-green-50 p-4 text-center text-base">
-          <div className="text-xl font-semibold">{lastResult.action === "clock_in" ? "Clock In" : "Clock Out"} success</div>
-          <div>{lastResult.employee.displayName}</div>
-          <div>{lastResult.time}</div>
-        </section>
-      )}
-
-      {error && <div className="rounded border border-red-500 bg-red-50 p-3 text-sm text-red-700">{error} {kioskMode === "error" ? "Use Retry Scan above or manual entry below." : ""}</div>}
     </main>
   );
 }
