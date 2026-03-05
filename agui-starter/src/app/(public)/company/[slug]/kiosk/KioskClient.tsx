@@ -49,7 +49,7 @@ const VERIFIED_BRANCH_LABEL_STORAGE_KEY = "hr-kiosk-verified-branch-label";
 const LAST_SYNC_STORAGE_KEY = "hr-kiosk-last-sync-at";
 
 const IDLE_TIMEOUT_MS = 180_000;
-const FLASH_RESULT_MS = 700;
+const FLASH_RESULT_MS = 1500;
 const WEDGE_SUBMIT_TIMEOUT_MS = 120;
 const DECODE_DEBOUNCE_MS = 1200;
 const SCAN_DEBUG_ENABLED = process.env.NEXT_PUBLIC_HR_KIOSK_SCAN_DEBUG === "1";
@@ -510,7 +510,7 @@ export default function KioskClient({ slug }: { slug: string }) {
 
   return (
     <main
-      className="relative mx-auto flex min-h-[100dvh] max-h-[100dvh] w-full max-w-md flex-col overflow-hidden p-3"
+      className="relative mx-auto flex min-h-[100dvh] max-h-[100dvh] w-full max-w-md flex-col overflow-hidden p-3 pb-[calc(1rem+env(safe-area-inset-bottom))]"
       onPointerDown={() => {
         if (!needsSetup) {
           resetIdleTimer();
@@ -551,8 +551,6 @@ export default function KioskClient({ slug }: { slug: string }) {
       />
 
       <h1 className="text-2xl font-semibold">HR Kiosk</h1>
-      <div className="mt-2 rounded border p-2 text-xs">Status: <strong>{status}</strong> · Queued: {queue.length} · Last sync: {lastSyncAt ?? "Never"}</div>
-      <div className="mt-2 rounded border p-2 text-xs" data-testid="kiosk-connected-banner">{connectedLabel ?? "Not verified yet (offline mode)"}</div>
 
       {(setupOpen || needsSetup) && (
         <section className="mt-3 max-h-[62vh] space-y-3 overflow-y-auto rounded border bg-white p-4 text-sm">
@@ -610,7 +608,7 @@ export default function KioskClient({ slug }: { slug: string }) {
       )}
 
       {!needsSetup && !setupOpen && (
-        <section className="relative mt-3 flex flex-1 flex-col items-center justify-center rounded border bg-slate-50 p-4 text-center">
+        <section className="relative mt-3 flex min-h-[40vh] max-h-[56vh] flex-1 flex-col items-center justify-center rounded border bg-slate-50 p-4 text-center">
           <div className="text-sm text-muted-foreground">Scanner kiosk</div>
           <div className="mt-3 text-4xl font-bold">Scan ID</div>
           <div className="mt-2 text-sm text-muted-foreground">Present employee QR to scanner</div>
@@ -625,8 +623,18 @@ export default function KioskClient({ slug }: { slug: string }) {
         </section>
       )}
 
+      {!needsSetup && !setupOpen && (
+        <>
+          <div className="mt-2 rounded border p-2 text-xs">Status: <strong>{status}</strong> · Queued: {queue.length} · Last sync: {lastSyncAt ?? "Never"}</div>
+          <div className="mt-2 rounded border p-2 text-xs" data-testid="kiosk-connected-banner">{connectedLabel ?? "Not verified yet (offline mode)"}</div>
+          <div className="mt-2 text-xs text-muted-foreground">
+            Last scan: {error ? `❌ ${error}` : lastResult ? `✅ ${lastResult.employee.displayName} · ${lastResult.action === "clock_out" ? "Time out" : "Time in"}` : "Waiting for scan..."}
+          </div>
+        </>
+      )}
+
       <button
-        className="fixed bottom-4 right-4 z-30 rounded border bg-background/95 px-3 py-2 text-xs text-muted-foreground shadow"
+        className="fixed right-4 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-30 rounded border bg-background/95 px-3 py-2 text-xs text-muted-foreground shadow"
         onClick={openSettingsWithGuard}
         onMouseDown={startLongPress}
         onMouseUp={stopLongPress}
@@ -637,8 +645,16 @@ export default function KioskClient({ slug }: { slug: string }) {
         Settings
       </button>
 
-      {settingsError ? <div className="mt-2 rounded border border-red-500 bg-red-50 p-3 text-sm text-red-700">{settingsError}</div> : null}
-      {error ? <div className="mt-2 rounded border border-red-500 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
+      {settingsError ? (
+        <div className="fixed left-3 right-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 rounded border border-red-500 bg-red-50 p-3 text-sm text-red-700">
+          {settingsError}
+        </div>
+      ) : null}
+      {error ? (
+        <div className="fixed left-3 right-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 rounded border border-red-500 bg-red-50 p-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
 
       {settingsOpen && (
         <div className="absolute inset-0 z-40 flex items-end justify-center bg-black/50 p-3 sm:items-center">
