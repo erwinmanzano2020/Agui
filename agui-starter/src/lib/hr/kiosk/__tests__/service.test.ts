@@ -44,8 +44,6 @@ describe("kiosk service", () => {
         id: employeeId,
         house_id: houseId,
         code: "EMP-001",
-        first_name: "Edward",
-        last_name: "Mercado",
         full_name: "Edward Mercado",
       },
     ];

@@ -13,8 +13,6 @@ type KioskEmployee = {
   id: string;
   house_id: string;
   code: string | null;
-  first_name: string | null;
-  last_name: string | null;
   full_name: string | null;
 };
 type KioskSegment = {
@@ -64,11 +62,6 @@ export type KioskScanResult = {
 };
 
 function getDisplayName(employee: KioskEmployee): string {
-  if (employee.first_name) {
-    const initial = employee.last_name?.trim()?.charAt(0);
-    if (initial) return `${employee.first_name.trim()} ${initial}.`;
-    return employee.first_name.trim();
-  }
   return employee.full_name?.trim() || employee.code?.trim() || employee.id;
 }
 
