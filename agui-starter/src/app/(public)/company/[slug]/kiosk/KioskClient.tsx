@@ -59,7 +59,7 @@ function generateClientEventId(): string {
 
 function isValidQrTokenFormat(qrToken: string): boolean {
   const parts = qrToken.split(".");
-  return qrToken.startsWith("v1.") && parts.length === 3 && parts.every((part) => part.trim().length > 0);
+  return /^v1\./i.test(qrToken) && parts.length === 3 && parts.every((part) => part.trim().length > 0);
 }
 
 export default function KioskClient({ slug }: { slug: string }) {
