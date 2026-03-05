@@ -25,7 +25,7 @@ export function createSupabaseKioskRepo(supabase: SupabaseClient): KioskRepo {
     async findEmployeeById(employeeId) {
       const { data, error } = await supabase
         .from("employees")
-        .select("id, house_id, code, first_name, last_name, full_name")
+        .select("id, house_id, code, full_name")
         .eq("id", employeeId)
         .maybeSingle();
       if (error) throw new Error(error.message);
