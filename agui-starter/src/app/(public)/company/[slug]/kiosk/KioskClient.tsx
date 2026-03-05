@@ -52,6 +52,7 @@ const IDLE_TIMEOUT_MS = 180_000;
 const FLASH_RESULT_MS = 700;
 const WEDGE_SUBMIT_TIMEOUT_MS = 120;
 const DECODE_DEBOUNCE_MS = 1200;
+const SCAN_DEBUG_ENABLED = process.env.NEXT_PUBLIC_HR_KIOSK_SCAN_DEBUG === "1";
 
 function generateClientEventId(): string {
   return crypto.randomUUID();
@@ -145,7 +146,12 @@ export default function KioskClient({ slug }: { slug: string }) {
     if (!qrToken) return;
 
     if (!isValidQrTokenFormat(qrToken)) {
-      setError("Invalid QR token format.");
+      const parts = qrToken.split(".");
+      const formatError = `Invalid QR token format. (len=${qrToken.length} dots=${Math.max(0, parts.length - 1)} parts=${parts.length} prefix=${qrToken.slice(0, 12)} nl=${rawQrToken.includes("\n") ? "1" : "0"} cr=${rawQrToken.includes("\r") ? "1" : "0"} tab=${rawQrToken.includes("\t") ? "1" : "0"})`;
+      if (SCAN_DEBUG_ENABLED) {
+        console.log("[kiosk-scan-debug] invalid format", { raw: rawQrToken, normalized: qrToken, length: qrToken.length, parts: parts.length });
+      }
+      setError(formatError);
       setLastResult(null);
       showFlashAndReturn("error");
       return;
@@ -201,9 +207,12 @@ export default function KioskClient({ slug }: { slug: string }) {
     }
   }, [kioskToken, queueEvent, showFlashAndReturn]);
 
-  const flushWedgeBuffer = React.useCallback(() => {
-    const token = wedgeBufferRef.current;
+  const flushWedgeBuffer = React.useCallback((tokenOverride?: string) => {
+    const token = tokenOverride ?? wedgeInputRef.current?.value ?? wedgeBufferRef.current;
     wedgeBufferRef.current = "";
+    if (wedgeInputRef.current) {
+      wedgeInputRef.current.value = "";
+    }
     if (wedgeTimerRef.current) {
       window.clearTimeout(wedgeTimerRef.current);
       wedgeTimerRef.current = null;
@@ -518,29 +527,25 @@ export default function KioskClient({ slug }: { slug: string }) {
             focusWedgeInput();
           }
         }}
+        onInput={(event) => {
+          if (!shouldCaptureWedgeInput({ kioskMode, settingsOpen, setupOpen, setupStep }) || needsSetup) return;
+          resetIdleTimer();
+
+          wedgeBufferRef.current = event.currentTarget.value;
+          if (wedgeTimerRef.current) {
+            window.clearTimeout(wedgeTimerRef.current);
+          }
+          wedgeTimerRef.current = window.setTimeout(() => {
+            flushWedgeBuffer();
+          }, WEDGE_SUBMIT_TIMEOUT_MS);
+        }}
         onKeyDown={(event) => {
           if (!shouldCaptureWedgeInput({ kioskMode, settingsOpen, setupOpen, setupStep }) || needsSetup) return;
           resetIdleTimer();
 
           if (event.key === "Enter") {
             event.preventDefault();
-            flushWedgeBuffer();
-            return;
-          }
-
-          if (event.key === "Backspace") {
-            wedgeBufferRef.current = wedgeBufferRef.current.slice(0, -1);
-            return;
-          }
-
-          if (event.key.length === 1) {
-            wedgeBufferRef.current += event.key;
-            if (wedgeTimerRef.current) {
-              window.clearTimeout(wedgeTimerRef.current);
-            }
-            wedgeTimerRef.current = window.setTimeout(() => {
-              flushWedgeBuffer();
-            }, WEDGE_SUBMIT_TIMEOUT_MS);
+            flushWedgeBuffer(event.currentTarget.value);
           }
         }}
       />
