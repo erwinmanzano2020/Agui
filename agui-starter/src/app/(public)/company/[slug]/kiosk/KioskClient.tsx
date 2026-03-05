@@ -141,7 +141,7 @@ export default function KioskClient({ slug }: { slug: string }) {
   }, [focusWedgeInput]);
 
   const processToken = React.useCallback(async (rawQrToken: string) => {
-    const qrToken = rawQrToken.trim();
+    const qrToken = rawQrToken.trim().replace(/^v1\./i, "v1.");
     if (!qrToken) return;
 
     if (!isValidQrTokenFormat(qrToken)) {
@@ -177,7 +177,16 @@ export default function KioskClient({ slug }: { slug: string }) {
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(payload.error ?? "Scan failed");
+        const message = payload.error ?? "Scan failed";
+
+        if ([400, 401, 403].includes(response.status)) {
+          setLastResult(null);
+          setError(message);
+          showFlashAndReturn("error");
+          return;
+        }
+
+        throw new Error(message);
       }
 
       const payload = (await response.json()) as ScanResponse;
