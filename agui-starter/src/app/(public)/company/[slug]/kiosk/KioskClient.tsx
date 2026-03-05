@@ -37,7 +37,7 @@ type PingResponse = {
 
 type SetupStep = WedgeSetupStep;
 type KioskMode = WedgeKioskMode;
-type FlashTone = "time_in" | "time_out" | "error";
+type FlashTone = "time_in" | "time_out" | "error" | "processing";
 
 const TOKEN_STORAGE_KEY = "hr-kiosk-token";
 const PIN_STORAGE_KEY = "hr-kiosk-pin";
@@ -87,6 +87,7 @@ export default function KioskClient({ slug }: { slug: string }) {
   const [lastSyncAt, setLastSyncAt] = React.useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [settingsError, setSettingsError] = React.useState<string | null>(null);
+  const [lastScanLatencyMs, setLastScanLatencyMs] = React.useState<number | null>(null);
 
   const pressTimerRef = React.useRef<number | null>(null);
   const wedgeInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -171,7 +172,17 @@ export default function KioskClient({ slug }: { slug: string }) {
       return;
     }
 
+    if (flashTimerRef.current) {
+      window.clearTimeout(flashTimerRef.current);
+      flashTimerRef.current = null;
+    }
+    setError(null);
+    setLastResult(null);
+    setFlashTone("processing");
+    setKioskMode("flash_result");
+
     try {
+      const startedAt = performance.now();
       const response = await fetch("/api/hr/kiosk/scan", {
         method: "POST",
         headers: {
@@ -180,6 +191,11 @@ export default function KioskClient({ slug }: { slug: string }) {
         },
         body: JSON.stringify({ qrToken, occurredAt: new Date().toISOString() }),
       });
+      const elapsedMs = Math.round(performance.now() - startedAt);
+      setLastScanLatencyMs(elapsedMs);
+      if (SCAN_DEBUG_ENABLED) {
+        console.log("[kiosk-scan-debug] scan latency", { elapsedMs, status: response.status });
+      }
 
       if (!response.ok) {
         const payload = (await response.json().catch(() => ({}))) as { error?: string };
@@ -200,6 +216,7 @@ export default function KioskClient({ slug }: { slug: string }) {
       setError(null);
       showFlashAndReturn(payload.action === "clock_out" ? "time_out" : "time_in");
     } catch (scanError) {
+      setLastScanLatencyMs(null);
       queueEvent(qrToken);
       setLastResult(null);
       setError(`Offline/failed. Queued for sync. (${scanError instanceof Error ? scanError.message : "error"})`);
@@ -506,7 +523,14 @@ export default function KioskClient({ slug }: { slug: string }) {
     ? { classes: "border-green-700 bg-green-100 text-green-900", icon: "✅", title: "TIME IN" }
     : flashTone === "time_out"
       ? { classes: "border-blue-700 bg-blue-100 text-blue-900", icon: "✅", title: "TIME OUT" }
+      : flashTone === "processing"
+        ? { classes: "border-amber-700 bg-amber-100 text-amber-900", icon: "⏳", title: "PROCESSING..." }
       : { classes: "border-red-700 bg-red-100 text-red-900", icon: "❌", title: "ERROR / INVALID QR" };
+
+  const toastMessages = [
+    settingsError ? { key: "settings", message: settingsError } : null,
+    error ? { key: "scan", message: error } : null,
+  ].filter((item): item is { key: string; message: string } => item !== null);
 
   return (
     <main
@@ -617,6 +641,7 @@ export default function KioskClient({ slug }: { slug: string }) {
             <div className={`absolute inset-4 z-20 flex flex-col items-center justify-center rounded-xl border-2 ${flashView.classes}`}>
               <div className="text-4xl">{flashView.icon}</div>
               <div className="mt-2 text-3xl font-semibold">{flashView.title}</div>
+              {flashTone === "processing" ? <div className="mt-2 text-lg">Processing scan…</div> : null}
               {lastResult?.employee ? <div className="mt-2 text-lg">{lastResult.employee.displayName}</div> : null}
             </div>
           )}
@@ -629,6 +654,7 @@ export default function KioskClient({ slug }: { slug: string }) {
           <div className="mt-2 rounded border p-2 text-xs" data-testid="kiosk-connected-banner">{connectedLabel ?? "Not verified yet (offline mode)"}</div>
           <div className="mt-2 text-xs text-muted-foreground">
             Last scan: {error ? `❌ ${error}` : lastResult ? `✅ ${lastResult.employee.displayName} · ${lastResult.action === "clock_out" ? "Time out" : "Time in"}` : "Waiting for scan..."}
+            {SCAN_DEBUG_ENABLED && lastScanLatencyMs !== null ? ` · ${lastScanLatencyMs}ms` : ""}
           </div>
         </>
       )}
@@ -645,14 +671,13 @@ export default function KioskClient({ slug }: { slug: string }) {
         Settings
       </button>
 
-      {settingsError ? (
-        <div className="fixed left-3 right-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 rounded border border-red-500 bg-red-50 p-3 text-sm text-red-700">
-          {settingsError}
-        </div>
-      ) : null}
-      {error ? (
-        <div className="fixed left-3 right-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 rounded border border-red-500 bg-red-50 p-3 text-sm text-red-700">
-          {error}
+      {toastMessages.length > 0 ? (
+        <div className="fixed left-3 right-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-50 space-y-2">
+          {toastMessages.map((toast) => (
+            <div key={toast.key} className="rounded border border-red-500 bg-red-50 p-3 text-sm text-red-700">
+              {toast.message}
+            </div>
+          ))}
         </div>
       ) : null}
 
