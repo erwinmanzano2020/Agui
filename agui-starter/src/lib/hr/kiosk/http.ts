@@ -61,6 +61,16 @@ export async function handleKioskPing(request: Request) {
   }
 }
 
+
+function toIsoTimestamp(value: string): string {
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? value : parsed.toISOString();
+}
+
+function serializeScanResultTime<T extends { time: string }>(result: T): T {
+  return { ...result, time: toIsoTimestamp(result.time) };
+}
+
 type ScanBody = {
   qrToken?: string;
   occurredAt?: string;
@@ -91,7 +101,7 @@ export async function handleKioskScan(request: Request) {
       occurredAt: body.occurredAt,
       clientId: body.clientId,
     });
-    return NextResponse.json(result);
+    return NextResponse.json(serializeScanResultTime(result));
   } catch (error) {
     if (error instanceof KioskRequestAuthError) {
       return NextResponse.json({ error: error.message, reason: error.reason }, { status: error.status });
@@ -136,7 +146,11 @@ export async function handleKioskSync(request: Request) {
 
     const repo = createSupabaseKioskRepo(supabase);
     const result = await processKioskSync(repo, { kioskToken: auth.token, events });
-    return NextResponse.json(result);
+    return NextResponse.json({
+      results: result.results.map((entry) => (
+        entry.status === "processed" ? { ...entry, result: serializeScanResultTime(entry.result) } : entry
+      )),
+    });
   } catch (error) {
     if (error instanceof KioskRequestAuthError) {
       return NextResponse.json({ error: error.message, reason: error.reason }, { status: error.status });
