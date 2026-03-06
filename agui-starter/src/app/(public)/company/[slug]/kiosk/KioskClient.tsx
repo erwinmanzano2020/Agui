@@ -93,9 +93,14 @@ const clockTimeFormatter = new Intl.DateTimeFormat("en-US", {
   hour12: true,
 });
 
-const shortDateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
+const fullDateFormatter = new Intl.DateTimeFormat("en-US", {
+  month: "long",
   day: "numeric",
+  year: "numeric",
+});
+
+const weekdayFormatter = new Intl.DateTimeFormat("en-US", {
+  weekday: "long",
 });
 
 function formatTime(dateLike: Date | string): string {
@@ -103,10 +108,23 @@ function formatTime(dateLike: Date | string): string {
   return clockTimeFormatter.format(date);
 }
 
-function formatShortDate(dateLike: Date | string): string {
+function formatFullDate(dateLike: Date | string): string {
   const date = typeof dateLike === "string" ? new Date(dateLike) : dateLike;
-  return shortDateFormatter.format(date);
+  return fullDateFormatter.format(date);
 }
+
+function formatWeekday(dateLike: Date | string): string {
+  const date = typeof dateLike === "string" ? new Date(dateLike) : dateLike;
+  return weekdayFormatter.format(date);
+}
+
+type RecentScan = {
+  id: string;
+  icon: string;
+  label: string;
+  employeeLabel: string;
+  scannedAt: Date;
+};
 
 export default function KioskClient({ slug }: { slug: string }) {
   const [kioskToken, setKioskToken] = React.useState("");
@@ -137,6 +155,7 @@ export default function KioskClient({ slug }: { slug: string }) {
   const [lastScanLatencyMs, setLastScanLatencyMs] = React.useState<number | null>(null);
   const [now, setNow] = React.useState(() => new Date());
   const [lastScanAt, setLastScanAt] = React.useState<Date | null>(null);
+  const [recentScans, setRecentScans] = React.useState<RecentScan[]>([]);
 
   const pressTimerRef = React.useRef<number | null>(null);
   const wedgeInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -149,6 +168,14 @@ export default function KioskClient({ slug }: { slug: string }) {
   const needsSetup = !kioskToken || !verifiedDeviceId;
 
   const connectedLabel = React.useMemo(() => resolveConnectedLabel(verifiedDevice), [verifiedDevice]);
+
+  const recordRecentScan = React.useCallback((scan: Omit<RecentScan, "id">) => {
+    const entry: RecentScan = {
+      ...scan,
+      id: `${scan.scannedAt.toISOString()}-${Math.random().toString(36).slice(2, 8)}`,
+    };
+    setRecentScans((prev) => [entry, ...prev].slice(0, 3));
+  }, []);
 
   const queueEvent = React.useCallback((qrToken: string) => {
     const event: QueuedEvent = {
@@ -213,7 +240,14 @@ export default function KioskClient({ slug }: { slug: string }) {
 
     if (!extractedToken) {
       setLastResult(null);
-      setLastScanAt(new Date());
+      const scannedAt = new Date();
+      setLastScanAt(scannedAt);
+      recordRecentScan({
+        icon: "❌",
+        label: "Invalid ID",
+        employeeLabel: "Unrecognized scan",
+        scannedAt,
+      });
       showFlashAndReturn("invalid_id");
       return;
     }
@@ -222,7 +256,14 @@ export default function KioskClient({ slug }: { slug: string }) {
     const previous = lastDecodedRef.current;
     if (previous && previous.value === extractedToken && now - previous.at < DECODE_DEBOUNCE_MS) {
       setLastResult(null);
-      setLastScanAt(new Date());
+      const scannedAt = new Date();
+      setLastScanAt(scannedAt);
+      recordRecentScan({
+        icon: "⏱️",
+        label: "Already recorded",
+        employeeLabel: "Please wait before scanning again",
+        scannedAt,
+      });
       showFlashAndReturn("already_recorded", "Please wait before scanning again");
       return;
     }
@@ -230,7 +271,14 @@ export default function KioskClient({ slug }: { slug: string }) {
 
     if (!kioskToken) {
       setLastResult(null);
-      setLastScanAt(new Date());
+      const scannedAt = new Date();
+      setLastScanAt(scannedAt);
+      recordRecentScan({
+        icon: "⛔",
+        label: "Not allowed",
+        employeeLabel: "Complete kiosk setup first",
+        scannedAt,
+      });
       showFlashAndReturn("not_allowed", "Complete kiosk setup first");
       return;
     }
@@ -304,15 +352,36 @@ export default function KioskClient({ slug }: { slug: string }) {
       }
       setLastResult(payload);
       setLastScanAt(parsedPayloadTime ?? startedAtDate);
+
+      const resolvedScanAt = parsedPayloadTime ?? startedAtDate;
       if (payload.action === "debounced") {
+        recordRecentScan({
+          icon: "⏱️",
+          label: "Already recorded",
+          employeeLabel: payload.employee.displayName,
+          scannedAt: resolvedScanAt,
+        });
         showFlashAndReturn("already_recorded", "Please wait before scanning again");
         return;
       }
+      recordRecentScan({
+        icon: "✅",
+        label: payload.action === "clock_out" ? "Time out" : "Time in",
+        employeeLabel: payload.employee.displayName,
+        scannedAt: resolvedScanAt,
+      });
       showFlashAndReturn(payload.action === "clock_out" ? "time_out" : "time_in");
     } catch (scanError) {
-      setLastScanAt(new Date());
+      const scannedAt = new Date();
+      setLastScanAt(scannedAt);
       queueEvent(extractedToken);
       setLastResult(null);
+      recordRecentScan({
+        icon: "📡",
+        label: "Saved offline",
+        employeeLabel: "Queued scan",
+        scannedAt,
+      });
       if (SCAN_DEBUG_ENABLED) {
         console.log("[kiosk-scan-debug] scan failed and queued", {
           error: scanError instanceof Error ? scanError.message : "error",
@@ -320,7 +389,7 @@ export default function KioskClient({ slug }: { slug: string }) {
       }
       showFlashAndReturn("offline_queued", "Will sync automatically when connection returns");
     }
-  }, [kioskToken, queueEvent, showFlashAndReturn]);
+  }, [kioskToken, queueEvent, recordRecentScan, showFlashAndReturn]);
 
   const flushWedgeBuffer = React.useCallback((tokenOverride?: string) => {
     const token = tokenOverride ?? wedgeInputRef.current?.value ?? wedgeBufferRef.current;
@@ -532,6 +601,17 @@ export default function KioskClient({ slug }: { slug: string }) {
     }
   }
 
+  function clearOperatorMemory() {
+    setRecentScans([]);
+    setLastResult(null);
+    setLastScanAt(null);
+    setLastOperatorState(null);
+    setOperatorState("ready");
+    setOperatorSubtext(null);
+    setScanDebugMessage(null);
+    setLastScanLatencyMs(null);
+  }
+
   function saveSettings() {
     localStorage.setItem(TOKEN_STORAGE_KEY, draftToken);
     localStorage.setItem(PIN_STORAGE_KEY, draftPin);
@@ -545,7 +625,9 @@ export default function KioskClient({ slug }: { slug: string }) {
       localStorage.removeItem(VERIFIED_DEVICE_ID_STORAGE_KEY);
       localStorage.removeItem(VERIFIED_DEVICE_NAME_STORAGE_KEY);
       localStorage.removeItem(VERIFIED_BRANCH_LABEL_STORAGE_KEY);
+      setVerifiedDevice(null);
       setVerifiedDeviceId(null);
+      clearOperatorMemory();
       setSetupOpen(true);
       setSetupStep("verify");
       setVerifyError("Token changed. Re-verify connection.");
@@ -583,6 +665,7 @@ export default function KioskClient({ slug }: { slug: string }) {
     setVerifiedDevice(null);
     setVerifiedDeviceId(null);
     setLastSyncAt(null);
+    clearOperatorMemory();
     setSettingsOpen(false);
     setSetupOpen(true);
     setSetupStep("welcome");
@@ -660,11 +743,12 @@ export default function KioskClient({ slug }: { slug: string }) {
 
   const parsedLastResultTime = parseKioskTimestamp(lastResult?.time);
   const scanTimestamp = parsedLastResultTime ?? lastScanAt;
-  const scanTimestampLabel = scanTimestamp ? `${formatTime(scanTimestamp)} (${formatShortDate(scanTimestamp)})` : null;
+  const scanTimestampLabel = scanTimestamp ? formatTime(scanTimestamp) : null;
+  const fullDateLabel = `${formatFullDate(now)} · ${formatWeekday(now)}`;
 
   return (
     <main
-      className="relative mx-auto flex min-h-[100dvh] max-h-[100dvh] w-full max-w-md flex-col overflow-hidden p-3 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+      className="relative mx-auto flex min-h-[100dvh] max-h-[100dvh] w-full max-w-3xl flex-col overflow-hidden p-3 pb-[calc(1rem+env(safe-area-inset-bottom))] sm:p-5 sm:pb-[calc(1.25rem+env(safe-area-inset-bottom))]"
       onPointerDown={() => {
         if (!needsSetup) {
           resetIdleTimer();
@@ -762,12 +846,23 @@ export default function KioskClient({ slug }: { slug: string }) {
       )}
 
       {!needsSetup && !setupOpen && (
-        <section className="relative mt-3 flex min-h-[40vh] max-h-[56vh] flex-1 flex-col items-center justify-center rounded border bg-slate-50 p-4 text-center">
-          <div className="text-sm text-muted-foreground">Scanner kiosk</div>
-          <div className="mt-1 text-sm text-muted-foreground">Current time: {formatTime(now)} ({formatShortDate(now)})</div>
-          <div className="mt-3 text-4xl font-bold">Scan ID</div>
-          <div className="mt-2 text-sm text-muted-foreground">Present employee QR to scanner</div>
-          {scanTimestampLabel ? <div className="mt-2 text-sm text-muted-foreground">Last scan time: {scanTimestampLabel}</div> : null}
+        <section className="relative mt-3 flex min-h-[46vh] flex-1 flex-col justify-between rounded-2xl border border-slate-200 bg-slate-50/95 p-5 text-center shadow-sm sm:min-h-[56vh] sm:p-8">
+          <div>
+            <div className="text-5xl font-semibold tracking-tight text-slate-950 sm:text-7xl">{formatTime(now)}</div>
+            <div className="mt-2 text-base text-slate-700 sm:text-xl">{fullDateLabel}</div>
+          </div>
+
+          <div className="mt-6">
+            <div className="text-2xl font-semibold text-slate-900 sm:text-3xl">Scan ID</div>
+            <div className="mt-2 text-sm text-slate-600 sm:text-base">Present employee QR to scanner</div>
+          </div>
+
+          <div className="mt-6 min-h-10 text-xs text-slate-600 sm:text-sm">
+            {scanTimestampLabel ? <div>Last scan time: {scanTimestampLabel}</div> : <div>Waiting for first scan</div>}
+            {lastResult?.employee ? (
+              <div className="mt-1">Last result: {lastResult.employee.displayName} · {lastResult.action === "clock_out" ? "Time out" : "Time in"}</div>
+            ) : null}
+          </div>
 
           {kioskMode === "flash_result" && (
             <div className={`absolute inset-4 z-20 flex flex-col items-center justify-center rounded-xl border-2 ${flashView.classes}`}>
@@ -784,6 +879,18 @@ export default function KioskClient({ slug }: { slug: string }) {
         <>
           <div className="mt-2 rounded border p-2 text-xs">Status: <strong>{status}</strong> · Queued: {queue.length} · Last sync: {lastSyncAt ?? "Never"}</div>
           <div className="mt-2 rounded border p-2 text-xs" data-testid="kiosk-connected-banner">{connectedLabel ?? "Not verified yet (offline mode)"}</div>
+          <div className="mt-2 rounded border border-slate-200 bg-white p-2 text-xs">
+            <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Recent scans</div>
+            {recentScans.length === 0 ? (
+              <div className="mt-1 text-muted-foreground">Waiting for scans...</div>
+            ) : (
+              <ul className="mt-1 space-y-1 text-slate-700">
+                {recentScans.map((scan) => (
+                  <li key={scan.id} className="truncate">{scan.icon} {scan.employeeLabel} · {scan.label} · {formatTime(scan.scannedAt)}</li>
+                ))}
+              </ul>
+            )}
+          </div>
           <div className="mt-2 text-xs text-muted-foreground">
             Last scan: {lastResult ? `✅ ${lastResult.employee.displayName} · ${lastResult.action === "clock_out" ? "Time out" : "Time in"}${scanTimestampLabel ? ` · ${scanTimestampLabel}` : ""}` : scanTimestampLabel && lastOutcomeTitle ? `${lastOutcomeTitle} · ${scanTimestampLabel}` : "Waiting for scan..."}
             {SCAN_DEBUG_ENABLED && lastScanLatencyMs !== null ? ` · ${lastScanLatencyMs}ms` : ""}
