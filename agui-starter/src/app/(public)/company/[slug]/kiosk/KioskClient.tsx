@@ -38,7 +38,15 @@ type PingResponse = {
 
 type SetupStep = WedgeSetupStep;
 type KioskMode = WedgeKioskMode;
-type FlashTone = "time_in" | "time_out" | "error" | "processing";
+type OperatorState =
+  | "ready"
+  | "processing"
+  | "time_in"
+  | "time_out"
+  | "offline_queued"
+  | "invalid_id"
+  | "already_recorded"
+  | "not_allowed";
 
 const TOKEN_STORAGE_KEY = "hr-kiosk-token";
 const PIN_STORAGE_KEY = "hr-kiosk-pin";
@@ -62,6 +70,21 @@ function generateClientEventId(): string {
 function isValidQrTokenFormat(qrToken: string): boolean {
   const parts = qrToken.split(".");
   return /^v1\./i.test(qrToken) && parts.length === 3 && parts.every((part) => part.trim().length > 0);
+}
+
+function extractLatestQrToken(raw: string): string | null {
+  const normalizedRaw = raw.replace(/v1\./gi, "v1.");
+  const matches = normalizedRaw.match(/v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g);
+  if (!matches || matches.length === 0) {
+    return null;
+  }
+  const latest = matches[matches.length - 1]?.trim() ?? "";
+  return isValidQrTokenFormat(latest) ? latest : null;
+}
+
+function isInvalidIdError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return lower.includes("invalid") || lower.includes("malformed") || lower.includes("signature") || lower.includes("token");
 }
 
 const clockTimeFormatter = new Intl.DateTimeFormat("en-US", {
@@ -95,9 +118,11 @@ export default function KioskClient({ slug }: { slug: string }) {
   );
   const [queue, setQueue] = React.useState<QueuedEvent[]>([]);
   const [lastResult, setLastResult] = React.useState<ScanResponse | null>(null);
-  const [error, setError] = React.useState<string | null>(null);
+  const [operatorState, setOperatorState] = React.useState<OperatorState>("ready");
+  const [operatorSubtext, setOperatorSubtext] = React.useState<string | null>(null);
+  const [scanDebugMessage, setScanDebugMessage] = React.useState<string | null>(null);
+  const [lastOperatorState, setLastOperatorState] = React.useState<Exclude<OperatorState, "ready" | "processing"> | null>(null);
   const [kioskMode, setKioskMode] = React.useState<KioskMode>("setup");
-  const [flashTone, setFlashTone] = React.useState<FlashTone | null>(null);
   const [setupOpen, setSetupOpen] = React.useState(false);
   const [setupStep, setSetupStep] = React.useState<SetupStep>("welcome");
   const [verifyError, setVerifyError] = React.useState<string | null>(null);
@@ -153,48 +178,60 @@ export default function KioskClient({ slug }: { slug: string }) {
     }, IDLE_TIMEOUT_MS);
   }, [kioskMode, needsSetup]);
 
-  const showFlashAndReturn = React.useCallback((tone: FlashTone) => {
-    setFlashTone(tone);
+  const showFlashAndReturn = React.useCallback((state: OperatorState, subtext?: string | null) => {
+    setOperatorState(state);
+    setOperatorSubtext(subtext ?? null);
+    if (state !== "ready" && state !== "processing") {
+      setLastOperatorState(state);
+    }
     setKioskMode("flash_result");
     if (flashTimerRef.current) {
       window.clearTimeout(flashTimerRef.current);
     }
     flashTimerRef.current = window.setTimeout(() => {
       setKioskMode("ready");
-      setFlashTone(null);
+      setOperatorState("ready");
+      setOperatorSubtext(null);
       focusWedgeInput();
     }, FLASH_RESULT_MS);
   }, [focusWedgeInput]);
 
-  const processToken = React.useCallback(async (rawQrToken: string) => {
-    const qrToken = rawQrToken.trim().replace(/^v1\./i, "v1.");
-    if (!qrToken) return;
+  const processToken = React.useCallback(async (rawInput: string) => {
+    const rawQrToken = rawInput.trim();
+    if (!rawQrToken) return;
 
-    if (!isValidQrTokenFormat(qrToken)) {
-      const parts = qrToken.split(".");
-      const formatError = `Invalid QR token format. (len=${qrToken.length} dots=${Math.max(0, parts.length - 1)} parts=${parts.length} prefix=${qrToken.slice(0, 12)} nl=${rawQrToken.includes("\n") ? "1" : "0"} cr=${rawQrToken.includes("\r") ? "1" : "0"} tab=${rawQrToken.includes("\t") ? "1" : "0"})`;
-      if (SCAN_DEBUG_ENABLED) {
-        console.log("[kiosk-scan-debug] invalid format", { raw: rawQrToken, normalized: qrToken, length: qrToken.length, parts: parts.length });
-      }
-      setError(formatError);
+    const extractedToken = extractLatestQrToken(rawQrToken);
+
+    if (SCAN_DEBUG_ENABLED) {
+      console.log("[kiosk-scan-debug] raw scan input", { rawInput, extractedToken });
+    }
+    setScanDebugMessage(
+      extractedToken
+        ? `raw-len=${rawInput.length} extracted=${extractedToken.slice(0, 24)}...`
+        : `raw-len=${rawInput.length} no-valid-token`,
+    );
+
+    if (!extractedToken) {
       setLastResult(null);
       setLastScanAt(new Date());
-      showFlashAndReturn("error");
+      showFlashAndReturn("invalid_id");
       return;
     }
 
     const now = Date.now();
     const previous = lastDecodedRef.current;
-    if (previous && previous.value === qrToken && now - previous.at < DECODE_DEBOUNCE_MS) {
-      return;
-    }
-    lastDecodedRef.current = { value: qrToken, at: now };
-
-    if (!kioskToken) {
-      setError("Complete kiosk setup first.");
+    if (previous && previous.value === extractedToken && now - previous.at < DECODE_DEBOUNCE_MS) {
       setLastResult(null);
       setLastScanAt(new Date());
-      showFlashAndReturn("error");
+      showFlashAndReturn("already_recorded", "Please wait before scanning again");
+      return;
+    }
+    lastDecodedRef.current = { value: extractedToken, at: now };
+
+    if (!kioskToken) {
+      setLastResult(null);
+      setLastScanAt(new Date());
+      showFlashAndReturn("not_allowed", "Complete kiosk setup first");
       return;
     }
 
@@ -202,9 +239,9 @@ export default function KioskClient({ slug }: { slug: string }) {
       window.clearTimeout(flashTimerRef.current);
       flashTimerRef.current = null;
     }
-    setError(null);
     setLastResult(null);
-    setFlashTone("processing");
+    setOperatorState("processing");
+    setOperatorSubtext("Processing scan...");
     setKioskMode("flash_result");
 
     const startedAtDate = new Date();
@@ -218,7 +255,7 @@ export default function KioskClient({ slug }: { slug: string }) {
           "content-type": "application/json",
           authorization: `Bearer ${kioskToken}`,
         },
-        body: JSON.stringify({ qrToken, occurredAt: new Date().toISOString() }),
+        body: JSON.stringify({ qrToken: extractedToken, occurredAt: new Date().toISOString() }),
       });
       const elapsedMs = Math.round(performance.now() - startedAt);
       setLastScanLatencyMs(elapsedMs);
@@ -232,8 +269,28 @@ export default function KioskClient({ slug }: { slug: string }) {
 
         if ([400, 401, 403].includes(response.status)) {
           setLastResult(null);
-          setError(message);
-          showFlashAndReturn("error");
+          setLastScanAt(new Date());
+          if (message.toLowerCase().includes("debounced")) {
+            showFlashAndReturn("already_recorded", "Please wait before scanning again");
+            return;
+          }
+          if (response.status === 401) {
+            showFlashAndReturn("not_allowed", "Kiosk setup required");
+            return;
+          }
+          if (response.status === 403) {
+            showFlashAndReturn("not_allowed", "Please contact admin");
+            return;
+          }
+          if (message.toLowerCase().includes("not allowed") || message.toLowerCase().includes("not found") || message.toLowerCase().includes("house")) {
+            showFlashAndReturn("not_allowed", "Please contact admin");
+            return;
+          }
+          if (isInvalidIdError(message)) {
+            showFlashAndReturn("invalid_id");
+            return;
+          }
+          showFlashAndReturn("not_allowed", "Please contact admin");
           return;
         }
 
@@ -247,14 +304,21 @@ export default function KioskClient({ slug }: { slug: string }) {
       }
       setLastResult(payload);
       setLastScanAt(parsedPayloadTime ?? startedAtDate);
-      setError(null);
+      if (payload.action === "debounced") {
+        showFlashAndReturn("already_recorded", "Please wait before scanning again");
+        return;
+      }
       showFlashAndReturn(payload.action === "clock_out" ? "time_out" : "time_in");
     } catch (scanError) {
       setLastScanAt(new Date());
-      queueEvent(qrToken);
+      queueEvent(extractedToken);
       setLastResult(null);
-      setError(`Offline/failed. Queued for sync. (${scanError instanceof Error ? scanError.message : "error"})`);
-      showFlashAndReturn("error");
+      if (SCAN_DEBUG_ENABLED) {
+        console.log("[kiosk-scan-debug] scan failed and queued", {
+          error: scanError instanceof Error ? scanError.message : "error",
+        });
+      }
+      showFlashAndReturn("offline_queued", "Will sync automatically when connection returns");
     }
   }, [kioskToken, queueEvent, showFlashAndReturn]);
 
@@ -550,7 +614,8 @@ export default function KioskClient({ slug }: { slug: string }) {
     setSetupStep("harden");
     setKioskMode("ready");
     setSetupOpen(false);
-    setError(null);
+    setOperatorState("ready");
+    setOperatorSubtext(null);
     focusWedgeInput();
   }
 
@@ -561,18 +626,37 @@ export default function KioskClient({ slug }: { slug: string }) {
     focusWedgeInput();
   }
 
-  const flashView = flashTone === "time_in"
+  const flashView = operatorState === "time_in"
     ? { classes: "border-green-700 bg-green-100 text-green-900", icon: "✅", title: "TIME IN" }
-    : flashTone === "time_out"
+    : operatorState === "time_out"
       ? { classes: "border-blue-700 bg-blue-100 text-blue-900", icon: "✅", title: "TIME OUT" }
-      : flashTone === "processing"
+      : operatorState === "processing"
         ? { classes: "border-amber-700 bg-amber-100 text-amber-900", icon: "⏳", title: "PROCESSING..." }
-      : { classes: "border-red-700 bg-red-100 text-red-900", icon: "❌", title: "ERROR / INVALID QR" };
+        : operatorState === "offline_queued"
+          ? { classes: "border-amber-700 bg-amber-100 text-amber-900", icon: "📡", title: "OFFLINE — SAVED TO QUEUE" }
+          : operatorState === "already_recorded"
+            ? { classes: "border-amber-700 bg-amber-100 text-amber-900", icon: "⏱️", title: "ALREADY RECORDED" }
+            : operatorState === "not_allowed"
+              ? { classes: "border-slate-700 bg-slate-100 text-slate-900", icon: "⛔", title: "NOT ALLOWED" }
+              : { classes: "border-red-700 bg-red-100 text-red-900", icon: "❌", title: "INVALID ID" };
+
+  const lastOutcomeTitle = lastOperatorState === "time_in"
+    ? "TIME IN"
+    : lastOperatorState === "time_out"
+      ? "TIME OUT"
+      : lastOperatorState === "offline_queued"
+        ? "OFFLINE — SAVED TO QUEUE"
+        : lastOperatorState === "already_recorded"
+          ? "ALREADY RECORDED"
+          : lastOperatorState === "not_allowed"
+            ? "NOT ALLOWED"
+            : lastOperatorState === "invalid_id"
+              ? "INVALID ID"
+              : null;
 
   const toastMessages = [
-    settingsError ? { key: "settings", message: settingsError } : null,
-    error ? { key: "scan", message: error } : null,
-  ].filter((item): item is { key: string; message: string } => item !== null);
+    settingsError ? { key: "settings", message: settingsError, tone: "error" as const } : null,
+  ].filter((item): item is { key: string; message: string; tone: "error" } => item !== null);
 
   const parsedLastResultTime = parseKioskTimestamp(lastResult?.time);
   const scanTimestamp = parsedLastResultTime ?? lastScanAt;
@@ -689,7 +773,7 @@ export default function KioskClient({ slug }: { slug: string }) {
             <div className={`absolute inset-4 z-20 flex flex-col items-center justify-center rounded-xl border-2 ${flashView.classes}`}>
               <div className="text-4xl">{flashView.icon}</div>
               <div className="mt-2 text-3xl font-semibold">{flashView.title}</div>
-              {flashTone === "processing" ? <div className="mt-2 text-lg">Processing scan…</div> : null}
+              {operatorSubtext ? <div className="mt-2 text-lg">{operatorSubtext}</div> : null}
               {lastResult?.employee ? <div className="mt-2 text-lg">{lastResult.employee.displayName}</div> : null}
             </div>
           )}
@@ -701,8 +785,9 @@ export default function KioskClient({ slug }: { slug: string }) {
           <div className="mt-2 rounded border p-2 text-xs">Status: <strong>{status}</strong> · Queued: {queue.length} · Last sync: {lastSyncAt ?? "Never"}</div>
           <div className="mt-2 rounded border p-2 text-xs" data-testid="kiosk-connected-banner">{connectedLabel ?? "Not verified yet (offline mode)"}</div>
           <div className="mt-2 text-xs text-muted-foreground">
-            Last scan: {error ? `❌ ${error}${scanTimestampLabel ? ` · ${scanTimestampLabel}` : ""}` : lastResult ? `✅ ${lastResult.employee.displayName} · ${lastResult.action === "clock_out" ? "Time out" : "Time in"}${scanTimestampLabel ? ` · ${scanTimestampLabel}` : ""}` : "Waiting for scan..."}
+            Last scan: {lastResult ? `✅ ${lastResult.employee.displayName} · ${lastResult.action === "clock_out" ? "Time out" : "Time in"}${scanTimestampLabel ? ` · ${scanTimestampLabel}` : ""}` : scanTimestampLabel && lastOutcomeTitle ? `${lastOutcomeTitle} · ${scanTimestampLabel}` : "Waiting for scan..."}
             {SCAN_DEBUG_ENABLED && lastScanLatencyMs !== null ? ` · ${lastScanLatencyMs}ms` : ""}
+            {SCAN_DEBUG_ENABLED && scanDebugMessage ? ` · ${scanDebugMessage}` : ""}
           </div>
         </>
       )}
