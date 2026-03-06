@@ -601,6 +601,17 @@ export default function KioskClient({ slug }: { slug: string }) {
     }
   }
 
+  function clearOperatorMemory() {
+    setRecentScans([]);
+    setLastResult(null);
+    setLastScanAt(null);
+    setLastOperatorState(null);
+    setOperatorState("ready");
+    setOperatorSubtext(null);
+    setScanDebugMessage(null);
+    setLastScanLatencyMs(null);
+  }
+
   function saveSettings() {
     localStorage.setItem(TOKEN_STORAGE_KEY, draftToken);
     localStorage.setItem(PIN_STORAGE_KEY, draftPin);
@@ -614,7 +625,9 @@ export default function KioskClient({ slug }: { slug: string }) {
       localStorage.removeItem(VERIFIED_DEVICE_ID_STORAGE_KEY);
       localStorage.removeItem(VERIFIED_DEVICE_NAME_STORAGE_KEY);
       localStorage.removeItem(VERIFIED_BRANCH_LABEL_STORAGE_KEY);
+      setVerifiedDevice(null);
       setVerifiedDeviceId(null);
+      clearOperatorMemory();
       setSetupOpen(true);
       setSetupStep("verify");
       setVerifyError("Token changed. Re-verify connection.");
@@ -652,6 +665,7 @@ export default function KioskClient({ slug }: { slug: string }) {
     setVerifiedDevice(null);
     setVerifiedDeviceId(null);
     setLastSyncAt(null);
+    clearOperatorMemory();
     setSettingsOpen(false);
     setSetupOpen(true);
     setSetupStep("welcome");
