@@ -73,7 +73,7 @@ function isValidQrTokenFormat(qrToken: string): boolean {
 }
 
 function extractLatestQrToken(raw: string): string | null {
-  const normalizedRaw = raw.replace(/\s+/g, "").replace(/v1\./gi, "v1.");
+  const normalizedRaw = raw.replace(/v1\./gi, "v1.");
   const matches = normalizedRaw.match(/v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g);
   if (!matches || matches.length === 0) {
     return null;
@@ -274,7 +274,15 @@ export default function KioskClient({ slug }: { slug: string }) {
             showFlashAndReturn("already_recorded", "Please wait before scanning again");
             return;
           }
-          if (response.status === 403 || message.toLowerCase().includes("not allowed") || message.toLowerCase().includes("not found") || message.toLowerCase().includes("house")) {
+          if (response.status === 401) {
+            showFlashAndReturn("not_allowed", "Kiosk setup required");
+            return;
+          }
+          if (response.status === 403) {
+            showFlashAndReturn("not_allowed", "Please contact admin");
+            return;
+          }
+          if (message.toLowerCase().includes("not allowed") || message.toLowerCase().includes("not found") || message.toLowerCase().includes("house")) {
             showFlashAndReturn("not_allowed", "Please contact admin");
             return;
           }
