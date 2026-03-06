@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { resolveConnectedLabel } from "@/lib/hr/kiosk/connected-label";
+import { parseKioskTimestamp } from "@/lib/hr/kiosk/timestamp";
 import {
   shouldAutoFocusWedge,
   shouldCaptureWedgeInput,
@@ -240,8 +241,12 @@ export default function KioskClient({ slug }: { slug: string }) {
       }
 
       const payload = (await response.json()) as ScanResponse;
+      const parsedPayloadTime = parseKioskTimestamp(payload.time);
+      if (!parsedPayloadTime && payload.time && SCAN_DEBUG_ENABLED) {
+        console.warn("[kiosk-scan-debug] rejected invalid payload time", { payloadTime: payload.time });
+      }
       setLastResult(payload);
-      setLastScanAt(payload.time ? new Date(payload.time) : startedAtDate);
+      setLastScanAt(parsedPayloadTime ?? startedAtDate);
       setError(null);
       showFlashAndReturn(payload.action === "clock_out" ? "time_out" : "time_in");
     } catch (scanError) {
@@ -569,7 +574,8 @@ export default function KioskClient({ slug }: { slug: string }) {
     error ? { key: "scan", message: error } : null,
   ].filter((item): item is { key: string; message: string } => item !== null);
 
-  const scanTimestamp = lastResult?.time ? new Date(lastResult.time) : lastScanAt;
+  const parsedLastResultTime = parseKioskTimestamp(lastResult?.time);
+  const scanTimestamp = parsedLastResultTime ?? lastScanAt;
   const scanTimestampLabel = scanTimestamp ? `${formatTime(scanTimestamp)} (${formatShortDate(scanTimestamp)})` : null;
 
   return (
