@@ -236,171 +236,173 @@ export default function KioskClient({ slug }: { slug: string }) {
   }, [focusWedgeInput]);
 
   const processToken = React.useCallback(async (rawInput: string) => {
-    const rawQrToken = rawInput.trim();
-    if (!rawQrToken) return;
-
-    const extractedToken = extractLatestQrToken(rawQrToken);
-
-    if (SCAN_DEBUG_ENABLED) {
-      console.log("[kiosk-scan-debug] raw scan input", { rawInput, extractedToken });
-    }
-    setScanDebugMessage(
-      extractedToken
-        ? `raw-len=${rawInput.length} extracted=${extractedToken.slice(0, 24)}...`
-        : `raw-len=${rawInput.length} no-valid-token`,
-    );
-
-    if (!extractedToken) {
-      setLastResult(null);
-      const scannedAt = new Date();
-      setLastScanAt(scannedAt);
-      const shouldRetry = looksLikeUnreadableScan(rawInput);
-      recordRecentScan({
-        icon: shouldRetry ? "🔄" : "❌",
-        label: shouldRetry ? "Scan again" : "Invalid ID",
-        employeeLabel: shouldRetry ? "Could not read QR clearly" : "Unrecognized scan",
-        scannedAt,
-      });
-      showFlashAndReturn(shouldRetry ? "scan_again" : "invalid_id", shouldRetry ? "Could not read QR clearly" : null);
-      return;
-    }
-
-    const now = Date.now();
-    const previous = lastDecodedRef.current;
-    if (previous && previous.value === extractedToken && now - previous.at < DECODE_DEBOUNCE_MS) {
-      setLastResult(null);
-      const scannedAt = new Date();
-      setLastScanAt(scannedAt);
-      recordRecentScan({
-        icon: "⏱️",
-        label: "Already recorded",
-        employeeLabel: "Please wait before scanning again",
-        scannedAt,
-      });
-      showFlashAndReturn("already_recorded", "Please wait before scanning again");
-      return;
-    }
-    lastDecodedRef.current = { value: extractedToken, at: now };
-
-    if (!kioskToken) {
-      setLastResult(null);
-      const scannedAt = new Date();
-      setLastScanAt(scannedAt);
-      recordRecentScan({
-        icon: "⛔",
-        label: "Not allowed",
-        employeeLabel: "Complete kiosk setup first",
-        scannedAt,
-      });
-      showFlashAndReturn("not_allowed", "Complete kiosk setup first");
-      return;
-    }
-
-    if (flashTimerRef.current) {
-      window.clearTimeout(flashTimerRef.current);
-      flashTimerRef.current = null;
-    }
-    setLastResult(null);
-    setOperatorState("processing");
-    setOperatorSubtext("Processing scan...");
-    setKioskMode("flash_result");
-
-    const startedAtDate = new Date();
-    setLastScanAt(startedAtDate);
-
     try {
-      const startedAt = performance.now();
-      const response = await fetch("/api/hr/kiosk/scan", {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          authorization: `Bearer ${kioskToken}`,
-        },
-        body: JSON.stringify({ qrToken: extractedToken, occurredAt: new Date().toISOString() }),
-      });
-      const elapsedMs = Math.round(performance.now() - startedAt);
-      setLastScanLatencyMs(elapsedMs);
+      const rawQrToken = rawInput.trim();
+      if (!rawQrToken) return;
+
+      const extractedToken = extractLatestQrToken(rawQrToken);
+
       if (SCAN_DEBUG_ENABLED) {
-        console.log("[kiosk-scan-debug] scan latency", { elapsedMs, status: response.status });
+        console.log("[kiosk-scan-debug] raw scan input", { rawInput, extractedToken });
+      }
+      setScanDebugMessage(
+        extractedToken
+          ? `raw-len=${rawInput.length} extracted=${extractedToken.slice(0, 24)}...`
+          : `raw-len=${rawInput.length} no-valid-token`,
+      );
+
+      if (!extractedToken) {
+        setLastResult(null);
+        const scannedAt = new Date();
+        setLastScanAt(scannedAt);
+        const shouldRetry = looksLikeUnreadableScan(rawInput);
+        recordRecentScan({
+          icon: shouldRetry ? "🔄" : "❌",
+          label: shouldRetry ? "Scan again" : "Invalid ID",
+          employeeLabel: shouldRetry ? "Could not read QR clearly" : "Unrecognized scan",
+          scannedAt,
+        });
+        showFlashAndReturn(shouldRetry ? "scan_again" : "invalid_id", shouldRetry ? "Could not read QR clearly" : null);
+        return;
       }
 
-      if (!response.ok) {
-        const payload = (await response.json().catch(() => ({}))) as { error?: string };
-        const message = payload.error ?? "Scan failed";
-
-        if ([400, 401, 403].includes(response.status)) {
-          setLastResult(null);
-          setLastScanAt(new Date());
-          if (message.toLowerCase().includes("debounced")) {
-            showFlashAndReturn("already_recorded", "Please wait before scanning again");
-            return;
-          }
-          if (response.status === 401) {
-            showFlashAndReturn("not_allowed", "Kiosk setup required");
-            return;
-          }
-          if (response.status === 403) {
-            showFlashAndReturn("not_allowed", "Please contact admin");
-            return;
-          }
-          if (message.toLowerCase().includes("not allowed") || message.toLowerCase().includes("not found") || message.toLowerCase().includes("house")) {
-            showFlashAndReturn("not_allowed", "Please contact admin");
-            return;
-          }
-          if (isInvalidIdError(message)) {
-            showFlashAndReturn("invalid_id");
-            return;
-          }
-          showFlashAndReturn("not_allowed", "Please contact admin");
-          return;
-        }
-
-        throw new Error(message);
-      }
-
-      const payload = (await response.json()) as ScanResponse;
-      const parsedPayloadTime = parseKioskTimestamp(payload.time);
-      if (!parsedPayloadTime && payload.time && SCAN_DEBUG_ENABLED) {
-        console.warn("[kiosk-scan-debug] rejected invalid payload time", { payloadTime: payload.time });
-      }
-      setLastResult(payload);
-      setLastScanAt(parsedPayloadTime ?? startedAtDate);
-
-      const resolvedScanAt = parsedPayloadTime ?? startedAtDate;
-      if (payload.action === "debounced") {
+      const now = Date.now();
+      const previous = lastDecodedRef.current;
+      if (previous && previous.value === extractedToken && now - previous.at < DECODE_DEBOUNCE_MS) {
+        setLastResult(null);
+        const scannedAt = new Date();
+        setLastScanAt(scannedAt);
         recordRecentScan({
           icon: "⏱️",
           label: "Already recorded",
-          employeeLabel: payload.employee.displayName,
-          scannedAt: resolvedScanAt,
+          employeeLabel: "Please wait before scanning again",
+          scannedAt,
         });
         showFlashAndReturn("already_recorded", "Please wait before scanning again");
         return;
       }
-      recordRecentScan({
-        icon: "✅",
-        label: payload.action === "clock_out" ? "Time out" : "Time in",
-        employeeLabel: payload.employee.displayName,
-        scannedAt: resolvedScanAt,
-      });
-      showFlashAndReturn(payload.action === "clock_out" ? "time_out" : "time_in");
-    } catch (scanError) {
-      const scannedAt = new Date();
-      setLastScanAt(scannedAt);
-      queueEvent(extractedToken);
-      setLastResult(null);
-      recordRecentScan({
-        icon: "📡",
-        label: "Saved offline",
-        employeeLabel: "Queued scan",
-        scannedAt,
-      });
-      if (SCAN_DEBUG_ENABLED) {
-        console.log("[kiosk-scan-debug] scan failed and queued", {
-          error: scanError instanceof Error ? scanError.message : "error",
+      lastDecodedRef.current = { value: extractedToken, at: now };
+
+      if (!kioskToken) {
+        setLastResult(null);
+        const scannedAt = new Date();
+        setLastScanAt(scannedAt);
+        recordRecentScan({
+          icon: "⛔",
+          label: "Not allowed",
+          employeeLabel: "Complete kiosk setup first",
+          scannedAt,
         });
+        showFlashAndReturn("not_allowed", "Complete kiosk setup first");
+        return;
       }
-      showFlashAndReturn("offline_queued", "Will sync automatically when connection returns");
+
+      if (flashTimerRef.current) {
+        window.clearTimeout(flashTimerRef.current);
+        flashTimerRef.current = null;
+      }
+      setLastResult(null);
+      setOperatorState("processing");
+      setOperatorSubtext("Processing scan...");
+      setKioskMode("flash_result");
+
+      const startedAtDate = new Date();
+      setLastScanAt(startedAtDate);
+
+      try {
+        const startedAt = performance.now();
+        const response = await fetch("/api/hr/kiosk/scan", {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${kioskToken}`,
+          },
+          body: JSON.stringify({ qrToken: extractedToken, occurredAt: new Date().toISOString() }),
+        });
+        const elapsedMs = Math.round(performance.now() - startedAt);
+        setLastScanLatencyMs(elapsedMs);
+        if (SCAN_DEBUG_ENABLED) {
+          console.log("[kiosk-scan-debug] scan latency", { elapsedMs, status: response.status });
+        }
+
+        if (!response.ok) {
+          const payload = (await response.json().catch(() => ({}))) as { error?: string };
+          const message = payload.error ?? "Scan failed";
+
+          if ([400, 401, 403].includes(response.status)) {
+            setLastResult(null);
+            setLastScanAt(new Date());
+            if (message.toLowerCase().includes("debounced")) {
+              showFlashAndReturn("already_recorded", "Please wait before scanning again");
+              return;
+            }
+            if (response.status === 401) {
+              showFlashAndReturn("not_allowed", "Kiosk setup required");
+              return;
+            }
+            if (response.status === 403) {
+              showFlashAndReturn("not_allowed", "Please contact admin");
+              return;
+            }
+            if (message.toLowerCase().includes("not allowed") || message.toLowerCase().includes("not found") || message.toLowerCase().includes("house")) {
+              showFlashAndReturn("not_allowed", "Please contact admin");
+              return;
+            }
+            if (isInvalidIdError(message)) {
+              showFlashAndReturn("invalid_id");
+              return;
+            }
+            showFlashAndReturn("not_allowed", "Please contact admin");
+            return;
+          }
+
+          throw new Error(message);
+        }
+
+        const payload = (await response.json()) as ScanResponse;
+        const parsedPayloadTime = parseKioskTimestamp(payload.time);
+        if (!parsedPayloadTime && payload.time && SCAN_DEBUG_ENABLED) {
+          console.warn("[kiosk-scan-debug] rejected invalid payload time", { payloadTime: payload.time });
+        }
+        setLastResult(payload);
+        setLastScanAt(parsedPayloadTime ?? startedAtDate);
+
+        const resolvedScanAt = parsedPayloadTime ?? startedAtDate;
+        if (payload.action === "debounced") {
+          recordRecentScan({
+            icon: "⏱️",
+            label: "Already recorded",
+            employeeLabel: payload.employee.displayName,
+            scannedAt: resolvedScanAt,
+          });
+          showFlashAndReturn("already_recorded", "Please wait before scanning again");
+          return;
+        }
+        recordRecentScan({
+          icon: "✅",
+          label: payload.action === "clock_out" ? "Time out" : "Time in",
+          employeeLabel: payload.employee.displayName,
+          scannedAt: resolvedScanAt,
+        });
+        showFlashAndReturn(payload.action === "clock_out" ? "time_out" : "time_in");
+      } catch (scanError) {
+        const scannedAt = new Date();
+        setLastScanAt(scannedAt);
+        queueEvent(extractedToken);
+        setLastResult(null);
+        recordRecentScan({
+          icon: "📡",
+          label: "Saved offline",
+          employeeLabel: "Queued scan",
+          scannedAt,
+        });
+        if (SCAN_DEBUG_ENABLED) {
+          console.log("[kiosk-scan-debug] scan failed and queued", {
+            error: scanError instanceof Error ? scanError.message : "error",
+          });
+        }
+        showFlashAndReturn("offline_queued", "Will sync automatically when connection returns");
+      }
     } finally {
       isProcessingRef.current = false;
       const pendingToken = pendingCompletedTokenRef.current;
