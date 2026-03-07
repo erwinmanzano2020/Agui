@@ -24,6 +24,22 @@ type QueuedEvent = {
   occurredAt: string;
 };
 
+type ScanLifecycleStage =
+  | "raw_input_received"
+  | "token_extracted"
+  | "unreadable_scan"
+  | "invalid_scan"
+  | "scan_started"
+  | "scan_request_failed"
+  | "queue_inserted"
+  | "queue_insert_skipped"
+  | "scan_outcome"
+  | "pending_token_buffered"
+  | "pending_token_consumed"
+  | "sync_started"
+  | "sync_result"
+  | "queue_cleanup";
+
 type PingResponse = {
   ok: true;
   device: {
@@ -86,6 +102,17 @@ function extractLatestQrToken(raw: string): string | null {
 function isInvalidIdError(message: string): boolean {
   const lower = message.toLowerCase();
   return lower.includes("invalid") || lower.includes("malformed") || lower.includes("signature") || lower.includes("token");
+}
+
+function isTerminalSyncError(message: string): boolean {
+  const lower = message.toLowerCase();
+  return (
+    lower.includes("invalid")
+    || lower.includes("malformed")
+    || lower.includes("signature")
+    || lower.includes("employee is not available")
+    || lower.includes("does not match kiosk house")
+  );
 }
 
 function looksLikeUnreadableScan(rawInput: string): boolean {
@@ -173,9 +200,18 @@ export default function KioskClient({ slug }: { slug: string }) {
   const idleTimerRef = React.useRef<number | null>(null);
   const flashTimerRef = React.useRef<number | null>(null);
   const lastDecodedRef = React.useRef<{ value: string; at: number } | null>(null);
+  const lastSubmittedRawRef = React.useRef<{ value: string; at: number } | null>(null);
   // Single-flight strategy: process one scan at a time and keep only the latest completed next token.
   const isProcessingRef = React.useRef(false);
   const pendingCompletedTokenRef = React.useRef<string | null>(null);
+  const queueRef = React.useRef<QueuedEvent[]>([]);
+  const syncInFlightRef = React.useRef(false);
+  const scanAttemptRef = React.useRef(0);
+
+  const traceScanLifecycle = React.useCallback((stage: ScanLifecycleStage, details: Record<string, unknown>) => {
+    if (!SCAN_DEBUG_ENABLED) return;
+    console.log("[kiosk-scan-debug] lifecycle", { stage, ...details });
+  }, []);
 
   const needsSetup = !kioskToken || !verifiedDeviceId;
 
@@ -189,14 +225,25 @@ export default function KioskClient({ slug }: { slug: string }) {
     setRecentScans((prev) => [entry, ...prev].slice(0, 3));
   }, []);
 
-  const queueEvent = React.useCallback((qrToken: string) => {
-    const event: QueuedEvent = {
-      clientEventId: generateClientEventId(),
-      qrToken,
-      occurredAt: new Date().toISOString(),
-    };
-    setQueue((prev) => [...prev, event]);
-  }, []);
+  const queueEvent = React.useCallback((event: QueuedEvent) => {
+    setQueue((prev) => {
+      if (prev.some((item) => item.clientEventId === event.clientEventId)) {
+        traceScanLifecycle("queue_insert_skipped", {
+          clientEventId: event.clientEventId,
+          queueLengthBefore: prev.length,
+          queueLengthAfter: prev.length,
+        });
+        return prev;
+      }
+      const next = [...prev, event];
+      traceScanLifecycle("queue_inserted", {
+        clientEventId: event.clientEventId,
+        queueLengthBefore: prev.length,
+        queueLengthAfter: next.length,
+      });
+      return next;
+    });
+  }, [traceScanLifecycle]);
 
   const focusWedgeInput = React.useCallback(() => {
     window.requestAnimationFrame(() => {
@@ -236,11 +283,24 @@ export default function KioskClient({ slug }: { slug: string }) {
   }, [focusWedgeInput]);
 
   const processToken = React.useCallback(async (rawInput: string) => {
+    const scanAttempt = ++scanAttemptRef.current;
+    const clientEventId = generateClientEventId();
+    const occurredAt = new Date().toISOString();
     try {
       const rawQrToken = rawInput.trim();
       if (!rawQrToken) return;
 
       const extractedToken = extractLatestQrToken(rawQrToken);
+      traceScanLifecycle("raw_input_received", {
+        scanAttempt,
+        clientEventId,
+        rawLength: rawInput.length,
+      });
+      traceScanLifecycle("token_extracted", {
+        scanAttempt,
+        clientEventId,
+        extracted: Boolean(extractedToken),
+      });
 
       if (SCAN_DEBUG_ENABLED) {
         console.log("[kiosk-scan-debug] raw scan input", { rawInput, extractedToken });
@@ -256,6 +316,12 @@ export default function KioskClient({ slug }: { slug: string }) {
         const scannedAt = new Date();
         setLastScanAt(scannedAt);
         const shouldRetry = looksLikeUnreadableScan(rawInput);
+        traceScanLifecycle(shouldRetry ? "unreadable_scan" : "invalid_scan", {
+          scanAttempt,
+          clientEventId,
+          queued: false,
+          outcome: shouldRetry ? "scan_again" : "invalid_id",
+        });
         recordRecentScan({
           icon: shouldRetry ? "🔄" : "❌",
           label: shouldRetry ? "Scan again" : "Invalid ID",
@@ -308,6 +374,12 @@ export default function KioskClient({ slug }: { slug: string }) {
 
       const startedAtDate = new Date();
       setLastScanAt(startedAtDate);
+      traceScanLifecycle("scan_started", {
+        scanAttempt,
+        clientEventId,
+        queueLength: queueRef.current.length,
+        status,
+      });
 
       try {
         const startedAt = performance.now();
@@ -317,7 +389,7 @@ export default function KioskClient({ slug }: { slug: string }) {
             "content-type": "application/json",
             authorization: `Bearer ${kioskToken}`,
           },
-          body: JSON.stringify({ qrToken: extractedToken, occurredAt: new Date().toISOString() }),
+          body: JSON.stringify({ qrToken: extractedToken, occurredAt, clientId: clientEventId }),
         });
         const elapsedMs = Math.round(performance.now() - startedAt);
         setLastScanLatencyMs(elapsedMs);
@@ -349,6 +421,12 @@ export default function KioskClient({ slug }: { slug: string }) {
               return;
             }
             if (isInvalidIdError(message)) {
+              traceScanLifecycle("invalid_scan", {
+                scanAttempt,
+                clientEventId,
+                queued: false,
+                reason: message,
+              });
               showFlashAndReturn("invalid_id");
               return;
             }
@@ -376,6 +454,12 @@ export default function KioskClient({ slug }: { slug: string }) {
             scannedAt: resolvedScanAt,
           });
           showFlashAndReturn("already_recorded", "Please wait before scanning again");
+          traceScanLifecycle("scan_outcome", {
+            scanAttempt,
+            clientEventId,
+            outcome: "already_recorded",
+            queued: false,
+          });
           return;
         }
         recordRecentScan({
@@ -385,10 +469,25 @@ export default function KioskClient({ slug }: { slug: string }) {
           scannedAt: resolvedScanAt,
         });
         showFlashAndReturn(payload.action === "clock_out" ? "time_out" : "time_in");
+        traceScanLifecycle("scan_outcome", {
+          scanAttempt,
+          clientEventId,
+          outcome: payload.action === "clock_out" ? "time_out" : "time_in",
+          queued: false,
+        });
       } catch (scanError) {
         const scannedAt = new Date();
         setLastScanAt(scannedAt);
-        queueEvent(extractedToken);
+        traceScanLifecycle("scan_request_failed", {
+          scanAttempt,
+          clientEventId,
+          error: scanError instanceof Error ? scanError.message : "error",
+        });
+        queueEvent({
+          clientEventId,
+          qrToken: extractedToken,
+          occurredAt,
+        });
         setLastResult(null);
         recordRecentScan({
           icon: "📡",
@@ -402,17 +501,27 @@ export default function KioskClient({ slug }: { slug: string }) {
           });
         }
         showFlashAndReturn("offline_queued", "Will sync automatically when connection returns");
+        traceScanLifecycle("scan_outcome", {
+          scanAttempt,
+          clientEventId,
+          outcome: "offline_queued",
+          queued: true,
+        });
       }
     } finally {
       isProcessingRef.current = false;
       const pendingToken = pendingCompletedTokenRef.current;
       if (pendingToken) {
+        traceScanLifecycle("pending_token_consumed", {
+          clientEventId,
+          pendingPrefix: pendingToken.slice(0, 24),
+        });
         pendingCompletedTokenRef.current = null;
         isProcessingRef.current = true;
         void processToken(pendingToken);
       }
     }
-  }, [kioskToken, queueEvent, recordRecentScan, showFlashAndReturn]);
+  }, [kioskToken, queueEvent, recordRecentScan, showFlashAndReturn, status, traceScanLifecycle]);
 
   const flushWedgeBuffer = React.useCallback((tokenOverride?: string) => {
     const token = tokenOverride ?? wedgeInputRef.current?.value ?? wedgeBufferRef.current;
@@ -428,13 +537,22 @@ export default function KioskClient({ slug }: { slug: string }) {
     const normalized = token.trim();
     if (!normalized) return;
 
+    const now = Date.now();
+    const lastSubmitted = lastSubmittedRawRef.current;
+    if (lastSubmitted && lastSubmitted.value === normalized && now - lastSubmitted.at < 250) {
+      traceScanLifecycle("queue_insert_skipped", {
+        reason: "duplicate_wedge_finalize",
+        pendingPrefix: normalized.slice(0, 24),
+      });
+      return;
+    }
+    lastSubmittedRawRef.current = { value: normalized, at: now };
+
     if (isProcessingRef.current) {
       pendingCompletedTokenRef.current = normalized;
-      if (SCAN_DEBUG_ENABLED) {
-        console.log("[kiosk-scan-debug] queued one pending completed scan while busy", {
-          pendingPrefix: normalized.slice(0, 24),
-        });
-      }
+      traceScanLifecycle("pending_token_buffered", {
+        pendingPrefix: normalized.slice(0, 24),
+      });
       return;
     }
 
@@ -443,7 +561,15 @@ export default function KioskClient({ slug }: { slug: string }) {
   }, [processToken]);
 
   const syncQueue = React.useCallback(async () => {
-    if (queue.length === 0 || status !== "online" || !kioskToken) return;
+    if (syncInFlightRef.current || status !== "online" || !kioskToken) return;
+
+    const queueSnapshot = queueRef.current;
+    if (queueSnapshot.length === 0) return;
+
+    syncInFlightRef.current = true;
+    traceScanLifecycle("sync_started", {
+      queued: queueSnapshot.length,
+    });
 
     try {
       const response = await fetch("/api/hr/kiosk/sync", {
@@ -452,7 +578,7 @@ export default function KioskClient({ slug }: { slug: string }) {
           "content-type": "application/json",
           authorization: `Bearer ${kioskToken}`,
         },
-        body: JSON.stringify({ events: queue }),
+        body: JSON.stringify({ events: queueSnapshot }),
       });
 
       if (!response.ok) return;
@@ -462,18 +588,46 @@ export default function KioskClient({ slug }: { slug: string }) {
           clientEventId: string;
           status: "duplicate" | "processed" | "error";
           result?: ScanResponse;
+          error?: string;
         }>;
       };
 
-      const completed = new Set(payload.results.filter((item) => item.status !== "error").map((item) => item.clientEventId));
-      setQueue((prev) => prev.filter((event) => !completed.has(event.clientEventId)));
+      const completed = new Set<string>();
+      const terminalFailures = new Set<string>();
+      for (const item of payload.results) {
+        traceScanLifecycle("sync_result", {
+          clientEventId: item.clientEventId,
+          status: item.status,
+          error: item.status === "error" ? item.error : null,
+        });
+        if (item.status === "processed" || item.status === "duplicate") {
+          completed.add(item.clientEventId);
+          continue;
+        }
+        if (isTerminalSyncError(item.error ?? "")) {
+          terminalFailures.add(item.clientEventId);
+        }
+      }
+
+      setQueue((prev) => {
+        const next = prev.filter((event) => !completed.has(event.clientEventId) && !terminalFailures.has(event.clientEventId));
+        traceScanLifecycle("queue_cleanup", {
+          queueLengthBefore: prev.length,
+          queueLengthAfter: next.length,
+          removedCompleted: completed.size,
+          removedTerminalErrors: terminalFailures.size,
+        });
+        return next;
+      });
       const now = new Date().toISOString();
       setLastSyncAt(now);
       localStorage.setItem(LAST_SYNC_STORAGE_KEY, now);
     } catch {
       // keep queue for next attempt
+    } finally {
+      syncInFlightRef.current = false;
     }
-  }, [kioskToken, queue, status]);
+  }, [kioskToken, status, traceScanLifecycle]);
 
   React.useEffect(() => {
     const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY) ?? "";
@@ -526,6 +680,10 @@ export default function KioskClient({ slug }: { slug: string }) {
       window.removeEventListener("offline", onOffline);
     };
   }, []);
+
+  React.useEffect(() => {
+    queueRef.current = queue;
+  }, [queue]);
 
   React.useEffect(() => {
     localStorage.setItem(QUEUE_STORAGE_KEY, JSON.stringify(queue));
