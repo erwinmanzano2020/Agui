@@ -695,8 +695,10 @@ export default function KioskClient({ slug }: { slug: string }) {
         }
       }
 
+      let remainingQueueCount = queueSnapshot.length;
       setQueue((prev) => {
         const next = prev.filter((event) => !completed.has(event.clientEventId) && !terminalFailures.has(event.clientEventId));
+        remainingQueueCount = next.length;
         traceScanLifecycle("queue_cleanup", {
           queueLengthBefore: prev.length,
           queueLengthAfter: next.length,
@@ -713,7 +715,7 @@ export default function KioskClient({ slug }: { slug: string }) {
         processedCount,
         duplicateCount,
         discardedTerminalInvalidCount: discardedCount,
-        remainingQueueCount: queueSnapshot.length - completed.size - terminalFailures.size,
+        remainingQueueCount,
         occurredAt: new Date().toISOString(),
       });
       const now = new Date().toISOString();
