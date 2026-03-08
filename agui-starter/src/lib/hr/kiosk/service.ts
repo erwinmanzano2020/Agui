@@ -171,9 +171,13 @@ export async function processKioskScan(
     throw new Error("QR token does not match kiosk house.");
   }
 
+  let employee: KioskEmployee | null = null;
   const employeeLookupStartedAt = nowMs();
-  const employee = await repo.findEmployeeById(qrClaims.employeeId);
-  input.timingHooks?.onEmployeeLookupComplete?.(Math.round(nowMs() - employeeLookupStartedAt));
+  try {
+    employee = await repo.findEmployeeById(qrClaims.employeeId);
+  } finally {
+    input.timingHooks?.onEmployeeLookupComplete?.(Math.round(nowMs() - employeeLookupStartedAt));
+  }
   if (!employee || employee.house_id !== device.house_id) {
     await trackWrite(() => repo.insertKioskEvent({
       houseId: device.house_id,

@@ -287,6 +287,32 @@ describe("kiosk service", () => {
   });
 
 
+
+  it("emits employee lookup timing when lookup throws", async () => {
+    const qrToken = createEmployeeQrToken({ employeeId, houseId });
+    let employeeLookupMs: number | null = null;
+    repo.findEmployeeById = async () => {
+      await new Promise((resolve) => setTimeout(resolve, 15));
+      throw new Error("lookup timeout");
+    };
+
+    await assert.rejects(
+      () => processKioskScan(repo, {
+        kioskToken,
+        qrToken,
+        occurredAt: "2026-02-01T09:00:00Z",
+        timingHooks: {
+          onEmployeeLookupComplete(durationMs) {
+            employeeLookupMs = durationMs;
+          },
+        },
+      }),
+      /lookup timeout/,
+    );
+
+    assert.ok((employeeLookupMs ?? 0) >= 10);
+  });
+
   it("reports scan timing hooks for debug instrumentation", async () => {
     const qrToken = createEmployeeQrToken({ employeeId, houseId });
     const timings: Record<string, number> = {};

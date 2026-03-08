@@ -135,13 +135,18 @@ export async function handleKioskScan(request: Request) {
   });
 
   try {
+    let supabase: ReturnType<typeof createServiceSupabaseClient> | null = null;
+    let auth: Awaited<ReturnType<typeof requireKioskDevice>>;
     const authStartedAt = nowMs();
-    const token = readBearerKioskToken(request);
-    const supabase = createServiceSupabaseClient();
-    const auth = await requireKioskDevice(supabase, token);
-    authMs = nowMs() - authStartedAt;
+    try {
+      const token = readBearerKioskToken(request);
+      supabase = createServiceSupabaseClient();
+      auth = await requireKioskDevice(supabase, token);
+    } finally {
+      authMs = nowMs() - authStartedAt;
+    }
 
-    const repo = createSupabaseKioskRepo(supabase);
+    const repo = createSupabaseKioskRepo(supabase!);
 
     const result = await processKioskScan(repo, {
       kioskToken: auth.token,
