@@ -78,7 +78,7 @@ const IDLE_TIMEOUT_MS = 180_000;
 const FLASH_RESULT_MS = 1500;
 const WEDGE_SUBMIT_TIMEOUT_MS = 120;
 const DECODE_DEBOUNCE_MS = 1200;
-const SCAN_DEBUG_ENABLED = process.env.NEXT_PUBLIC_HR_KIOSK_SCAN_DEBUG === "1";
+const SCAN_DEBUG_ENV_ENABLED = process.env.NEXT_PUBLIC_HR_KIOSK_SCAN_DEBUG === "1";
 
 function generateClientEventId(): string {
   return crypto.randomUUID();
@@ -162,6 +162,54 @@ type RecentScan = {
   scannedAt: Date;
 };
 
+type DiagnosticsEvent = {
+  id: string;
+  stage: ScanLifecycleStage;
+  at: string;
+  details: Record<string, unknown>;
+};
+
+type LastScanOutcomeDiagnostic =
+  | "live_success"
+  | "offline_queued"
+  | "invalid"
+  | "unreadable"
+  | "already_recorded"
+  | "not_allowed";
+
+type SyncSummary = {
+  processedCount: number;
+  duplicateCount: number;
+  discardedTerminalInvalidCount: number;
+  remainingQueueCount: number;
+  occurredAt: string;
+};
+
+function formatLifecycleEventDetails(stage: ScanLifecycleStage, details: Record<string, unknown>): string {
+  if (stage === "sync_started") {
+    return `${String(details.queued ?? 0)} queued`;
+  }
+  if (stage === "sync_result") {
+    return `${String(details.clientEventId ?? "event")} · ${String(details.status ?? "unknown")}`;
+  }
+  if (stage === "queue_cleanup") {
+    return `removedCompleted=${String(details.removedCompleted ?? 0)} removedTerminalErrors=${String(details.removedTerminalErrors ?? 0)}`;
+  }
+  if (stage === "scan_outcome") {
+    return `${String(details.outcome ?? "unknown")} · queued=${String(details.queued ?? false)}`;
+  }
+  if (stage === "queue_inserted" || stage === "queue_insert_skipped") {
+    return `queue=${String(details.queueLengthAfter ?? details.queueLengthBefore ?? "n/a")}`;
+  }
+  if (stage === "raw_input_received") {
+    return `rawLength=${String(details.rawLength ?? 0)}`;
+  }
+  if (stage === "token_extracted") {
+    return `extracted=${String(Boolean(details.extracted))}`;
+  }
+  return Object.keys(details).length > 0 ? Object.entries(details).map(([key, value]) => `${key}=${String(value)}`).join(" ") : "";
+}
+
 export default function KioskClient({ slug }: { slug: string }) {
   const [kioskToken, setKioskToken] = React.useState("");
   const [draftToken, setDraftToken] = React.useState("");
@@ -192,6 +240,14 @@ export default function KioskClient({ slug }: { slug: string }) {
   const [now, setNow] = React.useState(() => new Date());
   const [lastScanAt, setLastScanAt] = React.useState<Date | null>(null);
   const [recentScans, setRecentScans] = React.useState<RecentScan[]>([]);
+  const [debugQueryEnabled, setDebugQueryEnabled] = React.useState(false);
+  const [recentLifecycleEvents, setRecentLifecycleEvents] = React.useState<DiagnosticsEvent[]>([]);
+  const [lastScanStartedAt, setLastScanStartedAt] = React.useState<string | null>(null);
+  const [lastScanEndedAt, setLastScanEndedAt] = React.useState<string | null>(null);
+  const [lastScanOutcomeDiagnostic, setLastScanOutcomeDiagnostic] = React.useState<LastScanOutcomeDiagnostic | null>(null);
+  const [syncInFlight, setSyncInFlight] = React.useState(false);
+  const [lastSyncSummary, setLastSyncSummary] = React.useState<SyncSummary | null>(null);
+  const [discardedTerminalInvalidCount, setDiscardedTerminalInvalidCount] = React.useState(0);
 
   const pressTimerRef = React.useRef<number | null>(null);
   const wedgeInputRef = React.useRef<HTMLInputElement | null>(null);
@@ -208,10 +264,21 @@ export default function KioskClient({ slug }: { slug: string }) {
   const syncInFlightRef = React.useRef(false);
   const scanAttemptRef = React.useRef(0);
 
+  const diagnosticsEnabled = SCAN_DEBUG_ENV_ENABLED || debugQueryEnabled;
+
   const traceScanLifecycle = React.useCallback((stage: ScanLifecycleStage, details: Record<string, unknown>) => {
-    if (!SCAN_DEBUG_ENABLED) return;
+    if (!diagnosticsEnabled) return;
+    setRecentLifecycleEvents((prev) => {
+      const event: DiagnosticsEvent = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        stage,
+        at: new Date().toISOString(),
+        details,
+      };
+      return [event, ...prev].slice(0, 10);
+    });
     console.log("[kiosk-scan-debug] lifecycle", { stage, ...details });
-  }, []);
+  }, [diagnosticsEnabled]);
 
   const needsSetup = !kioskToken || !verifiedDeviceId;
 
@@ -265,6 +332,22 @@ export default function KioskClient({ slug }: { slug: string }) {
   }, [kioskMode, needsSetup]);
 
   const showFlashAndReturn = React.useCallback((state: OperatorState, subtext?: string | null) => {
+    const diagnosticOutcome: LastScanOutcomeDiagnostic | null = state === "time_in" || state === "time_out"
+      ? "live_success"
+      : state === "offline_queued"
+        ? "offline_queued"
+        : state === "invalid_id"
+          ? "invalid"
+          : state === "scan_again"
+            ? "unreadable"
+            : state === "already_recorded"
+              ? "already_recorded"
+              : state === "not_allowed"
+                ? "not_allowed"
+                : null;
+    if (diagnosticOutcome) {
+      setLastScanOutcomeDiagnostic(diagnosticOutcome);
+    }
     setOperatorState(state);
     setOperatorSubtext(subtext ?? null);
     if (state !== "ready" && state !== "processing") {
@@ -302,7 +385,7 @@ export default function KioskClient({ slug }: { slug: string }) {
         extracted: Boolean(extractedToken),
       });
 
-      if (SCAN_DEBUG_ENABLED) {
+      if (diagnosticsEnabled) {
         console.log("[kiosk-scan-debug] raw scan input", { rawInput, extractedToken });
       }
       setScanDebugMessage(
@@ -374,6 +457,7 @@ export default function KioskClient({ slug }: { slug: string }) {
 
       const startedAtDate = new Date();
       setLastScanAt(startedAtDate);
+      setLastScanStartedAt(startedAtDate.toISOString());
       traceScanLifecycle("scan_started", {
         scanAttempt,
         clientEventId,
@@ -393,7 +477,7 @@ export default function KioskClient({ slug }: { slug: string }) {
         });
         const elapsedMs = Math.round(performance.now() - startedAt);
         setLastScanLatencyMs(elapsedMs);
-        if (SCAN_DEBUG_ENABLED) {
+        if (diagnosticsEnabled) {
           console.log("[kiosk-scan-debug] scan latency", { elapsedMs, status: response.status });
         }
 
@@ -439,7 +523,7 @@ export default function KioskClient({ slug }: { slug: string }) {
 
         const payload = (await response.json()) as ScanResponse;
         const parsedPayloadTime = parseKioskTimestamp(payload.time);
-        if (!parsedPayloadTime && payload.time && SCAN_DEBUG_ENABLED) {
+        if (!parsedPayloadTime && payload.time && diagnosticsEnabled) {
           console.warn("[kiosk-scan-debug] rejected invalid payload time", { payloadTime: payload.time });
         }
         setLastResult(payload);
@@ -495,7 +579,7 @@ export default function KioskClient({ slug }: { slug: string }) {
           employeeLabel: "Queued scan",
           scannedAt,
         });
-        if (SCAN_DEBUG_ENABLED) {
+        if (diagnosticsEnabled) {
           console.log("[kiosk-scan-debug] scan failed and queued", {
             error: scanError instanceof Error ? scanError.message : "error",
           });
@@ -509,6 +593,7 @@ export default function KioskClient({ slug }: { slug: string }) {
         });
       }
     } finally {
+      setLastScanEndedAt(new Date().toISOString());
       isProcessingRef.current = false;
       const pendingToken = pendingCompletedTokenRef.current;
       if (pendingToken) {
@@ -521,7 +606,7 @@ export default function KioskClient({ slug }: { slug: string }) {
         void processToken(pendingToken);
       }
     }
-  }, [kioskToken, queueEvent, recordRecentScan, showFlashAndReturn, status, traceScanLifecycle]);
+  }, [diagnosticsEnabled, kioskToken, queueEvent, recordRecentScan, showFlashAndReturn, status, traceScanLifecycle]);
 
   const flushWedgeBuffer = React.useCallback((tokenOverride?: string) => {
     const token = tokenOverride ?? wedgeInputRef.current?.value ?? wedgeBufferRef.current;
@@ -558,7 +643,7 @@ export default function KioskClient({ slug }: { slug: string }) {
 
     isProcessingRef.current = true;
     void processToken(normalized);
-  }, [processToken]);
+  }, [processToken, traceScanLifecycle]);
 
   const syncQueue = React.useCallback(async () => {
     if (syncInFlightRef.current || status !== "online" || !kioskToken) return;
@@ -567,6 +652,7 @@ export default function KioskClient({ slug }: { slug: string }) {
     if (queueSnapshot.length === 0) return;
 
     syncInFlightRef.current = true;
+    setSyncInFlight(true);
     traceScanLifecycle("sync_started", {
       queued: queueSnapshot.length,
     });
@@ -609,8 +695,10 @@ export default function KioskClient({ slug }: { slug: string }) {
         }
       }
 
+      let remainingQueueCount = queueSnapshot.length;
       setQueue((prev) => {
         const next = prev.filter((event) => !completed.has(event.clientEventId) && !terminalFailures.has(event.clientEventId));
+        remainingQueueCount = next.length;
         traceScanLifecycle("queue_cleanup", {
           queueLengthBefore: prev.length,
           queueLengthAfter: next.length,
@@ -619,6 +707,17 @@ export default function KioskClient({ slug }: { slug: string }) {
         });
         return next;
       });
+      const processedCount = payload.results.filter((item) => item.status === "processed").length;
+      const duplicateCount = payload.results.filter((item) => item.status === "duplicate").length;
+      const discardedCount = terminalFailures.size;
+      setDiscardedTerminalInvalidCount((prev) => prev + discardedCount);
+      setLastSyncSummary({
+        processedCount,
+        duplicateCount,
+        discardedTerminalInvalidCount: discardedCount,
+        remainingQueueCount,
+        occurredAt: new Date().toISOString(),
+      });
       const now = new Date().toISOString();
       setLastSyncAt(now);
       localStorage.setItem(LAST_SYNC_STORAGE_KEY, now);
@@ -626,8 +725,14 @@ export default function KioskClient({ slug }: { slug: string }) {
       // keep queue for next attempt
     } finally {
       syncInFlightRef.current = false;
+      setSyncInFlight(false);
     }
   }, [kioskToken, status, traceScanLifecycle]);
+
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setDebugQueryEnabled(params.get("debug") === "1");
+  }, []);
 
   React.useEffect(() => {
     const savedToken = localStorage.getItem(TOKEN_STORAGE_KEY) ?? "";
@@ -806,6 +911,12 @@ export default function KioskClient({ slug }: { slug: string }) {
     setOperatorSubtext(null);
     setScanDebugMessage(null);
     setLastScanLatencyMs(null);
+    setLastScanStartedAt(null);
+    setLastScanEndedAt(null);
+    setLastScanOutcomeDiagnostic(null);
+    setRecentLifecycleEvents([]);
+    setLastSyncSummary(null);
+    setDiscardedTerminalInvalidCount(0);
     isProcessingRef.current = false;
     pendingCompletedTokenRef.current = null;
   }
@@ -947,6 +1058,9 @@ export default function KioskClient({ slug }: { slug: string }) {
   const scanTimestamp = parsedLastResultTime ?? lastScanAt;
   const scanTimestampLabel = scanTimestamp ? formatTime(scanTimestamp) : null;
   const fullDateLabel = `${formatFullDate(now)} · ${formatWeekday(now)}`;
+  const lastSyncLabel = lastSyncAt ? formatTime(lastSyncAt) : "Never";
+  const lastScanStartedLabel = lastScanStartedAt ? formatTime(lastScanStartedAt) : "n/a";
+  const lastScanEndedLabel = lastScanEndedAt ? formatTime(lastScanEndedAt) : "n/a";
 
   return (
     <main
@@ -1104,6 +1218,40 @@ export default function KioskClient({ slug }: { slug: string }) {
         <>
           <div className="mt-2 rounded border p-2 text-xs">Status: <strong>{status}</strong> · Queued: {queue.length} · Last sync: {lastSyncAt ?? "Never"}</div>
           <div className="mt-2 rounded border p-2 text-xs" data-testid="kiosk-connected-banner">{connectedLabel ?? "Not verified yet (offline mode)"}</div>
+          {diagnosticsEnabled ? (
+            <details className="mt-2 rounded border border-indigo-200 bg-indigo-50/60 p-2 text-xs text-indigo-950" open>
+              <summary className="cursor-pointer font-semibold">Diagnostics (debug mode)</summary>
+              <div className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
+                <div>Last latency: {lastScanLatencyMs !== null ? `${lastScanLatencyMs}ms` : "n/a"}</div>
+                <div>Last scan state: {lastScanOutcomeDiagnostic ?? "n/a"}</div>
+                <div>Scan started: {lastScanStartedLabel}</div>
+                <div>Scan ended: {lastScanEndedLabel}</div>
+                <div>Queue: {queue.length}</div>
+                <div>Sync in progress: {syncInFlight ? "yes" : "no"}</div>
+                <div>Last sync: {lastSyncLabel}</div>
+                <div>Discarded invalid (session): {discardedTerminalInvalidCount}</div>
+              </div>
+              {lastSyncSummary ? (
+                <div className="mt-2 rounded border border-indigo-200 bg-white/80 p-2">
+                  Last sync summary · processed={lastSyncSummary.processedCount} · duplicates={lastSyncSummary.duplicateCount} · terminal-invalid/discarded={lastSyncSummary.discardedTerminalInvalidCount} · remaining={lastSyncSummary.remainingQueueCount}
+                </div>
+              ) : null}
+              <div className="mt-2">
+                <div className="font-medium">Recent lifecycle events</div>
+                {recentLifecycleEvents.length === 0 ? (
+                  <div className="text-indigo-800/80">Waiting for events...</div>
+                ) : (
+                  <ul className="mt-1 space-y-1">
+                    {recentLifecycleEvents.slice(0, 10).map((event) => (
+                      <li key={event.id} className="truncate">
+                        {event.stage} · {formatLifecycleEventDetails(event.stage, event.details)} · {formatTime(event.at)}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </details>
+          ) : null}
           <div className="mt-2 hidden rounded border border-slate-200 bg-white p-2 text-xs sm:block">
             <div className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Recent scans</div>
             {recentScans.length === 0 ? (
@@ -1118,8 +1266,8 @@ export default function KioskClient({ slug }: { slug: string }) {
           </div>
           <div className="mt-2 text-xs text-muted-foreground">
             Last scan: {lastResult ? `✅ ${lastResult.employee.displayName} · ${lastResult.action === "clock_out" ? "Time out" : "Time in"}${scanTimestampLabel ? ` · ${scanTimestampLabel}` : ""}` : scanTimestampLabel && lastOutcomeTitle ? `${lastOutcomeTitle} · ${scanTimestampLabel}` : "Waiting for scan..."}
-            {SCAN_DEBUG_ENABLED && lastScanLatencyMs !== null ? ` · ${lastScanLatencyMs}ms` : ""}
-            {SCAN_DEBUG_ENABLED && scanDebugMessage ? ` · ${scanDebugMessage}` : ""}
+            {diagnosticsEnabled && lastScanLatencyMs !== null ? ` · ${lastScanLatencyMs}ms` : ""}
+            {diagnosticsEnabled && scanDebugMessage ? ` · ${scanDebugMessage}` : ""}
           </div>
         </>
       )}
