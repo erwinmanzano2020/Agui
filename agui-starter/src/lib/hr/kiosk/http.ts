@@ -150,6 +150,11 @@ export async function handleKioskScan(request: Request) {
 
     const result = await processKioskScan(repo, {
       kioskToken: auth.token,
+      authenticatedDevice: {
+        id: auth.deviceId,
+        houseId: auth.houseId,
+        branchId: auth.branchId,
+      },
       qrToken: body.qrToken,
       occurredAt: body.occurredAt,
       clientId: body.clientId,
@@ -195,18 +200,27 @@ export async function handleKioskScan(request: Request) {
     }
 
     const basePayload: Record<string, unknown> = debugTiming ? { debugTiming } : {};
+    const debugReason = debugRequested
+      ? (error instanceof KioskRequestAuthError
+        ? error.reason
+        : error instanceof KioskConflictError
+          ? (typeof error.details.reason === "string" ? error.details.reason : undefined)
+          : error instanceof Error
+            ? error.message
+            : String(error))
+      : undefined;
 
     if (error instanceof KioskRequestAuthError) {
-      return NextResponse.json({ ...basePayload, error: error.message, reason: error.reason }, { status: error.status });
+      return NextResponse.json({ ...basePayload, error: error.message, ...(debugReason ? { reason: debugReason } : {}) }, { status: error.status });
     }
     if (error instanceof KioskAuthError) {
-      return NextResponse.json({ ...basePayload, error: error.message }, { status: 401 });
+      return NextResponse.json({ ...basePayload, error: error.message, ...(debugReason ? { reason: debugReason } : {}) }, { status: 401 });
     }
     if (error instanceof KioskConflictError) {
-      return NextResponse.json({ ...basePayload, error: error.message, ...error.details }, { status: 409 });
+      return NextResponse.json({ ...basePayload, error: error.message, ...error.details, ...(debugReason ? { reason: debugReason } : {}) }, { status: 409 });
     }
     const message = error instanceof Error ? error.message : "Failed kiosk scan.";
-    return NextResponse.json({ ...basePayload, error: message }, { status: 400 });
+    return NextResponse.json({ ...basePayload, error: message, ...(debugReason ? { reason: debugReason } : {}) }, { status: 400 });
   }
 }
 

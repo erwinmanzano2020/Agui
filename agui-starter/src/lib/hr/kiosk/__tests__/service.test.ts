@@ -26,6 +26,7 @@ describe("kiosk service", () => {
   let segments: KioskSegment[];
   let events: Array<{ house_id: string; branch_id: string; device_id: string; employee_id: string | null; event_type: string; occurred_at: string; metadata: Record<string, unknown> }>;
   let touchedDeviceIds: string[];
+  let findDeviceByTokenHashCalls: number;
 
   beforeEach(() => {
     process.env.HR_KIOSK_QR_SECRET = "test-qr-secret";
@@ -50,9 +51,11 @@ describe("kiosk service", () => {
     segments = [];
     events = [];
     touchedDeviceIds = [];
+    findDeviceByTokenHashCalls = 0;
 
     repo = {
       async findDeviceByTokenHash(tokenHash) {
+        findDeviceByTokenHashCalls += 1;
         const expected = hashKioskToken(kioskToken);
         return tokenHash === expected ? devices[0] : null;
       },
@@ -251,6 +254,33 @@ describe("kiosk service", () => {
     assert.equal(sync.results[0]?.status, "processed");
   });
 
+
+  it("stops treating replay events as authorized after device is disabled mid-sync", async () => {
+    const qrToken = createEmployeeQrToken({ employeeId, houseId });
+    let deviceLookupCount = 0;
+    repo.findDeviceByTokenHash = async (tokenHash) => {
+      deviceLookupCount += 1;
+      const expected = hashKioskToken(kioskToken);
+      if (tokenHash !== expected) return null;
+      if (deviceLookupCount >= 3) {
+        return { ...devices[0]!, is_active: false };
+      }
+      return { ...devices[0]! };
+    };
+
+    const sync = await processKioskSync(repo, {
+      kioskToken,
+      events: [
+        { qrToken, occurredAt: "2026-02-01T09:00:00Z", clientEventId: "event-1" },
+        { qrToken, occurredAt: "2026-02-01T09:01:00Z", clientEventId: "event-2" },
+      ],
+    });
+
+    assert.equal(sync.results[0]?.status, "processed");
+    assert.equal(sync.results[1]?.status, "error");
+    assert.equal(sync.results[1]?.error, "Invalid kiosk token.");
+  });
+
   it("sync is idempotent via clientEventId", async () => {
     const qrToken = createEmployeeQrToken({ employeeId, houseId });
     const firstSync = await processKioskSync(repo, {
@@ -355,4 +385,23 @@ describe("kiosk service", () => {
     });
     assert.ok(touchedDeviceIds.length >= 2);
   });
+
+  it("skips duplicate device lookup when authenticated device is supplied", async () => {
+    const qrToken = createEmployeeQrToken({ employeeId, houseId });
+
+    const result = await processKioskScan(repo, {
+      kioskToken,
+      authenticatedDevice: {
+        id: devices[0]!.id,
+        houseId: devices[0]!.house_id,
+        branchId: devices[0]!.branch_id,
+      },
+      qrToken,
+      occurredAt: "2026-02-01T09:00:00Z",
+    });
+
+    assert.equal(result.action, "clock_in");
+    assert.equal(findDeviceByTokenHashCalls, 0);
+  });
+
 });

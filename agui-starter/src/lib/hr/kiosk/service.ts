@@ -30,7 +30,7 @@ type KioskRepo = {
   findDeviceByTokenHash(tokenHash: string): Promise<KioskDevice | null>;
   touchDevice(deviceId: string): Promise<void>;
   findEmployeeById(employeeId: string): Promise<KioskEmployee | null>;
-  findOpenSegments(employeeId: string): Promise<KioskSegment[]>;
+  findOpenSegments(employeeId: string, limit?: number): Promise<KioskSegment[]>;
   closeSegment(segmentId: string, timeOut: string): Promise<KioskSegment | null>;
   createOpenSegment(input: {
     houseId: string;
@@ -108,6 +108,7 @@ export async function processKioskScan(
   repo: KioskRepo,
   input: {
     kioskToken: string;
+    authenticatedDevice?: { id: string; houseId: string; branchId: string };
     qrToken: string;
     occurredAt?: string;
     clientId?: string;
@@ -126,11 +127,21 @@ export async function processKioskScan(
     }
   };
 
-  const tokenHash = hashKioskToken(input.kioskToken);
-  const device = await repo.findDeviceByTokenHash(tokenHash);
-  if (!device || !device.is_active) {
-    throw new KioskAuthError("Invalid kiosk token.");
-  }
+  const device = input.authenticatedDevice
+    ? {
+      id: input.authenticatedDevice.id,
+      house_id: input.authenticatedDevice.houseId,
+      branch_id: input.authenticatedDevice.branchId,
+      is_active: true,
+    }
+    : await (async () => {
+      const tokenHash = hashKioskToken(input.kioskToken);
+      const foundDevice = await repo.findDeviceByTokenHash(tokenHash);
+      if (!foundDevice || !foundDevice.is_active) {
+        throw new KioskAuthError("Invalid kiosk token.");
+      }
+      return foundDevice;
+    })();
 
   const occurredAt = normalizeOccurredAt(input.occurredAt);
   await trackWrite(() => repo.touchDevice(device.id));
@@ -207,18 +218,19 @@ export async function processKioskScan(
     };
   }
 
-  await trackWrite(() => repo.insertKioskEvent({
-    houseId: device.house_id,
-    branchId: device.branch_id,
-    deviceId: device.id,
-    employeeId: employee.id,
-    eventType: "scan",
-    occurredAt,
-    metadata: { clientId: input.clientId ?? null },
-  }));
-
   const openSegmentsDecisionStartedAt = nowMs();
-  const openSegments = await repo.findOpenSegments(employee.id);
+  const [, openSegments] = await Promise.all([
+    trackWrite(() => repo.insertKioskEvent({
+      houseId: device.house_id,
+      branchId: device.branch_id,
+      deviceId: device.id,
+      employeeId: employee.id,
+      eventType: "scan",
+      occurredAt,
+      metadata: { clientId: input.clientId ?? null },
+    })),
+    repo.findOpenSegments(employee.id, 2),
+  ]);
   actionDecisionMs += nowMs() - openSegmentsDecisionStartedAt;
   input.timingHooks?.onActionDecisionComplete?.(Math.round(actionDecisionMs));
   const latestOpen = openSegments[0] ?? null;

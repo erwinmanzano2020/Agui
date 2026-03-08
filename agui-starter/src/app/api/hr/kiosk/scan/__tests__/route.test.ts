@@ -30,4 +30,29 @@ describe("POST /api/hr/kiosk/scan", () => {
     };
     assert.ok((payload.debugTiming?.steps?.authMs ?? 0) >= 10);
   });
+
+  it("includes specific reason only in debug mode", async () => {
+    mock.method(service, "createServiceSupabaseClient", () => ({}) as never);
+    mock.method(requestAuth, "readBearerKioskToken", () => "token-1");
+    mock.method(requestAuth, "requireKioskDevice", async () => {
+      throw new requestAuth.KioskRequestAuthError("Invalid kiosk token", 401, "invalid_token");
+    });
+
+    const debugResponse = await POST(new Request("http://localhost/api/hr/kiosk/scan?debug=1", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ qrToken: "v1.invalid.token", occurredAt: "2026-02-01T09:00:00Z" }),
+    }));
+    const debugPayload = await debugResponse.json() as { reason?: string };
+    assert.equal(debugPayload.reason, "invalid_token");
+
+    const normalResponse = await POST(new Request("http://localhost/api/hr/kiosk/scan", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ qrToken: "v1.invalid.token", occurredAt: "2026-02-01T09:00:00Z" }),
+    }));
+    const normalPayload = await normalResponse.json() as { reason?: string };
+    assert.equal(normalPayload.reason, undefined);
+  });
+
 });
