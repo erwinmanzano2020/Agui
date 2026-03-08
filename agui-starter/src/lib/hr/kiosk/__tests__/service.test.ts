@@ -26,6 +26,7 @@ describe("kiosk service", () => {
   let segments: KioskSegment[];
   let events: Array<{ house_id: string; branch_id: string; device_id: string; employee_id: string | null; event_type: string; occurred_at: string; metadata: Record<string, unknown> }>;
   let touchedDeviceIds: string[];
+  let findDeviceByTokenHashCalls: number;
 
   beforeEach(() => {
     process.env.HR_KIOSK_QR_SECRET = "test-qr-secret";
@@ -50,9 +51,11 @@ describe("kiosk service", () => {
     segments = [];
     events = [];
     touchedDeviceIds = [];
+    findDeviceByTokenHashCalls = 0;
 
     repo = {
       async findDeviceByTokenHash(tokenHash) {
+        findDeviceByTokenHashCalls += 1;
         const expected = hashKioskToken(kioskToken);
         return tokenHash === expected ? devices[0] : null;
       },
@@ -355,4 +358,23 @@ describe("kiosk service", () => {
     });
     assert.ok(touchedDeviceIds.length >= 2);
   });
+
+  it("skips duplicate device lookup when authenticated device is supplied", async () => {
+    const qrToken = createEmployeeQrToken({ employeeId, houseId });
+
+    const result = await processKioskScan(repo, {
+      kioskToken,
+      authenticatedDevice: {
+        id: devices[0]!.id,
+        houseId: devices[0]!.house_id,
+        branchId: devices[0]!.branch_id,
+      },
+      qrToken,
+      occurredAt: "2026-02-01T09:00:00Z",
+    });
+
+    assert.equal(result.action, "clock_in");
+    assert.equal(findDeviceByTokenHashCalls, 0);
+  });
+
 });

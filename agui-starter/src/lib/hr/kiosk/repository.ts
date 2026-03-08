@@ -32,8 +32,8 @@ export function createSupabaseKioskRepo(supabase: SupabaseClient): KioskRepo {
       return data;
     },
 
-    async findOpenSegments(employeeId) {
-      const { data, error } = await supabase
+    async findOpenSegments(employeeId, limit) {
+      let query = supabase
         .from("dtr_segments")
         .select("id, employee_id, house_id, work_date, time_in, time_out, status")
         .eq("employee_id", employeeId)
@@ -41,6 +41,12 @@ export function createSupabaseKioskRepo(supabase: SupabaseClient): KioskRepo {
         .is("time_out", null)
         .order("time_in", { ascending: false })
         .order("created_at", { ascending: false });
+
+      if (typeof limit === "number" && Number.isFinite(limit) && limit > 0) {
+        query = query.limit(Math.floor(limit));
+      }
+
+      const { data, error } = await query;
       if (error) throw new Error(error.message);
       return data ?? [];
     },

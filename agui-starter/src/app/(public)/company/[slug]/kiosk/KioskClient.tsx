@@ -31,6 +31,12 @@ type ScanResponse = {
   debugTiming?: ScanDebugTiming;
 };
 
+type ScanErrorResponse = {
+  error?: string;
+  reason?: string;
+  debugTiming?: ScanDebugTiming;
+};
+
 type QueuedEvent = {
   clientEventId: string;
   qrToken: string;
@@ -251,6 +257,7 @@ export default function KioskClient({ slug }: { slug: string }) {
   const [settingsError, setSettingsError] = React.useState<string | null>(null);
   const [lastScanLatencyMs, setLastScanLatencyMs] = React.useState<number | null>(null);
   const [lastServerDebugTiming, setLastServerDebugTiming] = React.useState<ScanDebugTiming | null>(null);
+  const [lastDebugInvalidReason, setLastDebugInvalidReason] = React.useState<string | null>(null);
   const [now, setNow] = React.useState(() => new Date());
   const [lastScanAt, setLastScanAt] = React.useState<Date | null>(null);
   const [recentScans, setRecentScans] = React.useState<RecentScan[]>([]);
@@ -497,11 +504,9 @@ export default function KioskClient({ slug }: { slug: string }) {
         }
 
         if (!response.ok) {
-          const payload = (await response.json().catch(() => ({}))) as {
-            error?: string;
-            debugTiming?: ScanDebugTiming;
-          };
+          const payload = (await response.json().catch(() => ({}))) as ScanErrorResponse;
           setLastServerDebugTiming(payload.debugTiming ?? null);
+          setLastDebugInvalidReason(payload.reason ?? null);
           const message = payload.error ?? "Scan failed";
 
           if ([400, 401, 403].includes(response.status)) {
@@ -542,6 +547,7 @@ export default function KioskClient({ slug }: { slug: string }) {
 
         const payload = (await response.json()) as ScanResponse;
         setLastServerDebugTiming(payload.debugTiming ?? null);
+        setLastDebugInvalidReason(null);
         const parsedPayloadTime = parseKioskTimestamp(payload.time);
         if (!parsedPayloadTime && payload.time && diagnosticsEnabled) {
           console.warn("[kiosk-scan-debug] rejected invalid payload time", { payloadTime: payload.time });
@@ -611,6 +617,7 @@ export default function KioskClient({ slug }: { slug: string }) {
           scannedAt,
         });
         setLastServerDebugTiming(null);
+        setLastDebugInvalidReason(null);
         if (diagnosticsEnabled) {
           console.log("[kiosk-scan-debug] scan failed and queued", {
             error: scanError instanceof Error ? scanError.message : "error",
@@ -1263,6 +1270,7 @@ export default function KioskClient({ slug }: { slug: string }) {
                 <div>Server total time: {lastServerTotalMs !== null ? `${lastServerTotalMs}ms` : "n/a"}</div>
                 <div>Estimated transport/platform overhead: {estimatedTransportAndPlatformMs !== null ? `${estimatedTransportAndPlatformMs}ms` : "n/a"}</div>
                 <div>Last scan state: {lastScanOutcomeDiagnostic ?? "n/a"}</div>
+                <div>Last invalid reason: {lastDebugInvalidReason ?? "n/a"}</div>
                 <div>Scan started: {lastScanStartedLabel}</div>
                 <div>Scan ended: {lastScanEndedLabel}</div>
                 <div>Queue: {queue.length}</div>
