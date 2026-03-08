@@ -357,11 +357,6 @@ export async function processKioskSync(
     try {
       const result = await processKioskScan(repo, {
         kioskToken: input.kioskToken,
-        authenticatedDevice: {
-          id: device.id,
-          houseId: device.house_id,
-          branchId: device.branch_id,
-        },
         qrToken: event.qrToken,
         occurredAt: event.occurredAt,
         clientId: event.clientEventId,

@@ -254,6 +254,33 @@ describe("kiosk service", () => {
     assert.equal(sync.results[0]?.status, "processed");
   });
 
+
+  it("stops treating replay events as authorized after device is disabled mid-sync", async () => {
+    const qrToken = createEmployeeQrToken({ employeeId, houseId });
+    let deviceLookupCount = 0;
+    repo.findDeviceByTokenHash = async (tokenHash) => {
+      deviceLookupCount += 1;
+      const expected = hashKioskToken(kioskToken);
+      if (tokenHash !== expected) return null;
+      if (deviceLookupCount >= 3) {
+        return { ...devices[0]!, is_active: false };
+      }
+      return { ...devices[0]! };
+    };
+
+    const sync = await processKioskSync(repo, {
+      kioskToken,
+      events: [
+        { qrToken, occurredAt: "2026-02-01T09:00:00Z", clientEventId: "event-1" },
+        { qrToken, occurredAt: "2026-02-01T09:01:00Z", clientEventId: "event-2" },
+      ],
+    });
+
+    assert.equal(sync.results[0]?.status, "processed");
+    assert.equal(sync.results[1]?.status, "error");
+    assert.equal(sync.results[1]?.error, "Invalid kiosk token.");
+  });
+
   it("sync is idempotent via clientEventId", async () => {
     const qrToken = createEmployeeQrToken({ employeeId, houseId });
     const firstSync = await processKioskSync(repo, {
