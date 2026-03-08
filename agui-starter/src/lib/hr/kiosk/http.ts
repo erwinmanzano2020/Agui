@@ -71,6 +71,27 @@ function serializeScanResultTime<T extends { time: string }>(result: T): T {
   return { ...result, time: toIsoTimestamp(result.time) };
 }
 
+
+type KioskScanDebugTiming = {
+  serverTotalMs: number;
+  steps: {
+    authMs: number;
+    tokenResolveMs: number;
+    employeeLookupMs: number;
+    actionDecisionMs: number;
+    writeMs: number;
+    responseBuildMs: number;
+  };
+};
+
+function nowMs(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
+function roundMs(value: number): number {
+  return Math.max(0, Math.round(value));
+}
+
 type ScanBody = {
   qrToken?: string;
   occurredAt?: string;
@@ -78,6 +99,12 @@ type ScanBody = {
 };
 
 export async function handleKioskScan(request: Request) {
+  const requestStartedAt = nowMs();
+  const requestUrl = new URL(request.url);
+  const debugRequested = process.env.NEXT_PUBLIC_HR_KIOSK_SCAN_DEBUG === "1"
+    || requestUrl.searchParams.get("debug") === "1"
+    || request.headers.get("x-hr-kiosk-debug") === "1";
+
   let body: ScanBody;
   try {
     body = (await request.json()) as ScanBody;
@@ -89,31 +116,97 @@ export async function handleKioskScan(request: Request) {
     return NextResponse.json({ error: "qrToken is required." }, { status: 400 });
   }
 
+  let authMs = 0;
+  let tokenResolveMs = 0;
+  let employeeLookupMs = 0;
+  let actionDecisionMs = 0;
+  let writeMs = 0;
+
+  const buildTiming = (responseBuildStartedAt: number): KioskScanDebugTiming => ({
+    serverTotalMs: roundMs(nowMs() - requestStartedAt),
+    steps: {
+      authMs: roundMs(authMs),
+      tokenResolveMs: roundMs(tokenResolveMs),
+      employeeLookupMs: roundMs(employeeLookupMs),
+      actionDecisionMs: roundMs(actionDecisionMs),
+      writeMs: roundMs(writeMs),
+      responseBuildMs: roundMs(nowMs() - responseBuildStartedAt),
+    },
+  });
+
   try {
-    const token = readBearerKioskToken(request);
-    const supabase = createServiceSupabaseClient();
-    const auth = await requireKioskDevice(supabase, token);
-    const repo = createSupabaseKioskRepo(supabase);
+    let supabase: ReturnType<typeof createServiceSupabaseClient> | null = null;
+    let auth: Awaited<ReturnType<typeof requireKioskDevice>>;
+    const authStartedAt = nowMs();
+    try {
+      const token = readBearerKioskToken(request);
+      supabase = createServiceSupabaseClient();
+      auth = await requireKioskDevice(supabase, token);
+    } finally {
+      authMs = nowMs() - authStartedAt;
+    }
+
+    const repo = createSupabaseKioskRepo(supabase!);
 
     const result = await processKioskScan(repo, {
       kioskToken: auth.token,
       qrToken: body.qrToken,
       occurredAt: body.occurredAt,
       clientId: body.clientId,
+      timingHooks: {
+        onTokenResolved(durationMs) {
+          tokenResolveMs = durationMs;
+        },
+        onEmployeeLookupComplete(durationMs) {
+          employeeLookupMs = durationMs;
+        },
+        onActionDecisionComplete(durationMs) {
+          actionDecisionMs = durationMs;
+        },
+        onWriteComplete(durationMs) {
+          writeMs = durationMs;
+        },
+      },
     });
-    return NextResponse.json(serializeScanResultTime(result));
+
+    const responseBuildStartedAt = nowMs();
+    const payload: typeof result & { debugTiming?: KioskScanDebugTiming } = serializeScanResultTime(result);
+
+    if (debugRequested) {
+      payload.debugTiming = buildTiming(responseBuildStartedAt);
+      console.log("[kiosk-scan-debug] server-timing", {
+        clientId: body.clientId ?? null,
+        action: payload.action,
+        debugTiming: payload.debugTiming,
+      });
+    }
+
+    return NextResponse.json(payload);
   } catch (error) {
+    const responseBuildStartedAt = nowMs();
+    const debugTiming = debugRequested ? buildTiming(responseBuildStartedAt) : undefined;
+
+    if (debugRequested) {
+      console.log("[kiosk-scan-debug] server-timing", {
+        clientId: body.clientId ?? null,
+        error: error instanceof Error ? error.message : String(error),
+        debugTiming,
+      });
+    }
+
+    const basePayload: Record<string, unknown> = debugTiming ? { debugTiming } : {};
+
     if (error instanceof KioskRequestAuthError) {
-      return NextResponse.json({ error: error.message, reason: error.reason }, { status: error.status });
+      return NextResponse.json({ ...basePayload, error: error.message, reason: error.reason }, { status: error.status });
     }
     if (error instanceof KioskAuthError) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
+      return NextResponse.json({ ...basePayload, error: error.message }, { status: 401 });
     }
     if (error instanceof KioskConflictError) {
-      return NextResponse.json({ error: error.message, ...error.details }, { status: 409 });
+      return NextResponse.json({ ...basePayload, error: error.message, ...error.details }, { status: 409 });
     }
     const message = error instanceof Error ? error.message : "Failed kiosk scan.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json({ ...basePayload, error: message }, { status: 400 });
   }
 }
 

@@ -11,11 +11,24 @@ import {
   type SetupStep as WedgeSetupStep,
 } from "@/lib/hr/kiosk/wedge-focus";
 
+type ScanDebugTiming = {
+  serverTotalMs: number;
+  steps: {
+    authMs: number;
+    tokenResolveMs: number;
+    employeeLookupMs: number;
+    actionDecisionMs: number;
+    writeMs: number;
+    responseBuildMs: number;
+  };
+};
+
 type ScanResponse = {
   action: "clock_in" | "clock_out" | "debounced";
   employee: { id: string; code: string | null; displayName: string };
   time: string;
   offlineAccepted: boolean;
+  debugTiming?: ScanDebugTiming;
 };
 
 type QueuedEvent = {
@@ -237,6 +250,7 @@ export default function KioskClient({ slug }: { slug: string }) {
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [settingsError, setSettingsError] = React.useState<string | null>(null);
   const [lastScanLatencyMs, setLastScanLatencyMs] = React.useState<number | null>(null);
+  const [lastServerDebugTiming, setLastServerDebugTiming] = React.useState<ScanDebugTiming | null>(null);
   const [now, setNow] = React.useState(() => new Date());
   const [lastScanAt, setLastScanAt] = React.useState<Date | null>(null);
   const [recentScans, setRecentScans] = React.useState<RecentScan[]>([]);
@@ -467,11 +481,12 @@ export default function KioskClient({ slug }: { slug: string }) {
 
       try {
         const startedAt = performance.now();
-        const response = await fetch("/api/hr/kiosk/scan", {
+        const response = await fetch(`/api/hr/kiosk/scan${diagnosticsEnabled ? "?debug=1" : ""}`, {
           method: "POST",
           headers: {
             "content-type": "application/json",
             authorization: `Bearer ${kioskToken}`,
+            ...(diagnosticsEnabled ? { "x-hr-kiosk-debug": "1" } : {}),
           },
           body: JSON.stringify({ qrToken: extractedToken, occurredAt, clientId: clientEventId }),
         });
@@ -482,7 +497,11 @@ export default function KioskClient({ slug }: { slug: string }) {
         }
 
         if (!response.ok) {
-          const payload = (await response.json().catch(() => ({}))) as { error?: string };
+          const payload = (await response.json().catch(() => ({}))) as {
+            error?: string;
+            debugTiming?: ScanDebugTiming;
+          };
+          setLastServerDebugTiming(payload.debugTiming ?? null);
           const message = payload.error ?? "Scan failed";
 
           if ([400, 401, 403].includes(response.status)) {
@@ -522,6 +541,7 @@ export default function KioskClient({ slug }: { slug: string }) {
         }
 
         const payload = (await response.json()) as ScanResponse;
+        setLastServerDebugTiming(payload.debugTiming ?? null);
         const parsedPayloadTime = parseKioskTimestamp(payload.time);
         if (!parsedPayloadTime && payload.time && diagnosticsEnabled) {
           console.warn("[kiosk-scan-debug] rejected invalid payload time", { payloadTime: payload.time });
@@ -530,6 +550,17 @@ export default function KioskClient({ slug }: { slug: string }) {
         setLastScanAt(parsedPayloadTime ?? startedAtDate);
 
         const resolvedScanAt = parsedPayloadTime ?? startedAtDate;
+        if (diagnosticsEnabled) {
+          const serverTotalMs = payload.debugTiming?.serverTotalMs ?? null;
+          const estimatedTransportAndPlatformMs = serverTotalMs !== null ? Math.max(0, elapsedMs - serverTotalMs) : null;
+          console.log("[kiosk-scan-debug] latency-breakdown", {
+            clientLatencyMs: elapsedMs,
+            serverTotalMs,
+            estimatedTransportAndPlatformMs,
+            steps: payload.debugTiming?.steps ?? null,
+            action: payload.action,
+          });
+        }
         if (payload.action === "debounced") {
           recordRecentScan({
             icon: "⏱️",
@@ -579,6 +610,7 @@ export default function KioskClient({ slug }: { slug: string }) {
           employeeLabel: "Queued scan",
           scannedAt,
         });
+        setLastServerDebugTiming(null);
         if (diagnosticsEnabled) {
           console.log("[kiosk-scan-debug] scan failed and queued", {
             error: scanError instanceof Error ? scanError.message : "error",
@@ -911,6 +943,7 @@ export default function KioskClient({ slug }: { slug: string }) {
     setOperatorSubtext(null);
     setScanDebugMessage(null);
     setLastScanLatencyMs(null);
+    setLastServerDebugTiming(null);
     setLastScanStartedAt(null);
     setLastScanEndedAt(null);
     setLastScanOutcomeDiagnostic(null);
@@ -1061,6 +1094,10 @@ export default function KioskClient({ slug }: { slug: string }) {
   const lastSyncLabel = lastSyncAt ? formatTime(lastSyncAt) : "Never";
   const lastScanStartedLabel = lastScanStartedAt ? formatTime(lastScanStartedAt) : "n/a";
   const lastScanEndedLabel = lastScanEndedAt ? formatTime(lastScanEndedAt) : "n/a";
+  const lastServerTotalMs = lastServerDebugTiming?.serverTotalMs ?? null;
+  const estimatedTransportAndPlatformMs = lastScanLatencyMs !== null && lastServerTotalMs !== null
+    ? Math.max(0, lastScanLatencyMs - lastServerTotalMs)
+    : null;
 
   return (
     <main
@@ -1222,7 +1259,9 @@ export default function KioskClient({ slug }: { slug: string }) {
             <details className="mt-2 rounded border border-indigo-200 bg-indigo-50/60 p-2 text-xs text-indigo-950" open>
               <summary className="cursor-pointer font-semibold">Diagnostics (debug mode)</summary>
               <div className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
-                <div>Last latency: {lastScanLatencyMs !== null ? `${lastScanLatencyMs}ms` : "n/a"}</div>
+                <div>Client total latency: {lastScanLatencyMs !== null ? `${lastScanLatencyMs}ms` : "n/a"}</div>
+                <div>Server total time: {lastServerTotalMs !== null ? `${lastServerTotalMs}ms` : "n/a"}</div>
+                <div>Estimated transport/platform overhead: {estimatedTransportAndPlatformMs !== null ? `${estimatedTransportAndPlatformMs}ms` : "n/a"}</div>
                 <div>Last scan state: {lastScanOutcomeDiagnostic ?? "n/a"}</div>
                 <div>Scan started: {lastScanStartedLabel}</div>
                 <div>Scan ended: {lastScanEndedLabel}</div>
@@ -1231,6 +1270,19 @@ export default function KioskClient({ slug }: { slug: string }) {
                 <div>Last sync: {lastSyncLabel}</div>
                 <div>Discarded invalid (session): {discardedTerminalInvalidCount}</div>
               </div>
+              {lastServerDebugTiming ? (
+                <div className="mt-2 rounded border border-indigo-200 bg-white/80 p-2">
+                  <div className="font-medium">Latest server timing steps</div>
+                  <div className="mt-1 grid grid-cols-1 gap-1 sm:grid-cols-2">
+                    <div>Auth: {lastServerDebugTiming.steps.authMs}ms</div>
+                    <div>Token resolve: {lastServerDebugTiming.steps.tokenResolveMs}ms</div>
+                    <div>Employee lookup: {lastServerDebugTiming.steps.employeeLookupMs}ms</div>
+                    <div>Action decision: {lastServerDebugTiming.steps.actionDecisionMs}ms</div>
+                    <div>DB write: {lastServerDebugTiming.steps.writeMs}ms</div>
+                    <div>Response build: {lastServerDebugTiming.steps.responseBuildMs}ms</div>
+                  </div>
+                </div>
+              ) : null}
               {lastSyncSummary ? (
                 <div className="mt-2 rounded border border-indigo-200 bg-white/80 p-2">
                   Last sync summary · processed={lastSyncSummary.processedCount} · duplicates={lastSyncSummary.duplicateCount} · terminal-invalid/discarded={lastSyncSummary.discardedTerminalInvalidCount} · remaining={lastSyncSummary.remainingQueueCount}
