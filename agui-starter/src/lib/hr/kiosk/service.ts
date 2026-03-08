@@ -61,6 +61,17 @@ export type KioskScanResult = {
   metadata?: Record<string, unknown>;
 };
 
+export type KioskScanTimingHooks = {
+  onTokenResolved?: (durationMs: number) => void;
+  onEmployeeLookupComplete?: (durationMs: number) => void;
+  onActionDecisionComplete?: (durationMs: number) => void;
+  onWriteComplete?: (durationMs: number) => void;
+};
+
+function nowMs(): number {
+  return typeof performance !== "undefined" ? performance.now() : Date.now();
+}
+
 function getDisplayName(employee: KioskEmployee): string {
   return employee.full_name?.trim() || employee.code?.trim() || employee.id;
 }
@@ -101,8 +112,20 @@ export async function processKioskScan(
     occurredAt?: string;
     clientId?: string;
     offlineAccepted?: boolean;
+    timingHooks?: KioskScanTimingHooks;
   },
 ): Promise<KioskScanResult> {
+  let writeMs = 0;
+  const trackWrite = async <T>(operation: () => Promise<T>): Promise<T> => {
+    const startedAt = nowMs();
+    try {
+      return await operation();
+    } finally {
+      writeMs += nowMs() - startedAt;
+      input.timingHooks?.onWriteComplete?.(Math.round(writeMs));
+    }
+  };
+
   const tokenHash = hashKioskToken(input.kioskToken);
   const device = await repo.findDeviceByTokenHash(tokenHash);
   if (!device || !device.is_active) {
@@ -110,13 +133,15 @@ export async function processKioskScan(
   }
 
   const occurredAt = normalizeOccurredAt(input.occurredAt);
-  await repo.touchDevice(device.id);
+  await trackWrite(() => repo.touchDevice(device.id));
 
   let qrClaims: { employeeId: string; houseId: string };
+  const tokenResolveStartedAt = nowMs();
   try {
     qrClaims = verifyEmployeeQrToken(input.qrToken);
   } catch (error) {
-    await repo.insertKioskEvent({
+    input.timingHooks?.onTokenResolved?.(Math.round(nowMs() - tokenResolveStartedAt));
+    await trackWrite(() => repo.insertKioskEvent({
       houseId: device.house_id,
       branchId: device.branch_id,
       deviceId: device.id,
@@ -128,12 +153,13 @@ export async function processKioskScan(
         clientId: input.clientId ?? null,
         error: error instanceof Error ? error.message : String(error),
       },
-    });
+    }));
     throw error;
   }
+  input.timingHooks?.onTokenResolved?.(Math.round(nowMs() - tokenResolveStartedAt));
 
   if (qrClaims.houseId !== device.house_id) {
-    await repo.insertKioskEvent({
+    await trackWrite(() => repo.insertKioskEvent({
       houseId: device.house_id,
       branchId: device.branch_id,
       deviceId: device.id,
@@ -141,13 +167,15 @@ export async function processKioskScan(
       eventType: "reject",
       occurredAt,
       metadata: { reason: "house_mismatch", clientId: input.clientId ?? null },
-    });
+    }));
     throw new Error("QR token does not match kiosk house.");
   }
 
+  const employeeLookupStartedAt = nowMs();
   const employee = await repo.findEmployeeById(qrClaims.employeeId);
+  input.timingHooks?.onEmployeeLookupComplete?.(Math.round(nowMs() - employeeLookupStartedAt));
   if (!employee || employee.house_id !== device.house_id) {
-    await repo.insertKioskEvent({
+    await trackWrite(() => repo.insertKioskEvent({
       houseId: device.house_id,
       branchId: device.branch_id,
       deviceId: device.id,
@@ -155,11 +183,15 @@ export async function processKioskScan(
       eventType: "reject",
       occurredAt,
       metadata: { reason: "employee_not_found", clientId: input.clientId ?? null },
-    });
+    }));
     throw new Error("Employee is not available for this kiosk.");
   }
 
+  let actionDecisionMs = 0;
+  const actionDecisionStartedAt = nowMs();
   const lastEvent = await repo.findLatestEmployeeEvent(device.house_id, employee.id);
+  actionDecisionMs += nowMs() - actionDecisionStartedAt;
+  input.timingHooks?.onActionDecisionComplete?.(Math.round(actionDecisionMs));
   if (lastEvent && diffSeconds(lastEvent.occurred_at, occurredAt) < DEBOUNCE_SECONDS) {
     return {
       action: "debounced",
@@ -171,7 +203,7 @@ export async function processKioskScan(
     };
   }
 
-  await repo.insertKioskEvent({
+  await trackWrite(() => repo.insertKioskEvent({
     houseId: device.house_id,
     branchId: device.branch_id,
     deviceId: device.id,
@@ -179,9 +211,12 @@ export async function processKioskScan(
     eventType: "scan",
     occurredAt,
     metadata: { clientId: input.clientId ?? null },
-  });
+  }));
 
+  const openSegmentsDecisionStartedAt = nowMs();
   const openSegments = await repo.findOpenSegments(employee.id);
+  actionDecisionMs += nowMs() - openSegmentsDecisionStartedAt;
+  input.timingHooks?.onActionDecisionComplete?.(Math.round(actionDecisionMs));
   const latestOpen = openSegments[0] ?? null;
   const workDate = toManilaDate(occurredAt) ?? occurredAt.slice(0, 10);
   const metadata: Record<string, unknown> = {};
@@ -194,7 +229,7 @@ export async function processKioskScan(
     const timeInMs = latestOpen.time_in ? new Date(latestOpen.time_in).getTime() : Number.NaN;
     const occurredAtMs = new Date(occurredAt).getTime();
     if (!Number.isNaN(timeInMs) && occurredAtMs <= timeInMs) {
-      await repo.insertKioskEvent({
+      await trackWrite(() => repo.insertKioskEvent({
         houseId: device.house_id,
         branchId: device.branch_id,
         deviceId: device.id,
@@ -208,7 +243,7 @@ export async function processKioskScan(
           clientEventId: input.clientId ?? null,
           segmentId: latestOpen.id,
         },
-      });
+      }));
       throw new KioskConflictError("occurredAt is earlier than or equal to open segment time_in.", {
         reason: "stale_occurred_at",
         employee: { id: employee.id, code: employee.code, displayName: getDisplayName(employee) },
@@ -218,9 +253,9 @@ export async function processKioskScan(
       });
     }
 
-    const closed = await repo.closeSegment(latestOpen.id, occurredAt);
+    const closed = await trackWrite(() => repo.closeSegment(latestOpen.id, occurredAt));
     if (!closed) throw new Error("Failed to close open segment.");
-    await repo.insertKioskEvent({
+    await trackWrite(() => repo.insertKioskEvent({
       houseId: device.house_id,
       branchId: device.branch_id,
       deviceId: device.id,
@@ -228,7 +263,7 @@ export async function processKioskScan(
       eventType: "clock_out",
       occurredAt,
       metadata: { segmentId: closed.id, clientId: input.clientId ?? null, ...metadata },
-    });
+    }));
     return {
       action: "clock_out",
       employee: { id: employee.id, code: employee.code, displayName: getDisplayName(employee) },
@@ -240,15 +275,15 @@ export async function processKioskScan(
     };
   }
 
-  const created = await repo.createOpenSegment({
+  const created = await trackWrite(() => repo.createOpenSegment({
     houseId: device.house_id,
     employeeId: employee.id,
     workDate,
     timeIn: occurredAt,
-  });
+  }));
   if (!created) throw new Error("Failed to create open segment.");
 
-  await repo.insertKioskEvent({
+  await trackWrite(() => repo.insertKioskEvent({
     houseId: device.house_id,
     branchId: device.branch_id,
     deviceId: device.id,
@@ -256,7 +291,7 @@ export async function processKioskScan(
     eventType: "clock_in",
     occurredAt,
     metadata: { segmentId: created.id, clientId: input.clientId ?? null, ...metadata },
-  });
+  }));
 
   return {
     action: "clock_in",

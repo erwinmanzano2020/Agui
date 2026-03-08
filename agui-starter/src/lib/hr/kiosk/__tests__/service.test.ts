@@ -286,6 +286,38 @@ describe("kiosk service", () => {
     await assert.rejects(() => processKioskScan(repo, { kioskToken, qrToken }), (error: unknown) => error instanceof KioskAuthError);
   });
 
+
+  it("reports scan timing hooks for debug instrumentation", async () => {
+    const qrToken = createEmployeeQrToken({ employeeId, houseId });
+    const timings: Record<string, number> = {};
+
+    const result = await processKioskScan(repo, {
+      kioskToken,
+      qrToken,
+      occurredAt: "2026-02-01T09:00:00Z",
+      timingHooks: {
+        onTokenResolved(durationMs) {
+          timings.tokenResolveMs = durationMs;
+        },
+        onEmployeeLookupComplete(durationMs) {
+          timings.employeeLookupMs = durationMs;
+        },
+        onActionDecisionComplete(durationMs) {
+          timings.actionDecisionMs = durationMs;
+        },
+        onWriteComplete(durationMs) {
+          timings.writeMs = durationMs;
+        },
+      },
+    });
+
+    assert.equal(result.action, "clock_in");
+    assert.ok(typeof timings.tokenResolveMs === "number");
+    assert.ok(typeof timings.employeeLookupMs === "number");
+    assert.ok(typeof timings.actionDecisionMs === "number");
+    assert.ok(typeof timings.writeMs === "number");
+  });
+
   it("touches device on scan and sync", async () => {
     const qrToken = createEmployeeQrToken({ employeeId, houseId });
     await processKioskScan(repo, { kioskToken, qrToken, occurredAt: "2026-02-01T09:00:00Z" });
