@@ -3,11 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
+import { buildEmployeePhotoPath } from "@/lib/hr/employee-photo";
 import { getSupabase } from "@/lib/supabase";
 
 type Props = {
   employeeId: string;
   initialPhotoUrl?: string | null;
+  initialPhotoPath?: string | null;
   label?: string;
 };
 
@@ -41,8 +43,9 @@ async function toOptimizedJpeg(file: File): Promise<Blob> {
   return blob;
 }
 
-export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, label = "Employee Photo" }: Props) {
+export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initialPhotoPath = null, label = "Employee Photo" }: Props) {
   const [photoUrl, setPhotoUrl] = useState(initialPhotoUrl);
+  const [photoPath, setPhotoPath] = useState(initialPhotoPath);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,7 +71,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, label =
     setUploading(true);
     setError(null);
     try {
-      const path = `${employeeId}.jpg`;
+      const path = buildEmployeePhotoPath(employeeId);
       const { error: uploadError } = await supabase.storage.from("employee-photos").upload(path, blob, {
         contentType: "image/jpeg",
         upsert: true,
@@ -77,6 +80,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, label =
 
       const { data } = supabase.storage.from("employee-photos").getPublicUrl(path);
       setPhotoUrl(data.publicUrl);
+      setPhotoPath(path);
     } catch (uploadError) {
       const message = uploadError instanceof Error ? uploadError.message : "Failed to upload photo";
       setError(message);
@@ -167,6 +171,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, label =
       </div>
 
       <input type="hidden" name="photo_url" value={photoUrl ?? ""} />
+      <input type="hidden" name="photo_path" value={photoPath ?? ""} />
 
       <div className="flex flex-wrap items-center gap-2">
         <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onUploadFile} disabled={uploading} />

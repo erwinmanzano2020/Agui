@@ -121,7 +121,7 @@ export function EditEmployeeForm({ employee, branches, branchLoadError, houseId,
           <FieldError message={state.fieldErrors?.position_title} />
         </label>
 
-        <EmployeePhotoField employeeId={employee.id} initialPhotoUrl={employee.photo_url ?? null} />
+        <EmployeePhotoField employeeId={employee.id} initialPhotoUrl={employee.photo_url ?? null} initialPhotoPath={employee.photo_path ?? null} />
 
         <label className="block space-y-1 text-sm text-muted-foreground">
           Rate per day

@@ -9,6 +9,7 @@ import {
   EmployeeDuplicateIdentityError,
   EmployeeUpdateError,
   createEmployeeForHouseWithAccess,
+  deleteEmployeeForHouseWithAccess,
   getEmployeeByIdForHouse,
   listBranchesForHouse,
   listEmployeesByHouse,
@@ -489,6 +490,21 @@ describe("createEmployeeForHouseWithAccess", () => {
     assert.equal(supabase.employees.length, 1);
   });
 
+  it("uses a provided employee id during create", async () => {
+    const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
+
+    const created = await createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
+      id: "00000000-0000-4000-8000-000000000555",
+      full_name: "ID Locked Hire",
+      status: "active",
+      branch_id: "branch-1",
+      rate_per_day: 900,
+    });
+
+    assert.equal(created.id, "00000000-0000-4000-8000-000000000555");
+    assert.equal(supabase.employees[0]?.id, "00000000-0000-4000-8000-000000000555");
+  });
+
   it("generates distinct codes per house when code is omitted", async () => {
     const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
 
@@ -744,5 +760,120 @@ describe("updateEmployeeForHouseWithAccess", () => {
         }),
       EmployeeUpdateError,
     );
+  });
+});
+
+
+class EmployeeDeleteQueryMock {
+  constructor(
+    private employees: EmployeeRow[],
+    private filters: Partial<EmployeeRow> = {},
+    private mode: "select" | "delete" = "select",
+  ) {}
+
+  select() {
+    return this;
+  }
+
+  eq(column: keyof EmployeeRow, value: string) {
+    return new EmployeeDeleteQueryMock(this.employees, Object.assign({}, this.filters, { [column]: value }), this.mode);
+  }
+
+  delete() {
+    return new EmployeeDeleteQueryMock(this.employees, this.filters, "delete");
+  }
+
+  async maybeSingle<T>() {
+    const match = this.employees.find((row) =>
+      Object.entries(this.filters).every(([key, value]) => (row as Record<string, unknown>)[key] === value),
+    );
+    return { data: (match as T | null) ?? null, error: null } as const;
+  }
+
+  then(resolve: (value: { error: { message: string } | null }) => void) {
+    if (this.mode !== "delete") {
+      resolve({ error: { message: "invalid mode" } });
+      return;
+    }
+
+    const index = this.employees.findIndex((row) =>
+      Object.entries(this.filters).every(([key, value]) => (row as Record<string, unknown>)[key] === value),
+    );
+    if (index >= 0) {
+      this.employees.splice(index, 1);
+    }
+
+    resolve({ error: null });
+  }
+}
+
+class DeleteSupabaseMock {
+  public removedPaths: string[][] = [];
+  public storageError: { message: string } | null = null;
+
+  constructor(public employees: EmployeeRow[]) {}
+
+  from(table: string) {
+    if (table !== "employees") {
+      throw new Error(`Unexpected table ${table}`);
+    }
+    return new EmployeeDeleteQueryMock(this.employees);
+  }
+
+  storage = {
+    from: (bucket: string) => {
+      void bucket;
+      return {
+        remove: async (paths: string[]) => {
+          this.removedPaths.push(paths);
+          return { error: this.storageError } as const;
+        },
+      };
+    },
+  };
+}
+
+describe("deleteEmployeeForHouseWithAccess", () => {
+  const allowedAccess: HrAccessDecision = {
+    allowed: true,
+    allowedByPolicy: false,
+    allowedByRole: true,
+    hasWorkspaceAccess: true,
+    normalizedRoles: [normalizeWorkspaceRole("house_owner")],
+    policyKeys: [],
+    roles: ["house_owner"],
+    entityId: "entity-1",
+  };
+
+  it("deletes employee and attempts photo cleanup", async () => {
+    const supabase = new DeleteSupabaseMock([
+      {
+        ...baseRow,
+        id: "emp-delete",
+        photo_path: "employee-photos/emp-delete.jpg",
+      },
+    ]);
+
+    const deleted = await deleteEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", "emp-delete");
+
+    assert.equal(deleted, true);
+    assert.equal(supabase.employees.length, 0);
+    assert.deepEqual(supabase.removedPaths, [["employee-photos/emp-delete.jpg"]]);
+  });
+
+  it("continues deletion when storage cleanup fails", async () => {
+    const supabase = new DeleteSupabaseMock([
+      {
+        ...baseRow,
+        id: "emp-delete",
+        photo_path: "employee-photos/emp-delete.jpg",
+      },
+    ]);
+    supabase.storageError = { message: "boom" };
+
+    const deleted = await deleteEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", "emp-delete");
+
+    assert.equal(deleted, true);
+    assert.equal(supabase.employees.length, 0);
   });
 });

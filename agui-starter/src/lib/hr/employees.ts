@@ -161,6 +161,7 @@ export function createInMemoryEmployeeRepository(initial?: {
         branch_id: payload.branch_id ?? null,
         position_title: payload.position_title ?? null,
         photo_url: payload.photo_url ?? null,
+        photo_path: payload.photo_path ?? null,
         created_at: now,
         updated_at: payload.updated_at ?? now,
       } satisfies EmployeeRow;
@@ -180,6 +181,7 @@ export function createInMemoryEmployeeRepository(initial?: {
         rate_per_day: updates.rate_per_day ?? existing.rate_per_day,
         position_title: updates.position_title ?? existing.position_title ?? null,
         photo_url: updates.photo_url ?? existing.photo_url ?? null,
+        photo_path: updates.photo_path ?? existing.photo_path ?? null,
         updated_at: updates.updated_at ?? new Date().toISOString(),
       } satisfies EmployeeRow;
 
