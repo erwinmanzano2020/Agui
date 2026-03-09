@@ -12,7 +12,7 @@ export async function listEmployeeIdCards(
 ): Promise<EmployeeIdCardRow[]> {
   let query = supabase
     .from("employees")
-    .select("id, code, full_name, position_title, house_id, branch_id")
+    .select("id, code, full_name, position_title, photo_url, house_id, branch_id")
     .eq("house_id", houseId)
     .eq("status", "active");
 
@@ -48,6 +48,7 @@ export async function listEmployeeIdCards(
     houseName: house?.name ?? "",
     houseBrandName: house?.brand_name ?? null,
     houseLogoUrl: house?.logo_url ?? null,
+    photoUrl: employee.photo_url ?? null,
   }));
 }
 
@@ -59,7 +60,7 @@ export async function getEmployeeIdCardById(
   const [{ data: employee, error }, { data: house }, { data: branch }] = await Promise.all([
     supabase
       .from("employees")
-      .select("id, code, full_name, position_title, house_id, branch_id")
+      .select("id, code, full_name, position_title, photo_url, house_id, branch_id")
       .eq("id", employeeId)
       .eq("house_id", houseId)
       .maybeSingle(),
@@ -91,5 +92,6 @@ export async function getEmployeeIdCardById(
     houseName: house?.name ?? "",
     houseBrandName: house?.brand_name ?? null,
     houseLogoUrl: house?.logo_url ?? null,
+    photoUrl: employee.photo_url ?? null,
   };
 }

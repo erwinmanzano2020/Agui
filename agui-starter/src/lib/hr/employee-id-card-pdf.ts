@@ -35,6 +35,11 @@ type HouseLogo = {
   format: "PNG" | "JPEG";
 };
 
+type EmployeePhoto = {
+  dataUrl: string;
+  format: "PNG" | "JPEG";
+};
+
 function cleanText(text: string | null | undefined): string {
   return text?.trim() ?? "";
 }
@@ -150,11 +155,48 @@ export async function resolveHouseLogo(logoUrl: string | null, cache: Map<string
   }
 }
 
+
+async function resolveEmployeePhoto(photoUrl: string | null, cache: Map<string, EmployeePhoto | null>): Promise<EmployeePhoto | null> {
+  const url = cleanText(photoUrl);
+  if (!url) return null;
+
+  if (cache.has(url)) {
+    return cache.get(url) ?? null;
+  }
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      cache.set(url, null);
+      return null;
+    }
+
+    const contentType = response.headers.get("content-type")?.toLocaleLowerCase().split(";")[0]?.trim() ?? "";
+    const isPng = contentType === "image/png";
+    const isJpeg = contentType === "image/jpeg" || contentType === "image/jpg";
+    if (!isPng && !isJpeg) {
+      cache.set(url, null);
+      return null;
+    }
+
+    const base64 = Buffer.from(await response.arrayBuffer()).toString("base64");
+    const mimeType = isJpeg ? "image/jpeg" : "image/png";
+    const format: "PNG" | "JPEG" = isJpeg ? "JPEG" : "PNG";
+    const photo = { dataUrl: `data:${mimeType};base64,${base64}`, format };
+    cache.set(url, photo);
+    return photo;
+  } catch {
+    cache.set(url, null);
+    return null;
+  }
+}
+
 function drawCard(
   doc: jsPDF,
   row: EmployeeIdCardRow,
   qrDataUrl: string,
   houseLogo: HouseLogo | null,
+  employeePhoto: EmployeePhoto | null,
   x: number,
   y: number,
 ) {
@@ -208,10 +250,14 @@ function drawCard(
   doc.setLineWidth(0.35);
   doc.roundedRect(photoX, photoY, photoW, photoH, 0.9, 0.9);
 
-  doc.setTextColor(175, 175, 175);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(5.2);
-  doc.text("PHOTO", photoX + photoW / 2, photoY + photoH / 2, { align: "center", baseline: "middle" });
+  if (employeePhoto) {
+    doc.addImage(employeePhoto.dataUrl, employeePhoto.format, photoX + 0.4, photoY + 0.4, photoW - 0.8, photoH - 0.8);
+  } else {
+    doc.setTextColor(175, 175, 175);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(5.2);
+    doc.text("PHOTO", photoX + photoW / 2, photoY + photoH / 2, { align: "center", baseline: "middle" });
+  }
 
   doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "bold");
@@ -293,7 +339,8 @@ export async function generateEmployeeIdCardPdf(row: EmployeeIdCardRow): Promise
 
   const doc = new jsPDF({ unit: "mm", format: [CR80_HEIGHT_MM, CR80_WIDTH_MM], orientation: "landscape" });
   const houseLogo = await resolveHouseLogo(row.houseLogoUrl, new Map());
-  drawCard(doc, row, qrDataUrl, houseLogo, 0, 0);
+  const employeePhoto = await resolveEmployeePhoto(row.photoUrl, new Map());
+  drawCard(doc, row, qrDataUrl, houseLogo, employeePhoto, 0, 0);
 
   const buffer = doc.output("arraybuffer") as ArrayBuffer;
   return new Uint8Array(buffer);
@@ -320,12 +367,14 @@ export async function generateEmployeeIdCardsSheetPdf(
   const cardsPerPage = cols * rowsPerPage;
 
   const logoCache = new Map<string, HouseLogo | null>();
-  const [qrDataUrls, houseLogos] = await Promise.all([
+  const photoCache = new Map<string, EmployeePhoto | null>();
+  const [qrDataUrls, houseLogos, employeePhotos] = await Promise.all([
     mapWithConcurrency(sortedRows, QR_CONCURRENCY, async (row) => {
       const token = createEmployeeQrToken({ employeeId: row.id, houseId: row.houseId });
       return generateQrPngDataUrl(token);
     }),
     mapWithConcurrency(sortedRows, QR_CONCURRENCY, async (row) => resolveHouseLogo(row.houseLogoUrl, logoCache)),
+    mapWithConcurrency(sortedRows, QR_CONCURRENCY, async (row) => resolveEmployeePhoto(row.photoUrl, photoCache)),
   ]);
 
   sortedRows.forEach((row, index) => {
@@ -339,7 +388,7 @@ export async function generateEmployeeIdCardsSheetPdf(
     const colSlot = slot % cols;
     const x = startX + colSlot * (CR80_WIDTH_MM + horizontalGap);
     const y = startY + rowSlot * (CR80_HEIGHT_MM + verticalGap);
-    drawCard(doc, row, qrDataUrls[index], houseLogos[index], x, y);
+    drawCard(doc, row, qrDataUrls[index], houseLogos[index], employeePhotos[index], x, y);
 
     if (includeCutGuides) {
       doc.setDrawColor(190);

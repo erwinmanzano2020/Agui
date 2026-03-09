@@ -9,6 +9,7 @@ export type EmployeeIdCardRow = {
   houseName: string;
   houseBrandName: string | null;
   houseLogoUrl: string | null;
+  photoUrl: string | null;
 };
 
 export function employeeIdCardSortKey(row: Pick<EmployeeIdCardRow, "code" | "id">): string {

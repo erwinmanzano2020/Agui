@@ -28,6 +28,7 @@ export type EmployeeListItem = {
   branch_name: string | null;
   rate_per_day: number;
   position_title?: string | null;
+  photo_url?: string | null;
   identity?: IdentitySummary | null;
   identity_unavailable?: boolean;
 };
@@ -48,6 +49,7 @@ export type EmployeeProfile = {
   branch_name: string | null;
   rate_per_day: number;
   position_title?: string | null;
+  photo_url?: string | null;
   created_at: string;
   identity?: IdentitySummary | null;
   identity_unavailable?: boolean;
@@ -59,6 +61,7 @@ export type EmployeeUpdateInput = {
   branch_id: string | null;
   rate_per_day: number;
   position_title?: string | null;
+  photo_url?: string | null;
 };
 
 export class EmployeeUpdateError extends Error {}
@@ -76,12 +79,14 @@ export class EmployeeDuplicateIdentityError extends EmployeeCreateError {
 }
 
 export type EmployeeCreateInput = {
+  id?: string;
   full_name: string;
   status?: EmployeeRow["status"];
   branch_id?: string | null;
   entity_id?: string | null;
   rate_per_day: number;
   position_title?: string | null;
+  photo_url?: string | null;
 };
 
 async function findActiveEmployeeForEntity(
@@ -145,7 +150,7 @@ export async function listEmployeesByHouse(
 
   let query = supabase
     .from("employees")
-    .select("id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title")
+    .select("id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, photo_url")
     .eq("house_id", houseId);
 
   if (filters.status && filters.status !== "all") {
@@ -178,6 +183,7 @@ export async function listEmployeesByHouse(
       branch_name: branchId ? branchNameLookup[branchId] ?? null : null,
       rate_per_day: Number(employee.rate_per_day ?? 0),
       position_title: employee.position_title ?? null,
+      photo_url: employee.photo_url ?? null,
     } satisfies EmployeeListItem;
   });
 
@@ -220,7 +226,7 @@ export async function getEmployeeByIdForHouse(
   const { data } = await supabase
     .from("employees")
     .select(
-      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, created_at, branches(id, name, house_id)",
+      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, photo_url, created_at, branches(id, name, house_id)",
     )
     .eq("house_id", houseId)
     .eq("id", employeeId)
@@ -268,6 +274,7 @@ export async function getEmployeeByIdForHouse(
     branch_name: branchName,
     rate_per_day: Number(employee.rate_per_day ?? 0),
     position_title: employee.position_title ?? null,
+    photo_url: employee.photo_url ?? null,
     created_at: employee.created_at,
     identity,
     identity_unavailable: identityUnavailable,
@@ -327,6 +334,7 @@ export async function updateEmployeeForHouse(
     branch_id: patch.branch_id,
     rate_per_day: patch.rate_per_day,
     position_title: patch.position_title,
+    photo_url: patch.photo_url,
   };
 
   const { data, error } = await supabase
@@ -335,7 +343,7 @@ export async function updateEmployeeForHouse(
     .eq("id", employeeId)
     .eq("house_id", houseId)
     .select(
-      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, created_at, branches(id, name, house_id)",
+      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, photo_url, created_at, branches(id, name, house_id)",
     )
     .maybeSingle<EmployeeWithBranch>();
 
@@ -365,6 +373,7 @@ export async function updateEmployeeForHouse(
     branch_name: branchName,
     rate_per_day: Number(data.rate_per_day ?? 0),
     position_title: data.position_title ?? null,
+    photo_url: data.photo_url ?? null,
     created_at: data.created_at,
   } satisfies EmployeeProfile;
 }
@@ -455,13 +464,14 @@ export async function createEmployeeForHouse(
     entity_id: entityId,
     rate_per_day: payload.rate_per_day,
     position_title: payload.position_title ?? null,
+    photo_url: payload.photo_url ?? null,
   };
 
   const { data, error } = await supabase
     .from("employees")
     .insert(insert)
     .select(
-      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, created_at, branches(id, name, house_id)",
+      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, photo_url, created_at, branches(id, name, house_id)",
     )
     .maybeSingle<EmployeeWithBranch>();
 
@@ -498,6 +508,7 @@ export async function createEmployeeForHouse(
     branch_name: branchBelongsToHouse ? data.branches?.name ?? null : null,
     rate_per_day: Number(data.rate_per_day ?? 0),
     position_title: data.position_title ?? null,
+    photo_url: data.photo_url ?? null,
     created_at: data.created_at,
   } satisfies EmployeeProfile;
 }

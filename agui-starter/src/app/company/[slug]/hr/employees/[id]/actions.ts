@@ -27,6 +27,7 @@ const EmployeeUpdateSchema = z.object({
   branch_id: z.string().trim().optional(),
   rate_per_day: z.number(),
   position_title: z.string().trim().max(120, "Position is too long").optional(),
+  photo_url: z.string().trim().optional(),
 });
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -54,6 +55,7 @@ export async function updateEmployeeAction(
     branch_id: branchId || undefined,
     rate_per_day: parsedRate,
     position_title: typeof formData.get("position_title") === "string" ? String(formData.get("position_title")).trim() || undefined : undefined,
+    photo_url: typeof formData.get("photo_url") === "string" ? String(formData.get("photo_url")).trim() || undefined : undefined,
   });
 
   if (!parsed.success) {
@@ -101,6 +103,7 @@ export async function updateEmployeeAction(
       ...payload,
       branch_id: normalizedBranchId,
       position_title: payload.position_title?.trim() || null,
+      photo_url: payload.photo_url?.trim() || null,
     });
 
     if (!updated) {

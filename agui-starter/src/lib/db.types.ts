@@ -205,6 +205,7 @@ export type EmployeeRow = {
   code: string;
   entity_id: string | null;
   full_name: string;
+  photo_url?: string | null;
   rate_per_day: number;
   status: "active" | "inactive";
   branch_id: string | null;
@@ -219,6 +220,7 @@ export type EmployeeInsert = {
   code?: string;
   entity_id?: string | null;
   full_name?: string;
+  photo_url?: string | null;
   rate_per_day?: number;
   status?: EmployeeRow["status"];
   branch_id?: string | null;

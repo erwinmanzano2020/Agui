@@ -42,6 +42,8 @@ const CreateEmployeeSchema = z.object({
   branch_id: z.string().trim().optional(),
   rate_per_day: z.number(),
   position_title: z.string().trim().max(120, "Position is too long").optional(),
+  photo_url: z.string().trim().optional(),
+  employee_id: z.string().trim().uuid().optional(),
   email: EmailSchema,
   phone: PhoneSchema,
   entity_id: z.string().trim().uuid().optional(),
@@ -77,6 +79,8 @@ export async function createEmployeeAction(
     branch_id: branchId || undefined,
     rate_per_day: parsedRate,
     position_title: typeof formData.get("position_title") === "string" ? String(formData.get("position_title")).trim() || undefined : undefined,
+    photo_url: typeof formData.get("photo_url") === "string" ? String(formData.get("photo_url")).trim() || undefined : undefined,
+    employee_id: typeof formData.get("employee_id") === "string" ? String(formData.get("employee_id")).trim() || undefined : undefined,
     email: email || undefined,
     phone: phone || undefined,
     entity_id: entityIdInput || undefined,
@@ -172,12 +176,14 @@ export async function createEmployeeAction(
   }
 
   const payload: EmployeeCreateInput = {
+    id: parsed.data.employee_id ?? undefined,
     full_name: parsed.data.full_name,
     status: parsed.data.status ?? "active",
     branch_id: normalizedBranchId,
     rate_per_day: parsed.data.rate_per_day,
     entity_id: entityId,
     position_title: parsed.data.position_title?.trim() || null,
+    photo_url: parsed.data.photo_url?.trim() || null,
   };
 
   try {

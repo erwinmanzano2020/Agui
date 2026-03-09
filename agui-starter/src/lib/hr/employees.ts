@@ -73,6 +73,7 @@ export function buildEmployeeRow(
     status: overrides.status ?? "active",
     branch_id: overrides.branch_id ?? null,
     position_title: overrides.position_title ?? null,
+    photo_url: overrides.photo_url ?? null,
     created_at: overrides.created_at ?? now,
     updated_at: overrides.updated_at ?? now,
   } satisfies EmployeeRow;
@@ -159,6 +160,7 @@ export function createInMemoryEmployeeRepository(initial?: {
         status,
         branch_id: payload.branch_id ?? null,
         position_title: payload.position_title ?? null,
+        photo_url: payload.photo_url ?? null,
         created_at: now,
         updated_at: payload.updated_at ?? now,
       } satisfies EmployeeRow;
@@ -177,6 +179,7 @@ export function createInMemoryEmployeeRepository(initial?: {
         full_name: updates.full_name?.trim() || existing.full_name,
         rate_per_day: updates.rate_per_day ?? existing.rate_per_day,
         position_title: updates.position_title ?? existing.position_title ?? null,
+        photo_url: updates.photo_url ?? existing.photo_url ?? null,
         updated_at: updates.updated_at ?? new Date().toISOString(),
       } satisfies EmployeeRow;
 
