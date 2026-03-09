@@ -14,6 +14,7 @@ type Props = {
 };
 
 const MAX_IMAGE_DIMENSION = 512;
+const UPLOAD_TIMEOUT_MS = 45_000;
 
 async function toOptimizedJpeg(file: File): Promise<Blob> {
   const image = await createImageBitmap(file);
@@ -57,6 +58,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
   const streamRef = useRef<MediaStream | null>(null);
   const countdownTimeoutRef = useRef<number | null>(null);
   const flashTimeoutRef = useRef<number | null>(null);
+  const uploadRequestIdRef = useRef(0);
 
   const clearTimers = useCallback(() => {
     setCountdown(null);
@@ -71,6 +73,11 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       window.clearTimeout(flashTimeoutRef.current);
       flashTimeoutRef.current = null;
     }
+  }, []);
+
+  const invalidateUploadFlow = useCallback(() => {
+    uploadRequestIdRef.current += 1;
+    setUploading(false);
   }, []);
 
   const stopCamera = useCallback(() => {
@@ -93,14 +100,16 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
     stopCamera();
     setCameraOpen(false);
     resetCapturedState();
-  }, [resetCapturedState, stopCamera]);
+    invalidateUploadFlow();
+  }, [invalidateUploadFlow, resetCapturedState, stopCamera]);
 
   useEffect(() => {
     return () => {
       stopCamera();
       resetCapturedState();
+      invalidateUploadFlow();
     };
-  }, [resetCapturedState, stopCamera]);
+  }, [invalidateUploadFlow, resetCapturedState, stopCamera]);
 
   useEffect(() => {
     setPhotoUrl(initialPhotoUrl);
@@ -128,26 +137,57 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       return false;
     }
 
+    const requestId = uploadRequestIdRef.current + 1;
+    uploadRequestIdRef.current = requestId;
     setUploading(true);
     setError(null);
+
+    let timeoutId: number | null = null;
+
     try {
       const path = buildEmployeePhotoPath(employeeId);
-      const { error: uploadError } = await supabase.storage.from("employee-photos").upload(path, blob, {
+      const uploadPromise = supabase.storage.from("employee-photos").upload(path, blob, {
         contentType: "image/jpeg",
         upsert: true,
       });
-      if (uploadError) throw uploadError;
+
+      const uploadResult = await Promise.race([
+        uploadPromise,
+        new Promise<never>((_, reject) => {
+          timeoutId = window.setTimeout(() => {
+            reject(new Error("Photo upload timed out. Please try again."));
+          }, UPLOAD_TIMEOUT_MS);
+        }),
+      ]);
+
+      if (uploadResult.error) {
+        throw uploadResult.error;
+      }
+
+      if (uploadRequestIdRef.current !== requestId) {
+        return false;
+      }
 
       const { data } = supabase.storage.from("employee-photos").getPublicUrl(path);
       setPhotoUrl(`${data.publicUrl}?t=${Date.now()}`);
       setPhotoPath(path);
       return true;
     } catch (uploadError) {
+      if (uploadRequestIdRef.current !== requestId) {
+        return false;
+      }
+
       const message = uploadError instanceof Error ? uploadError.message : "Failed to upload photo";
       setError(message);
       return false;
     } finally {
-      setUploading(false);
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+
+      if (uploadRequestIdRef.current === requestId) {
+        setUploading(false);
+      }
     }
   };
 
@@ -173,6 +213,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
 
     stopCamera();
     resetCapturedState();
+    invalidateUploadFlow();
     setError(null);
     setCameraOpen(true);
 
@@ -201,9 +242,27 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       return;
     }
 
-    const scale = Math.min(MAX_IMAGE_DIMENSION / sourceWidth, MAX_IMAGE_DIMENSION / sourceHeight, 1);
-    const width = Math.max(1, Math.round(sourceWidth * scale));
-    const height = Math.max(1, Math.round(sourceHeight * scale));
+    const previewWidth = video.clientWidth || sourceWidth;
+    const previewHeight = video.clientHeight || sourceHeight;
+    const previewAspect = previewWidth / previewHeight;
+    const sourceAspect = sourceWidth / sourceHeight;
+
+    let sourceX = 0;
+    let sourceY = 0;
+    let sourceCropWidth = sourceWidth;
+    let sourceCropHeight = sourceHeight;
+
+    if (sourceAspect > previewAspect) {
+      sourceCropWidth = Math.max(1, Math.round(sourceHeight * previewAspect));
+      sourceX = Math.max(0, Math.floor((sourceWidth - sourceCropWidth) / 2));
+    } else if (sourceAspect < previewAspect) {
+      sourceCropHeight = Math.max(1, Math.round(sourceWidth / previewAspect));
+      sourceY = Math.max(0, Math.floor((sourceHeight - sourceCropHeight) / 2));
+    }
+
+    const scale = Math.min(MAX_IMAGE_DIMENSION / sourceCropWidth, MAX_IMAGE_DIMENSION / sourceCropHeight, 1);
+    const width = Math.max(1, Math.round(sourceCropWidth * scale));
+    const height = Math.max(1, Math.round(sourceCropHeight * scale));
 
     const canvas = document.createElement("canvas");
     canvas.width = width;
@@ -217,7 +276,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
 
     context.translate(width, 0);
     context.scale(-1, 1);
-    context.drawImage(video, 0, 0, width, height);
+    context.drawImage(video, sourceX, sourceY, sourceCropWidth, sourceCropHeight, 0, 0, width, height);
     context.setTransform(1, 0, 0, 1, 0, 0);
 
     const imageData = context.getImageData(0, 0, width, height);
@@ -281,7 +340,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
   };
 
   const useCapturedPhoto = async () => {
-    if (!capturedBlob) {
+    if (!capturedBlob || uploading) {
       return;
     }
 
@@ -295,6 +354,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
 
   const retakePhoto = async () => {
     resetCapturedState();
+    invalidateUploadFlow();
     await openCamera();
   };
 
