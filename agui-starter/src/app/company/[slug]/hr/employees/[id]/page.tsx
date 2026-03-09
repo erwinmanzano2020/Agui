@@ -7,15 +7,10 @@ import { Card } from "@/components/ui/card";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { getEmployeeByIdForHouse } from "@/lib/hr/employees-server";
 
+import { EmployeePhotoPreview } from "./EmployeePhotoPreview";
+
 type Props = { params: Promise<{ slug: string; id: string }> };
 
-
-declare module "react" {
-  interface ButtonHTMLAttributes<_T> {
-    command?: string;
-    commandFor?: string;
-  }
-}
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 2 }).format(
@@ -80,41 +75,7 @@ export default async function EmployeeProfilePage({ params }: Props) {
         <Card className="p-4 sm:p-5 lg:p-6">
           <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-start sm:gap-5 sm:text-left">
             {employee.photo_url ? (
-              <>
-                <button
-                  type="button"
-                  command="show-modal"
-                  commandFor="employee-photo-preview"
-                  className="rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label={`Preview ${employee.full_name} photo`}
-                >
-                  <img
-                    src={employee.photo_url}
-                    alt={`${employee.full_name} photo`}
-                    className="h-28 w-28 shrink-0 rounded-xl border border-border object-cover sm:h-24 sm:w-24 lg:h-20 lg:w-20"
-                  />
-                </button>
-                <dialog
-                  id="employee-photo-preview"
-                  className="m-auto w-[min(92vw,420px)] rounded-xl border border-border bg-card p-0 shadow-2xl backdrop:bg-black/70"
-                  aria-label={`${employee.full_name} photo preview`}
-                >
-                  <div className="space-y-3 p-3">
-                    <div className="flex justify-end">
-                      <form method="dialog">
-                        <Button type="submit" variant="outline" size="sm" aria-label="Close photo preview">
-                          Close
-                        </Button>
-                      </form>
-                    </div>
-                    <img
-                      src={employee.photo_url}
-                      alt={`${employee.full_name} full-size photo`}
-                      className="h-auto max-h-[80vh] w-full rounded-md object-contain"
-                    />
-                  </div>
-                </dialog>
-              </>
+              <EmployeePhotoPreview photoUrl={employee.photo_url} fullName={employee.full_name} />
             ) : (
               <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 text-xs text-muted-foreground sm:h-24 sm:w-24 lg:h-20 lg:w-20">
                 No photo
