@@ -67,7 +67,7 @@ export function EmployeePhotoPreview({ photoUrl, fullName }: Props) {
         <img
           src={photoUrl}
           alt={`${fullName} photo`}
-          className="h-28 w-28 shrink-0 rounded-xl border border-border object-cover sm:h-24 sm:w-24 lg:h-20 lg:w-20"
+          className="h-24 w-24 shrink-0 rounded-xl border border-border object-cover sm:h-24 sm:w-24 lg:h-20 lg:w-20"
         />
       </button>
 
@@ -75,14 +75,14 @@ export function EmployeePhotoPreview({ photoUrl, fullName }: Props) {
         <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={`${fullName} photo preview`}>
           <button
             type="button"
-            className="absolute inset-0 bg-black/70"
+            className="absolute inset-0 bg-black/75"
             aria-label="Close photo preview"
             onClick={() => setOpen(false)}
           />
-          <div className="absolute inset-0 flex items-center justify-center p-4">
+          <div className="absolute inset-0 flex items-center justify-center p-4 sm:p-6">
             <div
               ref={panelRef}
-              className="w-[min(92vw,420px)] rounded-xl border border-border bg-card p-3 shadow-2xl"
+              className="w-[min(96vw,640px)] rounded-xl border border-border bg-card p-3 sm:p-4 shadow-2xl"
               onKeyDown={onPanelKeyDown}
             >
               <div className="mb-3 flex justify-end">
@@ -100,7 +100,7 @@ export function EmployeePhotoPreview({ photoUrl, fullName }: Props) {
               <img
                 src={photoUrl}
                 alt={`${fullName} full-size photo`}
-                className="h-auto max-h-[80vh] w-full rounded-md object-contain"
+                className="h-auto max-h-[84vh] w-full rounded-md object-contain"
               />
             </div>
           </div>
