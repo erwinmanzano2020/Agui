@@ -62,39 +62,57 @@ export default async function EmployeeProfilePage({ params }: Props) {
       : "No linked identity yet. Add phone or email elsewhere to link when ready.";
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 sm:space-y-5 lg:space-y-6">
       <div className="space-y-2">
         <div className="text-sm text-muted-foreground">
           <Link href={`/company/${slug}/hr/employees`} className="underline">
             Employees
           </Link>
         </div>
-        <div className="flex flex-wrap items-center gap-3 md:flex-nowrap">
-          {employee.photo_url ? (
-            <img
-              src={employee.photo_url}
-              alt={`${employee.full_name} photo`}
-              className="h-20 w-20 shrink-0 rounded-md border border-border object-cover"
-            />
-          ) : (
-            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md border border-dashed border-border bg-muted/30 text-xs text-muted-foreground">
-              No photo
+        <Card className="p-4 sm:p-5 lg:p-6">
+          <div className="flex flex-col items-center gap-4 text-center sm:flex-row sm:items-start sm:gap-5 sm:text-left">
+            {employee.photo_url ? (
+              <img
+                src={employee.photo_url}
+                alt={`${employee.full_name} photo`}
+                className="h-28 w-28 shrink-0 rounded-xl border border-border object-cover sm:h-24 sm:w-24 lg:h-20 lg:w-20"
+              />
+            ) : (
+              <div className="flex h-28 w-28 shrink-0 items-center justify-center rounded-xl border border-dashed border-border bg-muted/30 text-xs text-muted-foreground sm:h-24 sm:w-24 lg:h-20 lg:w-20">
+                No photo
+              </div>
+            )}
+
+            <div className="min-w-0 flex-1 space-y-4">
+              <div className="space-y-2">
+                <h1 className="text-2xl font-semibold leading-tight text-foreground sm:text-3xl">{employee.full_name}</h1>
+                <p className="text-sm text-muted-foreground">Code: {employee.code}</p>
+                <p className="text-sm text-muted-foreground">
+                  {employee.position_title ?? "No role assigned"} • {branchName}
+                </p>
+                <div className="flex justify-center sm:justify-start">
+                  <Badge tone={employee.status === "active" ? "on" : "off"} className="uppercase">
+                    {employee.status}
+                  </Badge>
+                </div>
+              </div>
+
+              <div className="grid w-full gap-2 sm:flex sm:flex-wrap sm:items-center">
+                <Button asChild size="default" className="h-11 sm:h-10">
+                  <Link href={`${basePath}/edit`}>Edit Employee</Link>
+                </Button>
+                <Button asChild size="default" variant="outline" className="h-11 sm:h-10">
+                  <Link href={`/api/hr/employees/${employee.id}/id-card.pdf?houseId=${house.id}&format=cr80`} target="_blank">
+                    Print ID
+                  </Link>
+                </Button>
+              </div>
             </div>
-          )}
-          <div className="min-w-0">
-            <h1 className="text-3xl font-semibold text-foreground">{employee.full_name}</h1>
-            <p className="text-sm text-muted-foreground">Code: {employee.code}</p>
           </div>
-          <Badge tone={employee.status === "active" ? "on" : "off"} className="uppercase">
-            {employee.status}
-          </Badge>
-          <Button asChild size="sm" variant="outline" className="md:ml-auto">
-            <Link href={`${basePath}/edit`}>Edit</Link>
-          </Button>
-        </div>
+        </Card>
       </div>
 
-      <Card className="space-y-4 p-4">
+      <Card className="space-y-4 p-4 sm:p-5">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Employment</h2>
@@ -104,7 +122,7 @@ export default async function EmployeeProfilePage({ params }: Props) {
             {employee.status}
           </Badge>
         </div>
-        <dl className="grid gap-4 md:grid-cols-2">
+        <dl className="grid gap-4 sm:gap-5 md:grid-cols-2">
           <div>
             <dt className="text-sm text-muted-foreground">Employee code</dt>
             <dd className="text-base font-medium text-foreground">{employee.code}</dd>
@@ -134,7 +152,7 @@ export default async function EmployeeProfilePage({ params }: Props) {
         </dl>
       </Card>
 
-      <Card className="space-y-4 p-4">
+      <Card className="space-y-4 p-4 sm:p-5">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
           <div>
             <h2 className="text-lg font-semibold text-foreground">Identity</h2>
@@ -151,7 +169,7 @@ export default async function EmployeeProfilePage({ params }: Props) {
           </Badge>
         </div>
 
-        <dl className="grid gap-4 md:grid-cols-2">
+        <dl className="grid gap-4 sm:gap-5 md:grid-cols-2">
           <div>
             <dt className="text-sm text-muted-foreground">Linked entity</dt>
             <dd className="text-base font-medium text-foreground">
@@ -215,12 +233,12 @@ export default async function EmployeeProfilePage({ params }: Props) {
         </dl>
       </Card>
 
-      <Card className="space-y-3 p-4">
+      <Card className="space-y-3 p-4 sm:p-5">
         <div>
           <h2 className="text-lg font-semibold text-foreground">Quick links</h2>
           <p className="text-sm text-muted-foreground">Shortcuts coming soon.</p>
         </div>
-        <div className="grid gap-2 md:grid-cols-3">
+        <div className="grid gap-2 sm:gap-3 md:grid-cols-3">
           <button className="rounded-md border border-dashed border-border bg-muted/40 px-3 py-2 text-left text-sm" disabled>
             DTR (Coming soon)
           </button>
