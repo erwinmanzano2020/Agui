@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { buildEmployeePhotoPath } from "@/lib/hr/employee-photo";
@@ -50,15 +50,15 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
   const [uploading, setUploading] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [flashVisible, setFlashVisible] = useState(false);
+  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
+  const [capturedPreviewUrl, setCapturedPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const countdownTimeoutRef = useRef<number | null>(null);
   const flashTimeoutRef = useRef<number | null>(null);
 
-  const stopCamera = () => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
+  const clearTimers = useCallback(() => {
     setCountdown(null);
     setFlashVisible(false);
 
@@ -71,17 +71,61 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       window.clearTimeout(flashTimeoutRef.current);
       flashTimeoutRef.current = null;
     }
-  };
+  }, []);
+
+  const stopCamera = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    clearTimers();
+  }, [clearTimers]);
+
+  const resetCapturedState = useCallback(() => {
+    setCapturedBlob(null);
+    setCapturedPreviewUrl((currentUrl) => {
+      if (currentUrl) {
+        URL.revokeObjectURL(currentUrl);
+      }
+      return null;
+    });
+  }, []);
+
+  const resetCameraFlow = useCallback(() => {
+    stopCamera();
+    setCameraOpen(false);
+    resetCapturedState();
+  }, [resetCapturedState, stopCamera]);
 
   useEffect(() => {
-    return () => stopCamera();
-  }, []);
+    return () => {
+      stopCamera();
+      resetCapturedState();
+    };
+  }, [resetCapturedState, stopCamera]);
+
+  useEffect(() => {
+    setPhotoUrl(initialPhotoUrl);
+    setPhotoPath(initialPhotoPath);
+    resetCameraFlow();
+    setError(null);
+  }, [employeeId, initialPhotoPath, initialPhotoUrl, resetCameraFlow]);
+
+  useEffect(() => {
+    if (!cameraOpen || capturedBlob || !streamRef.current || !videoRef.current) {
+      return;
+    }
+
+    const videoElement = videoRef.current;
+    videoElement.srcObject = streamRef.current;
+    void videoElement.play().catch(() => {
+      setError("Unable to start camera preview. Please try again.");
+    });
+  }, [cameraOpen, capturedBlob]);
 
   const uploadBlob = async (blob: Blob) => {
     const supabase = getSupabase();
     if (!supabase) {
       setError("Supabase is not configured in this environment.");
-      return;
+      return false;
     }
 
     setUploading(true);
@@ -95,11 +139,13 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from("employee-photos").getPublicUrl(path);
-      setPhotoUrl(data.publicUrl);
+      setPhotoUrl(`${data.publicUrl}?t=${Date.now()}`);
       setPhotoPath(path);
+      return true;
     } catch (uploadError) {
       const message = uploadError instanceof Error ? uploadError.message : "Failed to upload photo";
       setError(message);
+      return false;
     } finally {
       setUploading(false);
     }
@@ -125,16 +171,21 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       return;
     }
 
+    stopCamera();
+    resetCapturedState();
     setError(null);
+    setCameraOpen(true);
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       streamRef.current = stream;
-      setCameraOpen(true);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
     } catch {
+      setCameraOpen(false);
+      stopCamera();
       setError("Unable to access camera. Check permissions and try again.");
     }
   };
@@ -190,13 +241,18 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       return;
     }
 
-    await uploadBlob(blob);
-    setCameraOpen(false);
+    setCapturedBlob(blob);
+    setCapturedPreviewUrl((currentUrl) => {
+      if (currentUrl) {
+        URL.revokeObjectURL(currentUrl);
+      }
+      return URL.createObjectURL(blob);
+    });
     stopCamera();
   };
 
   const startCaptureCountdown = () => {
-    if (uploading || countdown !== null) {
+    if (uploading || countdown !== null || capturedBlob) {
       return;
     }
 
@@ -224,6 +280,24 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
     countdownTimeoutRef.current = window.setTimeout(runStep, 700);
   };
 
+  const useCapturedPhoto = async () => {
+    if (!capturedBlob) {
+      return;
+    }
+
+    const didUpload = await uploadBlob(capturedBlob);
+    if (!didUpload) {
+      return;
+    }
+
+    resetCameraFlow();
+  };
+
+  const retakePhoto = async () => {
+    resetCapturedState();
+    await openCamera();
+  };
+
   return (
     <div className="space-y-2 rounded-md border border-border/60 bg-background p-3">
       <div>
@@ -235,7 +309,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       <input type="hidden" name="photo_path" value={photoPath ?? ""} />
 
       <div className="flex flex-wrap items-center gap-2">
-        <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onUploadFile} disabled={uploading} />
+        <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onUploadFile} disabled={uploading || cameraOpen} />
         <Button type="button" variant="outline" onClick={openCamera} disabled={uploading}>
           Take Photo (Camera)
         </Button>
@@ -244,35 +318,47 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       {cameraOpen ? (
         <div className="space-y-2 rounded-md border border-border bg-muted/20 p-2">
           <div className="relative overflow-hidden rounded-md bg-black">
-            <video ref={videoRef} className="h-48 w-full scale-x-[-1] object-cover" playsInline muted />
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div className="h-36 w-28 rounded-[999px] border-2 border-white/55 bg-white/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.14)]" />
+            {capturedPreviewUrl ? (
+              <img src={capturedPreviewUrl} alt="Captured preview" className="h-48 w-full object-cover" />
+            ) : (
+              <>
+                <video ref={videoRef} className="h-48 w-full scale-x-[-1] object-cover" playsInline muted />
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="h-36 w-28 rounded-[999px] border-2 border-white/55 bg-white/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.14)]" />
+                </div>
+                {countdown !== null ? (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
+                    <span className="text-6xl font-semibold tracking-tight text-white drop-shadow">{countdown}</span>
+                  </div>
+                ) : null}
+                <div
+                  className={`pointer-events-none absolute inset-0 bg-white transition-opacity duration-150 ${flashVisible ? "opacity-80" : "opacity-0"}`}
+                />
+              </>
+            )}
+          </div>
+          {capturedBlob ? (
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => void retakePhoto()} disabled={uploading}>
+                Retake
+              </Button>
+              <Button type="button" onClick={useCapturedPhoto} disabled={uploading}>
+                Use Photo
+              </Button>
+              <Button type="button" variant="ghost" onClick={resetCameraFlow} disabled={uploading}>
+                Cancel
+              </Button>
             </div>
-            {countdown !== null ? (
-              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
-                <span className="text-6xl font-semibold tracking-tight text-white drop-shadow">{countdown}</span>
-              </div>
-            ) : null}
-            <div
-              className={`pointer-events-none absolute inset-0 bg-white transition-opacity duration-150 ${flashVisible ? "opacity-80" : "opacity-0"}`}
-            />
-          </div>
-          <div className="flex gap-2">
-            <Button type="button" onClick={startCaptureCountdown} disabled={uploading || countdown !== null}>
-              {countdown !== null ? "Get Ready..." : "Capture"}
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setCameraOpen(false);
-                stopCamera();
-              }}
-              disabled={countdown !== null}
-            >
-              Cancel
-            </Button>
-          </div>
+          ) : (
+            <div className="flex gap-2">
+              <Button type="button" onClick={startCaptureCountdown} disabled={uploading || countdown !== null}>
+                {countdown !== null ? "Get Ready..." : "Capture"}
+              </Button>
+              <Button type="button" variant="ghost" onClick={resetCameraFlow} disabled={countdown !== null}>
+                Cancel
+              </Button>
+            </div>
+          )}
         </div>
       ) : null}
 
