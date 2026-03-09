@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { buildEmployeePhotoPath } from "@/lib/hr/employee-photo";
@@ -14,6 +14,7 @@ type Props = {
 };
 
 const MAX_IMAGE_DIMENSION = 512;
+const UPLOAD_TIMEOUT_MS = 45_000;
 
 async function toOptimizedJpeg(file: File): Promise<Blob> {
   const image = await createImageBitmap(file);
@@ -48,44 +49,145 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
   const [photoPath, setPhotoPath] = useState(initialPhotoPath);
   const [cameraOpen, setCameraOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const [flashVisible, setFlashVisible] = useState(false);
+  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
+  const [capturedPreviewUrl, setCapturedPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const countdownTimeoutRef = useRef<number | null>(null);
+  const flashTimeoutRef = useRef<number | null>(null);
+  const uploadRequestIdRef = useRef(0);
 
-  const stopCamera = () => {
+  const clearTimers = useCallback(() => {
+    setCountdown(null);
+    setFlashVisible(false);
+
+    if (countdownTimeoutRef.current) {
+      window.clearTimeout(countdownTimeoutRef.current);
+      countdownTimeoutRef.current = null;
+    }
+
+    if (flashTimeoutRef.current) {
+      window.clearTimeout(flashTimeoutRef.current);
+      flashTimeoutRef.current = null;
+    }
+  }, []);
+
+  const invalidateUploadFlow = useCallback(() => {
+    uploadRequestIdRef.current += 1;
+    setUploading(false);
+  }, []);
+
+  const stopCamera = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
-  };
+    clearTimers();
+  }, [clearTimers]);
+
+  const resetCapturedState = useCallback(() => {
+    setCapturedBlob(null);
+    setCapturedPreviewUrl((currentUrl) => {
+      if (currentUrl) {
+        URL.revokeObjectURL(currentUrl);
+      }
+      return null;
+    });
+  }, []);
+
+  const resetCameraFlow = useCallback(() => {
+    stopCamera();
+    setCameraOpen(false);
+    resetCapturedState();
+    invalidateUploadFlow();
+  }, [invalidateUploadFlow, resetCapturedState, stopCamera]);
 
   useEffect(() => {
-    return () => stopCamera();
-  }, []);
+    return () => {
+      stopCamera();
+      resetCapturedState();
+      invalidateUploadFlow();
+    };
+  }, [invalidateUploadFlow, resetCapturedState, stopCamera]);
+
+  useEffect(() => {
+    setPhotoUrl(initialPhotoUrl);
+    setPhotoPath(initialPhotoPath);
+    resetCameraFlow();
+    setError(null);
+  }, [employeeId, initialPhotoPath, initialPhotoUrl, resetCameraFlow]);
+
+  useEffect(() => {
+    if (!cameraOpen || capturedBlob || !streamRef.current || !videoRef.current) {
+      return;
+    }
+
+    const videoElement = videoRef.current;
+    videoElement.srcObject = streamRef.current;
+    void videoElement.play().catch(() => {
+      setError("Unable to start camera preview. Please try again.");
+    });
+  }, [cameraOpen, capturedBlob]);
 
   const uploadBlob = async (blob: Blob) => {
     const supabase = getSupabase();
     if (!supabase) {
       setError("Supabase is not configured in this environment.");
-      return;
+      return false;
     }
 
+    const requestId = uploadRequestIdRef.current + 1;
+    uploadRequestIdRef.current = requestId;
     setUploading(true);
     setError(null);
+
+    let timeoutId: number | null = null;
+
     try {
       const path = buildEmployeePhotoPath(employeeId);
-      const { error: uploadError } = await supabase.storage.from("employee-photos").upload(path, blob, {
+      const uploadPromise = supabase.storage.from("employee-photos").upload(path, blob, {
         contentType: "image/jpeg",
         upsert: true,
       });
-      if (uploadError) throw uploadError;
+
+      const uploadResult = await Promise.race([
+        uploadPromise,
+        new Promise<never>((_, reject) => {
+          timeoutId = window.setTimeout(() => {
+            reject(new Error("Photo upload timed out. Please try again."));
+          }, UPLOAD_TIMEOUT_MS);
+        }),
+      ]);
+
+      if (uploadResult.error) {
+        throw uploadResult.error;
+      }
+
+      if (uploadRequestIdRef.current !== requestId) {
+        return false;
+      }
 
       const { data } = supabase.storage.from("employee-photos").getPublicUrl(path);
-      setPhotoUrl(data.publicUrl);
+      setPhotoUrl(`${data.publicUrl}?t=${Date.now()}`);
       setPhotoPath(path);
+      return true;
     } catch (uploadError) {
+      if (uploadRequestIdRef.current !== requestId) {
+        return false;
+      }
+
       const message = uploadError instanceof Error ? uploadError.message : "Failed to upload photo";
       setError(message);
+      return false;
     } finally {
-      setUploading(false);
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+
+      if (uploadRequestIdRef.current === requestId) {
+        setUploading(false);
+      }
     }
   };
 
@@ -109,16 +211,22 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       return;
     }
 
+    stopCamera();
+    resetCapturedState();
+    invalidateUploadFlow();
     setError(null);
+    setCameraOpen(true);
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
       streamRef.current = stream;
-      setCameraOpen(true);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
     } catch {
+      setCameraOpen(false);
+      stopCamera();
       setError("Unable to access camera. Check permissions and try again.");
     }
   };
@@ -134,9 +242,27 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       return;
     }
 
-    const scale = Math.min(MAX_IMAGE_DIMENSION / sourceWidth, MAX_IMAGE_DIMENSION / sourceHeight, 1);
-    const width = Math.max(1, Math.round(sourceWidth * scale));
-    const height = Math.max(1, Math.round(sourceHeight * scale));
+    const previewWidth = video.clientWidth || sourceWidth;
+    const previewHeight = video.clientHeight || sourceHeight;
+    const previewAspect = previewWidth / previewHeight;
+    const sourceAspect = sourceWidth / sourceHeight;
+
+    let sourceX = 0;
+    let sourceY = 0;
+    let sourceCropWidth = sourceWidth;
+    let sourceCropHeight = sourceHeight;
+
+    if (sourceAspect > previewAspect) {
+      sourceCropWidth = Math.max(1, Math.round(sourceHeight * previewAspect));
+      sourceX = Math.max(0, Math.floor((sourceWidth - sourceCropWidth) / 2));
+    } else if (sourceAspect < previewAspect) {
+      sourceCropHeight = Math.max(1, Math.round(sourceWidth / previewAspect));
+      sourceY = Math.max(0, Math.floor((sourceHeight - sourceCropHeight) / 2));
+    }
+
+    const scale = Math.min(MAX_IMAGE_DIMENSION / sourceCropWidth, MAX_IMAGE_DIMENSION / sourceCropHeight, 1);
+    const width = Math.max(1, Math.round(sourceCropWidth * scale));
+    const height = Math.max(1, Math.round(sourceCropHeight * scale));
 
     const canvas = document.createElement("canvas");
     canvas.width = width;
@@ -148,7 +274,23 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       return;
     }
 
-    context.drawImage(video, 0, 0, width, height);
+    context.translate(width, 0);
+    context.scale(-1, 1);
+    context.drawImage(video, sourceX, sourceY, sourceCropWidth, sourceCropHeight, 0, 0, width, height);
+    context.setTransform(1, 0, 0, 1, 0, 0);
+
+    const imageData = context.getImageData(0, 0, width, height);
+    const pixels = imageData.data;
+    const brightnessOffset = 6;
+    const contrastFactor = 1.06;
+
+    for (let index = 0; index < pixels.length; index += 4) {
+      pixels[index] = Math.max(0, Math.min(255, (pixels[index] - 128) * contrastFactor + 128 + brightnessOffset));
+      pixels[index + 1] = Math.max(0, Math.min(255, (pixels[index + 1] - 128) * contrastFactor + 128 + brightnessOffset));
+      pixels[index + 2] = Math.max(0, Math.min(255, (pixels[index + 2] - 128) * contrastFactor + 128 + brightnessOffset));
+    }
+
+    context.putImageData(imageData, 0, 0);
     const blob = await new Promise<Blob | null>((resolve) => {
       canvas.toBlob((result) => resolve(result), "image/jpeg", 0.9);
     });
@@ -158,9 +300,62 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       return;
     }
 
-    await uploadBlob(blob);
-    setCameraOpen(false);
+    setCapturedBlob(blob);
+    setCapturedPreviewUrl((currentUrl) => {
+      if (currentUrl) {
+        URL.revokeObjectURL(currentUrl);
+      }
+      return URL.createObjectURL(blob);
+    });
     stopCamera();
+  };
+
+  const startCaptureCountdown = () => {
+    if (uploading || countdown !== null || capturedBlob) {
+      return;
+    }
+
+    let nextCount = 3;
+    setCountdown(nextCount);
+
+    const runStep = () => {
+      if (nextCount <= 1) {
+        setCountdown(null);
+        setFlashVisible(true);
+        flashTimeoutRef.current = window.setTimeout(() => {
+          setFlashVisible(false);
+          flashTimeoutRef.current = null;
+        }, 170);
+
+        void captureFromCamera();
+        return;
+      }
+
+      nextCount -= 1;
+      setCountdown(nextCount);
+      countdownTimeoutRef.current = window.setTimeout(runStep, 700);
+    };
+
+    countdownTimeoutRef.current = window.setTimeout(runStep, 700);
+  };
+
+  const useCapturedPhoto = async () => {
+    if (!capturedBlob || uploading) {
+      return;
+    }
+
+    const didUpload = await uploadBlob(capturedBlob);
+    if (!didUpload) {
+      return;
+    }
+
+    resetCameraFlow();
+  };
+
+  const retakePhoto = async () => {
+    resetCapturedState();
+    invalidateUploadFlow();
+    await openCamera();
   };
 
   return (
@@ -174,7 +369,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       <input type="hidden" name="photo_path" value={photoPath ?? ""} />
 
       <div className="flex flex-wrap items-center gap-2">
-        <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onUploadFile} disabled={uploading} />
+        <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onUploadFile} disabled={uploading || cameraOpen} />
         <Button type="button" variant="outline" onClick={openCamera} disabled={uploading}>
           Take Photo (Camera)
         </Button>
@@ -182,20 +377,48 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
 
       {cameraOpen ? (
         <div className="space-y-2 rounded-md border border-border bg-muted/20 p-2">
-          <video ref={videoRef} className="h-48 w-full rounded-md bg-black object-cover" playsInline muted />
-          <div className="flex gap-2">
-            <Button type="button" onClick={captureFromCamera} disabled={uploading}>Capture</Button>
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={() => {
-                setCameraOpen(false);
-                stopCamera();
-              }}
-            >
-              Cancel
-            </Button>
+          <div className="relative overflow-hidden rounded-md bg-black">
+            {capturedPreviewUrl ? (
+              <img src={capturedPreviewUrl} alt="Captured preview" className="h-48 w-full object-cover" />
+            ) : (
+              <>
+                <video ref={videoRef} className="h-48 w-full scale-x-[-1] object-cover" playsInline muted />
+                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                  <div className="h-36 w-28 rounded-[999px] border-2 border-white/55 bg-white/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.14)]" />
+                </div>
+                {countdown !== null ? (
+                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
+                    <span className="text-6xl font-semibold tracking-tight text-white drop-shadow">{countdown}</span>
+                  </div>
+                ) : null}
+                <div
+                  className={`pointer-events-none absolute inset-0 bg-white transition-opacity duration-150 ${flashVisible ? "opacity-80" : "opacity-0"}`}
+                />
+              </>
+            )}
           </div>
+          {capturedBlob ? (
+            <div className="flex gap-2">
+              <Button type="button" variant="outline" onClick={() => void retakePhoto()} disabled={uploading}>
+                Retake
+              </Button>
+              <Button type="button" onClick={useCapturedPhoto} disabled={uploading}>
+                Use Photo
+              </Button>
+              <Button type="button" variant="ghost" onClick={resetCameraFlow} disabled={uploading}>
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <Button type="button" onClick={startCaptureCountdown} disabled={uploading || countdown !== null}>
+                {countdown !== null ? "Get Ready..." : "Capture"}
+              </Button>
+              <Button type="button" variant="ghost" onClick={resetCameraFlow} disabled={countdown !== null}>
+                Cancel
+              </Button>
+            </div>
+          )}
         </div>
       ) : null}
 
