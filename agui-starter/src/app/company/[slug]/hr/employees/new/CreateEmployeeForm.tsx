@@ -10,6 +10,7 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toaster";
 import type { BranchListItem } from "@/lib/hr/employees-server";
+import { EmployeePhotoField } from "../_components/EmployeePhotoField";
 import { createEmployeeAction } from "./actions";
 import { createEmployeeInitialState, type CreateEmployeeState } from "./action-types";
 
@@ -53,6 +54,7 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
   const [rate, setRate] = useState("");
   const [branchId, setBranchId] = useState("");
   const [status, setStatus] = useState("active");
+  const [employeeDraftId] = useState(() => crypto.randomUUID());
   const router = useRouter();
   const toast = useToast();
 
@@ -212,6 +214,7 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
         <input type="hidden" name="houseId" value={houseId} />
         <input type="hidden" name="houseSlug" value={houseSlug} />
         <input type="hidden" name="entity_id" value={selectedEntityId ?? ""} />
+        <input type="hidden" name="employee_id" value={employeeDraftId} />
 
         <div className="space-y-3 rounded-md border border-border/60 bg-muted/20 p-3">
           <div className="flex items-center justify-between gap-3">
@@ -399,6 +402,8 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
             <Input name="position_title" placeholder="e.g., Cashier" />
             <FieldError message={state.fieldErrors?.position_title} />
           </label>
+
+          <EmployeePhotoField employeeId={employeeDraftId} />
 
           <label className="block space-y-1 text-sm text-muted-foreground">
             Rate per day

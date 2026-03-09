@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toaster";
 import type { BranchListItem, EmployeeProfile } from "@/lib/hr/employees-server";
 
+import { EmployeePhotoField } from "../_components/EmployeePhotoField";
 import { updateEmployeeAction } from "./actions";
 import { updateEmployeeInitialState } from "./action-types";
 
@@ -119,6 +120,8 @@ export function EditEmployeeForm({ employee, branches, branchLoadError, houseId,
           <Input name="position_title" defaultValue={employee.position_title ?? ""} placeholder="e.g., Cashier" />
           <FieldError message={state.fieldErrors?.position_title} />
         </label>
+
+        <EmployeePhotoField employeeId={employee.id} initialPhotoUrl={employee.photo_url ?? null} initialPhotoPath={employee.photo_path ?? null} />
 
         <label className="block space-y-1 text-sm text-muted-foreground">
           Rate per day

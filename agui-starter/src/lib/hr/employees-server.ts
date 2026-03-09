@@ -6,6 +6,7 @@ import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE, EmployeeAccessError } from "@/lib/hr
 import type { Database, EmployeeRow, EmployeeInsert } from "@/lib/db.types";
 import { getIdentitySummariesForEmployees, type IdentitySummary } from "@/lib/hr/employee-identity";
 import type { HrAccessDecision } from "./access";
+import { buildEmployeePhotoPath } from "./employee-photo";
 import type { EmployeeListFilters } from "./employees";
 
 function logIdentityError(context: string, error: unknown) {
@@ -28,6 +29,8 @@ export type EmployeeListItem = {
   branch_name: string | null;
   rate_per_day: number;
   position_title?: string | null;
+  photo_url?: string | null;
+  photo_path?: string | null;
   identity?: IdentitySummary | null;
   identity_unavailable?: boolean;
 };
@@ -48,6 +51,8 @@ export type EmployeeProfile = {
   branch_name: string | null;
   rate_per_day: number;
   position_title?: string | null;
+  photo_url?: string | null;
+  photo_path?: string | null;
   created_at: string;
   identity?: IdentitySummary | null;
   identity_unavailable?: boolean;
@@ -59,6 +64,8 @@ export type EmployeeUpdateInput = {
   branch_id: string | null;
   rate_per_day: number;
   position_title?: string | null;
+  photo_url?: string | null;
+  photo_path?: string | null;
 };
 
 export class EmployeeUpdateError extends Error {}
@@ -76,12 +83,15 @@ export class EmployeeDuplicateIdentityError extends EmployeeCreateError {
 }
 
 export type EmployeeCreateInput = {
+  id?: string;
   full_name: string;
   status?: EmployeeRow["status"];
   branch_id?: string | null;
   entity_id?: string | null;
   rate_per_day: number;
   position_title?: string | null;
+  photo_url?: string | null;
+  photo_path?: string | null;
 };
 
 async function findActiveEmployeeForEntity(
@@ -145,7 +155,7 @@ export async function listEmployeesByHouse(
 
   let query = supabase
     .from("employees")
-    .select("id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title")
+    .select("id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, photo_url, photo_path")
     .eq("house_id", houseId);
 
   if (filters.status && filters.status !== "all") {
@@ -178,6 +188,8 @@ export async function listEmployeesByHouse(
       branch_name: branchId ? branchNameLookup[branchId] ?? null : null,
       rate_per_day: Number(employee.rate_per_day ?? 0),
       position_title: employee.position_title ?? null,
+      photo_url: employee.photo_url ?? null,
+      photo_path: employee.photo_path ?? null,
     } satisfies EmployeeListItem;
   });
 
@@ -220,7 +232,7 @@ export async function getEmployeeByIdForHouse(
   const { data } = await supabase
     .from("employees")
     .select(
-      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, created_at, branches(id, name, house_id)",
+      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, photo_url, photo_path, created_at, branches(id, name, house_id)",
     )
     .eq("house_id", houseId)
     .eq("id", employeeId)
@@ -268,6 +280,8 @@ export async function getEmployeeByIdForHouse(
     branch_name: branchName,
     rate_per_day: Number(employee.rate_per_day ?? 0),
     position_title: employee.position_title ?? null,
+    photo_url: employee.photo_url ?? null,
+    photo_path: employee.photo_path ?? null,
     created_at: employee.created_at,
     identity,
     identity_unavailable: identityUnavailable,
@@ -327,6 +341,8 @@ export async function updateEmployeeForHouse(
     branch_id: patch.branch_id,
     rate_per_day: patch.rate_per_day,
     position_title: patch.position_title,
+    photo_url: patch.photo_url,
+    photo_path: patch.photo_path,
   };
 
   const { data, error } = await supabase
@@ -335,7 +351,7 @@ export async function updateEmployeeForHouse(
     .eq("id", employeeId)
     .eq("house_id", houseId)
     .select(
-      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, created_at, branches(id, name, house_id)",
+      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, photo_url, photo_path, created_at, branches(id, name, house_id)",
     )
     .maybeSingle<EmployeeWithBranch>();
 
@@ -365,6 +381,8 @@ export async function updateEmployeeForHouse(
     branch_name: branchName,
     rate_per_day: Number(data.rate_per_day ?? 0),
     position_title: data.position_title ?? null,
+    photo_url: data.photo_url ?? null,
+    photo_path: data.photo_path ?? null,
     created_at: data.created_at,
   } satisfies EmployeeProfile;
 }
@@ -448,6 +466,7 @@ export async function createEmployeeForHouse(
   }
 
   const insert: EmployeeInsert = {
+    id: payload.id ?? undefined,
     house_id: houseId,
     full_name: payload.full_name,
     status: payload.status ?? "active",
@@ -455,13 +474,15 @@ export async function createEmployeeForHouse(
     entity_id: entityId,
     rate_per_day: payload.rate_per_day,
     position_title: payload.position_title ?? null,
+    photo_url: payload.photo_url ?? null,
+    photo_path: payload.photo_path ?? null,
   };
 
   const { data, error } = await supabase
     .from("employees")
     .insert(insert)
     .select(
-      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, created_at, branches(id, name, house_id)",
+      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, photo_url, photo_path, created_at, branches(id, name, house_id)",
     )
     .maybeSingle<EmployeeWithBranch>();
 
@@ -498,8 +519,68 @@ export async function createEmployeeForHouse(
     branch_name: branchBelongsToHouse ? data.branches?.name ?? null : null,
     rate_per_day: Number(data.rate_per_day ?? 0),
     position_title: data.position_title ?? null,
+    photo_url: data.photo_url ?? null,
+    photo_path: data.photo_path ?? null,
     created_at: data.created_at,
   } satisfies EmployeeProfile;
+}
+
+export async function deleteEmployeeForHouse(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  employeeId: string,
+): Promise<boolean> {
+  const { data: existing, error: existingError } = await supabase
+    .from("employees")
+    .select("id, house_id, photo_path")
+    .eq("id", employeeId)
+    .eq("house_id", houseId)
+    .maybeSingle<Pick<EmployeeRow, "id" | "house_id" | "photo_path">>();
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  if (!existing) {
+    return false;
+  }
+
+  const photoPath = existing.photo_path?.trim() || buildEmployeePhotoPath(existing.id);
+  if (photoPath) {
+    const { error: storageError } = await supabase.storage.from("employee-photos").remove([photoPath]);
+    if (storageError) {
+      console.error("[employees] failed to delete employee photo", {
+        employeeId,
+        photoPath,
+        message: storageError.message,
+      });
+    }
+  }
+
+  const { error: deleteError } = await supabase
+    .from("employees")
+    .delete()
+    .eq("id", employeeId)
+    .eq("house_id", houseId);
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+
+  return true;
+}
+
+export async function deleteEmployeeForHouseWithAccess(
+  supabase: SupabaseClient<Database>,
+  access: HrAccessDecision,
+  houseId: string,
+  employeeId: string,
+): Promise<boolean> {
+  if (!access.allowed || !access.hasWorkspaceAccess) {
+    throw new EmployeeAccessError("Not allowed to delete employees for this house");
+  }
+
+  return deleteEmployeeForHouse(supabase, houseId, employeeId);
 }
 
 export async function createEmployeeForHouseWithAccess(

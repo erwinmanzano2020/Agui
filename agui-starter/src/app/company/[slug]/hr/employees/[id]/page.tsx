@@ -69,15 +69,26 @@ export default async function EmployeeProfilePage({ params }: Props) {
             Employees
           </Link>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <div>
+        <div className="flex flex-wrap items-center gap-3 md:flex-nowrap">
+          {employee.photo_url ? (
+            <img
+              src={employee.photo_url}
+              alt={`${employee.full_name} photo`}
+              className="h-20 w-20 shrink-0 rounded-md border border-border object-cover"
+            />
+          ) : (
+            <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-md border border-dashed border-border bg-muted/30 text-xs text-muted-foreground">
+              No photo
+            </div>
+          )}
+          <div className="min-w-0">
             <h1 className="text-3xl font-semibold text-foreground">{employee.full_name}</h1>
             <p className="text-sm text-muted-foreground">Code: {employee.code}</p>
           </div>
           <Badge tone={employee.status === "active" ? "on" : "off"} className="uppercase">
             {employee.status}
           </Badge>
-          <Button asChild size="sm" variant="outline">
+          <Button asChild size="sm" variant="outline" className="md:ml-auto">
             <Link href={`${basePath}/edit`}>Edit</Link>
           </Button>
         </div>
