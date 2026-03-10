@@ -18,7 +18,7 @@ const HEADER_ACCENT_LEFT = [109, 185, 245] as const;
 const HEADER_ACCENT_RIGHT = [88, 116, 168] as const;
 const DEFAULT_QR_CAPTION = "Scan at kiosk";
 const STAFF_ID_SUBTEXT = "STAFF ID";
-const PHOTO_VERTICAL_FOCUS = 0.38;
+const PHOTO_VERTICAL_FOCUS = 0.43;
 
 type FitTextInput = {
   text: string;
@@ -254,9 +254,9 @@ function drawCard(
 
   const photoX = x + SAFE_MARGIN_MM;
   const photoY = y + HEADER_HEIGHT_MM + 2;
-  const photoW = 18.8;
-  const photoH = 30;
-  const photoPlatePad = 0.9;
+  const photoW = 19.4;
+  const photoH = 29.4;
+  const photoPlatePad = 1.2;
   const photoInnerX = photoX + photoPlatePad;
   const photoInnerY = photoY + photoPlatePad;
   const photoInnerW = photoW - photoPlatePad * 2;
