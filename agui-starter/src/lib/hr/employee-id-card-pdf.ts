@@ -296,10 +296,14 @@ function drawCard(
     }
 
     doc.saveGraphicsState();
-    doc.roundedRect(imageFrameX, imageFrameY, imageFrameW, imageFrameH, photoCornerRadius, photoCornerRadius, "n");
+    doc.rect(imageFrameX, imageFrameY, imageFrameW, imageFrameH, "n");
     doc.clip();
     doc.addImage(employeePhoto.dataUrl, employeePhoto.format, drawX, drawY, drawW, drawH);
     doc.restoreGraphicsState();
+
+    doc.setDrawColor(207, 212, 219);
+    doc.setLineWidth(0.12);
+    doc.roundedRect(imageFrameX, imageFrameY, imageFrameW, imageFrameH, photoCornerRadius, photoCornerRadius, "S");
   } else {
     doc.setTextColor(175, 175, 175);
     doc.setFont("helvetica", "normal");
@@ -389,8 +393,8 @@ function drawCard(
   const signatureY = y + CR80_HEIGHT_MM - SAFE_MARGIN_MM - 2.2;
   const sigX = x + SAFE_MARGIN_MM;
   const sigW = 30;
-  doc.setTextColor(95, 103, 116);
-  doc.setFontSize(4.8);
+  doc.setTextColor(78, 86, 99);
+  doc.setFontSize(5.1);
   doc.text("Authorized Signature", sigX, signatureY - 1.1);
   doc.setDrawColor(120, 129, 143);
   doc.setLineWidth(0.15);
