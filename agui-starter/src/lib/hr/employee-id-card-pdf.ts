@@ -12,8 +12,10 @@ const CR80_HEIGHT_MM = 53.98;
 const QR_CONCURRENCY = 8;
 
 const SAFE_MARGIN_MM = 3;
-const HEADER_HEIGHT_MM = 9;
+const HEADER_HEIGHT_MM = 7.6;
 const HEADER_BG = [55, 65, 81] as const;
+const HEADER_ACCENT_LEFT = [109, 185, 245] as const;
+const HEADER_ACCENT_RIGHT = [88, 116, 168] as const;
 const DEFAULT_QR_CAPTION = "Scan at kiosk";
 const STAFF_ID_SUBTEXT = "STAFF ID";
 
@@ -207,33 +209,40 @@ function drawCard(
   doc.setFillColor(...HEADER_BG);
   doc.rect(x, y, CR80_WIDTH_MM, HEADER_HEIGHT_MM, "F");
 
+  const accentY = y + HEADER_HEIGHT_MM - 0.7;
+  const accentWidth = CR80_WIDTH_MM / 2;
+  doc.setFillColor(...HEADER_ACCENT_LEFT);
+  doc.rect(x, accentY, accentWidth, 0.7, "F");
+  doc.setFillColor(...HEADER_ACCENT_RIGHT);
+  doc.rect(x + accentWidth, accentY, accentWidth, 0.7, "F");
+
   const headerName = getHeaderBrandName(row.houseBrandName, row.houseName);
   const hasHeaderName = headerName !== null;
-  const headerTextY = y + 4;
-  const headerSubtextY = y + 7.1;
+  const headerTextY = y + 3.55;
+  const headerSubtextY = y + 5.75;
 
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
 
   if (houseLogo && hasHeaderName) {
-    const logoSize = 5.5;
+    const logoSize = 4.8;
     const logoX = x + SAFE_MARGIN_MM;
     const logoY = y + (HEADER_HEIGHT_MM - logoSize) / 2;
     doc.addImage(houseLogo.dataUrl, houseLogo.format, logoX, logoY, logoSize, logoSize);
 
-    doc.setFontSize(8.6);
+    doc.setFontSize(7.8);
     doc.text(headerName, logoX + logoSize + 1.8, headerTextY);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(5.2);
+    doc.setFontSize(4.5);
     doc.text(STAFF_ID_SUBTEXT, logoX + logoSize + 1.8, headerSubtextY);
   } else if (hasHeaderName) {
-    doc.setFontSize(9.1);
+    doc.setFontSize(8.2);
     doc.text(headerName, x + CR80_WIDTH_MM / 2, headerTextY, { align: "center" });
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(5.2);
+    doc.setFontSize(4.5);
     doc.text(STAFF_ID_SUBTEXT, x + CR80_WIDTH_MM / 2, headerSubtextY, { align: "center" });
   } else {
-    doc.setFontSize(7.2);
+    doc.setFontSize(6.6);
     doc.text(STAFF_ID_SUBTEXT, x + CR80_WIDTH_MM / 2, y + HEADER_HEIGHT_MM / 2 + 0.8, {
       align: "center",
       baseline: "middle",
@@ -244,39 +253,75 @@ function drawCard(
 
   const photoX = x + SAFE_MARGIN_MM;
   const photoY = y + HEADER_HEIGHT_MM + 2;
-  const photoW = 21;
-  const photoH = 28;
-  doc.setDrawColor(110);
-  doc.setLineWidth(0.35);
-  doc.roundedRect(photoX, photoY, photoW, photoH, 0.9, 0.9);
+  const photoW = 20.5;
+  const photoH = 27;
+  const photoPlatePad = 0.9;
+  const photoInnerX = photoX + photoPlatePad;
+  const photoInnerY = photoY + photoPlatePad;
+  const photoInnerW = photoW - photoPlatePad * 2;
+  const photoInnerH = photoH - photoPlatePad * 2;
+
+  doc.setFillColor(242, 244, 247);
+  doc.setDrawColor(184, 189, 196);
+  doc.setLineWidth(0.2);
+  doc.roundedRect(photoX, photoY, photoW, photoH, 1.1, 1.1, "FD");
+
+  doc.setFillColor(255, 255, 255);
+  doc.setDrawColor(207, 212, 219);
+  doc.setLineWidth(0.12);
+  doc.roundedRect(photoInnerX, photoInnerY, photoInnerW, photoInnerH, 0.7, 0.7, "FD");
 
   if (employeePhoto) {
-    doc.addImage(employeePhoto.dataUrl, employeePhoto.format, photoX + 0.4, photoY + 0.4, photoW - 0.8, photoH - 0.8);
+    const imageProps = doc.getImageProperties(employeePhoto.dataUrl);
+    const imageAspect = imageProps.width / imageProps.height;
+    const frameAspect = photoInnerW / photoInnerH;
+
+    let drawW = photoInnerW;
+    let drawH = photoInnerH;
+    let drawX = photoInnerX;
+    let drawY = photoInnerY;
+
+    if (imageAspect > frameAspect) {
+      drawW = photoInnerH * imageAspect;
+      drawX = photoInnerX - (drawW - photoInnerW) / 2;
+    } else {
+      drawH = photoInnerW / imageAspect;
+      drawY = photoInnerY - (drawH - photoInnerH) / 2;
+    }
+
+    doc.saveGraphicsState();
+    doc.rect(photoInnerX, photoInnerY, photoInnerW, photoInnerH);
+    doc.clip();
+    doc.addImage(employeePhoto.dataUrl, employeePhoto.format, drawX, drawY, drawW, drawH);
+    doc.restoreGraphicsState();
   } else {
     doc.setTextColor(175, 175, 175);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(5.2);
-    doc.text("PHOTO", photoX + photoW / 2, photoY + photoH / 2, { align: "center", baseline: "middle" });
+    doc.text("PHOTO", photoInnerX + photoInnerW / 2, photoInnerY + photoInnerH / 2, { align: "center", baseline: "middle" });
   }
 
   doc.setTextColor(0, 0, 0);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(5.2);
+  doc.text("ID", photoX, photoY + photoH + 3.4);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.4);
-  doc.text(row.code, photoX, photoY + photoH + 4.5);
+  doc.setFontSize(8);
+  doc.text(row.code, photoX + 4.3, photoY + photoH + 3.4);
 
-  const centerX = photoX + photoW + 4;
-  const centerW = 34;
+  const centerX = photoX + photoW + 3.8;
+  const centerW = 32;
   const name = cleanText(row.fullName) || "Employee Name";
 
   const nameFit = fitTextToBox(doc, {
     text: name,
     maxWidth: centerW,
     maxLines: 2,
-    startFontSize: 11,
+    startFontSize: 10.8,
     minFontSize: 8,
   });
-  const nameLineHeight = 3.9;
-  const nameTopY = y + HEADER_HEIGHT_MM + 5.5;
+  const nameLineHeight = 3.7;
+  const nameTopY = y + HEADER_HEIGHT_MM + 5.1;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(nameFit.fontSize);
@@ -285,7 +330,7 @@ function drawCard(
   }
 
   const nameBlockHeight = nameLineHeight * 2;
-  let infoY = nameTopY + nameBlockHeight + 0.2;
+  let infoY = nameTopY + nameBlockHeight + 0.9;
 
   const position = cleanText(row.position);
   if (position) {
@@ -293,42 +338,55 @@ function drawCard(
       text: position,
       maxWidth: centerW,
       maxLines: 1,
-      startFontSize: 8.4,
-      minFontSize: 7,
+      startFontSize: 8,
+      minFontSize: 6.8,
     });
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(positionFit.fontSize);
     if (positionFit.lines.length > 0) {
       doc.text(positionFit.lines[0], centerX, infoY);
-      infoY += 3.9;
+      infoY += 3.4;
     }
   }
 
-  doc.setFontSize(7);
-  doc.text(`Branch: ${cleanText(row.branchName) || "Main Branch"}`, centerX, infoY);
-  infoY += 3.7;
+  doc.setFontSize(6.7);
+  doc.text(cleanText(row.branchName) || "Main Branch", centerX, infoY);
+  infoY += 3.2;
 
   const validUntilLabel = formatValidUntil(row.validUntil);
   if (validUntilLabel) {
-    doc.setFontSize(6.8);
+    doc.setFontSize(6.1);
     doc.text(validUntilLabel, centerX, infoY);
   }
 
-  const qrSize = 20;
-  const qrX = x + CR80_WIDTH_MM - SAFE_MARGIN_MM - qrSize;
-  const qrY = y + HEADER_HEIGHT_MM + 3;
+  const qrSize = 18.5;
+  const qrPad = 0.9;
+  const qrPlateW = qrSize + qrPad * 2;
+  const qrPlateH = qrSize + qrPad * 2 + 3;
+  const qrPlateX = x + CR80_WIDTH_MM - SAFE_MARGIN_MM - qrPlateW;
+  const qrPlateY = y + HEADER_HEIGHT_MM + 2;
+  doc.setFillColor(247, 248, 250);
+  doc.setDrawColor(203, 208, 216);
+  doc.setLineWidth(0.14);
+  doc.roundedRect(qrPlateX, qrPlateY, qrPlateW, qrPlateH, 0.9, 0.9, "FD");
+
+  const qrX = qrPlateX + qrPad;
+  const qrY = qrPlateY + qrPad;
   doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(4.8);
-  doc.text(getQrCaption(), qrX + qrSize / 2, qrY + qrSize + 2.8, { align: "center" });
+  doc.setTextColor(68, 76, 89);
+  doc.setFontSize(4.5);
+  doc.text(getQrCaption(), qrPlateX + qrPlateW / 2, qrPlateY + qrPlateH - 0.9, { align: "center" });
 
-  const signatureY = y + CR80_HEIGHT_MM - SAFE_MARGIN_MM - 1.8;
+  const signatureY = y + CR80_HEIGHT_MM - SAFE_MARGIN_MM - 2.2;
   const sigX = x + SAFE_MARGIN_MM;
-  const sigW = 28;
-  doc.setFontSize(5.4);
-  doc.text("Signature", sigX, signatureY - 1.6);
+  const sigW = 30;
+  doc.setTextColor(95, 103, 116);
+  doc.setFontSize(4.8);
+  doc.text("Authorized Signature", sigX, signatureY - 1.1);
+  doc.setDrawColor(120, 129, 143);
   doc.setLineWidth(0.15);
   doc.line(sigX, signatureY, sigX + sigW, signatureY);
 }
