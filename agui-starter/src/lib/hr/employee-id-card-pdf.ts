@@ -18,6 +18,7 @@ const HEADER_ACCENT_LEFT = [109, 185, 245] as const;
 const HEADER_ACCENT_RIGHT = [88, 116, 168] as const;
 const DEFAULT_QR_CAPTION = "Scan at kiosk";
 const STAFF_ID_SUBTEXT = "STAFF ID";
+const PHOTO_VERTICAL_FOCUS = 0.38;
 
 type FitTextInput = {
   text: string;
@@ -253,8 +254,8 @@ function drawCard(
 
   const photoX = x + SAFE_MARGIN_MM;
   const photoY = y + HEADER_HEIGHT_MM + 2;
-  const photoW = 20.5;
-  const photoH = 27;
+  const photoW = 18.8;
+  const photoH = 30;
   const photoPlatePad = 0.9;
   const photoInnerX = photoX + photoPlatePad;
   const photoInnerY = photoY + photoPlatePad;
@@ -286,7 +287,7 @@ function drawCard(
       drawX = photoInnerX - (drawW - photoInnerW) / 2;
     } else {
       drawH = photoInnerW / imageAspect;
-      drawY = photoInnerY - (drawH - photoInnerH) / 2;
+      drawY = photoInnerY - (drawH - photoInnerH) * PHOTO_VERTICAL_FOCUS;
     }
 
     doc.saveGraphicsState();
