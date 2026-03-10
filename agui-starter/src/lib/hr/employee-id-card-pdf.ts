@@ -261,6 +261,11 @@ function drawCard(
   const photoInnerY = photoY + photoPlatePad;
   const photoInnerW = photoW - photoPlatePad * 2;
   const photoInnerH = photoH - photoPlatePad * 2;
+  const photoCornerRadius = 0.7;
+  const imageFrameX = photoInnerX;
+  const imageFrameY = photoInnerY;
+  const imageFrameW = photoInnerW;
+  const imageFrameH = photoInnerH;
 
   doc.setFillColor(242, 244, 247);
   doc.setDrawColor(184, 189, 196);
@@ -270,28 +275,28 @@ function drawCard(
   doc.setFillColor(255, 255, 255);
   doc.setDrawColor(207, 212, 219);
   doc.setLineWidth(0.12);
-  doc.roundedRect(photoInnerX, photoInnerY, photoInnerW, photoInnerH, 0.7, 0.7, "FD");
+  doc.roundedRect(imageFrameX, imageFrameY, imageFrameW, imageFrameH, photoCornerRadius, photoCornerRadius, "FD");
 
   if (employeePhoto) {
     const imageProps = doc.getImageProperties(employeePhoto.dataUrl);
     const imageAspect = imageProps.width / imageProps.height;
-    const frameAspect = photoInnerW / photoInnerH;
+    const frameAspect = imageFrameW / imageFrameH;
 
-    let drawW = photoInnerW;
-    let drawH = photoInnerH;
-    let drawX = photoInnerX;
-    let drawY = photoInnerY;
+    let drawW = imageFrameW;
+    let drawH = imageFrameH;
+    let drawX = imageFrameX;
+    let drawY = imageFrameY;
 
     if (imageAspect > frameAspect) {
-      drawW = photoInnerH * imageAspect;
-      drawX = photoInnerX - (drawW - photoInnerW) / 2;
+      drawW = imageFrameH * imageAspect;
+      drawX = imageFrameX - (drawW - imageFrameW) / 2;
     } else {
-      drawH = photoInnerW / imageAspect;
-      drawY = photoInnerY - (drawH - photoInnerH) * PHOTO_VERTICAL_FOCUS;
+      drawH = imageFrameW / imageAspect;
+      drawY = imageFrameY - (drawH - imageFrameH) * PHOTO_VERTICAL_FOCUS;
     }
 
     doc.saveGraphicsState();
-    doc.rect(photoInnerX, photoInnerY, photoInnerW, photoInnerH, "n");
+    doc.roundedRect(imageFrameX, imageFrameY, imageFrameW, imageFrameH, photoCornerRadius, photoCornerRadius, "n");
     doc.clip();
     doc.addImage(employeePhoto.dataUrl, employeePhoto.format, drawX, drawY, drawW, drawH);
     doc.restoreGraphicsState();
