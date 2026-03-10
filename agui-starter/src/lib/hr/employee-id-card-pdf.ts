@@ -12,8 +12,11 @@ const CR80_HEIGHT_MM = 53.98;
 const QR_CONCURRENCY = 8;
 
 const SAFE_MARGIN_MM = 3;
-const HEADER_HEIGHT_MM = 9;
+const HEADER_HEIGHT_MM = 7.8;
 const HEADER_BG = [55, 65, 81] as const;
+const HEADER_ACCENT = [191, 161, 92] as const;
+const PHOTO_PLATE_BG = [242, 244, 247] as const;
+const QR_PLATE_BG = [246, 247, 249] as const;
 const DEFAULT_QR_CAPTION = "Scan at kiosk";
 const STAFF_ID_SUBTEXT = "STAFF ID";
 
@@ -209,49 +212,65 @@ function drawCard(
 
   const headerName = getHeaderBrandName(row.houseBrandName, row.houseName);
   const hasHeaderName = headerName !== null;
-  const headerTextY = y + 4;
-  const headerSubtextY = y + 7.1;
+  const headerTextY = y + 3.5;
+  const headerSubtextY = y + 6.05;
 
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
 
   if (houseLogo && hasHeaderName) {
-    const logoSize = 5.5;
+    const logoSize = 4.6;
     const logoX = x + SAFE_MARGIN_MM;
     const logoY = y + (HEADER_HEIGHT_MM - logoSize) / 2;
     doc.addImage(houseLogo.dataUrl, houseLogo.format, logoX, logoY, logoSize, logoSize);
 
-    doc.setFontSize(8.6);
+    doc.setFontSize(7.9);
     doc.text(headerName, logoX + logoSize + 1.8, headerTextY);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(5.2);
+    doc.setFontSize(4.7);
     doc.text(STAFF_ID_SUBTEXT, logoX + logoSize + 1.8, headerSubtextY);
   } else if (hasHeaderName) {
-    doc.setFontSize(9.1);
+    doc.setFontSize(8.3);
     doc.text(headerName, x + CR80_WIDTH_MM / 2, headerTextY, { align: "center" });
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(5.2);
+    doc.setFontSize(4.7);
     doc.text(STAFF_ID_SUBTEXT, x + CR80_WIDTH_MM / 2, headerSubtextY, { align: "center" });
   } else {
-    doc.setFontSize(7.2);
+    doc.setFontSize(6.6);
     doc.text(STAFF_ID_SUBTEXT, x + CR80_WIDTH_MM / 2, y + HEADER_HEIGHT_MM / 2 + 0.8, {
       align: "center",
       baseline: "middle",
     });
   }
 
+  doc.setFillColor(...HEADER_ACCENT);
+  doc.rect(x, y + HEADER_HEIGHT_MM - 0.5, CR80_WIDTH_MM, 0.5, "F");
+
   doc.setTextColor(0, 0, 0);
 
   const photoX = x + SAFE_MARGIN_MM;
-  const photoY = y + HEADER_HEIGHT_MM + 2;
+  const photoY = y + HEADER_HEIGHT_MM + 1.6;
   const photoW = 21;
   const photoH = 28;
-  doc.setDrawColor(110);
-  doc.setLineWidth(0.35);
-  doc.roundedRect(photoX, photoY, photoW, photoH, 0.9, 0.9);
+  doc.setFillColor(...PHOTO_PLATE_BG);
+  doc.setDrawColor(175);
+  doc.setLineWidth(0.25);
+  doc.roundedRect(photoX, photoY, photoW, photoH, 1.1, 1.1, "FD");
+
+  const photoInset = 0.75;
+  doc.setDrawColor(142);
+  doc.setLineWidth(0.16);
+  doc.rect(photoX + photoInset, photoY + photoInset, photoW - photoInset * 2, photoH - photoInset * 2);
 
   if (employeePhoto) {
-    doc.addImage(employeePhoto.dataUrl, employeePhoto.format, photoX + 0.4, photoY + 0.4, photoW - 0.8, photoH - 0.8);
+    doc.addImage(
+      employeePhoto.dataUrl,
+      employeePhoto.format,
+      photoX + photoInset + 0.25,
+      photoY + photoInset + 0.25,
+      photoW - (photoInset + 0.25) * 2,
+      photoH - (photoInset + 0.25) * 2,
+    );
   } else {
     doc.setTextColor(175, 175, 175);
     doc.setFont("helvetica", "normal");
@@ -260,23 +279,26 @@ function drawCard(
   }
 
   doc.setTextColor(0, 0, 0);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(5.5);
+  doc.text("ID", photoX, photoY + photoH + 3.5);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.4);
-  doc.text(row.code, photoX, photoY + photoH + 4.5);
+  doc.setFontSize(8.1);
+  doc.text(row.code, photoX, photoY + photoH + 6.4);
 
-  const centerX = photoX + photoW + 4;
-  const centerW = 34;
+  const centerX = photoX + photoW + 3.6;
+  const centerW = 33.6;
   const name = cleanText(row.fullName) || "Employee Name";
 
   const nameFit = fitTextToBox(doc, {
     text: name,
     maxWidth: centerW,
     maxLines: 2,
-    startFontSize: 11,
+    startFontSize: 10.8,
     minFontSize: 8,
   });
-  const nameLineHeight = 3.9;
-  const nameTopY = y + HEADER_HEIGHT_MM + 5.5;
+  const nameLineHeight = 3.8;
+  const nameTopY = y + HEADER_HEIGHT_MM + 4.9;
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(nameFit.fontSize);
@@ -285,7 +307,7 @@ function drawCard(
   }
 
   const nameBlockHeight = nameLineHeight * 2;
-  let infoY = nameTopY + nameBlockHeight + 0.2;
+  let infoY = nameTopY + nameBlockHeight + 0.1;
 
   const position = cleanText(row.position);
   if (position) {
@@ -293,7 +315,7 @@ function drawCard(
       text: position,
       maxWidth: centerW,
       maxLines: 1,
-      startFontSize: 8.4,
+      startFontSize: 8,
       minFontSize: 7,
     });
 
@@ -301,13 +323,13 @@ function drawCard(
     doc.setFontSize(positionFit.fontSize);
     if (positionFit.lines.length > 0) {
       doc.text(positionFit.lines[0], centerX, infoY);
-      infoY += 3.9;
+      infoY += 3.7;
     }
   }
 
-  doc.setFontSize(7);
+  doc.setFontSize(6.8);
   doc.text(`Branch: ${cleanText(row.branchName) || "Main Branch"}`, centerX, infoY);
-  infoY += 3.7;
+  infoY += 3.5;
 
   const validUntilLabel = formatValidUntil(row.validUntil);
   if (validUntilLabel) {
@@ -315,21 +337,27 @@ function drawCard(
     doc.text(validUntilLabel, centerX, infoY);
   }
 
-  const qrSize = 20;
-  const qrX = x + CR80_WIDTH_MM - SAFE_MARGIN_MM - qrSize;
-  const qrY = y + HEADER_HEIGHT_MM + 3;
+  const qrSize = 18.8;
+  const qrPlatePadding = 1;
+  const qrX = x + CR80_WIDTH_MM - SAFE_MARGIN_MM - qrSize - qrPlatePadding;
+  const qrY = y + HEADER_HEIGHT_MM + 2.3;
+  doc.setFillColor(...QR_PLATE_BG);
+  doc.setDrawColor(182);
+  doc.setLineWidth(0.16);
+  doc.roundedRect(qrX - qrPlatePadding, qrY - qrPlatePadding, qrSize + qrPlatePadding * 2, qrSize + qrPlatePadding * 2, 0.9, 0.9, "FD");
   doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
 
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(4.8);
-  doc.text(getQrCaption(), qrX + qrSize / 2, qrY + qrSize + 2.8, { align: "center" });
+  doc.setFontSize(4.7);
+  doc.text(getQrCaption(), qrX + qrSize / 2, qrY + qrSize + 2.6, { align: "center" });
 
-  const signatureY = y + CR80_HEIGHT_MM - SAFE_MARGIN_MM - 1.8;
+  const signatureY = y + CR80_HEIGHT_MM - SAFE_MARGIN_MM - 1.5;
   const sigX = x + SAFE_MARGIN_MM;
-  const sigW = 28;
-  doc.setFontSize(5.4);
-  doc.text("Signature", sigX, signatureY - 1.6);
-  doc.setLineWidth(0.15);
+  const sigW = 30;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(5.2);
+  doc.text("Authorized Signature", sigX, signatureY - 1.4);
+  doc.setLineWidth(0.17);
   doc.line(sigX, signatureY, sigX + sigW, signatureY);
 }
 
