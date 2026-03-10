@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition, type MouseEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -250,7 +250,7 @@ export function EmployeesClient({
                     <td className="p-2">{formatCurrency(employee.rate_per_day)}</td>
                     <td className="p-2 text-right">
                       <Button asChild size="sm" variant="link" className="px-0"
-                        onClick={(e) => {
+                        onClick={(e: MouseEvent<HTMLButtonElement>) => {
                           e.stopPropagation();
                         }}
                       >
