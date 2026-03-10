@@ -290,7 +290,7 @@ function drawCard(
     }
 
     doc.saveGraphicsState();
-    doc.rect(photoInnerX, photoInnerY, photoInnerW, photoInnerH);
+    doc.rect(photoInnerX, photoInnerY, photoInnerW, photoInnerH, "n");
     doc.clip();
     doc.addImage(employeePhoto.dataUrl, employeePhoto.format, drawX, drawY, drawW, drawH);
     doc.restoreGraphicsState();
