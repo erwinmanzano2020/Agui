@@ -397,46 +397,43 @@ export async function generateEmployeeIdCardsSheetPdf(
     mapWithConcurrency(sortedRows, QR_CONCURRENCY, async (row) => resolveEmployeePhoto(row.photoUrl, photoCache)),
   ]);
 
-  sortedRows.forEach((row, index) => {
-    const pageIndex = Math.floor(index / cardsPerPage);
-    const slot = index % cardsPerPage;
-    if (slot === 0 && pageIndex > 0) {
+  const sheetCount = Math.max(1, Math.ceil(sortedRows.length / cardsPerPage));
+
+  for (let sheetIndex = 0; sheetIndex < sheetCount; sheetIndex += 1) {
+    const sheetStart = sheetIndex * cardsPerPage;
+    const sheetEnd = Math.min(sheetStart + cardsPerPage, sortedRows.length);
+
+    if (sheetIndex > 0) {
       doc.addPage();
     }
 
-    const rowSlot = Math.floor(slot / cols);
-    const colSlot = slot % cols;
-    const x = startX + colSlot * (CR80_SHORT_EDGE_MM + horizontalGap);
-    const y = startY + rowSlot * (CR80_LONG_EDGE_MM + verticalGap);
+    for (let index = sheetStart; index < sheetEnd; index += 1) {
+      const slot = index - sheetStart;
+      const rowSlot = Math.floor(slot / cols);
+      const colSlot = slot % cols;
+      const x = startX + colSlot * (CR80_SHORT_EDGE_MM + horizontalGap);
+      const y = startY + rowSlot * (CR80_LONG_EDGE_MM + verticalGap);
 
-    drawFrontCard(doc, row, houseLogos[index], employeePhotos[index], x, y);
-
-    if (includeCutGuides) {
-      drawCutGuides(doc, x, y);
+      drawFrontCard(doc, sortedRows[index], houseLogos[index], employeePhotos[index], x, y);
+      if (includeCutGuides) {
+        drawCutGuides(doc, x, y);
+      }
     }
-  });
 
-  const frontPages = Math.max(1, Math.ceil(sortedRows.length / cardsPerPage));
-  for (let i = 0; i < frontPages; i += 1) {
     doc.addPage();
-  }
+    for (let index = sheetStart; index < sheetEnd; index += 1) {
+      const slot = index - sheetStart;
+      const rowSlot = Math.floor(slot / cols);
+      const colSlot = slot % cols;
+      const x = startX + colSlot * (CR80_SHORT_EDGE_MM + horizontalGap);
+      const y = startY + rowSlot * (CR80_LONG_EDGE_MM + verticalGap);
 
-  sortedRows.forEach((row, index) => {
-    const targetPage = frontPages + Math.floor(index / cardsPerPage) + 1;
-    doc.setPage(targetPage);
-
-    const slot = index % cardsPerPage;
-    const rowSlot = Math.floor(slot / cols);
-    const colSlot = slot % cols;
-    const x = startX + colSlot * (CR80_SHORT_EDGE_MM + horizontalGap);
-    const y = startY + rowSlot * (CR80_LONG_EDGE_MM + verticalGap);
-
-    drawBackCard(doc, row, qrDataUrls[index], x, y);
-
-    if (includeCutGuides) {
-      drawCutGuides(doc, x, y);
+      drawBackCard(doc, sortedRows[index], qrDataUrls[index], x, y);
+      if (includeCutGuides) {
+        drawCutGuides(doc, x, y);
+      }
     }
-  });
+  }
 
   const buffer = doc.output("arraybuffer") as ArrayBuffer;
   return new Uint8Array(buffer);
