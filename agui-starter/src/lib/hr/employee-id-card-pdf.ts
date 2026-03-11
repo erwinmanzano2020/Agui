@@ -7,8 +7,8 @@ import { orderEmployeeIdCards } from "@/lib/hr/employee-id-cards";
 import { createEmployeeQrToken } from "@/lib/hr/kiosk/qr";
 import { generateQrPngDataUrl, mapWithConcurrency } from "@/lib/hr/qr-local";
 
-const CR80_WIDTH_MM = 85.6;
-const CR80_HEIGHT_MM = 53.98;
+const CR80_LONG_EDGE_MM = 85.6;
+const CR80_SHORT_EDGE_MM = 53.98;
 const QR_CONCURRENCY = 8;
 
 const SAFE_MARGIN_MM = 3;
@@ -58,20 +58,6 @@ export function getHeaderBrandName(
 
   const house = cleanText(houseName);
   return house.length > 0 ? house : null;
-}
-
-function formatValidUntil(value: string | null): string | null {
-  if (!value) {
-    return null;
-  }
-
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  const month = parsed.toLocaleString("en-US", { month: "short", timeZone: "UTC" });
-  return `Valid Until: ${month} ${parsed.getUTCFullYear()}`;
 }
 
 export function fitTextToBox(doc: jsPDF, input: FitTextInput): FitTextResult {
@@ -158,7 +144,6 @@ export async function resolveHouseLogo(logoUrl: string | null, cache: Map<string
   }
 }
 
-
 async function resolveEmployeePhoto(photoUrl: string | null, cache: Map<string, EmployeePhoto | null>): Promise<EmployeePhoto | null> {
   const url = cleanText(photoUrl);
   if (!url) return null;
@@ -194,184 +179,187 @@ async function resolveEmployeePhoto(photoUrl: string | null, cache: Map<string, 
   }
 }
 
-function drawCard(
-  doc: jsPDF,
-  row: EmployeeIdCardRow,
-  qrDataUrl: string,
-  houseLogo: HouseLogo | null,
-  employeePhoto: EmployeePhoto | null,
-  x: number,
-  y: number,
-) {
+function drawFrontCard(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLogo | null, employeePhoto: EmployeePhoto | null, x: number, y: number) {
+  const cardWidth = CR80_SHORT_EDGE_MM;
+  const cardHeight = CR80_LONG_EDGE_MM;
+
   doc.setDrawColor(70);
   doc.setLineWidth(0.2);
-  doc.rect(x, y, CR80_WIDTH_MM, CR80_HEIGHT_MM);
+  doc.rect(x, y, cardWidth, cardHeight);
 
   doc.setFillColor(...HEADER_BG);
-  doc.rect(x, y, CR80_WIDTH_MM, HEADER_HEIGHT_MM, "F");
+  doc.rect(x, y, cardWidth, HEADER_HEIGHT_MM, "F");
 
   const headerName = getHeaderBrandName(row.houseBrandName, row.houseName);
   const hasHeaderName = headerName !== null;
-  const headerTextY = y + 3.5;
-  const headerSubtextY = y + 6.05;
 
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
 
   if (houseLogo && hasHeaderName) {
-    const logoSize = 4.6;
+    const logoSize = 4.4;
     const logoX = x + SAFE_MARGIN_MM;
     const logoY = y + (HEADER_HEIGHT_MM - logoSize) / 2;
     doc.addImage(houseLogo.dataUrl, houseLogo.format, logoX, logoY, logoSize, logoSize);
 
-    doc.setFontSize(7.9);
-    doc.text(headerName, logoX + logoSize + 1.8, headerTextY);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(4.7);
-    doc.text(STAFF_ID_SUBTEXT, logoX + logoSize + 1.8, headerSubtextY);
-  } else if (hasHeaderName) {
-    doc.setFontSize(8.3);
-    doc.text(headerName, x + CR80_WIDTH_MM / 2, headerTextY, { align: "center" });
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(4.7);
-    doc.text(STAFF_ID_SUBTEXT, x + CR80_WIDTH_MM / 2, headerSubtextY, { align: "center" });
-  } else {
     doc.setFontSize(6.6);
-    doc.text(STAFF_ID_SUBTEXT, x + CR80_WIDTH_MM / 2, y + HEADER_HEIGHT_MM / 2 + 0.8, {
-      align: "center",
-      baseline: "middle",
-    });
+    doc.text(headerName, logoX + logoSize + 1.5, y + 3.6);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(4.3);
+    doc.text(STAFF_ID_SUBTEXT, logoX + logoSize + 1.5, y + 6.15);
+  } else if (hasHeaderName) {
+    doc.setFontSize(6.9);
+    doc.text(headerName, x + cardWidth / 2, y + 3.6, { align: "center" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(4.3);
+    doc.text(STAFF_ID_SUBTEXT, x + cardWidth / 2, y + 6.15, { align: "center" });
+  } else {
+    doc.setFontSize(5.6);
+    doc.text(STAFF_ID_SUBTEXT, x + cardWidth / 2, y + HEADER_HEIGHT_MM / 2 + 0.8, { align: "center", baseline: "middle" });
   }
 
   doc.setFillColor(...HEADER_ACCENT);
-  doc.rect(x, y + HEADER_HEIGHT_MM - 0.5, CR80_WIDTH_MM, 0.5, "F");
+  doc.rect(x, y + HEADER_HEIGHT_MM - 0.5, cardWidth, 0.5, "F");
 
-  doc.setTextColor(0, 0, 0);
-
-  const photoX = x + SAFE_MARGIN_MM;
-  const photoY = y + HEADER_HEIGHT_MM + 1.6;
-  const photoW = 21;
-  const photoH = 28;
+  const photoPlateW = 33;
+  const photoPlateH = 39;
+  const photoX = x + (cardWidth - photoPlateW) / 2;
+  const photoY = y + HEADER_HEIGHT_MM + 3;
   doc.setFillColor(...PHOTO_PLATE_BG);
   doc.setDrawColor(175);
   doc.setLineWidth(0.25);
-  doc.roundedRect(photoX, photoY, photoW, photoH, 1.1, 1.1, "FD");
+  doc.roundedRect(photoX, photoY, photoPlateW, photoPlateH, 1.3, 1.3, "FD");
 
-  const photoInset = 0.75;
+  const frameInset = 1;
+  const frameX = photoX + frameInset;
+  const frameY = photoY + frameInset;
+  const frameW = photoPlateW - frameInset * 2;
+  const frameH = photoPlateH - frameInset * 2;
   doc.setDrawColor(142);
   doc.setLineWidth(0.16);
-  doc.rect(photoX + photoInset, photoY + photoInset, photoW - photoInset * 2, photoH - photoInset * 2);
+  doc.rect(frameX, frameY, frameW, frameH);
 
   if (employeePhoto) {
-    doc.addImage(
-      employeePhoto.dataUrl,
-      employeePhoto.format,
-      photoX + photoInset + 0.25,
-      photoY + photoInset + 0.25,
-      photoW - (photoInset + 0.25) * 2,
-      photoH - (photoInset + 0.25) * 2,
-    );
+    doc.addImage(employeePhoto.dataUrl, employeePhoto.format, frameX, frameY, frameW, frameH);
   } else {
     doc.setTextColor(175, 175, 175);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(5.2);
-    doc.text("PHOTO", photoX + photoW / 2, photoY + photoH / 2, { align: "center", baseline: "middle" });
+    doc.text("PHOTO", frameX + frameW / 2, frameY + frameH / 2, { align: "center", baseline: "middle" });
   }
 
-  doc.setTextColor(0, 0, 0);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(5.5);
-  doc.text("ID", photoX, photoY + photoH + 3.5);
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(8.1);
-  doc.text(row.code, photoX, photoY + photoH + 6.4);
-
-  const centerX = photoX + photoW + 3.6;
-  const centerW = 33.6;
+  const textWidth = cardWidth - SAFE_MARGIN_MM * 2;
+  let textY = photoY + photoPlateH + 4.8;
   const name = cleanText(row.fullName) || "Employee Name";
-
   const nameFit = fitTextToBox(doc, {
     text: name,
-    maxWidth: centerW,
+    maxWidth: textWidth,
     maxLines: 2,
-    startFontSize: 10.8,
-    minFontSize: 8,
+    startFontSize: 8.5,
+    minFontSize: 6.8,
   });
-  const nameLineHeight = 3.8;
-  const nameTopY = y + HEADER_HEIGHT_MM + 4.9;
 
+  doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(nameFit.fontSize);
   if (nameFit.lines.length > 0) {
-    doc.text(nameFit.lines, centerX, nameTopY);
+    doc.text(nameFit.lines, x + cardWidth / 2, textY, { align: "center" });
+    textY += nameFit.lines.length * 3.4 + 1.8;
   }
-
-  const nameBlockHeight = nameLineHeight * 2;
-  let infoY = nameTopY + nameBlockHeight + 0.1;
 
   const position = cleanText(row.position);
   if (position) {
     const positionFit = fitTextToBox(doc, {
       text: position,
-      maxWidth: centerW,
+      maxWidth: textWidth,
       maxLines: 1,
-      startFontSize: 8,
-      minFontSize: 7,
+      startFontSize: 6.6,
+      minFontSize: 5.8,
     });
-
     doc.setFont("helvetica", "normal");
     doc.setFontSize(positionFit.fontSize);
     if (positionFit.lines.length > 0) {
-      doc.text(positionFit.lines[0], centerX, infoY);
-      infoY += 3.7;
+      doc.text(positionFit.lines[0], x + cardWidth / 2, textY, { align: "center" });
+      textY += 3.4;
     }
   }
 
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(5.5);
+  doc.text(cleanText(row.branchName) || "Main Branch", x + cardWidth / 2, textY, { align: "center" });
+
+  const idY = y + cardHeight - SAFE_MARGIN_MM;
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(4.6);
+  doc.text("ID", x + SAFE_MARGIN_MM, idY - 2.7);
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(6.8);
-  doc.text(`Branch: ${cleanText(row.branchName) || "Main Branch"}`, centerX, infoY);
-  infoY += 3.5;
+  doc.text(row.code, x + SAFE_MARGIN_MM, idY);
+}
 
-  const validUntilLabel = formatValidUntil(row.validUntil);
-  if (validUntilLabel) {
-    doc.setFontSize(6.8);
-    doc.text(validUntilLabel, centerX, infoY);
-  }
+function drawBackCard(doc: jsPDF, row: EmployeeIdCardRow, qrDataUrl: string, x: number, y: number) {
+  const cardWidth = CR80_SHORT_EDGE_MM;
+  const cardHeight = CR80_LONG_EDGE_MM;
 
-  const qrSize = 18.8;
-  const qrPlatePadding = 1;
-  const qrX = x + CR80_WIDTH_MM - SAFE_MARGIN_MM - qrSize - qrPlatePadding;
-  const qrY = y + HEADER_HEIGHT_MM + 2.3;
+  doc.setDrawColor(70);
+  doc.setLineWidth(0.2);
+  doc.rect(x, y, cardWidth, cardHeight);
+
+  const qrSize = 33;
+  const qrPlatePadding = 1.4;
+  const qrX = x + (cardWidth - qrSize) / 2;
+  const qrY = y + 14;
   doc.setFillColor(...QR_PLATE_BG);
   doc.setDrawColor(182);
-  doc.setLineWidth(0.16);
-  doc.roundedRect(qrX - qrPlatePadding, qrY - qrPlatePadding, qrSize + qrPlatePadding * 2, qrSize + qrPlatePadding * 2, 0.9, 0.9, "FD");
+  doc.setLineWidth(0.18);
+  doc.roundedRect(qrX - qrPlatePadding, qrY - qrPlatePadding, qrSize + qrPlatePadding * 2, qrSize + qrPlatePadding * 2, 1.2, 1.2, "FD");
   doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
 
+  doc.setTextColor(0, 0, 0);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(4.7);
-  doc.text(getQrCaption(), qrX + qrSize / 2, qrY + qrSize + 2.6, { align: "center" });
+  doc.setFontSize(6.3);
+  doc.text(getQrCaption(), x + cardWidth / 2, qrY + qrSize + 5.1, { align: "center" });
 
-  const signatureY = y + CR80_HEIGHT_MM - SAFE_MARGIN_MM - 1.5;
-  const sigX = x + SAFE_MARGIN_MM;
-  const sigW = 30;
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(5.2);
-  doc.text("Authorized Signature", sigX, signatureY - 1.4);
-  doc.setLineWidth(0.17);
-  doc.line(sigX, signatureY, sigX + sigW, signatureY);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(7.2);
+  doc.text(row.code, x + cardWidth / 2, qrY + qrSize + 9.2, { align: "center" });
+
+  const footerName = getHeaderBrandName(row.houseBrandName, row.houseName);
+  if (footerName) {
+    doc.setTextColor(80, 80, 80);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(4.5);
+    doc.text(footerName, x + cardWidth / 2, y + cardHeight - SAFE_MARGIN_MM, { align: "center" });
+  }
 }
 
 export async function generateEmployeeIdCardPdf(row: EmployeeIdCardRow): Promise<Uint8Array> {
   const token = createEmployeeQrToken({ employeeId: row.id, houseId: row.houseId });
   const qrDataUrl = await generateQrPngDataUrl(token);
 
-  const doc = new jsPDF({ unit: "mm", format: [CR80_HEIGHT_MM, CR80_WIDTH_MM], orientation: "landscape" });
+  const doc = new jsPDF({ unit: "mm", format: [CR80_SHORT_EDGE_MM, CR80_LONG_EDGE_MM], orientation: "portrait" });
   const houseLogo = await resolveHouseLogo(row.houseLogoUrl, new Map());
   const employeePhoto = await resolveEmployeePhoto(row.photoUrl, new Map());
-  drawCard(doc, row, qrDataUrl, houseLogo, employeePhoto, 0, 0);
+
+  drawFrontCard(doc, row, houseLogo, employeePhoto, 0, 0);
+  doc.addPage([CR80_SHORT_EDGE_MM, CR80_LONG_EDGE_MM], "portrait");
+  drawBackCard(doc, row, qrDataUrl, 0, 0);
 
   const buffer = doc.output("arraybuffer") as ArrayBuffer;
   return new Uint8Array(buffer);
+}
+
+function drawCutGuides(doc: jsPDF, x: number, y: number) {
+  doc.setDrawColor(190);
+  doc.setLineWidth(0.1);
+  doc.line(x - 2, y, x, y);
+  doc.line(x, y - 2, x, y);
+  doc.line(x + CR80_SHORT_EDGE_MM, y - 2, x + CR80_SHORT_EDGE_MM, y);
+  doc.line(x + CR80_SHORT_EDGE_MM, y, x + CR80_SHORT_EDGE_MM + 2, y);
+  doc.line(x - 2, y + CR80_LONG_EDGE_MM, x, y + CR80_LONG_EDGE_MM);
+  doc.line(x, y + CR80_LONG_EDGE_MM, x, y + CR80_LONG_EDGE_MM + 2);
+  doc.line(x + CR80_SHORT_EDGE_MM, y + CR80_LONG_EDGE_MM, x + CR80_SHORT_EDGE_MM + 2, y + CR80_LONG_EDGE_MM);
+  doc.line(x + CR80_SHORT_EDGE_MM, y + CR80_LONG_EDGE_MM, x + CR80_SHORT_EDGE_MM, y + CR80_LONG_EDGE_MM + 2);
 }
 
 export async function generateEmployeeIdCardsSheetPdf(
@@ -382,16 +370,20 @@ export async function generateEmployeeIdCardsSheetPdf(
   const layout = options.layout ?? "a4_8up";
   const includeCutGuides = options.includeCutGuides ?? true;
 
-  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
-
-  const cols = layout === "a4_9up" ? 3 : 2;
-  const rowsPerPage = layout === "a4_9up" ? 3 : 4;
+  const cols = layout === "a4_9up" ? 3 : 4;
+  const rowsPerPage = layout === "a4_9up" ? 3 : 2;
+  const pageWidth = layout === "a4_9up" ? 210 : 297;
+  const pageHeight = layout === "a4_9up" ? 297 : 210;
+  const pageOrientation = layout === "a4_9up" ? "portrait" : "landscape";
   const horizontalGap = 6;
   const verticalGap = 4;
-  const totalWidth = cols * CR80_WIDTH_MM + (cols - 1) * horizontalGap;
-  const totalHeight = rowsPerPage * CR80_HEIGHT_MM + (rowsPerPage - 1) * verticalGap;
-  const startX = (210 - totalWidth) / 2;
-  const startY = (297 - totalHeight) / 2;
+
+  const doc = new jsPDF({ unit: "mm", format: "a4", orientation: pageOrientation });
+
+  const totalWidth = cols * CR80_SHORT_EDGE_MM + (cols - 1) * horizontalGap;
+  const totalHeight = rowsPerPage * CR80_LONG_EDGE_MM + (rowsPerPage - 1) * verticalGap;
+  const startX = (pageWidth - totalWidth) / 2;
+  const startY = (pageHeight - totalHeight) / 2;
   const cardsPerPage = cols * rowsPerPage;
 
   const logoCache = new Map<string, HouseLogo | null>();
@@ -405,32 +397,43 @@ export async function generateEmployeeIdCardsSheetPdf(
     mapWithConcurrency(sortedRows, QR_CONCURRENCY, async (row) => resolveEmployeePhoto(row.photoUrl, photoCache)),
   ]);
 
-  sortedRows.forEach((row, index) => {
-    const pageIndex = Math.floor(index / cardsPerPage);
-    const slot = index % cardsPerPage;
-    if (slot === 0 && pageIndex > 0) {
+  const sheetCount = Math.max(1, Math.ceil(sortedRows.length / cardsPerPage));
+
+  for (let sheetIndex = 0; sheetIndex < sheetCount; sheetIndex += 1) {
+    const sheetStart = sheetIndex * cardsPerPage;
+    const sheetEnd = Math.min(sheetStart + cardsPerPage, sortedRows.length);
+
+    if (sheetIndex > 0) {
       doc.addPage();
     }
 
-    const rowSlot = Math.floor(slot / cols);
-    const colSlot = slot % cols;
-    const x = startX + colSlot * (CR80_WIDTH_MM + horizontalGap);
-    const y = startY + rowSlot * (CR80_HEIGHT_MM + verticalGap);
-    drawCard(doc, row, qrDataUrls[index], houseLogos[index], employeePhotos[index], x, y);
+    for (let index = sheetStart; index < sheetEnd; index += 1) {
+      const slot = index - sheetStart;
+      const rowSlot = Math.floor(slot / cols);
+      const colSlot = slot % cols;
+      const x = startX + colSlot * (CR80_SHORT_EDGE_MM + horizontalGap);
+      const y = startY + rowSlot * (CR80_LONG_EDGE_MM + verticalGap);
 
-    if (includeCutGuides) {
-      doc.setDrawColor(190);
-      doc.setLineWidth(0.1);
-      doc.line(x - 2, y, x, y);
-      doc.line(x, y - 2, x, y);
-      doc.line(x + CR80_WIDTH_MM, y - 2, x + CR80_WIDTH_MM, y);
-      doc.line(x + CR80_WIDTH_MM, y, x + CR80_WIDTH_MM + 2, y);
-      doc.line(x - 2, y + CR80_HEIGHT_MM, x, y + CR80_HEIGHT_MM);
-      doc.line(x, y + CR80_HEIGHT_MM, x, y + CR80_HEIGHT_MM + 2);
-      doc.line(x + CR80_WIDTH_MM, y + CR80_HEIGHT_MM, x + CR80_WIDTH_MM + 2, y + CR80_HEIGHT_MM);
-      doc.line(x + CR80_WIDTH_MM, y + CR80_HEIGHT_MM, x + CR80_WIDTH_MM, y + CR80_HEIGHT_MM + 2);
+      drawFrontCard(doc, sortedRows[index], houseLogos[index], employeePhotos[index], x, y);
+      if (includeCutGuides) {
+        drawCutGuides(doc, x, y);
+      }
     }
-  });
+
+    doc.addPage();
+    for (let index = sheetStart; index < sheetEnd; index += 1) {
+      const slot = index - sheetStart;
+      const rowSlot = Math.floor(slot / cols);
+      const colSlot = slot % cols;
+      const x = startX + colSlot * (CR80_SHORT_EDGE_MM + horizontalGap);
+      const y = startY + rowSlot * (CR80_LONG_EDGE_MM + verticalGap);
+
+      drawBackCard(doc, sortedRows[index], qrDataUrls[index], x, y);
+      if (includeCutGuides) {
+        drawCutGuides(doc, x, y);
+      }
+    }
+  }
 
   const buffer = doc.output("arraybuffer") as ArrayBuffer;
   return new Uint8Array(buffer);
