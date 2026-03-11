@@ -365,7 +365,7 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
   }
 
   const textX = topIdentityX;
-  const nameMaxWidth = x + cardWidth - textX - 0.4;
+  const nameMaxWidth = x + cardWidth - textX - 1;
   const detailMaxWidth = photoX - textX - 0.6;
   const nameTopY = identityDividerY + 2.65;
 
@@ -374,14 +374,14 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
     text: name.toUpperCase(),
     maxWidth: nameMaxWidth,
     maxLines: 3,
-    startFontSize: 8.7,
-    minFontSize: 6.4,
+    startFontSize: 8.55,
+    minFontSize: 6.3,
   });
   doc.setTextColor(20, 20, 20);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(nameFit.fontSize);
   if (nameFit.lines.length > 0) {
-    doc.text(nameFit.lines.map((line) => line.replace(/\s+/g, " ").replace(/\s/g, "\u2009")), textX + 0.25, nameTopY + 0.2);
+    doc.text(nameFit.lines.map((line) => line.replace(/\s+/g, " ").trim()), textX + 0.25, nameTopY + 0.2);
   }
 
   let detailY = nameTopY + Math.max(1, nameFit.lines.length) * 3.32 + 0.62;
