@@ -48,6 +48,13 @@ type EmployeePhoto = {
   format: "PNG" | "JPEG";
 };
 
+type CoverCropRect = {
+  sx: number;
+  sy: number;
+  sw: number;
+  sh: number;
+};
+
 function cleanText(text: string | null | undefined): string {
   return text?.trim() ?? "";
 }
@@ -109,6 +116,79 @@ function getQrCaption(): string {
   }
 
   return DEFAULT_QR_CAPTION;
+}
+
+function getCenteredCoverCropRect(sourceWidth: number, sourceHeight: number, targetWidth: number, targetHeight: number): CoverCropRect {
+  if (sourceWidth <= 0 || sourceHeight <= 0 || targetWidth <= 0 || targetHeight <= 0) {
+    return {
+      sx: 0,
+      sy: 0,
+      sw: Math.max(sourceWidth, 1),
+      sh: Math.max(sourceHeight, 1),
+    };
+  }
+
+  const sourceAspect = sourceWidth / sourceHeight;
+  const targetAspect = targetWidth / targetHeight;
+
+  if (sourceAspect > targetAspect) {
+    const sw = sourceHeight * targetAspect;
+    return {
+      sx: (sourceWidth - sw) / 2,
+      sy: 0,
+      sw,
+      sh: sourceHeight,
+    };
+  }
+
+  const sh = sourceWidth / targetAspect;
+  return {
+    sx: 0,
+    sy: (sourceHeight - sh) / 2,
+    sw: sourceWidth,
+    sh,
+  };
+}
+
+
+function imageDataToImagePropertiesInput(imageData: string): string | Uint8Array {
+  const commaIndex = imageData.indexOf(",");
+  const header = commaIndex >= 0 ? imageData.slice(0, commaIndex) : "";
+  const isBase64DataUrl = header.startsWith("data:") && header.includes(";base64");
+
+  if (!isBase64DataUrl || commaIndex < 0) {
+    return imageData;
+  }
+
+  try {
+    const base64 = imageData.slice(commaIndex + 1);
+    return Uint8Array.from(Buffer.from(base64, "base64"));
+  } catch {
+    return imageData;
+  }
+}
+
+function drawCoverCroppedImage(
+  doc: jsPDF,
+  imageData: string,
+  targetX: number,
+  targetY: number,
+  targetW: number,
+  targetH: number,
+) {
+  const imageProps = doc.getImageProperties(imageDataToImagePropertiesInput(imageData));
+  const crop = getCenteredCoverCropRect(imageProps.width, imageProps.height, targetW, targetH);
+  doc.context2d.drawImage(
+    imageData,
+    crop.sx,
+    crop.sy,
+    crop.sw,
+    crop.sh,
+    targetX,
+    targetY,
+    targetW,
+    targetH,
+  );
 }
 
 export async function resolveHouseLogo(logoUrl: string | null, cache: Map<string, HouseLogo | null>): Promise<HouseLogo | null> {
@@ -312,39 +392,42 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
 
   const structuralLineWidth = 0.32;
   const brandLineX = x + SAFE_MARGIN_MM + 2.4;
-  const identityDividerY = y + cardHeight * 0.6;
+  const identityDividerY = y + cardHeight * 0.655;
 
   doc.setDrawColor(...MODERN_BRAND_ACCENT);
   doc.setLineWidth(structuralLineWidth);
   doc.line(brandLineX, y, brandLineX, y + cardHeight);
+
+  doc.setDrawColor(182, 188, 196);
+  doc.setLineWidth(structuralLineWidth);
   doc.line(x, identityDividerY, x + cardWidth, identityDividerY);
 
-  const topIdentityX = brandLineX + 2.3;
+  const topIdentityX = brandLineX + 2.65;
   const topIdentityY = y + SAFE_MARGIN_MM + 1;
   const headerName = getHeaderBrandName(row.houseBrandName, row.houseName);
   if (houseLogo) {
     const logoSize = 4.3;
     doc.addImage(houseLogo.dataUrl, houseLogo.format, topIdentityX, topIdentityY - 0.5, logoSize, logoSize);
-    doc.setTextColor(45, 45, 45);
+    doc.setTextColor(41, 41, 41);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(6.2);
-    doc.text(headerName || STAFF_ID_SUBTEXT, topIdentityX + logoSize + 1.3, topIdentityY + 2.1);
+    doc.text(headerName || STAFF_ID_SUBTEXT, topIdentityX + logoSize + 1.3, topIdentityY + 2.5);
   } else {
-    doc.setTextColor(45, 45, 45);
+    doc.setTextColor(41, 41, 41);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(6.2);
-    doc.text(headerName || STAFF_ID_SUBTEXT, topIdentityX, topIdentityY + 2.1);
+    doc.text(headerName || STAFF_ID_SUBTEXT, topIdentityX, topIdentityY + 2.5);
   }
 
-  doc.setTextColor(118, 118, 118);
+  doc.setTextColor(123, 123, 123);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(4.4);
-  doc.text(STAFF_ID_SUBTEXT, topIdentityX, topIdentityY + 5.8);
+  doc.text(STAFF_ID_SUBTEXT, topIdentityX, topIdentityY + 6.2);
 
-  doc.setTextColor(72, 72, 72);
+  doc.setTextColor(95, 95, 95);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(4.8);
-  doc.text(`ID: ${row.code}`, topIdentityX, identityDividerY - 4.5);
+  doc.text(`ID: ${row.code}`, topIdentityX, identityDividerY - 3.9);
 
   const photoW = 34;
   const photoH = 60;
@@ -352,7 +435,7 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
   const photoY = y + cardHeight - photoH;
 
   if (employeePhoto) {
-    doc.addImage(employeePhoto.dataUrl, employeePhoto.format, photoX, photoY, photoW, photoH);
+    drawCoverCroppedImage(doc, employeePhoto.dataUrl, photoX, photoY, photoW, photoH);
   } else {
     doc.setTextColor(170, 170, 170);
     doc.setFont("helvetica", "normal");
@@ -361,55 +444,56 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
   }
 
   const textX = topIdentityX;
-  const textMaxWidth = photoX - textX - 1.2;
-  const nameTopY = identityDividerY + 4.5;
+  const nameMaxWidth = x + cardWidth - textX - 1.1;
+  const detailMaxWidth = photoX - textX - 1.2;
+  const nameTopY = identityDividerY + 3.85;
 
   const name = cleanText(row.fullName) || "Employee Name";
   const nameFit = fitTextToBox(doc, {
-    text: name,
-    maxWidth: textMaxWidth,
+    text: name.toUpperCase(),
+    maxWidth: nameMaxWidth,
     maxLines: 3,
-    startFontSize: 7.2,
-    minFontSize: 5.6,
+    startFontSize: 8.25,
+    minFontSize: 6.2,
   });
-  doc.setTextColor(25, 25, 25);
+  doc.setTextColor(20, 20, 20);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(nameFit.fontSize);
   if (nameFit.lines.length > 0) {
-    doc.text(nameFit.lines, textX, nameTopY);
+    doc.text(nameFit.lines.map((line) => line.replace(/\s+/g, " ").replace(/\s/g, "\u2009")), textX + 0.35, nameTopY + 0.35);
   }
 
-  let detailY = nameTopY + Math.max(1, nameFit.lines.length) * 3.25 + 1.3;
+  let detailY = nameTopY + Math.max(1, nameFit.lines.length) * 3.45 + 0.9;
   const position = cleanText(row.position);
   if (position) {
     const positionFit = fitTextToBox(doc, {
       text: position,
-      maxWidth: textMaxWidth,
+      maxWidth: detailMaxWidth,
       maxLines: 2,
       startFontSize: 5.3,
       minFontSize: 4.5,
     });
-    doc.setTextColor(72, 72, 72);
+    doc.setTextColor(88, 88, 88);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(positionFit.fontSize);
     if (positionFit.lines.length > 0) {
-      doc.text(positionFit.lines, textX, detailY);
+      doc.text(positionFit.lines, textX + 0.3, detailY + 0.3);
       detailY += positionFit.lines.length * 2.9 + 1;
     }
   }
 
   const branchFit = fitTextToBox(doc, {
     text: cleanText(row.branchName) || "Main Branch",
-    maxWidth: textMaxWidth,
+    maxWidth: detailMaxWidth,
     maxLines: 2,
     startFontSize: 4.8,
     minFontSize: 4,
   });
-  doc.setTextColor(104, 104, 104);
+  doc.setTextColor(126, 126, 126);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(branchFit.fontSize);
   if (branchFit.lines.length > 0) {
-    doc.text(branchFit.lines, textX, detailY);
+    doc.text(branchFit.lines, textX + 0.3, detailY + 0.3);
   }
 }
 
