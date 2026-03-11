@@ -4,8 +4,10 @@ import type { NextRequest } from "next/server";
 
 let GET: typeof import("../route").GET;
 let runtime: typeof import("../route").runtime;
+let lastFrontLayout: string | undefined;
 
 beforeEach(async () => {
+  lastFrontLayout = undefined;
   const featureGuard = await import("@/lib/auth/feature-guard");
   mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
 
@@ -30,7 +32,10 @@ beforeEach(async () => {
   }));
 
   const pdf = await import("@/lib/hr/employee-id-card-pdf");
-  mock.method(pdf, "generateEmployeeIdCardPdf", async () => new Uint8Array([1, 2, 3]));
+  mock.method(pdf, "generateEmployeeIdCardPdf", async (_row: unknown, options: { frontLayout?: string } | undefined) => {
+    lastFrontLayout = options?.frontLayout;
+    return new Uint8Array([1, 2, 3]);
+  });
 
   ({ GET, runtime } = await import("../route"));
 });
@@ -71,6 +76,7 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", () => {
     assert.equal(response.headers.get("cache-control"), "no-store");
     const buffer = await response.arrayBuffer();
     assert.ok(buffer.byteLength > 0);
+    assert.equal(lastFrontLayout, "modern");
   });
 
   it("returns 500 when qr generation fails", async () => {

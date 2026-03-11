@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const ordered = orderEmployeeIdCards(selected);
-    const bytes = await generateEmployeeIdCardsSheetPdf(ordered, { layout, includeCutGuides });
+    const bytes = await generateEmployeeIdCardsSheetPdf(ordered, { layout, includeCutGuides, frontLayout: "modern" });
 
     const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 

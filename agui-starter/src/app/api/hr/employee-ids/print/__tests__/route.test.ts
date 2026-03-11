@@ -5,9 +5,11 @@ import type { NextRequest } from "next/server";
 let POST: typeof import("../route").POST;
 let runtime: typeof import("../route").runtime;
 let generateCalls: string[][] = [];
+let generateFrontLayouts: Array<string | undefined> = [];
 
 beforeEach(async () => {
   generateCalls = [];
+  generateFrontLayouts = [];
   const featureGuard = await import("@/lib/auth/feature-guard");
   mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
 
@@ -25,8 +27,9 @@ beforeEach(async () => {
   ]);
 
   const pdf = await import("@/lib/hr/employee-id-card-pdf");
-  mock.method(pdf, "generateEmployeeIdCardsSheetPdf", async (rows: Array<{ id: string }>) => {
+  mock.method(pdf, "generateEmployeeIdCardsSheetPdf", async (rows: Array<{ id: string }>, options: { frontLayout?: string } | undefined) => {
     generateCalls.push(rows.map((row: { id: string }) => row.id));
+    generateFrontLayouts.push(options?.frontLayout);
     return new Uint8Array([7, 8, 9]);
   });
 
@@ -105,6 +108,7 @@ describe("POST /api/hr/employee-ids/print", () => {
       "00000000-0000-0000-0000-000000000002",
       "00000000-0000-0000-0000-000000000003",
     ]);
+    assert.equal(generateFrontLayouts[0], "modern");
     const buffer = await response.arrayBuffer();
     assert.ok(buffer.byteLength > 0);
   });

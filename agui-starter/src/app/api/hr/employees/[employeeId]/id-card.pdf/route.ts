@@ -44,7 +44,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
   }
 
   try {
-    const bytes = await generateEmployeeIdCardPdf(card);
+    const bytes = await generateEmployeeIdCardPdf(card, { frontLayout: "modern" });
     const filename = `EmployeeID-${sanitizeFilename(card.code)}-${sanitizeFilename(card.id)}.pdf`;
 
     const buffer = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
