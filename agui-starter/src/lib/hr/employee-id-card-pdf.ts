@@ -48,12 +48,6 @@ type EmployeePhoto = {
   format: "PNG" | "JPEG";
 };
 
-type CoverCropRect = {
-  sx: number;
-  sy: number;
-  sw: number;
-  sh: number;
-};
 
 function cleanText(text: string | null | undefined): string {
   return text?.trim() ?? "";
@@ -116,79 +110,6 @@ function getQrCaption(): string {
   }
 
   return DEFAULT_QR_CAPTION;
-}
-
-function getCenteredCoverCropRect(sourceWidth: number, sourceHeight: number, targetWidth: number, targetHeight: number): CoverCropRect {
-  if (sourceWidth <= 0 || sourceHeight <= 0 || targetWidth <= 0 || targetHeight <= 0) {
-    return {
-      sx: 0,
-      sy: 0,
-      sw: Math.max(sourceWidth, 1),
-      sh: Math.max(sourceHeight, 1),
-    };
-  }
-
-  const sourceAspect = sourceWidth / sourceHeight;
-  const targetAspect = targetWidth / targetHeight;
-
-  if (sourceAspect > targetAspect) {
-    const sw = sourceHeight * targetAspect;
-    return {
-      sx: (sourceWidth - sw) / 2,
-      sy: 0,
-      sw,
-      sh: sourceHeight,
-    };
-  }
-
-  const sh = sourceWidth / targetAspect;
-  return {
-    sx: 0,
-    sy: (sourceHeight - sh) / 2,
-    sw: sourceWidth,
-    sh,
-  };
-}
-
-
-function imageDataToImagePropertiesInput(imageData: string): string | Uint8Array {
-  const commaIndex = imageData.indexOf(",");
-  const header = commaIndex >= 0 ? imageData.slice(0, commaIndex) : "";
-  const isBase64DataUrl = header.startsWith("data:") && header.includes(";base64");
-
-  if (!isBase64DataUrl || commaIndex < 0) {
-    return imageData;
-  }
-
-  try {
-    const base64 = imageData.slice(commaIndex + 1);
-    return Uint8Array.from(Buffer.from(base64, "base64"));
-  } catch {
-    return imageData;
-  }
-}
-
-function drawCoverCroppedImage(
-  doc: jsPDF,
-  imageData: string,
-  targetX: number,
-  targetY: number,
-  targetW: number,
-  targetH: number,
-) {
-  const imageProps = doc.getImageProperties(imageDataToImagePropertiesInput(imageData));
-  const crop = getCenteredCoverCropRect(imageProps.width, imageProps.height, targetW, targetH);
-  doc.context2d.drawImage(
-    imageData,
-    crop.sx,
-    crop.sy,
-    crop.sw,
-    crop.sh,
-    targetX,
-    targetY,
-    targetW,
-    targetH,
-  );
 }
 
 export async function resolveHouseLogo(logoUrl: string | null, cache: Map<string, HouseLogo | null>): Promise<HouseLogo | null> {
@@ -435,7 +356,7 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
   const photoY = y + cardHeight - photoH;
 
   if (employeePhoto) {
-    drawCoverCroppedImage(doc, employeePhoto.dataUrl, photoX, photoY, photoW, photoH);
+    doc.addImage(employeePhoto.dataUrl, employeePhoto.format, photoX, photoY, photoW, photoH);
   } else {
     doc.setTextColor(170, 170, 170);
     doc.setFont("helvetica", "normal");
