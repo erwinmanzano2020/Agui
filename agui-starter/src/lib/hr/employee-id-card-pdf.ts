@@ -221,10 +221,10 @@ function drawFrontCard(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLogo 
   doc.setFillColor(...HEADER_ACCENT);
   doc.rect(x, y + HEADER_HEIGHT_MM - 0.5, cardWidth, 0.5, "F");
 
-  const photoPlateW = 33;
-  const photoPlateH = 39;
+  const photoPlateW = 31;
+  const photoPlateH = 36;
   const photoX = x + (cardWidth - photoPlateW) / 2;
-  const photoY = y + HEADER_HEIGHT_MM + 3;
+  const photoY = y + HEADER_HEIGHT_MM + 2.8;
   doc.setFillColor(...PHOTO_PLATE_BG);
   doc.setDrawColor(175);
   doc.setLineWidth(0.25);
@@ -249,7 +249,7 @@ function drawFrontCard(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLogo 
   }
 
   const textWidth = cardWidth - SAFE_MARGIN_MM * 2;
-  let textY = photoY + photoPlateH + 4.8;
+  let textY = photoY + photoPlateH + 3.8;
   const name = cleanText(row.fullName) || "Employee Name";
   const nameFit = fitTextToBox(doc, {
     text: name,
@@ -264,7 +264,7 @@ function drawFrontCard(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLogo 
   doc.setFontSize(nameFit.fontSize);
   if (nameFit.lines.length > 0) {
     doc.text(nameFit.lines, x + cardWidth / 2, textY, { align: "center" });
-    textY += nameFit.lines.length * 3.4 + 1.8;
+    textY += nameFit.lines.length * 3.2 + 1.3;
   }
 
   const position = cleanText(row.position);
@@ -280,7 +280,7 @@ function drawFrontCard(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLogo 
     doc.setFontSize(positionFit.fontSize);
     if (positionFit.lines.length > 0) {
       doc.text(positionFit.lines[0], x + cardWidth / 2, textY, { align: "center" });
-      textY += 3.4;
+      textY += 3;
     }
   }
 
@@ -288,10 +288,15 @@ function drawFrontCard(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLogo 
   doc.setFontSize(5.5);
   doc.text(cleanText(row.branchName) || "Main Branch", x + cardWidth / 2, textY, { align: "center" });
 
-  const idY = y + cardHeight - SAFE_MARGIN_MM;
+  const idBlockTop = y + cardHeight - SAFE_MARGIN_MM - 7;
+  doc.setDrawColor(205);
+  doc.setLineWidth(0.14);
+  doc.line(x + SAFE_MARGIN_MM, idBlockTop, x + SAFE_MARGIN_MM + 19, idBlockTop);
+
+  const idY = idBlockTop + 5.6;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(4.6);
-  doc.text("ID", x + SAFE_MARGIN_MM, idY - 2.7);
+  doc.text("ID", x + SAFE_MARGIN_MM, idY - 2.4);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(6.8);
   doc.text(row.code, x + SAFE_MARGIN_MM, idY);
