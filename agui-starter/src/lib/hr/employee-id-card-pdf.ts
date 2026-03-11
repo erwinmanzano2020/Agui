@@ -313,18 +313,18 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
 
   const structuralLineWidth = 0.32;
   const brandLineX = x + SAFE_MARGIN_MM + 2.4;
-  const identityDividerY = y + cardHeight * 0.655;
+  const identityDividerY = y + cardHeight * 0.666;
 
   doc.setDrawColor(...MODERN_BRAND_ACCENT);
   doc.setLineWidth(structuralLineWidth);
   doc.line(brandLineX, y, brandLineX, y + cardHeight);
 
-  doc.setDrawColor(182, 188, 196);
+  doc.setDrawColor(188, 193, 200);
   doc.setLineWidth(structuralLineWidth);
   doc.line(x, identityDividerY, x + cardWidth, identityDividerY);
 
-  const topIdentityX = brandLineX + 2.65;
-  const topIdentityY = y + SAFE_MARGIN_MM + 1;
+  const topIdentityX = brandLineX + 2.55;
+  const topIdentityY = y + SAFE_MARGIN_MM + 0.35;
   const headerName = getHeaderBrandName(row.houseBrandName, row.houseName);
   if (houseLogo) {
     const logoSize = 4.3;
@@ -332,26 +332,26 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
     doc.setTextColor(41, 41, 41);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(6.2);
-    doc.text(headerName || STAFF_ID_SUBTEXT, topIdentityX + logoSize + 1.3, topIdentityY + 2.5);
+    doc.text(headerName || STAFF_ID_SUBTEXT, topIdentityX + logoSize + 1.2, topIdentityY + 2.2);
   } else {
     doc.setTextColor(41, 41, 41);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(6.2);
-    doc.text(headerName || STAFF_ID_SUBTEXT, topIdentityX, topIdentityY + 2.5);
+    doc.text(headerName || STAFF_ID_SUBTEXT, topIdentityX, topIdentityY + 2.2);
   }
 
-  doc.setTextColor(123, 123, 123);
+  doc.setTextColor(132, 132, 132);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(4.4);
-  doc.text(STAFF_ID_SUBTEXT, topIdentityX, topIdentityY + 6.2);
+  doc.text(STAFF_ID_SUBTEXT, topIdentityX, topIdentityY + 5.55);
 
-  doc.setTextColor(95, 95, 95);
+  doc.setTextColor(104, 104, 104);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(4.8);
-  doc.text(`ID: ${row.code}`, topIdentityX, identityDividerY - 3.9);
+  doc.text(`ID: ${row.code}`, topIdentityX, identityDividerY - 3.35);
 
-  const photoW = 34;
-  const photoH = 60;
+  const photoW = 31.6;
+  const photoH = 56.8;
   const photoX = x + cardWidth - photoW;
   const photoY = y + cardHeight - photoH;
 
@@ -365,26 +365,26 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
   }
 
   const textX = topIdentityX;
-  const nameMaxWidth = x + cardWidth - textX - 1.1;
-  const detailMaxWidth = photoX - textX - 1.2;
-  const nameTopY = identityDividerY + 3.85;
+  const nameMaxWidth = x + cardWidth - textX - 0.4;
+  const detailMaxWidth = photoX - textX - 0.6;
+  const nameTopY = identityDividerY + 2.65;
 
   const name = cleanText(row.fullName) || "Employee Name";
   const nameFit = fitTextToBox(doc, {
     text: name.toUpperCase(),
     maxWidth: nameMaxWidth,
     maxLines: 3,
-    startFontSize: 8.25,
-    minFontSize: 6.2,
+    startFontSize: 8.7,
+    minFontSize: 6.4,
   });
   doc.setTextColor(20, 20, 20);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(nameFit.fontSize);
   if (nameFit.lines.length > 0) {
-    doc.text(nameFit.lines.map((line) => line.replace(/\s+/g, " ").replace(/\s/g, "\u2009")), textX + 0.35, nameTopY + 0.35);
+    doc.text(nameFit.lines.map((line) => line.replace(/\s+/g, " ").replace(/\s/g, "\u2009")), textX + 0.25, nameTopY + 0.2);
   }
 
-  let detailY = nameTopY + Math.max(1, nameFit.lines.length) * 3.45 + 0.9;
+  let detailY = nameTopY + Math.max(1, nameFit.lines.length) * 3.32 + 0.62;
   const position = cleanText(row.position);
   if (position) {
     const positionFit = fitTextToBox(doc, {
@@ -394,12 +394,12 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
       startFontSize: 5.3,
       minFontSize: 4.5,
     });
-    doc.setTextColor(88, 88, 88);
+    doc.setTextColor(93, 93, 93);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(positionFit.fontSize);
     if (positionFit.lines.length > 0) {
-      doc.text(positionFit.lines, textX + 0.3, detailY + 0.3);
-      detailY += positionFit.lines.length * 2.9 + 1;
+      doc.text(positionFit.lines, textX + 0.25, detailY + 0.22);
+      detailY += positionFit.lines.length * 2.8 + 0.88;
     }
   }
 
@@ -410,11 +410,11 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
     startFontSize: 4.8,
     minFontSize: 4,
   });
-  doc.setTextColor(126, 126, 126);
+  doc.setTextColor(138, 138, 138);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(branchFit.fontSize);
   if (branchFit.lines.length > 0) {
-    doc.text(branchFit.lines, textX + 0.3, detailY + 0.3);
+    doc.text(branchFit.lines, textX + 0.25, detailY + 0.22);
   }
 }
 
