@@ -129,10 +129,15 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
   const countdownTimeoutRef = useRef<number | null>(null);
   const flashTimeoutRef = useRef<number | null>(null);
   const uploadRequestIdRef = useRef(0);
+  const cropDraftRequestIdRef = useRef(0);
   const dragStateRef = useRef<{ x: number; y: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const clearDraft = useCallback(() => {
+  const invalidateCropDraftFlow = useCallback(() => {
+    cropDraftRequestIdRef.current += 1;
+  }, []);
+
+  const clearDraftState = useCallback(() => {
     setCropDraft((current) => {
       if (current) {
         URL.revokeObjectURL(current.previewUrl);
@@ -141,6 +146,11 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       return null;
     });
   }, []);
+
+  const clearDraft = useCallback(() => {
+    invalidateCropDraftFlow();
+    clearDraftState();
+  }, [clearDraftState, invalidateCropDraftFlow]);
 
   const clearTimers = useCallback(() => {
     setCountdown(null);
@@ -171,8 +181,9 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
   const resetCameraFlow = useCallback(() => {
     stopCamera();
     setCameraOpen(false);
+    invalidateCropDraftFlow();
     invalidateUploadFlow();
-  }, [invalidateUploadFlow, stopCamera]);
+  }, [invalidateCropDraftFlow, invalidateUploadFlow, stopCamera]);
 
   useEffect(() => {
     return () => {
@@ -265,13 +276,29 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
 
   const beginCrop = useCallback(
     async (blob: Blob) => {
-      clearDraft();
+      invalidateCropDraftFlow();
+      const requestId = cropDraftRequestIdRef.current;
+      clearDraftState();
+
       const imageBitmap = await createImageBitmap(blob);
+
+      if (cropDraftRequestIdRef.current !== requestId) {
+        imageBitmap.close();
+        return;
+      }
+
       const previewUrl = URL.createObjectURL(blob);
+
+      if (cropDraftRequestIdRef.current !== requestId) {
+        URL.revokeObjectURL(previewUrl);
+        imageBitmap.close();
+        return;
+      }
+
       setCropDraft({ blob, previewUrl, imageBitmap, zoom: 1, panX: 0, panY: 0 });
       setError(null);
     },
-    [clearDraft],
+    [clearDraftState, invalidateCropDraftFlow],
   );
 
   const onUploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
