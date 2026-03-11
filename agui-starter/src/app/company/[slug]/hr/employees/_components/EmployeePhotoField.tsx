@@ -13,32 +13,102 @@ type Props = {
   label?: string;
 };
 
-const MAX_IMAGE_DIMENSION = 512;
+const PORTRAIT_FRAME_WIDTH = 240;
+const PORTRAIT_FRAME_HEIGHT = 320;
+const OUTPUT_WIDTH = 720;
+const OUTPUT_HEIGHT = 960;
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 3;
 const UPLOAD_TIMEOUT_MS = 45_000;
 
-async function toOptimizedJpeg(file: File): Promise<Blob> {
-  const image = await createImageBitmap(file);
-  const scale = Math.min(MAX_IMAGE_DIMENSION / image.width, MAX_IMAGE_DIMENSION / image.height, 1);
-  const width = Math.max(1, Math.round(image.width * scale));
-  const height = Math.max(1, Math.round(image.height * scale));
+type CropDraft = {
+  blob: Blob;
+  previewUrl: string;
+  imageBitmap: ImageBitmap;
+  zoom: number;
+  panX: number;
+  panY: number;
+};
 
+async function toJpegBlob(file: File): Promise<Blob> {
+  const image = await createImageBitmap(file);
   const canvas = document.createElement("canvas");
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = image.width;
+  canvas.height = image.height;
 
   const context = canvas.getContext("2d");
   if (!context) {
     throw new Error("Unable to process uploaded image.");
   }
 
-  context.drawImage(image, 0, 0, width, height);
+  context.drawImage(image, 0, 0, image.width, image.height);
 
   const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob((result) => resolve(result), "image/jpeg", 0.86);
+    canvas.toBlob((result) => resolve(result), "image/jpeg", 0.92);
   });
 
   if (!blob) {
-    throw new Error("Unable to compress uploaded image.");
+    throw new Error("Unable to prepare image for crop.");
+  }
+
+  return blob;
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getPanBounds(imageBitmap: ImageBitmap, zoom: number) {
+  const coverScale = Math.max(PORTRAIT_FRAME_WIDTH / imageBitmap.width, PORTRAIT_FRAME_HEIGHT / imageBitmap.height);
+  const renderedWidth = imageBitmap.width * coverScale * zoom;
+  const renderedHeight = imageBitmap.height * coverScale * zoom;
+  const maxPanX = Math.max(0, (renderedWidth - PORTRAIT_FRAME_WIDTH) / 2);
+  const maxPanY = Math.max(0, (renderedHeight - PORTRAIT_FRAME_HEIGHT) / 2);
+  return { coverScale, renderedWidth, renderedHeight, maxPanX, maxPanY };
+}
+
+async function renderPortraitCrop(draft: CropDraft): Promise<Blob> {
+  const { imageBitmap, zoom, panX, panY } = draft;
+  const { renderedWidth, renderedHeight } = getPanBounds(imageBitmap, zoom);
+
+  const left = PORTRAIT_FRAME_WIDTH / 2 - renderedWidth / 2 + panX;
+  const top = PORTRAIT_FRAME_HEIGHT / 2 - renderedHeight / 2 + panY;
+
+  const scaleX = renderedWidth / imageBitmap.width;
+  const scaleY = renderedHeight / imageBitmap.height;
+
+  const sourceX = clamp((-left) / scaleX, 0, imageBitmap.width - 1);
+  const sourceY = clamp((-top) / scaleY, 0, imageBitmap.height - 1);
+  const sourceWidth = clamp(PORTRAIT_FRAME_WIDTH / scaleX, 1, imageBitmap.width - sourceX);
+  const sourceHeight = clamp(PORTRAIT_FRAME_HEIGHT / scaleY, 1, imageBitmap.height - sourceY);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = OUTPUT_WIDTH;
+  canvas.height = OUTPUT_HEIGHT;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Unable to render cropped photo.");
+  }
+
+  context.drawImage(
+    imageBitmap,
+    sourceX,
+    sourceY,
+    sourceWidth,
+    sourceHeight,
+    0,
+    0,
+    OUTPUT_WIDTH,
+    OUTPUT_HEIGHT,
+  );
+
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob((result) => resolve(result), "image/jpeg", 0.9);
+  });
+
+  if (!blob) {
+    throw new Error("Unable to save cropped image.");
   }
 
   return blob;
@@ -51,14 +121,26 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
   const [uploading, setUploading] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [flashVisible, setFlashVisible] = useState(false);
-  const [capturedBlob, setCapturedBlob] = useState<Blob | null>(null);
-  const [capturedPreviewUrl, setCapturedPreviewUrl] = useState<string | null>(null);
+  const [cropDraft, setCropDraft] = useState<CropDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
+
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const countdownTimeoutRef = useRef<number | null>(null);
   const flashTimeoutRef = useRef<number | null>(null);
   const uploadRequestIdRef = useRef(0);
+  const dragStateRef = useRef<{ x: number; y: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const clearDraft = useCallback(() => {
+    setCropDraft((current) => {
+      if (current) {
+        URL.revokeObjectURL(current.previewUrl);
+        current.imageBitmap.close();
+      }
+      return null;
+    });
+  }, []);
 
   const clearTimers = useCallback(() => {
     setCountdown(null);
@@ -86,40 +168,30 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
     clearTimers();
   }, [clearTimers]);
 
-  const resetCapturedState = useCallback(() => {
-    setCapturedBlob(null);
-    setCapturedPreviewUrl((currentUrl) => {
-      if (currentUrl) {
-        URL.revokeObjectURL(currentUrl);
-      }
-      return null;
-    });
-  }, []);
-
   const resetCameraFlow = useCallback(() => {
     stopCamera();
     setCameraOpen(false);
-    resetCapturedState();
     invalidateUploadFlow();
-  }, [invalidateUploadFlow, resetCapturedState, stopCamera]);
+  }, [invalidateUploadFlow, stopCamera]);
 
   useEffect(() => {
     return () => {
       stopCamera();
-      resetCapturedState();
+      clearDraft();
       invalidateUploadFlow();
     };
-  }, [invalidateUploadFlow, resetCapturedState, stopCamera]);
+  }, [clearDraft, invalidateUploadFlow, stopCamera]);
 
   useEffect(() => {
     setPhotoUrl(initialPhotoUrl);
     setPhotoPath(initialPhotoPath);
     resetCameraFlow();
+    clearDraft();
     setError(null);
-  }, [employeeId, initialPhotoPath, initialPhotoUrl, resetCameraFlow]);
+  }, [clearDraft, employeeId, initialPhotoPath, initialPhotoUrl, resetCameraFlow]);
 
   useEffect(() => {
-    if (!cameraOpen || capturedBlob || !streamRef.current || !videoRef.current) {
+    if (!cameraOpen || !streamRef.current || !videoRef.current) {
       return;
     }
 
@@ -128,7 +200,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
     void videoElement.play().catch(() => {
       setError("Unable to start camera preview. Please try again.");
     });
-  }, [cameraOpen, capturedBlob]);
+  }, [cameraOpen]);
 
   const uploadBlob = async (blob: Blob) => {
     const supabase = getSupabase();
@@ -191,17 +263,34 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
     }
   };
 
+  const beginCrop = useCallback(
+    async (blob: Blob) => {
+      clearDraft();
+      const imageBitmap = await createImageBitmap(blob);
+      const previewUrl = URL.createObjectURL(blob);
+      setCropDraft({ blob, previewUrl, imageBitmap, zoom: 1, panX: 0, panY: 0 });
+      setError(null);
+    },
+    [clearDraft],
+  );
+
   const onUploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
-      setError("Only PNG, JPEG, or WEBP files are supported.");
+    if (!file.type.startsWith("image/")) {
+      setError("Please select an image file.");
+      event.target.value = "";
       return;
     }
 
-    const optimized = await toOptimizedJpeg(file);
-    await uploadBlob(optimized);
+    try {
+      const normalized = await toJpegBlob(file);
+      await beginCrop(normalized);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Unable to open selected image.");
+    }
+
     event.target.value = "";
   };
 
@@ -212,7 +301,6 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
     }
 
     stopCamera();
-    resetCapturedState();
     invalidateUploadFlow();
     setError(null);
     setCameraOpen(true);
@@ -242,31 +330,9 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       return;
     }
 
-    const previewWidth = video.clientWidth || sourceWidth;
-    const previewHeight = video.clientHeight || sourceHeight;
-    const previewAspect = previewWidth / previewHeight;
-    const sourceAspect = sourceWidth / sourceHeight;
-
-    let sourceX = 0;
-    let sourceY = 0;
-    let sourceCropWidth = sourceWidth;
-    let sourceCropHeight = sourceHeight;
-
-    if (sourceAspect > previewAspect) {
-      sourceCropWidth = Math.max(1, Math.round(sourceHeight * previewAspect));
-      sourceX = Math.max(0, Math.floor((sourceWidth - sourceCropWidth) / 2));
-    } else if (sourceAspect < previewAspect) {
-      sourceCropHeight = Math.max(1, Math.round(sourceWidth / previewAspect));
-      sourceY = Math.max(0, Math.floor((sourceHeight - sourceCropHeight) / 2));
-    }
-
-    const scale = Math.min(MAX_IMAGE_DIMENSION / sourceCropWidth, MAX_IMAGE_DIMENSION / sourceCropHeight, 1);
-    const width = Math.max(1, Math.round(sourceCropWidth * scale));
-    const height = Math.max(1, Math.round(sourceCropHeight * scale));
-
     const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = sourceWidth;
+    canvas.height = sourceHeight;
 
     const context = canvas.getContext("2d");
     if (!context) {
@@ -274,25 +340,13 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       return;
     }
 
-    context.translate(width, 0);
+    context.translate(sourceWidth, 0);
     context.scale(-1, 1);
-    context.drawImage(video, sourceX, sourceY, sourceCropWidth, sourceCropHeight, 0, 0, width, height);
+    context.drawImage(video, 0, 0, sourceWidth, sourceHeight);
     context.setTransform(1, 0, 0, 1, 0, 0);
 
-    const imageData = context.getImageData(0, 0, width, height);
-    const pixels = imageData.data;
-    const brightnessOffset = 6;
-    const contrastFactor = 1.06;
-
-    for (let index = 0; index < pixels.length; index += 4) {
-      pixels[index] = Math.max(0, Math.min(255, (pixels[index] - 128) * contrastFactor + 128 + brightnessOffset));
-      pixels[index + 1] = Math.max(0, Math.min(255, (pixels[index + 1] - 128) * contrastFactor + 128 + brightnessOffset));
-      pixels[index + 2] = Math.max(0, Math.min(255, (pixels[index + 2] - 128) * contrastFactor + 128 + brightnessOffset));
-    }
-
-    context.putImageData(imageData, 0, 0);
     const blob = await new Promise<Blob | null>((resolve) => {
-      canvas.toBlob((result) => resolve(result), "image/jpeg", 0.9);
+      canvas.toBlob((result) => resolve(result), "image/jpeg", 0.92);
     });
 
     if (!blob) {
@@ -300,18 +354,13 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       return;
     }
 
-    setCapturedBlob(blob);
-    setCapturedPreviewUrl((currentUrl) => {
-      if (currentUrl) {
-        URL.revokeObjectURL(currentUrl);
-      }
-      return URL.createObjectURL(blob);
-    });
     stopCamera();
+    setCameraOpen(false);
+    await beginCrop(blob);
   };
 
   const startCaptureCountdown = () => {
-    if (uploading || countdown !== null || capturedBlob) {
+    if (uploading || countdown !== null || cropDraft) {
       return;
     }
 
@@ -339,91 +388,170 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
     countdownTimeoutRef.current = window.setTimeout(runStep, 700);
   };
 
-  const useCapturedPhoto = async () => {
-    if (!capturedBlob || uploading) {
+  const confirmCrop = async () => {
+    if (!cropDraft || uploading) {
       return;
     }
 
-    const didUpload = await uploadBlob(capturedBlob);
-    if (!didUpload) {
-      return;
+    try {
+      const processedBlob = await renderPortraitCrop(cropDraft);
+      const didUpload = await uploadBlob(processedBlob);
+      if (!didUpload) return;
+      clearDraft();
+      resetCameraFlow();
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Unable to save cropped photo.");
     }
-
-    resetCameraFlow();
   };
 
-  const retakePhoto = async () => {
-    resetCapturedState();
-    invalidateUploadFlow();
-    await openCamera();
+  const onZoomChange = (value: number) => {
+    setCropDraft((current) => {
+      if (!current) return current;
+      const nextZoom = clamp(value, MIN_ZOOM, MAX_ZOOM);
+      const bounds = getPanBounds(current.imageBitmap, nextZoom);
+      return {
+        ...current,
+        zoom: nextZoom,
+        panX: clamp(current.panX, -bounds.maxPanX, bounds.maxPanX),
+        panY: clamp(current.panY, -bounds.maxPanY, bounds.maxPanY),
+      };
+    });
+  };
+
+  const onCropPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!cropDraft) return;
+    dragStateRef.current = { x: event.clientX, y: event.clientY };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const onCropPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!cropDraft || !dragStateRef.current) return;
+
+    const deltaX = event.clientX - dragStateRef.current.x;
+    const deltaY = event.clientY - dragStateRef.current.y;
+
+    dragStateRef.current = { x: event.clientX, y: event.clientY };
+
+    setCropDraft((current) => {
+      if (!current) return current;
+      const bounds = getPanBounds(current.imageBitmap, current.zoom);
+      return {
+        ...current,
+        panX: clamp(current.panX + deltaX, -bounds.maxPanX, bounds.maxPanX),
+        panY: clamp(current.panY + deltaY, -bounds.maxPanY, bounds.maxPanY),
+      };
+    });
+  };
+
+  const onCropPointerUp = () => {
+    dragStateRef.current = null;
   };
 
   return (
     <div className="space-y-2 rounded-md border border-border/60 bg-background p-3">
       <div>
         <p className="text-sm font-medium text-foreground">{label}</p>
-        <p className="text-xs text-muted-foreground">Upload or capture a photo (PNG/JPG/WEBP). Images are resized to 512×512 and saved as JPG.</p>
+        <p className="text-xs text-muted-foreground">
+          Upload a portrait image first, then crop and align before saving. Camera capture remains available.
+        </p>
       </div>
 
       <input type="hidden" name="photo_url" value={photoUrl ?? ""} />
       <input type="hidden" name="photo_path" value={photoPath ?? ""} />
 
       <div className="flex flex-wrap items-center gap-2">
-        <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onUploadFile} disabled={uploading || cameraOpen} />
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/heic,image/heif"
+          onChange={onUploadFile}
+          disabled={uploading || cameraOpen}
+        />
         <Button type="button" variant="outline" onClick={openCamera} disabled={uploading}>
           Take Photo (Camera)
         </Button>
       </div>
 
-      {cameraOpen ? (
-        <div className="space-y-2 rounded-md border border-border bg-muted/20 p-2">
-          <div className="relative overflow-hidden rounded-md bg-black">
-            {capturedPreviewUrl ? (
-              <img src={capturedPreviewUrl} alt="Captured preview" className="h-48 w-full object-cover" />
-            ) : (
-              <>
-                <video ref={videoRef} className="h-48 w-full scale-x-[-1] object-cover" playsInline muted />
-                <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                  <div className="h-36 w-28 rounded-[999px] border-2 border-white/55 bg-white/10 shadow-[0_0_0_9999px_rgba(0,0,0,0.14)]" />
-                </div>
-                {countdown !== null ? (
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
-                    <span className="text-6xl font-semibold tracking-tight text-white drop-shadow">{countdown}</span>
-                  </div>
-                ) : null}
-                <div
-                  className={`pointer-events-none absolute inset-0 bg-white transition-opacity duration-150 ${flashVisible ? "opacity-80" : "opacity-0"}`}
-                />
-              </>
-            )}
+      {cropDraft ? (
+        <div className="space-y-3 rounded-md border border-border bg-muted/20 p-3">
+          <p className="text-xs text-muted-foreground">Pan to align and use zoom to frame the portrait before saving.</p>
+          <div
+            className="relative mx-auto overflow-hidden rounded-md border border-border bg-black"
+            style={{ width: PORTRAIT_FRAME_WIDTH, height: PORTRAIT_FRAME_HEIGHT }}
+            onPointerDown={onCropPointerDown}
+            onPointerMove={onCropPointerMove}
+            onPointerUp={onCropPointerUp}
+            onPointerCancel={onCropPointerUp}
+          >
+            <img
+              src={cropDraft.previewUrl}
+              alt="Crop preview"
+              draggable={false}
+              className="pointer-events-none absolute left-1/2 top-1/2 max-w-none select-none"
+              style={{
+                width: getPanBounds(cropDraft.imageBitmap, cropDraft.zoom).renderedWidth,
+                height: getPanBounds(cropDraft.imageBitmap, cropDraft.zoom).renderedHeight,
+                transform: `translate(calc(-50% + ${cropDraft.panX}px), calc(-50% + ${cropDraft.panY}px))`,
+              }}
+            />
           </div>
-          {capturedBlob ? (
-            <div className="flex gap-2">
-              <Button type="button" variant="outline" onClick={() => void retakePhoto()} disabled={uploading}>
-                Retake
-              </Button>
-              <Button type="button" onClick={useCapturedPhoto} disabled={uploading}>
-                Use Photo
-              </Button>
-              <Button type="button" variant="ghost" onClick={resetCameraFlow} disabled={uploading}>
-                Cancel
-              </Button>
-            </div>
-          ) : (
-            <div className="flex gap-2">
-              <Button type="button" onClick={startCaptureCountdown} disabled={uploading || countdown !== null}>
-                {countdown !== null ? "Get Ready..." : "Capture"}
-              </Button>
-              <Button type="button" variant="ghost" onClick={resetCameraFlow} disabled={countdown !== null}>
-                Cancel
-              </Button>
-            </div>
-          )}
+
+          <label className="block space-y-1 text-xs text-muted-foreground">
+            Zoom
+            <input
+              type="range"
+              min={MIN_ZOOM}
+              max={MAX_ZOOM}
+              step={0.01}
+              value={cropDraft.zoom}
+              onChange={(event) => onZoomChange(Number(event.target.value))}
+              className="w-full"
+            />
+          </label>
+
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" onClick={() => void confirmCrop()} disabled={uploading}>
+              Save Cropped Photo
+            </Button>
+            <Button type="button" variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+              Choose Another Image
+            </Button>
+            <Button type="button" variant="ghost" disabled={uploading} onClick={clearDraft}>
+              Cancel
+            </Button>
+          </div>
         </div>
       ) : null}
 
-      {photoUrl ? <img src={photoUrl} alt="Employee photo preview" className="h-32 w-32 rounded-md object-cover" /> : null}
-      {uploading ? <p className="text-xs text-muted-foreground">Uploading photo…</p> : null}
+      {cameraOpen ? (
+        <div className="space-y-2 rounded-md border border-border bg-muted/20 p-2">
+          <div className="relative overflow-hidden rounded-md bg-black">
+            <video ref={videoRef} className="h-48 w-full scale-x-[-1] object-cover" playsInline muted />
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="h-36 w-28 rounded-md border-2 border-white/65 shadow-[0_0_0_9999px_rgba(0,0,0,0.18)]" />
+            </div>
+            {countdown !== null ? (
+              <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25">
+                <span className="text-6xl font-semibold tracking-tight text-white drop-shadow">{countdown}</span>
+              </div>
+            ) : null}
+            <div
+              className={`pointer-events-none absolute inset-0 bg-white transition-opacity duration-150 ${flashVisible ? "opacity-80" : "opacity-0"}`}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" onClick={startCaptureCountdown} disabled={uploading || countdown !== null || Boolean(cropDraft)}>
+              {countdown !== null ? "Get Ready..." : "Capture"}
+            </Button>
+            <Button type="button" variant="ghost" onClick={resetCameraFlow} disabled={countdown !== null}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {photoUrl ? <img src={photoUrl} alt="Employee photo preview" className="h-40 w-32 rounded-md object-cover" /> : null}
+      {uploading ? <p className="text-xs text-muted-foreground">Uploading processed photo…</p> : null}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
     </div>
   );
