@@ -413,10 +413,19 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
     }
   }
 
+  const branchFit = fitTextToBox(doc, {
+    text: cleanText(row.branchName) || "Main Branch",
+    maxWidth: textMaxWidth,
+    maxLines: 2,
+    startFontSize: 4.9,
+    minFontSize: 4.2,
+  });
   doc.setTextColor(105, 105, 105);
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(4.9);
-  doc.text(cleanText(row.branchName) || "Main Branch", textX, detailY);
+  doc.setFontSize(branchFit.fontSize);
+  if (branchFit.lines.length > 0) {
+    doc.text(branchFit.lines, textX, detailY);
+  }
 }
 
 function drawFrontCard(
