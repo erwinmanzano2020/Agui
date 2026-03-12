@@ -19,9 +19,11 @@ const OUTPUT_WIDTH = 720;
 const OUTPUT_HEIGHT = 960;
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
-const UPLOAD_TIMEOUT_MS = 45_000;
-const UPLOAD_MAX_ATTEMPTS = 2;
-const RETRY_BACKOFF_MS = 800;
+const BASE_UPLOAD_TIMEOUT_MS = 60_000;
+const MAX_UPLOAD_TIMEOUT_MS = 150_000;
+const UPLOAD_TIMEOUT_PER_MB_MS = 20_000;
+const UPLOAD_MAX_ATTEMPTS = 3;
+const RETRY_BACKOFF_MS = 900;
 const DEFAULT_INITIAL_ZOOM = 1.15;
 const DEFAULT_INITIAL_PAN_X = -10;
 const DEFAULT_INITIAL_PAN_Y = 0;
@@ -50,8 +52,10 @@ async function toJpegBlob(file: File): Promise<Blob> {
   context.drawImage(image, 0, 0, image.width, image.height);
 
   const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob((result) => resolve(result), "image/jpeg", 0.92);
+    canvas.toBlob((result) => resolve(result), "image/jpeg", 0.9);
   });
+
+  image.close();
 
   if (!blob) {
     throw new Error("Unable to prepare image for crop.");
@@ -72,6 +76,12 @@ function wait(ms: number) {
 
 function isTimeoutError(error: unknown): boolean {
   return error instanceof Error && error.message === "Photo upload timed out. Please try again.";
+}
+
+function getUploadTimeoutMs(blob: Blob, attempt: number): number {
+  const blobMb = blob.size / (1024 * 1024);
+  const computed = BASE_UPLOAD_TIMEOUT_MS + blobMb * UPLOAD_TIMEOUT_PER_MB_MS + (attempt - 1) * 15_000;
+  return Math.round(clamp(computed, BASE_UPLOAD_TIMEOUT_MS, MAX_UPLOAD_TIMEOUT_MS));
 }
 
 function getNormalizedRotation(rotation: number): 0 | 90 | 180 | 270 {
@@ -286,7 +296,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       if (uploadRequestIdRef.current === requestId) {
         setUploading(false);
       }
-    }, UPLOAD_TIMEOUT_MS * UPLOAD_MAX_ATTEMPTS + RETRY_BACKOFF_MS + 2_000);
+    }, MAX_UPLOAD_TIMEOUT_MS * UPLOAD_MAX_ATTEMPTS + RETRY_BACKOFF_MS + 3_000);
 
     setUploading(true);
     setError(null);
@@ -309,9 +319,10 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
           const uploadResult = await Promise.race([
             uploadPromise,
             new Promise<never>((_, reject) => {
+              const attemptTimeout = getUploadTimeoutMs(blob, attempt);
               timeoutId = window.setTimeout(() => {
                 reject(new Error("Photo upload timed out. Please try again."));
-              }, UPLOAD_TIMEOUT_MS);
+              }, attemptTimeout);
             }),
           ]);
 
@@ -601,6 +612,31 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
     dragStateRef.current = null;
   };
 
+  const deletePhoto = async () => {
+    const existingPath = photoPath;
+
+    clearDraft();
+    invalidateUploadFlow();
+    setPhotoUrl(null);
+    setPhotoPath(null);
+    setError(null);
+
+    if (!existingPath) {
+      return;
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      setError("Photo removed from form, but storage cleanup is unavailable in this environment.");
+      return;
+    }
+
+    const { error: removeError } = await supabase.storage.from("employee-photos").remove([existingPath]);
+    if (removeError) {
+      setError("Photo removed from form, but storage cleanup failed. It can be overwritten by next upload.");
+    }
+  };
+
   const closeCropEditor = () => {
     clearDraft();
   };
@@ -658,6 +694,13 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       ) : null}
 
       {photoUrl ? <img src={photoUrl} alt="Employee photo preview" className="h-40 w-32 rounded-md object-cover" /> : null}
+      {photoUrl || photoPath ? (
+        <div>
+          <Button type="button" variant="ghost" size="sm" onClick={() => void deletePhoto()} disabled={uploading}>
+            Delete Photo
+          </Button>
+        </div>
+      ) : null}
       {uploading ? <p className="text-xs text-muted-foreground">Uploading processed photo…</p> : null}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
@@ -667,9 +710,9 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <h3 className="text-sm font-semibold text-foreground">Align Employee Portrait</h3>
-                <p className="text-xs text-muted-foreground">Use guide lines for Agui ID framing before saving.</p>
+                <p className="text-xs text-muted-foreground">Use the off-center guides for Agui ID framing before saving.</p>
               </div>
-              <Button type="button" variant="ghost" size="sm" onClick={closeCropEditor} disabled={uploading}>
+              <Button type="button" variant="ghost" size="sm" onClick={closeCropEditor}>
                 Close
               </Button>
             </div>
@@ -739,7 +782,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
                   <Button type="button" variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
                     Choose Another Image
                   </Button>
-                  <Button type="button" variant="ghost" disabled={uploading} onClick={closeCropEditor}>
+                  <Button type="button" variant="ghost" onClick={closeCropEditor}>
                     Cancel
                   </Button>
                 </div>
