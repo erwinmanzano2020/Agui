@@ -22,7 +22,9 @@ const MAX_ZOOM = 3;
 const UPLOAD_TIMEOUT_MS = 45_000;
 const UPLOAD_MAX_ATTEMPTS = 2;
 const RETRY_BACKOFF_MS = 800;
-const DEFAULT_INITIAL_ZOOM = 1.2;
+const DEFAULT_INITIAL_ZOOM = 1.15;
+const DEFAULT_INITIAL_PAN_X = -10;
+const DEFAULT_INITIAL_PAN_Y = 0;
 
 type CropDraft = {
   blob: Blob;
@@ -31,6 +33,7 @@ type CropDraft = {
   zoom: number;
   panX: number;
   panY: number;
+  rotation: 0 | 90 | 180 | 270;
 };
 
 async function toJpegBlob(file: File): Promise<Blob> {
@@ -71,29 +74,71 @@ function isTimeoutError(error: unknown): boolean {
   return error instanceof Error && error.message === "Photo upload timed out. Please try again.";
 }
 
-function getPanBounds(imageBitmap: ImageBitmap, zoom: number) {
-  const coverScale = Math.max(PORTRAIT_FRAME_WIDTH / imageBitmap.width, PORTRAIT_FRAME_HEIGHT / imageBitmap.height);
-  const renderedWidth = imageBitmap.width * coverScale * zoom;
-  const renderedHeight = imageBitmap.height * coverScale * zoom;
+function getNormalizedRotation(rotation: number): 0 | 90 | 180 | 270 {
+  const normalized = ((rotation % 360) + 360) % 360;
+  if (normalized === 90 || normalized === 180 || normalized === 270) {
+    return normalized;
+  }
+  return 0;
+}
+
+function getSourceDimensions(imageBitmap: ImageBitmap, rotation: 0 | 90 | 180 | 270) {
+  if (rotation === 90 || rotation === 270) {
+    return { width: imageBitmap.height, height: imageBitmap.width };
+  }
+  return { width: imageBitmap.width, height: imageBitmap.height };
+}
+
+function getPanBounds(imageBitmap: ImageBitmap, zoom: number, rotation: 0 | 90 | 180 | 270) {
+  const source = getSourceDimensions(imageBitmap, rotation);
+  const coverScale = Math.max(PORTRAIT_FRAME_WIDTH / source.width, PORTRAIT_FRAME_HEIGHT / source.height);
+  const renderedWidth = source.width * coverScale * zoom;
+  const renderedHeight = source.height * coverScale * zoom;
   const maxPanX = Math.max(0, (renderedWidth - PORTRAIT_FRAME_WIDTH) / 2);
   const maxPanY = Math.max(0, (renderedHeight - PORTRAIT_FRAME_HEIGHT) / 2);
-  return { coverScale, renderedWidth, renderedHeight, maxPanX, maxPanY };
+  return { renderedWidth, renderedHeight, maxPanX, maxPanY };
+}
+
+async function buildRotatedCanvas(imageBitmap: ImageBitmap, rotation: 0 | 90 | 180 | 270): Promise<HTMLCanvasElement> {
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Unable to process rotated image.");
+  }
+
+  if (rotation === 90 || rotation === 270) {
+    canvas.width = imageBitmap.height;
+    canvas.height = imageBitmap.width;
+  } else {
+    canvas.width = imageBitmap.width;
+    canvas.height = imageBitmap.height;
+  }
+
+  context.translate(canvas.width / 2, canvas.height / 2);
+  context.rotate((rotation * Math.PI) / 180);
+  context.drawImage(imageBitmap, -imageBitmap.width / 2, -imageBitmap.height / 2);
+  context.setTransform(1, 0, 0, 1, 0, 0);
+
+  return canvas;
 }
 
 async function renderPortraitCrop(draft: CropDraft): Promise<Blob> {
-  const { imageBitmap, zoom, panX, panY } = draft;
-  const { renderedWidth, renderedHeight } = getPanBounds(imageBitmap, zoom);
+  const { imageBitmap, zoom, panX, panY, rotation } = draft;
+  const rotatedSource = await buildRotatedCanvas(imageBitmap, rotation);
+  const rotatedWidth = rotatedSource.width;
+  const rotatedHeight = rotatedSource.height;
+  const { renderedWidth, renderedHeight } = getPanBounds(imageBitmap, zoom, rotation);
 
   const left = PORTRAIT_FRAME_WIDTH / 2 - renderedWidth / 2 + panX;
   const top = PORTRAIT_FRAME_HEIGHT / 2 - renderedHeight / 2 + panY;
 
-  const scaleX = renderedWidth / imageBitmap.width;
-  const scaleY = renderedHeight / imageBitmap.height;
+  const scaleX = renderedWidth / rotatedWidth;
+  const scaleY = renderedHeight / rotatedHeight;
 
-  const sourceX = clamp((-left) / scaleX, 0, imageBitmap.width - 1);
-  const sourceY = clamp((-top) / scaleY, 0, imageBitmap.height - 1);
-  const sourceWidth = clamp(PORTRAIT_FRAME_WIDTH / scaleX, 1, imageBitmap.width - sourceX);
-  const sourceHeight = clamp(PORTRAIT_FRAME_HEIGHT / scaleY, 1, imageBitmap.height - sourceY);
+  const sourceX = clamp((-left) / scaleX, 0, rotatedWidth - 1);
+  const sourceY = clamp((-top) / scaleY, 0, rotatedHeight - 1);
+  const sourceWidth = clamp(PORTRAIT_FRAME_WIDTH / scaleX, 1, rotatedWidth - sourceX);
+  const sourceHeight = clamp(PORTRAIT_FRAME_HEIGHT / scaleY, 1, rotatedHeight - sourceY);
 
   const canvas = document.createElement("canvas");
   canvas.width = OUTPUT_WIDTH;
@@ -104,17 +149,7 @@ async function renderPortraitCrop(draft: CropDraft): Promise<Blob> {
     throw new Error("Unable to render cropped photo.");
   }
 
-  context.drawImage(
-    imageBitmap,
-    sourceX,
-    sourceY,
-    sourceWidth,
-    sourceHeight,
-    0,
-    0,
-    OUTPUT_WIDTH,
-    OUTPUT_HEIGHT,
-  );
+  context.drawImage(rotatedSource, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
 
   const blob = await new Promise<Blob | null>((resolve) => {
     canvas.toBlob((result) => resolve(result), "image/jpeg", 0.9);
@@ -142,12 +177,20 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
   const countdownTimeoutRef = useRef<number | null>(null);
   const flashTimeoutRef = useRef<number | null>(null);
   const uploadRequestIdRef = useRef(0);
+  const uploadGuardTimeoutRef = useRef<number | null>(null);
   const cropDraftRequestIdRef = useRef(0);
   const dragStateRef = useRef<{ x: number; y: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const invalidateCropDraftFlow = useCallback(() => {
     cropDraftRequestIdRef.current += 1;
+  }, []);
+
+  const clearUploadGuardTimeout = useCallback(() => {
+    if (uploadGuardTimeoutRef.current !== null) {
+      window.clearTimeout(uploadGuardTimeoutRef.current);
+      uploadGuardTimeoutRef.current = null;
+    }
   }, []);
 
   const clearDraftState = useCallback(() => {
@@ -160,10 +203,17 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
     });
   }, []);
 
+  const invalidateUploadFlow = useCallback(() => {
+    uploadRequestIdRef.current += 1;
+    clearUploadGuardTimeout();
+    setUploading(false);
+  }, [clearUploadGuardTimeout]);
+
   const clearDraft = useCallback(() => {
     invalidateCropDraftFlow();
+    invalidateUploadFlow();
     clearDraftState();
-  }, [clearDraftState, invalidateCropDraftFlow]);
+  }, [clearDraftState, invalidateCropDraftFlow, invalidateUploadFlow]);
 
   const clearTimers = useCallback(() => {
     setCountdown(null);
@@ -178,11 +228,6 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       window.clearTimeout(flashTimeoutRef.current);
       flashTimeoutRef.current = null;
     }
-  }, []);
-
-  const invalidateUploadFlow = useCallback(() => {
-    uploadRequestIdRef.current += 1;
-    setUploading(false);
   }, []);
 
   const stopCamera = useCallback(() => {
@@ -203,8 +248,9 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       stopCamera();
       clearDraft();
       invalidateUploadFlow();
+      clearUploadGuardTimeout();
     };
-  }, [clearDraft, invalidateUploadFlow, stopCamera]);
+  }, [clearDraft, clearUploadGuardTimeout, invalidateUploadFlow, stopCamera]);
 
   useEffect(() => {
     setPhotoUrl(initialPhotoUrl);
@@ -235,6 +281,13 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
 
     const requestId = uploadRequestIdRef.current + 1;
     uploadRequestIdRef.current = requestId;
+    clearUploadGuardTimeout();
+    uploadGuardTimeoutRef.current = window.setTimeout(() => {
+      if (uploadRequestIdRef.current === requestId) {
+        setUploading(false);
+      }
+    }, UPLOAD_TIMEOUT_MS * UPLOAD_MAX_ATTEMPTS + RETRY_BACKOFF_MS + 2_000);
+
     setUploading(true);
     setError(null);
 
@@ -308,6 +361,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       setError(message);
       return false;
     } finally {
+      clearUploadGuardTimeout();
       if (uploadRequestIdRef.current === requestId) {
         setUploading(false);
       }
@@ -321,21 +375,27 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       clearDraftState();
 
       const imageBitmap = await createImageBitmap(blob);
-
       if (cropDraftRequestIdRef.current !== requestId) {
         imageBitmap.close();
         return;
       }
 
       const previewUrl = URL.createObjectURL(blob);
-
       if (cropDraftRequestIdRef.current !== requestId) {
         URL.revokeObjectURL(previewUrl);
         imageBitmap.close();
         return;
       }
 
-      setCropDraft({ blob, previewUrl, imageBitmap, zoom: DEFAULT_INITIAL_ZOOM, panX: 0, panY: 0 });
+      setCropDraft({
+        blob,
+        previewUrl,
+        imageBitmap,
+        zoom: DEFAULT_INITIAL_ZOOM,
+        panX: DEFAULT_INITIAL_PAN_X,
+        panY: DEFAULT_INITIAL_PAN_Y,
+        rotation: 0,
+      });
       setError(null);
     },
     [clearDraftState, invalidateCropDraftFlow],
@@ -475,12 +535,39 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
     setCropDraft((current) => {
       if (!current) return current;
       const nextZoom = clamp(value, MIN_ZOOM, MAX_ZOOM);
-      const bounds = getPanBounds(current.imageBitmap, nextZoom);
+      const bounds = getPanBounds(current.imageBitmap, nextZoom, current.rotation);
       return {
         ...current,
         zoom: nextZoom,
         panX: clamp(current.panX, -bounds.maxPanX, bounds.maxPanX),
         panY: clamp(current.panY, -bounds.maxPanY, bounds.maxPanY),
+      };
+    });
+  };
+
+  const rotateDraft = (delta: number) => {
+    setCropDraft((current) => {
+      if (!current) return current;
+      const rotation = getNormalizedRotation(current.rotation + delta);
+      const bounds = getPanBounds(current.imageBitmap, current.zoom, rotation);
+      return {
+        ...current,
+        rotation,
+        panX: clamp(current.panX, -bounds.maxPanX, bounds.maxPanX),
+        panY: clamp(current.panY, -bounds.maxPanY, bounds.maxPanY),
+      };
+    });
+  };
+
+  const resetFraming = () => {
+    setCropDraft((current) => {
+      if (!current) return current;
+      return {
+        ...current,
+        zoom: DEFAULT_INITIAL_ZOOM,
+        panX: DEFAULT_INITIAL_PAN_X,
+        panY: DEFAULT_INITIAL_PAN_Y,
+        rotation: 0,
       };
     });
   };
@@ -501,7 +588,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
 
     setCropDraft((current) => {
       if (!current) return current;
-      const bounds = getPanBounds(current.imageBitmap, current.zoom);
+      const bounds = getPanBounds(current.imageBitmap, current.zoom, current.rotation);
       return {
         ...current,
         panX: clamp(current.panX + deltaX, -bounds.maxPanX, bounds.maxPanX),
@@ -512,6 +599,10 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
 
   const onCropPointerUp = () => {
     dragStateRef.current = null;
+  };
+
+  const closeCropEditor = () => {
+    clearDraft();
   };
 
   return (
@@ -538,68 +629,6 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
           Take Photo (Camera)
         </Button>
       </div>
-
-      {cropDraft ? (
-        <div className="space-y-3 rounded-md border border-border bg-muted/20 p-3">
-          <p className="text-xs text-muted-foreground">Pan to align and use zoom to frame the portrait before saving.</p>
-          <div
-            className="relative mx-auto overflow-hidden rounded-md border border-border bg-black"
-            style={{ width: PORTRAIT_FRAME_WIDTH, height: PORTRAIT_FRAME_HEIGHT }}
-            onPointerDown={onCropPointerDown}
-            onPointerMove={onCropPointerMove}
-            onPointerUp={onCropPointerUp}
-            onPointerCancel={onCropPointerUp}
-          >
-            <img
-              src={cropDraft.previewUrl}
-              alt="Crop preview"
-              draggable={false}
-              className="pointer-events-none absolute left-1/2 top-1/2 max-w-none select-none"
-              style={{
-                width: getPanBounds(cropDraft.imageBitmap, cropDraft.zoom).renderedWidth,
-                height: getPanBounds(cropDraft.imageBitmap, cropDraft.zoom).renderedHeight,
-                transform: `translate(calc(-50% + ${cropDraft.panX}px), calc(-50% + ${cropDraft.panY}px))`,
-              }}
-            />
-            <div className="pointer-events-none absolute inset-0">
-              <div className="absolute left-0 right-0 top-[10%] border-t border-dashed border-white/65" />
-              <div className="absolute left-0 right-0 top-[35%] border-t border-white/70" />
-              <div className="absolute left-0 right-0 top-[70%] border-t border-white/60" />
-              <div className="absolute bottom-[12%] left-[22%] right-[22%] border-t border-dashed border-white/55" />
-              <div className="absolute bottom-[8%] left-[22%] right-[22%] border-t border-dashed border-white/45" />
-              <div className="absolute bottom-[4%] left-[24%] right-[24%] border-t border-dashed border-white/35" />
-              <div className="absolute bottom-0 left-1/2 top-0 -ml-px border-l border-white/50" />
-              <div className="absolute inset-[14%_18%_20%_18%] rounded-[999px] border border-white/35" />
-              <div className="absolute inset-[5%] rounded-md border border-white/20" />
-            </div>
-          </div>
-
-          <label className="block space-y-1 text-xs text-muted-foreground">
-            Zoom
-            <input
-              type="range"
-              min={MIN_ZOOM}
-              max={MAX_ZOOM}
-              step={0.01}
-              value={cropDraft.zoom}
-              onChange={(event) => onZoomChange(Number(event.target.value))}
-              className="w-full"
-            />
-          </label>
-
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" onClick={() => void confirmCrop()} disabled={uploading}>
-              Save Cropped Photo
-            </Button>
-            <Button type="button" variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
-              Choose Another Image
-            </Button>
-            <Button type="button" variant="ghost" disabled={uploading} onClick={clearDraft}>
-              Cancel
-            </Button>
-          </div>
-        </div>
-      ) : null}
 
       {cameraOpen ? (
         <div className="space-y-2 rounded-md border border-border bg-muted/20 p-2">
@@ -631,6 +660,98 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       {photoUrl ? <img src={photoUrl} alt="Employee photo preview" className="h-40 w-32 rounded-md object-cover" /> : null}
       {uploading ? <p className="text-xs text-muted-foreground">Uploading processed photo…</p> : null}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
+
+      {cropDraft ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-[min(96vw,820px)] rounded-xl border border-border bg-card p-4 shadow-2xl">
+            <div className="mb-3 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">Align Employee Portrait</h3>
+                <p className="text-xs text-muted-foreground">Use guide lines for Agui ID framing before saving.</p>
+              </div>
+              <Button type="button" variant="ghost" size="sm" onClick={closeCropEditor} disabled={uploading}>
+                Close
+              </Button>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-[auto,1fr]">
+              <div
+                className="relative mx-auto overflow-hidden rounded-md border border-border bg-black"
+                style={{ width: PORTRAIT_FRAME_WIDTH, height: PORTRAIT_FRAME_HEIGHT }}
+                onPointerDown={onCropPointerDown}
+                onPointerMove={onCropPointerMove}
+                onPointerUp={onCropPointerUp}
+                onPointerCancel={onCropPointerUp}
+              >
+                <img
+                  src={cropDraft.previewUrl}
+                  alt="Crop preview"
+                  draggable={false}
+                  className="pointer-events-none absolute left-1/2 top-1/2 max-w-none select-none"
+                  style={{
+                    width: getPanBounds(cropDraft.imageBitmap, cropDraft.zoom, cropDraft.rotation).renderedWidth,
+                    height: getPanBounds(cropDraft.imageBitmap, cropDraft.zoom, cropDraft.rotation).renderedHeight,
+                    transform: `translate(calc(-50% + ${cropDraft.panX}px), calc(-50% + ${cropDraft.panY}px)) rotate(${cropDraft.rotation}deg)`,
+                  }}
+                />
+                <div className="pointer-events-none absolute inset-0">
+                  <div className="absolute left-[8%] right-[8%] top-[8%] border-t border-dashed border-white/65" />
+                  <div className="absolute left-[8%] right-[8%] top-[34%] border-t border-white/75" />
+                  <div className="absolute left-[8%] right-[8%] top-[68%] border-t border-white/60" />
+                  <div className="absolute left-[45%] right-[36%] top-[16%] bottom-[26%] rounded-[999px] border border-white/45" />
+                  <div className="absolute left-[30%] right-[18%] top-[60%] bottom-[9%] rounded-[24px] border border-dashed border-white/40" />
+                  <div className="absolute bottom-0 left-[52%] top-0 border-l border-white/55" />
+                  <div className="absolute inset-[5%] rounded-md border border-white/25" />
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,transparent_40%,rgba(0,0,0,0.1)_100%)]" />
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="block space-y-1 text-xs text-muted-foreground">
+                  Zoom
+                  <input
+                    type="range"
+                    min={MIN_ZOOM}
+                    max={MAX_ZOOM}
+                    step={0.01}
+                    value={cropDraft.zoom}
+                    onChange={(event) => onZoomChange(Number(event.target.value))}
+                    className="w-full"
+                  />
+                </label>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" onClick={() => rotateDraft(-90)} disabled={uploading}>
+                    Rotate Left
+                  </Button>
+                  <Button type="button" variant="outline" onClick={() => rotateDraft(90)} disabled={uploading}>
+                    Rotate Right
+                  </Button>
+                  <Button type="button" variant="outline" onClick={resetFraming} disabled={uploading}>
+                    Reset Framing
+                  </Button>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" onClick={() => void confirmCrop()} disabled={uploading}>
+                    Save Cropped Photo
+                  </Button>
+                  <Button type="button" variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
+                    Choose Another Image
+                  </Button>
+                  <Button type="button" variant="ghost" disabled={uploading} onClick={closeCropEditor}>
+                    Cancel
+                  </Button>
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  Tip: Align eyes near the upper guide, keep chin above the shoulder box, and keep head slightly right of center for ID framing.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
