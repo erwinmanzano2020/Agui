@@ -18,6 +18,7 @@ function isNullableString(value: unknown): value is string | null {
 }
 
 async function persistPhoto(employeeId: string, houseId: string, photoUrl: string | null, photoPath: string | null) {
+  const startedAt = Date.now();
   const supabase = await createServerSupabaseClient();
   const access = await requireHrAccess(supabase, houseId);
 
@@ -55,12 +56,28 @@ async function persistPhoto(employeeId: string, houseId: string, photoUrl: strin
     return NextResponse.json({ error: "Employee not found" }, { status: 404 });
   }
 
+  console.info("[hr][employee-photo][api] update_success", {
+    employeeId,
+    houseId,
+    durationMs: Date.now() - startedAt,
+    hasPhotoUrl: Boolean(updated.photo_url),
+    hasPhotoPath: Boolean(updated.photo_path),
+  });
+
   return NextResponse.json({ ok: true, photo_url: updated.photo_url ?? null, photo_path: updated.photo_path ?? null });
 }
 
 export async function POST(req: NextRequest, context: { params: Promise<{ employeeId: string }> }) {
   const { employeeId } = await context.params;
-  const raw = (await req.json().catch(() => null)) as { houseId?: unknown; photo_url?: unknown; photo_path?: unknown } | null;
+  const raw = (await req.json().catch(() => null)) as { houseId?: unknown; photo_url?: unknown; photo_path?: unknown; operationId?: unknown } | null;
+  const operationId = req.headers.get("x-photo-operation-id") || (typeof raw?.operationId === "string" ? raw.operationId : null);
+
+  console.info("[hr][employee-photo][api] request_received", {
+    method: "POST",
+    operationId,
+    employeeId,
+    houseId: raw?.houseId ?? null,
+  });
 
   if (!raw || !isValidHouseId(raw.houseId) || !isNullableString(raw.photo_url) || !isNullableString(raw.photo_path)) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
@@ -71,17 +88,26 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
   const photoPath = typeof raw.photo_path === "string" ? raw.photo_path.trim() || null : null;
 
   try {
+    console.info("[hr][employee-photo][api] access_validated", { method: "POST", operationId, employeeId, houseId });
     return await persistPhoto(employeeId, houseId, photoUrl, photoPath);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to persist employee photo";
-    console.error("[hr][employee-photo] Failed to persist employee photo", { employeeId, houseId, message });
+    console.error("[hr][employee-photo][api] persist_fail", { method: "POST", operationId, employeeId, houseId, message });
     return NextResponse.json({ error: "Unable to persist employee photo" }, { status: 500 });
   }
 }
 
 export async function DELETE(req: NextRequest, context: { params: Promise<{ employeeId: string }> }) {
   const { employeeId } = await context.params;
-  const raw = (await req.json().catch(() => null)) as { houseId?: unknown } | null;
+  const raw = (await req.json().catch(() => null)) as { houseId?: unknown; operationId?: unknown } | null;
+  const operationId = req.headers.get("x-photo-operation-id") || (typeof raw?.operationId === "string" ? raw.operationId : null);
+
+  console.info("[hr][employee-photo][api] request_received", {
+    method: "DELETE",
+    operationId,
+    employeeId,
+    houseId: raw?.houseId ?? null,
+  });
 
   if (!raw || !isValidHouseId(raw.houseId)) {
     return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
@@ -90,10 +116,11 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ empl
   const houseId = raw.houseId.trim();
 
   try {
+    console.info("[hr][employee-photo][api] access_validated", { method: "DELETE", operationId, employeeId, houseId });
     return await persistPhoto(employeeId, houseId, null, null);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to delete employee photo";
-    console.error("[hr][employee-photo] Failed to delete employee photo", { employeeId, houseId, message });
+    console.error("[hr][employee-photo][api] persist_fail", { method: "DELETE", operationId, employeeId, houseId, message });
     return NextResponse.json({ error: "Unable to delete employee photo" }, { status: 500 });
   }
 }

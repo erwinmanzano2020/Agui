@@ -54,6 +54,32 @@ type PhotoPipelinePhase =
   | "done"
   | "failed";
 
+type PhotoPipelineEvent =
+  | "SELECT_IMAGE"
+  | "PREPARE_IMAGE"
+  | "OPEN_CROP"
+  | "RENDER_CROP"
+  | "STORAGE_UPLOAD_START"
+  | "STORAGE_UPLOAD_SUCCESS"
+  | "STORAGE_UPLOAD_FAIL"
+  | "PERSIST_START"
+  | "PERSIST_SUCCESS"
+  | "PERSIST_FAIL"
+  | "DELETE_START"
+  | "DELETE_PERSIST_SUCCESS"
+  | "DELETE_STORAGE_SUCCESS"
+  | "DELETE_FAIL"
+  | "CLEANUP_START"
+  | "CLEANUP_DONE";
+
+function createOperationId(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `photo-op-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 async function toJpegBlob(file: File): Promise<Blob> {
   const image = await createImageBitmap(file);
   const canvas = document.createElement("canvas");
@@ -193,6 +219,7 @@ async function persistEmployeePhotoViaApi(
   houseId: string,
   payload: { photo_url: string | null; photo_path: string | null },
   timeoutMs: number,
+  operationId: string,
 ) {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -201,8 +228,8 @@ async function persistEmployeePhotoViaApi(
   try {
     response = await fetch(`/api/hr/employees/${employeeId}/photo`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ houseId, ...payload }),
+      headers: { "Content-Type": "application/json", "x-photo-operation-id": operationId },
+      body: JSON.stringify({ houseId, operationId, ...payload }),
       signal: controller.signal,
     });
   } catch (error) {
@@ -230,7 +257,7 @@ async function persistEmployeePhotoViaApi(
   };
 }
 
-async function deleteEmployeePhotoViaApi(employeeId: string, houseId: string) {
+async function deleteEmployeePhotoViaApi(employeeId: string, houseId: string, operationId: string) {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), API_PERSIST_TIMEOUT_MS);
 
@@ -238,8 +265,8 @@ async function deleteEmployeePhotoViaApi(employeeId: string, houseId: string) {
   try {
     response = await fetch(`/api/hr/employees/${employeeId}/photo`, {
       method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ houseId }),
+      headers: { "Content-Type": "application/json", "x-photo-operation-id": operationId },
+      body: JSON.stringify({ houseId, operationId }),
       signal: controller.signal,
     });
   } catch (error) {
@@ -275,6 +302,11 @@ export function EmployeePhotoField({
   const [cropDraft, setCropDraft] = useState<CropDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<PhotoPipelinePhase>("idle");
+  const [operationId, setOperationId] = useState<string | null>(null);
+  const [lastCompletedPhase, setLastCompletedPhase] = useState<PhotoPipelineEvent | null>(null);
+  const [lastError, setLastError] = useState<string | null>(null);
+  const [processedBlobSize, setProcessedBlobSize] = useState<number | null>(null);
+  const [targetStoragePath, setTargetStoragePath] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const router = useRouter();
@@ -324,11 +356,29 @@ export function EmployeePhotoField({
     [employeeId, houseId],
   );
 
+  const logEvent = useCallback(
+    (event: PhotoPipelineEvent, extra: Record<string, unknown> = {}) => {
+      if (event.endsWith("SUCCESS") || event === "OPEN_CROP" || event === "CLEANUP_DONE") {
+        setLastCompletedPhase(event);
+      }
+      console.info("[hr][employee-photo] event", {
+        event,
+        operationId,
+        employeeId,
+        houseId: houseId ?? null,
+        ...extra,
+      });
+    },
+    [employeeId, houseId, operationId],
+  );
+
   const clearDraft = useCallback(() => {
+    logEvent("CLEANUP_START");
     invalidateCropDraftFlow();
     invalidateUploadFlow();
     clearDraftState();
-  }, [clearDraftState, invalidateCropDraftFlow, invalidateUploadFlow]);
+    logEvent("CLEANUP_DONE");
+  }, [clearDraftState, invalidateCropDraftFlow, invalidateUploadFlow, logEvent]);
 
   const clearTimers = useCallback(() => {
     setCountdown(null);
@@ -374,6 +424,11 @@ export function EmployeePhotoField({
     clearDraft();
     setError(null);
     setPhase("idle");
+    setOperationId(null);
+    setLastCompletedPhase(null);
+    setLastError(null);
+    setProcessedBlobSize(null);
+    setTargetStoragePath(null);
   }, [clearDraft, employeeId, initialPhotoPath, initialPhotoUrl, resetCameraFlow]);
 
   useEffect(() => {
@@ -388,7 +443,7 @@ export function EmployeePhotoField({
     });
   }, [cameraOpen]);
 
-  const uploadBlob = async (blob: Blob) => {
+  const uploadBlob = async (blob: Blob, currentOperationId: string) => {
     const supabase = getSupabase();
     if (!supabase) {
       setError("Supabase is not configured in this environment.");
@@ -397,6 +452,7 @@ export function EmployeePhotoField({
 
     const requestId = uploadRequestIdRef.current + 1;
     uploadRequestIdRef.current = requestId;
+    setOperationId(currentOperationId);
     clearUploadGuardTimeout();
     uploadGuardTimeoutRef.current = window.setTimeout(() => {
       if (uploadRequestIdRef.current === requestId) {
@@ -406,10 +462,13 @@ export function EmployeePhotoField({
 
     setUploading(true);
     setError(null);
-    setPhaseWithLog("uploading", { blobSize: blob.size });
+    setPhaseWithLog("uploading", { blobSize: blob.size, operationId: currentOperationId });
+    setLastError(null);
+    logEvent("STORAGE_UPLOAD_START", { blobSize: blob.size });
 
     try {
       const path = buildEmployeePhotoPath(employeeId);
+      setTargetStoragePath(path);
       let attempt = 0;
       let lastError: unknown = null;
 
@@ -428,6 +487,7 @@ export function EmployeePhotoField({
             new Promise<never>((_, reject) => {
               const attemptTimeout = getUploadTimeoutMs(blob, attempt);
               console.info("[hr][employee-photo] storage upload attempt", {
+                operationId: currentOperationId,
                 employeeId,
                 houseId: houseId ?? null,
                 attempt,
@@ -444,6 +504,8 @@ export function EmployeePhotoField({
             throw uploadResult.error;
           }
 
+          logEvent("STORAGE_UPLOAD_SUCCESS", { path, blobSize: blob.size, attempt });
+
           if (uploadRequestIdRef.current !== requestId) {
             return false;
           }
@@ -456,11 +518,12 @@ export function EmployeePhotoField({
               throw new Error("Missing house context for photo update.");
             }
 
-            setPhaseWithLog("saving", { blobSize: blob.size, path });
+            setPhaseWithLog("saving", { blobSize: blob.size, path, operationId: currentOperationId });
+            logEvent("PERSIST_START", { path, blobSize: blob.size, timeoutMs: API_PERSIST_TIMEOUT_MS });
             const persisted = await persistEmployeePhotoViaApi(employeeId, houseId, {
               photo_url: resolvedPhotoUrl,
               photo_path: path,
-            }, API_PERSIST_TIMEOUT_MS);
+            }, API_PERSIST_TIMEOUT_MS, currentOperationId);
 
             if (uploadRequestIdRef.current !== requestId) {
               return false;
@@ -468,6 +531,7 @@ export function EmployeePhotoField({
 
             setPhotoUrl(persisted.photoUrl);
             setPhotoPath(persisted.photoPath);
+            logEvent("PERSIST_SUCCESS", { photoPath: persisted.photoPath });
             router.refresh();
           } else {
             setPhotoUrl(resolvedPhotoUrl);
@@ -477,6 +541,10 @@ export function EmployeePhotoField({
           return true;
         } catch (attemptError) {
           lastError = attemptError;
+          logEvent("STORAGE_UPLOAD_FAIL", {
+            attempt,
+            message: attemptError instanceof Error ? attemptError.message : String(attemptError),
+          });
 
           if (uploadRequestIdRef.current !== requestId) {
             return false;
@@ -507,7 +575,9 @@ export function EmployeePhotoField({
 
       const message = uploadError instanceof Error ? uploadError.message : "Failed to upload photo";
       setError(message);
+      setLastError(message);
       setPhaseWithLog("failed", { message });
+      logEvent("PERSIST_FAIL", { message });
       return false;
     } finally {
       clearUploadGuardTimeout();
@@ -555,6 +625,10 @@ export function EmployeePhotoField({
     const file = event.target.files?.[0];
     if (!file) return;
 
+    const currentOperationId = createOperationId();
+    setOperationId(currentOperationId);
+    logEvent("SELECT_IMAGE", { operationId: currentOperationId, fileType: file.type, fileSize: file.size });
+
     if (!file.type.startsWith("image/")) {
       setError("Please select an image file.");
       event.target.value = "";
@@ -562,10 +636,16 @@ export function EmployeePhotoField({
     }
 
     try {
+      setPhaseWithLog("preparing", { operationId: currentOperationId, fileSize: file.size });
+      logEvent("PREPARE_IMAGE", { operationId: currentOperationId, fileSize: file.size });
       const normalized = await toJpegBlob(file);
       await beginCrop(normalized);
+      logEvent("OPEN_CROP", { operationId: currentOperationId, preparedBlobSize: normalized.size });
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "Unable to open selected image.");
+      const message = uploadError instanceof Error ? uploadError.message : "Unable to open selected image.";
+      setError(message);
+      setLastError(message);
+      setPhaseWithLog("failed", { operationId: currentOperationId, message });
     }
 
     event.target.value = "";
@@ -670,18 +750,24 @@ export function EmployeePhotoField({
       return;
     }
 
+    const currentOperationId = operationId ?? createOperationId();
+    setOperationId(currentOperationId);
+
     try {
-      setPhaseWithLog("rendering");
+      setPhaseWithLog("rendering", { operationId: currentOperationId });
+      logEvent("RENDER_CROP", { operationId: currentOperationId });
       const processedBlob = await renderPortraitCrop(cropDraft);
-      const didUpload = await uploadBlob(processedBlob);
+      setProcessedBlobSize(processedBlob.size);
+      const didUpload = await uploadBlob(processedBlob, currentOperationId);
       if (!didUpload) return;
       clearDraft();
       resetCameraFlow();
-      setPhaseWithLog("done", { blobSize: processedBlob.size });
+      setPhaseWithLog("done", { blobSize: processedBlob.size, operationId: currentOperationId });
       toast.success("Employee photo saved.");
     } catch (uploadError) {
       const message = uploadError instanceof Error ? uploadError.message : "Unable to save cropped photo.";
       setError(message);
+      setLastError(message);
       setPhaseWithLog("failed", { message });
     }
   };
@@ -760,12 +846,15 @@ export function EmployeePhotoField({
     const existingPath = photoPath;
     const previousPhotoUrl = photoUrl;
     const previousPhotoPath = photoPath;
+    const currentOperationId = createOperationId();
+    setOperationId(currentOperationId);
 
     clearDraft();
     invalidateUploadFlow();
     setError(null);
     setUploading(true);
-    setPhaseWithLog("removing", { hasExistingPath: Boolean(existingPath) });
+    setPhaseWithLog("removing", { hasExistingPath: Boolean(existingPath), operationId: currentOperationId });
+    logEvent("DELETE_START", { operationId: currentOperationId, hasExistingPath: Boolean(existingPath) });
 
     if (!persistToEmployeeRecord) {
       setPhotoUrl(null);
@@ -779,16 +868,19 @@ export function EmployeePhotoField({
       }
 
       try {
-        await deleteEmployeePhotoViaApi(employeeId, houseId);
+        await deleteEmployeePhotoViaApi(employeeId, houseId, currentOperationId);
         setPhotoUrl(null);
         setPhotoPath(null);
+        logEvent("DELETE_PERSIST_SUCCESS", { operationId: currentOperationId });
         router.refresh();
       } catch (deleteError) {
         const message = deleteError instanceof Error ? deleteError.message : "Unable to persist photo deletion right now.";
         setPhotoUrl(previousPhotoUrl);
         setPhotoPath(previousPhotoPath);
         setError(message);
+        setLastError(message);
         setPhaseWithLog("failed", { message });
+        logEvent("DELETE_FAIL", { operationId: currentOperationId, message });
         setUploading(false);
         return;
       }
@@ -812,11 +904,14 @@ export function EmployeePhotoField({
     const { error: removeError } = await supabase.storage.from("employee-photos").remove([existingPath]);
     if (removeError) {
       setError("Photo reference cleared, but storage cleanup failed. It can be overwritten by next upload.");
+      setLastError("storage_cleanup_failed");
       setPhaseWithLog("failed", { message: "storage_cleanup_failed" });
+      logEvent("DELETE_FAIL", { operationId: currentOperationId, message: "storage_cleanup_failed" });
       setUploading(false);
       return;
     }
 
+    logEvent("DELETE_STORAGE_SUCCESS", { operationId: currentOperationId, path: existingPath });
     toast.success("Employee photo removed.");
     setPhaseWithLog("done");
     setUploading(false);
@@ -900,6 +995,15 @@ export function EmployeePhotoField({
         </p>
       ) : null}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
+      <div className="rounded-md border border-dashed border-border/70 bg-muted/20 p-2 text-[11px] text-muted-foreground">
+        <p className="font-medium text-foreground/80">Photo pipeline debug</p>
+        <p>operationId: {operationId ?? "—"}</p>
+        <p>phase: {phase}</p>
+        <p>lastCompleted: {lastCompletedPhase ?? "—"}</p>
+        <p>lastError: {lastError ?? "—"}</p>
+        <p>processedBlobSize: {processedBlobSize ?? "—"}</p>
+        <p>targetStoragePath: {targetStoragePath ?? "—"}</p>
+      </div>
 
       {cropDraft ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
