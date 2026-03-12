@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
+import { useToast } from "@/components/ui/toaster";
 import { buildEmployeePhotoPath } from "@/lib/hr/employee-photo";
 import { getSupabase } from "@/lib/supabase";
 
@@ -176,6 +177,46 @@ async function renderPortraitCrop(draft: CropDraft): Promise<Blob> {
   return blob;
 }
 
+async function persistEmployeePhotoViaApi(
+  employeeId: string,
+  houseId: string,
+  payload: { photo_url: string | null; photo_path: string | null },
+) {
+  const response = await fetch(`/api/hr/employees/${employeeId}/photo`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ houseId, ...payload }),
+  });
+
+  const body = (await response.json().catch(() => null)) as {
+    error?: string;
+    photo_url?: string | null;
+    photo_path?: string | null;
+  } | null;
+
+  if (!response.ok) {
+    throw new Error(body?.error || "Unable to persist employee photo");
+  }
+
+  return {
+    photoUrl: body?.photo_url ?? payload.photo_url,
+    photoPath: body?.photo_path ?? payload.photo_path,
+  };
+}
+
+async function deleteEmployeePhotoViaApi(employeeId: string, houseId: string) {
+  const response = await fetch(`/api/hr/employees/${employeeId}/photo`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ houseId }),
+  });
+
+  const body = (await response.json().catch(() => null)) as { error?: string } | null;
+  if (!response.ok) {
+    throw new Error(body?.error || "Unable to delete employee photo");
+  }
+}
+
 export function EmployeePhotoField({
   employeeId,
   initialPhotoUrl = null,
@@ -196,6 +237,7 @@ export function EmployeePhotoField({
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const router = useRouter();
+  const toast = useToast();
   const streamRef = useRef<MediaStream | null>(null);
   const countdownTimeoutRef = useRef<number | null>(null);
   const flashTimeoutRef = useRef<number | null>(null);
@@ -349,25 +391,23 @@ export function EmployeePhotoField({
 
           const { data } = supabase.storage.from("employee-photos").getPublicUrl(path);
           const resolvedPhotoUrl = `${data.publicUrl}?t=${Date.now()}`;
-          setPhotoUrl(resolvedPhotoUrl);
-          setPhotoPath(path);
 
           if (persistToEmployeeRecord) {
             if (!houseId) {
               throw new Error("Missing house context for photo update.");
             }
 
-            const { error: persistError } = await supabase
-              .from("employees")
-              .update({ photo_url: resolvedPhotoUrl, photo_path: path })
-              .eq("id", employeeId)
-              .eq("house_id", houseId);
+            const persisted = await persistEmployeePhotoViaApi(employeeId, houseId, {
+              photo_url: resolvedPhotoUrl,
+              photo_path: path,
+            });
 
-            if (persistError) {
-              throw new Error(persistError.message || "Failed to save employee photo reference.");
-            }
-
+            setPhotoUrl(persisted.photoUrl);
+            setPhotoPath(persisted.photoPath);
             router.refresh();
+          } else {
+            setPhotoUrl(resolvedPhotoUrl);
+            setPhotoPath(path);
           }
 
           return true;
@@ -570,6 +610,7 @@ export function EmployeePhotoField({
       if (!didUpload) return;
       clearDraft();
       resetCameraFlow();
+      toast.success("Employee photo saved.");
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Unable to save cropped photo.");
     }
@@ -654,32 +695,31 @@ export function EmployeePhotoField({
     setPhotoPath(null);
     setError(null);
 
-    const supabase = getSupabase();
-    if (!supabase) {
-      setError("Photo removed from form, but storage cleanup is unavailable in this environment.");
-      return;
-    }
-
     if (persistToEmployeeRecord) {
       if (!houseId) {
         setError("Photo removed from form, but missing house context to persist deletion.");
         return;
       }
 
-      const { error: persistDeleteError } = await supabase
-        .from("employees")
-        .update({ photo_url: null, photo_path: null })
-        .eq("id", employeeId)
-        .eq("house_id", houseId);
-
-      if (persistDeleteError) {
-        setError("Unable to persist photo deletion right now.");
+      try {
+        await deleteEmployeePhotoViaApi(employeeId, houseId);
+        router.refresh();
+      } catch (deleteError) {
+        const message = deleteError instanceof Error ? deleteError.message : "Unable to persist photo deletion right now.";
+        setError(message);
         return;
       }
-      router.refresh();
     }
 
     if (!existingPath) {
+      toast.success("Employee photo removed.");
+      return;
+    }
+
+    const supabase = getSupabase();
+    if (!supabase) {
+      setError("Photo reference cleared, but storage cleanup is unavailable in this environment.");
+      toast.success("Employee photo removed.");
       return;
     }
 
@@ -687,6 +727,8 @@ export function EmployeePhotoField({
     if (removeError) {
       setError("Photo reference cleared, but storage cleanup failed. It can be overwritten by next upload.");
     }
+
+    toast.success("Employee photo removed.");
   };
 
   const closeCropEditor = () => {
