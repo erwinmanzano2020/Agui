@@ -33,6 +33,7 @@ const API_PERSIST_TIMEOUT_MS = 20_000;
 const DEFAULT_INITIAL_ZOOM = 1.15;
 const DEFAULT_INITIAL_PAN_X = -10;
 const DEFAULT_INITIAL_PAN_Y = 0;
+const DEBUG_EVENT_HISTORY_LIMIT = 24;
 
 type CropDraft = {
   blob: Blob;
@@ -303,8 +304,37 @@ export function EmployeePhotoField({
   const cropDraftRequestIdRef = useRef(0);
   const dragStateRef = useRef<{ x: number; y: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const phaseRef = useRef<PhotoPipelinePhase>("IDLE");
+  const operationIdRef = useRef<string | null>(null);
+  const processedBlobSizeRef = useRef<number | null>(null);
+  const targetStoragePathRef = useRef<string | null>(null);
+  const modalCloseTriggeredRef = useRef(false);
+  const expectedDraftClearRef = useRef(false);
+  const hadCropDraftRef = useRef(false);
 
   const showDebugPanel = process.env.NODE_ENV !== "production" || searchParams.get("debug") === "1";
+  const debugStorageKey = `hr-photo-debug-events:${employeeId}`;
+
+
+  useEffect(() => {
+    phaseRef.current = phase;
+    operationIdRef.current = operationId;
+    processedBlobSizeRef.current = processedBlobSize;
+    targetStoragePathRef.current = targetStoragePath;
+    modalCloseTriggeredRef.current = modalCloseTriggered;
+  }, [modalCloseTriggered, operationId, phase, processedBlobSize, targetStoragePath]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = window.sessionStorage.getItem(debugStorageKey);
+    if (!raw) return;
+    try {
+      const parsed = JSON.parse(raw) as PhotoDebugEvent[];
+      setDebugEvents(Array.isArray(parsed) ? parsed.slice(-DEBUG_EVENT_HISTORY_LIMIT) : []);
+    } catch {
+      window.sessionStorage.removeItem(debugStorageKey);
+    }
+  }, [debugStorageKey]);
 
   const invalidateCropDraftFlow = useCallback(() => {
     cropDraftRequestIdRef.current += 1;
@@ -336,9 +366,13 @@ export function EmployeePhotoField({
 
   const pushDebugEvent = useCallback(
     (nextEvent: string, nextPhase: PhotoPipelinePhase, extra: Record<string, unknown> = {}, message?: string) => {
+      const entry: PhotoDebugEvent = { at: new Date().toISOString(), event: nextEvent, phase: nextPhase, message };
       setDebugEvents((current) => {
-        const next = [...current, { at: new Date().toISOString(), event: nextEvent, phase: nextPhase, message }];
-        return next.slice(-14);
+        const next = [...current, entry].slice(-DEBUG_EVENT_HISTORY_LIMIT);
+        if (typeof window !== "undefined") {
+          window.sessionStorage.setItem(debugStorageKey, JSON.stringify(next));
+        }
+        return next;
       });
 
       if (message) {
@@ -349,25 +383,26 @@ export function EmployeePhotoField({
       console.info("[hr][employee-photo] phase", {
         employeeId,
         houseId: houseId ?? null,
-        operationId,
+        operationId: operationIdRef.current,
         phase: nextPhase,
-        processedBlobSize,
-        targetStoragePath,
-        modalCloseTriggered,
+        processedBlobSize: processedBlobSizeRef.current,
+        targetStoragePath: targetStoragePathRef.current,
+        modalCloseTriggered: modalCloseTriggeredRef.current,
         ...extra,
         message: message ?? null,
       });
     },
-    [employeeId, houseId, modalCloseTriggered, operationId, processedBlobSize, targetStoragePath],
+    [debugStorageKey, employeeId, houseId],
   );
 
-  const clearDraft = useCallback(() => {
-    pushDebugEvent("cleanup:start", phase);
+  const clearDraft = useCallback((reason: string, expected = true) => {
+    pushDebugEvent("clearDraft:called", phaseRef.current, { reason, expected });
+    expectedDraftClearRef.current = expected;
     invalidateCropDraftFlow();
     invalidateUploadFlow();
     clearDraftState();
-    pushDebugEvent("cleanup:done", "IDLE");
-  }, [clearDraftState, invalidateCropDraftFlow, invalidateUploadFlow, phase, pushDebugEvent]);
+    pushDebugEvent("clearDraft:done", "IDLE", { reason, expected });
+  }, [clearDraftState, invalidateCropDraftFlow, invalidateUploadFlow, pushDebugEvent]);
 
   const clearTimers = useCallback(() => {
     setCountdown(null);
@@ -390,36 +425,42 @@ export function EmployeePhotoField({
     clearTimers();
   }, [clearTimers]);
 
-  const resetCameraFlow = useCallback(() => {
+  const resetCameraFlow = useCallback((reason: string) => {
+    pushDebugEvent("resetCameraFlow:called", phaseRef.current, { reason });
     stopCamera();
     setCameraOpen(false);
     invalidateCropDraftFlow();
     invalidateUploadFlow();
-  }, [invalidateCropDraftFlow, invalidateUploadFlow, stopCamera]);
+  }, [invalidateCropDraftFlow, invalidateUploadFlow, pushDebugEvent, stopCamera]);
 
   useEffect(() => {
     return () => {
+      pushDebugEvent("component:unmount", phaseRef.current, { employeeId });
       stopCamera();
-      clearDraft();
+      clearDraft("component_unmount", true);
       invalidateUploadFlow();
       clearUploadGuardTimeout();
     };
-  }, [clearDraft, clearUploadGuardTimeout, invalidateUploadFlow, stopCamera]);
+  }, [clearDraft, clearUploadGuardTimeout, employeeId, invalidateUploadFlow, pushDebugEvent, stopCamera]);
 
   useEffect(() => {
+    pushDebugEvent("effect:reset_from_initial_props", "IDLE", {
+      employeeId,
+      initialPhotoUrlPresent: Boolean(initialPhotoUrl),
+      initialPhotoPathPresent: Boolean(initialPhotoPath),
+    });
     setPhotoUrl(initialPhotoUrl);
     setPhotoPath(initialPhotoPath);
-    resetCameraFlow();
-    clearDraft();
+    resetCameraFlow("initial_props_change");
+    clearDraft("initial_props_change", true);
     setError(null);
     setPhase("IDLE");
     setOperationId(null);
     setLastError(null);
     setProcessedBlobSize(null);
     setTargetStoragePath(null);
-    setDebugEvents([]);
     setModalCloseTriggered(false);
-  }, [clearDraft, employeeId, initialPhotoPath, initialPhotoUrl, resetCameraFlow]);
+  }, [clearDraft, employeeId, initialPhotoPath, initialPhotoUrl, pushDebugEvent, resetCameraFlow]);
 
   useEffect(() => {
     if (!cameraOpen || !streamRef.current || !videoRef.current) {
@@ -598,11 +639,14 @@ export function EmployeePhotoField({
 
   const beginCrop = useCallback(
     async (blob: Blob) => {
+      pushDebugEvent("beginCrop:start", "PREPARING", { blobSize: blob.size });
       invalidateCropDraftFlow();
       const requestId = cropDraftRequestIdRef.current;
+      expectedDraftClearRef.current = true;
       clearDraftState();
 
       const imageBitmap = await createImageBitmap(blob);
+      pushDebugEvent("beginCrop:imageBitmap_ready", "PREPARING", { blobSize: blob.size, requestId });
       if (cropDraftRequestIdRef.current !== requestId) {
         imageBitmap.close();
         return;
@@ -615,6 +659,7 @@ export function EmployeePhotoField({
         return;
       }
 
+      pushDebugEvent("beginCrop:set_draft", "PREPARING", { requestId, blobSize: blob.size });
       setCropDraft({
         blob,
         previewUrl,
@@ -631,8 +676,14 @@ export function EmployeePhotoField({
   );
 
   const onUploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    pushDebugEvent("onUploadFile:start", "PREPARING");
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      pushDebugEvent("onUploadFile:no_file", "FAILED", {}, "No file selected.");
+      return;
+    }
+
+    pushDebugEvent("onUploadFile:file_selected", "PREPARING", { fileType: file.type, fileSize: file.size });
 
     const currentOperationId = createOperationId();
     setOperationId(currentOperationId);
@@ -647,12 +698,13 @@ export function EmployeePhotoField({
     try {
       pushDebugEvent("prepareImage:start", "PREPARING", { operationId: currentOperationId, fileSize: file.size });
       const normalized = await toJpegBlob(file);
+      pushDebugEvent("onUploadFile:normalized_success", "PREPARING", { normalizedSize: normalized.size });
       await beginCrop(normalized);
       pushDebugEvent("openCrop:success", "PREPARING", { operationId: currentOperationId, preparedBlobSize: normalized.size });
     } catch (uploadError) {
       const message = uploadError instanceof Error ? uploadError.message : "Unable to open selected image.";
       setError(message);
-      pushDebugEvent("prepareImage:error", "FAILED", { operationId: currentOperationId }, message);
+      pushDebugEvent("onUploadFile:normalized_failure", "FAILED", { operationId: currentOperationId }, message);
     }
 
     event.target.value = "";
@@ -684,6 +736,7 @@ export function EmployeePhotoField({
   };
 
   const captureFromCamera = async () => {
+    pushDebugEvent("captureFromCamera:start", "PREPARING");
     const video = videoRef.current;
     if (!video) return;
 
@@ -717,6 +770,8 @@ export function EmployeePhotoField({
       setError("Unable to capture image from camera.");
       return;
     }
+
+    pushDebugEvent("captureFromCamera:blob_ready", "PREPARING", { blobSize: blob.size });
 
     stopCamera();
     setCameraOpen(false);
@@ -795,8 +850,8 @@ export function EmployeePhotoField({
 
       pushDebugEvent("confirmCrop:success", "SUCCESS", { operationId: currentOperationId });
       setModalCloseTriggered(true);
-      clearDraft();
-      resetCameraFlow();
+      clearDraft("confirmCrop_success", true);
+      resetCameraFlow("confirmCrop_success");
       pushDebugEvent("modal:close_after_success", "SUCCESS", {
         operationId: currentOperationId,
         blobSize: processedBlob.size,
@@ -882,6 +937,27 @@ export function EmployeePhotoField({
     dragStateRef.current = null;
   };
 
+
+  useEffect(() => {
+    if (cropDraft) {
+      hadCropDraftRef.current = true;
+      pushDebugEvent("modal:open", phaseRef.current, { hasDraft: true });
+      return;
+    }
+
+    if (hadCropDraftRef.current && !expectedDraftClearRef.current && phaseRef.current !== "SUCCESS" && phaseRef.current !== "IDLE") {
+      const message = "Photo selection was reset before cropping completed.";
+      setError(message);
+      pushDebugEvent("cropDraft:unexpected_clear", "FAILED", {}, message);
+    }
+
+    if (!cropDraft) {
+      hadCropDraftRef.current = false;
+    }
+
+    expectedDraftClearRef.current = false;
+  }, [cropDraft, pushDebugEvent]);
+
   const deletePhoto = async () => {
     const existingPath = photoPath;
     const previousPhotoUrl = photoUrl;
@@ -889,7 +965,7 @@ export function EmployeePhotoField({
     const currentOperationId = createOperationId();
     setOperationId(currentOperationId);
 
-    clearDraft();
+    clearDraft("deletePhoto_start", true);
     invalidateUploadFlow();
     setError(null);
     setUploading(true);
@@ -953,7 +1029,7 @@ export function EmployeePhotoField({
   };
 
   const closeCropEditor = () => {
-    clearDraft();
+    clearDraft("closeCropEditor", true);
   };
 
   return (
@@ -1001,7 +1077,7 @@ export function EmployeePhotoField({
             <Button type="button" onClick={startCaptureCountdown} disabled={uploading || countdown !== null || Boolean(cropDraft)}>
               {countdown !== null ? "Get Ready..." : "Capture"}
             </Button>
-            <Button type="button" variant="ghost" onClick={resetCameraFlow} disabled={countdown !== null}>
+            <Button type="button" variant="ghost" onClick={() => resetCameraFlow("camera_cancel_button")} disabled={countdown !== null}>
               Cancel
             </Button>
           </div>
