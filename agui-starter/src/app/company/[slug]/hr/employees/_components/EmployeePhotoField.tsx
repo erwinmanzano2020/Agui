@@ -29,6 +29,7 @@ const MAX_UPLOAD_TIMEOUT_MS = 150_000;
 const UPLOAD_TIMEOUT_PER_MB_MS = 20_000;
 const UPLOAD_MAX_ATTEMPTS = 3;
 const RETRY_BACKOFF_MS = 900;
+const API_PERSIST_TIMEOUT_MS = 20_000;
 const DEFAULT_INITIAL_ZOOM = 1.15;
 const DEFAULT_INITIAL_PAN_X = -10;
 const DEFAULT_INITIAL_PAN_Y = 0;
@@ -42,6 +43,16 @@ type CropDraft = {
   panY: number;
   rotation: 0 | 90 | 180 | 270;
 };
+
+type PhotoPipelinePhase =
+  | "idle"
+  | "preparing"
+  | "rendering"
+  | "uploading"
+  | "saving"
+  | "removing"
+  | "done"
+  | "failed";
 
 async function toJpegBlob(file: File): Promise<Blob> {
   const image = await createImageBitmap(file);
@@ -181,12 +192,27 @@ async function persistEmployeePhotoViaApi(
   employeeId: string,
   houseId: string,
   payload: { photo_url: string | null; photo_path: string | null },
+  timeoutMs: number,
 ) {
-  const response = await fetch(`/api/hr/employees/${employeeId}/photo`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ houseId, ...payload }),
-  });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  let response: Response;
+  try {
+    response = await fetch(`/api/hr/employees/${employeeId}/photo`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ houseId, ...payload }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("Saving employee record timed out. Please try again.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 
   const body = (await response.json().catch(() => null)) as {
     error?: string;
@@ -205,11 +231,25 @@ async function persistEmployeePhotoViaApi(
 }
 
 async function deleteEmployeePhotoViaApi(employeeId: string, houseId: string) {
-  const response = await fetch(`/api/hr/employees/${employeeId}/photo`, {
-    method: "DELETE",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ houseId }),
-  });
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), API_PERSIST_TIMEOUT_MS);
+
+  let response: Response;
+  try {
+    response = await fetch(`/api/hr/employees/${employeeId}/photo`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ houseId }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("Removing employee record photo timed out. Please try again.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
 
   const body = (await response.json().catch(() => null)) as { error?: string } | null;
   if (!response.ok) {
@@ -234,6 +274,7 @@ export function EmployeePhotoField({
   const [flashVisible, setFlashVisible] = useState(false);
   const [cropDraft, setCropDraft] = useState<CropDraft | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [phase, setPhase] = useState<PhotoPipelinePhase>("idle");
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const router = useRouter();
@@ -272,7 +313,16 @@ export function EmployeePhotoField({
     uploadRequestIdRef.current += 1;
     clearUploadGuardTimeout();
     setUploading(false);
+    setPhase("idle");
   }, [clearUploadGuardTimeout]);
+
+  const setPhaseWithLog = useCallback(
+    (nextPhase: PhotoPipelinePhase, extra: Record<string, unknown> = {}) => {
+      setPhase(nextPhase);
+      console.info("[hr][employee-photo] phase", { employeeId, houseId: houseId ?? null, phase: nextPhase, ...extra });
+    },
+    [employeeId, houseId],
+  );
 
   const clearDraft = useCallback(() => {
     invalidateCropDraftFlow();
@@ -323,6 +373,7 @@ export function EmployeePhotoField({
     resetCameraFlow();
     clearDraft();
     setError(null);
+    setPhase("idle");
   }, [clearDraft, employeeId, initialPhotoPath, initialPhotoUrl, resetCameraFlow]);
 
   useEffect(() => {
@@ -355,6 +406,7 @@ export function EmployeePhotoField({
 
     setUploading(true);
     setError(null);
+    setPhaseWithLog("uploading", { blobSize: blob.size });
 
     try {
       const path = buildEmployeePhotoPath(employeeId);
@@ -375,6 +427,13 @@ export function EmployeePhotoField({
             uploadPromise,
             new Promise<never>((_, reject) => {
               const attemptTimeout = getUploadTimeoutMs(blob, attempt);
+              console.info("[hr][employee-photo] storage upload attempt", {
+                employeeId,
+                houseId: houseId ?? null,
+                attempt,
+                blobSize: blob.size,
+                attemptTimeout,
+              });
               timeoutId = window.setTimeout(() => {
                 reject(new Error("Photo upload timed out. Please try again."));
               }, attemptTimeout);
@@ -397,10 +456,15 @@ export function EmployeePhotoField({
               throw new Error("Missing house context for photo update.");
             }
 
+            setPhaseWithLog("saving", { blobSize: blob.size, path });
             const persisted = await persistEmployeePhotoViaApi(employeeId, houseId, {
               photo_url: resolvedPhotoUrl,
               photo_path: path,
-            });
+            }, API_PERSIST_TIMEOUT_MS);
+
+            if (uploadRequestIdRef.current !== requestId) {
+              return false;
+            }
 
             setPhotoUrl(persisted.photoUrl);
             setPhotoPath(persisted.photoPath);
@@ -443,6 +507,7 @@ export function EmployeePhotoField({
 
       const message = uploadError instanceof Error ? uploadError.message : "Failed to upload photo";
       setError(message);
+      setPhaseWithLog("failed", { message });
       return false;
     } finally {
       clearUploadGuardTimeout();
@@ -481,8 +546,9 @@ export function EmployeePhotoField({
         rotation: 0,
       });
       setError(null);
+      setPhaseWithLog("preparing", { blobSize: blob.size });
     },
-    [clearDraftState, invalidateCropDraftFlow],
+    [clearDraftState, invalidateCropDraftFlow, setPhaseWithLog],
   );
 
   const onUploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -605,14 +671,18 @@ export function EmployeePhotoField({
     }
 
     try {
+      setPhaseWithLog("rendering");
       const processedBlob = await renderPortraitCrop(cropDraft);
       const didUpload = await uploadBlob(processedBlob);
       if (!didUpload) return;
       clearDraft();
       resetCameraFlow();
+      setPhaseWithLog("done", { blobSize: processedBlob.size });
       toast.success("Employee photo saved.");
     } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "Unable to save cropped photo.");
+      const message = uploadError instanceof Error ? uploadError.message : "Unable to save cropped photo.";
+      setError(message);
+      setPhaseWithLog("failed", { message });
     }
   };
 
@@ -688,12 +758,19 @@ export function EmployeePhotoField({
 
   const deletePhoto = async () => {
     const existingPath = photoPath;
+    const previousPhotoUrl = photoUrl;
+    const previousPhotoPath = photoPath;
 
     clearDraft();
     invalidateUploadFlow();
-    setPhotoUrl(null);
-    setPhotoPath(null);
     setError(null);
+    setUploading(true);
+    setPhaseWithLog("removing", { hasExistingPath: Boolean(existingPath) });
+
+    if (!persistToEmployeeRecord) {
+      setPhotoUrl(null);
+      setPhotoPath(null);
+    }
 
     if (persistToEmployeeRecord) {
       if (!houseId) {
@@ -703,16 +780,24 @@ export function EmployeePhotoField({
 
       try {
         await deleteEmployeePhotoViaApi(employeeId, houseId);
+        setPhotoUrl(null);
+        setPhotoPath(null);
         router.refresh();
       } catch (deleteError) {
         const message = deleteError instanceof Error ? deleteError.message : "Unable to persist photo deletion right now.";
+        setPhotoUrl(previousPhotoUrl);
+        setPhotoPath(previousPhotoPath);
         setError(message);
+        setPhaseWithLog("failed", { message });
+        setUploading(false);
         return;
       }
     }
 
     if (!existingPath) {
       toast.success("Employee photo removed.");
+      setPhaseWithLog("done");
+      setUploading(false);
       return;
     }
 
@@ -720,15 +805,21 @@ export function EmployeePhotoField({
     if (!supabase) {
       setError("Photo reference cleared, but storage cleanup is unavailable in this environment.");
       toast.success("Employee photo removed.");
+      setUploading(false);
       return;
     }
 
     const { error: removeError } = await supabase.storage.from("employee-photos").remove([existingPath]);
     if (removeError) {
       setError("Photo reference cleared, but storage cleanup failed. It can be overwritten by next upload.");
+      setPhaseWithLog("failed", { message: "storage_cleanup_failed" });
+      setUploading(false);
+      return;
     }
 
     toast.success("Employee photo removed.");
+    setPhaseWithLog("done");
+    setUploading(false);
   };
 
   const closeCropEditor = () => {
@@ -795,7 +886,19 @@ export function EmployeePhotoField({
           </Button>
         </div>
       ) : null}
-      {uploading ? <p className="text-xs text-muted-foreground">Uploading processed photo…</p> : null}
+      {uploading ? (
+        <p className="text-xs text-muted-foreground">
+          {phase === "rendering"
+            ? "Rendering cropped photo…"
+            : phase === "uploading"
+              ? "Uploading photo…"
+              : phase === "saving"
+                ? "Saving employee record…"
+                : phase === "removing"
+                  ? "Removing photo…"
+                  : "Preparing photo…"}
+        </p>
+      ) : null}
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
       {cropDraft ? (
