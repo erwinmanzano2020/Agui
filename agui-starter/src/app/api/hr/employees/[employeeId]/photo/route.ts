@@ -17,7 +17,7 @@ function isNullableString(value: unknown): value is string | null {
   return value === null || typeof value === "string";
 }
 
-async function persistPhoto(employeeId: string, houseId: string, photoUrl: string | null, photoPath: string | null) {
+async function persistPhoto(employeeId: string, houseId: string, photoUrl: string | null, photoPath: string | null, operationId: string | null) {
   const startedAt = Date.now();
   const supabase = await createServerSupabaseClient();
   const access = await requireHrAccess(supabase, houseId);
@@ -57,6 +57,7 @@ async function persistPhoto(employeeId: string, houseId: string, photoUrl: strin
   }
 
   console.info("[hr][employee-photo][api] update_success", {
+    operationId,
     employeeId,
     houseId,
     durationMs: Date.now() - startedAt,
@@ -89,7 +90,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
 
   try {
     console.info("[hr][employee-photo][api] access_validated", { method: "POST", operationId, employeeId, houseId });
-    return await persistPhoto(employeeId, houseId, photoUrl, photoPath);
+    return await persistPhoto(employeeId, houseId, photoUrl, photoPath, operationId);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to persist employee photo";
     console.error("[hr][employee-photo][api] persist_fail", { method: "POST", operationId, employeeId, houseId, message });
@@ -117,7 +118,7 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ empl
 
   try {
     console.info("[hr][employee-photo][api] access_validated", { method: "DELETE", operationId, employeeId, houseId });
-    return await persistPhoto(employeeId, houseId, null, null);
+    return await persistPhoto(employeeId, houseId, null, null, operationId);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to delete employee photo";
     console.error("[hr][employee-photo][api] persist_fail", { method: "DELETE", operationId, employeeId, houseId, message });
