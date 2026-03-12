@@ -20,6 +20,9 @@ const OUTPUT_HEIGHT = 960;
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 3;
 const UPLOAD_TIMEOUT_MS = 45_000;
+const UPLOAD_MAX_ATTEMPTS = 2;
+const RETRY_BACKOFF_MS = 800;
+const DEFAULT_INITIAL_ZOOM = 1.2;
 
 type CropDraft = {
   blob: Blob;
@@ -56,6 +59,16 @@ async function toJpegBlob(file: File): Promise<Blob> {
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
+}
+
+function wait(ms: number) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
+function isTimeoutError(error: unknown): boolean {
+  return error instanceof Error && error.message === "Photo upload timed out. Please try again.";
 }
 
 function getPanBounds(imageBitmap: ImageBitmap, zoom: number) {
@@ -225,36 +238,67 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
     setUploading(true);
     setError(null);
 
-    let timeoutId: number | null = null;
-
     try {
       const path = buildEmployeePhotoPath(employeeId);
-      const uploadPromise = supabase.storage.from("employee-photos").upload(path, blob, {
-        contentType: "image/jpeg",
-        upsert: true,
-      });
+      let attempt = 0;
+      let lastError: unknown = null;
 
-      const uploadResult = await Promise.race([
-        uploadPromise,
-        new Promise<never>((_, reject) => {
-          timeoutId = window.setTimeout(() => {
-            reject(new Error("Photo upload timed out. Please try again."));
-          }, UPLOAD_TIMEOUT_MS);
-        }),
-      ]);
+      while (attempt < UPLOAD_MAX_ATTEMPTS) {
+        attempt += 1;
+        let timeoutId: number | null = null;
 
-      if (uploadResult.error) {
-        throw uploadResult.error;
+        try {
+          const uploadPromise = supabase.storage.from("employee-photos").upload(path, blob, {
+            contentType: "image/jpeg",
+            upsert: true,
+          });
+
+          const uploadResult = await Promise.race([
+            uploadPromise,
+            new Promise<never>((_, reject) => {
+              timeoutId = window.setTimeout(() => {
+                reject(new Error("Photo upload timed out. Please try again."));
+              }, UPLOAD_TIMEOUT_MS);
+            }),
+          ]);
+
+          if (uploadResult.error) {
+            throw uploadResult.error;
+          }
+
+          if (uploadRequestIdRef.current !== requestId) {
+            return false;
+          }
+
+          const { data } = supabase.storage.from("employee-photos").getPublicUrl(path);
+          setPhotoUrl(`${data.publicUrl}?t=${Date.now()}`);
+          setPhotoPath(path);
+          return true;
+        } catch (attemptError) {
+          lastError = attemptError;
+
+          if (uploadRequestIdRef.current !== requestId) {
+            return false;
+          }
+
+          const isFinalAttempt = attempt >= UPLOAD_MAX_ATTEMPTS;
+          if (!isTimeoutError(attemptError) || isFinalAttempt) {
+            break;
+          }
+
+          await wait(RETRY_BACKOFF_MS);
+        } finally {
+          if (timeoutId !== null) {
+            window.clearTimeout(timeoutId);
+          }
+        }
       }
 
       if (uploadRequestIdRef.current !== requestId) {
         return false;
       }
 
-      const { data } = supabase.storage.from("employee-photos").getPublicUrl(path);
-      setPhotoUrl(`${data.publicUrl}?t=${Date.now()}`);
-      setPhotoPath(path);
-      return true;
+      throw lastError instanceof Error ? lastError : new Error("Failed to upload photo");
     } catch (uploadError) {
       if (uploadRequestIdRef.current !== requestId) {
         return false;
@@ -264,10 +308,6 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
       setError(message);
       return false;
     } finally {
-      if (timeoutId !== null) {
-        window.clearTimeout(timeoutId);
-      }
-
       if (uploadRequestIdRef.current === requestId) {
         setUploading(false);
       }
@@ -295,7 +335,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
         return;
       }
 
-      setCropDraft({ blob, previewUrl, imageBitmap, zoom: 1, panX: 0, panY: 0 });
+      setCropDraft({ blob, previewUrl, imageBitmap, zoom: DEFAULT_INITIAL_ZOOM, panX: 0, panY: 0 });
       setError(null);
     },
     [clearDraftState, invalidateCropDraftFlow],
@@ -521,6 +561,17 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
                 transform: `translate(calc(-50% + ${cropDraft.panX}px), calc(-50% + ${cropDraft.panY}px))`,
               }}
             />
+            <div className="pointer-events-none absolute inset-0">
+              <div className="absolute left-0 right-0 top-[10%] border-t border-dashed border-white/65" />
+              <div className="absolute left-0 right-0 top-[35%] border-t border-white/70" />
+              <div className="absolute left-0 right-0 top-[70%] border-t border-white/60" />
+              <div className="absolute bottom-[12%] left-[22%] right-[22%] border-t border-dashed border-white/55" />
+              <div className="absolute bottom-[8%] left-[22%] right-[22%] border-t border-dashed border-white/45" />
+              <div className="absolute bottom-[4%] left-[24%] right-[24%] border-t border-dashed border-white/35" />
+              <div className="absolute bottom-0 left-1/2 top-0 -ml-px border-l border-white/50" />
+              <div className="absolute inset-[14%_18%_20%_18%] rounded-[999px] border border-white/35" />
+              <div className="absolute inset-[5%] rounded-md border border-white/20" />
+            </div>
           </div>
 
           <label className="block space-y-1 text-xs text-muted-foreground">
