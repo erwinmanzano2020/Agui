@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { buildEmployeePhotoPath } from "@/lib/hr/employee-photo";
@@ -11,6 +12,9 @@ type Props = {
   initialPhotoUrl?: string | null;
   initialPhotoPath?: string | null;
   label?: string;
+  includeHiddenInputs?: boolean;
+  persistToEmployeeRecord?: boolean;
+  houseId?: string;
 };
 
 const PORTRAIT_FRAME_WIDTH = 240;
@@ -172,7 +176,15 @@ async function renderPortraitCrop(draft: CropDraft): Promise<Blob> {
   return blob;
 }
 
-export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initialPhotoPath = null, label = "Employee Photo" }: Props) {
+export function EmployeePhotoField({
+  employeeId,
+  initialPhotoUrl = null,
+  initialPhotoPath = null,
+  label = "Employee Photo",
+  includeHiddenInputs = true,
+  persistToEmployeeRecord = false,
+  houseId,
+}: Props) {
   const [photoUrl, setPhotoUrl] = useState(initialPhotoUrl);
   const [photoPath, setPhotoPath] = useState(initialPhotoPath);
   const [cameraOpen, setCameraOpen] = useState(false);
@@ -183,6 +195,7 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
   const [error, setError] = useState<string | null>(null);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const router = useRouter();
   const streamRef = useRef<MediaStream | null>(null);
   const countdownTimeoutRef = useRef<number | null>(null);
   const flashTimeoutRef = useRef<number | null>(null);
@@ -335,8 +348,28 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
           }
 
           const { data } = supabase.storage.from("employee-photos").getPublicUrl(path);
-          setPhotoUrl(`${data.publicUrl}?t=${Date.now()}`);
+          const resolvedPhotoUrl = `${data.publicUrl}?t=${Date.now()}`;
+          setPhotoUrl(resolvedPhotoUrl);
           setPhotoPath(path);
+
+          if (persistToEmployeeRecord) {
+            if (!houseId) {
+              throw new Error("Missing house context for photo update.");
+            }
+
+            const { error: persistError } = await supabase
+              .from("employees")
+              .update({ photo_url: resolvedPhotoUrl, photo_path: path })
+              .eq("id", employeeId)
+              .eq("house_id", houseId);
+
+            if (persistError) {
+              throw new Error(persistError.message || "Failed to save employee photo reference.");
+            }
+
+            router.refresh();
+          }
+
           return true;
         } catch (attemptError) {
           lastError = attemptError;
@@ -621,19 +654,38 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
     setPhotoPath(null);
     setError(null);
 
-    if (!existingPath) {
-      return;
-    }
-
     const supabase = getSupabase();
     if (!supabase) {
       setError("Photo removed from form, but storage cleanup is unavailable in this environment.");
       return;
     }
 
+    if (persistToEmployeeRecord) {
+      if (!houseId) {
+        setError("Photo removed from form, but missing house context to persist deletion.");
+        return;
+      }
+
+      const { error: persistDeleteError } = await supabase
+        .from("employees")
+        .update({ photo_url: null, photo_path: null })
+        .eq("id", employeeId)
+        .eq("house_id", houseId);
+
+      if (persistDeleteError) {
+        setError("Unable to persist photo deletion right now.");
+        return;
+      }
+      router.refresh();
+    }
+
+    if (!existingPath) {
+      return;
+    }
+
     const { error: removeError } = await supabase.storage.from("employee-photos").remove([existingPath]);
     if (removeError) {
-      setError("Photo removed from form, but storage cleanup failed. It can be overwritten by next upload.");
+      setError("Photo reference cleared, but storage cleanup failed. It can be overwritten by next upload.");
     }
   };
 
@@ -650,8 +702,8 @@ export function EmployeePhotoField({ employeeId, initialPhotoUrl = null, initial
         </p>
       </div>
 
-      <input type="hidden" name="photo_url" value={photoUrl ?? ""} />
-      <input type="hidden" name="photo_path" value={photoPath ?? ""} />
+      {includeHiddenInputs ? <input type="hidden" name="photo_url" value={photoUrl ?? ""} /> : null}
+      {includeHiddenInputs ? <input type="hidden" name="photo_path" value={photoPath ?? ""} /> : null}
 
       <div className="flex flex-wrap items-center gap-2">
         <input
