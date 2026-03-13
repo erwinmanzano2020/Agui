@@ -274,6 +274,50 @@ async function deleteEmployeePhotoViaApi(employeeId: string, houseId: string, op
   }
 }
 
+
+async function uploadEmployeePhotoViaServerApi(
+  employeeId: string,
+  houseId: string,
+  blob: Blob,
+  path: string,
+  operationId: string,
+  timeoutMs: number,
+) {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
+
+  const formData = new FormData();
+  formData.append("houseId", houseId);
+  formData.append("operationId", operationId);
+  formData.append("path", path);
+  formData.append("contentType", "image/jpeg");
+  formData.append("file", blob, "photo.jpg");
+
+  let response: Response;
+  try {
+    response = await fetch(`/api/hr/employees/${employeeId}/photo/upload`, {
+      method: "POST",
+      headers: { "x-photo-operation-id": operationId },
+      body: formData,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") {
+      throw new Error("Photo upload timed out. Please try again.");
+    }
+    throw error;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+
+  const body = (await response.json().catch(() => null)) as { error?: string; path?: string } | null;
+  if (!response.ok || !body?.path) {
+    throw new Error(body?.error || "Server upload failed");
+  }
+
+  return body.path;
+}
+
 export function EmployeePhotoField({
   employeeId,
   initialPhotoUrl = null,
@@ -324,6 +368,7 @@ export function EmployeePhotoField({
 
   const showDebugPanel = process.env.NODE_ENV !== "production" || searchParams.get("debug") === "1";
   const debugStorageKey = `hr-photo-debug-events:${employeeId}`;
+  const storageUploadMode = searchParams.get("photoUploadMode") === "server" ? "server" : "client";
 
 
   useEffect(() => {
@@ -518,6 +563,7 @@ export function EmployeePhotoField({
       operationId: currentOperationId,
       requestId,
       uploadInvocation,
+      uploadMode: storageUploadMode,
     });
     setLastError(null);
 
@@ -528,6 +574,10 @@ export function EmployeePhotoField({
 
       while (attempt < UPLOAD_MAX_ATTEMPTS) {
         attempt += 1;
+
+        if (storageUploadMode === "server" && !houseId) {
+          throw new Error("Missing house context for server upload mode.");
+        }
 
         const path = buildAttemptPhotoPath(employeeId, currentOperationId, attempt);
         const attemptTimeout = getUploadTimeoutMs(blob, attempt);
@@ -548,16 +598,20 @@ export function EmployeePhotoField({
             attempt,
             blobSize: blob.size,
             timeoutMs: attemptTimeout,
+            timeoutAt: new Date(attemptStartedAt + attemptTimeout).toISOString(),
             startAt: new Date(attemptStartedAt).toISOString(),
+            uploadMode: storageUploadMode,
             requestId,
             uploadInvocation,
             attemptId,
           });
 
-          const uploadPromise = supabase.storage.from("employee-photos").upload(path, blob, {
-            contentType: "image/jpeg",
-            upsert: true,
-          });
+          const uploadPromise = storageUploadMode === "server"
+            ? uploadEmployeePhotoViaServerApi(employeeId, houseId ?? "", blob, path, currentOperationId, attemptTimeout).then(() => ({ data: { path }, error: null as null | Error }))
+            : supabase.storage.from("employee-photos").upload(path, blob, {
+                contentType: "image/jpeg",
+                upsert: true,
+              });
 
           void uploadPromise.finally(() => {
             pendingStorageAttemptIdsRef.current.delete(attemptId);
@@ -589,7 +643,9 @@ export function EmployeePhotoField({
             attempt,
             blobSize: blob.size,
             timeoutMs: attemptTimeout,
+            timeoutAt: new Date(attemptStartedAt + attemptTimeout).toISOString(),
             startAt: new Date(attemptStartedAt).toISOString(),
+            uploadMode: storageUploadMode,
             endAt: new Date().toISOString(),
             durationMs: Date.now() - attemptStartedAt,
             responseReturned,
@@ -598,6 +654,7 @@ export function EmployeePhotoField({
             uploadInvocation,
             attemptId,
             supportsAbort: false,
+            settledLaterObserved: false,
           });
 
           if (uploadResult.error) {
@@ -673,7 +730,9 @@ export function EmployeePhotoField({
             attempt,
             blobSize: blob.size,
             timeoutMs: attemptTimeout,
+            timeoutAt: new Date(attemptStartedAt + attemptTimeout).toISOString(),
             startAt: new Date(attemptStartedAt).toISOString(),
+            uploadMode: storageUploadMode,
             endAt: new Date().toISOString(),
             durationMs: Date.now() - attemptStartedAt,
             responseReturned,
@@ -682,6 +741,9 @@ export function EmployeePhotoField({
             uploadInvocation,
             attemptId,
             supportsAbort: false,
+            errorName: attemptError instanceof Error ? attemptError.name : null,
+            errorCode: typeof (attemptError as { code?: unknown })?.code === "string" ? (attemptError as { code: string }).code : null,
+            errorStatusCode: typeof (attemptError as { statusCode?: unknown })?.statusCode === "number" ? (attemptError as { statusCode: number }).statusCode : null,
             message: attemptMessage,
           }, attemptMessage);
 
@@ -697,6 +759,7 @@ export function EmployeePhotoField({
               attemptId,
               pendingStorageRequests: pendingStorageAttemptIdsRef.current.size,
               note: "Supabase upload promise may still be unresolved; skipping auto-retry to avoid overlapping uploads.",
+              uploadMode: storageUploadMode,
             }, NO_AUTO_RETRY_TIMEOUT_MESSAGE);
             break;
           }
