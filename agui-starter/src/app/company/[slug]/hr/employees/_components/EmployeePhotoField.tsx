@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toaster";
+import { buildEmployeePhotoPath, EMPLOYEE_PHOTOS_BUCKET } from "@/lib/hr/employee-photo";
 import { getSupabase } from "@/lib/supabase";
 
 type Props = {
@@ -110,9 +111,16 @@ function getUploadTimeoutMs(blob: Blob, attempt: number): number {
 }
 
 
-function buildAttemptPhotoPath(employeeId: string, operationId: string, attempt: number): string {
-  const suffix = operationId.replace(/[^a-zA-Z0-9_-]/g, "").slice(0, 18);
-  return `employee-photos/${employeeId}-${suffix}-a${attempt}-${Date.now()}.jpg`;
+function getPathContract(path: string, employeeId: string) {
+  const canonicalPath = buildEmployeePhotoPath(employeeId);
+  const duplicateBucketPrefix = `${EMPLOYEE_PHOTOS_BUCKET}/${EMPLOYEE_PHOTOS_BUCKET}/`;
+  return {
+    canonicalPath,
+    isCanonicalPath: path === canonicalPath,
+    hasDuplicateBucketPrefix: path.startsWith(duplicateBucketPrefix),
+    bucket: EMPLOYEE_PHOTOS_BUCKET,
+    objectKey: path,
+  };
 }
 
 function getNormalizedRotation(rotation: number): 0 | 90 | 180 | 270 {
@@ -579,7 +587,8 @@ export function EmployeePhotoField({
           throw new Error("Missing house context for server upload mode.");
         }
 
-        const path = buildAttemptPhotoPath(employeeId, currentOperationId, attempt);
+        const path = buildEmployeePhotoPath(employeeId);
+        const pathContract = getPathContract(path, employeeId);
         const attemptTimeout = getUploadTimeoutMs(blob, attempt);
         const attemptStartedAt = Date.now();
         const attemptId = `${currentOperationId}-r${requestId}-i${uploadInvocation}-a${attempt}`;
@@ -601,6 +610,7 @@ export function EmployeePhotoField({
             timeoutAt: new Date(attemptStartedAt + attemptTimeout).toISOString(),
             startAt: new Date(attemptStartedAt).toISOString(),
             uploadMode: storageUploadMode,
+            pathContract,
             requestId,
             uploadInvocation,
             attemptId,
@@ -655,6 +665,7 @@ export function EmployeePhotoField({
             attemptId,
             supportsAbort: false,
             settledLaterObserved: false,
+            pathContract,
           });
 
           if (uploadResult.error) {
@@ -671,6 +682,11 @@ export function EmployeePhotoField({
 
           const { data } = supabase.storage.from("employee-photos").getPublicUrl(path);
           const resolvedPhotoUrl = `${data.publicUrl}?t=${Date.now()}`;
+          pushDebugEvent("storageUpload:public_url", "UPLOADING_STORAGE", {
+            path,
+            publicUrl: resolvedPhotoUrl,
+            pathContract,
+          });
 
           if (persistToEmployeeRecord) {
             if (!houseId) {
@@ -744,6 +760,7 @@ export function EmployeePhotoField({
             errorName: attemptError instanceof Error ? attemptError.name : null,
             errorCode: typeof (attemptError as { code?: unknown })?.code === "string" ? (attemptError as { code: string }).code : null,
             errorStatusCode: typeof (attemptError as { statusCode?: unknown })?.statusCode === "number" ? (attemptError as { statusCode: number }).statusCode : null,
+            pathContract,
             message: attemptMessage,
           }, attemptMessage);
 
@@ -1182,6 +1199,11 @@ export function EmployeePhotoField({
       setUploading(false);
       return;
     }
+
+    pushDebugEvent("delete:path_contract", "PREPARING", {
+      removePath: existingPath,
+      pathContract: getPathContract(existingPath, employeeId),
+    });
 
     const { error: removeError } = await supabase.storage.from("employee-photos").remove([existingPath]);
     if (removeError) {
