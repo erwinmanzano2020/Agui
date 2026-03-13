@@ -34,6 +34,7 @@ const DEFAULT_INITIAL_PAN_X = -10;
 const DEFAULT_INITIAL_PAN_Y = 0;
 const DEBUG_EVENT_HISTORY_LIMIT = 24;
 const STORAGE_ERROR_PREFIX = "Uploading photo failed.";
+const NO_AUTO_RETRY_TIMEOUT_MESSAGE = "Storage request timed out and may still be running. Please retry once.";
 
 type CropDraft = {
   blob: Blob;
@@ -318,6 +319,8 @@ export function EmployeePhotoField({
   const expectedDraftClearRef = useRef(false);
   const hadCropDraftRef = useRef(false);
   const uploadInvocationRef = useRef(0);
+  const pendingStorageAttemptIdsRef = useRef<Set<string>>(new Set());
+  const lastInitialSyncRef = useRef<string | null>(null);
 
   const showDebugPanel = process.env.NODE_ENV !== "production" || searchParams.get("debug") === "1";
   const debugStorageKey = `hr-photo-debug-events:${employeeId}`;
@@ -451,6 +454,12 @@ export function EmployeePhotoField({
   }, [clearDraft, clearUploadGuardTimeout, employeeId, invalidateUploadFlow, pushDebugEvent, stopCamera]);
 
   useEffect(() => {
+    const snapshot = JSON.stringify({ employeeId, initialPhotoUrl: initialPhotoUrl ?? null, initialPhotoPath: initialPhotoPath ?? null });
+    if (lastInitialSyncRef.current === snapshot) {
+      return;
+    }
+    lastInitialSyncRef.current = snapshot;
+
     pushDebugEvent("effect:reset_from_initial_props", "IDLE", {
       employeeId,
       initialPhotoUrlPresent: Boolean(initialPhotoUrl),
@@ -496,6 +505,8 @@ export function EmployeePhotoField({
     clearUploadGuardTimeout();
     uploadGuardTimeoutRef.current = window.setTimeout(() => {
       if (uploadRequestIdRef.current === requestId) {
+        pushDebugEvent("uploadBlob:guard_timeout", "FAILED", { requestId, uploadInvocation, pendingStorageRequests: pendingStorageAttemptIdsRef.current.size }, "Upload guard timeout reached before request settled.");
+        setError("Upload guard timeout reached before request settled.");
         setUploading(false);
       }
     }, MAX_UPLOAD_TIMEOUT_MS * UPLOAD_MAX_ATTEMPTS + RETRY_BACKOFF_MS + 3_000);
@@ -521,10 +532,12 @@ export function EmployeePhotoField({
         const path = buildAttemptPhotoPath(employeeId, currentOperationId, attempt);
         const attemptTimeout = getUploadTimeoutMs(blob, attempt);
         const attemptStartedAt = Date.now();
+        const attemptId = `${currentOperationId}-r${requestId}-i${uploadInvocation}-a${attempt}`;
         let timeoutId: number | null = null;
         let responseReturned = false;
         let staleAtCompletion = false;
 
+        pendingStorageAttemptIdsRef.current.add(attemptId);
         setTargetStoragePath(path);
 
         try {
@@ -538,11 +551,23 @@ export function EmployeePhotoField({
             startAt: new Date(attemptStartedAt).toISOString(),
             requestId,
             uploadInvocation,
+            attemptId,
           });
 
           const uploadPromise = supabase.storage.from("employee-photos").upload(path, blob, {
             contentType: "image/jpeg",
             upsert: true,
+          });
+
+          void uploadPromise.finally(() => {
+            pendingStorageAttemptIdsRef.current.delete(attemptId);
+            pushDebugEvent("storageUpload:settled", "UPLOADING_STORAGE", {
+              attemptId,
+              operationId: currentOperationId,
+              requestId,
+              uploadInvocation,
+              pendingStorageRequests: pendingStorageAttemptIdsRef.current.size,
+            });
           });
 
           const uploadResult = await Promise.race([
@@ -571,6 +596,7 @@ export function EmployeePhotoField({
             staleAtCompletion,
             requestId,
             uploadInvocation,
+            attemptId,
             supportsAbort: false,
           });
 
@@ -654,6 +680,7 @@ export function EmployeePhotoField({
             staleAtCompletion,
             requestId,
             uploadInvocation,
+            attemptId,
             supportsAbort: false,
             message: attemptMessage,
           }, attemptMessage);
@@ -665,7 +692,16 @@ export function EmployeePhotoField({
           }
 
           const isFinalAttempt = attempt >= UPLOAD_MAX_ATTEMPTS;
-          if (!isTimeoutError(attemptError) || isFinalAttempt) {
+          if (isTimeoutError(attemptError)) {
+            pushDebugEvent("storageUpload:timeout_orphan_possible", "FAILED", {
+              attemptId,
+              pendingStorageRequests: pendingStorageAttemptIdsRef.current.size,
+              note: "Supabase upload promise may still be unresolved; skipping auto-retry to avoid overlapping uploads.",
+            }, NO_AUTO_RETRY_TIMEOUT_MESSAGE);
+            break;
+          }
+
+          if (isFinalAttempt) {
             break;
           }
 
@@ -681,6 +717,11 @@ export function EmployeePhotoField({
         pushDebugEvent("uploadBlob:stale_request_after_retries", "FAILED", { requestId, operationId: currentOperationId, uploadInvocation }, "Upload request became stale after retries.");
         setError("Upload request became stale after retries.");
         return false;
+      }
+
+      if (isTimeoutError(lastError)) {
+        const timeoutMessage = lastError instanceof Error ? lastError.message : "Photo upload timed out. Please try again.";
+        throw new Error(`${NO_AUTO_RETRY_TIMEOUT_MESSAGE} ${timeoutMessage}`);
       }
 
       throw lastError instanceof Error ? lastError : new Error("Failed to upload photo");
