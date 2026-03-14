@@ -110,6 +110,89 @@ export function fitTextToBox(doc: jsPDF, input: FitTextInput): FitTextResult {
   return { lines: kept, fontSize: input.minFontSize };
 }
 
+
+function wrapTextByWords(doc: jsPDF, text: string, maxWidth: number, maxLines: number): string[] {
+  const normalized = text.trim().replace(/\s+/g, " ");
+  if (!normalized) {
+    return [];
+  }
+
+  const words = normalized.split(" ").filter((word) => word.length > 0);
+  if (words.length === 0) {
+    return [];
+  }
+
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (!current || doc.getTextWidth(candidate) <= maxWidth) {
+      current = candidate;
+      continue;
+    }
+
+    lines.push(current);
+    current = word;
+
+    if (lines.length === maxLines) {
+      return lines;
+    }
+  }
+
+  if (current) {
+    lines.push(current);
+  }
+
+  if (lines.length <= maxLines) {
+    return lines;
+  }
+
+  const kept = lines.slice(0, maxLines);
+  const overflowWords = lines.slice(maxLines).join(" ");
+  if (overflowWords) {
+    let tail = `${kept[maxLines - 1]} ${overflowWords}`.trim();
+    while (tail.length > 0 && doc.getTextWidth(`${tail}…`) > maxWidth) {
+      tail = tail.slice(0, -1).trimEnd();
+    }
+    kept[maxLines - 1] = tail ? `${tail}…` : "…";
+  }
+
+  return kept;
+}
+
+function fitWordWrappedTextToBox(doc: jsPDF, input: FitTextInput): FitTextResult {
+  const rawText = input.text.trim();
+  if (!rawText) {
+    return { lines: [], fontSize: input.startFontSize };
+  }
+
+  for (let fontSize = input.startFontSize; fontSize >= input.minFontSize; fontSize -= 0.2) {
+    doc.setFontSize(fontSize);
+    const lines = wrapTextByWords(doc, rawText, input.maxWidth, input.maxLines);
+    const hasUnbreakableOverflow = lines.some((line) => doc.getTextWidth(line) > input.maxWidth);
+    if (!hasUnbreakableOverflow && lines.length <= input.maxLines) {
+      return { lines, fontSize };
+    }
+  }
+
+  doc.setFontSize(input.minFontSize);
+  const wrapped = wrapTextByWords(doc, rawText, input.maxWidth, input.maxLines);
+  const normalized = wrapped.map((line) => {
+    if (doc.getTextWidth(line) <= input.maxWidth) {
+      return line;
+    }
+
+    let fallback = line;
+    while (fallback.length > 0 && doc.getTextWidth(`${fallback}…`) > input.maxWidth) {
+      fallback = fallback.slice(0, -1).trimEnd();
+    }
+    return fallback ? `${fallback}…` : "…";
+  });
+
+  return { lines: normalized.slice(0, input.maxLines), fontSize: input.minFontSize };
+}
+
 function getQrCaption(): string {
   const configured = process.env.HR_ID_QR_CAPTION?.trim();
   if (configured) {
@@ -377,7 +460,7 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, branding: EmployeeI
   const nameTopY = identityDividerY + textBlockGap;
 
   const name = cleanText(row.fullName) || "Employee Name";
-  const nameFit = fitTextToBox(doc, {
+  const nameFit = fitWordWrappedTextToBox(doc, {
     text: name.toUpperCase(),
     maxWidth: nameMaxWidth,
     maxLines: 3,
