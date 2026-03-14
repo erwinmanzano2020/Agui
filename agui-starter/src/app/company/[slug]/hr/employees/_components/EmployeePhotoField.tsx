@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toaster";
-import { buildEmployeePhotoPath, EMPLOYEE_PHOTOS_BUCKET } from "@/lib/hr/employee-photo";
+import { buildEmployeePhotoPath, EMPLOYEE_PHOTOS_BUCKET, type EmployeePhotoFormat } from "@/lib/hr/employee-photo";
 import { getSupabase } from "@/lib/supabase";
 
 type Props = {
@@ -36,7 +36,6 @@ const DEFAULT_INITIAL_PAN_Y = 0;
 const DEBUG_EVENT_HISTORY_LIMIT = 24;
 const STORAGE_ERROR_PREFIX = "Uploading photo failed.";
 const NO_AUTO_RETRY_TIMEOUT_MESSAGE = "Storage request timed out and may still be running. Please retry once.";
-
 type CropDraft = {
   blob: Blob;
   previewUrl: string;
@@ -45,6 +44,7 @@ type CropDraft = {
   panX: number;
   panY: number;
   rotation: 0 | 90 | 180 | 270;
+  outputFormat: EmployeePhotoFormat;
 };
 
 type PhotoPipelinePhase = "IDLE" | "PREPARING" | "RENDERING_CROP" | "UPLOADING_STORAGE" | "PERSISTING_RECORD" | "SUCCESS" | "FAILED";
@@ -64,7 +64,39 @@ function createOperationId(): string {
   return `photo-op-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-async function toJpegBlob(file: File): Promise<Blob> {
+async function imageHasTransparency(blob: Blob): Promise<boolean> {
+  const image = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = image.width;
+  canvas.height = image.height;
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) {
+    image.close();
+    throw new Error("Unable to process uploaded image.");
+  }
+
+  context.drawImage(image, 0, 0, image.width, image.height);
+  image.close();
+
+  const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+  for (let index = 3; index < data.length; index += 4) {
+    if ((data[index] ?? 255) < 255) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function normalizeUploadFile(file: File): Promise<{ blob: Blob; outputFormat: EmployeePhotoFormat }> {
+  if (file.type === "image/png") {
+    const hasTransparency = await imageHasTransparency(file);
+    if (hasTransparency) {
+      return { blob: file, outputFormat: "png" };
+    }
+  }
+
   const image = await createImageBitmap(file);
   const canvas = document.createElement("canvas");
   canvas.width = image.width;
@@ -72,22 +104,22 @@ async function toJpegBlob(file: File): Promise<Blob> {
 
   const context = canvas.getContext("2d");
   if (!context) {
+    image.close();
     throw new Error("Unable to process uploaded image.");
   }
 
   context.drawImage(image, 0, 0, image.width, image.height);
+  image.close();
 
   const blob = await new Promise<Blob | null>((resolve) => {
     canvas.toBlob((result) => resolve(result), "image/jpeg", 0.9);
   });
 
-  image.close();
-
   if (!blob) {
     throw new Error("Unable to prepare image for crop.");
   }
 
-  return blob;
+  return { blob, outputFormat: "jpg" };
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -111,8 +143,8 @@ function getUploadTimeoutMs(blob: Blob, attempt: number): number {
 }
 
 
-function getPathContract(path: string, employeeId: string) {
-  const canonicalPath = buildEmployeePhotoPath(employeeId);
+function getPathContract(path: string, employeeId: string, extension: EmployeePhotoFormat = "jpg") {
+  const canonicalPath = buildEmployeePhotoPath(employeeId, extension);
   const duplicateBucketPrefix = `${EMPLOYEE_PHOTOS_BUCKET}/${EMPLOYEE_PHOTOS_BUCKET}/`;
   return {
     canonicalPath,
@@ -142,8 +174,14 @@ type ProbeOutcome =
 
 type UploadPrimitive = "upload" | "update" | "server_upload";
 
-async function probeObjectExists(supabase: StorageProbeClient, employeeId: string) {
-  const targetName = `${employeeId}.jpg`;
+type ProcessedPhotoOutput = {
+  blob: Blob;
+  contentType: "image/jpeg" | "image/png";
+  extension: EmployeePhotoFormat;
+};
+
+async function probeObjectExists(supabase: StorageProbeClient, employeeId: string, extension: EmployeePhotoFormat) {
+  const targetName = `${employeeId}.${extension}`;
   const { data, error } = await supabase.storage.from("employee-photos").list("employee-photos", {
     limit: 10,
     search: targetName,
@@ -211,8 +249,8 @@ async function buildRotatedCanvas(imageBitmap: ImageBitmap, rotation: 0 | 90 | 1
   return canvas;
 }
 
-async function renderPortraitCrop(draft: CropDraft): Promise<Blob> {
-  const { imageBitmap, zoom, panX, panY, rotation } = draft;
+async function renderPortraitCrop(draft: CropDraft): Promise<ProcessedPhotoOutput> {
+  const { imageBitmap, zoom, panX, panY, rotation, outputFormat } = draft;
   const rotatedSource = await buildRotatedCanvas(imageBitmap, rotation);
   const rotatedWidth = rotatedSource.width;
   const rotatedHeight = rotatedSource.height;
@@ -238,17 +276,23 @@ async function renderPortraitCrop(draft: CropDraft): Promise<Blob> {
     throw new Error("Unable to render cropped photo.");
   }
 
+  context.clearRect(0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
   context.drawImage(rotatedSource, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
 
+  const contentType = outputFormat === "png" ? "image/png" : "image/jpeg";
   const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob((result) => resolve(result), "image/jpeg", 0.9);
+    canvas.toBlob((result) => resolve(result), contentType, outputFormat === "jpg" ? 0.9 : undefined);
   });
 
   if (!blob) {
     throw new Error("Unable to save cropped image.");
   }
 
-  return blob;
+  return {
+    blob,
+    contentType,
+    extension: outputFormat,
+  };
 }
 
 async function persistEmployeePhotoViaApi(
@@ -328,6 +372,8 @@ async function uploadEmployeePhotoViaServerApi(
   houseId: string,
   blob: Blob,
   path: string,
+  contentType: "image/jpeg" | "image/png",
+  fileName: string,
   operationId: string,
   timeoutMs: number,
 ) {
@@ -338,8 +384,8 @@ async function uploadEmployeePhotoViaServerApi(
   formData.append("houseId", houseId);
   formData.append("operationId", operationId);
   formData.append("path", path);
-  formData.append("contentType", "image/jpeg");
-  formData.append("file", blob, "photo.jpg");
+  formData.append("contentType", contentType);
+  formData.append("file", blob, fileName);
 
   let response: Response;
   try {
@@ -597,7 +643,8 @@ export function EmployeePhotoField({
     });
   }, [cameraOpen]);
 
-  const uploadBlob = async (blob: Blob, currentOperationId: string) => {
+  const uploadBlob = async (output: ProcessedPhotoOutput, currentOperationId: string) => {
+    const blob = output.blob;
     const supabase = getSupabase();
     if (!supabase) {
       setError("Supabase is not configured in this environment.");
@@ -641,8 +688,8 @@ export function EmployeePhotoField({
           throw new Error("Missing house context for server upload mode.");
         }
 
-        const path = buildEmployeePhotoPath(employeeId);
-        const pathContract = getPathContract(path, employeeId);
+        const path = buildEmployeePhotoPath(employeeId, output.extension);
+        const pathContract = getPathContract(path, employeeId, output.extension);
         const attemptTimeout = getUploadTimeoutMs(blob, attempt);
         const attemptStartedAt = Date.now();
         const attemptId = `${currentOperationId}-r${requestId}-i${uploadInvocation}-a${attempt}`;
@@ -689,7 +736,7 @@ export function EmployeePhotoField({
               employeeId,
               targetPath: path,
             });
-            probeOutcome = await probeObjectExists(supabase, employeeId);
+            probeOutcome = await probeObjectExists(supabase, employeeId, output.extension);
             if (probeOutcome.status === "exists") {
               selectedPrimitive = "update";
               pushDebugEvent("storageProbe:exists", "UPLOADING_STORAGE", {
@@ -734,14 +781,14 @@ export function EmployeePhotoField({
                 operationId: currentOperationId,
                 employeeId,
                 targetPath: path,
-              }), uploadEmployeePhotoViaServerApi(employeeId, houseId ?? "", blob, path, currentOperationId, attemptTimeout).then(() => ({ data: { path }, error: null as null | Error })))
+              }), uploadEmployeePhotoViaServerApi(employeeId, houseId ?? "", blob, path, output.contentType, `photo.${output.extension}`, currentOperationId, attemptTimeout).then(() => ({ data: { path }, error: null as null | Error })))
             : selectedPrimitive === "update"
               ? (pushDebugEvent("storageUpload:primitive_update", "UPLOADING_STORAGE", {
                   operationId: currentOperationId,
                   employeeId,
                   targetPath: path,
                 }), supabase.storage.from("employee-photos").update(path, blob, {
-                  contentType: "image/jpeg",
+                  contentType: output.contentType,
                 }).then((result) => {
                   if (result.error && result.error.message.toLowerCase().includes("not found")) {
                     pushDebugEvent("storageUpload:primitive_upload", "UPLOADING_STORAGE", {
@@ -751,7 +798,7 @@ export function EmployeePhotoField({
                       fallback: "update_not_found",
                     });
                     return supabase.storage.from("employee-photos").upload(path, blob, {
-                      contentType: "image/jpeg",
+                      contentType: output.contentType,
                       upsert: false,
                     });
                   }
@@ -762,7 +809,7 @@ export function EmployeePhotoField({
                   employeeId,
                   targetPath: path,
                 }), supabase.storage.from("employee-photos").upload(path, blob, {
-                  contentType: "image/jpeg",
+                  contentType: output.contentType,
                   upsert: false,
                 }));
 
@@ -976,7 +1023,7 @@ export function EmployeePhotoField({
 
 
   const beginCrop = useCallback(
-    async (blob: Blob) => {
+    async (blob: Blob, outputFormat: EmployeePhotoFormat) => {
       pushDebugEvent("beginCrop:start", "PREPARING", { blobSize: blob.size });
       invalidateCropDraftFlow();
       const requestId = cropDraftRequestIdRef.current;
@@ -1006,6 +1053,7 @@ export function EmployeePhotoField({
         panX: DEFAULT_INITIAL_PAN_X,
         panY: DEFAULT_INITIAL_PAN_Y,
         rotation: 0,
+        outputFormat,
       });
       setError(null);
       pushDebugEvent("beginCrop:ready", "PREPARING", { blobSize: blob.size });
@@ -1035,10 +1083,10 @@ export function EmployeePhotoField({
 
     try {
       pushDebugEvent("prepareImage:start", "PREPARING", { operationId: currentOperationId, fileSize: file.size });
-      const normalized = await toJpegBlob(file);
-      pushDebugEvent("onUploadFile:normalized_success", "PREPARING", { normalizedSize: normalized.size });
-      await beginCrop(normalized);
-      pushDebugEvent("openCrop:success", "PREPARING", { operationId: currentOperationId, preparedBlobSize: normalized.size });
+      const normalized = await normalizeUploadFile(file);
+      pushDebugEvent("onUploadFile:normalized_success", "PREPARING", { normalizedSize: normalized.blob.size, outputFormat: normalized.outputFormat });
+      await beginCrop(normalized.blob, normalized.outputFormat);
+      pushDebugEvent("openCrop:success", "PREPARING", { operationId: currentOperationId, preparedBlobSize: normalized.blob.size });
     } catch (uploadError) {
       const message = uploadError instanceof Error ? uploadError.message : "Unable to open selected image.";
       setError(message);
@@ -1113,7 +1161,7 @@ export function EmployeePhotoField({
 
     stopCamera();
     setCameraOpen(false);
-    await beginCrop(blob);
+    await beginCrop(blob, "jpg");
   };
 
   const startCaptureCountdown = () => {
@@ -1157,30 +1205,38 @@ export function EmployeePhotoField({
     setModalCloseTriggered(false);
     setUploading(true);
     setError(null);
-    pushDebugEvent("confirmCrop:start", "PREPARING", { operationId: currentOperationId });
+    pushDebugEvent("confirmCrop:start", "PREPARING", {
+      operationId: currentOperationId,
+      outputFormat: cropDraft.outputFormat,
+    });
 
     try {
-      pushDebugEvent("renderPortraitCrop:start", "RENDERING_CROP", { operationId: currentOperationId });
-      const processedBlob = await renderPortraitCrop(cropDraft);
-      setProcessedBlobSize(processedBlob.size);
+      pushDebugEvent("renderPortraitCrop:start", "RENDERING_CROP", {
+        operationId: currentOperationId,
+        outputFormat: cropDraft.outputFormat,
+      });
+      const output = await renderPortraitCrop(cropDraft);
       pushDebugEvent("renderPortraitCrop:success", "RENDERING_CROP", {
         operationId: currentOperationId,
-        blobSize: processedBlob.size,
+        blobSize: output.blob.size,
+        outputFormat: output.extension,
       });
 
-      const didUpload = await uploadBlob(processedBlob, currentOperationId);
+      setProcessedBlobSize(output.blob.size);
+
+      const didUpload = await uploadBlob(output, currentOperationId);
       if (!didUpload) {
         pushDebugEvent("confirmCrop:upload_not_completed", "FAILED", { operationId: currentOperationId });
         return;
       }
 
-      pushDebugEvent("confirmCrop:success", "SUCCESS", { operationId: currentOperationId });
+      pushDebugEvent("confirmCrop:success", "SUCCESS", { operationId: currentOperationId, outputFormat: output.extension });
       setModalCloseTriggered(true);
       clearDraft("confirmCrop_success", true);
       resetCameraFlow("confirmCrop_success");
       pushDebugEvent("modal:close_after_success", "SUCCESS", {
         operationId: currentOperationId,
-        blobSize: processedBlob.size,
+        blobSize: output.blob.size,
       });
       toast.success("Employee photo saved.");
     } catch (uploadError) {
@@ -1470,6 +1526,17 @@ export function EmployeePhotoField({
             </div>
 
             {error ? <p className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</p> : null}
+            {uploading && phase !== "IDLE" ? (
+              <p className="mb-3 rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
+                {phase === "RENDERING_CROP"
+                  ? "Rendering crop…"
+                  : phase === "UPLOADING_STORAGE"
+                    ? "Uploading photo…"
+                    : phase === "PERSISTING_RECORD"
+                      ? "Saving employee record…"
+                      : "Processing photo…"}
+              </p>
+            ) : null}
 
             <div className="grid gap-4 md:grid-cols-[auto,1fr]">
               <div

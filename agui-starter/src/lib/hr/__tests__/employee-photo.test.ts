@@ -9,6 +9,10 @@ describe("employee photo path helpers", () => {
       buildEmployeePhotoPath("00000000-0000-4000-8000-000000000999"),
       "employee-photos/00000000-0000-4000-8000-000000000999.jpg",
     );
+    assert.equal(
+      buildEmployeePhotoPath("00000000-0000-4000-8000-000000000999", "png"),
+      "employee-photos/00000000-0000-4000-8000-000000000999.png",
+    );
   });
 
   it("normalizes object key input", () => {

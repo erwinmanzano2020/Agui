@@ -14,11 +14,11 @@ function isValidHouseId(value: unknown): value is string {
 }
 
 function isValidPhotoPath(value: string): boolean {
-  return value.startsWith("employee-photos/") && value.endsWith(".jpg");
+  return value.startsWith("employee-photos/") && (value.endsWith(".jpg") || value.endsWith(".png"));
 }
 
 function isPathOwnedByEmployee(path: string, employeeId: string): boolean {
-  return path === buildEmployeePhotoPath(employeeId);
+  return path === buildEmployeePhotoPath(employeeId, "jpg") || path === buildEmployeePhotoPath(employeeId, "png");
 }
 
 export async function POST(req: NextRequest, context: { params: Promise<{ employeeId: string }> }) {
@@ -43,6 +43,10 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
   const houseId = houseIdRaw.trim();
   const path = pathRaw.trim();
   const contentType = contentTypeRaw.trim() || "image/jpeg";
+
+  if (contentType !== "image/jpeg" && contentType !== "image/png") {
+    return NextResponse.json({ error: "Invalid content type" }, { status: 400 });
+  }
 
   if (!isPathOwnedByEmployee(path, employeeId)) {
     return NextResponse.json({ error: "Path does not belong to employee" }, { status: 400 });
