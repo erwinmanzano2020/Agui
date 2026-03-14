@@ -36,9 +36,6 @@ const DEFAULT_INITIAL_PAN_Y = 0;
 const DEBUG_EVENT_HISTORY_LIMIT = 24;
 const STORAGE_ERROR_PREFIX = "Uploading photo failed.";
 const NO_AUTO_RETRY_TIMEOUT_MESSAGE = "Storage request timed out and may still be running. Please retry once.";
-const DEFAULT_OUTPUT_VARIANT: OutputVariant = "white";
-
-
 type CropDraft = {
   blob: Blob;
   previewUrl: string;
@@ -47,21 +44,10 @@ type CropDraft = {
   panX: number;
   panY: number;
   rotation: 0 | 90 | 180 | 270;
+  outputFormat: EmployeePhotoFormat;
 };
 
-type OutputVariant = "original" | "white" | "transparent";
-
-type PhotoPipelinePhase =
-  | "IDLE"
-  | "PREPARING"
-  | "RENDERING_CROP"
-  | "REMOVING_BACKGROUND"
-  | "PREPARING_TRANSPARENT_OUTPUT"
-  | "PREPARING_WHITE_OUTPUT"
-  | "UPLOADING_STORAGE"
-  | "PERSISTING_RECORD"
-  | "SUCCESS"
-  | "FAILED";
+type PhotoPipelinePhase = "IDLE" | "PREPARING" | "RENDERING_CROP" | "UPLOADING_STORAGE" | "PERSISTING_RECORD" | "SUCCESS" | "FAILED";
 
 type PhotoDebugEvent = {
   at: string;
@@ -78,7 +64,39 @@ function createOperationId(): string {
   return `photo-op-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 }
 
-async function toJpegBlob(file: File): Promise<Blob> {
+async function imageHasTransparency(blob: Blob): Promise<boolean> {
+  const image = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = image.width;
+  canvas.height = image.height;
+
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) {
+    image.close();
+    throw new Error("Unable to process uploaded image.");
+  }
+
+  context.drawImage(image, 0, 0, image.width, image.height);
+  image.close();
+
+  const { data } = context.getImageData(0, 0, canvas.width, canvas.height);
+  for (let index = 3; index < data.length; index += 4) {
+    if ((data[index] ?? 255) < 255) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+async function normalizeUploadFile(file: File): Promise<{ blob: Blob; outputFormat: EmployeePhotoFormat }> {
+  if (file.type === "image/png") {
+    const hasTransparency = await imageHasTransparency(file);
+    if (hasTransparency) {
+      return { blob: file, outputFormat: "png" };
+    }
+  }
+
   const image = await createImageBitmap(file);
   const canvas = document.createElement("canvas");
   canvas.width = image.width;
@@ -86,22 +104,22 @@ async function toJpegBlob(file: File): Promise<Blob> {
 
   const context = canvas.getContext("2d");
   if (!context) {
+    image.close();
     throw new Error("Unable to process uploaded image.");
   }
 
   context.drawImage(image, 0, 0, image.width, image.height);
+  image.close();
 
   const blob = await new Promise<Blob | null>((resolve) => {
     canvas.toBlob((result) => resolve(result), "image/jpeg", 0.9);
   });
 
-  image.close();
-
   if (!blob) {
     throw new Error("Unable to prepare image for crop.");
   }
 
-  return blob;
+  return { blob, outputFormat: "jpg" };
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -157,7 +175,6 @@ type ProbeOutcome =
 type UploadPrimitive = "upload" | "update" | "server_upload";
 
 type ProcessedPhotoOutput = {
-  variant: OutputVariant;
   blob: Blob;
   contentType: "image/jpeg" | "image/png";
   extension: EmployeePhotoFormat;
@@ -232,8 +249,8 @@ async function buildRotatedCanvas(imageBitmap: ImageBitmap, rotation: 0 | 90 | 1
   return canvas;
 }
 
-async function renderPortraitCrop(draft: CropDraft): Promise<Blob> {
-  const { imageBitmap, zoom, panX, panY, rotation } = draft;
+async function renderPortraitCrop(draft: CropDraft): Promise<ProcessedPhotoOutput> {
+  const { imageBitmap, zoom, panX, panY, rotation, outputFormat } = draft;
   const rotatedSource = await buildRotatedCanvas(imageBitmap, rotation);
   const rotatedWidth = rotatedSource.width;
   const rotatedHeight = rotatedSource.height;
@@ -259,193 +276,22 @@ async function renderPortraitCrop(draft: CropDraft): Promise<Blob> {
     throw new Error("Unable to render cropped photo.");
   }
 
+  context.clearRect(0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
   context.drawImage(rotatedSource, sourceX, sourceY, sourceWidth, sourceHeight, 0, 0, OUTPUT_WIDTH, OUTPUT_HEIGHT);
 
+  const contentType = outputFormat === "png" ? "image/png" : "image/jpeg";
   const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob((result) => resolve(result), "image/jpeg", 0.9);
+    canvas.toBlob((result) => resolve(result), contentType, outputFormat === "jpg" ? 0.9 : undefined);
   });
 
   if (!blob) {
     throw new Error("Unable to save cropped image.");
   }
 
-  return blob;
-}
-
-function getOutputOptions(hasBgRemoval: boolean) {
-  return [
-    {
-      variant: "original" as const,
-      label: "Original crop",
-      description: "No background removal",
-      enabled: true,
-    },
-    {
-      variant: "white" as const,
-      label: "Remove background → White",
-      description: hasBgRemoval ? "Recommended for IDs" : "Background removal unavailable",
-      enabled: hasBgRemoval,
-    },
-    {
-      variant: "transparent" as const,
-      label: "Remove background → Transparent",
-      description: hasBgRemoval ? "PNG with transparency" : "Background removal unavailable",
-      enabled: hasBgRemoval,
-    },
-  ];
-}
-
-async function removePortraitBackground(source: Blob): Promise<ImageData> {
-  const image = await createImageBitmap(source);
-  const canvas = document.createElement("canvas");
-  canvas.width = image.width;
-  canvas.height = image.height;
-  const context = canvas.getContext("2d", { willReadFrequently: true });
-  if (!context) {
-    image.close();
-    throw new Error("Unable to analyze cropped photo.");
-  }
-
-  context.drawImage(image, 0, 0, image.width, image.height);
-  image.close();
-
-  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-  const data = imageData.data;
-
-  let total = 0;
-  let samples = 0;
-  const border = Math.max(10, Math.floor(Math.min(canvas.width, canvas.height) * 0.06));
-
-  for (let y = 0; y < canvas.height; y += 2) {
-    for (let x = 0; x < canvas.width; x += 2) {
-      const isBorder = x < border || y < border || x >= canvas.width - border || y >= canvas.height - border;
-      if (!isBorder) continue;
-      const idx = (y * canvas.width + x) * 4;
-      const r = data[idx] ?? 0;
-      const g = data[idx + 1] ?? 0;
-      const b = data[idx + 2] ?? 0;
-      total += (r + g + b) / 3;
-      samples += 1;
-    }
-  }
-
-  if (samples === 0) {
-    throw new Error("Unable to sample background for removal.");
-  }
-
-  const avgLuma = total / samples;
-  const threshold = clamp(avgLuma * 0.62, 40, 170);
-
-  const alpha = new Uint8ClampedArray(canvas.width * canvas.height);
-  for (let y = 0; y < canvas.height; y += 1) {
-    for (let x = 0; x < canvas.width; x += 1) {
-      const idx = (y * canvas.width + x) * 4;
-      const r = data[idx] ?? 0;
-      const g = data[idx + 1] ?? 0;
-      const b = data[idx + 2] ?? 0;
-      const luma = 0.299 * r + 0.587 * g + 0.114 * b;
-      alpha[y * canvas.width + x] = luma <= threshold ? 255 : 0;
-    }
-  }
-
-  const queue = new Uint32Array(canvas.width * canvas.height);
-  let head = 0;
-  let tail = 0;
-
-  function pushIfBackground(x: number, y: number) {
-    if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return;
-    const idx = y * canvas.width + x;
-    if (alpha[idx] !== 0) return;
-    alpha[idx] = 1;
-    queue[tail++] = idx;
-  }
-
-  for (let x = 0; x < canvas.width; x += 1) {
-    pushIfBackground(x, 0);
-    pushIfBackground(x, canvas.height - 1);
-  }
-  for (let y = 1; y < canvas.height - 1; y += 1) {
-    pushIfBackground(0, y);
-    pushIfBackground(canvas.width - 1, y);
-  }
-
-  while (head < tail) {
-    const idx = queue[head++];
-    const x = idx % canvas.width;
-    const y = Math.floor(idx / canvas.width);
-    pushIfBackground(x - 1, y);
-    pushIfBackground(x + 1, y);
-    pushIfBackground(x, y - 1);
-    pushIfBackground(x, y + 1);
-  }
-
-  let foregroundPixels = 0;
-  for (let i = 0; i < alpha.length; i += 1) {
-    if (alpha[i] === 1) {
-      alpha[i] = 0;
-      continue;
-    }
-    if (alpha[i] === 255) {
-      foregroundPixels += 1;
-    }
-  }
-
-  if (foregroundPixels < canvas.width * canvas.height * 0.08) {
-    throw new Error("Background removal could not isolate the portrait.");
-  }
-
-  for (let i = 0; i < alpha.length; i += 1) {
-    data[i * 4 + 3] = alpha[i] ?? 0;
-  }
-
-  return imageData;
-}
-
-async function renderOutputVariant(croppedBlob: Blob, variant: OutputVariant): Promise<ProcessedPhotoOutput> {
-  if (variant === "original") {
-    return { variant, blob: croppedBlob, contentType: "image/jpeg", extension: "jpg" };
-  }
-
-  const imageData = await removePortraitBackground(croppedBlob);
-
-  const subjectCanvas = document.createElement("canvas");
-  subjectCanvas.width = imageData.width;
-  subjectCanvas.height = imageData.height;
-  const subjectContext = subjectCanvas.getContext("2d");
-  if (!subjectContext) {
-    throw new Error("Unable to prepare processed output.");
-  }
-  subjectContext.putImageData(imageData, 0, 0);
-
-  const canvas = document.createElement("canvas");
-  canvas.width = imageData.width;
-  canvas.height = imageData.height;
-  const context = canvas.getContext("2d");
-  if (!context) {
-    throw new Error("Unable to prepare processed output.");
-  }
-
-  if (variant === "white") {
-    context.fillStyle = "#ffffff";
-    context.fillRect(0, 0, canvas.width, canvas.height);
-  }
-
-  context.drawImage(subjectCanvas, 0, 0);
-
-  const isTransparent = variant === "transparent";
-  const blob = await new Promise<Blob | null>((resolve) => {
-    canvas.toBlob((result) => resolve(result), isTransparent ? "image/png" : "image/jpeg", isTransparent ? undefined : 0.9);
-  });
-
-  if (!blob) {
-    throw new Error("Unable to save processed photo output.");
-  }
-
   return {
-    variant,
     blob,
-    contentType: isTransparent ? "image/png" : "image/jpeg",
-    extension: isTransparent ? "png" : "jpg",
+    contentType,
+    extension: outputFormat,
   };
 }
 
@@ -582,8 +428,6 @@ export function EmployeePhotoField({
   const [countdown, setCountdown] = useState<number | null>(null);
   const [flashVisible, setFlashVisible] = useState(false);
   const [cropDraft, setCropDraft] = useState<CropDraft | null>(null);
-  const [selectedOutput, setSelectedOutput] = useState<OutputVariant>(DEFAULT_OUTPUT_VARIANT);
-  const [backgroundRemovalError, setBackgroundRemovalError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<PhotoPipelinePhase>("IDLE");
   const [operationId, setOperationId] = useState<string | null>(null);
@@ -779,8 +623,6 @@ export function EmployeePhotoField({
     resetCameraFlow("initial_props_change");
     clearDraft("initial_props_change", true);
     setError(null);
-    setBackgroundRemovalError(null);
-    setSelectedOutput(DEFAULT_OUTPUT_VARIANT);
     setPhase("IDLE");
     setOperationId(null);
     setLastError(null);
@@ -1181,7 +1023,7 @@ export function EmployeePhotoField({
 
 
   const beginCrop = useCallback(
-    async (blob: Blob) => {
+    async (blob: Blob, outputFormat: EmployeePhotoFormat) => {
       pushDebugEvent("beginCrop:start", "PREPARING", { blobSize: blob.size });
       invalidateCropDraftFlow();
       const requestId = cropDraftRequestIdRef.current;
@@ -1211,6 +1053,7 @@ export function EmployeePhotoField({
         panX: DEFAULT_INITIAL_PAN_X,
         panY: DEFAULT_INITIAL_PAN_Y,
         rotation: 0,
+        outputFormat,
       });
       setError(null);
       pushDebugEvent("beginCrop:ready", "PREPARING", { blobSize: blob.size });
@@ -1240,10 +1083,10 @@ export function EmployeePhotoField({
 
     try {
       pushDebugEvent("prepareImage:start", "PREPARING", { operationId: currentOperationId, fileSize: file.size });
-      const normalized = await toJpegBlob(file);
-      pushDebugEvent("onUploadFile:normalized_success", "PREPARING", { normalizedSize: normalized.size });
-      await beginCrop(normalized);
-      pushDebugEvent("openCrop:success", "PREPARING", { operationId: currentOperationId, preparedBlobSize: normalized.size });
+      const normalized = await normalizeUploadFile(file);
+      pushDebugEvent("onUploadFile:normalized_success", "PREPARING", { normalizedSize: normalized.blob.size, outputFormat: normalized.outputFormat });
+      await beginCrop(normalized.blob, normalized.outputFormat);
+      pushDebugEvent("openCrop:success", "PREPARING", { operationId: currentOperationId, preparedBlobSize: normalized.blob.size });
     } catch (uploadError) {
       const message = uploadError instanceof Error ? uploadError.message : "Unable to open selected image.";
       setError(message);
@@ -1318,7 +1161,7 @@ export function EmployeePhotoField({
 
     stopCamera();
     setCameraOpen(false);
-    await beginCrop(blob);
+    await beginCrop(blob, "jpg");
   };
 
   const startCaptureCountdown = () => {
@@ -1362,37 +1205,22 @@ export function EmployeePhotoField({
     setModalCloseTriggered(false);
     setUploading(true);
     setError(null);
-    setBackgroundRemovalError(null);
-    pushDebugEvent("confirmCrop:start", "PREPARING", { operationId: currentOperationId, selectedOutput });
+    pushDebugEvent("confirmCrop:start", "PREPARING", {
+      operationId: currentOperationId,
+      outputFormat: cropDraft.outputFormat,
+    });
 
     try {
-      pushDebugEvent("renderPortraitCrop:start", "RENDERING_CROP", { operationId: currentOperationId });
-      const croppedBlob = await renderPortraitCrop(cropDraft);
+      pushDebugEvent("renderPortraitCrop:start", "RENDERING_CROP", {
+        operationId: currentOperationId,
+        outputFormat: cropDraft.outputFormat,
+      });
+      const output = await renderPortraitCrop(cropDraft);
       pushDebugEvent("renderPortraitCrop:success", "RENDERING_CROP", {
         operationId: currentOperationId,
-        blobSize: croppedBlob.size,
+        blobSize: output.blob.size,
+        outputFormat: output.extension,
       });
-
-      let output: ProcessedPhotoOutput;
-      if (selectedOutput !== "original") {
-        setPhase("REMOVING_BACKGROUND");
-        pushDebugEvent("backgroundRemoval:start", "REMOVING_BACKGROUND", { operationId: currentOperationId, selectedOutput });
-      }
-
-      try {
-        if (selectedOutput === "transparent") {
-          setPhase("PREPARING_TRANSPARENT_OUTPUT");
-        } else if (selectedOutput === "white") {
-          setPhase("PREPARING_WHITE_OUTPUT");
-        }
-        output = await renderOutputVariant(croppedBlob, selectedOutput);
-      } catch (processingError) {
-        const message = processingError instanceof Error ? processingError.message : "Background removal failed.";
-        setBackgroundRemovalError(`${message} You can still save the original crop.`);
-        setSelectedOutput("original");
-        output = await renderOutputVariant(croppedBlob, "original");
-        pushDebugEvent("backgroundRemoval:error", "FAILED", { operationId: currentOperationId, selectedOutput }, message);
-      }
 
       setProcessedBlobSize(output.blob.size);
 
@@ -1402,7 +1230,7 @@ export function EmployeePhotoField({
         return;
       }
 
-      pushDebugEvent("confirmCrop:success", "SUCCESS", { operationId: currentOperationId, selectedOutput: output.variant });
+      pushDebugEvent("confirmCrop:success", "SUCCESS", { operationId: currentOperationId, outputFormat: output.extension });
       setModalCloseTriggered(true);
       clearDraft("confirmCrop_success", true);
       resetCameraFlow("confirmCrop_success");
@@ -1589,7 +1417,6 @@ export function EmployeePhotoField({
   };
 
   const closeCropEditor = () => {
-    setBackgroundRemovalError(null);
     clearDraft("closeCropEditor", true);
   };
 
@@ -1701,19 +1528,13 @@ export function EmployeePhotoField({
             {error ? <p className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</p> : null}
             {uploading && phase !== "IDLE" ? (
               <p className="mb-3 rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
-                {phase === "REMOVING_BACKGROUND"
-                  ? "Removing background…"
-                  : phase === "PREPARING_TRANSPARENT_OUTPUT"
-                    ? "Preparing transparent output…"
-                    : phase === "PREPARING_WHITE_OUTPUT"
-                      ? "Preparing white background…"
-                      : phase === "RENDERING_CROP"
-                        ? "Rendering crop…"
-                        : phase === "UPLOADING_STORAGE"
-                          ? "Uploading photo…"
-                          : phase === "PERSISTING_RECORD"
-                            ? "Saving employee record…"
-                            : "Processing photo…"}
+                {phase === "RENDERING_CROP"
+                  ? "Rendering crop…"
+                  : phase === "UPLOADING_STORAGE"
+                    ? "Uploading photo…"
+                    : phase === "PERSISTING_RECORD"
+                      ? "Saving employee record…"
+                      : "Processing photo…"}
               </p>
             ) : null}
 
@@ -1735,7 +1556,6 @@ export function EmployeePhotoField({
                     width: getPanBounds(cropDraft.imageBitmap, cropDraft.zoom, cropDraft.rotation).renderedWidth,
                     height: getPanBounds(cropDraft.imageBitmap, cropDraft.zoom, cropDraft.rotation).renderedHeight,
                     transform: `translate(calc(-50% + ${cropDraft.panX}px), calc(-50% + ${cropDraft.panY}px)) rotate(${cropDraft.rotation}deg)`,
-                    filter: selectedOutput === "original" ? "none" : "contrast(1.08) saturate(0.9)",
                   }}
                 />
                 <div className="pointer-events-none absolute inset-0">
@@ -1776,35 +1596,9 @@ export function EmployeePhotoField({
                   </Button>
                 </div>
 
-                <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-2">
-                  <p className="text-xs font-medium text-foreground">Final output</p>
-                  <div className="grid gap-2">
-                    {getOutputOptions(true).map((option) => (
-                      <button
-                        key={option.variant}
-                        type="button"
-                        className={`rounded-md border px-2 py-1 text-left text-xs transition ${selectedOutput === option.variant ? "border-primary bg-primary/10 text-foreground" : "border-border/70 bg-background text-muted-foreground"}`}
-                        onClick={() => setSelectedOutput(option.variant)}
-                        disabled={uploading || !option.enabled}
-                      >
-                        <span className="block font-medium">{option.label}</span>
-                        <span className="block text-[11px]">{option.description}</span>
-                      </button>
-                    ))}
-                  </div>
-                  {backgroundRemovalError ? (
-                    <p className="rounded border border-amber-400/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-700">
-                      {backgroundRemovalError}
-                    </p>
-                  ) : null}
-                  <p className="text-[11px] text-muted-foreground">
-                    Preview reflects your selected output style. White background is recommended for IDs.
-                  </p>
-                </div>
-
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" onClick={() => void confirmCrop()} disabled={uploading}>
-                    Save Final Photo
+                    Save Cropped Photo
                   </Button>
                   <Button type="button" variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
                     Choose Another Image
