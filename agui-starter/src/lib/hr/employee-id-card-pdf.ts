@@ -333,26 +333,26 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, branding: EmployeeI
   doc.line(x, identityDividerY, x + cardWidth, identityDividerY);
 
   const topIdentityX = brandLineX + 2.85;
-  const topIdentityY = y + SAFE_MARGIN_MM + 1.8;
+  const topIdentityY = y + SAFE_MARGIN_MM + 2.1;
   const headerName = branding.companyDisplayName;
   if (branding.logo) {
     const logoSize = 4.7;
     doc.addImage(branding.logo.dataUrl, branding.logo.format, topIdentityX, topIdentityY - 0.25, logoSize, logoSize);
     doc.setTextColor(56, 56, 56);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(5.7);
-    doc.text(headerName || " ", topIdentityX + logoSize + 1.2, topIdentityY + 2.3);
+    doc.setFontSize(5.6);
+    doc.text(headerName || " ", topIdentityX + logoSize + 1.2, topIdentityY + 2.25);
   } else if (headerName) {
     doc.setTextColor(56, 56, 56);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(5.9);
-    doc.text(headerName, topIdentityX, topIdentityY + 2.3);
+    doc.setFontSize(5.8);
+    doc.text(headerName, topIdentityX, topIdentityY + 2.25);
   }
 
   const photoW = 33.2;
   const photoH = 60.2;
   const photoX = x + cardWidth - photoW;
-  const photoY = y + cardHeight - photoH;
+  const photoY = y + cardHeight - photoH + 0.15;
 
   if (employeePhoto) {
     doc.addImage(employeePhoto.dataUrl, employeePhoto.format, photoX, photoY, photoW, photoH);
@@ -366,7 +366,7 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, branding: EmployeeI
   const textX = topIdentityX - 0.35;
   const nameMaxWidth = x + cardWidth - textX - 1;
   const detailMaxWidth = photoX - textX - 0.6;
-  const textBlockGap = 2.2;
+  const textBlockGap = 2.05;
   const idCodeY = identityDividerY - textBlockGap;
 
   doc.setTextColor(104, 104, 104);
@@ -391,7 +391,7 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, branding: EmployeeI
     doc.text(nameFit.lines.map((line) => line.replace(/\s+/g, " ").trim()), textX + 0.25, nameTopY + 0.2);
   }
 
-  const positionY = nameTopY + Math.max(1, nameFit.lines.length) * 3.02;
+  const positionY = nameTopY + Math.max(1, nameFit.lines.length) * 2.92;
   const position = cleanText(row.position);
   if (position) {
     const positionFit = fitTextToBox(doc, {
@@ -445,20 +445,21 @@ function drawBackCard(doc: jsPDF, row: EmployeeIdCardRow, qrDataUrl: string, bra
   doc.roundedRect(qrX - qrPlatePadding, qrY - qrPlatePadding, qrSize + qrPlatePadding * 2, qrSize + qrPlatePadding * 2, 1.2, 1.2, "FD");
   doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
 
-  doc.setTextColor(0, 0, 0);
+  doc.setTextColor(18, 18, 18);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.3);
   doc.text(getQrCaption(), x + cardWidth / 2, qrY + qrSize + 5.1, { align: "center" });
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
+  doc.setTextColor(36, 36, 36);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(6.6);
   doc.text(row.code, x + cardWidth / 2, qrY + qrSize + 9.2, { align: "center" });
 
   const footerName = branding.companyDisplayName;
   if (footerName) {
-    doc.setTextColor(80, 80, 80);
+    doc.setTextColor(92, 92, 92);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(4.5);
+    doc.setFontSize(4.3);
     doc.text(footerName, x + cardWidth / 2, y + cardHeight - SAFE_MARGIN_MM, { align: "center" });
   }
 
