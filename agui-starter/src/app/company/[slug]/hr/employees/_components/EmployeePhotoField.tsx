@@ -414,9 +414,14 @@ export function EmployeePhotoField({
   const pendingStorageAttemptIdsRef = useRef<Set<string>>(new Set());
   const lastInitialSyncRef = useRef<string | null>(null);
 
-  const showDebugPanel = process.env.NODE_ENV !== "production" || searchParams.get("debug") === "1";
+  const explicitDebugMode = searchParams.get("debug") === "1";
+  const showDebugPanel = explicitDebugMode;
   const debugStorageKey = `hr-photo-debug-events:${employeeId}`;
-  const storageUploadMode = searchParams.get("photoUploadMode") === "server" ? "server" : "client";
+  const debugUploadModeParam = searchParams.get("photoUploadMode");
+  const defaultUploadMode = persistToEmployeeRecord ? "server" : "client";
+  const storageUploadMode = explicitDebugMode && debugUploadModeParam === "client"
+    ? "client"
+    : defaultUploadMode;
 
 
   useEffect(() => {
@@ -429,6 +434,11 @@ export function EmployeePhotoField({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
+    if (!showDebugPanel) {
+      setDebugEvents([]);
+      return;
+    }
+
     const raw = window.sessionStorage.getItem(debugStorageKey);
     if (!raw) return;
     try {
@@ -437,7 +447,7 @@ export function EmployeePhotoField({
     } catch {
       window.sessionStorage.removeItem(debugStorageKey);
     }
-  }, [debugStorageKey]);
+  }, [debugStorageKey, showDebugPanel]);
 
   const invalidateCropDraftFlow = useCallback(() => {
     cropDraftRequestIdRef.current += 1;
@@ -470,32 +480,36 @@ export function EmployeePhotoField({
   const pushDebugEvent = useCallback(
     (nextEvent: string, nextPhase: PhotoPipelinePhase, extra: Record<string, unknown> = {}, message?: string) => {
       const entry: PhotoDebugEvent = { at: new Date().toISOString(), event: nextEvent, phase: nextPhase, message };
-      setDebugEvents((current) => {
-        const next = [...current, entry].slice(-DEBUG_EVENT_HISTORY_LIMIT);
-        if (typeof window !== "undefined") {
-          window.sessionStorage.setItem(debugStorageKey, JSON.stringify(next));
-        }
-        return next;
-      });
+      if (showDebugPanel) {
+        setDebugEvents((current) => {
+          const next = [...current, entry].slice(-DEBUG_EVENT_HISTORY_LIMIT);
+          if (typeof window !== "undefined") {
+            window.sessionStorage.setItem(debugStorageKey, JSON.stringify(next));
+          }
+          return next;
+        });
+      }
 
       if (message) {
         setLastError(message);
       }
 
       setPhase(nextPhase);
-      console.info("[hr][employee-photo] phase", {
-        employeeId,
-        houseId: houseId ?? null,
-        operationId: operationIdRef.current,
-        phase: nextPhase,
-        processedBlobSize: processedBlobSizeRef.current,
-        targetStoragePath: targetStoragePathRef.current,
-        modalCloseTriggered: modalCloseTriggeredRef.current,
-        ...extra,
-        message: message ?? null,
-      });
+      if (showDebugPanel || nextPhase === "FAILED") {
+        console.info("[hr][employee-photo] phase", {
+          employeeId,
+          houseId: houseId ?? null,
+          operationId: operationIdRef.current,
+          phase: nextPhase,
+          processedBlobSize: processedBlobSizeRef.current,
+          targetStoragePath: targetStoragePathRef.current,
+          modalCloseTriggered: modalCloseTriggeredRef.current,
+          ...extra,
+          message: message ?? null,
+        });
+      }
     },
-    [debugStorageKey, employeeId, houseId],
+    [debugStorageKey, employeeId, houseId, showDebugPanel],
   );
 
   const clearDraft = useCallback((reason: string, expected = true) => {
@@ -1132,14 +1146,6 @@ export function EmployeePhotoField({
   };
 
   const confirmCrop = async () => {
-    console.info("[hr][employee-photo] confirmCrop:click", {
-      employeeId,
-      houseId: houseId ?? null,
-      operationId,
-      hasCropDraft: Boolean(cropDraft),
-      uploading,
-    });
-
     if (!cropDraft || uploading) {
       const skippedReason = !cropDraft ? "missing_crop_draft" : "already_uploading";
       pushDebugEvent("confirmCrop:skipped", phase, { skippedReason });
@@ -1179,7 +1185,7 @@ export function EmployeePhotoField({
       toast.success("Employee photo saved.");
     } catch (uploadError) {
       const message = uploadError instanceof Error ? uploadError.message : "Unable to save cropped photo.";
-      const contextualMessage = `Failed during ${phase}: ${message}`;
+      const contextualMessage = `Failed during ${phaseRef.current}: ${message}`;
       setError(contextualMessage);
       pushDebugEvent("confirmCrop:error", "FAILED", { operationId: currentOperationId }, contextualMessage);
     } finally {
@@ -1300,6 +1306,7 @@ export function EmployeePhotoField({
     if (persistToEmployeeRecord) {
       if (!houseId) {
         setError("Photo removed from form, but missing house context to persist deletion.");
+        setUploading(false);
         return;
       }
 
