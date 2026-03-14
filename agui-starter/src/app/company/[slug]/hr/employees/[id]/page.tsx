@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { requireAuth } from "@/lib/auth/require-auth";
 import { getEmployeeByIdForHouse } from "@/lib/hr/employees-server";
 
+import { EmployeePhotoField } from "../_components/EmployeePhotoField";
 import { EmployeePhotoPreview } from "./EmployeePhotoPreview";
 
 type Props = { params: Promise<{ slug: string; id: string }> };
@@ -104,6 +105,18 @@ export default async function EmployeeProfilePage({ params }: Props) {
                     Print ID
                   </Link>
                 </Button>
+              </div>
+
+              <div className="rounded-md border border-border/60 bg-background p-2">
+                <EmployeePhotoField
+                  employeeId={employee.id}
+                  initialPhotoUrl={employee.photo_url ?? null}
+                  initialPhotoPath={employee.photo_path ?? null}
+                  label="Photo actions"
+                  includeHiddenInputs={false}
+                  persistToEmployeeRecord
+                  houseId={house.id}
+                />
               </div>
             </div>
           </div>
