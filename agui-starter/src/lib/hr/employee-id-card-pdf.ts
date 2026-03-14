@@ -17,8 +17,7 @@ const HEADER_BG = [55, 65, 81] as const;
 const HEADER_ACCENT = [191, 161, 92] as const;
 const PHOTO_PLATE_BG = [242, 244, 247] as const;
 const QR_PLATE_BG = [246, 247, 249] as const;
-const DEFAULT_QR_CAPTION = "Scan at kiosk";
-const STAFF_ID_SUBTEXT = "STAFF ID";
+const DEFAULT_QR_CAPTION = "Employee Verification";
 const MODERN_BRAND_ACCENT = [44, 93, 146] as const;
 
 export type EmployeeIdCardLayout = "classic" | "modern";
@@ -46,6 +45,14 @@ type HouseLogo = {
 type EmployeePhoto = {
   dataUrl: string;
   format: "PNG" | "JPEG";
+};
+
+type EmployeeIdBranding = {
+  logo: HouseLogo | null;
+  companyDisplayName: string | null;
+  accentColor: readonly [number, number, number];
+  frontTemplateKey: EmployeeIdCardLayout;
+  backTemplateKey: "default";
 };
 
 
@@ -101,6 +108,89 @@ export function fitTextToBox(doc: jsPDF, input: FitTextInput): FitTextResult {
 
   kept[lastIndex] = "…";
   return { lines: kept, fontSize: input.minFontSize };
+}
+
+
+function wrapTextByWords(doc: jsPDF, text: string, maxWidth: number, maxLines: number): string[] {
+  const normalized = text.trim().replace(/\s+/g, " ");
+  if (!normalized) {
+    return [];
+  }
+
+  const words = normalized.split(" ").filter((word) => word.length > 0);
+  if (words.length === 0) {
+    return [];
+  }
+
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (!current || doc.getTextWidth(candidate) <= maxWidth) {
+      current = candidate;
+      continue;
+    }
+
+    lines.push(current);
+    current = word;
+
+    if (lines.length === maxLines) {
+      return lines;
+    }
+  }
+
+  if (current) {
+    lines.push(current);
+  }
+
+  if (lines.length <= maxLines) {
+    return lines;
+  }
+
+  const kept = lines.slice(0, maxLines);
+  const overflowWords = lines.slice(maxLines).join(" ");
+  if (overflowWords) {
+    let tail = `${kept[maxLines - 1]} ${overflowWords}`.trim();
+    while (tail.length > 0 && doc.getTextWidth(`${tail}…`) > maxWidth) {
+      tail = tail.slice(0, -1).trimEnd();
+    }
+    kept[maxLines - 1] = tail ? `${tail}…` : "…";
+  }
+
+  return kept;
+}
+
+function fitWordWrappedTextToBox(doc: jsPDF, input: FitTextInput): FitTextResult {
+  const rawText = input.text.trim();
+  if (!rawText) {
+    return { lines: [], fontSize: input.startFontSize };
+  }
+
+  for (let fontSize = input.startFontSize; fontSize >= input.minFontSize; fontSize -= 0.2) {
+    doc.setFontSize(fontSize);
+    const lines = wrapTextByWords(doc, rawText, input.maxWidth, input.maxLines);
+    const hasUnbreakableOverflow = lines.some((line) => doc.getTextWidth(line) > input.maxWidth);
+    if (!hasUnbreakableOverflow && lines.length <= input.maxLines) {
+      return { lines, fontSize };
+    }
+  }
+
+  doc.setFontSize(input.minFontSize);
+  const wrapped = wrapTextByWords(doc, rawText, input.maxWidth, input.maxLines);
+  const normalized = wrapped.map((line) => {
+    if (doc.getTextWidth(line) <= input.maxWidth) {
+      return line;
+    }
+
+    let fallback = line;
+    while (fallback.length > 0 && doc.getTextWidth(`${fallback}…`) > input.maxWidth) {
+      fallback = fallback.slice(0, -1).trimEnd();
+    }
+    return fallback ? `${fallback}…` : "…";
+  });
+
+  return { lines: normalized.slice(0, input.maxLines), fontSize: input.minFontSize };
 }
 
 function getQrCaption(): string {
@@ -185,7 +275,21 @@ async function resolveEmployeePhoto(photoUrl: string | null, cache: Map<string, 
   }
 }
 
-function drawFrontClassic(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLogo | null, employeePhoto: EmployeePhoto | null, x: number, y: number) {
+function resolveEmployeeIdBranding(
+  row: EmployeeIdCardRow,
+  logo: HouseLogo | null,
+  options: { frontLayout?: EmployeeIdCardLayout },
+): EmployeeIdBranding {
+  return {
+    logo,
+    companyDisplayName: getHeaderBrandName(row.houseBrandName, row.houseName),
+    accentColor: MODERN_BRAND_ACCENT,
+    frontTemplateKey: options.frontLayout ?? DEFAULT_FRONT_LAYOUT,
+    backTemplateKey: "default",
+  };
+}
+
+function drawFrontClassic(doc: jsPDF, row: EmployeeIdCardRow, branding: EmployeeIdBranding, employeePhoto: EmployeePhoto | null, x: number, y: number) {
   const cardWidth = CR80_SHORT_EDGE_MM;
   const cardHeight = CR80_LONG_EDGE_MM;
 
@@ -196,41 +300,33 @@ function drawFrontClassic(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLo
   doc.setFillColor(...HEADER_BG);
   doc.rect(x, y, cardWidth, HEADER_HEIGHT_MM, "F");
 
-  const headerName = getHeaderBrandName(row.houseBrandName, row.houseName);
+  const headerName = branding.companyDisplayName;
   const hasHeaderName = headerName !== null;
 
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold");
+  doc.setTextColor(244, 246, 248);
 
-  if (houseLogo && hasHeaderName) {
+  if (branding.logo && hasHeaderName) {
     const logoSize = 4.4;
     const logoX = x + SAFE_MARGIN_MM;
-    const logoY = y + (HEADER_HEIGHT_MM - logoSize) / 2;
-    doc.addImage(houseLogo.dataUrl, houseLogo.format, logoX, logoY, logoSize, logoSize);
+    const logoY = y + (HEADER_HEIGHT_MM - logoSize) / 2 + 0.55;
+    doc.addImage(branding.logo.dataUrl, branding.logo.format, logoX, logoY, logoSize, logoSize);
 
-    doc.setFontSize(6.6);
-    doc.text(headerName, logoX + logoSize + 1.5, y + 3.6);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(4.3);
-    doc.text(STAFF_ID_SUBTEXT, logoX + logoSize + 1.5, y + 6.15);
+    doc.setFontSize(6);
+    doc.text(headerName, logoX + logoSize + 1.5, y + 4.45);
   } else if (hasHeaderName) {
-    doc.setFontSize(6.9);
-    doc.text(headerName, x + cardWidth / 2, y + 3.6, { align: "center" });
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(4.3);
-    doc.text(STAFF_ID_SUBTEXT, x + cardWidth / 2, y + 6.15, { align: "center" });
-  } else {
-    doc.setFontSize(5.6);
-    doc.text(STAFF_ID_SUBTEXT, x + cardWidth / 2, y + HEADER_HEIGHT_MM / 2 + 0.8, { align: "center", baseline: "middle" });
+    doc.setFontSize(6.2);
+    doc.text(headerName, x + cardWidth / 2, y + 4.45, { align: "center" });
   }
 
   doc.setFillColor(...HEADER_ACCENT);
   doc.rect(x, y + HEADER_HEIGHT_MM - 0.5, cardWidth, 0.5, "F");
 
   const photoPlateW = 33;
-  const photoPlateH = 39;
+  const photoPlateH = 40.8;
   const photoX = x + (cardWidth - photoPlateW) / 2;
-  const photoY = y + HEADER_HEIGHT_MM + 3;
+  const photoY = y + HEADER_HEIGHT_MM + 2.25;
   doc.setFillColor(...PHOTO_PLATE_BG);
   doc.setDrawColor(175);
   doc.setLineWidth(0.25);
@@ -255,7 +351,7 @@ function drawFrontClassic(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLo
   }
 
   const textWidth = cardWidth - SAFE_MARGIN_MM * 2;
-  let textY = photoY + photoPlateH + 4.8;
+  let textY = photoY + photoPlateH + 3.9;
   const name = cleanText(row.fullName) || "Employee Name";
   const nameFit = fitTextToBox(doc, {
     text: name,
@@ -270,7 +366,7 @@ function drawFrontClassic(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLo
   doc.setFontSize(nameFit.fontSize);
   if (nameFit.lines.length > 0) {
     doc.text(nameFit.lines, x + cardWidth / 2, textY, { align: "center" });
-    textY += nameFit.lines.length * 3.4 + 1.8;
+    textY += nameFit.lines.length * 3.4 + 1.1;
   }
 
   const position = cleanText(row.position);
@@ -286,13 +382,9 @@ function drawFrontClassic(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLo
     doc.setFontSize(positionFit.fontSize);
     if (positionFit.lines.length > 0) {
       doc.text(positionFit.lines[0], x + cardWidth / 2, textY, { align: "center" });
-      textY += 3.4;
+      textY += 3.2;
     }
   }
-
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(5.5);
-  doc.text(cleanText(row.branchName) || "Main Branch", x + cardWidth / 2, textY, { align: "center" });
 
   const idY = y + cardHeight - SAFE_MARGIN_MM;
   doc.setFont("helvetica", "normal");
@@ -303,7 +395,7 @@ function drawFrontClassic(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLo
   doc.text(row.code, x + SAFE_MARGIN_MM, idY);
 }
 
-function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLogo | null, employeePhoto: EmployeePhoto | null, x: number, y: number) {
+function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, branding: EmployeeIdBranding, employeePhoto: EmployeePhoto | null, x: number, y: number) {
   const cardWidth = CR80_SHORT_EDGE_MM;
   const cardHeight = CR80_LONG_EDGE_MM;
 
@@ -313,9 +405,9 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
 
   const structuralLineWidth = 0.32;
   const brandLineX = x + SAFE_MARGIN_MM + 2.4;
-  const identityDividerY = y + cardHeight * 0.666;
+  const identityDividerY = y + cardHeight * 0.708;
 
-  doc.setDrawColor(...MODERN_BRAND_ACCENT);
+  doc.setDrawColor(...branding.accentColor);
   doc.setLineWidth(structuralLineWidth);
   doc.line(brandLineX, y, brandLineX, y + cardHeight);
 
@@ -323,37 +415,27 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
   doc.setLineWidth(structuralLineWidth);
   doc.line(x, identityDividerY, x + cardWidth, identityDividerY);
 
-  const topIdentityX = brandLineX + 2.55;
-  const topIdentityY = y + SAFE_MARGIN_MM + 0.35;
-  const headerName = getHeaderBrandName(row.houseBrandName, row.houseName);
-  if (houseLogo) {
-    const logoSize = 4.3;
-    doc.addImage(houseLogo.dataUrl, houseLogo.format, topIdentityX, topIdentityY - 0.5, logoSize, logoSize);
-    doc.setTextColor(41, 41, 41);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(6.2);
-    doc.text(headerName || STAFF_ID_SUBTEXT, topIdentityX + logoSize + 1.2, topIdentityY + 2.2);
-  } else {
-    doc.setTextColor(41, 41, 41);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(6.2);
-    doc.text(headerName || STAFF_ID_SUBTEXT, topIdentityX, topIdentityY + 2.2);
+  const topIdentityX = brandLineX + 2.85;
+  const topIdentityY = y + SAFE_MARGIN_MM + 2.1;
+  const headerName = branding.companyDisplayName;
+  if (branding.logo) {
+    const logoSize = 4.7;
+    doc.addImage(branding.logo.dataUrl, branding.logo.format, topIdentityX, topIdentityY - 0.25, logoSize, logoSize);
+    doc.setTextColor(56, 56, 56);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6);
+    doc.text((headerName || " ").toUpperCase(), topIdentityX + logoSize + 1.2, topIdentityY + 2.25);
+  } else if (headerName) {
+    doc.setTextColor(56, 56, 56);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.1);
+    doc.text(headerName.toUpperCase(), topIdentityX, topIdentityY + 2.25);
   }
 
-  doc.setTextColor(132, 132, 132);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(4.4);
-  doc.text(STAFF_ID_SUBTEXT, topIdentityX, topIdentityY + 5.55);
-
-  doc.setTextColor(104, 104, 104);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(4.8);
-  doc.text(`ID: ${row.code}`, topIdentityX, identityDividerY - 3.35);
-
-  const photoW = 31.6;
-  const photoH = 56.8;
+  const photoW = 33.2;
+  const photoH = 60.2;
   const photoX = x + cardWidth - photoW;
-  const photoY = y + cardHeight - photoH;
+  const photoY = y + cardHeight - photoH + 0.15;
 
   if (employeePhoto) {
     doc.addImage(employeePhoto.dataUrl, employeePhoto.format, photoX, photoY, photoW, photoH);
@@ -364,13 +446,21 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
     doc.text("PHOTO", photoX + photoW / 2, photoY + photoH / 2, { align: "center", baseline: "middle" });
   }
 
-  const textX = topIdentityX;
-  const nameMaxWidth = x + cardWidth - textX - 1;
+  const textX = topIdentityX - 0.35;
   const detailMaxWidth = photoX - textX - 0.6;
-  const nameTopY = identityDividerY + 2.65;
+  const nameMaxWidth = detailMaxWidth + 0.1;
+  const textBlockGap = 2.35;
+  const idCodeY = identityDividerY - textBlockGap;
+
+  doc.setTextColor(104, 104, 104);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(4.8);
+  doc.text(`ID: ${row.code}`, textX + 0.25, idCodeY);
+
+  const nameTopY = identityDividerY + textBlockGap;
 
   const name = cleanText(row.fullName) || "Employee Name";
-  const nameFit = fitTextToBox(doc, {
+  const nameFit = fitWordWrappedTextToBox(doc, {
     text: name.toUpperCase(),
     maxWidth: nameMaxWidth,
     maxLines: 3,
@@ -384,7 +474,7 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
     doc.text(nameFit.lines.map((line) => line.replace(/\s+/g, " ").trim()), textX + 0.25, nameTopY + 0.2);
   }
 
-  let detailY = nameTopY + Math.max(1, nameFit.lines.length) * 3.32 + 0.62;
+  const positionY = nameTopY + Math.max(1, nameFit.lines.length) * 2.92;
   const position = cleanText(row.position);
   if (position) {
     const positionFit = fitTextToBox(doc, {
@@ -398,44 +488,29 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, houseLogo: HouseLog
     doc.setFont("helvetica", "normal");
     doc.setFontSize(positionFit.fontSize);
     if (positionFit.lines.length > 0) {
-      doc.text(positionFit.lines, textX + 0.25, detailY + 0.22);
-      detailY += positionFit.lines.length * 2.8 + 0.88;
+      doc.text(positionFit.lines, textX + 0.25, positionY + 0.22);
     }
-  }
-
-  const branchFit = fitTextToBox(doc, {
-    text: cleanText(row.branchName) || "Main Branch",
-    maxWidth: detailMaxWidth,
-    maxLines: 2,
-    startFontSize: 4.8,
-    minFontSize: 4,
-  });
-  doc.setTextColor(138, 138, 138);
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(branchFit.fontSize);
-  if (branchFit.lines.length > 0) {
-    doc.text(branchFit.lines, textX + 0.25, detailY + 0.22);
   }
 }
 
 function drawFrontCard(
   doc: jsPDF,
   row: EmployeeIdCardRow,
-  houseLogo: HouseLogo | null,
+  branding: EmployeeIdBranding,
   employeePhoto: EmployeePhoto | null,
   x: number,
   y: number,
   layout: EmployeeIdCardLayout,
 ) {
   if (layout === "modern") {
-    drawFrontModern(doc, row, houseLogo, employeePhoto, x, y);
+    drawFrontModern(doc, row, branding, employeePhoto, x, y);
     return;
   }
 
-  drawFrontClassic(doc, row, houseLogo, employeePhoto, x, y);
+  drawFrontClassic(doc, row, branding, employeePhoto, x, y);
 }
 
-function drawBackCard(doc: jsPDF, row: EmployeeIdCardRow, qrDataUrl: string, x: number, y: number) {
+function drawBackCard(doc: jsPDF, row: EmployeeIdCardRow, qrDataUrl: string, branding: EmployeeIdBranding, x: number, y: number) {
   const cardWidth = CR80_SHORT_EDGE_MM;
   const cardHeight = CR80_LONG_EDGE_MM;
 
@@ -443,7 +518,7 @@ function drawBackCard(doc: jsPDF, row: EmployeeIdCardRow, qrDataUrl: string, x: 
   doc.setLineWidth(0.2);
   doc.rect(x, y, cardWidth, cardHeight);
 
-  const qrSize = 33;
+  const qrSize = 34.6;
   const qrPlatePadding = 1.4;
   const qrX = x + (cardWidth - qrSize) / 2;
   const qrY = y + 14;
@@ -453,21 +528,30 @@ function drawBackCard(doc: jsPDF, row: EmployeeIdCardRow, qrDataUrl: string, x: 
   doc.roundedRect(qrX - qrPlatePadding, qrY - qrPlatePadding, qrSize + qrPlatePadding * 2, qrSize + qrPlatePadding * 2, 1.2, 1.2, "FD");
   doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
 
-  doc.setTextColor(0, 0, 0);
+  doc.setTextColor(18, 18, 18);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(6.3);
   doc.text(getQrCaption(), x + cardWidth / 2, qrY + qrSize + 5.1, { align: "center" });
 
+  doc.setTextColor(36, 36, 36);
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(7.2);
+  doc.setFontSize(6.6);
   doc.text(row.code, x + cardWidth / 2, qrY + qrSize + 9.2, { align: "center" });
 
-  const footerName = getHeaderBrandName(row.houseBrandName, row.houseName);
+  const footerName = branding.companyDisplayName;
   if (footerName) {
-    doc.setTextColor(80, 80, 80);
+    doc.setTextColor(92, 92, 92);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(4.5);
+    doc.setFontSize(4.3);
     doc.text(footerName, x + cardWidth / 2, y + cardHeight - SAFE_MARGIN_MM, { align: "center" });
+  }
+
+  const branchName = cleanText(row.branchName);
+  if (branchName) {
+    doc.setTextColor(124, 124, 124);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(4.4);
+    doc.text(branchName, x + cardWidth / 2, y + cardHeight - SAFE_MARGIN_MM - 2.7, { align: "center" });
   }
 }
 
@@ -481,10 +565,11 @@ export async function generateEmployeeIdCardPdf(
   const doc = new jsPDF({ unit: "mm", format: [CR80_SHORT_EDGE_MM, CR80_LONG_EDGE_MM], orientation: "portrait" });
   const houseLogo = await resolveHouseLogo(row.houseLogoUrl, new Map());
   const employeePhoto = await resolveEmployeePhoto(row.photoUrl, new Map());
+  const branding = resolveEmployeeIdBranding(row, houseLogo, options);
 
-  drawFrontCard(doc, row, houseLogo, employeePhoto, 0, 0, options.frontLayout ?? DEFAULT_FRONT_LAYOUT);
+  drawFrontCard(doc, row, branding, employeePhoto, 0, 0, branding.frontTemplateKey);
   doc.addPage([CR80_SHORT_EDGE_MM, CR80_LONG_EDGE_MM], "portrait");
-  drawBackCard(doc, row, qrDataUrl, 0, 0);
+  drawBackCard(doc, row, qrDataUrl, branding, 0, 0);
 
   const buffer = doc.output("arraybuffer") as ArrayBuffer;
   return new Uint8Array(buffer);
@@ -556,7 +641,8 @@ export async function generateEmployeeIdCardsSheetPdf(
       const x = startX + colSlot * (CR80_SHORT_EDGE_MM + horizontalGap);
       const y = startY + rowSlot * (CR80_LONG_EDGE_MM + verticalGap);
 
-      drawFrontCard(doc, sortedRows[index], houseLogos[index], employeePhotos[index], x, y, frontLayout);
+      const branding = resolveEmployeeIdBranding(sortedRows[index], houseLogos[index], { frontLayout });
+      drawFrontCard(doc, sortedRows[index], branding, employeePhotos[index], x, y, branding.frontTemplateKey);
       if (includeCutGuides) {
         drawCutGuides(doc, x, y);
       }
@@ -570,7 +656,8 @@ export async function generateEmployeeIdCardsSheetPdf(
       const x = startX + colSlot * (CR80_SHORT_EDGE_MM + horizontalGap);
       const y = startY + rowSlot * (CR80_LONG_EDGE_MM + verticalGap);
 
-      drawBackCard(doc, sortedRows[index], qrDataUrls[index], x, y);
+      const branding = resolveEmployeeIdBranding(sortedRows[index], houseLogos[index], { frontLayout });
+      drawBackCard(doc, sortedRows[index], qrDataUrls[index], branding, x, y);
       if (includeCutGuides) {
         drawCutGuides(doc, x, y);
       }
