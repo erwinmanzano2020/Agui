@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/toaster";
-import { buildEmployeePhotoPath, EMPLOYEE_PHOTOS_BUCKET } from "@/lib/hr/employee-photo";
+import { buildEmployeePhotoPath, EMPLOYEE_PHOTOS_BUCKET, type EmployeePhotoFormat } from "@/lib/hr/employee-photo";
 import { getSupabase } from "@/lib/supabase";
 
 type Props = {
@@ -36,6 +36,8 @@ const DEFAULT_INITIAL_PAN_Y = 0;
 const DEBUG_EVENT_HISTORY_LIMIT = 24;
 const STORAGE_ERROR_PREFIX = "Uploading photo failed.";
 const NO_AUTO_RETRY_TIMEOUT_MESSAGE = "Storage request timed out and may still be running. Please retry once.";
+const DEFAULT_OUTPUT_VARIANT: OutputVariant = "white";
+
 
 type CropDraft = {
   blob: Blob;
@@ -47,7 +49,19 @@ type CropDraft = {
   rotation: 0 | 90 | 180 | 270;
 };
 
-type PhotoPipelinePhase = "IDLE" | "PREPARING" | "RENDERING_CROP" | "UPLOADING_STORAGE" | "PERSISTING_RECORD" | "SUCCESS" | "FAILED";
+type OutputVariant = "original" | "white" | "transparent";
+
+type PhotoPipelinePhase =
+  | "IDLE"
+  | "PREPARING"
+  | "RENDERING_CROP"
+  | "REMOVING_BACKGROUND"
+  | "PREPARING_TRANSPARENT_OUTPUT"
+  | "PREPARING_WHITE_OUTPUT"
+  | "UPLOADING_STORAGE"
+  | "PERSISTING_RECORD"
+  | "SUCCESS"
+  | "FAILED";
 
 type PhotoDebugEvent = {
   at: string;
@@ -111,8 +125,8 @@ function getUploadTimeoutMs(blob: Blob, attempt: number): number {
 }
 
 
-function getPathContract(path: string, employeeId: string) {
-  const canonicalPath = buildEmployeePhotoPath(employeeId);
+function getPathContract(path: string, employeeId: string, extension: EmployeePhotoFormat = "jpg") {
+  const canonicalPath = buildEmployeePhotoPath(employeeId, extension);
   const duplicateBucketPrefix = `${EMPLOYEE_PHOTOS_BUCKET}/${EMPLOYEE_PHOTOS_BUCKET}/`;
   return {
     canonicalPath,
@@ -142,8 +156,15 @@ type ProbeOutcome =
 
 type UploadPrimitive = "upload" | "update" | "server_upload";
 
-async function probeObjectExists(supabase: StorageProbeClient, employeeId: string) {
-  const targetName = `${employeeId}.jpg`;
+type ProcessedPhotoOutput = {
+  variant: OutputVariant;
+  blob: Blob;
+  contentType: "image/jpeg" | "image/png";
+  extension: EmployeePhotoFormat;
+};
+
+async function probeObjectExists(supabase: StorageProbeClient, employeeId: string, extension: EmployeePhotoFormat) {
+  const targetName = `${employeeId}.${extension}`;
   const { data, error } = await supabase.storage.from("employee-photos").list("employee-photos", {
     limit: 10,
     search: targetName,
@@ -251,6 +272,173 @@ async function renderPortraitCrop(draft: CropDraft): Promise<Blob> {
   return blob;
 }
 
+function getOutputOptions(hasBgRemoval: boolean) {
+  return [
+    {
+      variant: "original" as const,
+      label: "Original crop",
+      description: "No background removal",
+      enabled: true,
+    },
+    {
+      variant: "white" as const,
+      label: "Remove background → White",
+      description: hasBgRemoval ? "Recommended for IDs" : "Background removal unavailable",
+      enabled: hasBgRemoval,
+    },
+    {
+      variant: "transparent" as const,
+      label: "Remove background → Transparent",
+      description: hasBgRemoval ? "PNG with transparency" : "Background removal unavailable",
+      enabled: hasBgRemoval,
+    },
+  ];
+}
+
+async function removePortraitBackground(source: Blob): Promise<ImageData> {
+  const image = await createImageBitmap(source);
+  const canvas = document.createElement("canvas");
+  canvas.width = image.width;
+  canvas.height = image.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context) {
+    image.close();
+    throw new Error("Unable to analyze cropped photo.");
+  }
+
+  context.drawImage(image, 0, 0, image.width, image.height);
+  image.close();
+
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  const data = imageData.data;
+
+  let total = 0;
+  let samples = 0;
+  const border = Math.max(10, Math.floor(Math.min(canvas.width, canvas.height) * 0.06));
+
+  for (let y = 0; y < canvas.height; y += 2) {
+    for (let x = 0; x < canvas.width; x += 2) {
+      const isBorder = x < border || y < border || x >= canvas.width - border || y >= canvas.height - border;
+      if (!isBorder) continue;
+      const idx = (y * canvas.width + x) * 4;
+      const r = data[idx] ?? 0;
+      const g = data[idx + 1] ?? 0;
+      const b = data[idx + 2] ?? 0;
+      total += (r + g + b) / 3;
+      samples += 1;
+    }
+  }
+
+  if (samples === 0) {
+    throw new Error("Unable to sample background for removal.");
+  }
+
+  const avgLuma = total / samples;
+  const threshold = clamp(avgLuma * 0.62, 40, 170);
+
+  const alpha = new Uint8ClampedArray(canvas.width * canvas.height);
+  for (let y = 0; y < canvas.height; y += 1) {
+    for (let x = 0; x < canvas.width; x += 1) {
+      const idx = (y * canvas.width + x) * 4;
+      const r = data[idx] ?? 0;
+      const g = data[idx + 1] ?? 0;
+      const b = data[idx + 2] ?? 0;
+      const luma = 0.299 * r + 0.587 * g + 0.114 * b;
+      alpha[y * canvas.width + x] = luma <= threshold ? 255 : 0;
+    }
+  }
+
+  const queue = new Uint32Array(canvas.width * canvas.height);
+  let head = 0;
+  let tail = 0;
+
+  function pushIfBackground(x: number, y: number) {
+    if (x < 0 || y < 0 || x >= canvas.width || y >= canvas.height) return;
+    const idx = y * canvas.width + x;
+    if (alpha[idx] !== 0) return;
+    alpha[idx] = 1;
+    queue[tail++] = idx;
+  }
+
+  for (let x = 0; x < canvas.width; x += 1) {
+    pushIfBackground(x, 0);
+    pushIfBackground(x, canvas.height - 1);
+  }
+  for (let y = 1; y < canvas.height - 1; y += 1) {
+    pushIfBackground(0, y);
+    pushIfBackground(canvas.width - 1, y);
+  }
+
+  while (head < tail) {
+    const idx = queue[head++];
+    const x = idx % canvas.width;
+    const y = Math.floor(idx / canvas.width);
+    pushIfBackground(x - 1, y);
+    pushIfBackground(x + 1, y);
+    pushIfBackground(x, y - 1);
+    pushIfBackground(x, y + 1);
+  }
+
+  let foregroundPixels = 0;
+  for (let i = 0; i < alpha.length; i += 1) {
+    if (alpha[i] === 1) {
+      alpha[i] = 0;
+      continue;
+    }
+    if (alpha[i] === 255) {
+      foregroundPixels += 1;
+    }
+  }
+
+  if (foregroundPixels < canvas.width * canvas.height * 0.08) {
+    throw new Error("Background removal could not isolate the portrait.");
+  }
+
+  for (let i = 0; i < alpha.length; i += 1) {
+    data[i * 4 + 3] = alpha[i] ?? 0;
+  }
+
+  return imageData;
+}
+
+async function renderOutputVariant(croppedBlob: Blob, variant: OutputVariant): Promise<ProcessedPhotoOutput> {
+  if (variant === "original") {
+    return { variant, blob: croppedBlob, contentType: "image/jpeg", extension: "jpg" };
+  }
+
+  const imageData = await removePortraitBackground(croppedBlob);
+  const canvas = document.createElement("canvas");
+  canvas.width = imageData.width;
+  canvas.height = imageData.height;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Unable to prepare processed output.");
+  }
+
+  if (variant === "white") {
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  }
+
+  context.putImageData(imageData, 0, 0);
+
+  const isTransparent = variant === "transparent";
+  const blob = await new Promise<Blob | null>((resolve) => {
+    canvas.toBlob((result) => resolve(result), isTransparent ? "image/png" : "image/jpeg", isTransparent ? undefined : 0.9);
+  });
+
+  if (!blob) {
+    throw new Error("Unable to save processed photo output.");
+  }
+
+  return {
+    variant,
+    blob,
+    contentType: isTransparent ? "image/png" : "image/jpeg",
+    extension: isTransparent ? "png" : "jpg",
+  };
+}
+
 async function persistEmployeePhotoViaApi(
   employeeId: string,
   houseId: string,
@@ -328,6 +516,8 @@ async function uploadEmployeePhotoViaServerApi(
   houseId: string,
   blob: Blob,
   path: string,
+  contentType: "image/jpeg" | "image/png",
+  fileName: string,
   operationId: string,
   timeoutMs: number,
 ) {
@@ -338,8 +528,8 @@ async function uploadEmployeePhotoViaServerApi(
   formData.append("houseId", houseId);
   formData.append("operationId", operationId);
   formData.append("path", path);
-  formData.append("contentType", "image/jpeg");
-  formData.append("file", blob, "photo.jpg");
+  formData.append("contentType", contentType);
+  formData.append("file", blob, fileName);
 
   let response: Response;
   try {
@@ -382,6 +572,8 @@ export function EmployeePhotoField({
   const [countdown, setCountdown] = useState<number | null>(null);
   const [flashVisible, setFlashVisible] = useState(false);
   const [cropDraft, setCropDraft] = useState<CropDraft | null>(null);
+  const [selectedOutput, setSelectedOutput] = useState<OutputVariant>(DEFAULT_OUTPUT_VARIANT);
+  const [backgroundRemovalError, setBackgroundRemovalError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<PhotoPipelinePhase>("IDLE");
   const [operationId, setOperationId] = useState<string | null>(null);
@@ -577,6 +769,8 @@ export function EmployeePhotoField({
     resetCameraFlow("initial_props_change");
     clearDraft("initial_props_change", true);
     setError(null);
+    setBackgroundRemovalError(null);
+    setSelectedOutput(DEFAULT_OUTPUT_VARIANT);
     setPhase("IDLE");
     setOperationId(null);
     setLastError(null);
@@ -597,7 +791,8 @@ export function EmployeePhotoField({
     });
   }, [cameraOpen]);
 
-  const uploadBlob = async (blob: Blob, currentOperationId: string) => {
+  const uploadBlob = async (output: ProcessedPhotoOutput, currentOperationId: string) => {
+    const blob = output.blob;
     const supabase = getSupabase();
     if (!supabase) {
       setError("Supabase is not configured in this environment.");
@@ -641,8 +836,8 @@ export function EmployeePhotoField({
           throw new Error("Missing house context for server upload mode.");
         }
 
-        const path = buildEmployeePhotoPath(employeeId);
-        const pathContract = getPathContract(path, employeeId);
+        const path = buildEmployeePhotoPath(employeeId, output.extension);
+        const pathContract = getPathContract(path, employeeId, output.extension);
         const attemptTimeout = getUploadTimeoutMs(blob, attempt);
         const attemptStartedAt = Date.now();
         const attemptId = `${currentOperationId}-r${requestId}-i${uploadInvocation}-a${attempt}`;
@@ -689,7 +884,7 @@ export function EmployeePhotoField({
               employeeId,
               targetPath: path,
             });
-            probeOutcome = await probeObjectExists(supabase, employeeId);
+            probeOutcome = await probeObjectExists(supabase, employeeId, output.extension);
             if (probeOutcome.status === "exists") {
               selectedPrimitive = "update";
               pushDebugEvent("storageProbe:exists", "UPLOADING_STORAGE", {
@@ -734,14 +929,14 @@ export function EmployeePhotoField({
                 operationId: currentOperationId,
                 employeeId,
                 targetPath: path,
-              }), uploadEmployeePhotoViaServerApi(employeeId, houseId ?? "", blob, path, currentOperationId, attemptTimeout).then(() => ({ data: { path }, error: null as null | Error })))
+              }), uploadEmployeePhotoViaServerApi(employeeId, houseId ?? "", blob, path, output.contentType, `photo.${output.extension}`, currentOperationId, attemptTimeout).then(() => ({ data: { path }, error: null as null | Error })))
             : selectedPrimitive === "update"
               ? (pushDebugEvent("storageUpload:primitive_update", "UPLOADING_STORAGE", {
                   operationId: currentOperationId,
                   employeeId,
                   targetPath: path,
                 }), supabase.storage.from("employee-photos").update(path, blob, {
-                  contentType: "image/jpeg",
+                  contentType: output.contentType,
                 }).then((result) => {
                   if (result.error && result.error.message.toLowerCase().includes("not found")) {
                     pushDebugEvent("storageUpload:primitive_upload", "UPLOADING_STORAGE", {
@@ -751,7 +946,7 @@ export function EmployeePhotoField({
                       fallback: "update_not_found",
                     });
                     return supabase.storage.from("employee-photos").upload(path, blob, {
-                      contentType: "image/jpeg",
+                      contentType: output.contentType,
                       upsert: false,
                     });
                   }
@@ -762,7 +957,7 @@ export function EmployeePhotoField({
                   employeeId,
                   targetPath: path,
                 }), supabase.storage.from("employee-photos").upload(path, blob, {
-                  contentType: "image/jpeg",
+                  contentType: output.contentType,
                   upsert: false,
                 }));
 
@@ -1157,30 +1352,53 @@ export function EmployeePhotoField({
     setModalCloseTriggered(false);
     setUploading(true);
     setError(null);
-    pushDebugEvent("confirmCrop:start", "PREPARING", { operationId: currentOperationId });
+    setBackgroundRemovalError(null);
+    pushDebugEvent("confirmCrop:start", "PREPARING", { operationId: currentOperationId, selectedOutput });
 
     try {
       pushDebugEvent("renderPortraitCrop:start", "RENDERING_CROP", { operationId: currentOperationId });
-      const processedBlob = await renderPortraitCrop(cropDraft);
-      setProcessedBlobSize(processedBlob.size);
+      const croppedBlob = await renderPortraitCrop(cropDraft);
       pushDebugEvent("renderPortraitCrop:success", "RENDERING_CROP", {
         operationId: currentOperationId,
-        blobSize: processedBlob.size,
+        blobSize: croppedBlob.size,
       });
 
-      const didUpload = await uploadBlob(processedBlob, currentOperationId);
+      let output: ProcessedPhotoOutput;
+      if (selectedOutput !== "original") {
+        setPhase("REMOVING_BACKGROUND");
+        pushDebugEvent("backgroundRemoval:start", "REMOVING_BACKGROUND", { operationId: currentOperationId, selectedOutput });
+      }
+
+      try {
+        if (selectedOutput === "transparent") {
+          setPhase("PREPARING_TRANSPARENT_OUTPUT");
+        } else if (selectedOutput === "white") {
+          setPhase("PREPARING_WHITE_OUTPUT");
+        }
+        output = await renderOutputVariant(croppedBlob, selectedOutput);
+      } catch (processingError) {
+        const message = processingError instanceof Error ? processingError.message : "Background removal failed.";
+        setBackgroundRemovalError(`${message} You can still save the original crop.`);
+        setSelectedOutput("original");
+        output = await renderOutputVariant(croppedBlob, "original");
+        pushDebugEvent("backgroundRemoval:error", "FAILED", { operationId: currentOperationId, selectedOutput }, message);
+      }
+
+      setProcessedBlobSize(output.blob.size);
+
+      const didUpload = await uploadBlob(output, currentOperationId);
       if (!didUpload) {
         pushDebugEvent("confirmCrop:upload_not_completed", "FAILED", { operationId: currentOperationId });
         return;
       }
 
-      pushDebugEvent("confirmCrop:success", "SUCCESS", { operationId: currentOperationId });
+      pushDebugEvent("confirmCrop:success", "SUCCESS", { operationId: currentOperationId, selectedOutput: output.variant });
       setModalCloseTriggered(true);
       clearDraft("confirmCrop_success", true);
       resetCameraFlow("confirmCrop_success");
       pushDebugEvent("modal:close_after_success", "SUCCESS", {
         operationId: currentOperationId,
-        blobSize: processedBlob.size,
+        blobSize: output.blob.size,
       });
       toast.success("Employee photo saved.");
     } catch (uploadError) {
@@ -1361,6 +1579,7 @@ export function EmployeePhotoField({
   };
 
   const closeCropEditor = () => {
+    setBackgroundRemovalError(null);
     clearDraft("closeCropEditor", true);
   };
 
@@ -1470,6 +1689,23 @@ export function EmployeePhotoField({
             </div>
 
             {error ? <p className="mb-3 rounded-md border border-destructive/40 bg-destructive/10 px-2 py-1 text-xs text-destructive">{error}</p> : null}
+            {uploading && phase !== "IDLE" ? (
+              <p className="mb-3 rounded-md border border-border/60 bg-muted/40 px-2 py-1 text-xs text-muted-foreground">
+                {phase === "REMOVING_BACKGROUND"
+                  ? "Removing background…"
+                  : phase === "PREPARING_TRANSPARENT_OUTPUT"
+                    ? "Preparing transparent output…"
+                    : phase === "PREPARING_WHITE_OUTPUT"
+                      ? "Preparing white background…"
+                      : phase === "RENDERING_CROP"
+                        ? "Rendering crop…"
+                        : phase === "UPLOADING_STORAGE"
+                          ? "Uploading photo…"
+                          : phase === "PERSISTING_RECORD"
+                            ? "Saving employee record…"
+                            : "Processing photo…"}
+              </p>
+            ) : null}
 
             <div className="grid gap-4 md:grid-cols-[auto,1fr]">
               <div
@@ -1489,6 +1725,7 @@ export function EmployeePhotoField({
                     width: getPanBounds(cropDraft.imageBitmap, cropDraft.zoom, cropDraft.rotation).renderedWidth,
                     height: getPanBounds(cropDraft.imageBitmap, cropDraft.zoom, cropDraft.rotation).renderedHeight,
                     transform: `translate(calc(-50% + ${cropDraft.panX}px), calc(-50% + ${cropDraft.panY}px)) rotate(${cropDraft.rotation}deg)`,
+                    filter: selectedOutput === "original" ? "none" : "contrast(1.08) saturate(0.9)",
                   }}
                 />
                 <div className="pointer-events-none absolute inset-0">
@@ -1529,9 +1766,35 @@ export function EmployeePhotoField({
                   </Button>
                 </div>
 
+                <div className="space-y-2 rounded-md border border-border/60 bg-muted/20 p-2">
+                  <p className="text-xs font-medium text-foreground">Final output</p>
+                  <div className="grid gap-2">
+                    {getOutputOptions(true).map((option) => (
+                      <button
+                        key={option.variant}
+                        type="button"
+                        className={`rounded-md border px-2 py-1 text-left text-xs transition ${selectedOutput === option.variant ? "border-primary bg-primary/10 text-foreground" : "border-border/70 bg-background text-muted-foreground"}`}
+                        onClick={() => setSelectedOutput(option.variant)}
+                        disabled={uploading || !option.enabled}
+                      >
+                        <span className="block font-medium">{option.label}</span>
+                        <span className="block text-[11px]">{option.description}</span>
+                      </button>
+                    ))}
+                  </div>
+                  {backgroundRemovalError ? (
+                    <p className="rounded border border-amber-400/40 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-700">
+                      {backgroundRemovalError}
+                    </p>
+                  ) : null}
+                  <p className="text-[11px] text-muted-foreground">
+                    Preview reflects your selected output style. White background is recommended for IDs.
+                  </p>
+                </div>
+
                 <div className="flex flex-wrap gap-2">
                   <Button type="button" onClick={() => void confirmCrop()} disabled={uploading}>
-                    Save Cropped Photo
+                    Save Final Photo
                   </Button>
                   <Button type="button" variant="outline" disabled={uploading} onClick={() => fileInputRef.current?.click()}>
                     Choose Another Image
