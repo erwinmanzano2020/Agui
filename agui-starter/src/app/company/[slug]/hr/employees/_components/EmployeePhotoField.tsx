@@ -407,6 +407,16 @@ async function renderOutputVariant(croppedBlob: Blob, variant: OutputVariant): P
   }
 
   const imageData = await removePortraitBackground(croppedBlob);
+
+  const subjectCanvas = document.createElement("canvas");
+  subjectCanvas.width = imageData.width;
+  subjectCanvas.height = imageData.height;
+  const subjectContext = subjectCanvas.getContext("2d");
+  if (!subjectContext) {
+    throw new Error("Unable to prepare processed output.");
+  }
+  subjectContext.putImageData(imageData, 0, 0);
+
   const canvas = document.createElement("canvas");
   canvas.width = imageData.width;
   canvas.height = imageData.height;
@@ -420,7 +430,7 @@ async function renderOutputVariant(croppedBlob: Blob, variant: OutputVariant): P
     context.fillRect(0, 0, canvas.width, canvas.height);
   }
 
-  context.putImageData(imageData, 0, 0);
+  context.drawImage(subjectCanvas, 0, 0);
 
   const isTransparent = variant === "transparent";
   const blob = await new Promise<Blob | null>((resolve) => {
