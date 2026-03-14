@@ -366,14 +366,15 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, branding: EmployeeI
   const textX = topIdentityX;
   const nameMaxWidth = x + cardWidth - textX - 1;
   const detailMaxWidth = photoX - textX - 0.6;
-  const idCodeY = identityDividerY + 2.55;
+  const textBlockGap = 2.55;
+  const idCodeY = identityDividerY - textBlockGap;
 
   doc.setTextColor(104, 104, 104);
   doc.setFont("helvetica", "normal");
   doc.setFontSize(4.8);
   doc.text(`ID: ${row.code}`, textX + 0.25, idCodeY);
 
-  const nameTopY = idCodeY + 2.7;
+  const nameTopY = identityDividerY + textBlockGap;
 
   const name = cleanText(row.fullName) || "Employee Name";
   const nameFit = fitTextToBox(doc, {
