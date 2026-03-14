@@ -340,13 +340,13 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, branding: EmployeeI
     doc.addImage(branding.logo.dataUrl, branding.logo.format, topIdentityX, topIdentityY - 0.25, logoSize, logoSize);
     doc.setTextColor(56, 56, 56);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(5.6);
-    doc.text(headerName || " ", topIdentityX + logoSize + 1.2, topIdentityY + 2.25);
+    doc.setFontSize(6);
+    doc.text((headerName || " ").toUpperCase(), topIdentityX + logoSize + 1.2, topIdentityY + 2.25);
   } else if (headerName) {
     doc.setTextColor(56, 56, 56);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(5.8);
-    doc.text(headerName, topIdentityX, topIdentityY + 2.25);
+    doc.setFontSize(6.1);
+    doc.text(headerName.toUpperCase(), topIdentityX, topIdentityY + 2.25);
   }
 
   const photoW = 33.2;
@@ -364,9 +364,9 @@ function drawFrontModern(doc: jsPDF, row: EmployeeIdCardRow, branding: EmployeeI
   }
 
   const textX = topIdentityX - 0.35;
-  const nameMaxWidth = x + cardWidth - textX - 1;
   const detailMaxWidth = photoX - textX - 0.6;
-  const textBlockGap = 2.05;
+  const nameMaxWidth = detailMaxWidth + 0.1;
+  const textBlockGap = 2.35;
   const idCodeY = identityDividerY - textBlockGap;
 
   doc.setTextColor(104, 104, 104);
