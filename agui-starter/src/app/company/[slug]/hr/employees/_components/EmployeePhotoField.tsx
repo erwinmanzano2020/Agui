@@ -135,6 +135,13 @@ type StorageProbeClient = {
   };
 };
 
+type ProbeOutcome =
+  | { status: "exists" }
+  | { status: "not_found" }
+  | { status: "error"; error: { message: string; statusCode: number | null } };
+
+type UploadPrimitive = "upload" | "update" | "server_upload";
+
 async function probeObjectExists(supabase: StorageProbeClient, employeeId: string) {
   const targetName = `${employeeId}.jpg`;
   const { data, error } = await supabase.storage.from("employee-photos").list("employee-photos", {
@@ -142,8 +149,18 @@ async function probeObjectExists(supabase: StorageProbeClient, employeeId: strin
     search: targetName,
   });
 
+  if (error) {
+    return {
+      status: "error" as const,
+      error: {
+        message: error.message,
+        statusCode: (error as { statusCode?: number }).statusCode ?? null,
+      },
+    };
+  }
+
   const exists = Boolean(data?.some((item: { name: string }) => item.name === targetName));
-  return { exists, error: error ? { message: error.message, statusCode: (error as { statusCode?: number }).statusCode ?? null } : null };
+  return exists ? ({ status: "exists" as const }) : ({ status: "not_found" as const });
 }
 
 function getNormalizedRotation(rotation: number): 0 | 90 | 180 | 270 {
@@ -618,6 +635,7 @@ export function EmployeePhotoField({
         let timeoutId: number | null = null;
         let responseReturned = false;
         let staleAtCompletion = false;
+        let selectedPrimitiveForAttempt: UploadPrimitive = storageUploadMode === "server" ? "server_upload" : "upload";
 
         pendingStorageAttemptIdsRef.current.add(attemptId);
         setTargetStoragePath(path);
@@ -641,38 +659,98 @@ export function EmployeePhotoField({
           });
 
           const overwriteHintFromState = previousPath === path;
-          const existsProbe = storageUploadMode === "server" ? null : await probeObjectExists(supabase, employeeId);
-          const objectExists = existsProbe?.exists ?? overwriteHintFromState;
-          const overwriteStrategy = objectExists ? "update" : "upload";
+          const hasKnownPhotoInState = Boolean(previousPath || photoUrl);
+          let probeAttempted = false;
+          let probeOutcome: ProbeOutcome | null = null;
+          let selectedPrimitive: UploadPrimitive;
 
-          pushDebugEvent("storageUpload:strategy", "UPLOADING_STORAGE", {
+          if (storageUploadMode === "server") {
+            selectedPrimitive = "server_upload";
+          } else if (overwriteHintFromState || hasKnownPhotoInState) {
+            selectedPrimitive = "update";
+          } else {
+            probeAttempted = true;
+            pushDebugEvent("storageProbe:start", "UPLOADING_STORAGE", {
+              operationId: currentOperationId,
+              employeeId,
+              targetPath: path,
+            });
+            probeOutcome = await probeObjectExists(supabase, employeeId);
+            if (probeOutcome.status === "exists") {
+              selectedPrimitive = "update";
+              pushDebugEvent("storageProbe:exists", "UPLOADING_STORAGE", {
+                operationId: currentOperationId,
+                employeeId,
+                targetPath: path,
+              });
+            } else if (probeOutcome.status === "not_found") {
+              selectedPrimitive = "upload";
+              pushDebugEvent("storageProbe:not_found", "UPLOADING_STORAGE", {
+                operationId: currentOperationId,
+                employeeId,
+                targetPath: path,
+              });
+            } else {
+              pushDebugEvent("storageProbe:error", "FAILED", {
+                operationId: currentOperationId,
+                employeeId,
+                targetPath: path,
+                error: probeOutcome.error,
+              }, "Unable to determine storage overwrite strategy because storage probe failed.");
+              throw new Error("Unable to determine upload strategy. Please retry.");
+            }
+          }
+
+          pushDebugEvent("storageUpload:strategy_selected", "UPLOADING_STORAGE", {
             operationId: currentOperationId,
             employeeId,
             targetPath: path,
+            knownPhotoPath: previousPath,
+            knownPhotoUrlPresent: Boolean(photoUrl),
             overwriteHintFromState,
-            objectExists,
-            existsProbeError: existsProbe?.error ?? null,
-            primitive: storageUploadMode === "server" ? "server_upload" : overwriteStrategy,
+            probeAttempted,
+            probeOutcome,
+            selectedStrategy: selectedPrimitive,
           });
 
+          selectedPrimitiveForAttempt = selectedPrimitive;
+
           const uploadPromise = storageUploadMode === "server"
-            ? uploadEmployeePhotoViaServerApi(employeeId, houseId ?? "", blob, path, currentOperationId, attemptTimeout).then(() => ({ data: { path }, error: null as null | Error }))
-            : overwriteStrategy === "update"
-              ? supabase.storage.from("employee-photos").update(path, blob, {
+            ? (pushDebugEvent("storageUpload:primitive_server_upload", "UPLOADING_STORAGE", {
+                operationId: currentOperationId,
+                employeeId,
+                targetPath: path,
+              }), uploadEmployeePhotoViaServerApi(employeeId, houseId ?? "", blob, path, currentOperationId, attemptTimeout).then(() => ({ data: { path }, error: null as null | Error })))
+            : selectedPrimitive === "update"
+              ? (pushDebugEvent("storageUpload:primitive_update", "UPLOADING_STORAGE", {
+                  operationId: currentOperationId,
+                  employeeId,
+                  targetPath: path,
+                }), supabase.storage.from("employee-photos").update(path, blob, {
                   contentType: "image/jpeg",
                 }).then((result) => {
                   if (result.error && result.error.message.toLowerCase().includes("not found")) {
+                    pushDebugEvent("storageUpload:primitive_upload", "UPLOADING_STORAGE", {
+                      operationId: currentOperationId,
+                      employeeId,
+                      targetPath: path,
+                      fallback: "update_not_found",
+                    });
                     return supabase.storage.from("employee-photos").upload(path, blob, {
                       contentType: "image/jpeg",
                       upsert: false,
                     });
                   }
                   return result;
-                })
-              : supabase.storage.from("employee-photos").upload(path, blob, {
+                }))
+              : (pushDebugEvent("storageUpload:primitive_upload", "UPLOADING_STORAGE", {
+                  operationId: currentOperationId,
+                  employeeId,
+                  targetPath: path,
+                }), supabase.storage.from("employee-photos").upload(path, blob, {
                   contentType: "image/jpeg",
                   upsert: false,
-                });
+                }));
 
           void uploadPromise.finally(() => {
             pendingStorageAttemptIdsRef.current.delete(attemptId);
@@ -717,7 +795,11 @@ export function EmployeePhotoField({
             supportsAbort: false,
             settledLaterObserved: false,
             pathContract,
-            primitiveTried: storageUploadMode === "server" ? "server_upload" : (previousPath === path ? "update_or_upload_fallback" : "upload"),
+            primitiveTried: selectedPrimitiveForAttempt,
+            storageErrorMessage: uploadResult.error?.message ?? null,
+            storageErrorStatusCode: typeof (uploadResult.error as { statusCode?: unknown } | null)?.statusCode === "number"
+              ? ((uploadResult.error as { statusCode?: unknown }).statusCode as number)
+              : null,
           });
 
           if (uploadResult.error) {
@@ -813,7 +895,7 @@ export function EmployeePhotoField({
             errorCode: typeof (attemptError as { code?: unknown })?.code === "string" ? (attemptError as { code: string }).code : null,
             errorStatusCode: typeof (attemptError as { statusCode?: unknown })?.statusCode === "number" ? (attemptError as { statusCode: number }).statusCode : null,
             pathContract,
-            primitiveTried: storageUploadMode === "server" ? "server_upload" : (previousPath === path ? "update_or_upload_fallback" : "upload"),
+            primitiveTried: selectedPrimitiveForAttempt,
             message: attemptMessage,
           }, attemptMessage);
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { buildEmployeePhotoPath } from "@/lib/hr/employee-photo";
 import { requireHrAccess } from "@/lib/hr/access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
@@ -14,6 +15,10 @@ function isValidHouseId(value: unknown): value is string {
 
 function isValidPhotoPath(value: string): boolean {
   return value.startsWith("employee-photos/") && value.endsWith(".jpg");
+}
+
+function isPathOwnedByEmployee(path: string, employeeId: string): boolean {
+  return path === buildEmployeePhotoPath(employeeId);
 }
 
 export async function POST(req: NextRequest, context: { params: Promise<{ employeeId: string }> }) {
@@ -38,6 +43,10 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
   const houseId = houseIdRaw.trim();
   const path = pathRaw.trim();
   const contentType = contentTypeRaw.trim() || "image/jpeg";
+
+  if (!isPathOwnedByEmployee(path, employeeId)) {
+    return NextResponse.json({ error: "Path does not belong to employee" }, { status: 400 });
+  }
 
   try {
     const supabase = await createServerSupabaseClient();
