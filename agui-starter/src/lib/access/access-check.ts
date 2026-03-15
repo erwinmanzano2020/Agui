@@ -62,8 +62,6 @@ export async function requireActionPermission(
     if (!hrDecision.allowed) {
       throw new Error(`HR access denied for house scope ${context.scopeId}`);
     }
-
-    return context;
   }
 
   const allowed = await evaluatePolicy({ action, resource });
