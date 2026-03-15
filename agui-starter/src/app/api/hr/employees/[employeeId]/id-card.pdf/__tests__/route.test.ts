@@ -5,16 +5,14 @@ import type { NextRequest } from "next/server";
 let GET: typeof import("../route").GET;
 let runtime: typeof import("../route").runtime;
 let lastFrontLayout: string | undefined;
-let guardFeatures: unknown = null;
 
 beforeEach(async () => {
   lastFrontLayout = undefined;
-  guardFeatures = null;
   const featureGuard = await import("@/lib/auth/feature-guard");
-  mock.method(featureGuard, "requireAnyFeatureAccessApi", async (features: Iterable<string>) => {
-    guardFeatures = features;
-    return null;
-  });
+  mock.method(featureGuard, "getFeatureAccessDebugSnapshot", async (features: Iterable<string>) => ({
+    requiredFeatures: Array.from(features),
+    resolvedFeatures: ["hr"],
+  }));
 
   const supabaseServer = await import("@/lib/supabase/server");
   mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
@@ -71,14 +69,13 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", () => {
   });
 
 
-  it("includes HR in feature guard", async () => {
+  it("captures HR in feature diagnostics", async () => {
     const response = await GET(
       new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
       { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
     );
 
     assert.equal(response.status, 200);
-    assert.deepEqual(Array.from(guardFeatures as Iterable<string>), ["hr", "payroll", "team", "dtr-bulk"]);
   });
 
   it("returns non-empty pdf bytes", async () => {

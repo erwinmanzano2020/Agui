@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { jsonError } from "@/lib/api/http";
-import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
+import { getFeatureAccessDebugSnapshot } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireHrAccess } from "@/lib/hr/access";
@@ -33,30 +33,32 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
     data: { user },
   } = await supabase.auth.getUser();
 
-  const guard = await requireAnyFeatureAccessApi([AppFeature.HR, AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK]);
-  if (guard) {
-    console.warn("[hr][id-card.pdf] Forbidden by feature guard", {
-      guard: "feature_access",
-      userId: user?.id ?? null,
-      houseId,
-      employeeId: parsed.data.employeeId,
-    });
-    return guard;
-  }
+  const featureSnapshot = await getFeatureAccessDebugSnapshot([AppFeature.HR]);
 
   const access = await requireHrAccess(supabase, houseId);
   if (!access.allowed) {
     console.warn("[hr][id-card.pdf] Forbidden by HR access guard", {
-      guard: "hr_access",
+      denyStage: "hr_access",
       userId: user?.id ?? null,
       houseId,
       employeeId: parsed.data.employeeId,
+      requiredFeatures: featureSnapshot.requiredFeatures,
+      resolvedFeatures: featureSnapshot.resolvedFeatures,
       entityId: access.entityId,
       roles: access.roles,
       policyKeys: access.policyKeys,
     });
     return jsonError(403, "Not allowed");
   }
+
+  console.info("[hr][id-card.pdf] Access granted", {
+    denyStage: "none",
+    userId: user?.id ?? null,
+    houseId,
+    employeeId: parsed.data.employeeId,
+    requiredFeatures: featureSnapshot.requiredFeatures,
+    resolvedFeatures: featureSnapshot.resolvedFeatures,
+  });
 
   const card = await getEmployeeIdCardById(supabase, houseId, parsed.data.employeeId);
   if (!card) {

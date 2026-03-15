@@ -10,6 +10,7 @@ import {
   applyDevPermissionsOverride,
   type FeatureInput,
   AppFeature,
+  resolveAccessibleFeatures,
 } from "@/lib/auth/permissions";
 import { getUserPermissions } from "@/lib/auth/user-permissions";
 
@@ -43,6 +44,24 @@ export async function resolveDestFromHeaders(): Promise<string> {
     console.warn("Failed to resolve guard destination", error);
     return "/";
   }
+}
+
+
+
+export type FeatureAccessDebugSnapshot = {
+  requiredFeatures: AppFeature[];
+  resolvedFeatures: AppFeature[];
+};
+
+export async function getFeatureAccessDebugSnapshot(
+  features: FeatureInput,
+): Promise<FeatureAccessDebugSnapshot> {
+  const requiredFeatures = normalizeFeatureInput(features);
+  const permissions = await getUserPermissions();
+  return {
+    requiredFeatures,
+    resolvedFeatures: resolveAccessibleFeatures(requiredFeatures, permissions),
+  };
 }
 
 export async function hasFeatureAccess(feature: FeatureInput): Promise<boolean> {

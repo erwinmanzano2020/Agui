@@ -165,6 +165,18 @@ export function canAccessAny(features: FeatureInput, permissions: PolicyRecord[]
   });
 }
 
+export function resolveAccessibleFeatures(
+  features: FeatureInput,
+  permissions: PolicyRecord[],
+): AppFeature[] {
+  const list = toArray(features);
+  if (list.length === 0) {
+    return [];
+  }
+
+  return list.filter((feature) => canAccess(feature, permissions));
+}
+
 export function requiredPoliciesFor(feature: AppFeature): PolicyRequest[] {
   const requirements = FEATURE_DEFINITIONS[feature];
   return requirements ? requirements.slice() : [];
