@@ -3,6 +3,7 @@
 - Core
   - [Vision](./agui/001-vision.md)
   - [Agui Development Operating Principles](../agui-development-operating-principles.md)
+  - [Authorization Foundation (HR-first)](./agui-authorization-foundation.md)
 - HR
   - [HR Master Plan](./hr/hr-master-plan.md)
   - [HR-1 Implementation Runbook](./hr/hr-1-implementation-runbook.md)
