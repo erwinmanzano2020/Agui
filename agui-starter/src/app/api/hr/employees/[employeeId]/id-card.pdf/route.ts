@@ -18,23 +18,43 @@ function sanitizeFilename(value: string): string {
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ employeeId: string }> }) {
-  const guard = await requireAnyFeatureAccessApi([AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK]);
-  if (guard) return guard;
-
   const parsed = ParamsSchema.safeParse(await params);
   if (!parsed.success) {
     return jsonError(400, "Invalid employee id");
   }
-
-  const supabase = await createServerSupabaseClient();
 
   const houseId = new URL(req.url).searchParams.get("houseId")?.trim();
   if (!houseId) {
     return jsonError(400, "houseId is required");
   }
 
+  const supabase = await createServerSupabaseClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const guard = await requireAnyFeatureAccessApi([AppFeature.HR, AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK]);
+  if (guard) {
+    console.warn("[hr][id-card.pdf] Forbidden by feature guard", {
+      guard: "feature_access",
+      userId: user?.id ?? null,
+      houseId,
+      employeeId: parsed.data.employeeId,
+    });
+    return guard;
+  }
+
   const access = await requireHrAccess(supabase, houseId);
   if (!access.allowed) {
+    console.warn("[hr][id-card.pdf] Forbidden by HR access guard", {
+      guard: "hr_access",
+      userId: user?.id ?? null,
+      houseId,
+      employeeId: parsed.data.employeeId,
+      entityId: access.entityId,
+      roles: access.roles,
+      policyKeys: access.policyKeys,
+    });
     return jsonError(403, "Not allowed");
   }
 
