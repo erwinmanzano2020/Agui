@@ -16,7 +16,7 @@ const MAX_EMPLOYEE_IDS = 200;
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  const guard = await requireAnyFeatureAccessApi([AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK]);
+  const guard = await requireAnyFeatureAccessApi([AppFeature.HR, AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK]);
   if (guard) return guard;
 
   const raw = (await req.json().catch(() => null)) as {
