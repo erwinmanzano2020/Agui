@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { AppFeature } from "@/lib/auth/permissions";
 import { buildEmployeePhotoPath } from "@/lib/hr/employee-photo";
-import { requireHrAccess } from "@/lib/hr/access";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import {
+  requireActionPermission,
+  requireAuthentication,
+  requireMembership,
+  requireModuleAccess,
+} from "@/lib/access/access-check";
 import { getServiceSupabase } from "@/lib/supabase-service";
 
 export const runtime = "nodejs";
@@ -19,6 +24,27 @@ function isValidPhotoPath(value: string): boolean {
 
 function isPathOwnedByEmployee(path: string, employeeId: string): boolean {
   return path === buildEmployeePhotoPath(employeeId, "jpg") || path === buildEmployeePhotoPath(employeeId, "png");
+}
+
+async function authorizeEmployeePhotoUpload(houseId: string): Promise<boolean> {
+  try {
+    const authenticatedContext = await requireAuthentication(
+      {
+        scopeType: "house",
+        scopeId: houseId,
+      },
+      { nextPath: "/employees" },
+    );
+    const memberContext = requireMembership(authenticatedContext);
+    const moduleContext = await requireModuleAccess(AppFeature.HR, memberContext, { dest: "/employees" });
+
+    // Keep existing HR-access behavior through the adapter layer by using
+    // the canonical HR tile policy action while targeting the employee-photo resource.
+    await requireActionPermission("tiles.hr.read", "employee.photo", moduleContext);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export async function POST(req: NextRequest, context: { params: Promise<{ employeeId: string }> }) {
@@ -53,9 +79,8 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
   }
 
   try {
-    const supabase = await createServerSupabaseClient();
-    const access = await requireHrAccess(supabase, houseId);
-    if (!access.allowed) {
+    const hasAccess = await authorizeEmployeePhotoUpload(houseId);
+    if (!hasAccess) {
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
     }
 

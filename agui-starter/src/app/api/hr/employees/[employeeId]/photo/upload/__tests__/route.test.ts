@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it, mock } from "node:test";
 
-import * as hrAccess from "@/lib/hr/access";
-import * as supabaseServer from "@/lib/supabase/server";
+import * as accessCheck from "@/lib/access/access-check";
 import * as supabaseService from "@/lib/supabase-service";
 import { POST, runtime } from "../route";
 
@@ -65,8 +64,15 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
     const employeeId = "11111111-1111-4111-8111-111111111111";
     const uploadMock = mock.fn(async () => ({ error: null }));
 
-    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
-    mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: true }));
+    mock.method(accessCheck, "requireAuthentication", async () => ({
+      scopeType: "house",
+      scopeId: "33333333-3333-4333-8333-333333333333",
+      membership: { isMember: true },
+      elevatedAuthority: { hasOperationalElevatedAuthority: false },
+    } as never));
+    mock.method(accessCheck, "requireMembership", (ctx: unknown) => ctx as never);
+    mock.method(accessCheck, "requireModuleAccess", async (_feature: unknown, ctx: unknown) => ctx as never);
+    mock.method(accessCheck, "requireActionPermission", async (_action: unknown, _resource: unknown, ctx: unknown) => ctx as never);
     mock.method(supabaseService, "getServiceSupabase", () => ({
       storage: {
         from: () => ({
@@ -97,12 +103,46 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
     assert.equal(uploadMock.mock.calls.length, 1);
   });
 
+  it("returns 403 when adapter authorization denies", async () => {
+    const employeeId = "11111111-1111-4111-8111-111111111111";
+
+    mock.method(accessCheck, "requireAuthentication", async () => {
+      throw new Error("denied");
+    });
+
+    const response = await POST(
+      new Request(`http://localhost/api/hr/employees/${employeeId}/photo/upload`, {
+        method: "POST",
+        body: (() => {
+          const formData = new FormData();
+          formData.set("houseId", "33333333-3333-4333-8333-333333333333");
+          formData.set("path", `employee-photos/${employeeId}.jpg`);
+          formData.set("contentType", "image/jpeg");
+          formData.set("file", new File([new Uint8Array([4, 5, 6])], "photo.jpg", { type: "image/jpeg" }));
+          return formData;
+        })(),
+      }) as never,
+      { params: Promise.resolve({ employeeId }) },
+    );
+
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Not allowed");
+  });
+
   it("accepts canonical path owned by route employee", async () => {
     const employeeId = "11111111-1111-4111-8111-111111111111";
     const uploadMock = mock.fn(async () => ({ error: null }));
 
-    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
-    mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: true }));
+    mock.method(accessCheck, "requireAuthentication", async () => ({
+      scopeType: "house",
+      scopeId: "33333333-3333-4333-8333-333333333333",
+      membership: { isMember: true },
+      elevatedAuthority: { hasOperationalElevatedAuthority: false },
+    } as never));
+    mock.method(accessCheck, "requireMembership", (ctx: unknown) => ctx as never);
+    mock.method(accessCheck, "requireModuleAccess", async (_feature: unknown, ctx: unknown) => ctx as never);
+    mock.method(accessCheck, "requireActionPermission", async (_action: unknown, _resource: unknown, ctx: unknown) => ctx as never);
     mock.method(supabaseService, "getServiceSupabase", () => ({
       storage: {
         from: () => ({
