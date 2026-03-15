@@ -174,11 +174,13 @@ Every guarded route/API should follow this fixed sequence:
 
 1. **Authentication check** (must be signed in).
 2. **Scope context resolution** (target house/guild/tenant).
-3. **Membership check** for that scope.
-4. **Operational elevated authority check** (if platform support/bypass applies).
+3. **Operational elevated authority check** (if explicitly defined platform support/bypass applies).
+4. **Membership check** for that scope (unless step 3 grants an explicit operational bypass path).
 5. **Module/feature gate** (module entry eligibility).
 6. **Action permission check** for operation-level access.
 7. **Execute business operation**.
+
+Clarification: step 3 applies only to explicitly defined elevated operational authority (for example platform operator / `game_master` / support bypass). It does **not** apply to normal business roles such as owner, manager, HR manager, cashier, or equivalent tenancy roles.
 
 Important for HR-first phase: HR endpoints should not rely on broad feature guard success as a replacement for house-level HR authority.
 
