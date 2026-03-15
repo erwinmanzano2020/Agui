@@ -9,10 +9,17 @@ let lastFrontLayout: string | undefined;
 beforeEach(async () => {
   lastFrontLayout = undefined;
   const featureGuard = await import("@/lib/auth/feature-guard");
-  mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
+  mock.method(featureGuard, "getFeatureAccessDebugSnapshot", async (features: Iterable<string>) => ({
+    requiredFeatures: Array.from(features),
+    resolvedFeatures: ["hr"],
+  }));
 
   const supabaseServer = await import("@/lib/supabase/server");
-  mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}));
+  mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+    auth: {
+      getUser: async () => ({ data: { user: { id: "00000000-0000-0000-0000-000000000999" } } }),
+    },
+  } as never));
 
   const access = await import("@/lib/hr/access");
   mock.method(access, "requireHrAccess", async () => ({ allowed: true } as never));
@@ -59,6 +66,16 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", () => {
     );
 
     assert.equal(response.status, 403);
+  });
+
+
+  it("captures HR in feature diagnostics", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
+      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
+    );
+
+    assert.equal(response.status, 200);
   });
 
   it("returns non-empty pdf bytes", async () => {

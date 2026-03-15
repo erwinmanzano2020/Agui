@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { jsonError } from "@/lib/api/http";
-import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
+import { getFeatureAccessDebugSnapshot } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireHrAccess } from "@/lib/hr/access";
@@ -16,9 +16,6 @@ const MAX_EMPLOYEE_IDS = 200;
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
-  const guard = await requireAnyFeatureAccessApi([AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK]);
-  if (guard) return guard;
-
   const raw = (await req.json().catch(() => null)) as {
     houseId?: unknown;
     employeeIds?: unknown;
@@ -49,11 +46,35 @@ export async function POST(req: NextRequest) {
 
   const supabase = await createServerSupabaseClient();
   const houseId = parsedHouseId.data;
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  const featureSnapshot = await getFeatureAccessDebugSnapshot([AppFeature.HR]);
 
   const access = await requireHrAccess(supabase, houseId);
   if (!access.allowed) {
+    console.warn("[hr][employee-ids/print] Forbidden by HR access guard", {
+      denyStage: "hr_access",
+      userId: user?.id ?? null,
+      houseId,
+      employeeId: null,
+      requiredFeatures: featureSnapshot.requiredFeatures,
+      resolvedFeatures: featureSnapshot.resolvedFeatures,
+      entityId: access.entityId,
+      roles: access.roles,
+      policyKeys: access.policyKeys,
+    });
     return jsonError(403, "Not allowed");
   }
+
+  console.info("[hr][employee-ids/print] Access granted", {
+    denyStage: "none",
+    userId: user?.id ?? null,
+    houseId,
+    employeeId: null,
+    requiredFeatures: featureSnapshot.requiredFeatures,
+    resolvedFeatures: featureSnapshot.resolvedFeatures,
+  });
 
   const allEmployees = await listEmployeeIdCards(supabase, houseId);
   const allowed = new Map(allEmployees.map((row) => [row.id, row]));
