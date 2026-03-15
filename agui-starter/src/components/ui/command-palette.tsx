@@ -9,7 +9,11 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { useRouter } from "next/navigation";
-import type { Command } from "@/config/commands";
+import { useToast } from "@/components/ui/toaster";
+import type { CommandDefinition } from "@/lib/commands/registry";
+import { canAccess } from "@/lib/auth/permissions";
+import { useUserPermissions } from "@/lib/auth/user-permissions-context";
+import { useSession } from "@/lib/auth/session-context";
 
 function isEditableTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
@@ -36,17 +40,38 @@ function useKeybind(combo: (e: KeyboardEvent) => boolean, handler: () => void) {
   }, [combo, handler]);
 }
 
-export function CommandPalette({ commands }: { commands: Command[] }) {
+export function CommandPalette({ commands }: { commands: CommandDefinition[] }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
   const baseId = useId();
   const listId = `${baseId}-options`;
+  const { user } = useSession();
+  const signedIn = Boolean(user);
+  const toast = useToast();
+  const permissions = useUserPermissions();
+
+  const availableCommands = useMemo(() => {
+    if (!signedIn) {
+      return commands.filter((command) => !command.feature);
+    }
+
+    return commands.filter((command) =>
+      command.feature ? canAccess(command.feature, permissions) : true,
+    );
+  }, [commands, permissions, signedIn]);
+
+  useEffect(() => {
+    if (availableCommands.length === 0 && open) {
+      setOpen(false);
+    }
+  }, [availableCommands.length, open]);
 
   // open with ⌘/Ctrl+K — also '/' like Brave
   useKeybind(
     (e) => {
+      if (availableCommands.length === 0) return false;
       if (isEditableTarget(e.target)) return false;
       const key = e.key.toLowerCase();
       if (key === "k" && (e.metaKey || e.ctrlKey)) return true;
@@ -67,9 +92,10 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
   }, [open]);
 
   // simple fuzzy-ish filter
+  const baseCommands = availableCommands;
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
-    const base = commands;
+    const base = baseCommands;
     if (!needle) return base.slice(0, 30);
     return base
       .map((c) => ({
@@ -80,7 +106,7 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
       .sort((a, b) => b.score - a.score)
       .slice(0, 30)
       .map((x) => x.cmd);
-  }, [q, commands]);
+  }, [baseCommands, q]);
 
   const [activeIndex, setActiveIndex] = useState(0);
 
@@ -88,8 +114,15 @@ export function CommandPalette({ commands }: { commands: Command[] }) {
     setActiveIndex(0);
   }, [q, results.length]);
 
-  function onRun(c: Command) {
+  function onRun(c: CommandDefinition) {
     setOpen(false);
+    if (c.feature && (!signedIn || !canAccess(c.feature, permissions))) {
+      if (process.env.NODE_ENV !== "production") {
+        toast.warning("You don’t have access to this");
+      }
+      console.info("Blocked command", { id: c.id, feature: c.feature });
+      return;
+    }
     if (c.run) c.run();
     if (c.href) router.push(c.href);
   }

@@ -8,9 +8,11 @@ import { resolveEffectiveShift } from "@/lib/shifts";
 
 type Emp = {
   id: string;
-  code: string;
   full_name: string;
-  rate_per_day: number;
+  branch_id: string | null;
+  rate_per_day: number | null;
+  status?: "active" | "inactive";
+  code?: string | null;
 };
 
 type Dtr = {
@@ -91,8 +93,8 @@ export default function PayrollPreviewPageClient() {
         ] = await Promise.all([
           sb
             .from("employees")
-            .select("id, code, full_name, rate_per_day")
-            .neq("status", "archived")
+            .select("id, full_name, branch_id, status")
+            .eq("status", "active")
             .order("full_name"),
           sb
             .from("settings_payroll")
@@ -107,7 +109,18 @@ export default function PayrollPreviewPageClient() {
           setErr(empsError.message);
           setEmps([]);
         } else {
-          setEmps((empsData || []) as Emp[]);
+          const normalized = (empsData ?? []).map(
+            (row) =>
+              ({
+                id: row.id as string,
+                full_name: (row as { full_name?: string })?.full_name ?? "",
+                branch_id: (row as { branch_id?: string | null }).branch_id ?? null,
+                status: (row as { status?: Emp["status"] }).status ?? "active",
+                rate_per_day: null,
+                code: null,
+              }) as Emp,
+          );
+          setEmps(normalized);
         }
 
         if (settingsError) {
@@ -234,7 +247,8 @@ export default function PayrollPreviewPageClient() {
           // Per-day context
           const eff = await resolveEffectiveShift(eId, r.work_date);
           const standard = eff.standard_minutes ?? fallbackStd;
-          const perMinute = emp.rate_per_day / standard;
+          const rate = Number(emp.rate_per_day ?? 0);
+          const perMinute = standard ? rate / standard : 0;
 
           // Derived shortfall (present days only)
           const capped = Math.min(reg, standard);
@@ -243,7 +257,7 @@ export default function PayrollPreviewPageClient() {
           if (attMode === "PRORATE") {
             basicPay += perMinute * capped;
           } else {
-            basicPay += emp.rate_per_day;
+            basicPay += rate;
             lateUTMins += shortfall;
             lateUTValue += perMinute * shortfall;
           }
@@ -259,7 +273,7 @@ export default function PayrollPreviewPageClient() {
 
         out.push({
           employee_id: eId,
-          name: `${emp.full_name} (${emp.code})`,
+          name: `${emp.full_name}`,
           reg: totalReg,
           ot: totalOT,
           lateUTMins,
@@ -328,7 +342,7 @@ export default function PayrollPreviewPageClient() {
           <option value="ALL">All employees</option>
           {emps.map((e) => (
             <option key={e.id} value={e.id}>
-              {e.full_name} ({e.code})
+              {e.full_name}
             </option>
           ))}
         </select>

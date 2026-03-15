@@ -12,9 +12,11 @@ type AttMode = "PRORATE" | "DEDUCTION";
 /* ========= TYPES ========= */
 type Emp = {
   id: string;
-  code: string;
   full_name: string;
-  rate_per_day: number;
+  branch_id: string | null;
+  rate_per_day: number | null;
+  status?: "active" | "inactive";
+  code?: string | null;
 };
 
 type Dtr = {
@@ -29,8 +31,8 @@ type Dtr = {
 type Seg = {
   employee_id?: string;
   work_date: string;
-  start_at: string | null;
-  end_at: string | null;
+  time_in: string | null;
+  time_out: string | null;
 };
 
 type Ded = {
@@ -160,10 +162,10 @@ function DTRSplit({
       const s1 = list[0];
       const s2 = list[1];
       m.set(r.work_date, {
-        in1: s1 ? fmtHM(s1.start_at) : fmtHM(r.time_in),
-        out1: s1 ? fmtHM(s1.end_at) : fmtHM(r.time_out),
-        in2: s2 ? fmtHM(s2.start_at) : "--",
-        out2: s2 ? fmtHM(s2.end_at) : "--",
+        in1: s1 ? fmtHM(s1.time_in) : fmtHM(r.time_in),
+        out1: s1 ? fmtHM(s1.time_out) : fmtHM(r.time_out),
+        in2: s2 ? fmtHM(s2.time_in) : "--",
+        out2: s2 ? fmtHM(s2.time_out) : "--",
       });
     }
     return m;
@@ -293,10 +295,6 @@ function PayslipCard({
           <div className="pair">
             <div className="k">Employee</div>
             <div className="v">{emp.full_name}</div>
-          </div>
-          <div className="pair">
-            <div className="k">Code</div>
-            <div className="v">{emp.code}</div>
           </div>
         </div>
       </section>
@@ -660,7 +658,7 @@ function CoverPage({ month }: { month: string }) {
 
 function SummaryPage({ bundles }: { bundles: PayslipBundle[] }) {
   const rows = bundles.map((b) => ({
-    name: `${b.emp.full_name} (${b.emp.code})`,
+    name: `${b.emp.full_name}`,
     gross: b.summary.gross,
     ded: b.summary.totalDeductions,
     net: b.summary.net,
@@ -819,8 +817,8 @@ export default function PayrollPayslipPageClient() {
         ] = await Promise.all([
           sb
             .from("employees")
-            .select("id, code, full_name, rate_per_day")
-            .neq("status", "archived")
+            .select("id, full_name, branch_id, status")
+            .eq("status", "active")
             .order("full_name"),
           sb
             .from("settings_payroll")
@@ -835,7 +833,18 @@ export default function PayrollPayslipPageClient() {
           setErr(empError.message);
           setEmps([]);
         } else {
-          setEmps((empData || []) as Emp[]);
+          const normalized = (empData ?? []).map(
+            (row) =>
+              ({
+                id: row.id as string,
+                full_name: (row as { full_name?: string })?.full_name ?? "",
+                branch_id: (row as { branch_id?: string | null }).branch_id ?? null,
+                status: (row as { status?: Emp["status"] }).status ?? "active",
+                rate_per_day: null,
+                code: null,
+              }) as Emp,
+          );
+          setEmps(normalized);
         }
 
         if (settingsError) {
@@ -906,12 +915,12 @@ export default function PayrollPayslipPageClient() {
           .order("work_date", { ascending: true }),
         sb
           .from("dtr_segments")
-          .select("employee_id, work_date, start_at, end_at")
+          .select("employee_id, work_date, time_in, time_out")
           .in("employee_id", ids)
           .gte("work_date", from)
           .lte("work_date", end)
           .order("work_date", { ascending: true })
-          .order("start_at", { ascending: true }),
+          .order("time_in", { ascending: true }),
         sb
           .from("payroll_deductions")
           .select("employee_id, effective_date, amount, type")
@@ -980,7 +989,7 @@ export default function PayrollPayslipPageClient() {
           const segs = segsByDate.get(date) || [];
           let mins = 0;
           for (const s of segs) {
-            if (s.start_at && s.end_at) mins += diffMinutes(s.start_at, s.end_at);
+            if (s.time_in && s.time_out) mins += diffMinutes(s.time_in, s.time_out);
           }
           if (mins > 0) return mins;
           const r = dtrByDate.get(date);
@@ -1170,7 +1179,7 @@ export default function PayrollPayslipPageClient() {
           const eff = await resolveEffectiveShift(id, d);
           const perDayStd = eff?.standard_minutes ?? fallbackStd;
 
-          const dayRate = dateRate.get(d) ?? emp.rate_per_day;
+          const dayRate = dateRate.get(d) ?? emp.rate_per_day ?? 0;
           const perMinute = perDayStd > 0 ? dayRate / perDayStd : 0;
 
           const worked = workedMinutesFor(d);
@@ -1252,7 +1261,7 @@ export default function PayrollPayslipPageClient() {
           <option value="ALL">All employees</option>
           {emps.map((e) => (
             <option key={e.id} value={e.id}>
-              {e.full_name} ({e.code})
+              {e.full_name}
             </option>
           ))}
         </select>

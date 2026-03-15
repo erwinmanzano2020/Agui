@@ -8,14 +8,17 @@
     "start": "next start",
     "lint": "next lint",
     "lint:ci": "next lint --max-warnings=100000 || true",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "rm -rf .test-dist && tsc -p tsconfig.test.json && cd .test-dist && node --require ../scripts/register-test-aliases.cjs --test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.58.0",
     "html2pdf.js": "^0.12.1",
+    "jspdf": "^3.0.3",
     "next": "15.5.7",
     "react": "19.1.0",
-    "react-dom": "19.1.0"
+    "react-dom": "19.1.0",
+    "qrcode": "^1.5.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

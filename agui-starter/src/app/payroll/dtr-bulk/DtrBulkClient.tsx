@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PageHeader } from "../../../components/ui/page-header";
 import { Toast } from "../../../components/ui/toast";
-import { getSupabase } from "../../../lib/supabase";
+import { getManilaTimeString, toManilaTimestamp } from "@/lib/hr/timezone";
 import type { ShiftSegment } from "@/lib/types";
 
 /** ===== Types ===== */
@@ -38,11 +38,11 @@ function daysForMonth(ym: string /* YYYY-MM */) {
   for (let day = 1; day <= last; day++) out.push(iso(new Date(y, m - 1, day)));
   return out;
 }
-const pad2 = (n: number) => String(n).padStart(2, "0");
 function toHHMM(isoStr?: string | null) {
   if (!isoStr) return "";
   const d = new Date(isoStr);
-  return `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const manilaTime = getManilaTimeString(d);
+  return manilaTime.slice(0, 5);
 }
 function toISO(date: string /* YYYY-MM-DD */, hhmm: string) {
   // Accepts "7", "730", "7:30", "07:30"
@@ -55,7 +55,23 @@ function toISO(date: string /* YYYY-MM-DD */, hhmm: string) {
   const mm = Math.min(59, isNaN(mmRaw) ? 0 : mmRaw)
     .toString()
     .padStart(2, "0");
-  return new Date(`${date}T${hh}:${mm}:00`).toISOString();
+  return toManilaTimestamp(date, `${hh}:${mm}:00`);
+}
+
+function formatError(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null) {
+    const maybeMessage = (error as { message?: unknown }).message;
+    if (typeof maybeMessage === "string" && maybeMessage.trim()) {
+      return maybeMessage;
+    }
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  }
+  return String(error ?? "unknown error");
 }
 
 /** ===== CSV helpers ===== */
@@ -208,34 +224,40 @@ export default function DtrBulkClient() {
     return employees;
   }, [mode, employees, selectedEmpId]);
 
+  // Ensure we always have a selected employee in single mode once data is available
+  useEffect(() => {
+    if (mode === "single" && !selectedEmpId && employees.length) {
+      setSelectedEmpId(employees[0].id);
+    }
+  }, [mode, selectedEmpId, employees]);
+
   /** ===== Load employees once ===== */
   useEffect(() => {
     let cancelled = false;
     (async () => {
       setLoadingEmps(true);
-      const sb = getSupabase();
-      if (!sb) {
-        if (!cancelled) {
-          setToast({ kind: "error", msg: "Supabase not configured" });
-          setLoadingEmps(false);
-        }
-        return;
-      }
+      const response = await fetch("/api/hr/employees");
+      const payload = (await response.json().catch(() => null)) as
+        | { employees?: Emp[]; error?: string }
+        | null;
 
-      const { data, error } = await sb
-        .from("employees")
-        .select("id, code, full_name")
-        .order("full_name", { ascending: true });
       if (cancelled) return;
-      if (error) {
+
+      if (!response.ok || !payload || payload.error) {
         setToast({
           kind: "error",
-          msg: `Load employees failed: ${error.message}`,
+          msg: payload?.error ?? "Load employees failed",
         });
         setLoadingEmps(false);
         return;
       }
-      const emps = (data ?? []) as Emp[];
+
+      const emps = (payload.employees ?? []).map((emp) => ({
+        id: emp.id,
+        code: emp.code ?? undefined,
+        full_name: emp.full_name,
+      } satisfies Emp));
+
       setEmployees(emps);
       if (!selectedEmpId && emps.length) setSelectedEmpId(emps[0].id);
       setLoadingEmps(false);
@@ -261,244 +283,182 @@ export default function DtrBulkClient() {
   /** ===== Load existing DTR for scope ===== */
   useEffect(() => {
     let cancelled = false;
-    if (!scopedEmployees.length || !days.length) return;
+    if (!scopedEmployees.length || !days.length) {
+      setLoadingDtr(false);
+      return;
+    }
 
     (async () => {
       setLoadingDtr(true);
 
       const from = days[0];
       const to = days[days.length - 1];
+      const fallbackEmpId =
+        mode === "single" && !selectedEmpId && employees[0]
+          ? employees[0].id
+          : undefined;
+      const singleEmployeeId =
+        mode === "single" ? selectedEmpId || fallbackEmpId : undefined;
 
-      const sb = getSupabase();
-      if (!sb) {
-        if (!cancelled) {
-          setToast({ kind: "error", msg: "Supabase not configured" });
-          setLoadingDtr(false);
-        }
-        return;
-      }
-
-      if (mode === "single" && selectedEmpId) {
-        // Load up to TWO segments per day for the selected employee
-        const { data, error } = await sb
-          .from("dtr_segments")
-          .select("employee_id, work_date, start_at, end_at")
-          .eq("employee_id", selectedEmpId)
-          .gte("work_date", from)
-          .lte("work_date", to)
-          .order("work_date", { ascending: true })
-          .order("start_at", { ascending: true });
-
-        if (cancelled) return;
-        if (error) {
-          setToast({
-            kind: "error",
-            msg: `Load segments failed: ${error.message}`,
+      try {
+        if (mode === "single") {
+          if (!singleEmployeeId) {
+            if (!cancelled) setLoadingDtr(false);
+            return;
+          }
+          const response = await fetch("/api/payroll/dtr-bulk", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: "load",
+              mode: "single",
+              from,
+              to,
+              employeeId: singleEmployeeId,
+            }),
           });
-          setLoadingDtr(false);
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload?.error || response.statusText);
+          }
+
+          setGrid((prev) => {
+            const next = { ...prev };
+            const byDay = new Map<
+              string,
+              Array<{ time_in: string | null; time_out: string | null }>
+            >();
+            const segmentRows = (payload.segments ?? []) as ShiftSegment[];
+            segmentRows.forEach((row) => {
+              const d = String(row.work_date);
+              if (!byDay.has(d)) byDay.set(d, []);
+              byDay.get(d)!.push({ time_in: row.time_in, time_out: row.time_out });
+            });
+
+            const eid = singleEmployeeId;
+            if (!next[eid]) next[eid] = {};
+            for (const d of days) {
+              const list = (byDay.get(d) || []).slice(0, 2);
+              const s1 = list[0];
+              const s2 = list[1];
+              next[eid][d] = {
+                in1: s1 ? toHHMM(s1.time_in) : "",
+                out1: s1 ? toHHMM(s1.time_out) : "",
+                in2: s2 ? toHHMM(s2.time_in) : "",
+                out2: s2 ? toHHMM(s2.time_out) : "",
+              };
+            }
+            return next;
+          });
+
           return;
+        }
+
+        const employeeIds = scopedEmployees.map((e) => e.id);
+        const response = await fetch("/api/payroll/dtr-bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "load",
+            mode: "all",
+            from,
+            to,
+            employeeIds,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.error || response.statusText);
         }
 
         setGrid((prev) => {
           const next = { ...prev };
-          const byDay = new Map<
-            string,
-            Array<{ start_at: string | null; end_at: string | null }>
-          >();
-          const segmentRows = (data ?? []) as ShiftSegment[];
-          segmentRows.forEach((row) => {
-            const d = String(row.work_date);
-            if (!byDay.has(d)) byDay.set(d, []);
-            byDay.get(d)!.push({ start_at: row.start_at, end_at: row.end_at });
-          });
-
-          const eid = selectedEmpId;
-          if (!next[eid]) next[eid] = {};
-          for (const d of days) {
-            const list = (byDay.get(d) || []).slice(0, 2);
-            const s1 = list[0];
-            const s2 = list[1];
-            next[eid][d] = {
-              in1: s1 ? toHHMM(s1.start_at) : "",
-              out1: s1 ? toHHMM(s1.end_at) : "",
-              in2: s2 ? toHHMM(s2.start_at) : "",
-              out2: s2 ? toHHMM(s2.end_at) : "",
-            };
+          for (const row of (payload.entries ?? []) as Array<{
+            employee_id: string;
+            work_date: string;
+            time_in: string | null;
+            time_out: string | null;
+          }>) {
+            const eid = row.employee_id as string;
+            const wd = String(row.work_date);
+            if (!next[eid]) continue;
+            if (!next[eid][wd])
+              next[eid][wd] = { in1: "", out1: "", in2: "", out2: "" };
+            next[eid][wd].in1 = row.time_in ? toHHMM(row.time_in) : "";
+            next[eid][wd].out1 = row.time_out ? toHHMM(row.time_out) : "";
           }
           return next;
         });
-
-        setLoadingDtr(false);
-        return;
-      }
-
-      // Weekly "all employees": keep IN/OUT (first-in/last-out) from dtr_entries
-      const q = sb
-        .from("dtr_entries")
-        .select("employee_id, work_date, time_in, time_out")
-        .gte("work_date", from)
-        .lte("work_date", to);
-
-      const { data, error } = await q;
-
-      if (cancelled) return;
-      if (error) {
-        setToast({ kind: "error", msg: `Load DTR failed: ${error.message}` });
-        setLoadingDtr(false);
-        return;
-      }
-
-      setGrid((prev) => {
-        const next = { ...prev };
-        for (const row of data ?? []) {
-          const eid = row.employee_id as string;
-          const wd = String(row.work_date);
-          if (!next[eid]) continue;
-          if (!next[eid][wd])
-            next[eid][wd] = { in1: "", out1: "", in2: "", out2: "" };
-          next[eid][wd].in1 = row.time_in ? toHHMM(row.time_in) : "";
-          next[eid][wd].out1 = row.time_out ? toHHMM(row.time_out) : "";
+      } catch (error: unknown) {
+        if (!cancelled) {
+          const message = formatError(error);
+          console.error("Load DTR failed", error);
+          setToast({ kind: "error", msg: `Load DTR failed: ${message}` });
         }
-        return next;
-      });
-
-      setLoadingDtr(false);
+      } finally {
+        if (!cancelled) setLoadingDtr(false);
+      }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, [mode, selectedEmpId, scopedEmployees, days]);
+  }, [mode, selectedEmpId, scopedEmployees, days, employees]);
 
   /** ===== Save (bulk) ===== */
   async function handleSave() {
     setSaving(true);
     try {
-      const sb = getSupabase();
-      if (!sb) {
-        setToast({ kind: "error", msg: "Supabase not configured" });
-        return;
-      }
-
       if (mode === "single" && scopedEmployees[0]) {
-        // Delete+insert segments per day (up to two), and also upsert dtr_entries time_in/out
-        const e = scopedEmployees[0];
-        for (const d of days) {
-          const cell = grid[e.id]?.[d] ?? {
-            in1: "",
-            out1: "",
-            in2: "",
-            out2: "",
-          };
-
-          // Wipe existing segments for that day
-          const del = await sb
-            .from("dtr_segments")
-            .delete()
-            .eq("employee_id", e.id)
-            .eq("work_date", d);
-          if (del.error) throw del.error;
-
-          const inserts: Array<{
-            employee_id: string;
-            work_date: string;
-            start_at: string;
-            end_at: string | null;
-          }> = [];
-
-          if (cell.in1 && cell.out1) {
-            const s = toISO(d, cell.in1);
-            const e1 = toISO(d, cell.out1);
-            if (s && e1)
-              inserts.push({
-                employee_id: e.id,
-                work_date: d,
-                start_at: s,
-                end_at: e1,
-              });
-          }
-          if (cell.in2 && cell.out2) {
-            const s = toISO(d, cell.in2);
-            const e2 = toISO(d, cell.out2);
-            if (s && e2)
-              inserts.push({
-                employee_id: e.id,
-                work_date: d,
-                start_at: s,
-                end_at: e2,
-              });
-          }
-
-          if (inserts.length > 0) {
-            const ins = await sb.from("dtr_segments").insert(inserts);
-            if (ins.error) throw ins.error;
-          }
-
-          // Also reflect first-in / last-out on dtr_entries for convenience
-          const firstInISO = inserts.length ? inserts[0].start_at : null;
-          const lastOutISO = inserts.length
-            ? inserts[inserts.length - 1].end_at
-            : null;
-
-          const up = await sb.from("dtr_entries").upsert(
-            {
-              employee_id: e.id,
-              work_date: d,
-              time_in: firstInISO,
-              time_out: lastOutISO,
-            },
-            { onConflict: "employee_id,work_date" },
-          );
-          if (up.error) throw up.error;
+        const response = await fetch("/api/payroll/dtr-bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "save",
+            mode: "single",
+            employeeId: scopedEmployees[0].id,
+            days,
+            grid,
+          }),
+        });
+        const payload = await response.json();
+        if (!response.ok) {
+          throw new Error(payload?.error || response.statusText);
         }
 
         setToast({ kind: "success", msg: "Saved!" });
         setSaving(false);
-        // reload segments for the month
         setYm((m) => m);
         return;
       }
 
-      // Weekly "all employees": upsert time_in/out (uses IN1/OUT1)
-      const payload: Array<{
-        employee_id: string;
-        work_date: string;
-        time_in: string | null;
-        time_out: string | null;
-      }> = [];
-      for (const e of scopedEmployees) {
-        const perDay = grid[e.id] || {};
-        for (const d of days) {
-          const cell = perDay[d] || { in1: "", out1: "", in2: "", out2: "" };
-          if (
-            (cell.in1 && cell.in1.trim()) ||
-            (cell.out1 && cell.out1.trim())
-          ) {
-            payload.push({
-              employee_id: e.id,
-              work_date: d,
-              time_in: toISO(d, cell.in1 || "") ?? null,
-              time_out: toISO(d, cell.out1 || "") ?? null,
-            });
-          }
-        }
+      const response = await fetch("/api/payroll/dtr-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save",
+          mode: "all",
+          employeeIds: scopedEmployees.map((e) => e.id),
+          days,
+          grid,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.error || response.statusText);
       }
-      const { error } = await sb
-        .from("dtr_entries")
-        .upsert(payload, { onConflict: "employee_id,work_date" });
 
-      if (error) throw error;
       setToast({ kind: "success", msg: "Saved!" });
     } catch (error: unknown) {
-      const message =
-        error instanceof Error ? error.message : String(error ?? "unknown error");
+      const message = formatError(error);
+      console.error("Save DTR failed", error);
       setToast({ kind: "error", msg: `Save failed: ${message}` });
     } finally {
       setSaving(false);
     }
   }
 
-  /** ===== Export current scope to CSV (keeps IN1/OUT1) ===== */
+/** ===== Export current scope to CSV (keeps IN1/OUT1) ===== */
   function handleExportCsv() {
     const rows: Array<Record<string, string>> = [];
     for (const e of scopedEmployees) {
@@ -583,17 +543,32 @@ export default function DtrBulkClient() {
         return;
       }
 
-      const sb = getSupabase();
-      if (!sb) {
-        setToast({ kind: "error", msg: "Supabase not configured" });
-        return;
+      const gridPayload: Record<string, Record<string, DayCell>> = {};
+      for (const row of payload) {
+        if (!gridPayload[row.employee_id]) gridPayload[row.employee_id] = {};
+        gridPayload[row.employee_id][row.work_date] = {
+          in1: row.time_in ? toHHMM(row.time_in) : "",
+          out1: row.time_out ? toHHMM(row.time_out) : "",
+          in2: "",
+          out2: "",
+        };
       }
 
-      const { error } = await sb
-        .from("dtr_entries")
-        .upsert(payload, { onConflict: "employee_id,work_date" });
-
-      if (error) throw error;
+      const response = await fetch("/api/payroll/dtr-bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save",
+          mode: "all",
+          employeeIds: Array.from(new Set(payload.map((p) => p.employee_id))),
+          days: Array.from(new Set(payload.map((p) => p.work_date))).sort(),
+          grid: gridPayload,
+        }),
+      });
+      const resPayload = await response.json();
+      if (!response.ok) {
+        throw new Error(resPayload?.error || response.statusText);
+      }
 
       setToast({ kind: "success", msg: `Imported ${payload.length} rows` });
 

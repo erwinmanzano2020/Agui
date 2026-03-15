@@ -5,7 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { getSupabase } from "@/lib/supabase";
 import EditEmployeeDrawer from "../_components/EditEmployeeDrawer";
 
-import type { Employee as EmployeeRecord } from "@/lib/types";
+import type { Database } from "@/lib/db.types";
 
 type Shift = {
   id: string;
@@ -15,7 +15,12 @@ type Shift = {
   end_time?: string | null;
 };
 
-type Employee = Pick<EmployeeRecord, "code" | "full_name" | "rate_per_day">;
+type Employee = {
+  full_name: string;
+  status: "active" | "inactive";
+  branch_id: string | null;
+};
+type EmployeeTableRow = Pick<Database["public"]["Tables"]["employees"]["Row"], "full_name" | "status" | "branch_id">;
 
 type WeeklyShiftRow = { day_of_week: number; shift_id: string | null };
 type OverrideRow = {
@@ -85,11 +90,20 @@ export default function EmployeeSchedulePage() {
 
     const empRes = await sb
       .from("employees")
-      .select("code, full_name, rate_per_day")
+      .select("full_name, status, branch_id")
       .eq("id", employeeId)
       .maybeSingle();
     if (empRes.error) setErr(empRes.error.message);
-    setEmp(empRes.data ?? null);
+    const employeeRow = empRes.data as EmployeeTableRow | null;
+    setEmp(
+      employeeRow
+        ? {
+            full_name: employeeRow.full_name,
+            status: employeeRow.status,
+            branch_id: employeeRow.branch_id,
+          }
+        : null,
+    );
 
     const shiftRes = await sb
       .from("shifts")
@@ -116,7 +130,7 @@ export default function EmployeeSchedulePage() {
       .eq("employee_id", employeeId)
       .order("date", { ascending: true });
     if (ovrRes.error) setErr((p) => p ?? ovrRes.error?.message ?? null);
-    const overrideRows = (ovrRes.data ?? []) as OverrideRow[];
+    const overrideRows = (ovrRes.data ?? []) as unknown as OverrideRow[];
     const ov = overrideRows.map((row) => {
       const shift = Array.isArray(row.shifts) ? row.shifts[0] : row.shifts;
       return {
@@ -294,13 +308,10 @@ export default function EmployeeSchedulePage() {
         <div className="border rounded p-3 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
             <div>
-              Code: <b>{emp.code}</b>
-            </div>
-            <div>
               Name: <b>{emp.full_name}</b>
             </div>
             <div>
-              Rate/Day: <b>₱{Number(emp.rate_per_day).toFixed(2)}</b>
+              Status: <b>{emp.status}</b>
             </div>
           </div>
         </div>

@@ -26,6 +26,9 @@
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "@supabase/ssr": [
+        "src/lib/supabase-ssr"
       ]
     },
     "plugins": [
@@ -38,7 +41,8 @@
     "**/*.ts",
     "**/*.tsx",
     "next-env.d.ts",
-    ".next/types/**/*.ts"
+    ".next/types/**/*.ts",
+    "src/types/**/*.d.ts"
   ],
   "exclude": [
     "node_modules"

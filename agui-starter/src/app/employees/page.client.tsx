@@ -1,24 +1,27 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import EmptyState from "@/components/ui/empty-state";
 import { Badge } from "@/components/ui/badge";
+import EmptyState from "@/components/ui/empty-state";
 import { ThemedLink } from "@/components/ui/themed-link";
 import { getSupabase } from "@/lib/supabase";
+import { useUiTerms } from "@/lib/ui-terms-context";
+import type { EmployeeListItem } from "@/lib/hr/employees-server";
 
 type EmployeeRow = {
   id: string;
-  code: string;
+  entity_id: string | null;
   full_name: string;
-  status: string | null;
-  rate_per_day: number | null;
+  status: EmployeeListItem["status"];
+  branch_id: string | null;
 };
 
-const OFF_STATUSES = new Set(["archived", "inactive", "terminated", "offboarded"]);
+const OFF_STATUSES = new Set(["inactive"]);
 
 export default function EmployeesPageClient() {
   const [rows, setRows] = useState<EmployeeRow[]>([]);
@@ -26,8 +29,11 @@ export default function EmployeesPageClient() {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const router = useRouter();
+  const terms = useUiTerms();
+  const teamLabel = terms.team;
+  const teamLower = teamLabel.toLowerCase();
 
-  const renderStatus = (status: string | null) => {
+  const renderStatus = (status: EmployeeRow["status"]) => {
     const raw = status ?? "active";
     const normalized = raw.toLowerCase();
     const tone = OFF_STATUSES.has(normalized) ? "off" : "on";
@@ -35,29 +41,36 @@ export default function EmployeesPageClient() {
     return <Badge tone={tone}>{label}</Badge>;
   };
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setErr(null);
     setLoading(true);
-    const sb = getSupabase();
-    if (!sb) {
-      setErr("Supabase not configured");
+    const response = await fetch("/api/hr/employees");
+    const payload = (await response.json().catch(() => null)) as
+      | { employees?: EmployeeListItem[]; error?: string }
+      | null;
+
+    if (!response.ok || !payload || payload.error) {
+      setErr(payload?.error ?? "Failed to load employees");
       setRows([]);
       setLoading(false);
       return;
     }
-    const { data, error } = await sb
-      .from("employees")
-      .select("id, code, full_name, status, rate_per_day")
-      .order("full_name", { ascending: true });
 
-    if (error) setErr(error.message);
-    setRows(data ?? []);
+    const normalized: EmployeeRow[] = (payload.employees ?? []).map((row) => ({
+      id: row.id,
+      entity_id: row.entity_id ?? null,
+      full_name: row.full_name,
+      status: row.status,
+      branch_id: row.branch_id ?? null,
+    } satisfies EmployeeRow));
+
+    setRows(normalized);
     setLoading(false);
-  };
+  }, []);
 
   useEffect(() => {
-    load();
-  }, []);
+    void load();
+  }, [load]);
 
   const archive = async (id: string) => {
     setBusy(true);
@@ -70,7 +83,7 @@ export default function EmployeesPageClient() {
     }
     const { error } = await sb
       .from("employees")
-      .update({ status: "archived" })
+      .update({ status: "inactive" })
       .eq("id", id);
 
     if (error) setErr(error.message);
@@ -80,11 +93,16 @@ export default function EmployeesPageClient() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-6">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Employees</h1>
-        <p className="text-sm text-[var(--agui-muted-foreground)]">
-          View and manage the people that make your town thrive.
-        </p>
+      <header className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold">{teamLabel}</h1>
+          <p className="text-sm text-[var(--agui-muted-foreground)]">
+            Manage your {teamLower} and keep everyone in sync.
+          </p>
+        </div>
+        <Button asChild>
+          <Link href="/invites/new">Invite</Link>
+        </Button>
       </header>
 
       {err && (
@@ -98,18 +116,16 @@ export default function EmployeesPageClient() {
           <div className="text-sm text-[var(--agui-muted-foreground)]">Loading…</div>
         ) : rows.length === 0 ? (
           <EmptyState
-            title="No employees yet"
-            description="Add your first employee to get started."
-            actionLabel="Add employee"
+            title={`No ${teamLower} yet`}
+            description={`Add your first ${teamLower} to get started.`}
+            actionLabel={`Add ${teamLabel}`}
             onAction={() => router.push("/employees/new")}
           />
         ) : (
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="text-left text-[color-mix(in_srgb,_var(--agui-on-surface)_85%,_var(--agui-surface)_15%)]">
-                <th className="p-2 font-medium">Code</th>
                 <th className="p-2 font-medium">Name</th>
-                <th className="p-2 font-medium">Rate/Day</th>
                 <th className="p-2 font-medium">Status</th>
                 <th className="p-2 font-medium">Actions</th>
               </tr>
@@ -120,18 +136,10 @@ export default function EmployeesPageClient() {
                   key={r.id}
                   className="border-t border-[color:color-mix(in_srgb,_var(--agui-card-border)_60%,_transparent)]"
                 >
-                  <td className="p-2 font-medium text-[color-mix(in_srgb,_var(--agui-on-surface)_90%,_var(--agui-surface)_10%)]">
-                    {r.code}
-                  </td>
                   <td className="p-2">
                     <ThemedLink href={`/employees/${r.id}`} className="text-sm">
                       {r.full_name}
                     </ThemedLink>
-                  </td>
-                  <td className="p-2">
-                    {r.rate_per_day != null
-                      ? `₱${Number(r.rate_per_day).toFixed(2)}`
-                      : "—"}
                   </td>
                   <td className="p-2">{renderStatus(r.status)}</td>
                   <td className="p-2">
@@ -148,7 +156,7 @@ export default function EmployeesPageClient() {
                       >
                         Edit
                       </ThemedLink>
-                      {r.status !== "archived" && (
+                      {r.status !== "inactive" && (
                         <Button
                           type="button"
                           variant="link"
@@ -157,7 +165,7 @@ export default function EmployeesPageClient() {
                           onClick={() => archive(r.id)}
                           disabled={busy}
                         >
-                          Archive
+                          Deactivate
                         </Button>
                       )}
                     </div>

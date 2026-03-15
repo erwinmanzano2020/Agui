@@ -10,6 +10,20 @@
 /* --- Launcher tile styles --- */
 @import "../styles/launcher.css";
 
+:root {
+  --font-geist-sans: "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-geist-mono: "SFMono-Regular", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
+}
+
+.font-geist-sans {
+  font-family: var(--font-geist-sans);
+}
+
+.font-geist-mono {
+  font-family: var(--font-geist-mono);
+}
+
 /* --- Map variables to Tailwind tokens via @theme (v4 way) --- */
 @theme {
   /* Colors */

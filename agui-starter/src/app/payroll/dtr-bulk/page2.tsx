@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { getSupabase } from "@/lib/supabase";
+import { toManilaOffsetTimestampFromDate, toManilaTimestamp } from "@/lib/hr/timezone";
 import { resolveEffectiveShift } from "@/lib/shifts";
 import {
   computeMinutes,
@@ -9,8 +10,9 @@ import {
   computeUndertimeMinutes,
 } from "@/lib/payroll";
 import { Segment, toLocalHHMM, weekdayShort } from "@/lib/segments";
+import type { DtrSegmentInsert } from "@/lib/db.types";
 
-type SegmentRow = { work_date: string; start_at: string | null; end_at: string | null };
+type SegmentRow = { work_date: string; time_in: string | null; time_out: string | null };
 
 type Emp = { id: string; code: string; full_name: string };
 
@@ -41,19 +43,23 @@ export default function DtrBulkPage() {
 
   useEffect(() => {
     (async () => {
-      const sb = getSupabase();
-      if (!sb) {
-        setMsg("Supabase not configured");
+      const response = await fetch("/api/hr/employees");
+      const payload = (await response.json().catch(() => null)) as
+        | { employees?: Emp[]; error?: string }
+        | null;
+
+      if (!response.ok || !payload || payload.error) {
+        setMsg(payload?.error ?? "Failed to load employees");
         setEmps([]);
         return;
       }
 
-      const { data } = await sb
-        .from("employees")
-        .select("id, code, full_name")
-        .neq("status", "archived")
-        .order("full_name");
-      const employees = (data ?? []) as Emp[];
+      const employees = (payload.employees ?? []).map((emp) => ({
+        id: emp.id,
+        code: emp.code ?? undefined,
+        full_name: emp.full_name,
+      } satisfies Emp));
+
       setEmps(employees);
       if (employees[0]) setEmpId(employees[0].id);
     })();
@@ -80,11 +86,11 @@ export default function DtrBulkPage() {
 
     const { data: segs, error } = await sb
       .from("dtr_segments")
-      .select("work_date, start_at, end_at")
+      .select("work_date, time_in, time_out")
       .eq("employee_id", empId)
       .gte("work_date", first)
       .lte("work_date", last)
-      .order("start_at", { ascending: true });
+      .order("time_in", { ascending: true });
 
     if (error) {
       setLoading(false);
@@ -97,7 +103,7 @@ export default function DtrBulkPage() {
     segmentRows.forEach((row) => {
       const key = row.work_date;
       if (!byDate.has(key)) byDate.set(key, []);
-      byDate.get(key)!.push({ start_at: row.start_at ?? "", end_at: row.end_at });
+      byDate.get(key)!.push({ time_in: row.time_in ?? "", time_out: row.time_out });
     });
 
     for (let d = 1; d <= maxDay; d += 1) {
@@ -106,10 +112,10 @@ export default function DtrBulkPage() {
       const s1 = segList[0];
       const s2 = segList[1];
       m[d] = {
-        in1: s1 ? toLocalHHMM(s1.start_at) : "",
-        out1: s1 ? toLocalHHMM(s1.end_at) : "",
-        in2: s2 ? toLocalHHMM(s2.start_at) : "",
-        out2: s2 ? toLocalHHMM(s2.end_at) : "",
+        in1: s1 ? toLocalHHMM(s1.time_in) : "",
+        out1: s1 ? toLocalHHMM(s1.time_out) : "",
+        in2: s2 ? toLocalHHMM(s2.time_in) : "",
+        out2: s2 ? toLocalHHMM(s2.time_out) : "",
       };
     }
 
@@ -179,23 +185,42 @@ export default function DtrBulkPage() {
         const inserts: Array<{
           employee_id: string;
           work_date: string;
-          start_at: string;
-          end_at: string | null;
+          time_in: string;
+          time_out: string | null;
+          source: DtrSegmentInsert["source"];
+          status: DtrSegmentInsert["status"];
+          overtime_minutes: number;
         }> = [];
         if (cell?.in1 && cell?.out1) {
+          const timeIn = toManilaTimestamp(date, `${cell.in1}:00`);
+          const timeOut = toManilaTimestamp(date, `${cell.out1}:00`);
+          if (!timeIn || !timeOut) {
+            throw new Error("Invalid segment time");
+          }
           inserts.push({
             employee_id: empId,
             work_date: date,
-            start_at: new Date(`${date}T${cell.in1}:00`).toISOString(),
-            end_at: new Date(`${date}T${cell.out1}:00`).toISOString(),
+            time_in: timeIn,
+            time_out: timeOut,
+            source: "manual",
+            status: "open",
+            overtime_minutes: 0,
           });
         }
         if (cell?.in2 && cell?.out2) {
+          const timeIn = toManilaTimestamp(date, `${cell.in2}:00`);
+          const timeOut = toManilaTimestamp(date, `${cell.out2}:00`);
+          if (!timeIn || !timeOut) {
+            throw new Error("Invalid segment time");
+          }
           inserts.push({
             employee_id: empId,
             work_date: date,
-            start_at: new Date(`${date}T${cell.in2}:00`).toISOString(),
-            end_at: new Date(`${date}T${cell.out2}:00`).toISOString(),
+            time_in: timeIn,
+            time_out: timeOut,
+            source: "manual",
+            status: "open",
+            overtime_minutes: 0,
           });
         }
         if (inserts.length > 0) {
@@ -206,18 +231,18 @@ export default function DtrBulkPage() {
         // Read back segments we just saved
         const { data: segs2, error: segErr } = await sb
           .from("dtr_segments")
-          .select("start_at, end_at")
+          .select("time_in, time_out")
           .eq("employee_id", empId)
           .eq("work_date", date)
-          .order("start_at", { ascending: true });
+          .order("time_in", { ascending: true });
         if (segErr) throw segErr;
 
         const segList = (segs2 || []) as Segment[];
 
         // If no finished segments → upsert zeros and continue
-        const firstInISO = segList[0]?.start_at ?? null;
+        const firstInISO = segList[0]?.time_in ?? null;
         const lastOutISO =
-          segList.filter((s) => !!s.end_at).slice(-1)[0]?.end_at ?? null;
+          segList.filter((s) => !!s.time_out).slice(-1)[0]?.time_out ?? null;
 
         if (!firstInISO || !lastOutISO) {
           const up0 = await sb.from("dtr_entries").upsert(
@@ -242,6 +267,9 @@ export default function DtrBulkPage() {
         const shift = await resolveEffectiveShift(empId, date);
         const timeIn = new Date(firstInISO);
         const timeOut = new Date(lastOutISO);
+        if (Number.isNaN(timeIn.getTime()) || Number.isNaN(timeOut.getTime())) {
+          throw new Error("Invalid rollup timestamp");
+        }
         const { regular, ot } = computeMinutes(date, timeIn, timeOut, shift);
 
         // Optional extras: late/undertime (present-day only logic handled in helpers)
@@ -252,8 +280,8 @@ export default function DtrBulkPage() {
           {
             employee_id: empId,
             work_date: date,
-            time_in: timeIn.toISOString(),
-            time_out: timeOut.toISOString(),
+            time_in: toManilaOffsetTimestampFromDate(timeIn),
+            time_out: toManilaOffsetTimestampFromDate(timeOut),
             minutes_regular: regular,
             minutes_ot: ot,
             minutes_late: late,

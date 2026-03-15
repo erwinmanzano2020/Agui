@@ -1,14 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { getSupabase } from "@/lib/supabase";
-import { resolveEffectiveShift } from "@/lib/shifts";
+
 import { computeMinutes } from "@/lib/payroll";
 import { sumFinishedMinutes, latestOut, Segment } from "@/lib/segments";
+import { resolveEffectiveShift } from "@/lib/shifts";
+import { getSupabase } from "@/lib/supabase";
+import {
+  assertManilaReasonableSegment,
+  getManilaTimeString,
+  toManilaTimestamptz,
+} from "@/lib/hr/timezone";
 
-type SegmentRecord = { start_at: string; end_at: string | null };
+type SegmentRecord = { time_in: string; time_out: string | null };
 
-type Emp = { id: string; code: string; full_name: string };
+type Emp = {
+  id: string;
+  full_name: string;
+  branch_id: string | null;
+};
 
 export default function PayrollDtrTodayPageClient() {
   const [emps, setEmps] = useState<Emp[]>([]);
@@ -48,10 +58,17 @@ export default function PayrollDtrTodayPageClient() {
 
       const { data } = await sb
         .from("employees")
-        .select("id, code, full_name")
-        .neq("status", "archived")
+        .select("id, full_name, branch_id")
+        .eq("status", "active")
         .order("full_name");
-      const employees = (data ?? []) as Emp[];
+      const employees = (data ?? []).map(
+        (row) =>
+          ({
+            id: row.id as string,
+            full_name: (row as { full_name?: string })?.full_name ?? "",
+            branch_id: (row as { branch_id?: string | null }).branch_id ?? null,
+          }) as Emp,
+      );
       setEmps(employees);
       if (employees[0]) setEmployeeId(employees[0].id);
     })();
@@ -69,13 +86,16 @@ export default function PayrollDtrTodayPageClient() {
 
     const { data } = await sb
       .from("dtr_segments")
-      .select("start_at, end_at")
+      .select("time_in, time_out")
       .eq("employee_id", employeeId)
       .eq("work_date", date)
-      .order("start_at", { ascending: true });
-    const rows = (data ?? []) as SegmentRecord[];
+      .order("time_in", { ascending: true });
+    const rows = ((data ?? []) as SegmentRecord[]).map((row) => ({
+      time_in: row.time_in,
+      time_out: row.time_out,
+    }));
     setSegments(rows);
-    setHasOpen(rows.some((row) => row.end_at === null));
+    setHasOpen(rows.some((row) => row.time_out === null));
   }, [date, employeeId]);
 
   useEffect(() => {
@@ -91,9 +111,16 @@ export default function PayrollDtrTodayPageClient() {
     }
 
     const now = new Date();
-    const startAt = new Date(
-      `${date}T${now.toTimeString().slice(0, 8)}`,
-    ).toISOString();
+    const startAt = toManilaTimestamptz(date, getManilaTimeString(now));
+    if (!startAt) {
+      setMsg("Invalid clock-in time");
+      return;
+    }
+    const validation = assertManilaReasonableSegment(startAt, null, date);
+    if (!validation.ok) {
+      setMsg("Invalid clock-in timestamp");
+      return;
+    }
     const sb = getSupabase();
     if (!sb) {
       setMsg("Supabase not configured");
@@ -103,8 +130,10 @@ export default function PayrollDtrTodayPageClient() {
     const { error } = await sb.from("dtr_segments").insert({
       employee_id: employeeId,
       work_date: date,
-      start_at: startAt,
-      end_at: null,
+      time_in: startAt,
+      time_out: null,
+      source: "manual",
+      status: "open",
     });
     if (error) setMsg(error.message);
     await loadSegments();
@@ -124,8 +153,8 @@ export default function PayrollDtrTodayPageClient() {
       .select("id")
       .eq("employee_id", employeeId)
       .eq("work_date", date)
-      .is("end_at", null)
-      .order("start_at", { ascending: false })
+      .is("time_out", null)
+      .order("time_in", { ascending: false })
       .limit(1)
       .maybeSingle<{ id: string }>();
 
@@ -140,13 +169,20 @@ export default function PayrollDtrTodayPageClient() {
     }
 
     const now = new Date();
-    const endAt = new Date(
-      `${date}T${now.toTimeString().slice(0, 8)}`,
-    ).toISOString();
+    const endAt = toManilaTimestamptz(date, getManilaTimeString(now));
+    if (!endAt) {
+      setMsg("Invalid clock-out time");
+      return;
+    }
+    const validation = assertManilaReasonableSegment(endAt, null, date);
+    if (!validation.ok) {
+      setMsg("Invalid clock-out timestamp");
+      return;
+    }
 
     const { error: updateError } = await sb
       .from("dtr_segments")
-      .update({ end_at: endAt })
+      .update({ time_out: endAt, status: "closed" })
       .eq("id", openSegment.id);
 
     if (updateError) setMsg(updateError.message);
@@ -165,12 +201,19 @@ export default function PayrollDtrTodayPageClient() {
       std: shift.standard_minutes ?? null,
     });
 
-    const res = computeMinutes(
-      date,
-      new Date(`${date}T${timeIn}:00`),
-      new Date(`${date}T${timeOut}:00`),
-      shift,
-    );
+    const timeInStamp = toManilaTimestamptz(date, `${timeIn}:00`);
+    const timeOutStamp = toManilaTimestamptz(date, `${timeOut}:00`);
+    if (!timeInStamp || !timeOutStamp) {
+      setMsg("Invalid time input");
+      return;
+    }
+    const validation = assertManilaReasonableSegment(timeInStamp, timeOutStamp, date);
+    if (!validation.ok) {
+      setMsg("Invalid time input");
+      return;
+    }
+
+    const res = computeMinutes(date, new Date(timeInStamp), new Date(timeOutStamp), shift);
     setPreview(res);
 
     if (saveAfter) {
@@ -184,8 +227,8 @@ export default function PayrollDtrTodayPageClient() {
         {
           employee_id: employeeId,
           work_date: date,
-          time_in: new Date(`${date}T${timeIn}:00`).toISOString(),
-          time_out: new Date(`${date}T${timeOut}:00`).toISOString(),
+          time_in: timeInStamp,
+          time_out: timeOutStamp,
           minutes_regular: res.regular,
           minutes_ot: res.ot,
         },
@@ -265,10 +308,14 @@ export default function PayrollDtrTodayPageClient() {
   ) {
     // Persist last segment boundaries as time_in/out for reference
     const firstInISO =
-      segs.find((s) => !!s.start_at)?.start_at ??
-      new Date(`${date}T00:00:00`).toISOString();
+      segs.find((s) => !!s.time_in)?.time_in ??
+      toManilaTimestamptz(date, "00:00:00");
+    if (!firstInISO) {
+      setMsg("Invalid rollup timestamp");
+      return;
+    }
     const lastOutISO =
-      segs.filter((s) => !!s.end_at).slice(-1)[0]?.end_at ?? firstInISO;
+      segs.filter((s) => !!s.time_out).slice(-1)[0]?.time_out ?? firstInISO;
 
     const sb = getSupabase();
     if (!sb) {
@@ -304,7 +351,7 @@ export default function PayrollDtrTodayPageClient() {
         >
           {emps.map((e) => (
             <option key={e.id} value={e.id}>
-              {e.full_name} ({e.code})
+              {e.full_name}
             </option>
           ))}
         </select>
@@ -375,9 +422,9 @@ export default function PayrollDtrTodayPageClient() {
             <ul className="list-disc ml-5">
               {segments.map((s, i) => (
                 <li key={i}>
-                  IN: {new Date(s.start_at).toLocaleTimeString()} — OUT:{" "}
-                  {s.end_at ? (
-                    new Date(s.end_at).toLocaleTimeString()
+                  IN: {new Date(s.time_in).toLocaleTimeString()} — OUT:{" "}
+                  {s.time_out ? (
+                    new Date(s.time_out).toLocaleTimeString()
                   ) : (
                     <i>OPEN</i>
                   )}

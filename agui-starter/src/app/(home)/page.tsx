@@ -11,14 +11,11 @@ import {
 import { SplashScreen } from "@/app/(components)/SplashScreen";
 import { Dock, type DockItem } from "@/components/ui/dock";
 import { AppTile } from "@/components/ui/app-tile";
-import { apps, dock, type AppMeta } from "@/config/apps";
+import { createApps, type AppMeta } from "@/config/apps";
 
-const APPS = apps;
+const APPS: AppMeta[] = createApps();
 const APPS_BY_ID = new Map<string, AppMeta>(APPS.map((app) => [app.id, app]));
 const GRID_APPS = APPS;
-const DOCK_APPS = dock
-  .map((id) => APPS_BY_ID.get(id))
-  .filter((entry): entry is AppMeta => Boolean(entry));
 
 type TileHandlers = {
   onFocus: () => void;
@@ -33,7 +30,7 @@ export default function HomePage() {
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const dockItems = useMemo<DockItem[]>(() => {
-    return DOCK_APPS.map((app) => ({
+    return APPS.map((app) => ({
       href: app.href,
       label: app.label,
       icon: app.icon,

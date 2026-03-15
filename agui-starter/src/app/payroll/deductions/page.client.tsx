@@ -5,7 +5,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import EmptyState from "@/components/ui/empty-state";
 import { getSupabase } from "@/lib/supabase";
 
-type Emp = { id: string; full_name: string; code: string };
+type Emp = {
+  id: string;
+  full_name: string;
+  branch_id: string | null;
+};
 type Ded = {
   id: string;
   employee_id: string;
@@ -72,8 +76,8 @@ export default function PayrollDeductionsPageClient() {
 
         const { data, error } = await sb
           .from("employees")
-          .select("id, full_name, code")
-          .neq("status", "archived")
+          .select("id, full_name, branch_id")
+          .eq("status", "active")
           .order("full_name");
 
         if (cancelled) return;
@@ -82,8 +86,16 @@ export default function PayrollDeductionsPageClient() {
           setErr(error.message);
           setEmps([]);
         } else {
-          setEmps((data || []) as Emp[]);
-          if (data && data[0]) setEmpId(data[0].id);
+          const normalized = (data ?? []).map(
+            (row) =>
+              ({
+                id: row.id as string,
+                full_name: (row as { full_name?: string })?.full_name ?? "",
+                branch_id: (row as { branch_id?: string | null }).branch_id ?? null,
+              }) as Emp,
+          );
+          setEmps(normalized);
+          if (normalized[0]) setEmpId(normalized[0].id);
         }
       } catch (error: unknown) {
         if (!cancelled)
@@ -239,7 +251,7 @@ export default function PayrollDeductionsPageClient() {
         >
           {emps.map((e) => (
             <option key={e.id} value={e.id}>
-              {e.full_name} ({e.code})
+              {e.full_name}
             </option>
           ))}
         </select>

@@ -8,7 +8,7 @@ import type { StatusHudApiResponse } from "@/lib/types/status";
 
 export async function POST(
   _req: Request,
-  context: { params: Promise<{ questId: string }> }
+  context: { params: RouteParams<{ questId: string }> }
 ) {
   const { questId } = await context.params;
   if (!questId) {

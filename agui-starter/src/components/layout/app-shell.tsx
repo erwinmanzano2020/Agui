@@ -6,42 +6,82 @@ import { ReactNode, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import ThemeToggle from "@/components/ui/theme-toggle";
+import { useUiTerms } from "@/lib/ui-terms-context";
+import { useSession } from "@/lib/auth/session-context";
+import { ViewAsSwitcher } from "@/components/auth/view-as";
+import { useActualUserRoles } from "@/lib/auth/user-roles-context";
 import {
   CalendarClockIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   LayoutDashboardIcon,
   MenuIcon,
+  NetworkIcon,
   ScrollTextIcon,
+  ShieldIcon,
+  StorefrontIcon,
   UsersIcon,
 } from "@/components/icons/lucide";
+import { pluralize } from "@/lib/utils";
+import { isPublicShellBypassPath } from "@/components/layout/app-shell-visibility";
 
 type NavItem = { name: string; href: string; icon: ReactNode };
 
-const NAV: NavItem[] = [
-  { name: "Dashboard", href: "/", icon: <LayoutDashboardIcon className="h-5 w-5" /> },
-  { name: "Employees", href: "/employees", icon: <UsersIcon className="h-5 w-5" /> },
-  {
-    name: "DTR Bulk",
-    href: "/payroll/dtr-bulk",
-    icon: <CalendarClockIcon className="h-5 w-5" />,
-  },
-  { name: "Payroll", href: "/payroll", icon: <ScrollTextIcon className="h-5 w-5" /> },
-];
-
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  posEnabled = false,
+}: {
+  children: ReactNode;
+  posEnabled?: boolean;
+}) {
+  const terms = useUiTerms();
+  const { status: sessionStatus, user } = useSession();
+  const roles = useActualUserRoles();
+  const baseNav = useMemo<NavItem[]>(
+    () => [
+      { name: "Dashboard", href: "/", icon: <LayoutDashboardIcon className="h-5 w-5" /> },
+      {
+        name: pluralize(terms.alliance),
+        href: "/alliances",
+        icon: <NetworkIcon className="h-5 w-5" />,
+      },
+      {
+        name: pluralize(terms.guild),
+        href: "/guilds",
+        icon: <ShieldIcon className="h-5 w-5" />,
+      },
+      { name: terms.team, href: "/employees", icon: <UsersIcon className="h-5 w-5" /> },
+      {
+        name: "DTR Bulk",
+        href: "/payroll/dtr-bulk",
+        icon: <CalendarClockIcon className="h-5 w-5" />,
+      },
+      { name: "Payroll", href: "/payroll", icon: <ScrollTextIcon className="h-5 w-5" /> },
+    ],
+    [terms.alliance, terms.guild, terms.team]
+  );
   const pathname = usePathname();
-  const isHome = pathname === "/";
+  const isPublicRoute = isPublicShellBypassPath(pathname);
 
   // responsive + collapsible
   const [sidebarOpen, setSidebarOpen] = useState(false); // mobile
   const [collapsed, setCollapsed] = useState(false); // desktop collapse
 
-  const nav = useMemo(() => NAV, []);
-  const activeNav = nav.find((item) => item.href === pathname);
-  const headerTitle = isHome ? "Home" : activeNav?.name ?? "Agui Dashboard";
+  const nav = useMemo(() => {
+    if (!posEnabled) {
+      return baseNav;
+    }
 
-  if (pathname === "/") {
+    return [
+      ...baseNav,
+      { name: "POS", href: "/pos", icon: <StorefrontIcon className="h-5 w-5" /> },
+    ];
+  }, [baseNav, posEnabled]);
+  const activeNav = nav.find((item) => item.href === pathname);
+  const headerTitle = pathname === "/" ? "Home" : activeNav?.name ?? "Agui Dashboard";
+  const isGM = roles.PLATFORM.includes("game_master");
+
+  if (isPublicRoute) {
     return <>{children}</>;
   }
 
@@ -177,17 +217,41 @@ export function AppShell({ children }: { children: ReactNode }) {
               <MenuIcon className="h-5 w-5" />
             </Button>
             <span className="font-medium text-sm text-muted-foreground hidden md:inline">
-              Agui Dashboard
+              {headerTitle}
             </span>
           </div>
 
           {/* Right: actions (theme + user) */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {isGM ? (
+              <>
+                <Button asChild size="sm" variant="outline" className="hidden md:inline-flex">
+                  <Link href="/company/new">➕ New Business</Link>
+                </Button>
+                <Button asChild size="sm" variant="ghost" className="md:hidden">
+                  <Link href="/company/new">➕</Link>
+                </Button>
+              </>
+            ) : null}
+            <ViewAsSwitcher />
             {/* icon-only shared toggle */}
             <ThemeToggle className="h-9 w-9 p-0 rounded-2xl" />
-            <div className="h-8 w-8 rounded-full bg-[color-mix(in_srgb,_var(--agui-on-surface)_12%,_transparent)] flex items-center justify-center text-sm text-[var(--agui-on-surface)]">
-              U
-            </div>
+            {sessionStatus === "initializing" ? (
+              <div className="h-8 w-8 animate-pulse rounded-full bg-[color-mix(in_srgb,_var(--agui-on-surface)_12%,_transparent)]" />
+            ) : user ? (
+              <div className="flex items-center gap-2">
+                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[color-mix(in_srgb,_var(--agui-primary)_18%,_transparent)] text-sm font-medium text-[var(--agui-on-surface)]">
+                  {user.email?.[0]?.toUpperCase() ?? user.phone?.[0]?.toUpperCase() ?? "U"}
+                </div>
+                <Button asChild size="sm" variant="ghost" className="h-8">
+                  <Link href="/signout">Sign out</Link>
+                </Button>
+              </div>
+            ) : (
+              <Button asChild size="sm" variant="outline" className="h-8">
+                <Link href="/">Sign in</Link>
+              </Button>
+            )}
           </div>
         </header>
 

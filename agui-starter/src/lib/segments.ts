@@ -1,12 +1,12 @@
-export type Segment = { start_at: string; end_at: string | null };
+export type Segment = { time_in: string; time_out: string | null };
 
 /** Sum minutes across finished segments only (ignore open ones). */
 export function sumFinishedMinutes(segments: Segment[]) {
   let mins = 0;
   for (const s of segments) {
-    if (!s.end_at) continue;
-    const a = new Date(s.start_at).getTime();
-    const b = new Date(s.end_at).getTime();
+    if (!s.time_out) continue;
+    const a = new Date(s.time_in).getTime();
+    const b = new Date(s.time_out).getTime();
     if (b > a) mins += Math.floor((b - a) / 60000);
   }
   return mins;
@@ -16,8 +16,8 @@ export function sumFinishedMinutes(segments: Segment[]) {
 export function latestOut(segments: Segment[]): Date | null {
   let latest: number | null = null;
   for (const s of segments) {
-    if (!s.end_at) continue;
-    const t = new Date(s.end_at).getTime();
+    if (!s.time_out) continue;
+    const t = new Date(s.time_out).getTime();
     if (latest === null || t > latest) latest = t;
   }
   return latest ? new Date(latest) : null;

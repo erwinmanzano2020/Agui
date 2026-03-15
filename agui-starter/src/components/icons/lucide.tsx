@@ -43,6 +43,17 @@ export const UsersIcon = createLucideIcon(
   </>
 );
 
+export const NetworkIcon = createLucideIcon(
+  "Network",
+  <>
+    <circle cx="6" cy="12" r="3" />
+    <circle cx="18" cy="6" r="3" />
+    <circle cx="18" cy="18" r="3" />
+    <path d="M8.5 10.5 15.5 7.5" />
+    <path d="M8.5 13.5 15.5 16.5" />
+  </>
+);
+
 export const CalendarClockIcon = createLucideIcon(
   "CalendarClock",
   <>
@@ -66,6 +77,17 @@ export const ScrollTextIcon = createLucideIcon(
   </>
 );
 
+export const CalendarCheckIcon = createLucideIcon(
+  "CalendarCheck",
+  <>
+    <rect x="3" y="4" width="18" height="18" rx="2" />
+    <path d="M16 2v4" />
+    <path d="M8 2v4" />
+    <path d="M3 10h18" />
+    <path d="m9 16 2 2 4-4" />
+  </>,
+);
+
 export const FileDownIcon = createLucideIcon(
   "FileDown",
   <>
@@ -84,6 +106,11 @@ export const SettingsIcon = createLucideIcon(
   </>
 );
 
+export const ShieldIcon = createLucideIcon(
+  "Shield",
+  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" />
+);
+
 export const LayoutDashboardIcon = createLucideIcon(
   "LayoutDashboard",
   <>
@@ -92,6 +119,27 @@ export const LayoutDashboardIcon = createLucideIcon(
     <rect width="7" height="9" x="14" y="12" rx="1" />
     <rect width="7" height="5" x="3" y="16" rx="1" />
   </>
+);
+
+export const StorefrontIcon = createLucideIcon(
+  "Storefront",
+  <>
+    <rect width="18" height="5" x="3" y="3" rx="1" />
+    <rect width="16" height="13" x="4" y="8" rx="2" />
+    <path d="M9 14h6" />
+    <path d="M12 8v13" />
+  </>
+);
+
+export const IdCardIcon = createLucideIcon(
+  "IdCard",
+  <>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <circle cx="9" cy="11" r="2" />
+    <path d="M7 16h4" />
+    <path d="M15 10h4" />
+    <path d="M15 14h4" />
+  </>,
 );
 
 export const MenuIcon = createLucideIcon(

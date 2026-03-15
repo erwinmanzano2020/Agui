@@ -1,0 +1,26 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": ".test-dist",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "es2020",
+    "lib": ["es2020", "dom"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@supabase/ssr": ["src/lib/supabase-ssr"]
+    },
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": false,
+    "sourceMap": true,
+    "types": ["node"]
+  },
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.test.ts",
+    "src/**/*.test.tsx"
+  ]
+}

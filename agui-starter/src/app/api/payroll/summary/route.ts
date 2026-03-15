@@ -2,9 +2,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { summarizeRange } from "@/lib/payroll/index";
 import type { PrimaryBasis, RangeSummary } from "@/lib/payroll/index";
+import { requireFeatureAccess } from "@/lib/auth/feature-guard";
+import { AppFeature } from "@/lib/auth/permissions";
 import { getSupabase } from "@/lib/supabase";
 
 export async function GET(req: NextRequest) {
+  await requireFeatureAccess(AppFeature.PAYROLL, { dest: new URL(req.url).pathname });
   const url = new URL(req.url);
   const from = url.searchParams.get("from");
   const to = url.searchParams.get("to");

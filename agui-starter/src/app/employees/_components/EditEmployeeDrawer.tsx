@@ -17,10 +17,9 @@ type Props = {
 
 type Employee = {
   id: string;
-  code: string | null;
-  full_name: string | null;
-  rate_per_day: number | null;
-  status: string | null;
+  full_name: string;
+  status: "active" | "inactive";
+  branch_id: string | null;
 };
 
 type RateRow = {
@@ -80,7 +79,7 @@ export default function EditEmployeeDrawer({
       // Employee
       const empRes = await sb
         .from("employees")
-        .select("id, code, full_name, rate_per_day, status")
+        .select("id, full_name, status, branch_id")
         .eq("id", employeeId)
         .maybeSingle();
 
@@ -89,10 +88,9 @@ export default function EditEmployeeDrawer({
         empRes.data
           ? {
               id: empRes.data.id,
-              code: empRes.data.code ?? null,
-              full_name: empRes.data.full_name ?? null,
-              rate_per_day: empRes.data.rate_per_day ?? null,
+              full_name: empRes.data.full_name,
               status: empRes.data.status ?? "active",
+              branch_id: empRes.data.branch_id ?? null,
             }
           : null,
       );
@@ -123,10 +121,9 @@ export default function EditEmployeeDrawer({
     setErr(null);
 
     const payload = {
-      code: emp.code || null,
-      full_name: emp.full_name || null,
-      status: emp.status || null,
-      // rate_per_day is managed via Compensation
+      full_name: emp.full_name,
+      status: emp.status,
+      branch_id: emp.branch_id,
     };
 
     const sb = getSupabase();
@@ -201,22 +198,13 @@ export default function EditEmployeeDrawer({
       return;
     }
 
-    // 2) If basis is Daily, mirror to employees.rate_per_day so outer page reflects immediately
-    if (cBasis === "daily") {
-      const { error: upErr } = await sb
-        .from("employees")
-        .update({ rate_per_day: amountNum })
-        .eq("id", employeeId);
-      if (upErr) setErr((prev) => prev ?? upErr.message);
-    }
-
-    // 3) Reload rates in the drawer
+    // 2) Reload rates in the drawer
     await reloadRates();
 
-    // 4) Notify parent so it can refresh immediately
+    // 3) Notify parent so it can refresh immediately
     onDataChanged?.();
 
-    // 5) Clear form
+    // 4) Clear form
     setCAmount("");
     setCDate("");
     setCNote("");
@@ -321,21 +309,10 @@ export default function EditEmployeeDrawer({
             ) : (
               <>
                 <div>
-                  <label className="block text-sm mb-1">Code</label>
-                  <input
-                    className="border rounded px-2 py-1 w-full"
-                    value={emp.code ?? ""}
-                    onChange={(e) =>
-                      setEmp((p) => (p ? { ...p, code: e.target.value } : p))
-                    }
-                  />
-                </div>
-
-                <div>
                   <label className="block text-sm mb-1">Full Name</label>
                   <input
                     className="border rounded px-2 py-1 w-full"
-                    value={emp.full_name ?? ""}
+                    value={emp.full_name}
                     onChange={(e) =>
                       setEmp((p) =>
                         p ? { ...p, full_name: e.target.value } : p,
@@ -348,28 +325,19 @@ export default function EditEmployeeDrawer({
                   <label className="block text-sm mb-1">Status</label>
                   <select
                     className="border rounded px-2 py-1 w-full"
-                    value={emp.status ?? "active"}
+                    value={emp.status}
                     onChange={(e) =>
-                      setEmp((p) => (p ? { ...p, status: e.target.value } : p))
+                      setEmp((p) =>
+                        p ? { ...p, status: e.target.value as Employee["status"] } : p,
+                      )
                     }
                   >
                     <option value="active">active</option>
-                    <option value="archived">archived</option>
+                    <option value="inactive">inactive</option>
                   </select>
                 </div>
 
-                <div className="text-xs text-muted-foreground">
-                  <div className="mb-1">
-                    <b>Rate/Day (read-only):</b>{" "}
-                    {emp.rate_per_day != null
-                      ? `₱${Number(emp.rate_per_day).toFixed(2)}`
-                      : "—"}
-                  </div>
-                  <div>
-                    Rates are managed in the <b>Compensation</b> tab.{" "}
-                    {currentRateHint}
-                  </div>
-                </div>
+                <div className="text-xs text-muted-foreground">{currentRateHint}</div>
 
                 <div className="pt-2 flex items-center gap-3">
                   <button

@@ -1,0 +1,594 @@
+import "server-only";
+
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE, EmployeeAccessError } from "@/lib/hr/employees";
+import type { Database, EmployeeRow, EmployeeInsert } from "@/lib/db.types";
+import { getIdentitySummariesForEmployees, type IdentitySummary } from "@/lib/hr/employee-identity";
+import type { HrAccessDecision } from "./access";
+import { buildEmployeePhotoPath } from "./employee-photo";
+import type { EmployeeListFilters } from "./employees";
+
+function logIdentityError(context: string, error: unknown) {
+  const code =
+    typeof error === "object" && error !== null && "code" in error
+      ? (error as { code?: string }).code ?? null
+      : null;
+  const message = error instanceof Error ? error.message : String(error);
+  console.error(`[employees] identity lookup failed (${context})`, { code, message });
+}
+
+export type EmployeeListItem = {
+  id: string;
+  house_id: string;
+  code: string;
+  entity_id: string | null;
+  full_name: string;
+  status: EmployeeRow["status"];
+  branch_id: string | null;
+  branch_name: string | null;
+  rate_per_day: number;
+  position_title?: string | null;
+  photo_url?: string | null;
+  photo_path?: string | null;
+  identity?: IdentitySummary | null;
+  identity_unavailable?: boolean;
+};
+
+export type EmployeeListResult = { employees: EmployeeListItem[]; error?: string };
+
+export type BranchListItem = { id: string; name: string };
+export type BranchListResult = { branches: BranchListItem[]; error?: string };
+
+export type EmployeeProfile = {
+  id: string;
+  house_id: string;
+  code: string;
+  entity_id: string | null;
+  full_name: string;
+  status: EmployeeRow["status"];
+  branch_id: string | null;
+  branch_name: string | null;
+  rate_per_day: number;
+  position_title?: string | null;
+  photo_url?: string | null;
+  photo_path?: string | null;
+  created_at: string;
+  identity?: IdentitySummary | null;
+  identity_unavailable?: boolean;
+};
+
+export type EmployeeUpdateInput = {
+  full_name: string;
+  status: EmployeeRow["status"];
+  branch_id: string | null;
+  rate_per_day: number;
+  position_title?: string | null;
+  photo_url?: string | null;
+  photo_path?: string | null;
+};
+
+export class EmployeeUpdateError extends Error {}
+export class EmployeeCreateError extends Error {}
+export class EmployeeDuplicateIdentityError extends EmployeeCreateError {
+  constructor(
+    message: string,
+    public employeeId?: string | null,
+    public employeeCode?: string | null,
+    public employeeName?: string | null,
+  ) {
+    super(message);
+    this.name = "EmployeeDuplicateIdentityError";
+  }
+}
+
+export type EmployeeCreateInput = {
+  id?: string;
+  full_name: string;
+  status?: EmployeeRow["status"];
+  branch_id?: string | null;
+  entity_id?: string | null;
+  rate_per_day: number;
+  position_title?: string | null;
+  photo_url?: string | null;
+  photo_path?: string | null;
+};
+
+async function findActiveEmployeeForEntity(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  entityId: string,
+): Promise<EmployeeRow | null> {
+  const { data, error } = await supabase
+    .from("employees")
+    .select("id, status, code, full_name")
+    .eq("house_id", houseId)
+    .eq("entity_id", entityId)
+    .eq("status", "active")
+    .limit(1)
+    .maybeSingle<EmployeeRow>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return (data as EmployeeRow | null) ?? null;
+}
+
+export async function listBranchesForHouse(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+): Promise<BranchListResult> {
+  const { data, error } = await supabase
+    .from("branches")
+    .select("id, name, house_id")
+    .eq("house_id", houseId)
+    .order("name", { ascending: true });
+
+  const rows = (data ?? [])
+    .filter((row) => (row as { house_id?: string | null }).house_id === houseId)
+    .map((row) => {
+      const id = (row as { id?: string | null }).id;
+      const name = (row as { name?: string | null }).name;
+      return id ? ({ id, name: name ?? "" } as BranchListItem) : null;
+    })
+    .filter((row): row is BranchListItem => Boolean(row));
+
+  if (error) {
+    console.error("Failed to load branches", error);
+    return { branches: rows, error: error.message } satisfies BranchListResult;
+  }
+
+  return { branches: rows } satisfies BranchListResult;
+}
+
+export async function listEmployeesByHouse(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  filters: EmployeeListFilters = {},
+  options: { allowedBranchIds?: string[]; branchNames?: Record<string, string>; includeIdentity?: boolean } = {},
+): Promise<EmployeeListResult> {
+  const allowedBranches = options.allowedBranchIds ?? null;
+  if (filters.branchId && allowedBranches && !allowedBranches.includes(filters.branchId)) {
+    return { employees: [] } satisfies EmployeeListResult;
+  }
+
+  let query = supabase
+    .from("employees")
+    .select("id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, photo_url, photo_path")
+    .eq("house_id", houseId);
+
+  if (filters.status && filters.status !== "all") {
+    query = query.eq("status", filters.status);
+  }
+
+  if (filters.branchId) {
+    query = query.eq("branch_id", filters.branchId);
+  }
+
+  if (filters.search?.trim()) {
+    const term = `%${filters.search.trim()}%`;
+    query = query.or(`full_name.ilike.${term},code.ilike.${term}`);
+  }
+
+  const { data, error } = await query.order("full_name", { ascending: true });
+  const branchNameLookup = options.branchNames ?? {};
+
+  const employees: EmployeeListItem[] = (data ?? []).map((row) => {
+    const employee = row as EmployeeRow;
+    const branchId = employee.branch_id ?? null;
+    return {
+      id: employee.id,
+      house_id: employee.house_id,
+      code: employee.code,
+      entity_id: employee.entity_id ?? null,
+      full_name: employee.full_name,
+      status: employee.status,
+      branch_id: branchId,
+      branch_name: branchId ? branchNameLookup[branchId] ?? null : null,
+      rate_per_day: Number(employee.rate_per_day ?? 0),
+      position_title: employee.position_title ?? null,
+      photo_url: employee.photo_url ?? null,
+      photo_path: employee.photo_path ?? null,
+    } satisfies EmployeeListItem;
+  });
+
+  if (options.includeIdentity) {
+    const entityIds = employees.map((emp) => emp.entity_id).filter((id): id is string => Boolean(id));
+    try {
+      const summaries = await getIdentitySummariesForEmployees(supabase, { houseId, entityIds });
+      const map = new Map(summaries.map((item) => [item.entityId, item]));
+      employees.forEach((emp) => {
+        emp.identity = emp.entity_id ? map.get(emp.entity_id) ?? null : null;
+      });
+    } catch (lookupError) {
+      logIdentityError("list", lookupError);
+      employees.forEach((emp) => {
+        emp.identity_unavailable = true;
+      });
+    }
+  }
+
+  if (error) {
+    console.error("Failed to load employees", error);
+    return { employees, error: error.message } satisfies EmployeeListResult;
+  }
+
+  return { employees } satisfies EmployeeListResult;
+}
+
+type BranchLookupRow = { id?: string | null; house_id?: string | null; name?: string | null };
+
+type EmployeeWithBranch = EmployeeRow & {
+  branches?: BranchLookupRow | null;
+};
+
+export async function getEmployeeByIdForHouse(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  employeeId: string,
+  options: { includeIdentity?: boolean } = {},
+): Promise<EmployeeProfile | null> {
+  const { data } = await supabase
+    .from("employees")
+    .select(
+      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, photo_url, photo_path, created_at, branches(id, name, house_id)",
+    )
+    .eq("house_id", houseId)
+    .eq("id", employeeId)
+    .maybeSingle<EmployeeWithBranch>();
+
+  if (!data) {
+    return null;
+  }
+
+  const employee = data;
+  const branch = employee.branches ?? null;
+  const branchBelongsToHouse = Boolean(branch && branch.id && branch.house_id === houseId);
+
+  let branchId: string | null = null;
+  let branchName: string | null = null;
+  let identity: IdentitySummary | null = null;
+  let identityUnavailable = false;
+
+  if (branchBelongsToHouse && branch) {
+    branchId = branch.id ?? null;
+    branchName = branch.name ?? null;
+  }
+
+  if (options.includeIdentity && employee.entity_id) {
+    try {
+      const summaries = await getIdentitySummariesForEmployees(supabase, {
+        houseId,
+        entityIds: [employee.entity_id],
+      });
+      identity = summaries[0] ?? null;
+    } catch (lookupError) {
+      logIdentityError("detail", lookupError);
+      identityUnavailable = true;
+    }
+  }
+
+  return {
+    id: employee.id,
+    house_id: employee.house_id,
+    code: employee.code,
+    entity_id: employee.entity_id ?? null,
+    full_name: employee.full_name,
+    status: employee.status,
+    branch_id: branchId,
+    branch_name: branchName,
+    rate_per_day: Number(employee.rate_per_day ?? 0),
+    position_title: employee.position_title ?? null,
+    photo_url: employee.photo_url ?? null,
+    photo_path: employee.photo_path ?? null,
+    created_at: employee.created_at,
+    identity,
+    identity_unavailable: identityUnavailable,
+  } satisfies EmployeeProfile;
+}
+
+async function ensureBranchInHouse(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  branchId: string,
+): Promise<BranchLookupRow> {
+  const { data, error } = await supabase
+    .from("branches")
+    .select("id, house_id, name")
+    .eq("id", branchId)
+    .maybeSingle<BranchLookupRow>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  const branch = data ?? null;
+  if (!branch || !branch.id || branch.house_id !== houseId) {
+    throw new EmployeeUpdateError("Branch does not belong to this house");
+  }
+
+  return branch;
+}
+
+export async function updateEmployeeForHouse(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  employeeId: string,
+  patch: EmployeeUpdateInput,
+): Promise<EmployeeProfile | null> {
+  const { data: existing, error: existingError } = await supabase
+    .from("employees")
+    .select("id, house_id, code")
+    .eq("id", employeeId)
+    .maybeSingle<EmployeeRow>();
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  if (!existing || existing.house_id !== houseId) {
+    return null;
+  }
+
+  if (patch.branch_id) {
+    await ensureBranchInHouse(supabase, houseId, patch.branch_id);
+  }
+
+  const updates: Partial<EmployeeRow> = {
+    full_name: patch.full_name,
+    status: patch.status,
+    branch_id: patch.branch_id,
+    rate_per_day: patch.rate_per_day,
+    position_title: patch.position_title,
+    photo_url: patch.photo_url,
+    photo_path: patch.photo_path,
+  };
+
+  const { data, error } = await supabase
+    .from("employees")
+    .update(updates)
+    .eq("id", employeeId)
+    .eq("house_id", houseId)
+    .select(
+      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, photo_url, photo_path, created_at, branches(id, name, house_id)",
+    )
+    .maybeSingle<EmployeeWithBranch>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  const branchBelongsToHouse = Boolean(
+    data.branches && data.branches.id && data.branches.house_id === houseId,
+  );
+
+  const branchId = branchBelongsToHouse ? data.branches?.id ?? null : null;
+  const branchName = branchBelongsToHouse ? data.branches?.name ?? null : null;
+
+  return {
+    id: data.id,
+    house_id: data.house_id,
+    code: data.code,
+    entity_id: data.entity_id ?? null,
+    full_name: data.full_name,
+    status: data.status,
+    branch_id: branchId,
+    branch_name: branchName,
+    rate_per_day: Number(data.rate_per_day ?? 0),
+    position_title: data.position_title ?? null,
+    photo_url: data.photo_url ?? null,
+    photo_path: data.photo_path ?? null,
+    created_at: data.created_at,
+  } satisfies EmployeeProfile;
+}
+
+export async function updateEmployeeForHouseWithAccess(
+  supabase: SupabaseClient<Database>,
+  access: HrAccessDecision,
+  houseId: string,
+  employeeId: string,
+  patch: EmployeeUpdateInput,
+): Promise<EmployeeProfile | null> {
+  if (!access.allowed || !access.hasWorkspaceAccess) {
+    throw new EmployeeAccessError("Not allowed to update employees for this house");
+  }
+
+  return updateEmployeeForHouse(supabase, houseId, employeeId, patch);
+}
+
+function assertHrCreateAccess(access: HrAccessDecision) {
+  if (!access.allowed || !access.hasWorkspaceAccess) {
+    throw new EmployeeAccessError("Not allowed to create employees for this house");
+  }
+}
+
+function isDuplicateActiveEmployeeError(error: { code?: unknown; message?: unknown; details?: unknown }): boolean {
+  const code =
+    typeof error.code === "string"
+      ? error.code
+      : typeof error.code === "number"
+        ? String(error.code)
+        : null;
+  const message = typeof error.message === "string" ? error.message.toLowerCase() : "";
+  const details = typeof error.details === "string" ? error.details.toLowerCase() : "";
+
+  if (code === "23505") {
+    return (
+      message.includes("employees_active_identity_per_house_idx") ||
+      details.includes("employees_active_identity_per_house_idx") ||
+      message.includes("duplicate key value") ||
+      details.includes("duplicate key value") ||
+      (message.includes("house_id") && message.includes("entity_id"))
+    );
+  }
+
+  return (
+    message.includes("employees_active_identity_per_house_idx") ||
+    message.includes("duplicate key value") ||
+    (message.includes("house_id") && message.includes("entity_id"))
+  );
+}
+
+function buildDuplicateIdentityError(existing: EmployeeRow | null): EmployeeDuplicateIdentityError {
+  return new EmployeeDuplicateIdentityError(
+    DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE,
+    existing?.id ?? null,
+    existing?.code ?? null,
+    existing?.full_name ?? null,
+  );
+}
+
+export async function createEmployeeForHouse(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  payload: EmployeeCreateInput,
+): Promise<EmployeeProfile> {
+  if (!houseId?.trim()) {
+    throw new EmployeeCreateError("house_id is required for employee creation");
+  }
+
+  const branchId = payload.branch_id?.trim() || null;
+  if (branchId) {
+    await ensureBranchInHouse(supabase, houseId, branchId);
+  }
+
+  const entityId = payload.entity_id?.trim() || null;
+  if (entityId) {
+    const existing = await findActiveEmployeeForEntity(supabase, houseId, entityId);
+    if (existing) {
+      throw buildDuplicateIdentityError(existing);
+    }
+  }
+
+  const insert: EmployeeInsert = {
+    id: payload.id ?? undefined,
+    house_id: houseId,
+    full_name: payload.full_name,
+    status: payload.status ?? "active",
+    branch_id: branchId,
+    entity_id: entityId,
+    rate_per_day: payload.rate_per_day,
+    position_title: payload.position_title ?? null,
+    photo_url: payload.photo_url ?? null,
+    photo_path: payload.photo_path ?? null,
+  };
+
+  const { data, error } = await supabase
+    .from("employees")
+    .insert(insert)
+    .select(
+      "id, house_id, code, entity_id, full_name, status, branch_id, rate_per_day, position_title, photo_url, photo_path, created_at, branches(id, name, house_id)",
+    )
+    .maybeSingle<EmployeeWithBranch>();
+
+  if (error) {
+    const duplicateError = isDuplicateActiveEmployeeError(error);
+    console.error("[employees] failed to insert employee", {
+      houseId,
+      entityId,
+      code: (error as { code?: unknown }).code,
+      message: (error as { message?: unknown }).message,
+      duplicate: duplicateError,
+    });
+    if (entityId && duplicateError) {
+      const existing = await findActiveEmployeeForEntity(supabase, houseId, entityId);
+      throw buildDuplicateIdentityError(existing);
+    }
+    throw new EmployeeCreateError(error.message);
+  }
+
+  if (!data) {
+    throw new EmployeeCreateError("Employee was not created");
+  }
+
+  const branchBelongsToHouse = Boolean(data.branches && data.branches.id && data.branches.house_id === houseId);
+
+  return {
+    id: data.id,
+    house_id: data.house_id,
+    code: data.code,
+    entity_id: data.entity_id ?? null,
+    full_name: data.full_name,
+    status: data.status,
+    branch_id: branchBelongsToHouse ? data.branches?.id ?? null : null,
+    branch_name: branchBelongsToHouse ? data.branches?.name ?? null : null,
+    rate_per_day: Number(data.rate_per_day ?? 0),
+    position_title: data.position_title ?? null,
+    photo_url: data.photo_url ?? null,
+    photo_path: data.photo_path ?? null,
+    created_at: data.created_at,
+  } satisfies EmployeeProfile;
+}
+
+export async function deleteEmployeeForHouse(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  employeeId: string,
+): Promise<boolean> {
+  const { data: existing, error: existingError } = await supabase
+    .from("employees")
+    .select("id, house_id, photo_path")
+    .eq("id", employeeId)
+    .eq("house_id", houseId)
+    .maybeSingle<Pick<EmployeeRow, "id" | "house_id" | "photo_path">>();
+
+  if (existingError) {
+    throw new Error(existingError.message);
+  }
+
+  if (!existing) {
+    return false;
+  }
+
+  const photoPath = existing.photo_path?.trim() || buildEmployeePhotoPath(existing.id);
+  if (photoPath) {
+    const { error: storageError } = await supabase.storage.from("employee-photos").remove([photoPath]);
+    if (storageError) {
+      console.error("[employees] failed to delete employee photo", {
+        employeeId,
+        photoPath,
+        message: storageError.message,
+      });
+    }
+  }
+
+  const { error: deleteError } = await supabase
+    .from("employees")
+    .delete()
+    .eq("id", employeeId)
+    .eq("house_id", houseId);
+
+  if (deleteError) {
+    throw new Error(deleteError.message);
+  }
+
+  return true;
+}
+
+export async function deleteEmployeeForHouseWithAccess(
+  supabase: SupabaseClient<Database>,
+  access: HrAccessDecision,
+  houseId: string,
+  employeeId: string,
+): Promise<boolean> {
+  if (!access.allowed || !access.hasWorkspaceAccess) {
+    throw new EmployeeAccessError("Not allowed to delete employees for this house");
+  }
+
+  return deleteEmployeeForHouse(supabase, houseId, employeeId);
+}
+
+export async function createEmployeeForHouseWithAccess(
+  supabase: SupabaseClient<Database>,
+  access: HrAccessDecision,
+  houseId: string,
+  payload: EmployeeCreateInput,
+): Promise<EmployeeProfile> {
+  assertHrCreateAccess(access);
+  return createEmployeeForHouse(supabase, houseId, payload);
+}

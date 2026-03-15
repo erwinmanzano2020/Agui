@@ -1,0 +1,170 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+import { requireHrAccess } from "@/lib/hr/access";
+import {
+  EmployeeUpdateError,
+  deleteEmployeeForHouseWithAccess,
+  updateEmployeeForHouseWithAccess,
+} from "@/lib/hr/employees-server";
+import { getServiceSupabase } from "@/lib/supabase-service";
+import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { z } from "@/lib/z";
+import { type UpdateEmployeeState } from "./action-types";
+
+const StatusSchema = z.enum(["active", "inactive"]);
+
+const EmployeeUpdateSchema = z.object({
+  houseId: z.string().trim().min(1, "Missing house context"),
+  houseSlug: z.string().trim().min(1, "Missing workspace context"),
+  employeeId: z.string().trim().min(1, "Missing employee reference"),
+  full_name: z
+    .string()
+    .trim()
+    .min(2, "Name is required")
+    .max(200, "Name is too long"),
+  status: StatusSchema,
+  branch_id: z.string().trim().optional(),
+  rate_per_day: z.number(),
+  position_title: z.string().trim().max(120, "Position is too long").optional(),
+  photo_url: z.string().trim().optional(),
+  photo_path: z.string().trim().optional(),
+});
+
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export async function updateEmployeeAction(
+  _prevState: UpdateEmployeeState,
+  formData: FormData,
+): Promise<UpdateEmployeeState> {
+  const branchIdRaw = formData.get("branch_id");
+  const branchId = typeof branchIdRaw === "string" ? branchIdRaw.trim() : "";
+  const rateRaw = formData.get("rate_per_day");
+  const parsedRate =
+    typeof rateRaw === "string"
+      ? Number.parseFloat(rateRaw)
+      : typeof rateRaw === "number"
+        ? rateRaw
+        : Number.NaN;
+
+  const parsed = EmployeeUpdateSchema.safeParse({
+    houseId: formData.get("houseId"),
+    houseSlug: formData.get("houseSlug"),
+    employeeId: formData.get("employeeId"),
+    full_name: formData.get("full_name"),
+    status: formData.get("status"),
+    branch_id: branchId || undefined,
+    rate_per_day: parsedRate,
+    position_title: typeof formData.get("position_title") === "string" ? String(formData.get("position_title")).trim() || undefined : undefined,
+    photo_url: typeof formData.get("photo_url") === "string" ? String(formData.get("photo_url")).trim() || undefined : undefined,
+    photo_path: typeof formData.get("photo_path") === "string" ? String(formData.get("photo_path")).trim() || undefined : undefined,
+  });
+
+  if (!parsed.success) {
+    const flattened = parsed.error.flatten();
+    return {
+      status: "error",
+      fieldErrors: {},
+      message: flattened.formErrors[0] ?? "Fix the highlighted fields and try again.",
+    } satisfies UpdateEmployeeState;
+  }
+
+  const { houseId, houseSlug, employeeId, ...payload } = parsed.data;
+  const normalizedBranchId = payload.branch_id?.trim() || null;
+
+  if (normalizedBranchId && !UUID_REGEX.test(normalizedBranchId)) {
+    return {
+      status: "error",
+      fieldErrors: { branch_id: ["Choose a branch within this workspace"] },
+      message: "Fix the highlighted fields and try again.",
+    } satisfies UpdateEmployeeState;
+  }
+
+  if (!Number.isFinite(payload.rate_per_day) || payload.rate_per_day < 0) {
+    return {
+      status: "error",
+      fieldErrors: { rate_per_day: ["Rate must be at least 0"] },
+      message: "Fix the highlighted fields and try again.",
+    } satisfies UpdateEmployeeState;
+  }
+
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return { status: "error", message: "Authentication required." };
+  }
+
+  const access = await requireHrAccess(supabase, houseId);
+  if (!access.allowed) {
+    return { status: "error", message: "You are not allowed to edit this employee." } satisfies UpdateEmployeeState;
+  }
+
+  const service = getServiceSupabase();
+
+  try {
+    const updated = await updateEmployeeForHouseWithAccess(service, access, houseId, employeeId, {
+      ...payload,
+      branch_id: normalizedBranchId,
+      position_title: payload.position_title?.trim() || null,
+      photo_url: payload.photo_url?.trim() || null,
+      photo_path: payload.photo_path?.trim() || null,
+    });
+
+    if (!updated) {
+      return { status: "error", message: "Employee not found." } satisfies UpdateEmployeeState;
+    }
+
+    revalidatePath(`/company/${houseSlug}/hr/employees`);
+    revalidatePath(`/company/${houseSlug}/hr/employees/${employeeId}`);
+
+    return { status: "success", message: "Employee updated." } satisfies UpdateEmployeeState;
+  } catch (error) {
+    if (error instanceof EmployeeUpdateError) {
+      return {
+        status: "error",
+        message: "Select a branch within this house.",
+        fieldErrors: { branch_id: ["Choose a branch for this workspace"] },
+      } satisfies UpdateEmployeeState;
+    }
+
+    console.error("Failed to update employee", error);
+    return { status: "error", message: "Unable to save changes right now." } satisfies UpdateEmployeeState;
+  }
+}
+
+
+export async function deleteEmployeeAction(formData: FormData): Promise<{ status: "success" | "error"; message: string }> {
+  const houseId = typeof formData.get("houseId") === "string" ? String(formData.get("houseId")).trim() : "";
+  const houseSlug = typeof formData.get("houseSlug") === "string" ? String(formData.get("houseSlug")).trim() : "";
+  const employeeId = typeof formData.get("employeeId") === "string" ? String(formData.get("employeeId")).trim() : "";
+
+  if (!houseId || !houseSlug || !employeeId) {
+    return { status: "error", message: "Missing employee context." };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  if (!supabase) {
+    return { status: "error", message: "Authentication required." };
+  }
+
+  const access = await requireHrAccess(supabase, houseId);
+  if (!access.allowed) {
+    return { status: "error", message: "You are not allowed to delete this employee." };
+  }
+
+  const service = getServiceSupabase();
+
+  try {
+    const deleted = await deleteEmployeeForHouseWithAccess(service, access, houseId, employeeId);
+    if (!deleted) {
+      return { status: "error", message: "Employee not found." };
+    }
+
+    revalidatePath(`/company/${houseSlug}/hr/employees`);
+    revalidatePath(`/company/${houseSlug}/hr/employees/${employeeId}`);
+    return { status: "success", message: "Employee deleted." };
+  } catch (error) {
+    console.error("Failed to delete employee", error);
+    return { status: "error", message: "Unable to delete employee right now." };
+  }
+}

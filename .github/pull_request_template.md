@@ -1,18 +1,50 @@
-## What changed
-- [ ] Full-file replacement? If yes, list files:
-- [ ] User-facing pages affected:
-- [ ] API routes touched:
+## Checklist
+- [ ] Uses authenticated Supabase client for UI-facing queries
+- [ ] service_role used only for admin-only steps (entity resolution/backfill)
+- [ ] API returns non-200 on Supabase error (no silent 200 + error)
+- [ ] Verified RLS policy behavior (SELECT/INSERT/UPDATE) for affected tables
+- [ ] Verified grants only after confirming client + RLS correctness
+- [ ] Added/updated tests for tenancy + access control
+- [ ] Implementation Digest included (files changed, helpers, tenancy enforcement, UI behavior, tests, non-changes, follow-ups)
+- [ ] Data Access Plan included (client split, tables touched, tenancy scoping, RLS expectation)
+- [ ] Updated db-contract.md if DB/RLS/tenancy changed
+- [ ] Updated access-control.md if roles/permissions/guards changed
+- [ ] Added Devlog entry for user-facing module changes
+- [ ] Runbook updated if debugging procedure changed
 
-## Validation (tick all before requesting review)
-- [ ] `npm run typecheck` passes
-- [ ] `npm run build` succeeds locally (or CI is green)
-- [ ] Date handling tested (Asia/Manila) and **no `new Date(string)` without TZ**
-- [ ] API endpoints return **valid JSON** (no 502 / non-JSON)
-- [ ] Supabase queries: checked for null/undefined, correct table/columns
+## Summary
+- What changed and why
 
-## Screens / Evidence
-Paste Replit preview URL or screenshots here.
+## Data Access Plan
+- Authenticated client usage:
+- service_role usage:
+- Tables touched:
+- Tenancy scoping:
+- RLS expectation:
 
-## Request
-@codex review
+## Implementation Digest
+- Files changed:
+- Helpers added/updated:
+- Tenancy enforcement (house_id and scope):
+- UI behavior:
+- Tests added/updated:
+- Notable non-changes:
+- Follow-ups:
 
+## Devlog
+- Devlog entry path:
+
+## Contracts
+- Contracts touched (db-contract/access-control/runbook):
+
+## Docs & Contracts Sync (Required when applicable)
+- [ ] DB contract updated (schema, RLS, tenancy rules)
+- [ ] Access-control contract updated (roles, permissions, scope)
+- [ ] Devlog entry added (bugs, incidents, non-trivial behavior changes)
+- [ ] Relevant runbook referenced/updated (debugging or infra work)
+
+## Testing
+- [ ] `npm run lint`
+- [ ] `npm run typecheck`
+- [ ] `npm run build`
+- [ ] `npm run test`

@@ -10,10 +10,10 @@ const COMPANY_NAME = "Vangie Store";
 
 type Emp = {
   id: string;
-  code: string;
   full_name: string;
-  rate_per_day: number;
-  status?: string;
+  branch_id: string | null;
+  rate_per_day: number | null;
+  status?: "active" | "inactive";
 };
 
 type Dtr = {
@@ -28,8 +28,8 @@ type Dtr = {
 type Seg = {
   employee_id: string;
   work_date: string;
-  start_at: string | null;
-  end_at: string | null;
+  time_in: string | null;
+  time_out: string | null;
 };
 
 type Ded = {
@@ -122,7 +122,7 @@ export default function BulkPayslipPageClient() {
     // sort segments per day
     for (const inner of m.values()) {
       for (const [date, arr] of inner) {
-        arr.sort((a, b) => (a.start_at || "").localeCompare(b.start_at || ""));
+        arr.sort((a, b) => (a.time_in || "").localeCompare(b.time_in || ""));
         inner.set(date, arr);
       }
     }
@@ -161,8 +161,8 @@ export default function BulkPayslipPageClient() {
         ] = await Promise.all([
           sb
             .from("employees")
-            .select("id, code, full_name, rate_per_day, status")
-            .neq("status", "archived")
+            .select("id, full_name, branch_id, status")
+            .eq("status", "active")
             .order("full_name"),
           sb
             .from("settings_payroll")
@@ -177,7 +177,17 @@ export default function BulkPayslipPageClient() {
           setErr(empError.message);
           setEmps([]);
         } else {
-          setEmps((empData || []) as Emp[]);
+          const normalized = (empData ?? []).map(
+            (row) =>
+              ({
+                id: row.id as string,
+                full_name: (row as { full_name?: string })?.full_name ?? "",
+                branch_id: (row as { branch_id?: string | null }).branch_id ?? null,
+                rate_per_day: null,
+                status: (row as { status?: Emp["status"] }).status ?? "active",
+              }) as Emp,
+          );
+          setEmps(normalized);
         }
 
         if (setError) {
@@ -238,12 +248,12 @@ export default function BulkPayslipPageClient() {
           .order("work_date"),
         sb
           .from("dtr_segments")
-          .select("employee_id, work_date, start_at, end_at")
+          .select("employee_id, work_date, time_in, time_out")
           .gte("work_date", from)
           .lt("work_date", toNext)
           .order("employee_id")
           .order("work_date")
-          .order("start_at", { ascending: true }),
+          .order("time_in", { ascending: true }),
         sb
           .from("payroll_deductions")
           .select("employee_id, effective_date, amount, note, type")
@@ -316,7 +326,8 @@ export default function BulkPayslipPageClient() {
     } catch (err) {
       console.error("Mixed-rate API error:", err);
       // Fallback: use your old flat daily rate per present day
-      basicPayMixed = presentDates.length * Number(e.rate_per_day || 0);
+      const rate = Number(e.rate_per_day ?? 0);
+      basicPayMixed = presentDates.length * rate;
       mixedDaysPresent = presentDates.length;
     }
 
@@ -334,10 +345,11 @@ export default function BulkPayslipPageClient() {
       regSum += reg;
       otSum += ot;
 
-      // per-minute derived from current employee.rate_per_day (your existing approach)
+      // per-minute derived from current employee rate
       const eff = await resolveEffectiveShift(e.id, r.work_date);
       const perDayStandard = eff?.standard_minutes ?? standard;
-      const perMinute = e.rate_per_day / perDayStandard;
+      const rate = Number(e.rate_per_day ?? 0);
+      const perMinute = perDayStandard ? rate / perDayStandard : 0;
 
       const capped = Math.min(reg, perDayStandard);
       const shortfall = Math.max(0, perDayStandard - capped);
@@ -422,10 +434,10 @@ export default function BulkPayslipPageClient() {
     const s1 = list[0];
     const s2 = list[1];
     return {
-      in1: s1 ? fmtHM(s1.start_at) : fmtHM(r.time_in),
-      out1: s1 ? fmtHM(s1.end_at) : fmtHM(r.time_out),
-      in2: s2 ? fmtHM(s2.start_at) : "--",
-      out2: s2 ? fmtHM(s2.end_at) : "--",
+      in1: s1 ? fmtHM(s1.time_in) : fmtHM(r.time_in),
+      out1: s1 ? fmtHM(s1.time_out) : fmtHM(r.time_out),
+      in2: s2 ? fmtHM(s2.time_in) : "--",
+      out2: s2 ? fmtHM(s2.time_out) : "--",
     };
   }
 
@@ -591,9 +603,6 @@ function PayslipCard(props: {
           <div>
             <span className="font-medium">Employee:</span> {emp.full_name}
           </div>
-          <div>
-            <span className="font-medium">Code:</span> {emp.code}
-          </div>
         </div>
       </div>
 
@@ -653,7 +662,7 @@ function PayslipCard(props: {
               <tr>
                 <td className="border border-border p-2">Rate</td>
                 <td className="border border-border p-2 text-right">
-                  Daily – {peso(emp.rate_per_day)}
+                  Daily – {peso(emp.rate_per_day ?? 0)}
                 </td>
               </tr>
               <tr>
