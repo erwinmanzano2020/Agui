@@ -11,10 +11,17 @@ beforeEach(async () => {
   generateCalls = [];
   generateFrontLayouts = [];
   const featureGuard = await import("@/lib/auth/feature-guard");
-  mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
+  mock.method(featureGuard, "getFeatureAccessDebugSnapshot", async (features: Iterable<string>) => ({
+    requiredFeatures: Array.from(features),
+    resolvedFeatures: ["hr"],
+  }));
 
   const supabaseServer = await import("@/lib/supabase/server");
-  mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}));
+  mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+    auth: {
+      getUser: async () => ({ data: { user: { id: "00000000-0000-0000-0000-000000000999" } } }),
+    },
+  }));
 
   const access = await import("@/lib/hr/access");
   mock.method(access, "requireHrAccess", async () => ({ allowed: true } as never));
