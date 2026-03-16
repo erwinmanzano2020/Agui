@@ -1,13 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { jsonError } from "@/lib/api/http";
-import { requireAuthentication, requireMembership, requireModuleAccess } from "@/lib/access/access-check";
-import { AuthorizationDeniedError, isAuthorizationDeniedError } from "@/lib/access/access-errors";
+import {
+  requireAuthentication,
+  requireBusinessScopeAccess,
+  requireHrBusinessAccess,
+  requireModuleAccess,
+} from "@/lib/access/access-check";
+import { isAuthorizationDeniedError } from "@/lib/access/access-errors";
 import { resolveAccessContext } from "@/lib/access/access-resolver";
 import { getFeatureAccessDebugSnapshot } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { requireHrAccess } from "@/lib/hr/access";
 import { getEmployeeIdCardById } from "@/lib/hr/employee-id-cards-server";
 import { generateEmployeeIdCardPdf } from "@/lib/hr/employee-id-card-pdf";
 import { z } from "@/lib/z";
@@ -35,17 +39,12 @@ async function authorizeEmployeeIdCardDownload(houseId: string) {
     userId: authenticated.userId,
   });
 
-  const membership = requireMembership(context);
+  const membership = requireBusinessScopeAccess(context);
   const moduleAccess = await requireModuleAccess(AppFeature.HR, membership, { dest: "/employees" });
-
-  const supabase = await createServerSupabaseClient();
-  const hrAccess = await requireHrAccess(supabase, houseId);
-  if (!hrAccess.allowed) {
-    throw new AuthorizationDeniedError();
-  }
+  const businessAccess = await requireHrBusinessAccess(moduleAccess);
 
   return {
-    userId: moduleAccess.userId,
+    userId: businessAccess.userId,
   };
 }
 

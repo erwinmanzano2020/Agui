@@ -36,14 +36,13 @@ beforeEach(async () => {
 
   const accessCheck = await import("@/lib/access/access-check");
   mock.method(accessCheck, "requireAuthentication", async () => baseContext as never);
-  mock.method(accessCheck, "requireMembership", () => baseContext as never);
+  mock.method(accessCheck, "requireBusinessScopeAccess", () => baseContext as never);
   mock.method(accessCheck, "requireModuleAccess", async () => baseContext as never);
 
   const accessResolver = await import("@/lib/access/access-resolver");
   mock.method(accessResolver, "resolveAccessContext", async () => baseContext as never);
 
-  const hrAccess = await import("@/lib/hr/access");
-  mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: true } as never));
+  mock.method(accessCheck, "requireHrBusinessAccess", async () => baseContext as never);
 
   const cards = await import("@/lib/hr/employee-id-cards-server");
   mock.method(cards, "getEmployeeIdCardById", async () => ({
@@ -102,12 +101,10 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", () => {
   });
 
   it("allows legacy HR policy-key access", async () => {
-    const hrAccess = await import("@/lib/hr/access");
-    mock.method(hrAccess, "requireHrAccess", async () => ({
-      allowed: true,
-      entityId: "entity-1",
-      roles: [],
-      policyKeys: ["hr_access"],
+    const accessCheck = await import("@/lib/access/access-check");
+    mock.method(accessCheck, "requireHrBusinessAccess", async () => ({
+      ...baseContext,
+      permissions: [{ id: "hr_access", key: "hr_access", action: "hr:*", resource: "*" }],
     }) as never);
 
     const response = await GET(
@@ -121,7 +118,7 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", () => {
 
   it("returns 403 for authenticated non-members", async () => {
     const accessCheck = await import("@/lib/access/access-check");
-    mock.method(accessCheck, "requireMembership", () => {
+    mock.method(accessCheck, "requireBusinessScopeAccess", () => {
       throw new AuthorizationDeniedError("Membership required for scope house:00000000-0000-0000-0000-000000000111");
     });
 
@@ -134,8 +131,10 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", () => {
   });
 
   it("returns 403 for unauthorized users", async () => {
-    const hrAccess = await import("@/lib/hr/access");
-    mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: false } as never));
+    const accessCheck = await import("@/lib/access/access-check");
+    mock.method(accessCheck, "requireHrBusinessAccess", async () => {
+      throw new AuthorizationDeniedError("HR access denied for house scope 00000000-0000-0000-0000-000000000111");
+    });
 
     const response = await GET(
       new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,

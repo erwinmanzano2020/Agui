@@ -225,3 +225,7 @@ Important for HR-first phase: HR endpoints should not rely on broad feature guar
 - Not implementing full RBAC rewrite.
 - Not replacing every existing route guard now.
 - Not redefining product permissions for future modules beyond current HR-first needs.
+
+## Feature-guard boundary companion
+
+For the explicit boundary between feature/module entry checks and business/action authorization, see `docs/agui-feature-guard-boundary.md`.
