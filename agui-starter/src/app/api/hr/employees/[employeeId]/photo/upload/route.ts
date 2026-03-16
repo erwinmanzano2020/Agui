@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { requireAuthentication } from "@/lib/access/access-check";
 import { buildEmployeePhotoPath } from "@/lib/hr/employee-photo";
 import { requireHrAccess } from "@/lib/hr/access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -19,6 +20,22 @@ function isValidPhotoPath(value: string): boolean {
 
 function isPathOwnedByEmployee(path: string, employeeId: string): boolean {
   return path === buildEmployeePhotoPath(employeeId, "jpg") || path === buildEmployeePhotoPath(employeeId, "png");
+}
+
+async function authorizeEmployeePhotoUpload(houseId: string): Promise<boolean> {
+  // Keep adapter-layer entry for this first migration, while preserving
+  // legacy route semantics that were based solely on requireHrAccess.
+  await requireAuthentication(
+    {
+      scopeType: "house",
+      scopeId: houseId,
+    },
+    { nextPath: "/employees" },
+  );
+
+  const supabase = await createServerSupabaseClient();
+  const access = await requireHrAccess(supabase, houseId);
+  return access.allowed;
 }
 
 export async function POST(req: NextRequest, context: { params: Promise<{ employeeId: string }> }) {
@@ -53,9 +70,8 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
   }
 
   try {
-    const supabase = await createServerSupabaseClient();
-    const access = await requireHrAccess(supabase, houseId);
-    if (!access.allowed) {
+    const hasAccess = await authorizeEmployeePhotoUpload(houseId);
+    if (!hasAccess) {
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
     }
 
