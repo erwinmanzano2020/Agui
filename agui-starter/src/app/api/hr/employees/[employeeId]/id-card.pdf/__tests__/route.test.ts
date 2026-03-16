@@ -6,8 +6,19 @@ let GET: typeof import("../route").GET;
 let runtime: typeof import("../route").runtime;
 let lastFrontLayout: string | undefined;
 
+const baseContext = {
+  userId: "00000000-0000-0000-0000-000000000999",
+  scopeType: "house",
+  scopeId: "00000000-0000-0000-0000-000000000111",
+  roles: { PLATFORM: [], GUILD: [], HOUSE: ["house_manager"] },
+  permissions: [],
+  membership: { isMember: true, roleCount: 1, scopeRoleScope: "HOUSE" },
+  elevatedAuthority: { hasOperationalElevatedAuthority: false, sourceRole: null },
+} as const;
+
 beforeEach(async () => {
   lastFrontLayout = undefined;
+
   const featureGuard = await import("@/lib/auth/feature-guard");
   mock.method(featureGuard, "getFeatureAccessDebugSnapshot", async (features: Iterable<string>) => ({
     requiredFeatures: Array.from(features),
@@ -21,8 +32,16 @@ beforeEach(async () => {
     },
   } as never));
 
-  const access = await import("@/lib/hr/access");
-  mock.method(access, "requireHrAccess", async () => ({ allowed: true } as never));
+  const accessCheck = await import("@/lib/access/access-check");
+  mock.method(accessCheck, "requireAuthentication", async () => baseContext as never);
+  mock.method(accessCheck, "requireMembership", () => baseContext as never);
+  mock.method(accessCheck, "requireModuleAccess", async () => baseContext as never);
+
+  const accessResolver = await import("@/lib/access/access-resolver");
+  mock.method(accessResolver, "resolveAccessContext", async () => baseContext as never);
+
+  const hrAccess = await import("@/lib/hr/access");
+  mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: true } as never));
 
   const cards = await import("@/lib/hr/employee-id-cards-server");
   mock.method(cards, "getEmployeeIdCardById", async () => ({
@@ -56,9 +75,65 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", () => {
     assert.equal(runtime, "nodejs");
   });
 
-  it("requires hr access", async () => {
-    const access = await import("@/lib/hr/access");
-    mock.method(access, "requireHrAccess", async () => ({ allowed: false } as never));
+  it("allows an HR member to download an id card", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
+      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
+    );
+
+    assert.equal(response.status, 200);
+  });
+
+  it("allows role-based HR access", async () => {
+    const accessResolver = await import("@/lib/access/access-resolver");
+    mock.method(accessResolver, "resolveAccessContext", async () => ({
+      ...baseContext,
+      roles: { PLATFORM: [], GUILD: [], HOUSE: ["house_owner"] },
+    }) as never);
+
+    const response = await GET(
+      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
+      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
+    );
+
+    assert.equal(response.status, 200);
+  });
+
+  it("allows legacy HR policy-key access", async () => {
+    const hrAccess = await import("@/lib/hr/access");
+    mock.method(hrAccess, "requireHrAccess", async () => ({
+      allowed: true,
+      entityId: "entity-1",
+      roles: [],
+      policyKeys: ["hr_access"],
+    }) as never);
+
+    const response = await GET(
+      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
+      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
+    );
+
+    assert.equal(response.status, 200);
+  });
+
+
+  it("returns 403 for authenticated non-members", async () => {
+    const accessCheck = await import("@/lib/access/access-check");
+    mock.method(accessCheck, "requireMembership", () => {
+      throw new Error("Membership required for scope house:00000000-0000-0000-0000-000000000111");
+    });
+
+    const response = await GET(
+      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
+      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
+    );
+
+    assert.equal(response.status, 403);
+  });
+
+  it("returns 403 for unauthorized users", async () => {
+    const hrAccess = await import("@/lib/hr/access");
+    mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: false } as never));
 
     const response = await GET(
       new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
@@ -69,13 +144,20 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", () => {
   });
 
 
-  it("captures HR in feature diagnostics", async () => {
+  it("returns 500 when authorization backend fails", async () => {
+    const accessResolver = await import("@/lib/access/access-resolver");
+    mock.method(accessResolver, "resolveAccessContext", async () => {
+      throw new Error("resolver down");
+    });
+
     const response = await GET(
       new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
       { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
     );
 
-    assert.equal(response.status, 200);
+    assert.equal(response.status, 500);
+    const body = await response.json();
+    assert.deepEqual(body, { error: "Failed to authorize request" });
   });
 
   it("returns non-empty pdf bytes", async () => {
