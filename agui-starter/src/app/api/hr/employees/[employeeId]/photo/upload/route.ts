@@ -23,23 +23,19 @@ function isPathOwnedByEmployee(path: string, employeeId: string): boolean {
 }
 
 async function authorizeEmployeePhotoUpload(houseId: string): Promise<boolean> {
-  try {
-    // Keep adapter-layer entry for this first migration, while preserving
-    // legacy route semantics that were based solely on requireHrAccess.
-    await requireAuthentication(
-      {
-        scopeType: "house",
-        scopeId: houseId,
-      },
-      { nextPath: "/employees" },
-    );
+  // Keep adapter-layer entry for this first migration, while preserving
+  // legacy route semantics that were based solely on requireHrAccess.
+  await requireAuthentication(
+    {
+      scopeType: "house",
+      scopeId: houseId,
+    },
+    { nextPath: "/employees" },
+  );
 
-    const supabase = await createServerSupabaseClient();
-    const access = await requireHrAccess(supabase, houseId);
-    return access.allowed;
-  } catch {
-    return false;
-  }
+  const supabase = await createServerSupabaseClient();
+  const access = await requireHrAccess(supabase, houseId);
+  return access.allowed;
 }
 
 export async function POST(req: NextRequest, context: { params: Promise<{ employeeId: string }> }) {

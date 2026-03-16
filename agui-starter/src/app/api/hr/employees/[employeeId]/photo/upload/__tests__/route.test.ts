@@ -151,6 +151,36 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
     assert.equal(uploadMock.mock.calls.length, 1);
   });
 
+
+  it("returns 500 when authorization backend throws unexpectedly", async () => {
+    const employeeId = "11111111-1111-4111-8111-111111111111";
+
+    mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-4" } } as never));
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
+    mock.method(hrAccess, "requireHrAccess", async () => {
+      throw new Error("backend down");
+    });
+
+    const response = await POST(
+      new Request(`http://localhost/api/hr/employees/${employeeId}/photo/upload`, {
+        method: "POST",
+        body: (() => {
+          const formData = new FormData();
+          formData.set("houseId", "33333333-3333-4333-8333-333333333333");
+          formData.set("path", `employee-photos/${employeeId}.jpg`);
+          formData.set("contentType", "image/jpeg");
+          formData.set("file", new File([new Uint8Array([4, 5, 6])], "photo.jpg", { type: "image/jpeg" }));
+          return formData;
+        })(),
+      }) as never,
+      { params: Promise.resolve({ employeeId }) },
+    );
+
+    assert.equal(response.status, 500);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Storage upload failed");
+  });
+
   it("returns 403 for unauthorized user", async () => {
     const employeeId = "11111111-1111-4111-8111-111111111111";
 
