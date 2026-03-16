@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { jsonError } from "@/lib/api/http";
 import { requireAuthentication, requireMembership, requireModuleAccess } from "@/lib/access/access-check";
+import { AuthorizationDeniedError, isAuthorizationDeniedError } from "@/lib/access/access-errors";
 import { resolveAccessContext } from "@/lib/access/access-resolver";
 import { getFeatureAccessDebugSnapshot } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
@@ -14,26 +15,6 @@ import { z } from "@/lib/z";
 const ParamsSchema = z.object({ employeeId: z.string().trim().uuid() });
 
 export const runtime = "nodejs";
-
-class AuthorizationDeniedError extends Error {
-  constructor(message = "Not allowed") {
-    super(message);
-    this.name = "AuthorizationDeniedError";
-  }
-}
-
-
-function isExpectedAuthorizationDenial(error: unknown): boolean {
-  if (error instanceof AuthorizationDeniedError) {
-    return true;
-  }
-
-  if (error instanceof Error) {
-    return error.message.startsWith("Membership required for scope ");
-  }
-
-  return false;
-}
 
 function sanitizeFilename(value: string): string {
   return value.replace(/[^a-zA-Z0-9-_]+/g, "-").slice(0, 60);
@@ -90,7 +71,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
   try {
     authorization = await authorizeEmployeeIdCardDownload(houseId);
   } catch (error) {
-    if (isExpectedAuthorizationDenial(error)) {
+    if (isAuthorizationDeniedError(error)) {
       console.warn("[hr][id-card.pdf] Forbidden by HR access guard", {
         denyStage: "canonical_access_chain",
         userId: user?.id ?? null,

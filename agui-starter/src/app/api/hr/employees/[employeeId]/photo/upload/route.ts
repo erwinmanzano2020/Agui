@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { AuthorizationDeniedError, isAuthorizationDeniedError } from "@/lib/access/access-errors";
 import { requireAuthentication } from "@/lib/access/access-check";
 import { buildEmployeePhotoPath } from "@/lib/hr/employee-photo";
 import { requireHrAccess } from "@/lib/hr/access";
@@ -22,7 +23,7 @@ function isPathOwnedByEmployee(path: string, employeeId: string): boolean {
   return path === buildEmployeePhotoPath(employeeId, "jpg") || path === buildEmployeePhotoPath(employeeId, "png");
 }
 
-async function authorizeEmployeePhotoUpload(houseId: string): Promise<boolean> {
+async function authorizeEmployeePhotoUpload(houseId: string): Promise<void> {
   // Keep adapter-layer entry for this first migration, while preserving
   // legacy route semantics that were based solely on requireHrAccess.
   await requireAuthentication(
@@ -35,7 +36,9 @@ async function authorizeEmployeePhotoUpload(houseId: string): Promise<boolean> {
 
   const supabase = await createServerSupabaseClient();
   const access = await requireHrAccess(supabase, houseId);
-  return access.allowed;
+  if (!access.allowed) {
+    throw new AuthorizationDeniedError();
+  }
 }
 
 export async function POST(req: NextRequest, context: { params: Promise<{ employeeId: string }> }) {
@@ -70,11 +73,27 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
   }
 
   try {
-    const hasAccess = await authorizeEmployeePhotoUpload(houseId);
-    if (!hasAccess) {
+    await authorizeEmployeePhotoUpload(houseId);
+  } catch (error) {
+    if (isAuthorizationDeniedError(error)) {
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
     }
 
+    const message = error instanceof Error ? error.message : "Storage upload failed";
+    console.error("[hr][employee-photo][api-upload] upload_exception", {
+      operationId,
+      employeeId,
+      houseId,
+      path,
+      contentType,
+      size: fileRaw.size,
+      message,
+      durationMs: Date.now() - startedAt,
+    });
+    return NextResponse.json({ error: "Storage upload failed" }, { status: 500 });
+  }
+
+  try {
     const arrayBuffer = await fileRaw.arrayBuffer();
     const service = getServiceSupabase();
     const upload = await service.storage.from("employee-photos").upload(path, arrayBuffer, {
