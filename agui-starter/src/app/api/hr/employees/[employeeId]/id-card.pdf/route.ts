@@ -22,6 +22,19 @@ class AuthorizationDeniedError extends Error {
   }
 }
 
+
+function isExpectedAuthorizationDenial(error: unknown): boolean {
+  if (error instanceof AuthorizationDeniedError) {
+    return true;
+  }
+
+  if (error instanceof Error) {
+    return error.message.startsWith("Membership required for scope ");
+  }
+
+  return false;
+}
+
 function sanitizeFilename(value: string): string {
   return value.replace(/[^a-zA-Z0-9-_]+/g, "-").slice(0, 60);
 }
@@ -77,7 +90,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
   try {
     authorization = await authorizeEmployeeIdCardDownload(houseId);
   } catch (error) {
-    if (error instanceof AuthorizationDeniedError) {
+    if (isExpectedAuthorizationDenial(error)) {
       console.warn("[hr][id-card.pdf] Forbidden by HR access guard", {
         denyStage: "canonical_access_chain",
         userId: user?.id ?? null,

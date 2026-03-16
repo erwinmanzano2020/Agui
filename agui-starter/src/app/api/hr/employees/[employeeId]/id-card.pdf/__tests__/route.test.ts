@@ -116,6 +116,21 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", () => {
     assert.equal(response.status, 200);
   });
 
+
+  it("returns 403 for authenticated non-members", async () => {
+    const accessCheck = await import("@/lib/access/access-check");
+    mock.method(accessCheck, "requireMembership", () => {
+      throw new Error("Membership required for scope house:00000000-0000-0000-0000-000000000111");
+    });
+
+    const response = await GET(
+      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
+      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
+    );
+
+    assert.equal(response.status, 403);
+  });
+
   it("returns 403 for unauthorized users", async () => {
     const hrAccess = await import("@/lib/hr/access");
     mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: false } as never));
