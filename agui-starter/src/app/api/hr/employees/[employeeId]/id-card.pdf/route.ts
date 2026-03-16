@@ -1,16 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { jsonError } from "@/lib/api/http";
-import {
-  requireActionPermission,
-  requireAuthentication,
-  requireMembership,
-  requireModuleAccess,
-} from "@/lib/access/access-check";
+import { requireAuthentication, requireMembership, requireModuleAccess } from "@/lib/access/access-check";
 import { resolveAccessContext } from "@/lib/access/access-resolver";
 import { getFeatureAccessDebugSnapshot } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { requireHrAccess } from "@/lib/hr/access";
 import { getEmployeeIdCardById } from "@/lib/hr/employee-id-cards-server";
 import { generateEmployeeIdCardPdf } from "@/lib/hr/employee-id-card-pdf";
 import { z } from "@/lib/z";
@@ -18,6 +14,13 @@ import { z } from "@/lib/z";
 const ParamsSchema = z.object({ employeeId: z.string().trim().uuid() });
 
 export const runtime = "nodejs";
+
+class AuthorizationDeniedError extends Error {
+  constructor(message = "Not allowed") {
+    super(message);
+    this.name = "AuthorizationDeniedError";
+  }
+}
 
 function sanitizeFilename(value: string): string {
   return value.replace(/[^a-zA-Z0-9-_]+/g, "-").slice(0, 60);
@@ -40,7 +43,12 @@ async function authorizeEmployeeIdCardDownload(houseId: string) {
 
   const membership = requireMembership(context);
   const moduleAccess = await requireModuleAccess(AppFeature.HR, membership, { dest: "/employees" });
-  await requireActionPermission("employee:read", "employee:id-card", moduleAccess);
+
+  const supabase = await createServerSupabaseClient();
+  const hrAccess = await requireHrAccess(supabase, houseId);
+  if (!hrAccess.allowed) {
+    throw new AuthorizationDeniedError();
+  }
 
   return {
     userId: moduleAccess.userId,
@@ -68,16 +76,28 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
   let authorization: Awaited<ReturnType<typeof authorizeEmployeeIdCardDownload>>;
   try {
     authorization = await authorizeEmployeeIdCardDownload(houseId);
-  } catch {
-    console.warn("[hr][id-card.pdf] Forbidden by HR access guard", {
-      denyStage: "canonical_access_chain",
-      userId: user?.id ?? null,
+  } catch (error) {
+    if (error instanceof AuthorizationDeniedError) {
+      console.warn("[hr][id-card.pdf] Forbidden by HR access guard", {
+        denyStage: "canonical_access_chain",
+        userId: user?.id ?? null,
+        houseId,
+        employeeId: parsed.data.employeeId,
+        requiredFeatures: featureSnapshot.requiredFeatures,
+        resolvedFeatures: featureSnapshot.resolvedFeatures,
+      });
+      return jsonError(403, "Not allowed");
+    }
+
+    const reason = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
+    console.error("[hr][id-card.pdf] Authorization pipeline failed", {
+      reason,
+      stack,
       houseId,
       employeeId: parsed.data.employeeId,
-      requiredFeatures: featureSnapshot.requiredFeatures,
-      resolvedFeatures: featureSnapshot.resolvedFeatures,
     });
-    return jsonError(403, "Not allowed");
+    return jsonError(500, "Failed to authorize request");
   }
 
   console.info("[hr][id-card.pdf] Access granted", {
