@@ -43,6 +43,16 @@ describe("access-check authorization denials", () => {
     );
   });
 
+  it("throws AuthorizationDeniedError for HR business access denial", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
+    mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: false }) as never);
+
+    await assert.rejects(
+      () => accessCheck.requireHrBusinessAccess(baseContext),
+      AuthorizationDeniedError,
+    );
+  });
+
   it("throws AuthorizationDeniedError for permission denial", async () => {
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
     mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: true }) as never);

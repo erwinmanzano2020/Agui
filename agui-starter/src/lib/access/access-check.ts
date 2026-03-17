@@ -3,12 +3,12 @@ import "server-only";
 import type { FeatureInput } from "@/lib/auth/permissions";
 import { requireFeatureAccess } from "@/lib/auth/feature-guard";
 import { requireAuth } from "@/lib/auth/require-auth";
+import { requireHrAccess } from "@/lib/hr/access";
 import { evaluatePolicy } from "@/lib/policy/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { requireHrAccess } from "@/lib/hr/access";
 
-import type { AccessContext, ResolveAccessContextInput } from "./access-resolver";
 import { AuthorizationDeniedError } from "./access-errors";
+import type { AccessContext, ResolveAccessContextInput } from "./access-resolver";
 import { resolveAccessContext } from "./access-resolver";
 
 export async function requireAuthentication(
@@ -24,6 +24,10 @@ export async function requireAuthentication(
   });
 }
 
+/**
+ * Membership is business-scope access (tenant binding) and is distinct from
+ * feature/module discoverability checks.
+ */
 export function requireMembership(context: AccessContext): AccessContext {
   if (context.elevatedAuthority.hasOperationalElevatedAuthority) {
     return context;
@@ -38,6 +42,19 @@ export function requireMembership(context: AccessContext): AccessContext {
   );
 }
 
+/**
+ * Alias for migration clarity: business authorization at scope level should
+ * use membership/elevated-authority checks, not module feature checks.
+ */
+export function requireBusinessScopeAccess(context: AccessContext): AccessContext {
+  return requireMembership(context);
+}
+
+/**
+ * Module entry/discoverability guard only.
+ *
+ * This helper must not be the sole authorization for business writes.
+ */
 export async function requireModuleAccess(
   feature: FeatureInput,
   context: AccessContext,
@@ -70,17 +87,32 @@ function isRedirectDenial(error: unknown): boolean {
   return typeof digest === "string" && digest.startsWith("NEXT_REDIRECT");
 }
 
+/**
+ * Canonical HR business authorization check for house-scoped routes.
+ *
+ * Use this for HR/payroll business operations in addition to module access.
+ */
+export async function requireHrBusinessAccess(context: AccessContext): Promise<AccessContext> {
+  if (context.scopeType !== "house" || !context.scopeId) {
+    return context;
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const hrDecision = await requireHrAccess(supabase, context.scopeId);
+  if (!hrDecision.allowed) {
+    throw new AuthorizationDeniedError(`HR access denied for house scope ${context.scopeId}`);
+  }
+
+  return context;
+}
+
 export async function requireActionPermission(
   action: string,
   resource: string,
   context: AccessContext,
 ): Promise<AccessContext> {
-  if (context.scopeType === "house" && context.scopeId && isHrAction(action, resource)) {
-    const supabase = await createServerSupabaseClient();
-    const hrDecision = await requireHrAccess(supabase, context.scopeId);
-    if (!hrDecision.allowed) {
-      throw new AuthorizationDeniedError(`HR access denied for house scope ${context.scopeId}`);
-    }
+  if (isHrAction(action, resource)) {
+    await requireHrBusinessAccess(context);
   }
 
   const allowed = await evaluatePolicy({ action, resource });
