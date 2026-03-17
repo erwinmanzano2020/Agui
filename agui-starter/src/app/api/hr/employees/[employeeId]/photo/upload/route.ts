@@ -23,9 +23,7 @@ function isPathOwnedByEmployee(path: string, employeeId: string): boolean {
   return path === buildEmployeePhotoPath(employeeId, "jpg") || path === buildEmployeePhotoPath(employeeId, "png");
 }
 
-async function authorizeEmployeePhotoUpload(houseId: string): Promise<void> {
-  // Keep adapter-layer entry for this first migration, while preserving
-  // legacy route semantics that were based solely on requireHrAccess.
+async function requireEmployeePhotoUploadAuthentication(houseId: string): Promise<void> {
   await requireAuthentication(
     {
       scopeType: "house",
@@ -33,7 +31,9 @@ async function authorizeEmployeePhotoUpload(houseId: string): Promise<void> {
     },
     { nextPath: "/employees" },
   );
+}
 
+async function requireEmployeePhotoUploadHrAccess(houseId: string): Promise<void> {
   const supabase = await createServerSupabaseClient();
   const access = await requireHrAccess(supabase, houseId);
   if (!access.allowed) {
@@ -84,6 +84,8 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
   }
 
   try {
+    await requireEmployeePhotoUploadAuthentication(houseId);
+
     const employeeHouseId = await resolveEmployeeHouseId(employeeId);
     if (!employeeHouseId) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
@@ -93,7 +95,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
     }
 
-    await authorizeEmployeePhotoUpload(employeeHouseId);
+    await requireEmployeePhotoUploadHrAccess(employeeHouseId);
   } catch (error) {
     if (isAuthorizationDeniedError(error)) {
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });

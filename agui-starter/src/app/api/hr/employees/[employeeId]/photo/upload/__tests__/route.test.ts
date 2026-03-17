@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it, mock } from "node:test";
 
+import { AuthorizationDeniedError } from "@/lib/access/access-errors";
 import * as accessCheck from "@/lib/access/access-check";
 import * as hrAccess from "@/lib/hr/access";
 import * as supabaseServer from "@/lib/supabase/server";
@@ -80,7 +81,25 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
     assert.equal(payload?.error, "Invalid content type");
   });
 
-  it("allows upload for same-house authorized HR user", async () => {
+  it("does not leak employee-specific statuses when authentication fails", async () => {
+    const getServiceMock = mock.fn(() => createServiceStub());
+
+    mock.method(accessCheck, "requireAuthentication", async () => {
+      throw new AuthorizationDeniedError();
+    });
+    mock.method(supabaseService, "getServiceSupabase", getServiceMock as never);
+
+    const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
+      params: Promise.resolve({ employeeId: EMPLOYEE_ID }),
+    });
+
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Not allowed");
+    assert.equal(getServiceMock.mock.calls.length, 0);
+  });
+
+  it("allows upload for authenticated same-house authorized HR user", async () => {
     const uploadMock = mock.fn(async () => ({ error: null }));
 
     mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-1" } } as never));
@@ -98,7 +117,36 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
     assert.equal(uploadMock.mock.calls.length, 1);
   });
 
-  it("returns 403 for unauthorized user", async () => {
+  it("returns 404 for authenticated request when target employee does not exist", async () => {
+    mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-2" } } as never));
+    mock.method(supabaseService, "getServiceSupabase", () => createServiceStub({ employeeHouseId: null }) as never);
+
+    const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
+      params: Promise.resolve({ employeeId: EMPLOYEE_ID }),
+    });
+
+    assert.equal(response.status, 404);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Employee not found");
+  });
+
+  it("returns 403 for authenticated request when house does not match employee owner house", async () => {
+    const uploadMock = mock.fn(async () => ({ error: null }));
+
+    mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-4" } } as never));
+    mock.method(supabaseService, "getServiceSupabase", () => createServiceStub({ employeeHouseId: "99999999-9999-4999-8999-999999999999", uploadMock }) as never);
+
+    const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
+      params: Promise.resolve({ employeeId: EMPLOYEE_ID }),
+    });
+
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Not allowed");
+    assert.equal(uploadMock.mock.calls.length, 0);
+  });
+
+  it("returns 403 for authenticated unauthorized user", async () => {
     mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-3" } } as never));
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
     mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: false } as never));
@@ -113,34 +161,8 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
     assert.equal(payload?.error, "Not allowed");
   });
 
-  it("denies cross-house actor even if they may have broad role access elsewhere", async () => {
-    const uploadMock = mock.fn(async () => ({ error: null }));
-    mock.method(supabaseService, "getServiceSupabase", () => createServiceStub({ employeeHouseId: "99999999-9999-4999-8999-999999999999", uploadMock }) as never);
-
-    const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
-      params: Promise.resolve({ employeeId: EMPLOYEE_ID }),
-    });
-
-    assert.equal(response.status, 403);
-    const payload = await response.json();
-    assert.equal(payload?.error, "Not allowed");
-    assert.equal(uploadMock.mock.calls.length, 0);
-  });
-
-  it("returns 404 when target employee does not exist", async () => {
-    mock.method(supabaseService, "getServiceSupabase", () => createServiceStub({ employeeHouseId: null }) as never);
-
-    const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
-      params: Promise.resolve({ employeeId: EMPLOYEE_ID }),
-    });
-
-    assert.equal(response.status, 404);
-    const payload = await response.json();
-    assert.equal(payload?.error, "Employee not found");
-  });
-
   it("returns 500 when authorization backend throws unexpectedly", async () => {
-    mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-4" } } as never));
+    mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-5" } } as never));
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
     mock.method(hrAccess, "requireHrAccess", async () => {
       throw new Error("backend down");
@@ -157,6 +179,7 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
   });
 
   it("returns 500 when employee ownership lookup fails", async () => {
+    mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-6" } } as never));
     mock.method(supabaseService, "getServiceSupabase", () => createServiceStub({ employeeLookupError: "db down" }) as never);
 
     const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
