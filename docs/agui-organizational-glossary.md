@@ -268,6 +268,13 @@ Rules
 
 ---
 
+## Related Documents
+
+- Agui Hierarchy and Authority Rules: ./agui-hierarchy-and-authority-rules.md
+- Authorization Foundation: ./agui-authorization-foundation.md
+
+---
+
 Status
 
 Version: v1
