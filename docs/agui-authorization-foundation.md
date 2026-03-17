@@ -226,6 +226,14 @@ Important for HR-first phase: HR endpoints should not rely on broad feature guar
 - Not replacing every existing route guard now.
 - Not redefining product permissions for future modules beyond current HR-first needs.
 
+
+## Related Documents
+
+- Organizational Glossary: ./agui-organizational-glossary.md  
+- Hierarchy and Authority Rules: ./agui-hierarchy-and-authority-rules.md  
+- Multi-tenant database rules: ./agui-multi-tenant-database-design-rules.md  
+- Feature guard boundary: ./agui-feature-guard-boundary.md
+
 ## Feature-guard boundary companion
 
 For the explicit boundary between feature/module entry checks and business/action authorization, see `docs/agui-feature-guard-boundary.md`.
