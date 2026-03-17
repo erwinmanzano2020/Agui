@@ -173,13 +173,14 @@ A current-state contract in Agui means:
 - **Canonical owning scope:** House ownership via employee record; storage object ownership is currently path/policy-mediated.
 - **Current authoritative ownership columns:**
   - Metadata layer: `employees.house_id`, `employees.photo_url`, `employees.photo_path`.
-  - Storage layer: bucket/key (`employee-photos/<employeeId>.jpg`) plus policy logic.
+  - Storage layer: bucket/key (`employee-photos/<employeeId>.<ext>`, currently `.jpg` or `.png`) plus policy logic.
 - **Branch scope status:** `derived` / `absent` at storage-object ownership level.
 - **Authorization-safe filter columns:**
   - Employee metadata: `employees.house_id`.
   - Storage object rows: no direct first-class `house_id`/`branch_id` columns in current model.
 - **Current invariants:**
-  - Canonical key format is `employee-photos/<employeeId>.jpg`.
+  - Canonical key pattern is `employee-photos/<employeeId>.<ext>`.
+  - Current upload/persistence paths support `.jpg` and `.png`; `photo_path` is the authoritative stored object key.
   - Persisted employee metadata references the object path/url.
   - House-scoped HR routes update/clear photo metadata in employee records.
 - **Known transitional or legacy-sensitive aspects:**
@@ -187,8 +188,9 @@ A current-state contract in Agui means:
   - Storage-layer authorization safety depends on policy/path conventions rather than first-class tenant ownership columns.
 - **Future code may safely assume:**
   - employee row metadata (`photo_url`, `photo_path`) is the canonical in-app reference point.
-  - canonical object path format is stable for current pipeline behavior.
+  - object key scope prefix `employee-photos/<employeeId>` is stable for current pipeline behavior.
 - **Future code must NOT assume:**
+  - all valid employee photo objects use `.jpg` only.
   - storage rows have direct house/branch ownership fields.
   - generic role presence alone proves same-house ownership for every employee photo object.
 
