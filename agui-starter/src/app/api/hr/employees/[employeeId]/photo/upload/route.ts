@@ -41,6 +41,17 @@ async function authorizeEmployeePhotoUpload(houseId: string): Promise<void> {
   }
 }
 
+async function resolveEmployeeHouseId(employeeId: string): Promise<string | null> {
+  const service = getServiceSupabase();
+  const employee = await service.from("employees").select("house_id").eq("id", employeeId).maybeSingle<{ house_id: string }>();
+
+  if (employee.error) {
+    throw new Error("Unable to verify employee ownership");
+  }
+
+  return employee.data?.house_id?.trim() || null;
+}
+
 export async function POST(req: NextRequest, context: { params: Promise<{ employeeId: string }> }) {
   const { employeeId } = await context.params;
   const operationId = req.headers.get("x-photo-operation-id") || null;
@@ -73,7 +84,16 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
   }
 
   try {
-    await authorizeEmployeePhotoUpload(houseId);
+    const employeeHouseId = await resolveEmployeeHouseId(employeeId);
+    if (!employeeHouseId) {
+      return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+    }
+
+    if (employeeHouseId !== houseId) {
+      return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+    }
+
+    await authorizeEmployeePhotoUpload(employeeHouseId);
   } catch (error) {
     if (isAuthorizationDeniedError(error)) {
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
