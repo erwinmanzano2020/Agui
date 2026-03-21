@@ -23,9 +23,11 @@ function isPathOwnedByEmployee(path: string, employeeId: string): boolean {
   return path === buildEmployeePhotoPath(employeeId, "jpg") || path === buildEmployeePhotoPath(employeeId, "png");
 }
 
-async function authorizeEmployeePhotoUpload(houseId: string): Promise<void> {
-  // Keep adapter-layer entry for this first migration, while preserving
-  // legacy route semantics that were based solely on requireHrAccess.
+function normalizeUuid(value: string): string {
+  return value.trim().toLowerCase();
+}
+
+async function requireEmployeePhotoUploadAuthentication(houseId: string): Promise<void> {
   await requireAuthentication(
     {
       scopeType: "house",
@@ -33,7 +35,9 @@ async function authorizeEmployeePhotoUpload(houseId: string): Promise<void> {
     },
     { nextPath: "/employees" },
   );
+}
 
+async function requireEmployeePhotoUploadHrAccess(houseId: string): Promise<void> {
   const supabase = await createServerSupabaseClient();
   const access = await requireHrAccess(supabase, houseId);
   if (!access.allowed) {
@@ -41,8 +45,23 @@ async function authorizeEmployeePhotoUpload(houseId: string): Promise<void> {
   }
 }
 
+async function resolveEmployeeHouseId(employeeId: string): Promise<string | null> {
+  const service = getServiceSupabase();
+  const employee = await service.from("employees").select("house_id").eq("id", employeeId).maybeSingle<{ house_id: string }>();
+
+  if (employee.error) {
+    throw new Error("Unable to verify employee ownership");
+  }
+
+  return employee.data?.house_id?.trim() || null;
+}
+
 export async function POST(req: NextRequest, context: { params: Promise<{ employeeId: string }> }) {
   const { employeeId } = await context.params;
+  if (!isValidHouseId(employeeId)) {
+    return NextResponse.json({ error: "Invalid employee id" }, { status: 400 });
+  }
+
   const operationId = req.headers.get("x-photo-operation-id") || null;
   const startedAt = Date.now();
 
@@ -60,7 +79,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
     return NextResponse.json({ error: "Invalid upload payload" }, { status: 400 });
   }
 
-  const houseId = houseIdRaw.trim();
+  const houseId = normalizeUuid(houseIdRaw);
   const path = pathRaw.trim();
   const contentType = contentTypeRaw.trim() || "image/jpeg";
 
@@ -73,7 +92,18 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
   }
 
   try {
-    await authorizeEmployeePhotoUpload(houseId);
+    await requireEmployeePhotoUploadAuthentication(houseId);
+    await requireEmployeePhotoUploadHrAccess(houseId);
+
+    const employeeHouseId = await resolveEmployeeHouseId(employeeId);
+    if (!employeeHouseId) {
+      return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+    }
+
+    if (normalizeUuid(employeeHouseId) !== houseId) {
+      return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+    }
+
   } catch (error) {
     if (isAuthorizationDeniedError(error)) {
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
