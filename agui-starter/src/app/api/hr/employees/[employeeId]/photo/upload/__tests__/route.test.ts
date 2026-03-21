@@ -137,6 +137,8 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
 
   it("returns 404 for authenticated request when target employee does not exist", async () => {
     mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-2" } } as never));
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
+    mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: true } as never));
     mock.method(supabaseService, "getServiceSupabase", () => createServiceStub({ employeeHouseId: null }) as never);
 
     const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
@@ -152,6 +154,8 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
     const uploadMock = mock.fn(async () => ({ error: null }));
 
     mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-4" } } as never));
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
+    mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: true } as never));
     mock.method(supabaseService, "getServiceSupabase", () => createServiceStub({ employeeHouseId: "99999999-9999-4999-8999-999999999999", uploadMock }) as never);
 
     const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
@@ -164,11 +168,13 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
     assert.equal(uploadMock.mock.calls.length, 0);
   });
 
-  it("returns 403 for authenticated unauthorized user", async () => {
+  it("returns 403 for authenticated user without HR/house authorization before employee lookup", async () => {
+    const getServiceMock = mock.fn(() => createServiceStub());
+
     mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-3" } } as never));
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
     mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: false } as never));
-    mock.method(supabaseService, "getServiceSupabase", () => createServiceStub() as never);
+    mock.method(supabaseService, "getServiceSupabase", getServiceMock as never);
 
     const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
       params: Promise.resolve({ employeeId: EMPLOYEE_ID }),
@@ -177,6 +183,7 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
     assert.equal(response.status, 403);
     const payload = await response.json();
     assert.equal(payload?.error, "Not allowed");
+    assert.equal(getServiceMock.mock.calls.length, 0);
   });
 
   it("returns 500 when authorization backend throws unexpectedly", async () => {

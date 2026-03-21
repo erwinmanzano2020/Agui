@@ -89,6 +89,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
 
   try {
     await requireEmployeePhotoUploadAuthentication(houseId);
+    await requireEmployeePhotoUploadHrAccess(houseId);
 
     const employeeHouseId = await resolveEmployeeHouseId(employeeId);
     if (!employeeHouseId) {
@@ -99,7 +100,6 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
     }
 
-    await requireEmployeePhotoUploadHrAccess(employeeHouseId);
   } catch (error) {
     if (isAuthorizationDeniedError(error)) {
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
