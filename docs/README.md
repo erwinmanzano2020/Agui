@@ -21,6 +21,7 @@
 - Admin
   - [HR DTR Timezone Repair](./admin/hr-dtr-timezone-repair.md)
 - Engineering
+  - [Agui Codex Review Kit](./engineering/agui-codex-review-kit.md)
   - [Supabase / Migrations Hygiene](./db/supabase-migrations-hygiene.md)
   - [Debugging Playbook](./engineering/debugging-playbook.md)
   - [New Chat Handoff](./engineering/new-chat-handoff.md)
