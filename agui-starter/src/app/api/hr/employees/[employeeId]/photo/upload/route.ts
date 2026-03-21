@@ -58,6 +58,10 @@ async function resolveEmployeeHouseId(employeeId: string): Promise<string | null
 
 export async function POST(req: NextRequest, context: { params: Promise<{ employeeId: string }> }) {
   const { employeeId } = await context.params;
+  if (!isValidHouseId(employeeId)) {
+    return NextResponse.json({ error: "Invalid employee id" }, { status: 400 });
+  }
+
   const operationId = req.headers.get("x-photo-operation-id") || null;
   const startedAt = Date.now();
 

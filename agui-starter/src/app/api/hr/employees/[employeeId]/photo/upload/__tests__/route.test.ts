@@ -60,6 +60,17 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
     assert.equal(runtime, "nodejs");
   });
 
+
+  it("returns 400 for invalid employeeId route param", async () => {
+    const response = await POST(buildUploadRequest("not-a-uuid", HOUSE_ID, "employee-photos/not-a-uuid.jpg", "image/jpeg"), {
+      params: Promise.resolve({ employeeId: "not-a-uuid" }),
+    });
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Invalid employee id");
+  });
+
   it("rejects tampered paths that do not belong to route employee", async () => {
     const otherEmployeeId = "22222222-2222-4222-8222-222222222222";
     const response = await POST(buildUploadRequest(EMPLOYEE_ID, HOUSE_ID, `employee-photos/${otherEmployeeId}.jpg`), {
