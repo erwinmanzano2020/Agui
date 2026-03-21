@@ -3,7 +3,7 @@ returns boolean
 language sql
 immutable
 as $$
-  select p_path ~ '^employee-photos/[0-9a-fA-F-]{36}\.(jpg|png)$';
+  select p_path ~ '^employee-photos/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\.(jpg|png)$';
 $$;
 
 create or replace function public.employee_photo_employee_id(p_path text)

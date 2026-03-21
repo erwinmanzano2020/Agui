@@ -99,6 +99,24 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
     assert.equal(getServiceMock.mock.calls.length, 0);
   });
 
+  it("treats same-house UUID comparison as case-insensitive", async () => {
+    const uploadMock = mock.fn(async () => ({ error: null }));
+
+    mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-1b" } } as never));
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
+    mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: true } as never));
+    mock.method(supabaseService, "getServiceSupabase", () => createServiceStub({ uploadMock }) as never);
+
+    const response = await POST(buildUploadRequest(EMPLOYEE_ID, HOUSE_ID.toUpperCase(), `employee-photos/${EMPLOYEE_ID}.jpg`, "image/jpeg"), {
+      params: Promise.resolve({ employeeId: EMPLOYEE_ID }),
+    });
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload?.ok, true);
+    assert.equal(uploadMock.mock.calls.length, 1);
+  });
+
   it("allows upload for authenticated same-house authorized HR user", async () => {
     const uploadMock = mock.fn(async () => ({ error: null }));
 

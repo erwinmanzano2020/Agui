@@ -23,6 +23,10 @@ function isPathOwnedByEmployee(path: string, employeeId: string): boolean {
   return path === buildEmployeePhotoPath(employeeId, "jpg") || path === buildEmployeePhotoPath(employeeId, "png");
 }
 
+function normalizeUuid(value: string): string {
+  return value.trim().toLowerCase();
+}
+
 async function requireEmployeePhotoUploadAuthentication(houseId: string): Promise<void> {
   await requireAuthentication(
     {
@@ -71,7 +75,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
     return NextResponse.json({ error: "Invalid upload payload" }, { status: 400 });
   }
 
-  const houseId = houseIdRaw.trim();
+  const houseId = normalizeUuid(houseIdRaw);
   const path = pathRaw.trim();
   const contentType = contentTypeRaw.trim() || "image/jpeg";
 
@@ -91,7 +95,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
     }
 
-    if (employeeHouseId !== houseId) {
+    if (normalizeUuid(employeeHouseId) !== houseId) {
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
     }
 
