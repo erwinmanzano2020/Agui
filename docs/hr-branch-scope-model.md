@@ -142,8 +142,9 @@ Must be:
 ## 4. Table-Level Expectations (HR-first)
 
 ### employees
-- house-owned
-- branch optional
+- house-owned with optional branch context
+- `house_id` is canonical ownership
+- `branch_id`, when present, is contextual rather than ownership-defining
 - future: may support multiple branch assignments (not assumed yet)
 
 ---
