@@ -205,7 +205,15 @@ Must be:
 
 ---
 
-## 7. Status
+## 7. Related Documents
+
+- HR Schema Current-State Contracts: ./hr-schema-current-state-contracts.md
+- HR Schema Audit Against Multi-Tenant Rules: ./hr-schema-audit-against-multi-tenant-rules.md
+- Agui Hierarchy and Authority Rules: ./agui-hierarchy-and-authority-rules.md
+
+---
+
+## 8. Status
 
 Version: v1  
 Scope: HR-first architecture  
