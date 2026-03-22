@@ -8,6 +8,7 @@
   - [Agui Hierarchy and Authority Rules](./agui-hierarchy-and-authority-rules.md)
   - [Agui Multi-Tenant Database Design Rules](./agui-multi-tenant-database-design-rules.md)
   - [HR Branch Scope Model](./hr-branch-scope-model.md)
+  - [HR Branch Scope Enforcement Plan](./hr-branch-scope-enforcement-plan.md)
 - HR
   - [HR Master Plan](./hr/hr-master-plan.md)
   - [HR-1 Implementation Runbook](./hr/hr-1-implementation-runbook.md)
