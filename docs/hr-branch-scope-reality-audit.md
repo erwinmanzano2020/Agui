@@ -199,7 +199,7 @@ This audit applies the following constraints from the branch-scope model and enf
 
 ### Gap type
 
-- **Missing enforcement (partial)**: branch is structurally present and validated for containment, but branch-specific authorization restriction lanes are not yet first-class (house-role-centric control dominates).
+- **Authorization-model gap (branch-role lane not yet formalized)**: schema ownership is structurally branch-ready (`house_id` + `branch_id`) and containment checks are in place, but branch-role-restricted authorization lanes are not yet standardized (house-role-centric control still dominates).
 
 ### Risk level
 
@@ -207,8 +207,8 @@ This audit applies the following constraints from the branch-scope model and enf
 
 ### Recommendation (do not implement yet)
 
-- Preserve current explicit house+branch and containment checks.
-- In a future enforcement phase, define additive branch-restricted lanes (for branch-limited actors) without replacing house canonical ownership.
+- Preserve current explicit house+branch ownership and existing branch↔house containment validation.
+- In a future enforcement phase, add additive branch-limited authorization lanes (for branch-scoped actors) once branch-role source-of-truth is defined, without replacing house canonical ownership.
 
 ---
 
@@ -236,7 +236,7 @@ This audit applies the following constraints from the branch-scope model and enf
 
 ### Gap type
 
-- **Missing enforcement (partial)** / **authorization inconsistency**: branch scope is explicit and used operationally, but authorization still primarily keys off house roles rather than explicit branch-limited authority model.
+- **Authorization-model gap (branch-limited authority not yet standardized)**: event ownership is explicit and structurally aligned (`house_id` + `branch_id`), but authorization still primarily keys off house roles instead of a formal branch-limited authority model.
 
 ### Risk level
 
@@ -245,7 +245,7 @@ This audit applies the following constraints from the branch-scope model and enf
 ### Recommendation (do not implement yet)
 
 - Keep explicit branch-required event ownership and branch-house validation.
-- Future hardening should add branch-restriction lanes once branch-role source-of-truth is defined.
+- Future hardening should add branch-limited authorization lanes once branch-role source-of-truth is defined.
 
 ---
 
@@ -264,11 +264,11 @@ This audit applies the following constraints from the branch-scope model and enf
 
 ## Gap inventory by type
 
-- **Missing enforcement (partial / deferred-sensitive):** `dtr_segments`, `hr_kiosk_devices`, `hr_kiosk_events`.
-- **Premature enforcement:** none identified in scoped HR tables.
-- **Ambiguous ownership:** `employments` (`business_id` naming residue).
 - **Derivation gap:** `dtr_segments`, `clock_events`.
-- **Authorization inconsistency:** `employments`, `clock_events`, and partial branch-lane inconsistency in kiosk tables.
+- **Ambiguous ownership:** `employments` (`business_id` naming residue).
+- **Authorization-model gap:** `hr_kiosk_devices`, `hr_kiosk_events` (branch-role-limited authorization lanes not yet standardized).
+- **Authorization inconsistency:** `employments`, `clock_events`.
+- **Premature enforcement:** none identified in scoped HR tables.
 
 ## Priority/risk ordering
 
