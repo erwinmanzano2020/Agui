@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createKioskDeviceToken, hashKioskToken } from "@/lib/hr/kiosk/device-auth";
-import { requireHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 
 export type KioskDeviceAdminRow = {
   id: string;
@@ -36,11 +36,16 @@ export class KioskAdminError extends Error {
   }
 }
 
-async function assertHrAccess(supabase: SupabaseClient, houseId: string): Promise<void> {
-  const access = await requireHrAccess(supabase, houseId);
+async function assertHrAccess(
+  supabase: SupabaseClient,
+  houseId: string,
+  branchId?: string | null,
+): Promise<Awaited<ReturnType<typeof requireHrAccessWithBranch>>> {
+  const access = await requireHrAccessWithBranch(supabase, { houseId, branchId });
   if (!access.allowed) {
     throw new KioskAdminError("HR access required.", 403);
   }
+  return access;
 }
 
 async function assertBranchInHouse(
@@ -64,14 +69,14 @@ async function assertBranchInHouse(
   }
 }
 
-async function getDeviceForHouse(
+async function getDeviceForHouseWithBranch(
   supabase: SupabaseClient,
   houseId: string,
   deviceId: string,
-): Promise<{ id: string; house_id: string }>{
+): Promise<{ id: string; house_id: string; branch_id: string }> {
   const { data, error } = await supabase
     .from("hr_kiosk_devices")
-    .select("id, house_id")
+    .select("id, house_id, branch_id")
     .eq("id", deviceId)
     .maybeSingle();
 
@@ -81,7 +86,7 @@ async function getDeviceForHouse(
   if (!data || data.house_id !== houseId) {
     throw new KioskAdminError("Device not found.", 404);
   }
-  return data as { id: string; house_id: string };
+  return data as { id: string; house_id: string; branch_id: string };
 }
 
 export async function listKioskDevicesForHouse(
@@ -89,7 +94,7 @@ export async function listKioskDevicesForHouse(
   houseId: string,
   branchId?: string,
 ): Promise<KioskDeviceAdminRow[]> {
-  await assertHrAccess(supabase, houseId);
+  const access = await assertHrAccess(supabase, houseId, branchId ?? null);
   if (branchId) {
     await assertBranchInHouse(supabase, houseId, branchId);
   }
@@ -102,6 +107,8 @@ export async function listKioskDevicesForHouse(
 
   if (branchId) {
     query = query.eq("branch_id", branchId);
+  } else if (access.isBranchLimited) {
+    query = query.in("branch_id", access.allowedBranchIds);
   }
 
   const { data, error } = await query;
@@ -115,7 +122,7 @@ export async function createKioskDeviceForBranch(
   supabase: SupabaseClient,
   input: { houseId: string; branchId: string; name: string },
 ): Promise<{ deviceRow: KioskDeviceAdminRow; plaintextToken: string }> {
-  await assertHrAccess(supabase, input.houseId);
+  await assertHrAccess(supabase, input.houseId, input.branchId);
   await assertBranchInHouse(supabase, input.houseId, input.branchId);
 
   const plaintextToken = createKioskDeviceToken();
@@ -149,8 +156,8 @@ export async function rotateKioskDeviceToken(
   supabase: SupabaseClient,
   input: { houseId: string; deviceId: string },
 ): Promise<{ plaintextToken: string }> {
-  await assertHrAccess(supabase, input.houseId);
-  await getDeviceForHouse(supabase, input.houseId, input.deviceId);
+  const device = await getDeviceForHouseWithBranch(supabase, input.houseId, input.deviceId);
+  await assertHrAccess(supabase, input.houseId, device.branch_id);
 
   const plaintextToken = createKioskDeviceToken();
   const tokenHash = hashKioskToken(plaintextToken);
@@ -172,8 +179,8 @@ export async function setKioskDeviceEnabled(
   supabase: SupabaseClient,
   input: { houseId: string; deviceId: string; enabled: boolean; actorEntityId?: string | null },
 ): Promise<void> {
-  await assertHrAccess(supabase, input.houseId);
-  await getDeviceForHouse(supabase, input.houseId, input.deviceId);
+  const device = await getDeviceForHouseWithBranch(supabase, input.houseId, input.deviceId);
+  await assertHrAccess(supabase, input.houseId, device.branch_id);
 
   const payload = input.enabled
     ? { is_active: true, disabled_at: null, disabled_by: null }
@@ -194,8 +201,8 @@ export async function listKioskDeviceEvents(
   supabase: SupabaseClient,
   input: { houseId: string; deviceId: string; limit?: number },
 ): Promise<KioskDeviceEventRow[]> {
-  await assertHrAccess(supabase, input.houseId);
-  await getDeviceForHouse(supabase, input.houseId, input.deviceId);
+  const device = await getDeviceForHouseWithBranch(supabase, input.houseId, input.deviceId);
+  await assertHrAccess(supabase, input.houseId, device.branch_id);
 
   const limit = Math.max(1, Math.min(input.limit ?? 50, 200));
   const { data, error } = await supabase
