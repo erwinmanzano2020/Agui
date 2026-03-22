@@ -10,6 +10,7 @@ It defines:
 - actor types
 - authority and capability sources
 - where branch restrictions apply in HR domains
+- canonical terminology boundaries for membership, authority, and capability
 
 This is a **definition-only** document and introduces no implementation changes.
 
@@ -64,6 +65,12 @@ Rules:
    - Resource-level capability determines allowed action.
    - Branch constraint optionally restricts resulting scope.
 
+5. **Membership, authority, and capability are distinct layers.**
+   - Membership establishes house/workspace context.
+   - Role establishes broad authority.
+   - Policy establishes capability.
+   - Branch establishes narrowing constraints.
+
 ---
 
 ## 3. Actor Types
@@ -71,7 +78,8 @@ Rules:
 ### A) House-level actor
 
 Definition:
-- Actor with authority from house role (`owner` or `manager`).
+- Actor with broad house authority from role (`owner` or `manager`).
+- Membership alone is not sufficient; authority role is required.
 
 Behavior:
 - Unrestricted across branches in that house, unless an explicit policy restriction is added.
@@ -81,39 +89,45 @@ Behavior:
 ### B) Branch-limited actor
 
 Definition:
-- Actor not authorized by house role alone,
-- authorized via policy keys,
-- and constrained by explicit branch scopes.
+- Actor whose HR capability comes from policy keys rather than broad house authority role.
+- Actor may have house membership context but does not rely on `owner`/`manager` broad authority.
+- Actor is constrained by explicit branch scopes where branch-limited lanes apply.
 
 Canonical definition:
 - **Branch-limited actor = actor with HR access via policy AND branch-scoped constraints.**
 
 Behavior:
 - Can act only on resources/capabilities granted by policy.
-- Can act only within explicitly scoped branches.
+- Effective capability can be narrowed to explicitly scoped branches.
 
 ---
 
-## 4. Source of Truth Hierarchy
+## 4. Source of Truth Hierarchy (Layered Model)
 
-HR authorization is determined in this order:
+HR authorization is resolved as layered gates, not interchangeable checks:
 
-1. **Workspace membership (existence)**
+1. **Membership layer (context/existence)**
    - User must exist in workspace/house context.
+   - Membership is not authority by itself.
 
-2. **Roles (`owner` / `manager`)**
-   - Roles grant broad authority.
+2. **Authority layer (broad role authority)**
+   - House roles (`owner` / `manager`) grant broad authority within the house.
+   - This is role authority, not merely membership.
 
-3. **Policy keys (for example `tiles.hr.read`)**
-   - Policies grant scoped authority/capability.
+3. **Capability layer (policy-granted capability)**
+   - Policy keys (for example `tiles.hr.read`) grant scoped/fine-grained capability.
+   - Policy capability can allow HR actions even without broad house authority role.
+   - Policy is not ownership.
 
-4. **Branch-scoped policy keys**
-   - Branch policy scope can only restrict.
+4. **Scope narrowing layer (branch restrictions)**
+   - Branch-scoped policy constraints can narrow effective capability.
+   - Branch is never a grant.
 
 Canonical interpretation:
+- **Membership establishes context, not authority.**
 - **Roles grant broad authority.**
-- **Policies grant scoped authority.**
-- **Branch policies only restrict.**
+- **Policies grant capability.**
+- **Branch policies only restrict capability.**
 
 ---
 
