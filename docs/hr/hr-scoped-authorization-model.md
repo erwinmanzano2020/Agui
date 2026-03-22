@@ -223,8 +223,8 @@ The following are intentionally deferred and are **not** implemented by this doc
 
 Use this checklist when reviewing HR authorization behavior:
 
-1. Is house membership/authority validated first?
-2. Is capability determined by role/policy before branch checks?
+1. Is membership/context established first?
+2. Is broad authority (role) or scoped capability (policy) determined before branch checks?
 3. Is branch used only to restrict (never grant)?
 4. Does behavior align with `house → resource → branch` ordering?
 5. Is the domain treated consistently with the matrix above?
