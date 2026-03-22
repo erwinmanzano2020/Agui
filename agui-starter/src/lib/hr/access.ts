@@ -19,6 +19,12 @@ export type HrAccessDecision = {
   entityId: string | null;
 };
 
+export type HrBranchAccessDecision = HrAccessDecision & {
+  branchId: string | null;
+  isBranchLimited: boolean;
+  allowedBranchIds: string[];
+};
+
 export function evaluateHrAccess(input: {
   roles: string[];
   policyKeys: Iterable<string>;
@@ -80,4 +86,66 @@ export async function requireHrAccess(
   houseId: string,
 ): Promise<HrAccessDecision> {
   return resolveHrAccess(supabase, houseId);
+}
+
+const HR_BRANCH_POLICY_PATTERNS = [
+  // UUID-only branch scope keys; keep strict to avoid accepting malformed ids.
+  /^hr\.branch\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
+  /^tiles\.hr\.branch\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
+  /^hr:branch:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
+  /^tiles:hr:branch:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
+];
+
+function extractBranchScopesFromPolicyKeys(policyKeys: Iterable<string>): string[] {
+  const scoped = new Set<string>();
+  for (const raw of policyKeys) {
+    const key = raw?.trim();
+    if (!key) continue;
+    for (const pattern of HR_BRANCH_POLICY_PATTERNS) {
+      const match = key.match(pattern);
+      if (match?.[1]) {
+        scoped.add(match[1].toLowerCase());
+      }
+    }
+  }
+  return Array.from(scoped.values());
+}
+
+export async function requireHrAccessWithBranch(
+  supabase: SupabaseClient,
+  input: { houseId: string; branchId?: string | null; requiredLevel?: "read" | "write" },
+): Promise<HrBranchAccessDecision> {
+  // Reserved for future read/write split without changing function signature today.
+  void input.requiredLevel;
+  const access = await requireHrAccess(supabase, input.houseId);
+  const allowedBranchIds = extractBranchScopesFromPolicyKeys(access.policyKeys);
+  const isBranchLimited = !access.allowedByRole && allowedBranchIds.length > 0;
+  const branchId = input.branchId?.trim().toLowerCase() || null;
+
+  if (!access.allowed) {
+    return {
+      ...access,
+      branchId,
+      isBranchLimited,
+      allowedBranchIds,
+      allowed: false,
+    };
+  }
+
+  if (branchId && isBranchLimited && !allowedBranchIds.includes(branchId)) {
+    return {
+      ...access,
+      branchId,
+      isBranchLimited,
+      allowedBranchIds,
+      allowed: false,
+    };
+  }
+
+  return {
+    ...access,
+    branchId,
+    isBranchLimited,
+    allowedBranchIds,
+  };
 }
