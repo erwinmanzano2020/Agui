@@ -89,10 +89,11 @@ export async function requireHrAccess(
 }
 
 const HR_BRANCH_POLICY_PATTERNS = [
+  // UUID-only branch scope keys; keep strict to avoid accepting malformed ids.
   /^hr\.branch\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
   /^tiles\.hr\.branch\.([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
-  /^hr:branch:([0-9a-f-]{36})$/i,
-  /^tiles:hr:branch:([0-9a-f-]{36})$/i,
+  /^hr:branch:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
+  /^tiles:hr:branch:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i,
 ];
 
 function extractBranchScopesFromPolicyKeys(policyKeys: Iterable<string>): string[] {
@@ -114,6 +115,8 @@ export async function requireHrAccessWithBranch(
   supabase: SupabaseClient,
   input: { houseId: string; branchId?: string | null; requiredLevel?: "read" | "write" },
 ): Promise<HrBranchAccessDecision> {
+  // Reserved for future read/write split without changing function signature today.
+  void input.requiredLevel;
   const access = await requireHrAccess(supabase, input.houseId);
   const allowedBranchIds = extractBranchScopesFromPolicyKeys(access.policyKeys);
   const isBranchLimited = !access.allowedByRole && allowedBranchIds.length > 0;

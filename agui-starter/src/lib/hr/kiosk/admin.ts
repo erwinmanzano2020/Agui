@@ -48,6 +48,13 @@ async function assertHrAccess(
   return access;
 }
 
+async function assertHouseHrAccess(
+  supabase: SupabaseClient,
+  houseId: string,
+): Promise<void> {
+  await assertHrAccess(supabase, houseId, null);
+}
+
 async function assertBranchInHouse(
   supabase: SupabaseClient,
   houseId: string,
@@ -156,6 +163,7 @@ export async function rotateKioskDeviceToken(
   supabase: SupabaseClient,
   input: { houseId: string; deviceId: string },
 ): Promise<{ plaintextToken: string }> {
+  await assertHouseHrAccess(supabase, input.houseId);
   const device = await getDeviceForHouseWithBranch(supabase, input.houseId, input.deviceId);
   await assertHrAccess(supabase, input.houseId, device.branch_id);
 
@@ -179,6 +187,7 @@ export async function setKioskDeviceEnabled(
   supabase: SupabaseClient,
   input: { houseId: string; deviceId: string; enabled: boolean; actorEntityId?: string | null },
 ): Promise<void> {
+  await assertHouseHrAccess(supabase, input.houseId);
   const device = await getDeviceForHouseWithBranch(supabase, input.houseId, input.deviceId);
   await assertHrAccess(supabase, input.houseId, device.branch_id);
 
@@ -201,6 +210,7 @@ export async function listKioskDeviceEvents(
   supabase: SupabaseClient,
   input: { houseId: string; deviceId: string; limit?: number },
 ): Promise<KioskDeviceEventRow[]> {
+  await assertHouseHrAccess(supabase, input.houseId);
   const device = await getDeviceForHouseWithBranch(supabase, input.houseId, input.deviceId);
   await assertHrAccess(supabase, input.houseId, device.branch_id);
 

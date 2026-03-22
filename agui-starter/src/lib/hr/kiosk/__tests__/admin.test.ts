@@ -5,6 +5,7 @@ import * as access from "@/lib/hr/access";
 import {
   KioskAdminError,
   createKioskDeviceForBranch,
+  listKioskDeviceEvents,
   listKioskDevicesForHouse,
   rotateKioskDeviceToken,
   setKioskDeviceEnabled,
@@ -47,6 +48,7 @@ function createSupabaseStub() {
     ] as Array<Record<string, unknown>>,
     branchFilter: null as string | null,
     branchInFilter: null as string[] | null,
+    deviceLookupCount: 0,
   };
 
   const supabase = {
@@ -74,6 +76,7 @@ function createSupabaseStub() {
             });
           }
           if (table === "hr_kiosk_devices") {
+            state.deviceLookupCount += 1;
             return Promise.resolve({
               data: state.deviceHouseId === "house-1"
                 ? { id: "device-1", house_id: "house-1", branch_id: state.deviceBranchId }
@@ -269,5 +272,39 @@ describe("kiosk admin", () => {
       () => rotateKioskDeviceToken(supabase as never, { houseId: "house-1", deviceId: "device-1" }),
       (error: unknown) => error instanceof KioskAdminError && error.status === 403,
     );
+  });
+
+  it("enforces house auth before device lookup for device-scoped actions", async () => {
+    mock.restoreAll();
+    mock.method(access, "requireHrAccessWithBranch", async (_supabase: unknown, input: { branchId?: string | null }) => ({
+      allowed: input.branchId ? true : false,
+      allowedByPolicy: false,
+      allowedByRole: false,
+      hasWorkspaceAccess: true,
+      roles: ["house_staff"],
+      normalizedRoles: ["staff"],
+      policyKeys: [],
+      entityId: "entity-3",
+      branchId: input.branchId ?? null,
+      isBranchLimited: false,
+      allowedBranchIds: [],
+    }));
+
+    const { supabase, state } = createSupabaseStub();
+
+    await assert.rejects(
+      () => rotateKioskDeviceToken(supabase as never, { houseId: "house-1", deviceId: "device-404" }),
+      (error: unknown) => error instanceof KioskAdminError && error.status === 403,
+    );
+    await assert.rejects(
+      () => setKioskDeviceEnabled(supabase as never, { houseId: "house-1", deviceId: "device-404", enabled: false }),
+      (error: unknown) => error instanceof KioskAdminError && error.status === 403,
+    );
+    await assert.rejects(
+      () => listKioskDeviceEvents(supabase as never, { houseId: "house-1", deviceId: "device-404" }),
+      (error: unknown) => error instanceof KioskAdminError && error.status === 403,
+    );
+
+    assert.equal(state.deviceLookupCount, 0);
   });
 });
