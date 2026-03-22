@@ -13,6 +13,10 @@ It defines:
 
 This is a **definition-only** document and introduces no implementation changes.
 
+Relationship to scope semantics document:
+- `docs/hr-branch-scope-model.md` defines house/branch scope semantics.
+- This file defines authorization behavior inside those semantics.
+
 ---
 
 ## 1. Scope Model (Core Foundation)
@@ -72,6 +76,7 @@ Definition:
 Behavior:
 - Unrestricted across branches in that house, unless an explicit policy restriction is added.
 - Primary authority source is role.
+- This broad default does not make branch an ownership scope; branch-restricted lanes still apply where the domain/model requires them.
 
 ### B) Branch-limited actor
 

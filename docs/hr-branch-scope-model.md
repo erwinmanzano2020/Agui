@@ -12,6 +12,10 @@ It clarifies:
 
 This is a **definition document**, not a migration or schema change.
 
+Relationship to canonical authorization document:
+- `docs/hr/hr-scoped-authorization-model.md` defines authorization behavior.
+- This file defines scope semantics (ownership vs operational context) used by that authorization model.
+
 ---
 
 ## Core Principle
@@ -32,7 +36,8 @@ House → Branch
 Rules:
 - Every branch belongs to exactly one house
 - Every branch-scoped record must also belong to a house
-- House-level access does not automatically grant branch-level authority
+- House membership alone does not grant branch authority.
+- House-level authority roles (`owner`/`manager`) may operate across branches by default unless an explicit branch-restricted lane applies.
 
 ---
 
@@ -122,6 +127,11 @@ Being in a house does not automatically:
 - allow access to all branches
 - allow mutation of all branch data
 
+Clarification:
+- House-level authority roles are broad by default within the house.
+- Branch-limited actors require explicit branch-scoped constraints.
+- Branch still never grants access; it only narrows already-authorized access.
+
 ---
 
 ### Rule 4: Cross-branch access must be explicit
@@ -170,14 +180,14 @@ Must be:
 ---
 
 ### hr_kiosk_devices
-- branch-owned within house
+- branch-operational within house ownership
 - branch required
 - strong branch enforcement
 
 ---
 
 ### hr_kiosk_events
-- branch-owned within house
+- branch-operational within house ownership
 - branch required
 - canonical source of branch context for attendance
 
@@ -199,7 +209,8 @@ Must be:
 
 - Using branch_id as the only ownership field
 - Inferring house from branch without explicit constraint
-- Allowing house-level roles to mutate all branches implicitly
+- Allowing house membership alone to mutate all branch data without role/policy authority
+- Treating house-level authority roles and branch-limited actors as the same authorization class
 - Mixing branch-required and branch-optional logic in the same flow without clarity
 - Using device or event context without validating branch consistency
 
