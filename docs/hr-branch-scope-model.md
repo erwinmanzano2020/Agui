@@ -38,7 +38,7 @@ Rules:
 
 ## 2. Branch Scope Categories
 
-Each HR table or feature must fall into one of these:
+Each HR table or feature must fall into one of these categories (mutually exclusive for the current model):
 
 ### A. House-owned (no branch)
 
@@ -49,12 +49,13 @@ Examples:
 
 Rules:
 - `house_id` required
-- `branch_id` absent or optional
+- `branch_id` absent (not part of the model contract)
+- branch is irrelevant for this table/feature
 - authorization is house-scoped
 
 ---
 
-### B. House-owned with optional branch
+### B. House-owned with optional branch context
 
 Examples:
 - employees (assignment)
@@ -63,7 +64,7 @@ Examples:
 Rules:
 - `house_id` required
 - `branch_id` optional
-- branch provides **context**, not ownership
+- `branch_id`, when present, provides **context**, not ownership
 
 ---
 
