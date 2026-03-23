@@ -38,10 +38,6 @@ export default async function EditEmployeePage({ params }: Props) {
     notFound();
   }
 
-  const accessibleBranches = access.isBranchLimited
-    ? branchResult.branches.filter((branch) => access.allowedBranchIds.includes(branch.id))
-    : branchResult.branches;
-
   return (
     <div className="space-y-4">
       <div className="text-sm text-muted-foreground">
@@ -57,7 +53,7 @@ export default async function EditEmployeePage({ params }: Props) {
 
       <EditEmployeeForm
         employee={employee}
-        branches={accessibleBranches}
+        branches={branchResult.branches}
         branchLoadError={branchResult.error}
         houseId={house.id}
         houseSlug={slug}
