@@ -13,7 +13,7 @@ import {
   listEmployeesByHouse,
 } from "@/lib/hr/employees-server";
 import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE } from "@/lib/hr/employees";
-import { requireHrAccessWithBranch, resolveHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import {
   findOrCreateEntityForEmployee,
   normalizeEmployeeEmail,
@@ -348,7 +348,11 @@ export async function POST(req: NextRequest) {
     return jsonError(500, "Failed to resolve house departments");
   }
 
-  const hrAccess = await resolveHrAccess(authed, houseId);
+  const hrAccess = await requireHrAccessWithBranch(authed, {
+    houseId,
+    branchId: parsed.data.branch_id ?? null,
+    requiredLevel: "write",
+  });
   if (!hrAccess.allowed) {
     logApiWarning({
       route: ROUTE_NAME,

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import {
   EmployeeCreateError,
   EmployeeDuplicateIdentityError,
@@ -137,7 +137,11 @@ export async function createEmployeeAction(
     return { status: "error", message: "Authentication required." };
   }
 
-  const access = await requireHrAccess(supabase, parsed.data.houseId);
+  const access = await requireHrAccessWithBranch(supabase, {
+    houseId: parsed.data.houseId,
+    branchId: normalizedBranchId,
+    requiredLevel: "write",
+  });
   if (!access.allowed) {
     return { status: "error", message: "You are not allowed to add employees for this house." } satisfies CreateEmployeeState;
   }
