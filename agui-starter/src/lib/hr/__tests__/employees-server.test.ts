@@ -512,6 +512,15 @@ describe("createEmployeeForHouseWithAccess", () => {
     normalizedRoles: [normalizeWorkspaceRole("house_staff")],
     roles: ["house_staff"],
   };
+  const branchLimitedAccess: HrBranchAccessDecision = {
+    ...allowedAccess,
+    allowedByPolicy: true,
+    allowedByRole: false,
+    normalizedRoles: [normalizeWorkspaceRole("house_staff")],
+    roles: ["house_staff"],
+    isBranchLimited: true,
+    allowedBranchIds: ["branch-1"],
+  };
   it("creates an employee within the same house and returns branch details", async () => {
     const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
 
@@ -697,6 +706,48 @@ describe("createEmployeeForHouseWithAccess", () => {
         }),
       EmployeeAccessError,
     );
+  });
+
+  it("allows branch-limited actor to create inside allowed branch scope", async () => {
+    const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
+
+    const created = await createEmployeeForHouseWithAccess(supabase as never, branchLimitedAccess, "house-1", {
+      full_name: "Scoped Hire",
+      rate_per_day: 700,
+      branch_id: "branch-1",
+    });
+
+    assert.equal(created.branch_id, "branch-1");
+  });
+
+  it("denies branch-limited actor from creating unassigned employees", async () => {
+    const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
+
+    await assert.rejects(
+      () =>
+        createEmployeeForHouseWithAccess(supabase as never, branchLimitedAccess, "house-1", {
+          full_name: "Unassigned Hire",
+          rate_per_day: 700,
+          branch_id: null,
+        }),
+      EmployeeAccessError,
+    );
+    assert.equal(supabase.employees.length, 0);
+  });
+
+  it("denies branch-limited actor from creating employees outside allowed branch scope", async () => {
+    const supabase = new CreateSupabaseMock([], [{ id: "branch-2", house_id: "house-1", name: "Remote" }]);
+
+    await assert.rejects(
+      () =>
+        createEmployeeForHouseWithAccess(supabase as never, branchLimitedAccess, "house-1", {
+          full_name: "Out-of-scope Hire",
+          rate_per_day: 700,
+          branch_id: "branch-2",
+        }),
+      EmployeeAccessError,
+    );
+    assert.equal(supabase.employees.length, 0);
   });
 
   it("surfaces insertion errors", async () => {
@@ -963,6 +1014,15 @@ describe("deleteEmployeeForHouseWithAccess", () => {
     isBranchLimited: false,
     allowedBranchIds: [],
   };
+  const branchLimitedAccess: HrBranchAccessDecision = {
+    ...allowedAccess,
+    allowedByPolicy: true,
+    allowedByRole: false,
+    normalizedRoles: [normalizeWorkspaceRole("house_staff")],
+    roles: ["house_staff"],
+    isBranchLimited: true,
+    allowedBranchIds: ["branch-1"],
+  };
 
   it("deletes employee and attempts photo cleanup", async () => {
     const supabase = new DeleteSupabaseMock([
@@ -994,5 +1054,34 @@ describe("deleteEmployeeForHouseWithAccess", () => {
 
     assert.equal(deleted, true);
     assert.equal(supabase.employees.length, 0);
+  });
+
+  it("denies branch-limited actor from deleting out-of-scope employee", async () => {
+    const supabase = new DeleteSupabaseMock([{ ...baseRow, id: "emp-delete", branch_id: "branch-2" }]);
+
+    await assert.rejects(
+      () => deleteEmployeeForHouseWithAccess(supabase as never, branchLimitedAccess, "house-1", "emp-delete"),
+      EmployeeAccessError,
+    );
+    assert.equal(supabase.employees.length, 1);
+  });
+
+  it("denies branch-limited actor from deleting unassigned employee", async () => {
+    const supabase = new DeleteSupabaseMock([{ ...baseRow, id: "emp-delete", branch_id: null }]);
+
+    await assert.rejects(
+      () => deleteEmployeeForHouseWithAccess(supabase as never, branchLimitedAccess, "house-1", "emp-delete"),
+      EmployeeAccessError,
+    );
+    assert.equal(supabase.employees.length, 1);
+  });
+
+  it("returns false for cross-house delete target", async () => {
+    const supabase = new DeleteSupabaseMock([{ ...baseRow, id: "emp-delete", house_id: "house-2" }]);
+
+    const deleted = await deleteEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", "emp-delete");
+
+    assert.equal(deleted, false);
+    assert.equal(supabase.employees.length, 1);
   });
 });

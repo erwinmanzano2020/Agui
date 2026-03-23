@@ -238,6 +238,53 @@ type BranchLookupRow = { id?: string | null; house_id?: string | null; name?: st
 type EmployeeWithBranch = EmployeeRow & {
   branches?: BranchLookupRow | null;
 };
+type EmployeeWriteTarget = Pick<EmployeeRow, "id" | "house_id" | "branch_id">;
+
+function normalizeBranchId(branchId: string | null | undefined): string | null {
+  return branchId?.trim().toLowerCase() || null;
+}
+
+function getAllowedBranchIdSet(access: HrBranchAccessDecision): Set<string> {
+  return new Set(access.allowedBranchIds.map((id) => id.toLowerCase()));
+}
+
+async function loadEmployeeWriteTarget(
+  supabase: SupabaseClient<Database>,
+  employeeId: string,
+): Promise<EmployeeWriteTarget | null> {
+  const { data, error } = await supabase
+    .from("employees")
+    .select("id, house_id, branch_id")
+    .eq("id", employeeId)
+    .maybeSingle<EmployeeWriteTarget>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ?? null;
+}
+
+function canMutateEmployeeTarget(
+  access: HrBranchAccessDecision,
+  employee: EmployeeWriteTarget,
+  houseId: string,
+): boolean {
+  if (employee.house_id !== houseId) {
+    return false;
+  }
+
+  if (!access.isBranchLimited) {
+    return true;
+  }
+
+  const currentBranchId = normalizeBranchId(employee.branch_id);
+  if (!currentBranchId) {
+    return false;
+  }
+
+  return getAllowedBranchIdSet(access).has(currentBranchId);
+}
 
 export async function getEmployeeByIdForHouse(
   supabase: SupabaseClient<Database>,
@@ -420,30 +467,22 @@ export async function updateEmployeeForHouseWithAccess(
     throw new EmployeeAccessError("Not allowed to update employees for this house");
   }
 
-  const { data: existing, error: existingError } = await supabase
-    .from("employees")
-    .select("id, house_id, branch_id")
-    .eq("id", employeeId)
-    .maybeSingle<Pick<EmployeeRow, "id" | "house_id" | "branch_id">>();
+  const existing = await loadEmployeeWriteTarget(supabase, employeeId);
 
-  if (existingError) {
-    throw new Error(existingError.message);
-  }
-
-  if (!existing || existing.house_id !== houseId) {
+  if (!existing) {
     return null;
   }
 
-  if (access.isBranchLimited) {
-    const allowedBranches = new Set(access.allowedBranchIds.map((id) => id.toLowerCase()));
-    const currentBranchId = existing.branch_id?.toLowerCase() ?? null;
-    const targetBranchId = patch.branch_id?.toLowerCase() ?? null;
-
-    if (!currentBranchId || !allowedBranches.has(currentBranchId)) {
-      throw new EmployeeAccessError("Not allowed to update this employee");
+  if (!canMutateEmployeeTarget(access, existing, houseId)) {
+    if (existing.house_id !== houseId) {
+      return null;
     }
+    throw new EmployeeAccessError("Not allowed to update this employee");
+  }
 
-    if (!targetBranchId || !allowedBranches.has(targetBranchId)) {
+  if (access.isBranchLimited) {
+    const targetBranchId = normalizeBranchId(patch.branch_id);
+    if (!targetBranchId || !getAllowedBranchIdSet(access).has(targetBranchId)) {
       throw new EmployeeAccessError("Not allowed to assign this employee to the selected branch");
     }
   }
@@ -622,12 +661,24 @@ export async function deleteEmployeeForHouse(
 
 export async function deleteEmployeeForHouseWithAccess(
   supabase: SupabaseClient<Database>,
-  access: HrAccessDecision,
+  access: HrBranchAccessDecision,
   houseId: string,
   employeeId: string,
 ): Promise<boolean> {
   if (!access.allowed || !access.hasWorkspaceAccess) {
     throw new EmployeeAccessError("Not allowed to delete employees for this house");
+  }
+
+  const existing = await loadEmployeeWriteTarget(supabase, employeeId);
+  if (!existing) {
+    return false;
+  }
+
+  if (!canMutateEmployeeTarget(access, existing, houseId)) {
+    if (existing.house_id !== houseId) {
+      return false;
+    }
+    throw new EmployeeAccessError("Not allowed to delete this employee");
   }
 
   return deleteEmployeeForHouse(supabase, houseId, employeeId);
@@ -640,10 +691,9 @@ export async function createEmployeeForHouseWithAccess(
   payload: EmployeeCreateInput,
 ): Promise<EmployeeProfile> {
   assertHrCreateAccess(access);
-  if (access.isBranchLimited && payload.branch_id) {
-    const targetBranchId = payload.branch_id.trim().toLowerCase();
-    const allowedBranches = new Set(access.allowedBranchIds.map((id) => id.toLowerCase()));
-    if (!allowedBranches.has(targetBranchId)) {
+  if (access.isBranchLimited) {
+    const targetBranchId = normalizeBranchId(payload.branch_id);
+    if (!targetBranchId || !getAllowedBranchIdSet(access).has(targetBranchId)) {
       throw new EmployeeAccessError("Not allowed to assign this employee to the selected branch");
     }
   }
