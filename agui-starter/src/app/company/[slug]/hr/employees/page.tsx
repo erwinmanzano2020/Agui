@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 
 import { EmployeesClient } from "./EmployeesClient";
 import { requireAuth } from "@/lib/auth/require-auth";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { listBranchesForHouse, listEmployeesByHouse } from "@/lib/hr/employees-server";
 import type { EmployeeListFilters } from "@/lib/hr/employees";
 
@@ -41,12 +42,19 @@ export default async function HrEmployeesPage({ params, searchParams }: Props) {
   }
 
   const branchResult = await listBranchesForHouse(supabase, house.id);
-  const allowedBranchIds = branchResult.branches.map((branch) => branch.id);
+  const hrAccess = await requireHrAccessWithBranch(supabase, { houseId: house.id });
+  const accessibleBranches = hrAccess.isBranchLimited
+    ? branchResult.branches.filter((branch) => hrAccess.allowedBranchIds.includes(branch.id))
+    : branchResult.branches;
+  const allowedBranchIds = accessibleBranches.map((branch) => branch.id);
   const filters = normalizeFilters(rawSearch, allowedBranchIds);
-  const branchNames = Object.fromEntries(branchResult.branches.map((branch) => [branch.id, branch.name]));
+  const branchNames = Object.fromEntries(accessibleBranches.map((branch) => [branch.id, branch.name]));
 
   const employeesResult = await listEmployeesByHouse(supabase, house.id, filters, {
-    allowedBranchIds,
+    readScope: {
+      isBranchLimited: hrAccess.isBranchLimited,
+      allowedBranchIds: hrAccess.allowedBranchIds,
+    },
     branchNames,
     includeIdentity: true,
   });
@@ -55,7 +63,7 @@ export default async function HrEmployeesPage({ params, searchParams }: Props) {
     <EmployeesClient
       basePath={basePath}
       employees={employeesResult.employees}
-      branches={branchResult.branches}
+      branches={accessibleBranches}
       branchLoadError={branchResult.error}
       employeeLoadError={employeesResult.error}
       initialFilters={{ status: filters.status, branchId: filters.branchId, search: filters.search ?? "" }}

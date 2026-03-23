@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { requireAuth } from "@/lib/auth/require-auth";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { getEmployeeByIdForHouse } from "@/lib/hr/employees-server";
 
 import { EmployeePhotoField } from "../_components/EmployeePhotoField";
@@ -40,7 +41,14 @@ export default async function EmployeeProfilePage({ params }: Props) {
     notFound();
   }
 
-  const employee = await getEmployeeByIdForHouse(supabase, house.id, id, { includeIdentity: true });
+  const access = await requireHrAccessWithBranch(supabase, { houseId: house.id });
+  const employee = await getEmployeeByIdForHouse(supabase, house.id, id, {
+    includeIdentity: true,
+    readScope: {
+      isBranchLimited: access.isBranchLimited,
+      allowedBranchIds: access.allowedBranchIds,
+    },
+  });
 
   if (!employee) {
     notFound();

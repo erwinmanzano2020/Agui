@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { EditEmployeeForm } from "../EditEmployeeForm";
 import { requireAuth } from "@/lib/auth/require-auth";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { getEmployeeByIdForHouse, listBranchesForHouse } from "@/lib/hr/employees-server";
 
 type Props = { params: Promise<{ slug: string; id: string }> };
@@ -22,14 +23,24 @@ export default async function EditEmployeePage({ params }: Props) {
     notFound();
   }
 
+  const access = await requireHrAccessWithBranch(supabase, { houseId: house.id });
   const [employee, branchResult] = await Promise.all([
-    getEmployeeByIdForHouse(supabase, house.id, id),
+    getEmployeeByIdForHouse(supabase, house.id, id, {
+      readScope: {
+        isBranchLimited: access.isBranchLimited,
+        allowedBranchIds: access.allowedBranchIds,
+      },
+    }),
     listBranchesForHouse(supabase, house.id),
   ]);
 
   if (!employee) {
     notFound();
   }
+
+  const accessibleBranches = access.isBranchLimited
+    ? branchResult.branches.filter((branch) => access.allowedBranchIds.includes(branch.id))
+    : branchResult.branches;
 
   return (
     <div className="space-y-4">
@@ -46,7 +57,7 @@ export default async function EditEmployeePage({ params }: Props) {
 
       <EditEmployeeForm
         employee={employee}
-        branches={branchResult.branches}
+        branches={accessibleBranches}
         branchLoadError={branchResult.error}
         houseId={house.id}
         houseSlug={slug}
