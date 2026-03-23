@@ -41,13 +41,13 @@ export default async function HrEmployeesPage({ params, searchParams }: Props) {
     notFound();
   }
 
-  const hrAccess = await requireHrAccessWithBranch(supabase, { houseId: house.id });
-  if (!hrAccess.allowed) {
+  const access = await requireHrAccessWithBranch(supabase, { houseId: house.id });
+  if (!access.allowed) {
     notFound();
   }
   const branchResult = await listBranchesForHouse(supabase, house.id);
-  const accessibleBranches = hrAccess.isBranchLimited
-    ? branchResult.branches.filter((branch) => hrAccess.allowedBranchIds.includes(branch.id))
+  const accessibleBranches = access.isBranchLimited
+    ? branchResult.branches.filter((branch) => access.allowedBranchIds.includes(branch.id))
     : branchResult.branches;
   const allowedBranchIds = accessibleBranches.map((branch) => branch.id);
   const filters = normalizeFilters(rawSearch, allowedBranchIds);
@@ -55,8 +55,8 @@ export default async function HrEmployeesPage({ params, searchParams }: Props) {
 
   const employeesResult = await listEmployeesByHouse(supabase, house.id, filters, {
     readScope: {
-      isBranchLimited: hrAccess.isBranchLimited,
-      allowedBranchIds: hrAccess.allowedBranchIds,
+      isBranchLimited: access.isBranchLimited,
+      allowedBranchIds: access.allowedBranchIds,
     },
     branchNames,
     includeIdentity: true,
