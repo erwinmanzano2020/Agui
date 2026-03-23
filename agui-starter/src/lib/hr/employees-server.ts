@@ -693,6 +693,8 @@ export async function createEmployeeForHouseWithAccess(
   houseId: string,
   payload: EmployeeCreateInput,
 ): Promise<EmployeeProfile> {
+  // Keep canonical write checks aligned: create validates assignment eligibility at create-time,
+  // while update/delete validate mutability of an existing target via resolveEmployeeWriteTargetForHouseWithAccess.
   assertHrCreateAccess(access);
   if (access.isBranchLimited) {
     const targetBranchId = normalizeBranchId(payload.branch_id);

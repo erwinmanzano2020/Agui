@@ -50,7 +50,7 @@ function createServiceStub(options: { targetData?: Record<string, unknown> | nul
   } as never;
 }
 
-describe("POST /api/hr/employees/[employeeId]/photo deny mapping", () => {
+describe("POST /api/hr/employees/[employeeId]/photo boundary error mapping", () => {
   afterEach(() => mock.restoreAll());
 
   it("returns 400 for invalid payload", async () => {
