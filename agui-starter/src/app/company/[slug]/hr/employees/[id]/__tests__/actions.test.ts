@@ -38,6 +38,45 @@ describe("employee [id] server action deny mapping", () => {
     assert.equal(result.message, "You are not allowed to edit this employee.");
   });
 
+  it("updateEmployeeAction returns authentication-required when session is missing", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => null as never);
+
+    const formData = new FormData();
+    formData.set("houseId", HOUSE_ID);
+    formData.set("houseSlug", "demo-house");
+    formData.set("employeeId", EMPLOYEE_ID);
+    formData.set("full_name", "Denied Update");
+    formData.set("status", "active");
+    formData.set("branch_id", BRANCH_ID);
+    formData.set("rate_per_day", "900");
+
+    const result = await updateEmployeeAction({ status: "idle" } as never, formData);
+
+    assert.equal(result.status, "error");
+    assert.equal(result.message, "Authentication required.");
+  });
+
+  it("updateEmployeeAction returns not-found when target is missing", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true, hasWorkspaceAccess: true } as never));
+    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
+    mock.method(employeesServer, "updateEmployeeForHouseWithAccess", async () => null);
+
+    const formData = new FormData();
+    formData.set("houseId", HOUSE_ID);
+    formData.set("houseSlug", "demo-house");
+    formData.set("employeeId", EMPLOYEE_ID);
+    formData.set("full_name", "Missing Target");
+    formData.set("status", "active");
+    formData.set("branch_id", BRANCH_ID);
+    formData.set("rate_per_day", "900");
+
+    const result = await updateEmployeeAction({ status: "idle" } as never, formData);
+
+    assert.equal(result.status, "error");
+    assert.equal(result.message, "Employee not found.");
+  });
+
   it("deleteEmployeeAction returns explicit permission-denied message", async () => {
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
     mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true, hasWorkspaceAccess: true } as never));
@@ -55,5 +94,41 @@ describe("employee [id] server action deny mapping", () => {
 
     assert.equal(result.status, "error");
     assert.equal(result.message, "You are not allowed to delete this employee.");
+  });
+
+  it("deleteEmployeeAction returns not-found when target is missing", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true, hasWorkspaceAccess: true } as never));
+    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
+    mock.method(employeesServer, "deleteEmployeeForHouseWithAccess", async () => false);
+
+    const formData = new FormData();
+    formData.set("houseId", HOUSE_ID);
+    formData.set("houseSlug", "demo-house");
+    formData.set("employeeId", EMPLOYEE_ID);
+
+    const result = await deleteEmployeeAction(formData);
+
+    assert.equal(result.status, "error");
+    assert.equal(result.message, "Employee not found.");
+  });
+
+  it("deleteEmployeeAction returns generic failure for unexpected errors", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true, hasWorkspaceAccess: true } as never));
+    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
+    mock.method(employeesServer, "deleteEmployeeForHouseWithAccess", async () => {
+      throw new Error("boom");
+    });
+
+    const formData = new FormData();
+    formData.set("houseId", HOUSE_ID);
+    formData.set("houseSlug", "demo-house");
+    formData.set("employeeId", EMPLOYEE_ID);
+
+    const result = await deleteEmployeeAction(formData);
+
+    assert.equal(result.status, "error");
+    assert.equal(result.message, "Unable to delete employee right now.");
   });
 });

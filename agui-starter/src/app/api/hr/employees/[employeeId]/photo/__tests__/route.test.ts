@@ -53,6 +53,20 @@ function createServiceStub(options: { targetData?: Record<string, unknown> | nul
 describe("POST /api/hr/employees/[employeeId]/photo deny mapping", () => {
   afterEach(() => mock.restoreAll());
 
+  it("returns 400 for invalid payload", async () => {
+    const response = await POST(
+      new Request(`http://localhost/api/hr/employees/${EMPLOYEE_ID}/photo`, {
+        method: "POST",
+        body: JSON.stringify({ houseId: "invalid-house-id", photo_url: 123, photo_path: false }),
+      }) as never,
+      { params: Promise.resolve({ employeeId: EMPLOYEE_ID }) },
+    );
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Invalid payload");
+  });
+
   it("returns 403 for authenticated forbidden photo write", async () => {
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
     mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({

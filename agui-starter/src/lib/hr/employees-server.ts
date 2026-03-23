@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE, EmployeeAccessError } from "@/lib/hr/employees";
 import type { Database, EmployeeRow, EmployeeInsert } from "@/lib/db.types";
 import { getIdentitySummariesForEmployees, type IdentitySummary } from "@/lib/hr/employee-identity";
-import type { HrAccessDecision, HrBranchAccessDecision } from "./access";
+import type { HrBranchAccessDecision } from "./access";
 import { buildEmployeePhotoPath } from "./employee-photo";
 import type { EmployeeListFilters } from "./employees";
 
@@ -504,7 +504,7 @@ export async function updateEmployeeForHouseWithAccess(
   return updateEmployeeForHouse(supabase, houseId, employeeId, patch);
 }
 
-function assertHrCreateAccess(access: HrAccessDecision) {
+function assertHrCreateAccess(access: HrBranchAccessDecision) {
   if (!access.allowed || !access.hasWorkspaceAccess) {
     throw new EmployeeAccessError("Not allowed to create employees for this house");
   }
