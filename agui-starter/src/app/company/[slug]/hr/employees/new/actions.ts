@@ -17,7 +17,7 @@ import {
 } from "@/lib/hr/employee-identity";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
-import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE } from "@/lib/hr/employees";
+import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE, EmployeeAccessError } from "@/lib/hr/employees";
 
 import type { CreateEmployeeState } from "./action-types";
 
@@ -201,6 +201,12 @@ export async function createEmployeeAction(
 
     return { status: "success", createdEmployeeId: created.id, message: "Employee created." } satisfies CreateEmployeeState;
   } catch (error) {
+    if (error instanceof EmployeeAccessError) {
+      return {
+        status: "error",
+        message: "You are not allowed to add employees for this house.",
+      } satisfies CreateEmployeeState;
+    }
     if (error instanceof EmployeeUpdateError) {
       return {
         status: "error",

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { updateEmployeeForHouseWithAccess } from "@/lib/hr/employees-server";
+import { EmployeeAccessError } from "@/lib/hr/employees";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
 
@@ -42,15 +43,23 @@ async function persistPhoto(employeeId: string, houseId: string, photoUrl: strin
     return NextResponse.json({ error: "Employee not found" }, { status: 404 });
   }
 
-  const updated = await updateEmployeeForHouseWithAccess(service, access, houseId, employeeId, {
-    full_name: current.data.full_name,
-    status: current.data.status,
-    branch_id: current.data.branch_id,
-    rate_per_day: Number(current.data.rate_per_day ?? 0),
-    position_title: current.data.position_title,
-    photo_url: photoUrl,
-    photo_path: photoPath,
-  });
+  let updated;
+  try {
+    updated = await updateEmployeeForHouseWithAccess(service, access, houseId, employeeId, {
+      full_name: current.data.full_name,
+      status: current.data.status,
+      branch_id: current.data.branch_id,
+      rate_per_day: Number(current.data.rate_per_day ?? 0),
+      position_title: current.data.position_title,
+      photo_url: photoUrl,
+      photo_path: photoPath,
+    });
+  } catch (error) {
+    if (error instanceof EmployeeAccessError) {
+      return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+    }
+    throw error;
+  }
 
   if (!updated) {
     return NextResponse.json({ error: "Employee not found" }, { status: 404 });

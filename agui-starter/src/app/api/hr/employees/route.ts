@@ -12,7 +12,7 @@ import {
   createEmployeeForHouseWithAccess,
   listEmployeesByHouse,
 } from "@/lib/hr/employees-server";
-import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE } from "@/lib/hr/employees";
+import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE, EmployeeAccessError } from "@/lib/hr/employees";
 import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import {
   findOrCreateEntityForEmployee,
@@ -428,6 +428,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ employee: created }, { status: 201 });
   } catch (error) {
+    if (error instanceof EmployeeAccessError) {
+      return jsonError(403, "Not allowed");
+    }
     if (error instanceof EmployeeUpdateError) {
       return jsonError(400, "Select a branch within this house", { fieldErrors: { branch_id: ["Invalid branch"] } });
     }
