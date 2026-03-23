@@ -39,6 +39,10 @@ export type EmployeeListResult = { employees: EmployeeListItem[]; error?: string
 
 export type BranchListItem = { id: string; name: string };
 export type BranchListResult = { branches: BranchListItem[]; error?: string };
+export type EmployeeReadScope = {
+  isBranchLimited?: boolean;
+  allowedBranchIds?: string[];
+};
 
 export type EmployeeProfile = {
   id: string;
@@ -146,10 +150,17 @@ export async function listEmployeesByHouse(
   supabase: SupabaseClient<Database>,
   houseId: string,
   filters: EmployeeListFilters = {},
-  options: { allowedBranchIds?: string[]; branchNames?: Record<string, string>; includeIdentity?: boolean } = {},
+  options: {
+    readScope?: EmployeeReadScope;
+    branchNames?: Record<string, string>;
+    includeIdentity?: boolean;
+  } = {},
 ): Promise<EmployeeListResult> {
-  const allowedBranches = options.allowedBranchIds ?? null;
-  if (filters.branchId && allowedBranches && !allowedBranches.includes(filters.branchId)) {
+  const readScope = options.readScope ?? {};
+  const allowedBranches = readScope.allowedBranchIds ?? [];
+  const isBranchLimited = readScope.isBranchLimited === true;
+
+  if (filters.branchId && isBranchLimited && !allowedBranches.includes(filters.branchId)) {
     return { employees: [] } satisfies EmployeeListResult;
   }
 
@@ -174,7 +185,7 @@ export async function listEmployeesByHouse(
   const { data, error } = await query.order("full_name", { ascending: true });
   const branchNameLookup = options.branchNames ?? {};
 
-  const employees: EmployeeListItem[] = (data ?? []).map((row) => {
+  let employees: EmployeeListItem[] = (data ?? []).map((row) => {
     const employee = row as EmployeeRow;
     const branchId = employee.branch_id ?? null;
     return {
@@ -192,6 +203,11 @@ export async function listEmployeesByHouse(
       photo_path: employee.photo_path ?? null,
     } satisfies EmployeeListItem;
   });
+
+  if (isBranchLimited) {
+    const allowedSet = new Set(allowedBranches);
+    employees = employees.filter((employee) => !employee.branch_id || allowedSet.has(employee.branch_id));
+  }
 
   if (options.includeIdentity) {
     const entityIds = employees.map((emp) => emp.entity_id).filter((id): id is string => Boolean(id));
@@ -227,7 +243,7 @@ export async function getEmployeeByIdForHouse(
   supabase: SupabaseClient<Database>,
   houseId: string,
   employeeId: string,
-  options: { includeIdentity?: boolean } = {},
+  options: { includeIdentity?: boolean; readScope?: EmployeeReadScope } = {},
 ): Promise<EmployeeProfile | null> {
   const { data } = await supabase
     .from("employees")
@@ -239,6 +255,12 @@ export async function getEmployeeByIdForHouse(
     .maybeSingle<EmployeeWithBranch>();
 
   if (!data) {
+    return null;
+  }
+
+  const isBranchLimited = options.readScope?.isBranchLimited === true;
+  const allowedBranches = new Set(options.readScope?.allowedBranchIds ?? []);
+  if (isBranchLimited && data.branch_id && !allowedBranches.has(data.branch_id)) {
     return null;
   }
 

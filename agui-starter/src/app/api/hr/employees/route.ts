@@ -13,7 +13,7 @@ import {
   listEmployeesByHouse,
 } from "@/lib/hr/employees-server";
 import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE } from "@/lib/hr/employees";
-import { resolveHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch, resolveHrAccess } from "@/lib/hr/access";
 import {
   findOrCreateEntityForEmployee,
   normalizeEmployeeEmail,
@@ -173,22 +173,7 @@ export async function GET(req: NextRequest) {
     return jsonError(403, "No accessible house");
   }
 
-  let branchIds: string[] = [];
-  try {
-    branchIds = await resolveBranchesForHouse(authed, houseId);
-  } catch (error) {
-    logApiError({
-      route: ROUTE_NAME,
-      action: "resolve_branches",
-      userId: userResult.user.id,
-      entityId,
-      houseId,
-      error,
-    });
-    return jsonError(500, "Failed to resolve house departments");
-  }
-
-  const hrAccess = await resolveHrAccess(authed, houseId);
+  const hrAccess = await requireHrAccessWithBranch(authed, { houseId });
   if (!hrAccess.allowed) {
     logApiWarning({
       route: ROUTE_NAME,
@@ -201,7 +186,13 @@ export async function GET(req: NextRequest) {
     return jsonError(403, "Not allowed");
   }
 
-  const employeesResult = await listEmployeesByHouse(authed, houseId, {}, { allowedBranchIds: branchIds, includeIdentity: true });
+  const employeesResult = await listEmployeesByHouse(authed, houseId, {}, {
+    readScope: {
+      isBranchLimited: hrAccess.isBranchLimited,
+      allowedBranchIds: hrAccess.allowedBranchIds,
+    },
+    includeIdentity: true,
+  });
   if (employeesResult.error) {
     logApiError({
       route: ROUTE_NAME,
@@ -210,7 +201,7 @@ export async function GET(req: NextRequest) {
       entityId,
       houseId,
       error: employeesResult.error,
-      details: { branchCount: branchIds.length },
+      details: { branchCount: hrAccess.allowedBranchIds.length, branchLimited: hrAccess.isBranchLimited },
     });
     return jsonError(500, "Failed to load employees", { message: employeesResult.error });
   }

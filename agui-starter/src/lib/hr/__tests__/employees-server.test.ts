@@ -366,7 +366,7 @@ describe("listEmployeesByHouse", () => {
       supabase as never,
       "house-1",
       { branchId: "branch-1" },
-      { allowedBranchIds: allowedBranches },
+      { readScope: { isBranchLimited: true, allowedBranchIds: allowedBranches } },
     );
 
     assert.deepEqual(results.employees.map((row) => row.id), ["emp-1"]);
@@ -379,7 +379,7 @@ describe("listEmployeesByHouse", () => {
       supabase as never,
       "house-1",
       { branchId: "branch-x" },
-      { allowedBranchIds: ["branch-1"] },
+      { readScope: { isBranchLimited: true, allowedBranchIds: ["branch-1"] } },
     );
 
     assert.deepEqual(results.employees, []);
@@ -396,6 +396,34 @@ describe("listEmployeesByHouse", () => {
 
     const searchByCode = await listEmployeesByHouse(supabase as never, "house-1", { search: "gh" });
     assert.deepEqual(searchByCode.employees.map((row) => row.id), ["emp-2"]);
+  });
+
+  it("keeps house-wide visibility for non-branch-limited actors", async () => {
+    const supabase = new SupabaseMock([
+      { ...baseRow, id: "emp-1", branch_id: "branch-1" },
+      { ...baseRow, id: "emp-2", full_name: "Grace Hopper", code: "EMP-2", branch_id: "branch-2" },
+      { ...baseRow, id: "emp-3", full_name: "No Branch", code: "EMP-3", branch_id: null },
+    ]);
+
+    const result = await listEmployeesByHouse(supabase as never, "house-1", {}, {
+      readScope: { isBranchLimited: false, allowedBranchIds: ["branch-1"] },
+    });
+
+    assert.deepEqual(result.employees.map((row) => row.id), ["emp-1", "emp-2", "emp-3"]);
+  });
+
+  it("narrows branch-limited visibility without denying null-branch employees", async () => {
+    const supabase = new SupabaseMock([
+      { ...baseRow, id: "emp-1", branch_id: "branch-1" },
+      { ...baseRow, id: "emp-2", full_name: "Grace Hopper", code: "EMP-2", branch_id: "branch-2" },
+      { ...baseRow, id: "emp-3", full_name: "No Branch", code: "EMP-3", branch_id: null },
+    ]);
+
+    const result = await listEmployeesByHouse(supabase as never, "house-1", {}, {
+      readScope: { isBranchLimited: true, allowedBranchIds: ["branch-1"] },
+    });
+
+    assert.deepEqual(result.employees.map((row) => row.id), ["emp-1", "emp-3"]);
   });
 
   it("surfaces query errors while returning any partial data", async () => {
@@ -449,6 +477,16 @@ describe("getEmployeeByIdForHouse", () => {
     assert.ok(employee);
     assert.equal(employee?.branch_id, null);
     assert.equal(employee?.branch_name, null);
+  });
+
+  it("returns null for branch-limited actor reading an out-of-scope branch employee", async () => {
+    const supabase = new SupabaseMock([baseRow]);
+
+    const employee = await getEmployeeByIdForHouse(supabase as never, "house-1", "emp-1", {
+      readScope: { isBranchLimited: true, allowedBranchIds: ["branch-2"] },
+    });
+
+    assert.equal(employee, null);
   });
 });
 
