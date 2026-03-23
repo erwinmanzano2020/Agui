@@ -31,13 +31,14 @@ Implications:
 ## 1) API Layer (Canonical Rule)
 
 ### Rule
-- Unauthorized/forbidden HR API access returns **HTTP 403**.
+- **Unauthenticated** HR API requests return **HTTP 401**.
+- **Authenticated but unauthorized/forbidden** HR API requests return **HTTP 403**.
 - API authorization deny must not depend on UI state.
 - API deny should **not** use `404` as normal authorization-failure behavior.
 
 ### Rationale
-- API callers must get explicit authorization outcomes.
-- A consistent `403` contract keeps service-level behavior predictable.
+- API callers must get explicit authentication vs authorization outcomes.
+- A consistent `401`/`403` contract keeps service-level behavior predictable.
 - API behavior must remain secure even if UI affordances are bypassed.
 
 ---
@@ -54,7 +55,7 @@ Implications:
 
 ### Clarification
 - This page-layer `notFound()` rule does not change API contract rules.
-- API endpoints still use `403` for authorization deny.
+- API endpoints continue to distinguish `401` (unauthenticated) from `403` (authenticated but forbidden).
 
 ---
 
@@ -109,7 +110,7 @@ For HR module entry points (sidebar items, tabs, module cards):
 
 | Layer | Canonical deny behavior |
 |---|---|
-| API | Return `403` for unauthorized/forbidden requests |
+| API | Return `401` for unauthenticated requests and `403` for authenticated-but-forbidden requests |
 | Page / Route | Use `notFound()` for unauthorized scoped resource page access (current default) |
 | List / Collection | Filter out inaccessible records |
 | Action / Button | Hide by default; disable + explain when understanding is beneficial |
