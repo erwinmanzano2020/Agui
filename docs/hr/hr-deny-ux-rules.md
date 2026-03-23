@@ -8,6 +8,11 @@ It removes ambiguity so all future HR work uses one deny UX model.
 
 This is a definition-only document and introduces no implementation changes.
 
+Responsibility boundary:
+- This document defines HR deny behavior and UX affordance guidance across layers.
+- This document does **not** define role authority semantics.
+- This document does **not** define employee assignment business rules.
+
 Related canonical docs:
 - `docs/hr/hr-scoped-authorization-model.md`
 - `docs/hr/hr-role-system-model.md`

@@ -15,6 +15,11 @@ Canonical statement:
 
 This is a definition-only document. It introduces no schema changes, implementation changes, or refactors.
 
+Related canonical docs for adjacent responsibilities:
+- `docs/hr/hr-scoped-authorization-model.md` defines authorization evaluation order and behavior.
+- `docs/hr/hr-deny-ux-rules.md` defines deny behavior across API/page/list/action/navigation layers.
+- `docs/hr/hr-employee-branch-assignment-rules.md` defines employee branch assignment and unassigned-state business rules.
+
 ---
 
 ## 1. Role Types (Canonical)
@@ -182,6 +187,8 @@ This document extends, and does not override:
 Boundary statement:
 
 > This document defines who has authority.  
+> It does not define authorization deny UX affordance behavior.  
+> It does not define employee branch assignment business rules.  
 > It does not define data ownership structure.  
 > It does not define branch scope structure.
 

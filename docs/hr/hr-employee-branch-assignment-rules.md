@@ -8,6 +8,11 @@ It exists to prevent drift before broader Employees write-layer enforcement and 
 
 This is a definition-only document and introduces no implementation changes.
 
+Responsibility boundary:
+- This document defines employee branch assignment and unassigned-state business rules in HR.
+- This document does **not** define role authority semantics.
+- This document does **not** define deny UX affordance behavior.
+
 Related canonical docs:
 - `docs/hr/hr-scoped-authorization-model.md`
 - `docs/hr/hr-role-system-model.md`
