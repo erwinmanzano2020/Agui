@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import type { EmployeeRow } from "@/lib/db.types";
 import { EmployeeAccessError } from "../employees";
-import type { HrAccessDecision } from "../access";
+import type { HrBranchAccessDecision } from "../access";
 import {
   EmployeeCreateError,
   EmployeeDuplicateIdentityError,
@@ -491,7 +491,7 @@ describe("getEmployeeByIdForHouse", () => {
 });
 
 describe("createEmployeeForHouseWithAccess", () => {
-  const allowedAccess: HrAccessDecision = {
+  const allowedAccess: HrBranchAccessDecision = {
     allowed: true,
     allowedByPolicy: false,
     allowedByRole: true,
@@ -500,16 +500,18 @@ describe("createEmployeeForHouseWithAccess", () => {
     policyKeys: [],
     roles: ["house_owner"],
     entityId: "entity-1",
+    branchId: null,
+    isBranchLimited: false,
+    allowedBranchIds: [],
   };
 
-  const disallowedAccess: HrAccessDecision = {
+  const disallowedAccess: HrBranchAccessDecision = {
     ...allowedAccess,
     allowed: false,
     allowedByRole: false,
     normalizedRoles: [normalizeWorkspaceRole("house_staff")],
     roles: ["house_staff"],
   };
-
   it("creates an employee within the same house and returns branch details", async () => {
     const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
 
@@ -712,7 +714,7 @@ describe("createEmployeeForHouseWithAccess", () => {
 });
 
 describe("updateEmployeeForHouseWithAccess", () => {
-  const allowedAccess: HrAccessDecision = {
+  const allowedAccess: HrBranchAccessDecision = {
     allowed: true,
     allowedByPolicy: false,
     allowedByRole: true,
@@ -721,14 +723,26 @@ describe("updateEmployeeForHouseWithAccess", () => {
     policyKeys: [],
     roles: ["house_owner"],
     entityId: "entity-1",
+    branchId: null,
+    isBranchLimited: false,
+    allowedBranchIds: [],
   };
 
-  const disallowedAccess: HrAccessDecision = {
+  const disallowedAccess: HrBranchAccessDecision = {
     ...allowedAccess,
     allowed: false,
     allowedByRole: false,
     normalizedRoles: [normalizeWorkspaceRole("house_staff")],
     roles: ["house_staff"],
+  };
+  const branchLimitedAccess: HrBranchAccessDecision = {
+    ...allowedAccess,
+    allowedByPolicy: true,
+    allowedByRole: false,
+    normalizedRoles: [normalizeWorkspaceRole("house_staff")],
+    roles: ["house_staff"],
+    isBranchLimited: true,
+    allowedBranchIds: ["branch-1"],
   };
 
   it("updates core employee fields within the same house", async () => {
@@ -797,6 +811,70 @@ describe("updateEmployeeForHouseWithAccess", () => {
           rate_per_day: 1200,
         }),
       EmployeeUpdateError,
+    );
+  });
+
+  it("denies branch-limited actors when mutating unassigned employees", async () => {
+    const supabase = new UpdateSupabaseMock([{ ...baseRow, branch_id: null }], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
+
+    await assert.rejects(
+      () =>
+        updateEmployeeForHouseWithAccess(supabase as never, branchLimitedAccess, "house-1", "emp-1", {
+          full_name: "Blocked Unassigned",
+          status: "active",
+          branch_id: "branch-1",
+          rate_per_day: 900,
+        }),
+      EmployeeAccessError,
+    );
+  });
+
+  it("allows house-level actors to assign branch for unassigned employees", async () => {
+    const supabase = new UpdateSupabaseMock([{ ...baseRow, branch_id: null }], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
+
+    const updated = await updateEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", "emp-1", {
+      full_name: "Assigned Employee",
+      status: "active",
+      branch_id: "branch-1",
+      rate_per_day: 1000,
+    });
+
+    assert.equal(updated?.branch_id, "branch-1");
+  });
+
+  it("denies branch-limited actors for cross-branch mutations", async () => {
+    const supabase = new UpdateSupabaseMock([{ ...baseRow, branch_id: "branch-2" }], [
+      { id: "branch-1", house_id: "house-1", name: "HQ" },
+      { id: "branch-2", house_id: "house-1", name: "Remote" },
+    ]);
+
+    await assert.rejects(
+      () =>
+        updateEmployeeForHouseWithAccess(supabase as never, branchLimitedAccess, "house-1", "emp-1", {
+          full_name: "Blocked Branch",
+          status: "active",
+          branch_id: "branch-2",
+          rate_per_day: 900,
+        }),
+      EmployeeAccessError,
+    );
+  });
+
+  it("denies branch-limited actors from reassigning employees to out-of-scope branches", async () => {
+    const supabase = new UpdateSupabaseMock([{ ...baseRow, branch_id: "branch-1" }], [
+      { id: "branch-1", house_id: "house-1", name: "HQ" },
+      { id: "branch-2", house_id: "house-1", name: "Remote" },
+    ]);
+
+    await assert.rejects(
+      () =>
+        updateEmployeeForHouseWithAccess(supabase as never, branchLimitedAccess, "house-1", "emp-1", {
+          full_name: "Blocked Move",
+          status: "active",
+          branch_id: "branch-2",
+          rate_per_day: 900,
+        }),
+      EmployeeAccessError,
     );
   });
 });
@@ -872,7 +950,7 @@ class DeleteSupabaseMock {
 }
 
 describe("deleteEmployeeForHouseWithAccess", () => {
-  const allowedAccess: HrAccessDecision = {
+  const allowedAccess: HrBranchAccessDecision = {
     allowed: true,
     allowedByPolicy: false,
     allowedByRole: true,
@@ -881,6 +959,9 @@ describe("deleteEmployeeForHouseWithAccess", () => {
     policyKeys: [],
     roles: ["house_owner"],
     entityId: "entity-1",
+    branchId: null,
+    isBranchLimited: false,
+    allowedBranchIds: [],
   };
 
   it("deletes employee and attempts photo cleanup", async () => {

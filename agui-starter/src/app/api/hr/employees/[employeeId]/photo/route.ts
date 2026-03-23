@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { updateEmployeeForHouseWithAccess } from "@/lib/hr/employees-server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
@@ -20,7 +20,7 @@ function isNullableString(value: unknown): value is string | null {
 async function persistPhoto(employeeId: string, houseId: string, photoUrl: string | null, photoPath: string | null, operationId: string | null) {
   const startedAt = Date.now();
   const supabase = await createServerSupabaseClient();
-  const access = await requireHrAccess(supabase, houseId);
+  const access = await requireHrAccessWithBranch(supabase, { houseId, requiredLevel: "write" });
 
   if (!access.allowed) {
     return NextResponse.json({ error: "Not allowed" }, { status: 403 });

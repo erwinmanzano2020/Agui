@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import {
   EmployeeUpdateError,
   deleteEmployeeForHouseWithAccess,
@@ -94,7 +94,11 @@ export async function updateEmployeeAction(
     return { status: "error", message: "Authentication required." };
   }
 
-  const access = await requireHrAccess(supabase, houseId);
+  const access = await requireHrAccessWithBranch(supabase, {
+    houseId,
+    branchId: normalizedBranchId,
+    requiredLevel: "write",
+  });
   if (!access.allowed) {
     return { status: "error", message: "You are not allowed to edit this employee." } satisfies UpdateEmployeeState;
   }
@@ -147,7 +151,7 @@ export async function deleteEmployeeAction(formData: FormData): Promise<{ status
     return { status: "error", message: "Authentication required." };
   }
 
-  const access = await requireHrAccess(supabase, houseId);
+  const access = await requireHrAccessWithBranch(supabase, { houseId, requiredLevel: "write" });
   if (!access.allowed) {
     return { status: "error", message: "You are not allowed to delete this employee." };
   }
