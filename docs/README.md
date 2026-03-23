@@ -11,6 +11,10 @@
   - [HR Branch Scope Enforcement Plan](./hr-branch-scope-enforcement-plan.md)
 - HR
   - [HR Master Plan](./hr/hr-master-plan.md)
+  - [HR Scoped Authorization Model](./hr/hr-scoped-authorization-model.md)
+  - [HR Role System Model](./hr/hr-role-system-model.md)
+  - [HR Deny UX Rules](./hr/hr-deny-ux-rules.md)
+  - [HR Employee Branch Assignment Rules](./hr/hr-employee-branch-assignment-rules.md)
   - [HR-1 Implementation Runbook](./hr/hr-1-implementation-runbook.md)
   - [HR-2.3 Freeze Declaration](./hr/hr-2-3-freeze.md)
   - [HR-3.3 Freeze Declaration](./hr/hr-3-3-freeze.md)
