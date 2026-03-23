@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { requireHrAccessWithBranch } from "@/lib/hr/access";
-import { updateEmployeeForHouseWithAccess } from "@/lib/hr/employees-server";
+import {
+  resolveEmployeeWriteTargetForHouseWithAccess,
+  updateEmployeeForHouseWithAccess,
+} from "@/lib/hr/employees-server";
 import { EmployeeAccessError } from "@/lib/hr/employees";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
@@ -28,11 +31,25 @@ async function persistPhoto(employeeId: string, houseId: string, photoUrl: strin
   }
 
   const service = getServiceSupabase();
+  let target;
+  try {
+    target = await resolveEmployeeWriteTargetForHouseWithAccess(service, access, houseId, employeeId, {
+      denyMessage: "Not allowed to update this employee",
+    });
+  } catch (error) {
+    if (error instanceof EmployeeAccessError) {
+      return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+    }
+    throw error;
+  }
+  if (!target) {
+    return NextResponse.json({ error: "Employee not found" }, { status: 404 });
+  }
+
   const current = await service
     .from("employees")
     .select("full_name,status,branch_id,rate_per_day,position_title")
-    .eq("house_id", houseId)
-    .eq("id", employeeId)
+    .eq("id", target.id)
     .maybeSingle();
 
   if (current.error) {

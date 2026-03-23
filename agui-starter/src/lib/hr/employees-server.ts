@@ -286,6 +286,32 @@ function canMutateEmployeeTarget(
   return getAllowedBranchIdSet(access).has(currentBranchId);
 }
 
+export async function resolveEmployeeWriteTargetForHouseWithAccess(
+  supabase: SupabaseClient<Database>,
+  access: HrBranchAccessDecision,
+  houseId: string,
+  employeeId: string,
+  options: { denyMessage: string } = { denyMessage: "Not allowed to mutate this employee" },
+): Promise<EmployeeWriteTarget | null> {
+  if (!access.allowed || !access.hasWorkspaceAccess) {
+    throw new EmployeeAccessError("Not allowed to mutate employees for this house");
+  }
+
+  const existing = await loadEmployeeWriteTarget(supabase, employeeId);
+  if (!existing) {
+    return null;
+  }
+
+  if (!canMutateEmployeeTarget(access, existing, houseId)) {
+    if (existing.house_id !== houseId) {
+      return null;
+    }
+    throw new EmployeeAccessError(options.denyMessage);
+  }
+
+  return existing;
+}
+
 export async function getEmployeeByIdForHouse(
   supabase: SupabaseClient<Database>,
   houseId: string,
@@ -463,22 +489,10 @@ export async function updateEmployeeForHouseWithAccess(
   employeeId: string,
   patch: EmployeeUpdateInput,
 ): Promise<EmployeeProfile | null> {
-  if (!access.allowed || !access.hasWorkspaceAccess) {
-    throw new EmployeeAccessError("Not allowed to update employees for this house");
-  }
-
-  const existing = await loadEmployeeWriteTarget(supabase, employeeId);
-
-  if (!existing) {
-    return null;
-  }
-
-  if (!canMutateEmployeeTarget(access, existing, houseId)) {
-    if (existing.house_id !== houseId) {
-      return null;
-    }
-    throw new EmployeeAccessError("Not allowed to update this employee");
-  }
+  const existing = await resolveEmployeeWriteTargetForHouseWithAccess(supabase, access, houseId, employeeId, {
+    denyMessage: "Not allowed to update this employee",
+  });
+  if (!existing) return null;
 
   if (access.isBranchLimited) {
     const targetBranchId = normalizeBranchId(patch.branch_id);
@@ -665,21 +679,10 @@ export async function deleteEmployeeForHouseWithAccess(
   houseId: string,
   employeeId: string,
 ): Promise<boolean> {
-  if (!access.allowed || !access.hasWorkspaceAccess) {
-    throw new EmployeeAccessError("Not allowed to delete employees for this house");
-  }
-
-  const existing = await loadEmployeeWriteTarget(supabase, employeeId);
-  if (!existing) {
-    return false;
-  }
-
-  if (!canMutateEmployeeTarget(access, existing, houseId)) {
-    if (existing.house_id !== houseId) {
-      return false;
-    }
-    throw new EmployeeAccessError("Not allowed to delete this employee");
-  }
+  const existing = await resolveEmployeeWriteTargetForHouseWithAccess(supabase, access, houseId, employeeId, {
+    denyMessage: "Not allowed to delete this employee",
+  });
+  if (!existing) return false;
 
   return deleteEmployeeForHouse(supabase, houseId, employeeId);
 }
