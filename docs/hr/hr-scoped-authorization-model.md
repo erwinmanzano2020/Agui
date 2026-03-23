@@ -16,7 +16,12 @@ This is a **definition-only** document and introduces no implementation changes.
 
 Relationship to scope semantics document:
 - `docs/hr-branch-scope-model.md` defines house/branch scope semantics.
+- `docs/hr/hr-role-system-model.md` defines role authority semantics.
 - This file defines authorization behavior inside those semantics.
+
+Responsibility boundary:
+- This document defines authorization evaluation order and behavior rules.
+- This document does **not** define role semantics; role semantics are delegated to `docs/hr/hr-role-system-model.md`.
 
 ---
 
@@ -212,7 +217,7 @@ These limitations are part of present reality and must be acknowledged in HR aut
 
 The following are intentionally deferred and are **not** implemented by this document:
 
-- role system formalization
+- role system semantics are now defined in `docs/hr/hr-role-system-model.md`; implementation and schema evolution remain deferred
 - branch-role assignment system
 - feature vs permission decoupling
 - unified access framework

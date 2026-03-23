@@ -14,7 +14,14 @@ This is a **definition document**, not a migration or schema change.
 
 Relationship to canonical authorization document:
 - `docs/hr/hr-scoped-authorization-model.md` defines authorization behavior.
+- `docs/hr/hr-role-system-model.md` defines role authority semantics.
 - This file defines scope semantics (ownership vs operational context) used by that authorization model.
+
+Responsibility boundary:
+- This document does **not** define roles.
+- This document does **not** define policies.
+- This document does **not** define authorization authority.
+- This document defines ownership vs operational scope semantics only.
 
 ---
 
@@ -117,7 +124,11 @@ It may **restrict access further**.
 
 Example:
 - house manager → can access all branches
-- branch manager → only assigned branch
+- branch-limited actor with branch-scoped policy restriction → only explicitly scoped branch data
+
+Clarification:
+- Branch-limited behavior does not imply a branch-scoped role.
+- In the current model, roles are house-scoped, and branch restriction is enforced via policy and scope, not role assignment.
 
 ---
 
