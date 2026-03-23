@@ -41,8 +41,11 @@ export default async function HrEmployeesPage({ params, searchParams }: Props) {
     notFound();
   }
 
-  const branchResult = await listBranchesForHouse(supabase, house.id);
   const hrAccess = await requireHrAccessWithBranch(supabase, { houseId: house.id });
+  if (!hrAccess.allowed) {
+    notFound();
+  }
+  const branchResult = await listBranchesForHouse(supabase, house.id);
   const accessibleBranches = hrAccess.isBranchLimited
     ? branchResult.branches.filter((branch) => hrAccess.allowedBranchIds.includes(branch.id))
     : branchResult.branches;

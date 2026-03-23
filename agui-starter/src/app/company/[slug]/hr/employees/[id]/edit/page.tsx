@@ -24,6 +24,9 @@ export default async function EditEmployeePage({ params }: Props) {
   }
 
   const access = await requireHrAccessWithBranch(supabase, { houseId: house.id });
+  if (!access.allowed) {
+    notFound();
+  }
   const [employee, branchResult] = await Promise.all([
     getEmployeeByIdForHouse(supabase, house.id, id, {
       readScope: {

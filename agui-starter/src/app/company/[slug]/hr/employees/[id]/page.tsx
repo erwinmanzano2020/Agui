@@ -42,6 +42,9 @@ export default async function EmployeeProfilePage({ params }: Props) {
   }
 
   const access = await requireHrAccessWithBranch(supabase, { houseId: house.id });
+  if (!access.allowed) {
+    notFound();
+  }
   const employee = await getEmployeeByIdForHouse(supabase, house.id, id, {
     includeIdentity: true,
     readScope: {
