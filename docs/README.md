@@ -10,16 +10,22 @@
   - [HR Branch Scope Model](./hr-branch-scope-model.md)
   - [HR Branch Scope Enforcement Plan](./hr-branch-scope-enforcement-plan.md)
 - HR
-  - [HR Master Plan](./hr/hr-master-plan.md)
-  - [HR-1 Implementation Runbook](./hr/hr-1-implementation-runbook.md)
-  - [HR-2.3 Freeze Declaration](./hr/hr-2-3-freeze.md)
-  - [HR-3.3 Freeze Declaration](./hr/hr-3-3-freeze.md)
-  - [HR-3.4.2 Freeze — Run PDF Export (Merged)](./hr/hr-3-4-2-freeze.md)
-  - [HR-3.4.2c Timestamp Fix Notes](./hr/hr-3-4-2c-timestamp-fix.md)
-  - [HR-3.5.1 Kiosk Devices Admin](./hr/hr-3-5-1-kiosk-devices.md)
-  - [HR-3.5.1a Kiosk Setup Wizard](./hr/hr-3-5-1a-kiosk-setup-wizard.md)
-  - [HR-3.5.2 Employee ID Cards](./hr/hr-3-5-2-employee-id-cards.md)
-  - [HR-3.5.2 Freeze Declaration](./hr/hr-3-5-2-freeze.md)
+  - Foundations
+    - [HR Scoped Authorization Model](./hr/hr-scoped-authorization-model.md)
+    - [HR Role System Model](./hr/hr-role-system-model.md)
+    - [HR Deny UX Rules](./hr/hr-deny-ux-rules.md)
+    - [HR Employee Branch Assignment Rules](./hr/hr-employee-branch-assignment-rules.md)
+  - Implementation / Freeze Docs
+    - [HR Master Plan](./hr/hr-master-plan.md)
+    - [HR-1 Implementation Runbook](./hr/hr-1-implementation-runbook.md)
+    - [HR-2.3 Freeze Declaration](./hr/hr-2-3-freeze.md)
+    - [HR-3.3 Freeze Declaration](./hr/hr-3-3-freeze.md)
+    - [HR-3.4.2 Freeze — Run PDF Export (Merged)](./hr/hr-3-4-2-freeze.md)
+    - [HR-3.4.2c Timestamp Fix Notes](./hr/hr-3-4-2c-timestamp-fix.md)
+    - [HR-3.5.1 Kiosk Devices Admin](./hr/hr-3-5-1-kiosk-devices.md)
+    - [HR-3.5.1a Kiosk Setup Wizard](./hr/hr-3-5-1a-kiosk-setup-wizard.md)
+    - [HR-3.5.2 Employee ID Cards](./hr/hr-3-5-2-employee-id-cards.md)
+    - [HR-3.5.2 Freeze Declaration](./hr/hr-3-5-2-freeze.md)
 - Admin
   - [HR DTR Timezone Repair](./admin/hr-dtr-timezone-repair.md)
 - Engineering

@@ -19,9 +19,15 @@ Relationship to scope semantics document:
 - `docs/hr/hr-role-system-model.md` defines role authority semantics.
 - This file defines authorization behavior inside those semantics.
 
+Related canonical docs for adjacent responsibilities:
+- `docs/hr/hr-deny-ux-rules.md` defines deny behavior across API/page/list/action/navigation layers.
+- `docs/hr/hr-employee-branch-assignment-rules.md` defines employee branch assignment and unassigned-state business rules.
+
 Responsibility boundary:
 - This document defines authorization evaluation order and behavior rules.
 - This document does **not** define role semantics; role semantics are delegated to `docs/hr/hr-role-system-model.md`.
+- This document does **not** define deny UX affordance behavior; deny UX behavior is delegated to `docs/hr/hr-deny-ux-rules.md`.
+- This document does **not** define employee assignment business rules; those are delegated to `docs/hr/hr-employee-branch-assignment-rules.md`.
 
 ---
 
