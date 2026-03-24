@@ -49,7 +49,7 @@ Write-target resolvers now preserve `403` vs `404` semantics more strictly:
 
 ## Follow-up UX standardization
 
-- Hidden context-field validation (`houseId`, `houseSlug`, `employeeId`, `segmentId`, `workDate`) is now normalized into a form-level error bucket (`fieldErrors.form`) instead of orphaned hidden-field keys.
+- Hidden context-field validation (`houseId`, `houseSlug`, `employeeId`, `segmentId`, `workDate`) is now normalized into a form-level error bucket (`fieldErrors.form`) with a single user-facing context-recovery message, instead of orphaned hidden-field keys.
 - The DTR forms surface that form-level validation detail alongside the global mutation status message, while retaining inline field rendering only for user-editable time inputs.
 
 ## Limitations

@@ -37,6 +37,14 @@ const UpdateSchema = z.object({
 
 const VALIDATION_ERROR_MESSAGE = "Fix the highlighted fields and try again.";
 const HIDDEN_CONTEXT_FIELDS = new Set(["houseId", "houseSlug", "employeeId", "segmentId", "workDate"]);
+const HIDDEN_CONTEXT_MESSAGE_HINTS = [
+  "Missing house context",
+  "Missing workspace context",
+  "Missing employee",
+  "Missing segment",
+  "Invalid work date",
+];
+const INVALID_CONTEXT_ERROR_MESSAGE = "Request context is missing or invalid. Refresh and try again.";
 const AUTH_REQUIRED_RESPONSE = {
   status: "error",
   message: "Authentication required.",
@@ -62,9 +70,18 @@ function toValidationFieldErrors(error: { issues: Array<{ path?: unknown[]; mess
   const fieldErrors: Record<string, string[]> = {};
   for (const issue of error.issues) {
     const issuePathField = typeof issue.path?.[0] === "string" ? issue.path[0] : "form";
-    const field = HIDDEN_CONTEXT_FIELDS.has(issuePathField) ? "form" : issuePathField;
+    const issueMessage = issue.message ?? "Invalid value";
+    const isHiddenContextField =
+      HIDDEN_CONTEXT_FIELDS.has(issuePathField) ||
+      (issuePathField === "form" && HIDDEN_CONTEXT_MESSAGE_HINTS.some((hint) => issueMessage.includes(hint)));
+    const field = isHiddenContextField ? "form" : issuePathField;
     if (!fieldErrors[field]) fieldErrors[field] = [];
-    fieldErrors[field].push(issue.message ?? "Invalid value");
+    const normalizedMessage = isHiddenContextField
+      ? INVALID_CONTEXT_ERROR_MESSAGE
+      : issueMessage;
+    if (!fieldErrors[field].includes(normalizedMessage)) {
+      fieldErrors[field].push(normalizedMessage);
+    }
   }
   return fieldErrors;
 }

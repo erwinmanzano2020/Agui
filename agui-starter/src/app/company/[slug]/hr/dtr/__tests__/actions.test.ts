@@ -85,7 +85,7 @@ describe("DTR action boundary mapping", () => {
 
     assert.equal(result.status, "error");
     assert.equal(result.message, "Fix the highlighted fields and try again.");
-    assert.equal(result.fieldErrors.form?.[0], "Missing house context");
+    assert.equal(result.fieldErrors.form?.[0], "Request context is missing or invalid. Refresh and try again.");
     assert.equal(result.fieldErrors.houseId, undefined);
   });
 
@@ -111,6 +111,18 @@ describe("DTR action boundary mapping", () => {
     const result = await updateDtrSegmentAction(dtrMutationInitialState, buildUpdateFormData());
     assert.equal(result.status, "error");
     assert.equal(result.message, "Record not found.");
+  });
+
+  it("updateDtrSegmentAction returns forbidden when resolver denies branch-limited scope", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true, hasWorkspaceAccess: true } as never));
+    mock.method(dtrSegmentsServer, "resolveDtrSegmentWriteTargetForHouseWithAccess", async () => {
+      throw new DtrSegmentAccessError("Not allowed to update this segment");
+    });
+
+    const result = await updateDtrSegmentAction(dtrMutationInitialState, buildUpdateFormData());
+    assert.equal(result.status, "error");
+    assert.equal(result.message, "You are not allowed to modify this record.");
   });
 
   it("updateDtrSegmentAction returns unexpected error on unknown failure", async () => {
@@ -186,7 +198,7 @@ describe("DTR action boundary mapping", () => {
 
     assert.equal(result.status, "error");
     assert.equal(result.message, "Fix the highlighted fields and try again.");
-    assert.equal(result.fieldErrors.form?.[0], "Missing house context");
+    assert.equal(result.fieldErrors.form?.[0], "Request context is missing or invalid. Refresh and try again.");
     assert.equal(result.fieldErrors.houseId, undefined);
   });
 
@@ -315,6 +327,12 @@ describe("DTR action boundary mapping", () => {
       },
       {
         status: "error" as const,
+        message: "Authentication required.",
+        fieldErrors: {},
+        expected: /Authentication required\./,
+      },
+      {
+        status: "error" as const,
         message: "You are not allowed to modify this record.",
         fieldErrors: {},
         expected: /not allowed/,
@@ -323,8 +341,8 @@ describe("DTR action boundary mapping", () => {
       {
         status: "error" as const,
         message: "Unable to save changes right now.",
-        fieldErrors: { form: ["Missing house context"] },
-        expected: /Missing house context/,
+        fieldErrors: { form: ["Request context is missing or invalid. Refresh and try again."] },
+        expected: /Request context is missing or invalid/,
       },
     ];
 
