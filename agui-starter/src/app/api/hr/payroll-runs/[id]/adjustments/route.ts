@@ -9,12 +9,12 @@ import { AppFeature } from "@/lib/auth/permissions";
 import type { Database } from "@/lib/db.types";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import {
-  getPayrollRunWithItems,
   createAdjustmentRunForHouse,
   PayrollRunAccessError,
   PayrollRunMutationError,
   PayrollRunNotFoundError,
   PayrollRunWrongStatusError,
+  resolvePayrollRunWriteTargetForHouseWithAccess,
 } from "@/lib/hr/payroll-runs-server";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -112,7 +112,11 @@ export async function POST(
   }
 
   try {
-    const target = await getPayrollRunWithItems(supabase, parsedQuery.data.houseId, parsedParams.data.id);
+    const target = await resolvePayrollRunWriteTargetForHouseWithAccess(
+      supabase,
+      parsedQuery.data.houseId,
+      parsedParams.data.id,
+    );
     if (!target) {
       return jsonError(404, NOT_FOUND_MESSAGE, { message: "Payroll run not found." });
     }
@@ -121,7 +125,7 @@ export async function POST(
       houseId: parsedQuery.data.houseId,
       adjustsRunId: parsedParams.data.id,
       note: payload.note ?? null,
-    });
+    }, { resolvedTarget: target });
 
     return jsonOk({ runId: result.runId, message: SUCCESS_MESSAGE });
   } catch (error) {

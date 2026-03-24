@@ -159,7 +159,7 @@ describe("payroll run id-based write routes", () => {
 
       it("returns forbidden boundary", async () => {
         setupAuthOk();
-        mock.method(payrollRunsServer, "getPayrollRunWithItems", async () => {
+        mock.method(payrollRunsServer, "resolvePayrollRunWriteTargetForHouseWithAccess", async () => {
           throw new payrollRunsServer.PayrollRunAccessError("denied");
         });
         const response = await routeCase.call(new Request(`http://localhost/${routeCase.name}?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }));
@@ -169,7 +169,7 @@ describe("payroll run id-based write routes", () => {
 
       it("returns not-found boundary", async () => {
         setupAuthOk();
-        mock.method(payrollRunsServer, "getPayrollRunWithItems", async () => null);
+        mock.method(payrollRunsServer, "resolvePayrollRunWriteTargetForHouseWithAccess", async () => null);
         const response = await routeCase.call(new Request(`http://localhost/${routeCase.name}?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }));
         assert.equal(response.status, 404);
         assert.equal((await response.json()).error, "Record not found.");
@@ -177,7 +177,13 @@ describe("payroll run id-based write routes", () => {
 
       it("returns unexpected boundary", async () => {
         setupAuthOk();
-        mock.method(payrollRunsServer, "getPayrollRunWithItems", async () => ({ run: {} as never, items: [] }));
+        mock.method(payrollRunsServer, "resolvePayrollRunWriteTargetForHouseWithAccess", async () => ({
+          id: RUN_ID,
+          houseId: HOUSE_ID,
+          status: "posted",
+          periodStart: "2026-01-01",
+          periodEnd: "2026-01-15",
+        }));
         mock.method(payrollRunsServer, routeCase.mutate, async () => {
           throw new payrollRunsServer.PayrollRunMutationError("db fail");
         });
@@ -189,9 +195,15 @@ describe("payroll run id-based write routes", () => {
       it("returns success boundary", async () => {
         setupAuthOk();
         const order: string[] = [];
-        mock.method(payrollRunsServer, "getPayrollRunWithItems", async () => {
+        mock.method(payrollRunsServer, "resolvePayrollRunWriteTargetForHouseWithAccess", async () => {
           order.push("resolve");
-          return { run: {} as never, items: [] };
+          return {
+            id: RUN_ID,
+            houseId: HOUSE_ID,
+            status: "posted",
+            periodStart: "2026-01-01",
+            periodEnd: "2026-01-15",
+          };
         });
         mock.method(payrollRunsServer, routeCase.mutate, async () => {
           order.push("mutate");
@@ -202,6 +214,31 @@ describe("payroll run id-based write routes", () => {
         assert.equal(response.status, 200);
         assert.equal((await response.json()).message, routeCase.successMessage);
         assert.deepEqual(order, ["resolve", "mutate"]);
+      });
+
+      it("passes resolved target into mutation options", async () => {
+        setupAuthOk();
+        const resolvedTarget = {
+          id: RUN_ID,
+          houseId: HOUSE_ID,
+          status: "posted" as const,
+          periodStart: "2026-01-01",
+          periodEnd: "2026-01-15",
+        };
+        mock.method(payrollRunsServer, "resolvePayrollRunWriteTargetForHouseWithAccess", async () => resolvedTarget);
+
+        let capturedOptions: unknown;
+        mock.method(payrollRunsServer, routeCase.mutate, async (...args: unknown[]) => {
+          capturedOptions = args[args.length - 1];
+          return routeCase.mutate === "createAdjustmentRunForHouse" ? { runId: RUN_ID } : ({ run: {} } as never);
+        });
+
+        const response = await routeCase.call(
+          new Request(`http://localhost/${routeCase.name}?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }),
+        );
+
+        assert.equal(response.status, 200);
+        assert.deepEqual(capturedOptions, { resolvedTarget });
       });
     });
   }
