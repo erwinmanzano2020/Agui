@@ -16,4 +16,7 @@ For payroll run write routes, pre-mutation resolution should use a **lightweight
 - mutation runs only after successful resolution
 
 ## Implementation note
-Routes now use `resolvePayrollRunWriteTargetForHouseWithAccess(...)` and pass the resolved target into mutation helpers to avoid a redundant run re-read while keeping route boundary behavior unchanged.
+Routes now use `resolvePayrollRunWriteTargetForHouseWithAccess(...)` for early boundary handling and pass the resolved target into mutation helpers.
+
+## Fresh-state safety rule
+Route-level write-target resolution is an optimization only. Mutation helpers must still validate **fresh DB state at mutation time** for status-sensitive and period-sensitive decisions. Stale route snapshots must not be sufficient to allow finalize/mark-paid/adjustments writes.

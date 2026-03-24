@@ -394,26 +394,28 @@ export async function finalizePayrollRunForHouse(
     throw new PayrollRunAccessError("Not allowed to finalize payroll runs for this house.");
   }
 
-  const resolvedTarget =
-    options.resolvedTarget ??
-    (await resolvePayrollRunWriteTargetForHouseWithAccess(supabase, houseId, runId, { access }));
-  if (!resolvedTarget || resolvedTarget.id !== runId || resolvedTarget.houseId !== houseId) {
+  const run = await loadPayrollRun(supabase, runId);
+  if (!run || run.house_id !== houseId) {
     throw new PayrollRunNotFoundError("Payroll run not found.");
   }
 
-  if (resolvedTarget.status === "finalized") {
+  if (options.resolvedTarget && (options.resolvedTarget.id !== runId || options.resolvedTarget.houseId !== houseId)) {
+    throw new PayrollRunNotFoundError("Payroll run not found.");
+  }
+
+  if (run.status === "finalized") {
     throw new PayrollRunFinalizedError("Payroll run already finalized.");
   }
 
-  if (resolvedTarget.status !== "draft") {
+  if (run.status !== "draft") {
     throw new PayrollRunWrongStatusError("Payroll run must be draft to finalize.");
   }
 
   const hasOpenSegments = await hasOpenSegmentsInPeriod(
     supabase,
     houseId,
-    resolvedTarget.periodStart,
-    resolvedTarget.periodEnd,
+    run.period_start,
+    run.period_end,
   );
   if (hasOpenSegments) {
     throw new PayrollRunOpenSegmentsError("Open DTR segments exist in this payroll period.");
@@ -634,14 +636,16 @@ export async function markPayrollRunPaidForHouse(
     throw new PayrollRunAccessError("Not allowed to mark payroll runs as paid for this house.");
   }
 
-  const resolvedTarget =
-    options.resolvedTarget ??
-    (await resolvePayrollRunWriteTargetForHouseWithAccess(supabase, input.houseId, input.runId, { access }));
-  if (!resolvedTarget || resolvedTarget.id !== input.runId || resolvedTarget.houseId !== input.houseId) {
+  const run = await loadPayrollRun(supabase, input.runId);
+  if (!run || run.house_id !== input.houseId) {
     throw new PayrollRunNotFoundError("Payroll run not found.");
   }
 
-  if (resolvedTarget.status !== "posted") {
+  if (options.resolvedTarget && (options.resolvedTarget.id !== input.runId || options.resolvedTarget.houseId !== input.houseId)) {
+    throw new PayrollRunNotFoundError("Payroll run not found.");
+  }
+
+  if (run.status !== "posted") {
     throw new PayrollRunWrongStatusError("Payroll run must be posted before marking as paid.");
   }
 
@@ -692,14 +696,19 @@ export async function createAdjustmentRunForHouse(
     throw new PayrollRunAccessError("Not allowed to create adjustment runs for this house.");
   }
 
-  const resolvedTarget =
-    options.resolvedTarget ??
-    (await resolvePayrollRunWriteTargetForHouseWithAccess(supabase, input.houseId, input.adjustsRunId, { access }));
-  if (!resolvedTarget || resolvedTarget.id !== input.adjustsRunId || resolvedTarget.houseId !== input.houseId) {
+  const originalRun = await loadPayrollRun(supabase, input.adjustsRunId);
+  if (!originalRun || originalRun.house_id !== input.houseId) {
     throw new PayrollRunNotFoundError("Payroll run not found.");
   }
 
-  if (resolvedTarget.status !== "posted" && resolvedTarget.status !== "paid") {
+  if (
+    options.resolvedTarget &&
+    (options.resolvedTarget.id !== input.adjustsRunId || options.resolvedTarget.houseId !== input.houseId)
+  ) {
+    throw new PayrollRunNotFoundError("Payroll run not found.");
+  }
+
+  if (originalRun.status !== "posted" && originalRun.status !== "paid") {
     throw new PayrollRunWrongStatusError("Only posted payroll runs can be adjusted.");
   }
 
@@ -707,8 +716,8 @@ export async function createAdjustmentRunForHouse(
     supabase,
     {
       houseId: input.houseId,
-      startDate: resolvedTarget.periodStart,
-      endDate: resolvedTarget.periodEnd,
+      startDate: originalRun.period_start,
+      endDate: originalRun.period_end,
     },
     { access },
   );
@@ -717,11 +726,11 @@ export async function createAdjustmentRunForHouse(
     .from("hr_payroll_runs")
     .insert({
       house_id: input.houseId,
-      period_start: resolvedTarget.periodStart,
-      period_end: resolvedTarget.periodEnd,
+      period_start: originalRun.period_start,
+      period_end: originalRun.period_end,
       status: "draft",
       created_by: access.entityId,
-      adjusts_run_id: resolvedTarget.id,
+      adjusts_run_id: originalRun.id,
     })
     .select(
       "id, house_id, period_start, period_end, status, created_by, created_at, finalized_at, finalized_by, finalize_note, posted_at, posted_by, post_note, paid_at, paid_by, payment_method, payment_note, reference_code, adjusts_run_id",
