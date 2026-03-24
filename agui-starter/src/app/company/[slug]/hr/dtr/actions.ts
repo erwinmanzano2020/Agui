@@ -6,6 +6,7 @@ import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import {
   createDtrSegment,
   DtrSegmentAccessError,
+  resolveDtrEmployeeWriteTargetForHouseWithAccess,
   resolveDtrSegmentWriteTargetForHouseWithAccess,
 } from "@/lib/hr/dtr-segments-server";
 import { assertManilaReasonableSegment, toManilaTimestamptz } from "@/lib/hr/timezone";
@@ -55,6 +56,16 @@ function toTimestamp(workDate: string, timeValue: string) {
   return toManilaTimestamptz(workDate, `${timeValue}:00`);
 }
 
+function toValidationFieldErrors(error: { issues: Array<{ path?: unknown[]; message?: string }> }) {
+  const fieldErrors: Record<string, string[]> = {};
+  for (const issue of error.issues) {
+    const field = typeof issue.path?.[0] === "string" ? issue.path[0] : "form";
+    if (!fieldErrors[field]) fieldErrors[field] = [];
+    fieldErrors[field].push(issue.message ?? "Invalid value");
+  }
+  return fieldErrors;
+}
+
 export async function createDtrSegmentAction(formData: FormData) {
   const parsed = CreateSchema.safeParse({
     houseId: formData.get("houseId"),
@@ -66,11 +77,10 @@ export async function createDtrSegmentAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    const flattened = parsed.error.flatten();
     return {
       status: "error",
       message: VALIDATION_ERROR_MESSAGE,
-      fieldErrors: flattened.formErrors.length ? { form: flattened.formErrors } : {},
+      fieldErrors: toValidationFieldErrors(parsed.error),
     } satisfies DtrMutationResponse;
   }
 
@@ -88,6 +98,16 @@ export async function createDtrSegmentAction(formData: FormData) {
   }
 
   try {
+    const target = await resolveDtrEmployeeWriteTargetForHouseWithAccess(
+      supabase,
+      access,
+      parsed.data.houseId,
+      parsed.data.employeeId,
+    );
+    if (!target) {
+      return NOT_FOUND_RESPONSE;
+    }
+
     const timeIn = toTimestamp(parsed.data.workDate, parsed.data.timeIn);
     const timeOut = parsed.data.timeOut ? toTimestamp(parsed.data.workDate, parsed.data.timeOut) : null;
     if (!timeIn || (parsed.data.timeOut && !timeOut)) {
@@ -118,7 +138,7 @@ export async function createDtrSegmentAction(formData: FormData) {
 
     await createDtrSegment(supabase, {
       houseId: parsed.data.houseId,
-      employeeId: parsed.data.employeeId,
+      employeeId: target.id,
       workDate: parsed.data.workDate,
       timeIn,
       timeOut,
@@ -131,7 +151,9 @@ export async function createDtrSegmentAction(formData: FormData) {
     return UNEXPECTED_RESPONSE;
   }
 
-  revalidatePath(`/company/${parsed.data.houseSlug}/hr/dtr`);
+  if (typeof revalidatePath === "function") {
+    revalidatePath(`/company/${parsed.data.houseSlug}/hr/dtr`);
+  }
   return { status: "success", message: "DTR segment saved." } satisfies DtrMutationResponse;
 }
 
@@ -146,11 +168,10 @@ export async function updateDtrSegmentAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    const flattened = parsed.error.flatten();
     return {
       status: "error",
       message: VALIDATION_ERROR_MESSAGE,
-      fieldErrors: flattened.formErrors.length ? { form: flattened.formErrors } : {},
+      fieldErrors: toValidationFieldErrors(parsed.error),
     } satisfies DtrMutationResponse;
   }
 
@@ -233,6 +254,16 @@ export async function updateDtrSegmentAction(formData: FormData) {
     return UNEXPECTED_RESPONSE;
   }
 
-  revalidatePath(`/company/${parsed.data.houseSlug}/hr/dtr`);
+  if (typeof revalidatePath === "function") {
+    revalidatePath(`/company/${parsed.data.houseSlug}/hr/dtr`);
+  }
   return { status: "success", message: "DTR segment saved." } satisfies DtrMutationResponse;
+}
+
+export async function createDtrSegmentFormAction(formData: FormData): Promise<void> {
+  await createDtrSegmentAction(formData);
+}
+
+export async function updateDtrSegmentFormAction(formData: FormData): Promise<void> {
+  await updateDtrSegmentAction(formData);
 }

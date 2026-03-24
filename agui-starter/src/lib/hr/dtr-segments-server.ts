@@ -17,6 +17,7 @@ type DtrSegmentWriteTarget = {
   employee_id: string;
   employee_branch_id: string | null;
 };
+type DtrEmployeeWriteTarget = Pick<MinimalEmployee, "id" | "house_id" | "branch_id">;
 
 export class DtrSegmentAccessError extends Error {
   constructor(message: string) {
@@ -129,6 +130,38 @@ export async function resolveDtrSegmentWriteTargetForHouseWithAccess(
     employee_id: segment.employee_id,
     employee_branch_id: employee.branch_id ?? null,
   };
+}
+
+export async function resolveDtrEmployeeWriteTargetForHouseWithAccess(
+  supabase: SupabaseClient<Database>,
+  access: HrBranchAccessDecision,
+  houseId: string,
+  employeeId: string,
+): Promise<DtrEmployeeWriteTarget | null> {
+  if (!access.allowed || !access.hasWorkspaceAccess) {
+    throw new DtrSegmentAccessError("Not allowed to update this segment");
+  }
+
+  const employee = await loadEmployeeForAccess(supabase, employeeId);
+  if (!employee) {
+    return null;
+  }
+
+  if (employee.house_id !== houseId) {
+    return null;
+  }
+
+  if (access.isBranchLimited) {
+    const employeeBranchId = employee.branch_id?.trim().toLowerCase() ?? null;
+    if (!employeeBranchId) {
+      throw new DtrSegmentAccessError("Not allowed to update this segment");
+    }
+    if (!getAllowedBranchIdSet(access).has(employeeBranchId)) {
+      throw new DtrSegmentAccessError("Not allowed to update this segment");
+    }
+  }
+
+  return employee;
 }
 
 export async function listDtrByHouseAndDate(

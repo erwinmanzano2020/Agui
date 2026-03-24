@@ -9,6 +9,7 @@ import {
   listDtrByEmployee,
   listDtrByHouseAndDate,
   listDtrTodayByBranch,
+  resolveDtrEmployeeWriteTargetForHouseWithAccess,
   resolveDtrSegmentWriteTargetForHouseWithAccess,
 } from "../dtr-segments-server";
 
@@ -464,6 +465,50 @@ describe("resolveDtrSegmentWriteTargetForHouseWithAccess", () => {
           }),
           "house-1",
           "seg-1",
+        ),
+      DtrSegmentAccessError,
+    );
+  });
+});
+
+describe("resolveDtrEmployeeWriteTargetForHouseWithAccess", () => {
+  it("allows house-level actor to target any employee branch in house", async () => {
+    const supabase = new SupabaseMock([], [buildEmployee("emp-1", "house-1", "branch-2")]);
+    const target = await resolveDtrEmployeeWriteTargetForHouseWithAccess(
+      supabase as never,
+      buildAccess(),
+      "house-1",
+      "emp-1",
+    );
+    assert.equal(target?.id, "emp-1");
+  });
+
+  it("returns null for missing employee target", async () => {
+    const supabase = new SupabaseMock([], []);
+    const target = await resolveDtrEmployeeWriteTargetForHouseWithAccess(
+      supabase as never,
+      buildAccess(),
+      "house-1",
+      "missing",
+    );
+    assert.equal(target, null);
+  });
+
+  it("throws access error for out-of-scope branch-limited actor", async () => {
+    const supabase = new SupabaseMock([], [buildEmployee("emp-1", "house-1", "branch-2")]);
+    await assert.rejects(
+      () =>
+        resolveDtrEmployeeWriteTargetForHouseWithAccess(
+          supabase as never,
+          buildAccess({
+            isBranchLimited: true,
+            allowedByRole: false,
+            allowedByPolicy: true,
+            policyKeys: ["hr.branch.branch-1"],
+            allowedBranchIds: ["branch-1"],
+          }),
+          "house-1",
+          "emp-1",
         ),
       DtrSegmentAccessError,
     );

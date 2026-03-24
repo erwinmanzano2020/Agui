@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 
-import { createDtrSegmentAction, updateDtrSegmentAction } from "./actions";
+import { createDtrSegmentFormAction, updateDtrSegmentFormAction } from "./actions";
 import { requireAuth } from "@/lib/auth/require-auth";
 import type { DtrSegmentRow } from "@/lib/db.types";
 import { listDtrByHouseAndDate } from "@/lib/hr/dtr-segments-server";
@@ -226,7 +226,7 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
                           key={segment.id}
                           className="rounded-xl border border-border/70 bg-background/70 p-3 text-sm"
                         >
-                          <form action={async (formData) => { await updateDtrSegmentAction(formData); }} className="flex flex-wrap items-center gap-3">
+                          <form action={updateDtrSegmentFormAction} className="flex flex-wrap items-center gap-3">
                             <input type="hidden" name="houseId" value={house.id} />
                             <input type="hidden" name="houseSlug" value={house.slug ?? slug} />
                             <input type="hidden" name="segmentId" value={segment.id} />
@@ -312,7 +312,7 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
                   </div>
                 </details>
 
-                <form action={async (formData) => { await createDtrSegmentAction(formData); }} className="mt-4 flex flex-wrap items-end gap-3">
+                <form action={createDtrSegmentFormAction} className="mt-4 flex flex-wrap items-end gap-3">
                   <input type="hidden" name="houseId" value={house.id} />
                   <input type="hidden" name="houseSlug" value={house.slug ?? slug} />
                   <input type="hidden" name="employeeId" value={employee.id} />
