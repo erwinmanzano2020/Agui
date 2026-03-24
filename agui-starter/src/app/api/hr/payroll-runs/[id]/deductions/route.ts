@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { jsonError, jsonOk } from "@/lib/api/http";
+import { jsonError } from "@/lib/api/http";
 import { logApiError, logApiWarning } from "@/lib/api/logging";
 import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
@@ -13,12 +13,22 @@ import {
   PayrollRunDeductionLockedError,
   PayrollRunDeductionMutationError,
   PayslipAccessError,
+  resolvePayrollRunDeductionWriteContext,
 } from "@/lib/hr/payslip-server";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
+import {
+  payrollWriteAuthRequired,
+  payrollWriteForbidden,
+  payrollWriteNotFound,
+  payrollWriteSuccess,
+  payrollWriteUnexpected,
+  payrollWriteValidation,
+} from "../../write-boundary";
 
 const ROUTE_NAME = "api/hr/payroll-runs/:id/deductions";
+const SUCCESS_MESSAGE = "Deduction added.";
 
 const ParamsSchema = z.object({
   id: z.string().trim().uuid(),
@@ -63,7 +73,7 @@ export async function POST(
 
   if (!userResult.user) {
     logApiWarning({ route: ROUTE_NAME, action: "unauthenticated" });
-    return jsonError(401, "Not authenticated");
+    return payrollWriteAuthRequired();
   }
 
   const admin = getServiceSupabase();
@@ -77,15 +87,13 @@ export async function POST(
 
   if (!entityId) {
     logApiWarning({ route: ROUTE_NAME, action: "entity_not_linked", userId: userResult.user.id });
-    return jsonError(403, "Account not linked");
+    return payrollWriteForbidden();
   }
 
   const parsedParams = ParamsSchema.safeParse(await params);
   if (!parsedParams.success) {
     const details = parsedParams.error.flatten().formErrors;
-    return jsonError(400, "Fix the highlighted fields and try again.", {
-      message: details[0] ?? "Missing or invalid parameters.",
-    });
+    return payrollWriteValidation(details[0]);
   }
 
   let payload: BodyPayload;
@@ -93,10 +101,15 @@ export async function POST(
     payload = BodySchema.parse(await req.json());
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid request body";
-    return jsonError(400, "Fix the highlighted fields and try again.", { message });
+    return payrollWriteValidation(message);
   }
 
   try {
+    const target = await resolvePayrollRunDeductionWriteContext(supabase, { runId: parsedParams.data.id });
+    if (!target) {
+      return payrollWriteNotFound();
+    }
+
     const result = await createPayrollRunDeduction(supabase, {
       runId: parsedParams.data.id,
       employeeId: payload.employeeId,
@@ -105,7 +118,7 @@ export async function POST(
       createdBy: entityId,
     });
 
-    return jsonOk({ id: result?.id ?? null });
+    return payrollWriteSuccess({ id: result?.id ?? null }, SUCCESS_MESSAGE);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -122,7 +135,7 @@ export async function POST(
         details: { runId: parsedParams.data.id },
         error: message,
       });
-      return jsonError(403, "Not allowed", { message });
+      return payrollWriteForbidden(message);
     }
 
     if (error instanceof PayrollRunDeductionMutationError) {
@@ -134,7 +147,7 @@ export async function POST(
         details: { runId: parsedParams.data.id },
         error: message,
       });
-      return jsonError(500, "Failed to save deduction", { message });
+      return payrollWriteUnexpected(message);
     }
 
     logApiError({
@@ -146,6 +159,6 @@ export async function POST(
       error: message,
     });
 
-    return jsonError(500, "Failed to save deduction", { message });
+    return payrollWriteUnexpected(message);
   }
 }

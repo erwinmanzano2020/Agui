@@ -741,3 +741,24 @@ export async function createPayrollRunDeduction(
 
   return data ?? null;
 }
+
+export async function resolvePayrollRunDeductionWriteContext(
+  supabase: SupabaseClient<Database>,
+  input: { runId: string; houseId?: string },
+  options: { access?: HrAccessDecision } = {},
+): Promise<{ runId: string; houseId: string } | null> {
+  const run = await loadPayrollRun(supabase, input.runId);
+  if (!run) return null;
+
+  const houseId = input.houseId ?? run.house_id;
+  const access = await resolveAccess(supabase, houseId, options.access);
+  if (!access.allowed) {
+    throw new PayslipAccessError("Not allowed to add deductions for this payroll run.");
+  }
+
+  if (run.house_id !== houseId) {
+    throw new PayslipAccessError("Payroll run does not belong to this house.");
+  }
+
+  return { runId: run.id, houseId };
+}

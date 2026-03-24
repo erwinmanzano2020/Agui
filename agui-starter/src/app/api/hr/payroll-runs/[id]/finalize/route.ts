@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { jsonError, jsonOk } from "@/lib/api/http";
+import { jsonError } from "@/lib/api/http";
 import { logApiError, logApiWarning } from "@/lib/api/logging";
 import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
@@ -16,12 +16,22 @@ import {
   PayrollRunNotFoundError,
   PayrollRunOpenSegmentsError,
   PayrollRunWrongStatusError,
+  resolvePayrollRunWriteTargetForHouseWithAccess,
 } from "@/lib/hr/payroll-runs-server";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
+import {
+  payrollWriteAuthRequired,
+  payrollWriteForbidden,
+  payrollWriteNotFound,
+  payrollWriteSuccess,
+  payrollWriteUnexpected,
+  payrollWriteValidation,
+} from "../../write-boundary";
 
 const ROUTE_NAME = "api/hr/payroll-runs/:id/finalize";
+const SUCCESS_MESSAGE = "Payroll run finalized.";
 
 const QuerySchema = z.object({
   houseId: z.string().trim().uuid(),
@@ -58,7 +68,7 @@ export async function POST(
 
   if (!userResult.user) {
     logApiWarning({ route: ROUTE_NAME, action: "unauthenticated" });
-    return jsonError(401, "Not authenticated");
+    return payrollWriteAuthRequired();
   }
 
   const admin = getServiceSupabase();
@@ -72,34 +82,40 @@ export async function POST(
 
   if (!entityId) {
     logApiWarning({ route: ROUTE_NAME, action: "entity_not_linked", userId: userResult.user.id });
-    return jsonError(403, "Account not linked");
+    return payrollWriteForbidden();
   }
 
   const url = new URL(req.url);
   const parsedQuery = QuerySchema.safeParse({ houseId: url.searchParams.get("houseId") });
   if (!parsedQuery.success) {
     const details = parsedQuery.error.flatten().formErrors;
-    return jsonError(400, "Fix the highlighted fields and try again.", {
-      message: details[0] ?? "Missing or invalid parameters.",
-    });
+    return payrollWriteValidation(details[0]);
   }
 
   const parsedParams = ParamsSchema.safeParse(await params);
   if (!parsedParams.success) {
     const details = parsedParams.error.flatten().formErrors;
-    return jsonError(400, "Fix the highlighted fields and try again.", {
-      message: details[0] ?? "Missing or invalid parameters.",
-    });
+    return payrollWriteValidation(details[0]);
   }
 
   try {
-    const result = await finalizePayrollRunForHouse(
+    const target = await resolvePayrollRunWriteTargetForHouseWithAccess(
       supabase,
       parsedQuery.data.houseId,
       parsedParams.data.id,
     );
+    if (!target) {
+      return payrollWriteNotFound();
+    }
 
-    return jsonOk({ run: result.run });
+    const result = await finalizePayrollRunForHouse(
+      supabase,
+      parsedQuery.data.houseId,
+      parsedParams.data.id,
+      { resolvedTarget: target },
+    );
+
+    return payrollWriteSuccess({ run: result.run }, SUCCESS_MESSAGE);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (error instanceof PayrollRunAccessError) {
@@ -112,11 +128,11 @@ export async function POST(
         details: { runId: parsedParams.data.id },
         error: message,
       });
-      return jsonError(403, "Not allowed", { message });
+      return payrollWriteForbidden(message);
     }
 
     if (error instanceof PayrollRunNotFoundError) {
-      return jsonError(404, "Payroll run not found", { message });
+      return payrollWriteNotFound(message);
     }
 
     if (error instanceof PayrollRunFinalizedError) {
@@ -132,7 +148,7 @@ export async function POST(
     }
 
     if (error instanceof PayrollRunMutationError) {
-      return jsonError(500, "Failed to finalize payroll run", { message });
+      return payrollWriteUnexpected(message);
     }
 
     logApiError({
@@ -145,6 +161,6 @@ export async function POST(
       error: message,
     });
 
-    return jsonError(500, "Failed to finalize payroll run", { message });
+    return payrollWriteUnexpected(message);
   }
 }

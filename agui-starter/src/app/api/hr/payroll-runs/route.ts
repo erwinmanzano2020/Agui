@@ -22,8 +22,16 @@ import {
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
+import {
+  payrollWriteAuthRequired,
+  payrollWriteForbidden,
+  payrollWriteSuccess,
+  payrollWriteUnexpected,
+  payrollWriteValidation,
+} from "./write-boundary";
 
 const ROUTE_NAME = "api/hr/payroll-runs";
+const SUCCESS_MESSAGE = "Payroll run created.";
 
 const QuerySchema = z.object({
   houseId: z.string().trim().uuid(),
@@ -59,7 +67,7 @@ export async function GET(req: NextRequest) {
 
   if (!userResult.user) {
     logApiWarning({ route: ROUTE_NAME, action: "unauthenticated" });
-    return jsonError(401, "Not authenticated");
+    return payrollWriteAuthRequired();
   }
 
   const admin = getServiceSupabase();
@@ -73,16 +81,14 @@ export async function GET(req: NextRequest) {
 
   if (!entityId) {
     logApiWarning({ route: ROUTE_NAME, action: "entity_not_linked", userId: userResult.user.id });
-    return jsonError(403, "Account not linked");
+    return payrollWriteForbidden();
   }
 
   const url = new URL(req.url);
   const parsed = QuerySchema.safeParse({ houseId: url.searchParams.get("houseId") });
   if (!parsed.success) {
     const details = parsed.error.flatten().formErrors;
-    return jsonError(400, "Fix the highlighted fields and try again.", {
-      message: details[0] ?? "Missing or invalid house.",
-    });
+    return payrollWriteValidation(details[0], "Missing or invalid house.");
   }
 
   try {
@@ -99,7 +105,7 @@ export async function GET(req: NextRequest) {
         houseId: parsed.data.houseId,
         error: message,
       });
-      return jsonError(403, "Not allowed", { message });
+      return payrollWriteForbidden(message);
     }
 
     logApiError({
@@ -111,7 +117,7 @@ export async function GET(req: NextRequest) {
       error: message,
     });
 
-    return jsonError(500, "Failed to load payroll runs", { message });
+    return payrollWriteUnexpected(message);
   }
 }
 
@@ -139,7 +145,7 @@ export async function POST(req: NextRequest) {
 
   if (!userResult.user) {
     logApiWarning({ route: ROUTE_NAME, action: "unauthenticated" });
-    return jsonError(401, "Not authenticated");
+    return payrollWriteAuthRequired();
   }
 
   const admin = getServiceSupabase();
@@ -153,7 +159,7 @@ export async function POST(req: NextRequest) {
 
   if (!entityId) {
     logApiWarning({ route: ROUTE_NAME, action: "entity_not_linked", userId: userResult.user.id });
-    return jsonError(403, "Account not linked");
+    return payrollWriteForbidden();
   }
 
   let payload: unknown;
@@ -161,15 +167,13 @@ export async function POST(req: NextRequest) {
     payload = await req.json();
   } catch (error) {
     logApiWarning({ route: ROUTE_NAME, action: "invalid_json", error });
-    return jsonError(400, "Invalid JSON payload");
+    return payrollWriteValidation("Invalid JSON payload.");
   }
 
   const parsed = CreateSchema.safeParse(payload);
   if (!parsed.success) {
     const details = parsed.error.flatten().formErrors;
-    return jsonError(400, "Fix the highlighted fields and try again.", {
-      message: details[0] ?? "Missing or invalid parameters.",
-    });
+    return payrollWriteValidation(details[0]);
   }
 
   try {
@@ -180,7 +184,7 @@ export async function POST(req: NextRequest) {
       createdBy: entityId,
     });
 
-    return jsonOk({ runId: result.runId });
+    return payrollWriteSuccess({ runId: result.runId }, SUCCESS_MESSAGE);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (error instanceof PayrollRunAccessError || error instanceof PayrollPreviewAccessError) {
@@ -192,11 +196,11 @@ export async function POST(req: NextRequest) {
         houseId: parsed.data.houseId,
         error: message,
       });
-      return jsonError(403, "Not allowed", { message });
+      return payrollWriteForbidden(message);
     }
 
     if (error instanceof PayrollRunValidationError || error instanceof PayrollPreviewValidationError) {
-      return jsonError(400, "Invalid payroll run parameters", { message });
+      return payrollWriteValidation(message, "Invalid payroll run parameters.");
     }
 
     if (error instanceof PayrollRunMutationError) {
@@ -206,7 +210,7 @@ export async function POST(req: NextRequest) {
       if (error.code === "23514") {
         return jsonError(400, "House mismatch", { message });
       }
-      return jsonError(500, "Failed to create payroll run", { message });
+      return payrollWriteUnexpected(message);
     }
 
     logApiError({
@@ -218,6 +222,6 @@ export async function POST(req: NextRequest) {
       error: message,
     });
 
-    return jsonError(500, "Failed to create payroll run", { message });
+    return payrollWriteUnexpected(message);
   }
 }
