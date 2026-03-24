@@ -12,7 +12,7 @@ const HOUSE_ID = "33333333-3333-4333-8333-333333333333";
 const EMPLOYEE_ID = "11111111-1111-4111-8111-111111111111";
 const BRANCH_ID = "44444444-4444-4444-8444-444444444444";
 
-describe("employee [id] server action deny mapping", () => {
+describe("employee [id] server action boundary error mapping", () => {
   afterEach(() => mock.restoreAll());
 
   it("updateEmployeeAction returns explicit permission-denied message", async () => {

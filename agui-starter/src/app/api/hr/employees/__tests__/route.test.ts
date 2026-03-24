@@ -44,7 +44,7 @@ function createSupabaseStub() {
   } as never;
 }
 
-describe("POST /api/hr/employees deny mapping", () => {
+describe("POST /api/hr/employees boundary error mapping", () => {
   afterEach(() => mock.restoreAll());
 
   it("returns 401 when unauthenticated", async () => {
