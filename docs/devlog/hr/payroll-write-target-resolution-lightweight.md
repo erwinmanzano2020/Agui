@@ -20,3 +20,8 @@ Routes now use `resolvePayrollRunWriteTargetForHouseWithAccess(...)` for early b
 
 ## Fresh-state safety rule
 Route-level write-target resolution is an optimization only. Mutation helpers must still validate **fresh DB state at mutation time** for status-sensitive and period-sensitive decisions. Stale route snapshots must not be sufficient to allow finalize/mark-paid/adjustments writes.
+
+## Boundary polish follow-up
+- Canonical write boundary messages are now shared through a small payroll-local route helper to reduce drift across payroll write routes.
+- `POST /api/hr/payroll-runs` domain-validation branches were aligned to the canonical validation envelope (`error` + fixable `message`) for predictable client handling.
+- Deductions keep their dedicated resolver (`resolvePayrollRunDeductionWriteContext`) by design: deductions require both run context and employee-level deduction mutation checks in payslip server logic. This asymmetry is intentional for correctness and scope control, while route-level boundary responses remain canonical.

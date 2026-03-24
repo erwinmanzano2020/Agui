@@ -2,7 +2,7 @@ import { NextRequest } from "next/server";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { jsonError, jsonOk } from "@/lib/api/http";
+import { jsonError } from "@/lib/api/http";
 import { logApiError, logApiWarning } from "@/lib/api/logging";
 import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
@@ -18,13 +18,16 @@ import {
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
+import {
+  payrollWriteAuthRequired,
+  payrollWriteForbidden,
+  payrollWriteNotFound,
+  payrollWriteSuccess,
+  payrollWriteUnexpected,
+  payrollWriteValidation,
+} from "../../write-boundary";
 
 const ROUTE_NAME = "api/hr/payroll-runs/:id/deductions";
-const VALIDATION_ERROR_MESSAGE = "Fix the highlighted fields and try again.";
-const AUTH_REQUIRED_MESSAGE = "Authentication required.";
-const FORBIDDEN_MESSAGE = "You are not allowed to perform this action.";
-const NOT_FOUND_MESSAGE = "Record not found.";
-const UNEXPECTED_ERROR_MESSAGE = "Unable to process request right now.";
 const SUCCESS_MESSAGE = "Deduction added.";
 
 const ParamsSchema = z.object({
@@ -70,7 +73,7 @@ export async function POST(
 
   if (!userResult.user) {
     logApiWarning({ route: ROUTE_NAME, action: "unauthenticated" });
-    return jsonError(401, AUTH_REQUIRED_MESSAGE);
+    return payrollWriteAuthRequired();
   }
 
   const admin = getServiceSupabase();
@@ -84,15 +87,13 @@ export async function POST(
 
   if (!entityId) {
     logApiWarning({ route: ROUTE_NAME, action: "entity_not_linked", userId: userResult.user.id });
-    return jsonError(403, FORBIDDEN_MESSAGE);
+    return payrollWriteForbidden();
   }
 
   const parsedParams = ParamsSchema.safeParse(await params);
   if (!parsedParams.success) {
     const details = parsedParams.error.flatten().formErrors;
-    return jsonError(400, VALIDATION_ERROR_MESSAGE, {
-      message: details[0] ?? "Missing or invalid parameters.",
-    });
+    return payrollWriteValidation(details[0]);
   }
 
   let payload: BodyPayload;
@@ -100,13 +101,13 @@ export async function POST(
     payload = BodySchema.parse(await req.json());
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid request body";
-    return jsonError(400, VALIDATION_ERROR_MESSAGE, { message });
+    return payrollWriteValidation(message);
   }
 
   try {
     const target = await resolvePayrollRunDeductionWriteContext(supabase, { runId: parsedParams.data.id });
     if (!target) {
-      return jsonError(404, NOT_FOUND_MESSAGE, { message: "Payroll run not found." });
+      return payrollWriteNotFound();
     }
 
     const result = await createPayrollRunDeduction(supabase, {
@@ -117,7 +118,7 @@ export async function POST(
       createdBy: entityId,
     });
 
-    return jsonOk({ id: result?.id ?? null, message: SUCCESS_MESSAGE });
+    return payrollWriteSuccess({ id: result?.id ?? null }, SUCCESS_MESSAGE);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
 
@@ -134,7 +135,7 @@ export async function POST(
         details: { runId: parsedParams.data.id },
         error: message,
       });
-      return jsonError(403, FORBIDDEN_MESSAGE, { message });
+      return payrollWriteForbidden(message);
     }
 
     if (error instanceof PayrollRunDeductionMutationError) {
@@ -146,7 +147,7 @@ export async function POST(
         details: { runId: parsedParams.data.id },
         error: message,
       });
-      return jsonError(500, UNEXPECTED_ERROR_MESSAGE, { message });
+      return payrollWriteUnexpected(message);
     }
 
     logApiError({
@@ -158,6 +159,6 @@ export async function POST(
       error: message,
     });
 
-    return jsonError(500, UNEXPECTED_ERROR_MESSAGE, { message });
+    return payrollWriteUnexpected(message);
   }
 }

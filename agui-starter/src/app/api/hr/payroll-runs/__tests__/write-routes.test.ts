@@ -80,6 +80,25 @@ describe("POST /api/hr/payroll-runs", () => {
     assert.equal((await response.json()).error, "Unable to process request right now.");
   });
 
+  it("maps domain validation failures to canonical validation boundary", async () => {
+    setupAuthOk();
+    mock.method(payrollRunsServer, "createDraftPayrollRunFromPreview", async () => {
+      throw new payrollRunsServer.PayrollRunValidationError("periodStart must be on or before periodEnd.");
+    });
+
+    const response = await createPayrollRun(
+      new Request("http://localhost/api/hr/payroll-runs", {
+        method: "POST",
+        body: JSON.stringify({ houseId: HOUSE_ID, periodStart: "2026-01-15", periodEnd: "2026-01-01" }),
+      }) as never,
+    );
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.equal(payload.error, "Fix the highlighted fields and try again.");
+    assert.match(String(payload.details?.message ?? ""), /periodStart must be on or before periodEnd/i);
+  });
+
   it("returns success boundary", async () => {
     setupAuthOk();
     mock.method(payrollRunsServer, "createDraftPayrollRunFromPreview", async () => ({ runId: RUN_ID }));
