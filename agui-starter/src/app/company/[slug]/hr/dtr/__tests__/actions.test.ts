@@ -5,6 +5,7 @@ import * as hrAccess from "@/lib/hr/access";
 import { DtrSegmentAccessError } from "@/lib/hr/dtr-segments-server";
 import * as dtrSegmentsServer from "@/lib/hr/dtr-segments-server";
 import * as supabaseServer from "@/lib/supabase/server";
+import { dtrMutationInitialState } from "../action-types";
 import { createDtrSegmentAction, updateDtrSegmentAction } from "../actions";
 
 const HOUSE_ID = "house-1";
@@ -60,7 +61,7 @@ describe("DTR action boundary mapping", () => {
   afterEach(() => mock.restoreAll());
 
   it("updateDtrSegmentAction returns validation field errors", async () => {
-    const result = await updateDtrSegmentAction(buildUpdateFormData({ timeIn: "bad-time" }));
+    const result = await updateDtrSegmentAction(dtrMutationInitialState, buildUpdateFormData({ timeIn: "bad-time" }));
     assert.equal(result.status, "error");
     assert.equal(result.message, "Fix the highlighted fields and try again.");
     if (!("fieldErrors" in result)) {
@@ -71,7 +72,7 @@ describe("DTR action boundary mapping", () => {
 
   it("updateDtrSegmentAction returns authentication required when session is missing", async () => {
     mock.method(supabaseServer, "createServerSupabaseClient", async () => null as never);
-    const result = await updateDtrSegmentAction(buildUpdateFormData());
+    const result = await updateDtrSegmentAction(dtrMutationInitialState, buildUpdateFormData());
     assert.equal(result.status, "error");
     assert.equal(result.message, "Authentication required.");
   });
@@ -79,7 +80,7 @@ describe("DTR action boundary mapping", () => {
   it("updateDtrSegmentAction returns forbidden for access denied", async () => {
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
     mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: false } as never));
-    const result = await updateDtrSegmentAction(buildUpdateFormData());
+    const result = await updateDtrSegmentAction(dtrMutationInitialState, buildUpdateFormData());
     assert.equal(result.status, "error");
     assert.equal(result.message, "You are not allowed to modify this record.");
   });
@@ -88,7 +89,7 @@ describe("DTR action boundary mapping", () => {
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
     mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true, hasWorkspaceAccess: true } as never));
     mock.method(dtrSegmentsServer, "resolveDtrSegmentWriteTargetForHouseWithAccess", async () => null);
-    const result = await updateDtrSegmentAction(buildUpdateFormData());
+    const result = await updateDtrSegmentAction(dtrMutationInitialState, buildUpdateFormData());
     assert.equal(result.status, "error");
     assert.equal(result.message, "Record not found.");
   });
@@ -104,7 +105,7 @@ describe("DTR action boundary mapping", () => {
       employee_id: "emp-1",
       employee_branch_id: "branch-1",
     }));
-    const result = await updateDtrSegmentAction(buildUpdateFormData());
+    const result = await updateDtrSegmentAction(dtrMutationInitialState, buildUpdateFormData());
     assert.equal(result.status, "error");
     assert.equal(result.message, "Unable to save changes right now.");
   });
@@ -120,10 +121,32 @@ describe("DTR action boundary mapping", () => {
       employee_id: "emp-1",
       employee_branch_id: "branch-1",
     }));
-    const result = await updateDtrSegmentAction(buildUpdateFormData());
+    const result = await updateDtrSegmentAction(dtrMutationInitialState, buildUpdateFormData());
 
     assert.equal(result.status, "success");
     assert.equal(result.message, "DTR segment saved.");
+  });
+
+  it("createDtrSegmentAction returns validation field errors", async () => {
+    const result = await createDtrSegmentAction(dtrMutationInitialState, buildCreateFormData({ timeIn: "bad-time" }));
+    assert.equal(result.status, "error");
+    assert.equal(result.message, "Fix the highlighted fields and try again.");
+    assert.ok(Object.keys(result.fieldErrors ?? {}).length > 0);
+  });
+
+  it("createDtrSegmentAction returns authentication required when session is missing", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => null as never);
+    const result = await createDtrSegmentAction(dtrMutationInitialState, buildCreateFormData());
+    assert.equal(result.status, "error");
+    assert.equal(result.message, "Authentication required.");
+  });
+
+  it("createDtrSegmentAction returns forbidden for access denied", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: false } as never));
+    const result = await createDtrSegmentAction(dtrMutationInitialState, buildCreateFormData());
+    assert.equal(result.status, "error");
+    assert.equal(result.message, "You are not allowed to modify this record.");
   });
 
   it("createDtrSegmentAction returns not found when employee target is missing", async () => {
@@ -131,7 +154,7 @@ describe("DTR action boundary mapping", () => {
     mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true, hasWorkspaceAccess: true } as never));
     mock.method(dtrSegmentsServer, "resolveDtrEmployeeWriteTargetForHouseWithAccess", async () => null);
 
-    const result = await createDtrSegmentAction(buildCreateFormData());
+    const result = await createDtrSegmentAction(dtrMutationInitialState, buildCreateFormData());
     assert.equal(result.status, "error");
     assert.equal(result.message, "Record not found.");
   });
@@ -143,8 +166,52 @@ describe("DTR action boundary mapping", () => {
       throw new DtrSegmentAccessError("Not allowed to update this segment");
     });
 
-    const result = await createDtrSegmentAction(buildCreateFormData());
+    const result = await createDtrSegmentAction(dtrMutationInitialState, buildCreateFormData());
     assert.equal(result.status, "error");
     assert.equal(result.message, "You are not allowed to modify this record.");
+  });
+
+  it("createDtrSegmentAction returns unexpected error on unknown failure", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true, hasWorkspaceAccess: true } as never));
+    mock.method(dtrSegmentsServer, "resolveDtrEmployeeWriteTargetForHouseWithAccess", async () => ({
+      id: "emp-1",
+      house_id: HOUSE_ID,
+      branch_id: "branch-1",
+    }));
+    mock.method(dtrSegmentsServer, "createDtrSegment", async () => {
+      throw new Error("boom");
+    });
+
+    const result = await createDtrSegmentAction(dtrMutationInitialState, buildCreateFormData());
+    assert.equal(result.status, "error");
+    assert.equal(result.message, "Unable to save changes right now.");
+  });
+
+  it("createDtrSegmentAction returns success for valid create path", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true, hasWorkspaceAccess: true } as never));
+    mock.method(dtrSegmentsServer, "resolveDtrEmployeeWriteTargetForHouseWithAccess", async () => ({
+      id: "emp-1",
+      house_id: HOUSE_ID,
+      branch_id: "branch-1",
+    }));
+    mock.method(dtrSegmentsServer, "createDtrSegment", async () => ({
+      id: "seg-1",
+      house_id: HOUSE_ID,
+      employee_id: "emp-1",
+      work_date: "2024-10-01",
+      time_in: "2024-10-01T08:00:00+08:00",
+      time_out: null,
+      hours_worked: null,
+      overtime_minutes: 0,
+      source: "manual",
+      status: "open",
+      created_at: "2024-10-01T00:00:00Z",
+    }));
+
+    const result = await createDtrSegmentAction(dtrMutationInitialState, buildCreateFormData());
+    assert.equal(result.status, "success");
+    assert.equal(result.message, "DTR segment saved.");
   });
 });

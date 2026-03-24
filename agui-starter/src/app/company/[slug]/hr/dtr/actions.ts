@@ -12,6 +12,7 @@ import {
 import { assertManilaReasonableSegment, toManilaTimestamptz } from "@/lib/hr/timezone";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
+import type { DtrMutationState } from "./action-types";
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_REGEX = /^\d{2}:\d{2}$/;
@@ -34,23 +35,23 @@ const UpdateSchema = z.object({
   timeOut: z.string().regex(TIME_REGEX, "Invalid time out").optional(),
 });
 
-type DtrMutationResponse = {
-  status: "success" | "error";
-  message: string;
-  fieldErrors?: Record<string, string[]>;
-};
-
 const VALIDATION_ERROR_MESSAGE = "Fix the highlighted fields and try again.";
-const AUTH_REQUIRED_RESPONSE = { status: "error", message: "Authentication required." } satisfies DtrMutationResponse;
+const AUTH_REQUIRED_RESPONSE = {
+  status: "error",
+  message: "Authentication required.",
+  fieldErrors: {},
+} satisfies DtrMutationState;
 const FORBIDDEN_RESPONSE = {
   status: "error",
   message: "You are not allowed to modify this record.",
-} satisfies DtrMutationResponse;
-const NOT_FOUND_RESPONSE = { status: "error", message: "Record not found." } satisfies DtrMutationResponse;
+  fieldErrors: {},
+} satisfies DtrMutationState;
+const NOT_FOUND_RESPONSE = { status: "error", message: "Record not found.", fieldErrors: {} } satisfies DtrMutationState;
 const UNEXPECTED_RESPONSE = {
   status: "error",
   message: "Unable to save changes right now.",
-} satisfies DtrMutationResponse;
+  fieldErrors: {},
+} satisfies DtrMutationState;
 
 function toTimestamp(workDate: string, timeValue: string) {
   return toManilaTimestamptz(workDate, `${timeValue}:00`);
@@ -66,7 +67,10 @@ function toValidationFieldErrors(error: { issues: Array<{ path?: unknown[]; mess
   return fieldErrors;
 }
 
-export async function createDtrSegmentAction(formData: FormData) {
+export async function createDtrSegmentAction(
+  _prevState: DtrMutationState,
+  formData: FormData,
+): Promise<DtrMutationState> {
   const parsed = CreateSchema.safeParse({
     houseId: formData.get("houseId"),
     houseSlug: formData.get("houseSlug"),
@@ -81,7 +85,7 @@ export async function createDtrSegmentAction(formData: FormData) {
       status: "error",
       message: VALIDATION_ERROR_MESSAGE,
       fieldErrors: toValidationFieldErrors(parsed.error),
-    } satisfies DtrMutationResponse;
+    } satisfies DtrMutationState;
   }
 
   const supabase = await createServerSupabaseClient();
@@ -118,7 +122,7 @@ export async function createDtrSegmentAction(formData: FormData) {
           timeIn: ["Invalid time in"],
           ...(parsed.data.timeOut ? { timeOut: ["Invalid time out"] } : {}),
         },
-      } satisfies DtrMutationResponse;
+      } satisfies DtrMutationState;
     }
     const validation = assertManilaReasonableSegment(
       timeIn,
@@ -133,7 +137,7 @@ export async function createDtrSegmentAction(formData: FormData) {
           timeIn: validation.reasons,
           ...(parsed.data.timeOut ? { timeOut: validation.reasons } : {}),
         },
-      } satisfies DtrMutationResponse;
+      } satisfies DtrMutationState;
     }
 
     await createDtrSegment(supabase, {
@@ -154,10 +158,13 @@ export async function createDtrSegmentAction(formData: FormData) {
   if (typeof revalidatePath === "function") {
     revalidatePath(`/company/${parsed.data.houseSlug}/hr/dtr`);
   }
-  return { status: "success", message: "DTR segment saved." } satisfies DtrMutationResponse;
+  return { status: "success", message: "DTR segment saved.", fieldErrors: {} } satisfies DtrMutationState;
 }
 
-export async function updateDtrSegmentAction(formData: FormData) {
+export async function updateDtrSegmentAction(
+  _prevState: DtrMutationState,
+  formData: FormData,
+): Promise<DtrMutationState> {
   const parsed = UpdateSchema.safeParse({
     houseId: formData.get("houseId"),
     houseSlug: formData.get("houseSlug"),
@@ -172,7 +179,7 @@ export async function updateDtrSegmentAction(formData: FormData) {
       status: "error",
       message: VALIDATION_ERROR_MESSAGE,
       fieldErrors: toValidationFieldErrors(parsed.error),
-    } satisfies DtrMutationResponse;
+    } satisfies DtrMutationState;
   }
 
   const supabase = await createServerSupabaseClient();
@@ -198,7 +205,7 @@ export async function updateDtrSegmentAction(formData: FormData) {
         timeIn: ["Invalid time in"],
         ...(parsed.data.timeOut ? { timeOut: ["Invalid time out"] } : {}),
       },
-    } satisfies DtrMutationResponse;
+    } satisfies DtrMutationState;
   }
   const validation = assertManilaReasonableSegment(
     timeIn,
@@ -213,7 +220,7 @@ export async function updateDtrSegmentAction(formData: FormData) {
         timeIn: validation.reasons,
         ...(parsed.data.timeOut ? { timeOut: validation.reasons } : {}),
       },
-    } satisfies DtrMutationResponse;
+    } satisfies DtrMutationState;
   }
 
   try {
@@ -257,13 +264,5 @@ export async function updateDtrSegmentAction(formData: FormData) {
   if (typeof revalidatePath === "function") {
     revalidatePath(`/company/${parsed.data.houseSlug}/hr/dtr`);
   }
-  return { status: "success", message: "DTR segment saved." } satisfies DtrMutationResponse;
-}
-
-export async function createDtrSegmentFormAction(formData: FormData): Promise<void> {
-  await createDtrSegmentAction(formData);
-}
-
-export async function updateDtrSegmentFormAction(formData: FormData): Promise<void> {
-  await updateDtrSegmentAction(formData);
+  return { status: "success", message: "DTR segment saved.", fieldErrors: {} } satisfies DtrMutationState;
 }

@@ -55,6 +55,7 @@ function normalizeSegments(rows: DtrSegmentRow[] | null | undefined): DtrSegment
 async function loadEmployeeForAccess(
   supabase: SupabaseClient<Database>,
   employeeId: string,
+  options: { suppressPermissionDenied?: boolean } = {},
 ): Promise<MinimalEmployee | null> {
   const { data, error } = await supabase
     .from("employees")
@@ -63,7 +64,10 @@ async function loadEmployeeForAccess(
     .maybeSingle<MinimalEmployee>();
 
   if (error) {
-    if (isPermissionDenied(error)) return null;
+    if (isPermissionDenied(error)) {
+      if (options.suppressPermissionDenied ?? true) return null;
+      throw new DtrSegmentAccessError("Not allowed to update this segment");
+    }
     throw new Error(error.message);
   }
 
@@ -109,7 +113,9 @@ export async function resolveDtrSegmentWriteTargetForHouseWithAccess(
     return null;
   }
 
-  const employee = await loadEmployeeForAccess(supabase, segment.employee_id);
+  const employee = await loadEmployeeForAccess(supabase, segment.employee_id, {
+    suppressPermissionDenied: false,
+  });
   if (!employee || employee.house_id !== houseId) {
     return null;
   }
@@ -142,7 +148,9 @@ export async function resolveDtrEmployeeWriteTargetForHouseWithAccess(
     throw new DtrSegmentAccessError("Not allowed to update this segment");
   }
 
-  const employee = await loadEmployeeForAccess(supabase, employeeId);
+  const employee = await loadEmployeeForAccess(supabase, employeeId, {
+    suppressPermissionDenied: false,
+  });
   if (!employee) {
     return null;
   }

@@ -1,22 +1,18 @@
 import { notFound } from "next/navigation";
 
-import { createDtrSegmentFormAction, updateDtrSegmentFormAction } from "./actions";
+import { CreateDtrSegmentForm, UpdateDtrSegmentForm } from "./DtrSegmentForms";
 import { requireAuth } from "@/lib/auth/require-auth";
 import type { DtrSegmentRow } from "@/lib/db.types";
 import { listDtrByHouseAndDate } from "@/lib/hr/dtr-segments-server";
 import { listEmployeesByHouse } from "@/lib/hr/employees-server";
 import { computeOvertimeForHouseDate, getScheduleForEmployeeOnDate } from "@/lib/hr/overtime-engine";
-import { formatManilaTimeForUi, formatManilaTimeFromIso } from "@/lib/hr/timezone";
+import { formatManilaTimeFromIso } from "@/lib/hr/timezone";
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
 function normalizeDate(value: string | undefined, fallback: string) {
   if (value && DATE_REGEX.test(value)) return value;
   return fallback;
-}
-
-function formatTimeInput(value: string | null) {
-  return formatManilaTimeForUi(value);
 }
 
 function diffMinutesFromIso(start?: string | null, end?: string | null) {
@@ -226,40 +222,12 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
                           key={segment.id}
                           className="rounded-xl border border-border/70 bg-background/70 p-3 text-sm"
                         >
-                          <form action={updateDtrSegmentFormAction} className="flex flex-wrap items-center gap-3">
-                            <input type="hidden" name="houseId" value={house.id} />
-                            <input type="hidden" name="houseSlug" value={house.slug ?? slug} />
-                            <input type="hidden" name="segmentId" value={segment.id} />
-                            <input type="hidden" name="workDate" value={workDate} />
-                            <label className="flex flex-col text-xs text-muted-foreground">
-                              Time in
-                              <input
-                                type="time"
-                                name="timeIn"
-                                defaultValue={formatTimeInput(segment.time_in)}
-                                required
-                                className="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                              />
-                            </label>
-                            <label className="flex flex-col text-xs text-muted-foreground">
-                              Time out
-                              <input
-                                type="time"
-                                name="timeOut"
-                                defaultValue={formatTimeInput(segment.time_out)}
-                                className="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                              />
-                            </label>
-                            <span className="text-xs text-muted-foreground">
-                              Status: {segment.status}
-                            </span>
-                            <button
-                              type="submit"
-                              className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground"
-                            >
-                              Save
-                            </button>
-                          </form>
+                          <UpdateDtrSegmentForm
+                            houseId={house.id}
+                            houseSlug={house.slug ?? slug}
+                            workDate={workDate}
+                            segment={segment}
+                          />
                         </li>
                       ))}
                     </ul>
@@ -312,36 +280,12 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
                   </div>
                 </details>
 
-                <form action={createDtrSegmentFormAction} className="mt-4 flex flex-wrap items-end gap-3">
-                  <input type="hidden" name="houseId" value={house.id} />
-                  <input type="hidden" name="houseSlug" value={house.slug ?? slug} />
-                  <input type="hidden" name="employeeId" value={employee.id} />
-                  <input type="hidden" name="workDate" value={workDate} />
-                  <label className="flex flex-col text-xs text-muted-foreground">
-                    Time in
-                    <input
-                      type="time"
-                      name="timeIn"
-                      required
-                      defaultValue="09:00"
-                      className="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    />
-                  </label>
-                  <label className="flex flex-col text-xs text-muted-foreground">
-                    Time out (optional)
-                    <input
-                      type="time"
-                      name="timeOut"
-                      className="rounded-md border border-border bg-background px-2 py-1 text-sm"
-                    />
-                  </label>
-                  <button
-                    type="submit"
-                    className="rounded-md border border-border bg-foreground px-4 py-2 text-xs font-semibold text-background"
-                  >
-                    Add segment
-                  </button>
-                </form>
+                <CreateDtrSegmentForm
+                  houseId={house.id}
+                  houseSlug={house.slug ?? slug}
+                  workDate={workDate}
+                  employeeId={employee.id}
+                />
               </section>
             );
           })}

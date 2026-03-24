@@ -447,6 +447,24 @@ describe("resolveDtrSegmentWriteTargetForHouseWithAccess", () => {
     );
   });
 
+  it("throws access error when employee lookup is denied by permission policy", async () => {
+    const supabase = new SupabaseMock(
+      [buildSegment("seg-1", { house_id: "house-1", employee_id: "emp-1" })],
+      [buildEmployee("emp-1", "house-1", "branch-1")],
+      { employeeError: { message: "permission denied for table employees" } },
+    );
+    await assert.rejects(
+      () =>
+        resolveDtrSegmentWriteTargetForHouseWithAccess(
+          supabase as never,
+          buildAccess(),
+          "house-1",
+          "seg-1",
+        ),
+      DtrSegmentAccessError,
+    );
+  });
+
   it("throws access error when a branch-limited actor targets an employee without branch", async () => {
     const supabase = new SupabaseMock(
       [buildSegment("seg-1", { house_id: "house-1", employee_id: "emp-1" })],
@@ -507,6 +525,22 @@ describe("resolveDtrEmployeeWriteTargetForHouseWithAccess", () => {
             policyKeys: ["hr.branch.branch-1"],
             allowedBranchIds: ["branch-1"],
           }),
+          "house-1",
+          "emp-1",
+        ),
+      DtrSegmentAccessError,
+    );
+  });
+
+  it("throws access error when employee target lookup is permission-denied", async () => {
+    const supabase = new SupabaseMock([], [buildEmployee("emp-1", "house-1", "branch-1")], {
+      employeeError: { message: "permission denied for table employees" },
+    });
+    await assert.rejects(
+      () =>
+        resolveDtrEmployeeWriteTargetForHouseWithAccess(
+          supabase as never,
+          buildAccess(),
           "house-1",
           "emp-1",
         ),

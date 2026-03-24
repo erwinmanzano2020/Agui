@@ -33,6 +33,20 @@ DTR server actions now return explicit error payloads instead of silent `return;
 - record-not-found targets
 - unexpected write failures
 
+These responses are now surfaced in the DTR form UI via `useFormState`:
+
+- field-level errors are rendered under the related inputs
+- global messages are rendered for auth/forbidden/not-found/unexpected paths
+- success messages are rendered after successful create/update
+
+## Resolver semantics note
+
+Write-target resolvers now preserve `403` vs `404` semantics more strictly:
+
+- missing target or cross-house target => resolver returns `null` (mapped to not found)
+- in-house but forbidden-by-branch-scope => resolver throws `DtrSegmentAccessError` (mapped to forbidden)
+- permission-denied lookups in write-target resolution are treated as forbidden rather than collapsed into not found
+
 ## Limitations
 
 - This hardening is scoped to DTR create/update mutation boundaries only.
