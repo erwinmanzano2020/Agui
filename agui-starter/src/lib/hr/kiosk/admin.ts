@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { createKioskDeviceToken, hashKioskToken } from "@/lib/hr/kiosk/device-auth";
-import { requireHrAccess, requireHrAccessWithBranch } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 
 export type KioskDeviceAdminRow = {
   id: string;
@@ -40,8 +40,9 @@ async function assertHrAccess(
   supabase: SupabaseClient,
   houseId: string,
   branchId?: string | null,
+  requiredLevel: "read" | "write" = "read",
 ): Promise<Awaited<ReturnType<typeof requireHrAccessWithBranch>>> {
-  const access = await requireHrAccessWithBranch(supabase, { houseId, branchId });
+  const access = await requireHrAccessWithBranch(supabase, { houseId, branchId, requiredLevel });
   if (!access.allowed) {
     throw new KioskAdminError("HR access required.", 403);
   }
@@ -51,8 +52,12 @@ async function assertHrAccess(
 async function assertHouseHrAccess(
   supabase: SupabaseClient,
   houseId: string,
+  requiredLevel: "read" | "write" = "read",
 ): Promise<void> {
-  const access = await requireHrAccess(supabase, houseId);
+  const access = await requireHrAccessWithBranch(supabase, {
+    houseId,
+    requiredLevel,
+  });
   if (!access.allowed) {
     throw new KioskAdminError("HR access required.", 403);
   }
@@ -132,7 +137,7 @@ export async function createKioskDeviceForBranch(
   supabase: SupabaseClient,
   input: { houseId: string; branchId: string; name: string },
 ): Promise<{ deviceRow: KioskDeviceAdminRow; plaintextToken: string }> {
-  await assertHrAccess(supabase, input.houseId, input.branchId);
+  await assertHrAccess(supabase, input.houseId, input.branchId, "write");
   await assertBranchInHouse(supabase, input.houseId, input.branchId);
 
   const plaintextToken = createKioskDeviceToken();
@@ -166,9 +171,9 @@ export async function rotateKioskDeviceToken(
   supabase: SupabaseClient,
   input: { houseId: string; deviceId: string },
 ): Promise<{ plaintextToken: string }> {
-  await assertHouseHrAccess(supabase, input.houseId);
+  await assertHouseHrAccess(supabase, input.houseId, "write");
   const device = await getDeviceForHouseWithBranch(supabase, input.houseId, input.deviceId);
-  await assertHrAccess(supabase, input.houseId, device.branch_id);
+  await assertHrAccess(supabase, input.houseId, device.branch_id, "write");
 
   const plaintextToken = createKioskDeviceToken();
   const tokenHash = hashKioskToken(plaintextToken);
@@ -190,9 +195,9 @@ export async function setKioskDeviceEnabled(
   supabase: SupabaseClient,
   input: { houseId: string; deviceId: string; enabled: boolean; actorEntityId?: string | null },
 ): Promise<void> {
-  await assertHouseHrAccess(supabase, input.houseId);
+  await assertHouseHrAccess(supabase, input.houseId, "write");
   const device = await getDeviceForHouseWithBranch(supabase, input.houseId, input.deviceId);
-  await assertHrAccess(supabase, input.houseId, device.branch_id);
+  await assertHrAccess(supabase, input.houseId, device.branch_id, "write");
 
   const payload = input.enabled
     ? { is_active: true, disabled_at: null, disabled_by: null }

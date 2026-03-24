@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { createDtrSegment, DtrSegmentAccessError } from "@/lib/hr/dtr-segments-server";
 import { assertManilaReasonableSegment, toManilaTimestamptz } from "@/lib/hr/timezone";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -53,7 +53,10 @@ export async function createDtrSegmentAction(formData: FormData) {
     return;
   }
 
-  const access = await requireHrAccess(supabase, parsed.data.houseId);
+  const access = await requireHrAccessWithBranch(supabase, {
+    houseId: parsed.data.houseId,
+    requiredLevel: "write",
+  });
   if (!access.allowed) {
     return;
   }
@@ -114,7 +117,10 @@ export async function updateDtrSegmentAction(formData: FormData) {
     return;
   }
 
-  const access = await requireHrAccess(supabase, parsed.data.houseId);
+  const access = await requireHrAccessWithBranch(supabase, {
+    houseId: parsed.data.houseId,
+    requiredLevel: "write",
+  });
   if (!access.allowed) {
     return;
   }
