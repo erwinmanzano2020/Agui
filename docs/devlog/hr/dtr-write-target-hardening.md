@@ -52,3 +52,4 @@ Write-target resolvers now preserve `403` vs `404` semantics more strictly:
 - This hardening is scoped to DTR create/update mutation boundaries only.
 - No tenancy model changes were introduced.
 - No payroll, kiosk, scheduling, or UI flow refactors are included.
+- Hidden-field validation errors (`houseId`, `houseSlug`, `employeeId`, `segmentId`) are returned by actions but not rendered as inline, user-fixable field messages in the current UI.

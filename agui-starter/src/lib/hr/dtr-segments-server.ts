@@ -80,6 +80,7 @@ async function loadEmployeeForAccess(
 async function loadDtrSegmentWriteTarget(
   supabase: SupabaseClient<Database>,
   segmentId: string,
+  options: { suppressPermissionDenied?: boolean } = {},
 ): Promise<Pick<DtrSegmentWriteTarget, "id" | "house_id" | "employee_id"> | null> {
   const { data, error } = await supabase
     .from("dtr_segments")
@@ -88,6 +89,10 @@ async function loadDtrSegmentWriteTarget(
     .maybeSingle<Pick<DtrSegmentWriteTarget, "id" | "house_id" | "employee_id">>();
 
   if (error) {
+    if (isPermissionDenied(error)) {
+      if (options.suppressPermissionDenied ?? true) return null;
+      throw new DtrSegmentAccessError("Not allowed to update this segment");
+    }
     throw new Error(error.message);
   }
 
@@ -104,7 +109,9 @@ export async function resolveDtrSegmentWriteTargetForHouseWithAccess(
     throw new DtrSegmentAccessError("Not allowed to update this segment");
   }
 
-  const segment = await loadDtrSegmentWriteTarget(supabase, segmentId);
+  const segment = await loadDtrSegmentWriteTarget(supabase, segmentId, {
+    suppressPermissionDenied: false,
+  });
   if (!segment) {
     return null;
   }

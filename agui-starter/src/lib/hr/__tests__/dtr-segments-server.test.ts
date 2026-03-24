@@ -465,6 +465,24 @@ describe("resolveDtrSegmentWriteTargetForHouseWithAccess", () => {
     );
   });
 
+  it("throws access error when segment lookup is denied by permission policy", async () => {
+    const supabase = new SupabaseMock(
+      [buildSegment("seg-1", { house_id: "house-1", employee_id: "emp-1" })],
+      [buildEmployee("emp-1", "house-1", "branch-1")],
+      { segmentError: { message: "permission denied for table dtr_segments" } },
+    );
+    await assert.rejects(
+      () =>
+        resolveDtrSegmentWriteTargetForHouseWithAccess(
+          supabase as never,
+          buildAccess(),
+          "house-1",
+          "seg-1",
+        ),
+      DtrSegmentAccessError,
+    );
+  });
+
   it("throws access error when a branch-limited actor targets an employee without branch", async () => {
     const supabase = new SupabaseMock(
       [buildSegment("seg-1", { house_id: "house-1", employee_id: "emp-1" })],

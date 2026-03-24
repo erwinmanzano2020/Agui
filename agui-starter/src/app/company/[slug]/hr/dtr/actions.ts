@@ -60,6 +60,8 @@ function toTimestamp(workDate: string, timeValue: string) {
 function toValidationFieldErrors(error: { issues: Array<{ path?: unknown[]; message?: string }> }) {
   const fieldErrors: Record<string, string[]> = {};
   for (const issue of error.issues) {
+    // Hidden context inputs (houseId/houseSlug/employeeId/segmentId) can map here,
+    // but current UI only renders user-editable time field errors.
     const field = typeof issue.path?.[0] === "string" ? issue.path[0] : "form";
     if (!fieldErrors[field]) fieldErrors[field] = [];
     fieldErrors[field].push(issue.message ?? "Invalid value");
@@ -102,16 +104,6 @@ export async function createDtrSegmentAction(
   }
 
   try {
-    const target = await resolveDtrEmployeeWriteTargetForHouseWithAccess(
-      supabase,
-      access,
-      parsed.data.houseId,
-      parsed.data.employeeId,
-    );
-    if (!target) {
-      return NOT_FOUND_RESPONSE;
-    }
-
     const timeIn = toTimestamp(parsed.data.workDate, parsed.data.timeIn);
     const timeOut = parsed.data.timeOut ? toTimestamp(parsed.data.workDate, parsed.data.timeOut) : null;
     if (!timeIn || (parsed.data.timeOut && !timeOut)) {
@@ -138,6 +130,16 @@ export async function createDtrSegmentAction(
           ...(parsed.data.timeOut ? { timeOut: validation.reasons } : {}),
         },
       } satisfies DtrMutationState;
+    }
+
+    const target = await resolveDtrEmployeeWriteTargetForHouseWithAccess(
+      supabase,
+      access,
+      parsed.data.houseId,
+      parsed.data.employeeId,
+    );
+    if (!target) {
+      return NOT_FOUND_RESPONSE;
     }
 
     await createDtrSegment(supabase, {
