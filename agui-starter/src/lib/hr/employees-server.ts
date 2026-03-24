@@ -5,7 +5,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE, EmployeeAccessError } from "@/lib/hr/employees";
 import type { Database, EmployeeRow, EmployeeInsert } from "@/lib/db.types";
 import { getIdentitySummariesForEmployees, type IdentitySummary } from "@/lib/hr/employee-identity";
-import type { HrAccessDecision } from "./access";
+import type { HrBranchAccessDecision } from "./access";
 import { buildEmployeePhotoPath } from "./employee-photo";
 import type { EmployeeListFilters } from "./employees";
 
@@ -238,6 +238,79 @@ type BranchLookupRow = { id?: string | null; house_id?: string | null; name?: st
 type EmployeeWithBranch = EmployeeRow & {
   branches?: BranchLookupRow | null;
 };
+type EmployeeWriteTarget = Pick<EmployeeRow, "id" | "house_id" | "branch_id">;
+
+function normalizeBranchId(branchId: string | null | undefined): string | null {
+  return branchId?.trim().toLowerCase() || null;
+}
+
+function getAllowedBranchIdSet(access: HrBranchAccessDecision): Set<string> {
+  return new Set(access.allowedBranchIds.map((id) => id.toLowerCase()));
+}
+
+async function loadEmployeeWriteTarget(
+  supabase: SupabaseClient<Database>,
+  employeeId: string,
+): Promise<EmployeeWriteTarget | null> {
+  const { data, error } = await supabase
+    .from("employees")
+    .select("id, house_id, branch_id")
+    .eq("id", employeeId)
+    .maybeSingle<EmployeeWriteTarget>();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return data ?? null;
+}
+
+function canMutateEmployeeTarget(
+  access: HrBranchAccessDecision,
+  employee: EmployeeWriteTarget,
+  houseId: string,
+): boolean {
+  if (employee.house_id !== houseId) {
+    return false;
+  }
+
+  if (!access.isBranchLimited) {
+    return true;
+  }
+
+  const currentBranchId = normalizeBranchId(employee.branch_id);
+  if (!currentBranchId) {
+    return false;
+  }
+
+  return getAllowedBranchIdSet(access).has(currentBranchId);
+}
+
+export async function resolveEmployeeWriteTargetForHouseWithAccess(
+  supabase: SupabaseClient<Database>,
+  access: HrBranchAccessDecision,
+  houseId: string,
+  employeeId: string,
+  options: { denyMessage: string } = { denyMessage: "Not allowed to mutate this employee" },
+): Promise<EmployeeWriteTarget | null> {
+  if (!access.allowed || !access.hasWorkspaceAccess) {
+    throw new EmployeeAccessError("Not allowed to mutate employees for this house");
+  }
+
+  const existing = await loadEmployeeWriteTarget(supabase, employeeId);
+  if (!existing) {
+    return null;
+  }
+
+  if (!canMutateEmployeeTarget(access, existing, houseId)) {
+    if (existing.house_id !== houseId) {
+      return null;
+    }
+    throw new EmployeeAccessError(options.denyMessage);
+  }
+
+  return existing;
+}
 
 export async function getEmployeeByIdForHouse(
   supabase: SupabaseClient<Database>,
@@ -411,19 +484,27 @@ export async function updateEmployeeForHouse(
 
 export async function updateEmployeeForHouseWithAccess(
   supabase: SupabaseClient<Database>,
-  access: HrAccessDecision,
+  access: HrBranchAccessDecision,
   houseId: string,
   employeeId: string,
   patch: EmployeeUpdateInput,
 ): Promise<EmployeeProfile | null> {
-  if (!access.allowed || !access.hasWorkspaceAccess) {
-    throw new EmployeeAccessError("Not allowed to update employees for this house");
+  const existing = await resolveEmployeeWriteTargetForHouseWithAccess(supabase, access, houseId, employeeId, {
+    denyMessage: "Not allowed to update this employee",
+  });
+  if (!existing) return null;
+
+  if (access.isBranchLimited) {
+    const targetBranchId = normalizeBranchId(patch.branch_id);
+    if (!targetBranchId || !getAllowedBranchIdSet(access).has(targetBranchId)) {
+      throw new EmployeeAccessError("Not allowed to assign this employee to the selected branch");
+    }
   }
 
   return updateEmployeeForHouse(supabase, houseId, employeeId, patch);
 }
 
-function assertHrCreateAccess(access: HrAccessDecision) {
+function assertHrCreateAccess(access: HrBranchAccessDecision) {
   if (!access.allowed || !access.hasWorkspaceAccess) {
     throw new EmployeeAccessError("Not allowed to create employees for this house");
   }
@@ -594,23 +675,32 @@ export async function deleteEmployeeForHouse(
 
 export async function deleteEmployeeForHouseWithAccess(
   supabase: SupabaseClient<Database>,
-  access: HrAccessDecision,
+  access: HrBranchAccessDecision,
   houseId: string,
   employeeId: string,
 ): Promise<boolean> {
-  if (!access.allowed || !access.hasWorkspaceAccess) {
-    throw new EmployeeAccessError("Not allowed to delete employees for this house");
-  }
+  const existing = await resolveEmployeeWriteTargetForHouseWithAccess(supabase, access, houseId, employeeId, {
+    denyMessage: "Not allowed to delete this employee",
+  });
+  if (!existing) return false;
 
   return deleteEmployeeForHouse(supabase, houseId, employeeId);
 }
 
 export async function createEmployeeForHouseWithAccess(
   supabase: SupabaseClient<Database>,
-  access: HrAccessDecision,
+  access: HrBranchAccessDecision,
   houseId: string,
   payload: EmployeeCreateInput,
 ): Promise<EmployeeProfile> {
+  // Keep canonical write checks aligned: create validates assignment eligibility at create-time,
+  // while update/delete validate mutability of an existing target via resolveEmployeeWriteTargetForHouseWithAccess.
   assertHrCreateAccess(access);
+  if (access.isBranchLimited) {
+    const targetBranchId = normalizeBranchId(payload.branch_id);
+    if (!targetBranchId || !getAllowedBranchIdSet(access).has(targetBranchId)) {
+      throw new EmployeeAccessError("Not allowed to assign this employee to the selected branch");
+    }
+  }
   return createEmployeeForHouse(supabase, houseId, payload);
 }

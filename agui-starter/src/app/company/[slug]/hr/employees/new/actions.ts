@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import {
   EmployeeCreateError,
   EmployeeDuplicateIdentityError,
@@ -17,7 +17,7 @@ import {
 } from "@/lib/hr/employee-identity";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
-import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE } from "@/lib/hr/employees";
+import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE, EmployeeAccessError } from "@/lib/hr/employees";
 
 import type { CreateEmployeeState } from "./action-types";
 
@@ -137,7 +137,11 @@ export async function createEmployeeAction(
     return { status: "error", message: "Authentication required." };
   }
 
-  const access = await requireHrAccess(supabase, parsed.data.houseId);
+  const access = await requireHrAccessWithBranch(supabase, {
+    houseId: parsed.data.houseId,
+    branchId: normalizedBranchId,
+    requiredLevel: "write",
+  });
   if (!access.allowed) {
     return { status: "error", message: "You are not allowed to add employees for this house." } satisfies CreateEmployeeState;
   }
@@ -197,6 +201,12 @@ export async function createEmployeeAction(
 
     return { status: "success", createdEmployeeId: created.id, message: "Employee created." } satisfies CreateEmployeeState;
   } catch (error) {
+    if (error instanceof EmployeeAccessError) {
+      return {
+        status: "error",
+        message: "You are not allowed to add employees for this house.",
+      } satisfies CreateEmployeeState;
+    }
     if (error instanceof EmployeeUpdateError) {
       return {
         status: "error",

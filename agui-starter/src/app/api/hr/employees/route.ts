@@ -12,8 +12,8 @@ import {
   createEmployeeForHouseWithAccess,
   listEmployeesByHouse,
 } from "@/lib/hr/employees-server";
-import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE } from "@/lib/hr/employees";
-import { requireHrAccessWithBranch, resolveHrAccess } from "@/lib/hr/access";
+import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE, EmployeeAccessError } from "@/lib/hr/employees";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import {
   findOrCreateEntityForEmployee,
   normalizeEmployeeEmail,
@@ -348,7 +348,11 @@ export async function POST(req: NextRequest) {
     return jsonError(500, "Failed to resolve house departments");
   }
 
-  const hrAccess = await resolveHrAccess(authed, houseId);
+  const hrAccess = await requireHrAccessWithBranch(authed, {
+    houseId,
+    branchId: parsed.data.branch_id ?? null,
+    requiredLevel: "write",
+  });
   if (!hrAccess.allowed) {
     logApiWarning({
       route: ROUTE_NAME,
@@ -424,6 +428,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ employee: created }, { status: 201 });
   } catch (error) {
+    if (error instanceof EmployeeAccessError) {
+      return jsonError(403, "Not allowed");
+    }
     if (error instanceof EmployeeUpdateError) {
       return jsonError(400, "Select a branch within this house", { fieldErrors: { branch_id: ["Invalid branch"] } });
     }

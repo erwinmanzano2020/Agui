@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
+import { EmployeeAccessError } from "@/lib/hr/employees";
 import {
   EmployeeUpdateError,
   deleteEmployeeForHouseWithAccess,
@@ -94,7 +95,11 @@ export async function updateEmployeeAction(
     return { status: "error", message: "Authentication required." };
   }
 
-  const access = await requireHrAccess(supabase, houseId);
+  const access = await requireHrAccessWithBranch(supabase, {
+    houseId,
+    branchId: normalizedBranchId,
+    requiredLevel: "write",
+  });
   if (!access.allowed) {
     return { status: "error", message: "You are not allowed to edit this employee." } satisfies UpdateEmployeeState;
   }
@@ -119,6 +124,12 @@ export async function updateEmployeeAction(
 
     return { status: "success", message: "Employee updated." } satisfies UpdateEmployeeState;
   } catch (error) {
+    if (error instanceof EmployeeAccessError) {
+      return {
+        status: "error",
+        message: "You are not allowed to edit this employee.",
+      } satisfies UpdateEmployeeState;
+    }
     if (error instanceof EmployeeUpdateError) {
       return {
         status: "error",
@@ -147,7 +158,7 @@ export async function deleteEmployeeAction(formData: FormData): Promise<{ status
     return { status: "error", message: "Authentication required." };
   }
 
-  const access = await requireHrAccess(supabase, houseId);
+  const access = await requireHrAccessWithBranch(supabase, { houseId, requiredLevel: "write" });
   if (!access.allowed) {
     return { status: "error", message: "You are not allowed to delete this employee." };
   }
@@ -164,6 +175,9 @@ export async function deleteEmployeeAction(formData: FormData): Promise<{ status
     revalidatePath(`/company/${houseSlug}/hr/employees/${employeeId}`);
     return { status: "success", message: "Employee deleted." };
   } catch (error) {
+    if (error instanceof EmployeeAccessError) {
+      return { status: "error", message: "You are not allowed to delete this employee." };
+    }
     console.error("Failed to delete employee", error);
     return { status: "error", message: "Unable to delete employee right now." };
   }
