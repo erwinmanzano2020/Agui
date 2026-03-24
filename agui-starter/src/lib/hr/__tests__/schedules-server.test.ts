@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { afterEach, describe, it, mock } from "node:test";
 
 import type {
   HrBranchScheduleAssignmentRow,
   HrScheduleTemplateRow,
 } from "@/lib/db.types";
+import * as access from "../access";
 import { evaluateHrAccess } from "../access";
 import {
   createBranchScheduleAssignment,
@@ -171,6 +172,10 @@ const baseAssignment: HrBranchScheduleAssignmentRow = {
   created_at: "2024-01-01T00:00:00Z",
 };
 
+afterEach(() => {
+  mock.restoreAll();
+});
+
 describe("listScheduleTemplates", () => {
   it("returns [] when no templates exist", async () => {
     const supabase = new SupabaseMock({ templates: [], branches: [], assignments: [] });
@@ -190,6 +195,36 @@ describe("listScheduleTemplates", () => {
 });
 
 describe("createBranchScheduleAssignment", () => {
+  it("uses branch-aware access for write mutations", async () => {
+    const supabase = new SupabaseMock({
+      templates: [baseTemplate],
+      branches: [{ id: "branch-1", house_id: "house-1" }],
+      assignments: [],
+    });
+
+    mock.method(access, "requireHrAccessWithBranch", async () => ({
+      ...accessAllowed,
+      allowed: false,
+      branchId: "branch-1",
+      isBranchLimited: true,
+      allowedBranchIds: [],
+    }));
+
+    await assert.rejects(
+      () =>
+        createBranchScheduleAssignment(
+          supabase as never,
+          {
+            houseId: "house-1",
+            branchId: "branch-1",
+            scheduleId: "schedule-1",
+            effectiveFrom: "2024-10-01",
+          },
+        ),
+      ScheduleAssignmentError,
+    );
+  });
+
   it("guards when schedule and branch are in different houses", async () => {
     const supabase = new SupabaseMock({
       templates: [
