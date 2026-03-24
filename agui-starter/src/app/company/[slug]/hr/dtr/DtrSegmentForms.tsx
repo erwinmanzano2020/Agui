@@ -12,11 +12,21 @@ export function FieldError({ message }: { message?: string[] }) {
   return <p className="text-xs text-destructive">{message[0]}</p>;
 }
 
-export function MutationMessage({ status, message }: { status: "idle" | "success" | "error"; message: string }) {
-  if (status === "idle" || !message) return null;
+export function MutationMessage({
+  status,
+  message,
+  formError,
+}: {
+  status: "idle" | "success" | "error";
+  message: string;
+  formError?: string[];
+}) {
+  const visibleFormError = status === "error" ? formError?.[0] : undefined;
+  if (status === "idle" || (!message && !visibleFormError)) return null;
   return (
     <p className={`w-full text-xs ${status === "error" ? "text-destructive" : "text-emerald-700"}`}>
       {message}
+      {visibleFormError ? ` ${visibleFormError}` : ""}
     </p>
   );
 }
@@ -97,7 +107,7 @@ export function UpdateDtrSegmentForm({
         pendingLabel="Saving…"
         className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground"
       />
-      <MutationMessage status={state.status} message={state.message} />
+      <MutationMessage status={state.status} message={state.message} formError={state.fieldErrors.form} />
     </form>
   );
 }
@@ -135,7 +145,7 @@ export function CreateDtrSegmentForm({ houseId, houseSlug, workDate, employeeId 
         pendingLabel="Adding…"
         className="rounded-md border border-border bg-foreground px-4 py-2 text-xs font-semibold text-background disabled:opacity-60"
       />
-      <MutationMessage status={state.status} message={state.message} />
+      <MutationMessage status={state.status} message={state.message} formError={state.fieldErrors.form} />
     </form>
   );
 }
