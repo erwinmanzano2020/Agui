@@ -36,6 +36,7 @@ const UpdateSchema = z.object({
 });
 
 const VALIDATION_ERROR_MESSAGE = "Fix the highlighted fields and try again.";
+const HIDDEN_CONTEXT_FIELDS = new Set(["houseId", "houseSlug", "employeeId", "segmentId", "workDate"]);
 const AUTH_REQUIRED_RESPONSE = {
   status: "error",
   message: "Authentication required.",
@@ -60,9 +61,8 @@ function toTimestamp(workDate: string, timeValue: string) {
 function toValidationFieldErrors(error: { issues: Array<{ path?: unknown[]; message?: string }> }) {
   const fieldErrors: Record<string, string[]> = {};
   for (const issue of error.issues) {
-    // Hidden context inputs (houseId/houseSlug/employeeId/segmentId) can map here,
-    // but current UI only renders user-editable time field errors.
-    const field = typeof issue.path?.[0] === "string" ? issue.path[0] : "form";
+    const issuePathField = typeof issue.path?.[0] === "string" ? issue.path[0] : "form";
+    const field = HIDDEN_CONTEXT_FIELDS.has(issuePathField) ? "form" : issuePathField;
     if (!fieldErrors[field]) fieldErrors[field] = [];
     fieldErrors[field].push(issue.message ?? "Invalid value");
   }

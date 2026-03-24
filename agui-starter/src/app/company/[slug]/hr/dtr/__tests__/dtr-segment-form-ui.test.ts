@@ -13,9 +13,14 @@ describe("DTR form UI helpers", () => {
 
   it("renders global error and success messages", () => {
     const errorHtml = renderToStaticMarkup(
-      React.createElement(MutationMessage, { status: "error", message: "Authentication required." }),
+      React.createElement(MutationMessage, {
+        status: "error",
+        message: "Authentication required.",
+        formError: ["Missing house context"],
+      }),
     );
     assert.match(errorHtml, /Authentication required\./);
+    assert.match(errorHtml, /Missing house context/);
 
     const successHtml = renderToStaticMarkup(
       React.createElement(MutationMessage, { status: "success", message: "DTR segment saved." }),

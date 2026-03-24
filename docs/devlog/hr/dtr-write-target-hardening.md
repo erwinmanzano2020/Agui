@@ -47,9 +47,13 @@ Write-target resolvers now preserve `403` vs `404` semantics more strictly:
 - in-house but forbidden-by-branch-scope => resolver throws `DtrSegmentAccessError` (mapped to forbidden)
 - permission-denied lookups in write-target resolution are treated as forbidden rather than collapsed into not found
 
+## Follow-up UX standardization
+
+- Hidden context-field validation (`houseId`, `houseSlug`, `employeeId`, `segmentId`, `workDate`) is now normalized into a form-level error bucket (`fieldErrors.form`) instead of orphaned hidden-field keys.
+- The DTR forms surface that form-level validation detail alongside the global mutation status message, while retaining inline field rendering only for user-editable time inputs.
+
 ## Limitations
 
 - This hardening is scoped to DTR create/update mutation boundaries only.
 - No tenancy model changes were introduced.
 - No payroll, kiosk, scheduling, or UI flow refactors are included.
-- Hidden-field validation errors (`houseId`, `houseSlug`, `employeeId`, `segmentId`) are returned by actions but not rendered as inline, user-fixable field messages in the current UI.
