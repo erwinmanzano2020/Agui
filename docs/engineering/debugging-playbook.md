@@ -67,5 +67,13 @@ Canonical commands:
   ```bash
   npm run -C agui-starter test -- 'src/app/company/[slug]/hr/employees'
   ```
+- **Scoped run with Node test flag:**
+  ```bash
+  npm run -C agui-starter test -- \
+    --test-name-pattern 'authentication-required' \
+    'src/app/company/[slug]/hr/employees/[id]/__tests__/actions.test.ts'
+  ```
 
 Why this works: `scripts/run-tests.cjs` rewrites `src/...` targets to their compiled `.test-dist/...` paths before invoking `node --test`, so scoped runs execute real tests instead of silently discovering zero.
+
+Important: only the runner contract is supported (targets + documented Node test flags). Do not assume arbitrary raw `node --test` CLI shapes are supported unless explicitly added to the runner.
