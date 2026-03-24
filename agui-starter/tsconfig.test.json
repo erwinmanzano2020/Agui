@@ -4,6 +4,7 @@
     "outDir": ".test-dist",
     "module": "commonjs",
     "moduleResolution": "node",
+    "jsx": "react-jsx",
     "target": "es2020",
     "lib": ["es2020", "dom"],
     "baseUrl": ".",
