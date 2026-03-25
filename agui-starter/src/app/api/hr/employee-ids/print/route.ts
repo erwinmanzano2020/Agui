@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { resolveHrRouteActorContext } from "@/app/api/hr/_shared/route-guard-order";
 import { jsonError } from "@/lib/api/http";
 import { getFeatureAccessDebugSnapshot } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { requireHrAccess } from "@/lib/hr/access";
 import { generateEmployeeIdCardsSheetPdf } from "@/lib/hr/employee-id-card-pdf";
 import { orderEmployeeIdCards } from "@/lib/hr/employee-id-cards";
@@ -44,18 +44,22 @@ export async function POST(req: NextRequest) {
   const layout = raw.layout === "a4_9up" || raw.layout === "a4_8up" ? raw.layout : undefined;
   const includeCutGuides = typeof raw.includeCutGuides === "boolean" ? raw.includeCutGuides : undefined;
 
-  const supabase = await createServerSupabaseClient();
   const houseId = parsedHouseId.data;
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const actor = await resolveHrRouteActorContext({
+    routeName: "hr/employee-ids/print",
+    features: [AppFeature.HR],
+    onUnauthenticated: () => jsonError(403, "Not allowed"),
+    onEntityNotLinked: () => jsonError(403, "Not allowed"),
+  });
+  if (actor instanceof NextResponse) return actor;
+
   const featureSnapshot = await getFeatureAccessDebugSnapshot([AppFeature.HR]);
 
-  const access = await requireHrAccess(supabase, houseId);
+  const access = await requireHrAccess(actor.supabase, houseId);
   if (!access.allowed) {
     console.warn("[hr][employee-ids/print] Forbidden by HR access guard", {
       denyStage: "hr_access",
-      userId: user?.id ?? null,
+      userId: actor.userId,
       houseId,
       employeeId: null,
       requiredFeatures: featureSnapshot.requiredFeatures,
@@ -69,14 +73,14 @@ export async function POST(req: NextRequest) {
 
   console.info("[hr][employee-ids/print] Access granted", {
     denyStage: "none",
-    userId: user?.id ?? null,
+    userId: actor.userId,
     houseId,
     employeeId: null,
     requiredFeatures: featureSnapshot.requiredFeatures,
     resolvedFeatures: featureSnapshot.resolvedFeatures,
   });
 
-  const allEmployees = await listEmployeeIdCards(supabase, houseId);
+  const allEmployees = await listEmployeeIdCards(actor.supabase, houseId);
   const allowed = new Map(allEmployees.map((row) => [row.id, row]));
   const selected = employeeIds
     .map((id) => allowed.get(id) ?? null)

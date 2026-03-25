@@ -111,12 +111,43 @@ These paths use non-session/device-oriented identity and are outside this pass b
 
 ### Deferred / partial (Pass 2)
 
-- `/api/hr/employee-ids/print`
 - `/api/hr/employees/[employeeId]/id-card.pdf`
 - `/api/hr/employees/[employeeId]/photo`
 - `/api/hr/employees/[employeeId]/photo/upload`
 
 These remain unchanged in this pass due to mixed or specialized access-entry behavior that is not yet a safe mechanical fit for helper adoption.
+
+## Route-family ordering audit (Pass 3)
+
+This is a scoped HR route-entry consistency pass, not a global standardization.
+
+### SAFE (adopted in Pass 3)
+
+- `/api/hr/employee-ids/print`
+  - Adopted route-entry helper: `resolveHrRouteActorContext(...)`.
+  - Canonical entry order is now `auth -> entity -> feature`.
+  - House payload resolution, HR access checks, and domain/response behavior remain route-local.
+
+### PARTIAL (deferred in Pass 3)
+
+- `/api/hr/employees/[employeeId]/id-card.pdf`
+  - Uses specialized house-scoped access-chain helpers (`requireAuthentication -> resolveAccessContext -> requireModuleAccess -> requireHrBusinessAccess`).
+  - Deferred to avoid redesigning existing membership and authorization assumptions in this scoped pass.
+
+- `/api/hr/employees/[employeeId]/photo`
+  - Coupled to branch-limited write access (`requireHrAccessWithBranch(..., { requiredLevel: "write" })`) and employee write-target checks.
+  - Deferred to preserve current branch/write semantics without moving domain access logic into shared helper paths.
+
+- `/api/hr/employees/[employeeId]/photo/upload`
+  - Uses split upload-entry checks (session auth + HR access + employee ownership anti-enumeration timing).
+  - Deferred to avoid changing specialized upload authorization behavior in a mechanical ordering pass.
+
+### EXCEPTION (explicitly excluded)
+
+- `/api/hr/kiosk/**`
+- `/api/hr/kiosk-devices/**`
+
+These remain out of scope for session-based route-entry helper adoption.
 
 ### DTR routes in HR scope
 - No standalone `/api/hr/dtr/*` route family is currently present in this tree.
