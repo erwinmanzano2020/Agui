@@ -241,7 +241,7 @@ export async function POST(req: NextRequest) {
     logApiError({
       route: ROUTE_NAME,
       action: "resolve_house",
-      userId: userId,
+      userId,
       entityId,
       error,
     });
@@ -252,7 +252,7 @@ export async function POST(req: NextRequest) {
     logApiWarning({
       route: ROUTE_NAME,
       action: "no_accessible_house",
-      userId: userId,
+      userId,
       entityId,
     });
     return jsonError(403, "No accessible house");
@@ -265,7 +265,7 @@ export async function POST(req: NextRequest) {
     logApiError({
       route: ROUTE_NAME,
       action: "resolve_branches",
-      userId: userId,
+      userId,
       entityId,
       houseId,
       error,
@@ -282,7 +282,7 @@ export async function POST(req: NextRequest) {
     logApiWarning({
       route: ROUTE_NAME,
       action: "hr_access_denied",
-      userId: userId,
+      userId,
       entityId,
       houseId,
       details: { allowedByPolicy: hrAccess.allowedByPolicy, allowedByRole: hrAccess.allowedByRole },
@@ -322,7 +322,7 @@ export async function POST(req: NextRequest) {
       logApiError({
         route: ROUTE_NAME,
         action: "link_entity",
-        userId: userId,
+        userId,
         entityId,
         houseId,
         error: message,
@@ -374,7 +374,7 @@ export async function POST(req: NextRequest) {
     logApiError({
       route: ROUTE_NAME,
       action: "create_employee",
-      userId: userId,
+      userId,
       entityId,
       houseId,
       error,

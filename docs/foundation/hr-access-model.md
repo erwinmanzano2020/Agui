@@ -68,6 +68,8 @@ Notes:
 
 ## Route-family ordering audit (March 25, 2026)
 
+This remains a scoped HR-family pass, not a whole-HR/global standardization claim.
+
 ### Employees routes (`/api/hr/employees`, `/api/hr/employees/lookup`)
 - Standardized order now follows canonical sequence through auth/entity/feature before house + HR access checks.
 - Branch restriction remains explicit through `requireHrAccessWithBranch` where applicable.

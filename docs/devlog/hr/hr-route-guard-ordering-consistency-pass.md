@@ -35,5 +35,7 @@ Date: 2026-03-25
 
 ## Deferred follow-ups
 
+- Helper adoption audit result: no additional low-risk adoptions were applied beyond the already in-scope families for this pass.
+- Response-envelope wording still varies by family where route/domain contracts differ; this pass only polishes local drift and does not force a single envelope helper.
 - Expand the same explicit ordering audit to remaining HR families not included in this focused pass (for example kiosk/device routes) under a separate scoped change.
 - Continue workspace-vs-house naming cleanup in legacy fields without changing semantics.
