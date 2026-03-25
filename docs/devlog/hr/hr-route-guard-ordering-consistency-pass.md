@@ -13,6 +13,11 @@ Date: 2026-03-25
   - payroll (`/api/hr/payroll-runs`, `/api/hr/payroll-preview`)
   - payslip/deduction routes (`/api/hr/payroll-runs/:id/payslips`, `/api/hr/payroll-runs/:id/deductions`)
 - Updated foundation documentation to define canonical ordering and list route-family status/intentional exceptions.
+- Added helper-level tests for unauthenticated, entity failure/not-linked, feature deny, success context, and call-order contract.
+
+## Follow-up blocker fix (stabilization pass)
+
+- Fixed a TypeScript regression in `employees` ordering test by keeping the Supabase stub structurally typed (so `.from` remains available) and casting only at mock boundaries.
 
 ## What was intentionally not changed
 

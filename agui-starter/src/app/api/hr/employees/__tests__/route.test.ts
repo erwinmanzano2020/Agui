@@ -14,7 +14,7 @@ const HOUSE_ID = "33333333-3333-4333-8333-333333333333";
 const BRANCH_ID = "11111111-1111-4111-8111-111111111111";
 
 function createSupabaseStub() {
-  return {
+  const stub = {
     auth: {
       getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
     },
@@ -41,7 +41,9 @@ function createSupabaseStub() {
 
       throw new Error(`Unexpected table ${table}`);
     },
-  } as never;
+  };
+
+  return stub;
 }
 
 describe("POST /api/hr/employees boundary error mapping", () => {
@@ -69,7 +71,7 @@ describe("POST /api/hr/employees boundary error mapping", () => {
 
   it("returns 400 for invalid create payload", async () => {
     mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
-    mock.method(supabaseServer, "createServerSupabaseClient", async () => createSupabaseStub());
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => createSupabaseStub() as never);
     mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
     mock.method(identityServer, "resolveEntityIdForUser", async () => "entity-1");
 
@@ -87,7 +89,7 @@ describe("POST /api/hr/employees boundary error mapping", () => {
 
   it("returns 403 for authenticated forbidden create", async () => {
     mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
-    mock.method(supabaseServer, "createServerSupabaseClient", async () => createSupabaseStub());
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => createSupabaseStub() as never);
     mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
     mock.method(identityServer, "resolveEntityIdForUser", async () => "entity-1");
     mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
@@ -126,7 +128,7 @@ describe("POST /api/hr/employees boundary error mapping", () => {
 
   it("returns 500 for unexpected create failures", async () => {
     mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
-    mock.method(supabaseServer, "createServerSupabaseClient", async () => createSupabaseStub());
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => createSupabaseStub() as never);
     mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
     mock.method(identityServer, "resolveEntityIdForUser", async () => "entity-1");
     mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({

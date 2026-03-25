@@ -74,7 +74,7 @@ export async function GET(req: NextRequest) {
     logApiError({
       route: ROUTE_NAME,
       action: "list_runs",
-      userId: userId,
+      userId,
       entityId,
       houseId: parsed.data.houseId,
       error: message,

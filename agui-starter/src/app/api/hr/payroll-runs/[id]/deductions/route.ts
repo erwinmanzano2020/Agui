@@ -105,7 +105,7 @@ export async function POST(
       logApiError({
         route: ROUTE_NAME,
         action: "create_deduction",
-        userId: userId,
+        userId,
         entityId,
         details: { runId: parsedParams.data.id },
         error: message,
@@ -116,7 +116,7 @@ export async function POST(
     logApiError({
       route: ROUTE_NAME,
       action: "create_deduction",
-      userId: userId,
+      userId,
       entityId,
       details: { runId: parsedParams.data.id },
       error: message,

@@ -64,6 +64,7 @@ For HR API families in current scope, the canonical sequencing target is:
 Notes:
 - This sequence describes **ordering of concerns**, not identical implementation mechanics.
 - Deviations are allowed only when they are explicit and documented.
+- Route-entry ordering is now covered by route-family tests and a helper-level contract test for `resolveHrRouteActorContext`.
 
 ## Route-family ordering audit (March 25, 2026)
 
