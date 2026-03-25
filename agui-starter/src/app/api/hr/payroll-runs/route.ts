@@ -23,12 +23,12 @@ import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
 import {
-  payrollWriteAuthRequired,
-  payrollWriteForbidden,
-  payrollWriteSuccess,
-  payrollWriteUnexpected,
-  payrollWriteValidation,
-} from "./write-boundary";
+  payrollRouteAuthRequired,
+  payrollRouteForbidden,
+  payrollRouteSuccess,
+  payrollRouteUnexpected,
+  payrollRouteValidation,
+} from "./route-boundary";
 
 const ROUTE_NAME = "api/hr/payroll-runs";
 const SUCCESS_MESSAGE = "Payroll run created.";
@@ -67,7 +67,7 @@ export async function GET(req: NextRequest) {
 
   if (!userResult.user) {
     logApiWarning({ route: ROUTE_NAME, action: "unauthenticated" });
-    return payrollWriteAuthRequired();
+    return payrollRouteAuthRequired();
   }
 
   const admin = getServiceSupabase();
@@ -81,14 +81,14 @@ export async function GET(req: NextRequest) {
 
   if (!entityId) {
     logApiWarning({ route: ROUTE_NAME, action: "entity_not_linked", userId: userResult.user.id });
-    return payrollWriteForbidden();
+    return payrollRouteForbidden();
   }
 
   const url = new URL(req.url);
   const parsed = QuerySchema.safeParse({ houseId: url.searchParams.get("houseId") });
   if (!parsed.success) {
     const details = parsed.error.flatten().formErrors;
-    return payrollWriteValidation(details[0], "Missing or invalid house.");
+    return payrollRouteValidation(details[0], "Missing or invalid house.");
   }
 
   try {
@@ -105,7 +105,7 @@ export async function GET(req: NextRequest) {
         houseId: parsed.data.houseId,
         error: message,
       });
-      return payrollWriteForbidden(message);
+      return payrollRouteForbidden(message);
     }
 
     logApiError({
@@ -117,7 +117,7 @@ export async function GET(req: NextRequest) {
       error: message,
     });
 
-    return payrollWriteUnexpected(message);
+    return payrollRouteUnexpected(message);
   }
 }
 
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
 
   if (!userResult.user) {
     logApiWarning({ route: ROUTE_NAME, action: "unauthenticated" });
-    return payrollWriteAuthRequired();
+    return payrollRouteAuthRequired();
   }
 
   const admin = getServiceSupabase();
@@ -159,7 +159,7 @@ export async function POST(req: NextRequest) {
 
   if (!entityId) {
     logApiWarning({ route: ROUTE_NAME, action: "entity_not_linked", userId: userResult.user.id });
-    return payrollWriteForbidden();
+    return payrollRouteForbidden();
   }
 
   let payload: unknown;
@@ -167,13 +167,13 @@ export async function POST(req: NextRequest) {
     payload = await req.json();
   } catch (error) {
     logApiWarning({ route: ROUTE_NAME, action: "invalid_json", error });
-    return payrollWriteValidation("Invalid JSON payload.");
+    return payrollRouteValidation("Invalid JSON payload.");
   }
 
   const parsed = CreateSchema.safeParse(payload);
   if (!parsed.success) {
     const details = parsed.error.flatten().formErrors;
-    return payrollWriteValidation(details[0]);
+    return payrollRouteValidation(details[0]);
   }
 
   try {
@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
       createdBy: entityId,
     });
 
-    return payrollWriteSuccess({ runId: result.runId }, SUCCESS_MESSAGE);
+    return payrollRouteSuccess({ runId: result.runId }, SUCCESS_MESSAGE);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (error instanceof PayrollRunAccessError || error instanceof PayrollPreviewAccessError) {
@@ -196,11 +196,11 @@ export async function POST(req: NextRequest) {
         houseId: parsed.data.houseId,
         error: message,
       });
-      return payrollWriteForbidden(message);
+      return payrollRouteForbidden(message);
     }
 
     if (error instanceof PayrollRunValidationError || error instanceof PayrollPreviewValidationError) {
-      return payrollWriteValidation(message, "Invalid payroll run parameters.");
+      return payrollRouteValidation(message, "Invalid payroll run parameters.");
     }
 
     if (error instanceof PayrollRunMutationError) {
@@ -210,7 +210,7 @@ export async function POST(req: NextRequest) {
       if (error.code === "23514") {
         return jsonError(400, "House mismatch", { message });
       }
-      return payrollWriteUnexpected(message);
+      return payrollRouteUnexpected(message);
     }
 
     logApiError({
@@ -222,6 +222,6 @@ export async function POST(req: NextRequest) {
       error: message,
     });
 
-    return payrollWriteUnexpected(message);
+    return payrollRouteUnexpected(message);
   }
 }

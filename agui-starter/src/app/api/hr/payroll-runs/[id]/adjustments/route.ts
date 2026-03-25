@@ -20,13 +20,13 @@ import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
 import {
-  payrollWriteAuthRequired,
-  payrollWriteForbidden,
-  payrollWriteNotFound,
-  payrollWriteSuccess,
-  payrollWriteUnexpected,
-  payrollWriteValidation,
-} from "../../write-boundary";
+  payrollRouteAuthRequired,
+  payrollRouteForbidden,
+  payrollRouteNotFound,
+  payrollRouteSuccess,
+  payrollRouteUnexpected,
+  payrollRouteValidation,
+} from "../../route-boundary";
 
 const ROUTE_NAME = "api/hr/payroll-runs/:id/adjustments";
 const SUCCESS_MESSAGE = "Adjustment payroll run created.";
@@ -72,7 +72,7 @@ export async function POST(
 
   if (!userResult.user) {
     logApiWarning({ route: ROUTE_NAME, action: "unauthenticated" });
-    return payrollWriteAuthRequired();
+    return payrollRouteAuthRequired();
   }
 
   const admin = getServiceSupabase();
@@ -86,20 +86,20 @@ export async function POST(
 
   if (!entityId) {
     logApiWarning({ route: ROUTE_NAME, action: "entity_not_linked", userId: userResult.user.id });
-    return payrollWriteForbidden();
+    return payrollRouteForbidden();
   }
 
   const url = new URL(req.url);
   const parsedQuery = QuerySchema.safeParse({ houseId: url.searchParams.get("houseId") });
   if (!parsedQuery.success) {
     const details = parsedQuery.error.flatten().formErrors;
-    return payrollWriteValidation(details[0]);
+    return payrollRouteValidation(details[0]);
   }
 
   const parsedParams = ParamsSchema.safeParse(await params);
   if (!parsedParams.success) {
     const details = parsedParams.error.flatten().formErrors;
-    return payrollWriteValidation(details[0]);
+    return payrollRouteValidation(details[0]);
   }
 
   let payload: { note?: string | null };
@@ -107,7 +107,7 @@ export async function POST(
     payload = BodySchema.parse(await req.json().catch(() => ({})));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Invalid request body";
-    return payrollWriteValidation(message);
+    return payrollRouteValidation(message);
   }
 
   try {
@@ -117,7 +117,7 @@ export async function POST(
       parsedParams.data.id,
     );
     if (!target) {
-      return payrollWriteNotFound();
+      return payrollRouteNotFound();
     }
 
     const result = await createAdjustmentRunForHouse(supabase, {
@@ -126,7 +126,7 @@ export async function POST(
       note: payload.note ?? null,
     }, { resolvedTarget: target });
 
-    return payrollWriteSuccess({ runId: result.runId }, SUCCESS_MESSAGE);
+    return payrollRouteSuccess({ runId: result.runId }, SUCCESS_MESSAGE);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (error instanceof PayrollRunAccessError) {
@@ -139,11 +139,11 @@ export async function POST(
         details: { runId: parsedParams.data.id },
         error: message,
       });
-      return payrollWriteForbidden(message);
+      return payrollRouteForbidden(message);
     }
 
     if (error instanceof PayrollRunNotFoundError) {
-      return payrollWriteNotFound(message);
+      return payrollRouteNotFound(message);
     }
 
     if (error instanceof PayrollRunWrongStatusError) {
@@ -151,7 +151,7 @@ export async function POST(
     }
 
     if (error instanceof PayrollRunMutationError) {
-      return payrollWriteUnexpected(message);
+      return payrollRouteUnexpected(message);
     }
 
     logApiError({
@@ -164,6 +164,6 @@ export async function POST(
       error: message,
     });
 
-    return payrollWriteUnexpected(message);
+    return payrollRouteUnexpected(message);
   }
 }
