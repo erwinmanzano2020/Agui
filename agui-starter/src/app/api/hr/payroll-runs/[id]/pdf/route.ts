@@ -1,13 +1,9 @@
 import { NextRequest } from "next/server";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-
 import { jsonError } from "@/lib/api/http";
 import { logApiError, logApiWarning } from "@/lib/api/logging";
-import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
-import type { Database } from "@/lib/db.types";
-import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
+import { resolveHrRouteActorContext } from "@/app/api/hr/_shared/route-guard-order";
 import { generatePayrollRunPdf } from "@/lib/hr/payroll-run-pdf";
 import {
   computePayslipsForPayrollRun,
@@ -16,8 +12,6 @@ import {
   PayslipValidationError,
 } from "@/lib/hr/payslip-server";
 import { requireHrAccess } from "@/lib/hr/access";
-import { getServiceSupabase } from "@/lib/supabase-service";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
 
 const ROUTE_NAME = "api/hr/payroll-runs/:id/pdf";
@@ -45,45 +39,13 @@ function sortKey(value: string | null | undefined): string {
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const guard = await requireAnyFeatureAccessApi([
-    AppFeature.PAYROLL,
-    AppFeature.TEAM,
-    AppFeature.DTR_BULK,
-  ]);
-  if (guard) return guard;
-
-  let supabase: SupabaseClient<Database>;
-  try {
-    supabase = await createServerSupabaseClient();
-  } catch (error) {
-    logApiError({ route: ROUTE_NAME, action: "init_supabase_client", error });
-    return jsonError(503, "Supabase not configured");
-  }
-
-  const { data: userResult, error: userError } = await supabase.auth.getUser();
-  if (userError) {
-    logApiError({ route: ROUTE_NAME, action: "get_user", error: userError });
-    return jsonError(500, "Failed to load user", { code: userError.code });
-  }
-
-  if (!userResult.user) {
-    logApiWarning({ route: ROUTE_NAME, action: "unauthenticated" });
-    return jsonError(401, "Not authenticated");
-  }
-
-  const admin = getServiceSupabase();
-  let entityId: string | null = null;
-  try {
-    entityId = await resolveEntityIdForUser(userResult.user, admin);
-  } catch (error) {
-    logApiError({ route: ROUTE_NAME, action: "resolve_entity", userId: userResult.user.id, error });
-    return jsonError(500, "Failed to resolve account");
-  }
-
-  if (!entityId) {
-    logApiWarning({ route: ROUTE_NAME, action: "entity_not_linked", userId: userResult.user.id });
-    return jsonError(403, "Account not linked");
-  }
+  const actor = await resolveHrRouteActorContext({
+    routeName: ROUTE_NAME,
+    features: [AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK],
+    onUnauthenticated: () => jsonError(401, "Not authenticated"),
+    onEntityNotLinked: () => jsonError(403, "Account not linked"),
+  });
+  if (actor instanceof Response) return actor;
 
   const parsedParams = ParamsSchema.safeParse(await params);
   if (!parsedParams.success) {
@@ -108,7 +70,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id: runId } = parsedParams.data;
 
   try {
-    const { data: run, error: runError } = await supabase
+    const { data: run, error: runError } = await actor.supabase
       .from("hr_payroll_runs")
       .select(
         "id, house_id, period_start, period_end, status, reference_code, finalized_at, posted_at, paid_at",
@@ -128,19 +90,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return jsonError(409, "Payroll run must be finalized before exporting.");
     }
 
-    const access = await requireHrAccess(supabase, run.house_id);
+    const access = await requireHrAccess(actor.supabase, run.house_id);
     if (!access.allowed) {
       logApiWarning({
         route: ROUTE_NAME,
         action: "access_denied",
-        userId: userResult.user.id,
-        entityId,
+        userId: actor.userId,
+        entityId: actor.entityId,
         details: { runId, houseId: run.house_id },
       });
       return jsonError(403, "Not allowed");
     }
 
-    const { data: house, error: houseError } = await supabase
+    const { data: house, error: houseError } = await actor.supabase
       .from("houses")
       .select("id, name")
       .eq("id", run.house_id)
@@ -150,7 +112,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       throw new PayslipFetchError(houseError.message);
     }
 
-    const runItemsResult = await supabase
+    const runItemsResult = await actor.supabase
       .from("hr_payroll_run_items")
       .select("missing_schedule_days, open_segment_days, corrected_segment_days, employee_id")
       .eq("run_id", runId)
@@ -163,7 +125,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const runItems = runItemsResult.data ?? [];
 
     const rows = await computePayslipsForPayrollRun(
-      supabase,
+      actor.supabase,
       { houseId: run.house_id, runId },
       { access },
     );
@@ -268,8 +230,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       logApiWarning({
         route: ROUTE_NAME,
         action: "access_denied",
-        userId: userResult.user.id,
-        entityId,
+        userId: actor.userId,
+        entityId: actor.entityId,
         details: { runId },
         error: message,
       });
@@ -284,8 +246,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       logApiError({
         route: ROUTE_NAME,
         action: "fetch_payroll_run_pdf",
-        userId: userResult.user.id,
-        entityId,
+        userId: actor.userId,
+        entityId: actor.entityId,
         details: { runId },
         error: message,
       });
@@ -295,8 +257,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     logApiError({
       route: ROUTE_NAME,
       action: "generate_payroll_run_pdf",
-      userId: userResult.user.id,
-      entityId,
+      userId: actor.userId,
+      entityId: actor.entityId,
       details: { runId },
       error: message,
     });

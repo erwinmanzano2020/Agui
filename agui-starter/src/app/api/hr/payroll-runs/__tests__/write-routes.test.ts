@@ -15,10 +15,12 @@ import {
   PAYROLL_ROUTE_VALIDATION_MESSAGE,
 } from "../route-boundary";
 import { GET as listPayrollRuns, POST as createPayrollRun } from "../route";
+import { GET as getPayrollRunById } from "../[id]/route";
 import { POST as finalizePayrollRun } from "../[id]/finalize/route";
 import { POST as markPayrollRunPaid } from "../[id]/mark-paid/route";
 import { POST as createAdjustmentRun } from "../[id]/adjustments/route";
 import { POST as createRunDeduction } from "../[id]/deductions/route";
+import { POST as postPayrollRun } from "../[id]/post/route";
 
 const HOUSE_ID = "33333333-3333-4333-8333-333333333333";
 const RUN_ID = "22222222-2222-4222-8222-222222222222";
@@ -392,5 +394,109 @@ describe("payroll route boundary drift guard", () => {
     setupAuthOk();
     const invalidHouse = await listPayrollRuns(new Request("http://localhost/api/hr/payroll-runs?houseId=bad") as never);
     await assertCanonicalRouteError(invalidHouse, 400, PAYROLL_ROUTE_VALIDATION_MESSAGE);
+  });
+});
+
+describe("GET /api/hr/payroll-runs/:id guard ordering", () => {
+  it("applies canonical auth -> entity -> feature ordering", async () => {
+    const order: string[] = [];
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+      order.push("feature");
+      return null;
+    });
+    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
+      ({
+        auth: {
+          getUser: async () => {
+            order.push("auth");
+            return { data: { user: { id: "user-1" } }, error: null };
+          },
+        },
+      }) as never,
+    );
+    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
+    mock.method(identityServer, "resolveEntityIdForUser", async () => {
+      order.push("entity");
+      return "entity-1";
+    });
+
+    const response = await getPayrollRunById(
+      new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}?houseId=bad`) as never,
+      { params: Promise.resolve({ id: RUN_ID }) },
+    );
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(order, ["auth", "entity", "feature"]);
+  });
+
+  it("returns unauthenticated without invoking feature guard", async () => {
+    let featureCalls = 0;
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+      featureCalls += 1;
+      return null;
+    });
+    mockSupabase(null);
+
+    const response = await getPayrollRunById(
+      new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}?houseId=${HOUSE_ID}`) as never,
+      { params: Promise.resolve({ id: RUN_ID }) },
+    );
+
+    assert.equal(response.status, 401);
+    const payload = await response.json();
+    assert.equal(payload.error, "Not authenticated");
+    assert.equal(featureCalls, 0);
+  });
+});
+
+describe("POST /api/hr/payroll-runs/:id/post guard ordering", () => {
+  it("applies canonical auth -> entity -> feature ordering", async () => {
+    const order: string[] = [];
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+      order.push("feature");
+      return null;
+    });
+    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
+      ({
+        auth: {
+          getUser: async () => {
+            order.push("auth");
+            return { data: { user: { id: "user-1" } }, error: null };
+          },
+        },
+      }) as never,
+    );
+    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
+    mock.method(identityServer, "resolveEntityIdForUser", async () => {
+      order.push("entity");
+      return "entity-1";
+    });
+
+    const response = await postPayrollRun(
+      new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}/post?houseId=bad`, { method: "POST", body: "{}" }) as never,
+      { params: Promise.resolve({ id: RUN_ID }) },
+    );
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(order, ["auth", "entity", "feature"]);
+  });
+
+  it("returns unauthenticated without invoking feature guard", async () => {
+    let featureCalls = 0;
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+      featureCalls += 1;
+      return null;
+    });
+    mockSupabase(null);
+
+    const response = await postPayrollRun(
+      new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}/post?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }) as never,
+      { params: Promise.resolve({ id: RUN_ID }) },
+    );
+
+    assert.equal(response.status, 401);
+    const payload = await response.json();
+    assert.equal(payload.error, "Not authenticated");
+    assert.equal(featureCalls, 0);
   });
 });
