@@ -7,7 +7,14 @@ import * as payrollRunsServer from "@/lib/hr/payroll-runs-server";
 import * as payslipServer from "@/lib/hr/payslip-server";
 import * as supabaseServer from "@/lib/supabase/server";
 import * as supabaseService from "@/lib/supabase-service";
-import { POST as createPayrollRun } from "../route";
+import {
+  PAYROLL_ROUTE_AUTH_REQUIRED_MESSAGE,
+  PAYROLL_ROUTE_FORBIDDEN_MESSAGE,
+  PAYROLL_ROUTE_NOT_FOUND_MESSAGE,
+  PAYROLL_ROUTE_UNEXPECTED_MESSAGE,
+  PAYROLL_ROUTE_VALIDATION_MESSAGE,
+} from "../route-boundary";
+import { GET as listPayrollRuns, POST as createPayrollRun } from "../route";
 import { POST as finalizePayrollRun } from "../[id]/finalize/route";
 import { POST as markPayrollRunPaid } from "../[id]/mark-paid/route";
 import { POST as createAdjustmentRun } from "../[id]/adjustments/route";
@@ -16,6 +23,12 @@ import { POST as createRunDeduction } from "../[id]/deductions/route";
 const HOUSE_ID = "33333333-3333-4333-8333-333333333333";
 const RUN_ID = "22222222-2222-4222-8222-222222222222";
 const EMPLOYEE_ID = "11111111-1111-4111-8111-111111111111";
+
+async function assertCanonicalRouteError(response: Response, status: number, error: string) {
+  assert.equal(response.status, status);
+  const payload = await response.json();
+  assert.equal(payload.error, error);
+}
 
 function mockSupabase(user: { id: string } | null = { id: "user-1" }) {
   mock.method(supabaseServer, "createServerSupabaseClient", async () =>
@@ -37,8 +50,7 @@ describe("POST /api/hr/payroll-runs", () => {
     mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
     mockSupabase(null);
     const response = await createPayrollRun(new Request("http://localhost/api/hr/payroll-runs", { method: "POST", body: "{}" }) as never);
-    assert.equal(response.status, 401);
-    assert.equal((await response.json()).error, "Authentication required.");
+    await assertCanonicalRouteError(response, 401, PAYROLL_ROUTE_AUTH_REQUIRED_MESSAGE);
   });
 
   it("returns validation boundary", async () => {
@@ -46,8 +58,7 @@ describe("POST /api/hr/payroll-runs", () => {
     const response = await createPayrollRun(
       new Request("http://localhost/api/hr/payroll-runs", { method: "POST", body: JSON.stringify({ houseId: "bad" }) }) as never,
     );
-    assert.equal(response.status, 400);
-    assert.equal((await response.json()).error, "Fix the highlighted fields and try again.");
+    await assertCanonicalRouteError(response, 400, PAYROLL_ROUTE_VALIDATION_MESSAGE);
   });
 
   it("returns forbidden boundary", async () => {
@@ -61,8 +72,7 @@ describe("POST /api/hr/payroll-runs", () => {
         body: JSON.stringify({ houseId: HOUSE_ID, periodStart: "2026-01-01", periodEnd: "2026-01-15" }),
       }) as never,
     );
-    assert.equal(response.status, 403);
-    assert.equal((await response.json()).error, "You are not allowed to perform this action.");
+    await assertCanonicalRouteError(response, 403, PAYROLL_ROUTE_FORBIDDEN_MESSAGE);
   });
 
   it("returns unexpected-failure boundary", async () => {
@@ -76,8 +86,7 @@ describe("POST /api/hr/payroll-runs", () => {
         body: JSON.stringify({ houseId: HOUSE_ID, periodStart: "2026-01-01", periodEnd: "2026-01-15" }),
       }) as never,
     );
-    assert.equal(response.status, 500);
-    assert.equal((await response.json()).error, "Unable to process request right now.");
+    await assertCanonicalRouteError(response, 500, PAYROLL_ROUTE_UNEXPECTED_MESSAGE);
   });
 
   it("maps domain validation failures to canonical validation boundary", async () => {
@@ -95,7 +104,7 @@ describe("POST /api/hr/payroll-runs", () => {
 
     assert.equal(response.status, 400);
     const payload = await response.json();
-    assert.equal(payload.error, "Fix the highlighted fields and try again.");
+    assert.equal(payload.error, PAYROLL_ROUTE_VALIDATION_MESSAGE);
     assert.match(String(payload.details?.message ?? ""), /periodStart must be on or before periodEnd/i);
   });
 
@@ -164,16 +173,14 @@ describe("payroll run id-based write routes", () => {
       it("returns validation boundary", async () => {
         setupAuthOk();
         const response = await routeCase.call(new Request(`http://localhost/${routeCase.name}?houseId=bad`, { method: "POST", body: "{}" }));
-        assert.equal(response.status, 400);
-        assert.equal((await response.json()).error, "Fix the highlighted fields and try again.");
+        await assertCanonicalRouteError(response, 400, PAYROLL_ROUTE_VALIDATION_MESSAGE);
       });
 
       it("returns auth-required boundary", async () => {
         mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
         mockSupabase(null);
         const response = await routeCase.call(new Request(`http://localhost/${routeCase.name}?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }));
-        assert.equal(response.status, 401);
-        assert.equal((await response.json()).error, "Authentication required.");
+        await assertCanonicalRouteError(response, 401, PAYROLL_ROUTE_AUTH_REQUIRED_MESSAGE);
       });
 
       it("returns forbidden boundary", async () => {
@@ -182,16 +189,14 @@ describe("payroll run id-based write routes", () => {
           throw new payrollRunsServer.PayrollRunAccessError("denied");
         });
         const response = await routeCase.call(new Request(`http://localhost/${routeCase.name}?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }));
-        assert.equal(response.status, 403);
-        assert.equal((await response.json()).error, "You are not allowed to perform this action.");
+        await assertCanonicalRouteError(response, 403, PAYROLL_ROUTE_FORBIDDEN_MESSAGE);
       });
 
       it("returns not-found boundary", async () => {
         setupAuthOk();
         mock.method(payrollRunsServer, "resolvePayrollRunWriteTargetForHouseWithAccess", async () => null);
         const response = await routeCase.call(new Request(`http://localhost/${routeCase.name}?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }));
-        assert.equal(response.status, 404);
-        assert.equal((await response.json()).error, "Record not found.");
+        await assertCanonicalRouteError(response, 404, PAYROLL_ROUTE_NOT_FOUND_MESSAGE);
       });
 
       it("returns unexpected boundary", async () => {
@@ -207,8 +212,7 @@ describe("payroll run id-based write routes", () => {
           throw new payrollRunsServer.PayrollRunMutationError("db fail");
         });
         const response = await routeCase.call(new Request(`http://localhost/${routeCase.name}?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }));
-        assert.equal(response.status, 500);
-        assert.equal((await response.json()).error, "Unable to process request right now.");
+        await assertCanonicalRouteError(response, 500, PAYROLL_ROUTE_UNEXPECTED_MESSAGE);
       });
 
       it("returns success boundary", async () => {
@@ -269,16 +273,14 @@ describe("POST /api/hr/payroll-runs/:id/deductions", () => {
   it("returns validation boundary", async () => {
     setupAuthOk();
     const response = await callRoute(new Request("http://localhost/deductions", { method: "POST", body: JSON.stringify({}) }));
-    assert.equal(response.status, 400);
-    assert.equal((await response.json()).error, "Fix the highlighted fields and try again.");
+    await assertCanonicalRouteError(response, 400, PAYROLL_ROUTE_VALIDATION_MESSAGE);
   });
 
   it("returns auth-required boundary", async () => {
     mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
     mockSupabase(null);
     const response = await callRoute(new Request("http://localhost/deductions", { method: "POST", body: JSON.stringify({}) }));
-    assert.equal(response.status, 401);
-    assert.equal((await response.json()).error, "Authentication required.");
+    await assertCanonicalRouteError(response, 401, PAYROLL_ROUTE_AUTH_REQUIRED_MESSAGE);
   });
 
   it("returns forbidden boundary", async () => {
@@ -292,8 +294,7 @@ describe("POST /api/hr/payroll-runs/:id/deductions", () => {
         body: JSON.stringify({ employeeId: EMPLOYEE_ID, label: "Cash advance", amount: 100 }),
       }),
     );
-    assert.equal(response.status, 403);
-    assert.equal((await response.json()).error, "You are not allowed to perform this action.");
+    await assertCanonicalRouteError(response, 403, PAYROLL_ROUTE_FORBIDDEN_MESSAGE);
   });
 
   it("returns not-found boundary", async () => {
@@ -305,8 +306,7 @@ describe("POST /api/hr/payroll-runs/:id/deductions", () => {
         body: JSON.stringify({ employeeId: EMPLOYEE_ID, label: "Cash advance", amount: 100 }),
       }),
     );
-    assert.equal(response.status, 404);
-    assert.equal((await response.json()).error, "Record not found.");
+    await assertCanonicalRouteError(response, 404, PAYROLL_ROUTE_NOT_FOUND_MESSAGE);
   });
 
   it("returns unexpected boundary", async () => {
@@ -322,8 +322,7 @@ describe("POST /api/hr/payroll-runs/:id/deductions", () => {
         body: JSON.stringify({ employeeId: EMPLOYEE_ID, label: "Cash advance", amount: 100 }),
       }),
     );
-    assert.equal(response.status, 500);
-    assert.equal((await response.json()).error, "Unable to process request right now.");
+    await assertCanonicalRouteError(response, 500, PAYROLL_ROUTE_UNEXPECTED_MESSAGE);
   });
 
   it("returns success boundary and resolver-before-mutation ordering", async () => {
@@ -347,5 +346,18 @@ describe("POST /api/hr/payroll-runs/:id/deductions", () => {
     assert.equal(response.status, 200);
     assert.equal((await response.json()).message, "Deduction added.");
     assert.deepEqual(order, ["resolve", "mutate"]);
+  });
+});
+
+describe("payroll route boundary drift guard", () => {
+  it("keeps GET /api/hr/payroll-runs aligned with canonical route boundaries", async () => {
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
+    mockSupabase(null);
+    const unauthenticated = await listPayrollRuns(new Request(`http://localhost/api/hr/payroll-runs?houseId=${HOUSE_ID}`) as never);
+    await assertCanonicalRouteError(unauthenticated, 401, PAYROLL_ROUTE_AUTH_REQUIRED_MESSAGE);
+
+    setupAuthOk();
+    const invalidHouse = await listPayrollRuns(new Request("http://localhost/api/hr/payroll-runs?houseId=bad") as never);
+    await assertCanonicalRouteError(invalidHouse, 400, PAYROLL_ROUTE_VALIDATION_MESSAGE);
   });
 });
