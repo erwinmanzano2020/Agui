@@ -144,6 +144,39 @@ describe("POST /api/hr/payroll-runs", () => {
 
     assert.deepEqual(calls, ["resolve", "mutate"]);
   });
+
+  it("applies canonical auth -> entity -> feature ordering", async () => {
+    const order: string[] = [];
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+      order.push("feature");
+      return null;
+    });
+    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
+      ({
+        auth: {
+          getUser: async () => {
+            order.push("auth");
+            return { data: { user: { id: "user-1" } }, error: null };
+          },
+        },
+      }) as never,
+    );
+    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
+    mock.method(identityServer, "resolveEntityIdForUser", async () => {
+      order.push("entity");
+      return "entity-1";
+    });
+
+    const response = await createPayrollRun(
+      new Request("http://localhost/api/hr/payroll-runs", {
+        method: "POST",
+        body: JSON.stringify({ houseId: "bad" }),
+      }) as never,
+    );
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(order, ["auth", "entity", "feature"]);
+  });
 });
 
 describe("payroll run id-based write routes", () => {
