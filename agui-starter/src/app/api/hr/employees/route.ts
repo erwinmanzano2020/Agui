@@ -2,9 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { jsonError, jsonOk } from "@/lib/api/http";
 import { logApiError, logApiWarning } from "@/lib/api/logging";
-import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
-import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import {
   EmployeeCreateError,
   EmployeeDuplicateIdentityError,
@@ -19,8 +17,7 @@ import {
   normalizeEmployeeEmail,
   normalizeEmployeePhoneDetails,
 } from "@/lib/hr/employee-identity";
-import { getServiceSupabase } from "@/lib/supabase-service";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { resolveHrRouteActorContext } from "@/app/api/hr/_shared/route-guard-order";
 import { z } from "@/lib/z";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, HouseRoleRow } from "@/lib/db.types";
@@ -98,53 +95,17 @@ const CreateEmployeePayloadSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  const guard = await requireAnyFeatureAccessApi([
-    AppFeature.PAYROLL,
-    AppFeature.TEAM,
-    AppFeature.DTR_BULK,
-  ]);
-  if (guard) {
-    return guard;
+  const actor = await resolveHrRouteActorContext({
+    routeName: ROUTE_NAME,
+    features: [AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK],
+    onUnauthenticated: () => jsonError(401, "Not authenticated"),
+    onEntityNotLinked: () => jsonError(403, "Account not linked"),
+  });
+  if (actor instanceof NextResponse) {
+    return actor;
   }
 
-  let supabase: SupabaseClient<Database>;
-  try {
-    supabase = await createServerSupabaseClient();
-  } catch (error) {
-    logApiError({ route: ROUTE_NAME, action: "init_supabase_client", error });
-    return jsonError(503, "Supabase not configured");
-  }
-
-  const { data: userResult, error: userError } = await supabase.auth.getUser();
-  if (userError) {
-    logApiError({ route: ROUTE_NAME, action: "get_user", error: userError });
-    return jsonError(500, "Failed to load user", { code: userError.code });
-  }
-
-  if (!userResult.user) {
-    logApiWarning({ route: ROUTE_NAME, action: "unauthenticated" });
-    return jsonError(401, "Not authenticated");
-  }
-
-  const authed = supabase;
-  const admin = getServiceSupabase();
-  let entityId: string | null = null;
-  try {
-    entityId = await resolveEntityIdForUser(userResult.user, admin);
-  } catch (error) {
-    logApiError({
-      route: ROUTE_NAME,
-      action: "resolve_entity",
-      userId: userResult.user.id,
-      error,
-    });
-    return jsonError(500, "Failed to resolve account");
-  }
-
-  if (!entityId) {
-    logApiWarning({ route: ROUTE_NAME, action: "entity_not_linked", userId: userResult.user.id });
-    return jsonError(403, "Account not linked");
-  }
+  const { supabase: authed, entityId, userId } = actor;
 
   const url = new URL(req.url);
   const requestedHouseId = url.searchParams.get("houseId");
@@ -156,7 +117,7 @@ export async function GET(req: NextRequest) {
     logApiError({
       route: ROUTE_NAME,
       action: "resolve_house",
-      userId: userResult.user.id,
+      userId,
       entityId,
       error,
     });
@@ -167,7 +128,7 @@ export async function GET(req: NextRequest) {
     logApiWarning({
       route: ROUTE_NAME,
       action: "no_accessible_house",
-      userId: userResult.user.id,
+      userId,
       entityId,
     });
     return jsonError(403, "No accessible house");
@@ -178,7 +139,7 @@ export async function GET(req: NextRequest) {
     logApiWarning({
       route: ROUTE_NAME,
       action: "hr_access_denied",
-      userId: userResult.user.id,
+      userId,
       entityId,
       houseId,
       details: { allowedByPolicy: hrAccess.allowedByPolicy, allowedByRole: hrAccess.allowedByRole },
@@ -197,7 +158,7 @@ export async function GET(req: NextRequest) {
     logApiError({
       route: ROUTE_NAME,
       action: "list_employees",
-      userId: userResult.user.id,
+      userId,
       entityId,
       houseId,
       error: employeesResult.error,
@@ -210,53 +171,17 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const guard = await requireAnyFeatureAccessApi([
-    AppFeature.PAYROLL,
-    AppFeature.TEAM,
-    AppFeature.DTR_BULK,
-  ]);
-  if (guard) {
-    return guard;
+  const actor = await resolveHrRouteActorContext({
+    routeName: ROUTE_NAME,
+    features: [AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK],
+    onUnauthenticated: () => jsonError(401, "Not authenticated"),
+    onEntityNotLinked: () => jsonError(403, "Account not linked"),
+  });
+  if (actor instanceof NextResponse) {
+    return actor;
   }
 
-  let supabase: SupabaseClient<Database>;
-  try {
-    supabase = await createServerSupabaseClient();
-  } catch (error) {
-    logApiError({ route: ROUTE_NAME, action: "init_supabase_client", error });
-    return jsonError(503, "Supabase not configured");
-  }
-
-  const { data: userResult, error: userError } = await supabase.auth.getUser();
-  if (userError) {
-    logApiError({ route: ROUTE_NAME, action: "get_user", error: userError });
-    return jsonError(500, "Failed to load user", { code: userError.code });
-  }
-
-  if (!userResult.user) {
-    logApiWarning({ route: ROUTE_NAME, action: "unauthenticated" });
-    return jsonError(401, "Not authenticated");
-  }
-
-  const authed = supabase;
-  const admin = getServiceSupabase();
-  let entityId: string | null = null;
-  try {
-    entityId = await resolveEntityIdForUser(userResult.user, admin);
-  } catch (error) {
-    logApiError({
-      route: ROUTE_NAME,
-      action: "resolve_entity",
-      userId: userResult.user.id,
-      error,
-    });
-    return jsonError(500, "Failed to resolve account");
-  }
-
-  if (!entityId) {
-    logApiWarning({ route: ROUTE_NAME, action: "entity_not_linked", userId: userResult.user.id });
-    return jsonError(403, "Account not linked");
-  }
+  const { supabase: authed, entityId, userId } = actor;
 
   let body: unknown;
   try {
@@ -316,7 +241,7 @@ export async function POST(req: NextRequest) {
     logApiError({
       route: ROUTE_NAME,
       action: "resolve_house",
-      userId: userResult.user.id,
+      userId: userId,
       entityId,
       error,
     });
@@ -327,7 +252,7 @@ export async function POST(req: NextRequest) {
     logApiWarning({
       route: ROUTE_NAME,
       action: "no_accessible_house",
-      userId: userResult.user.id,
+      userId: userId,
       entityId,
     });
     return jsonError(403, "No accessible house");
@@ -340,7 +265,7 @@ export async function POST(req: NextRequest) {
     logApiError({
       route: ROUTE_NAME,
       action: "resolve_branches",
-      userId: userResult.user.id,
+      userId: userId,
       entityId,
       houseId,
       error,
@@ -357,7 +282,7 @@ export async function POST(req: NextRequest) {
     logApiWarning({
       route: ROUTE_NAME,
       action: "hr_access_denied",
-      userId: userResult.user.id,
+      userId: userId,
       entityId,
       houseId,
       details: { allowedByPolicy: hrAccess.allowedByPolicy, allowedByRole: hrAccess.allowedByRole },
@@ -397,7 +322,7 @@ export async function POST(req: NextRequest) {
       logApiError({
         route: ROUTE_NAME,
         action: "link_entity",
-        userId: userResult.user.id,
+        userId: userId,
         entityId,
         houseId,
         error: message,
@@ -449,7 +374,7 @@ export async function POST(req: NextRequest) {
     logApiError({
       route: ROUTE_NAME,
       action: "create_employee",
-      userId: userResult.user.id,
+      userId: userId,
       entityId,
       houseId,
       error,

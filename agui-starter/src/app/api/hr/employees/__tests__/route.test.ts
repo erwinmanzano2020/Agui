@@ -162,4 +162,38 @@ describe("POST /api/hr/employees boundary error mapping", () => {
     const payload = await response.json();
     assert.equal(payload?.error, "Unexpected error while creating employee");
   });
+
+  it("applies canonical auth -> entity -> feature ordering", async () => {
+    const order: string[] = [];
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+      order.push("feature");
+      return null;
+    });
+    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
+      ({
+        auth: {
+          getUser: async () => {
+            order.push("auth");
+            return { data: { user: { id: "user-1" } }, error: null };
+          },
+        },
+        from: createSupabaseStub().from,
+      }) as never,
+    );
+    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
+    mock.method(identityServer, "resolveEntityIdForUser", async () => {
+      order.push("entity");
+      return "entity-1";
+    });
+
+    const response = await POST(
+      new Request(`http://localhost/api/hr/employees?houseId=${HOUSE_ID}`, {
+        method: "POST",
+        body: JSON.stringify({ full_name: "A", rate_per_day: -1 }),
+      }) as never,
+    );
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(order, ["auth", "entity", "feature"]);
+  });
 });
