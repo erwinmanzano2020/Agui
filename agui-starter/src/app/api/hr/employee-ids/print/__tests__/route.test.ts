@@ -112,14 +112,22 @@ describe("POST /api/hr/employee-ids/print", () => {
       return null;
     });
 
-    const response = await POST(buildRequest());
+    const request = buildRequest() as NextRequest & { json: () => Promise<unknown> };
+    const originalJson = request.json.bind(request);
+    request.json = async () => {
+      order.push("payload");
+      return originalJson();
+    };
+
+    const response = await POST(request);
 
     assert.equal(response.status, 200);
-    assert.deepEqual(order, ["auth", "entity", "feature"]);
+    assert.deepEqual(order, ["auth", "entity", "feature", "payload"]);
   });
 
-  it("returns unauthenticated response without invoking feature guard", async () => {
+  it("returns unauthenticated response before payload validation and without invoking feature guard", async () => {
     let featureCalls = 0;
+    let payloadCalls = 0;
 
     const supabaseServer = await import("@/lib/supabase/server");
     mock.method(supabaseServer, "createServerSupabaseClient", async () =>
@@ -136,11 +144,19 @@ describe("POST /api/hr/employee-ids/print", () => {
       return null;
     });
 
-    const response = await POST(buildRequest());
+    const unauthenticatedRequest = {
+      json: async () => {
+        payloadCalls += 1;
+        return { houseId: "bad-house-id", employeeIds: [] };
+      },
+    } as NextRequest;
+
+    const response = await POST(unauthenticatedRequest);
 
     assert.equal(response.status, 403);
     const payload = await response.json();
     assert.deepEqual(payload, { error: "Not allowed" });
     assert.equal(featureCalls, 0);
+    assert.equal(payloadCalls, 0);
   });
 });

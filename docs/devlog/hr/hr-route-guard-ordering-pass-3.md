@@ -19,6 +19,7 @@ This pass is route-entry consistency only (`auth -> entity -> feature`) and is n
 
 - `/api/hr/employee-ids/print`
   - Safe mechanical adoption of `resolveHrRouteActorContext(...)` at route entry.
+  - Route entry now resolves `auth -> entity -> feature` before request payload parse/validation.
   - Preserved house payload resolution, HR business access checks, employee-house filtering, and response shape.
 
 ### PARTIAL (deferred)
@@ -54,7 +55,8 @@ Reason: non-session/device-oriented identity flow, outside this route-entry pass
 For `/api/hr/employee-ids/print`:
 
 - Assert route-entry ordering is `auth -> entity -> feature`.
-- Assert unauthenticated response is returned and feature guard is not called.
+- Assert payload parsing occurs only after entry ordering (`auth -> entity -> feature`).
+- Assert unauthenticated response is returned before payload validation and feature guard is not called.
 
 ## Explicit non-changes
 

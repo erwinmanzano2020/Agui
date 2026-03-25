@@ -16,6 +16,14 @@ const MAX_EMPLOYEE_IDS = 200;
 export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const actor = await resolveHrRouteActorContext({
+    routeName: "api/hr/employee-ids/print",
+    features: [AppFeature.HR],
+    onUnauthenticated: () => jsonError(403, "Not allowed"),
+    onEntityNotLinked: () => jsonError(403, "Not allowed"),
+  });
+  if (actor instanceof NextResponse) return actor;
+
   const raw = (await req.json().catch(() => null)) as {
     houseId?: unknown;
     employeeIds?: unknown;
@@ -45,14 +53,6 @@ export async function POST(req: NextRequest) {
   const includeCutGuides = typeof raw.includeCutGuides === "boolean" ? raw.includeCutGuides : undefined;
 
   const houseId = parsedHouseId.data;
-  const actor = await resolveHrRouteActorContext({
-    routeName: "hr/employee-ids/print",
-    features: [AppFeature.HR],
-    onUnauthenticated: () => jsonError(403, "Not allowed"),
-    onEntityNotLinked: () => jsonError(403, "Not allowed"),
-  });
-  if (actor instanceof NextResponse) return actor;
-
   const featureSnapshot = await getFeatureAccessDebugSnapshot([AppFeature.HR]);
 
   const access = await requireHrAccess(actor.supabase, houseId);

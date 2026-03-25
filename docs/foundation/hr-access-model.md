@@ -126,7 +126,7 @@ This is a scoped HR route-entry consistency pass, not a global standardization.
 - `/api/hr/employee-ids/print`
   - Adopted route-entry helper: `resolveHrRouteActorContext(...)`.
   - Canonical entry order is now `auth -> entity -> feature`.
-  - House payload resolution, HR access checks, and domain/response behavior remain route-local.
+  - Request payload parsing/validation now happens after route entry guard resolution; house payload resolution, HR access checks, and domain/response behavior remain route-local.
 
 ### PARTIAL (deferred in Pass 3)
 
