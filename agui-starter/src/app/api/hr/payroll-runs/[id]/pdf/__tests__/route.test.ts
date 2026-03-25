@@ -359,4 +359,50 @@ describe("GET /api/hr/payroll-runs/[id]/pdf", () => {
 
     assert.equal(response.status, 401);
   });
+
+  it("applies canonical auth -> entity -> feature ordering", async () => {
+    const order: string[] = [];
+    const featureGuard = await import("@/lib/auth/feature-guard");
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+      order.push("feature");
+      return null;
+    });
+    supabase.auth.getUser = async () => {
+      order.push("auth");
+      return { data: { user: { id: "user-1" } }, error: null };
+    };
+    const entityServer = await import("@/lib/identity/entity-server");
+    mock.method(entityServer, "resolveEntityIdForUser", async () => {
+      order.push("entity");
+      return "entity-1";
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${supabase.runId}/pdf?format=bad`) as NextRequest,
+      { params: Promise.resolve({ id: supabase.runId }) },
+    );
+
+    assert.equal(response.status, 400);
+    assert.deepEqual(order, ["auth", "entity", "feature"]);
+  });
+
+  it("returns unauthenticated response without invoking feature guard", async () => {
+    let featureCalls = 0;
+    const featureGuard = await import("@/lib/auth/feature-guard");
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+      featureCalls += 1;
+      return null;
+    });
+    supabase.auth.getUser = async () => ({ data: { user: null }, error: null });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${supabase.runId}/pdf`) as NextRequest,
+      { params: Promise.resolve({ id: supabase.runId }) },
+    );
+
+    assert.equal(response.status, 401);
+    const payload = await response.json();
+    assert.equal(payload.error, "Not authenticated");
+    assert.equal(featureCalls, 0);
+  });
 });

@@ -82,6 +82,42 @@ This remains a scoped HR-family pass, not a whole-HR/global standardization clai
 - Standardized auth/entity/feature ordering at route entry.
 - Run/house/employee target validation and lock/state checks remain in payslip/deduction domain functions.
 
+## Route-family ordering audit (Pass 2)
+
+This pass remains explicitly scoped to route-entry guard consistency for selected `/api/hr/**` families; it is **not** a global HR redesign.
+
+### Newly adopted in Pass 2
+
+- Payroll run id-based routes:
+  - `/api/hr/payroll-runs/:id`
+  - `/api/hr/payroll-runs/:id/post`
+  - `/api/hr/payroll-runs/:id/adjustments`
+  - `/api/hr/payroll-runs/:id/finalize`
+  - `/api/hr/payroll-runs/:id/mark-paid`
+- Payroll PDF export routes:
+  - `/api/hr/payroll-runs/:id/pdf`
+  - `/api/hr/payroll-runs/:id/payslips/:employeeId/pdf`
+
+All of the above now enter through canonical guard ordering (`auth -> entity -> feature`) via `resolveHrRouteActorContext`, while preserving existing house/access/domain checks after entry.
+
+### Explicit exceptions (Pass 2)
+
+Routes intentionally excluded from helper adoption because they are kiosk/device/public-terminal identity flows:
+
+- `/api/hr/kiosk/**`
+- `/api/hr/kiosk-devices/**`
+
+These paths use non-session/device-oriented identity and are outside this pass by design.
+
+### Deferred / partial (Pass 2)
+
+- `/api/hr/employee-ids/print`
+- `/api/hr/employees/[employeeId]/id-card.pdf`
+- `/api/hr/employees/[employeeId]/photo`
+- `/api/hr/employees/[employeeId]/photo/upload`
+
+These remain unchanged in this pass due to mixed or specialized access-entry behavior that is not yet a safe mechanical fit for helper adoption.
+
 ### DTR routes in HR scope
 - No standalone `/api/hr/dtr/*` route family is currently present in this tree.
 - DTR constraints in scope continue to be enforced through payroll preview/run computations and DTR-dependent domain validations.
