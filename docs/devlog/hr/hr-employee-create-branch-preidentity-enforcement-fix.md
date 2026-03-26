@@ -30,3 +30,9 @@ When `entity_id` was omitted, `POST /api/hr/employees` could call `findOrCreateE
 
 - No identity side effects should occur for requests rejected by branch existence/scope checks.
 - Domain branch checks were not weakened; they remain canonical in create-time enforcement.
+
+## Contract alignment follow-up
+
+- Canonical domain create input now requires `branch_id` at the type level (no optional/null ambiguity in `EmployeeCreateInput`).
+- `createEmployeeForHouseWithAccess` now accepts canonical create input only, while branch-gate resolution remains explicit via `resolveEmployeeCreateBranchForHouseWithAccess`.
+- This keeps compile-time contracts aligned with runtime invariants: employee creation is branch-assigned by definition.

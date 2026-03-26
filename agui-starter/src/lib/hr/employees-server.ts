@@ -92,7 +92,7 @@ export type EmployeeCreateInput = {
   id?: string;
   full_name: string;
   status?: EmployeeRow["status"];
-  branch_id?: string | null;
+  branch_id: string;
   entity_id?: string | null;
   rate_per_day: number;
   position_title?: string | null;

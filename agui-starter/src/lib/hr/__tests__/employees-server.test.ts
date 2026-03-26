@@ -731,6 +731,7 @@ describe("createEmployeeForHouseWithAccess", () => {
         createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "", {
           full_name: "No House",
           rate_per_day: 750,
+          branch_id: "branch-1",
         }),
       EmployeeCreateError,
     );
@@ -792,34 +793,14 @@ describe("createEmployeeForHouseWithAccess", () => {
     assert.equal(created.branch_id, "branch-1");
   });
 
-  it("denies branch-limited actor from creating unassigned employees", async () => {
+  it("rejects creation branch gate when branch_id is missing", async () => {
     const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
 
     await assert.rejects(
       () =>
-        createEmployeeForHouseWithAccess(supabase as never, branchLimitedAccess, "house-1", {
-          full_name: "Unassigned Hire",
-          rate_per_day: 700,
-          branch_id: null,
-        }),
+        resolveEmployeeCreateBranchForHouseWithAccess(supabase as never, allowedAccess, "house-1", null),
       EmployeeBranchRequiredError,
     );
-    assert.equal(supabase.employees.length, 0);
-  });
-
-  it("rejects creation when branch_id is missing", async () => {
-    const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
-
-    await assert.rejects(
-      () =>
-        createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
-          full_name: "Missing Branch",
-          rate_per_day: 700,
-          branch_id: null,
-        }),
-      EmployeeBranchRequiredError,
-    );
-    assert.equal(supabase.employees.length, 0);
   });
 
   it("denies branch-limited actor from creating employees outside allowed branch scope", async () => {
