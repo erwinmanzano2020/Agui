@@ -107,10 +107,16 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getSession();
 
   if (sessionError) {
-    console.warn("[middleware] auth.getSession failed", {
-      code: (sessionError as { code?: string }).code ?? null,
-      message: sessionError.message,
-    });
+    const code = (sessionError as { code?: string }).code ?? null;
+    const isMissingSession = code === "AuthSessionMissingError";
+
+    if (!(isMissingSession && isPublicPath(pathname))) {
+      console.warn("[middleware] auth.getSession failed", {
+        code,
+        message: sessionError.message,
+        pathname,
+      });
+    }
   }
 
   if (!session && !isPublicPath(pathname)) {

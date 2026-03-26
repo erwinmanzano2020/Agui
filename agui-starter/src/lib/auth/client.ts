@@ -2,6 +2,12 @@
 
 import type { Session } from "@supabase/supabase-js";
 
+import {
+  buildMagicLinkRedirect,
+  classifyMagicLinkError,
+  type MagicLinkResult,
+  sanitizeNextPath,
+} from "@/lib/auth/magic-link";
 import { getSupabase } from "@/lib/supabase";
 
 const supabaseClient = getSupabase();
@@ -63,23 +69,36 @@ export async function syncSession(session?: Session | null) {
 }
 
 /** Send magic link to a public callback URL (no middleware redirect). */
-export async function sendMagicLink(
-  email: string,
-  next: string = "/me",
-): Promise<{ ok: boolean; error?: string }> {
+export async function sendMagicLink(email: string, next: string = "/me"): Promise<MagicLinkResult> {
+  const safeNext = sanitizeNextPath(next);
   const origin = typeof location !== "undefined" ? location.origin : "";
-  const redirectTo = origin ? `${origin}/auth/callback?next=${encodeURIComponent(next)}` : undefined;
+  const redirectTo = buildMagicLinkRedirect(origin, safeNext);
 
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
-  });
+  try {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
+    });
 
-  if (error) {
-    return { ok: false, error: error.message };
+    if (error) {
+      return {
+        ok: false,
+        error: error.message,
+        kind: "auth",
+        diagnostic: "auth_api_error",
+      };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    const classified = classifyMagicLinkError(error);
+    return {
+      ok: false,
+      error: classified.message,
+      kind: classified.kind,
+      diagnostic: classified.diagnostic,
+    };
   }
-
-  return { ok: true };
 }
 
 /** Client sign-out + clear server cookies. */
