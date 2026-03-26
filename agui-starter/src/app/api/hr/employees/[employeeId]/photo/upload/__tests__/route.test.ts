@@ -197,6 +197,71 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
     assert.equal(getServiceMock.mock.calls.length, 0);
   });
 
+  it("preserves deny boundary by stopping before HR lookup when authentication is denied", async () => {
+    const callOrder: string[] = [];
+    const getServiceMock = mock.fn(() => {
+      callOrder.push("employeeLookup");
+      return createServiceStub();
+    });
+
+    mock.method(accessCheck, "requireAuthentication", async () => {
+      callOrder.push("auth");
+      throw new AuthorizationDeniedError();
+    });
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => {
+      callOrder.push("createServerSupabaseClient");
+      return {} as never;
+    });
+    mock.method(hrAccess, "requireHrAccess", async () => {
+      callOrder.push("hrAccess");
+      return { allowed: true } as never;
+    });
+    mock.method(supabaseService, "getServiceSupabase", getServiceMock as never);
+
+    const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
+      params: Promise.resolve({ employeeId: EMPLOYEE_ID }),
+    });
+
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Not allowed");
+    assert.deepEqual(callOrder, ["auth"]);
+    assert.equal(getServiceMock.mock.calls.length, 0);
+  });
+
+  it("preserves auth -> hr access -> ownership lookup ordering on allowed upload", async () => {
+    const callOrder: string[] = [];
+    const uploadMock = mock.fn(async () => {
+      callOrder.push("upload");
+      return { error: null };
+    });
+
+    mock.method(accessCheck, "requireAuthentication", async () => {
+      callOrder.push("auth");
+      return { user: { id: "user-7" } } as never;
+    });
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => {
+      callOrder.push("createServerSupabaseClient");
+      return {} as never;
+    });
+    mock.method(hrAccess, "requireHrAccess", async () => {
+      callOrder.push("hrAccess");
+      return { allowed: true } as never;
+    });
+    mock.method(supabaseService, "getServiceSupabase", () => {
+      callOrder.push("employeeLookup");
+      return createServiceStub({ uploadMock }) as never;
+    });
+
+    const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
+      params: Promise.resolve({ employeeId: EMPLOYEE_ID }),
+    });
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(callOrder, ["auth", "createServerSupabaseClient", "hrAccess", "employeeLookup", "employeeLookup", "upload"]);
+    assert.equal(uploadMock.mock.calls.length, 1);
+  });
+
   it("returns 500 when authorization backend throws unexpectedly", async () => {
     mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-5" } } as never));
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
