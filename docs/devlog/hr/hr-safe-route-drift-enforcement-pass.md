@@ -23,3 +23,9 @@
 ## Notes
 - This pass is intentionally narrow and stability-first.
 - House/branch/domain authorization semantics remain in route/domain logic after entry guards; no access-model redesign is introduced here.
+
+## Follow-up style normalization (post-helper adoption)
+- Normalized SAFE drift-test style in already-adopted SAFE families to reduce remaining mechanical test drift.
+- Standardized repeated test setup for `auth -> entity -> feature` ordering and unauthenticated short-circuit checks in SAFE payroll write-route drift tests.
+- Left domain/status/mutation assertions route-local (forbidden/not-found/validation/mutation ordering), so behavior-specific checks remain explicit.
+- PARTIAL and EXCEPTION route families remain untouched.

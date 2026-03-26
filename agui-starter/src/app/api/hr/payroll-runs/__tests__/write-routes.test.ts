@@ -49,6 +49,38 @@ function setupAuthOk() {
   mock.method(identityServer, "resolveEntityIdForUser", async () => "entity-1");
 }
 
+function setupSafeRouteEntryOrderProbe(order: string[]) {
+  mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+    order.push("feature");
+    return null;
+  });
+  mock.method(supabaseServer, "createServerSupabaseClient", async () =>
+    ({
+      auth: {
+        getUser: async () => {
+          order.push("auth");
+          return { data: { user: { id: "user-1" } }, error: null };
+        },
+      },
+    }) as never,
+  );
+  mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
+  mock.method(identityServer, "resolveEntityIdForUser", async () => {
+    order.push("entity");
+    return "entity-1";
+  });
+}
+
+function setupUnauthenticatedFeatureProbe() {
+  const probe = { featureCalls: 0 };
+  mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+    probe.featureCalls += 1;
+    return null;
+  });
+  mockSupabase(null);
+  return probe;
+}
+
 afterEach(() => mock.restoreAll());
 
 describe("POST /api/hr/payroll-runs", () => {
@@ -153,25 +185,7 @@ describe("POST /api/hr/payroll-runs", () => {
 
   it("applies canonical auth -> entity -> feature ordering", async () => {
     const order: string[] = [];
-    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
-      order.push("feature");
-      return null;
-    });
-    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
-      ({
-        auth: {
-          getUser: async () => {
-            order.push("auth");
-            return { data: { user: { id: "user-1" } }, error: null };
-          },
-        },
-      }) as never,
-    );
-    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
-    mock.method(identityServer, "resolveEntityIdForUser", async () => {
-      order.push("entity");
-      return "entity-1";
-    });
+    setupSafeRouteEntryOrderProbe(order);
 
     const response = await createPayrollRun(
       new Request("http://localhost/api/hr/payroll-runs", {
@@ -224,25 +238,7 @@ describe("payroll run id-based write routes", () => {
 
       it("applies canonical auth -> entity -> feature ordering", async () => {
         const order: string[] = [];
-        mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
-          order.push("feature");
-          return null;
-        });
-        mock.method(supabaseServer, "createServerSupabaseClient", async () =>
-          ({
-            auth: {
-              getUser: async () => {
-                order.push("auth");
-                return { data: { user: { id: "user-1" } }, error: null };
-              },
-            },
-          }) as never,
-        );
-        mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
-        mock.method(identityServer, "resolveEntityIdForUser", async () => {
-          order.push("entity");
-          return "entity-1";
-        });
+        setupSafeRouteEntryOrderProbe(order);
 
         const response = await routeCase.call(
           new Request(`http://localhost/${routeCase.name}?houseId=bad`, { method: "POST", body: "{}" }),
@@ -252,13 +248,8 @@ describe("payroll run id-based write routes", () => {
         assertCanonicalSafeHrRouteEntryOrder(order);
       });
 
-      it("returns unauthenticated without invoking feature guard", async () => {
-        let featureCalls = 0;
-        mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
-          featureCalls += 1;
-          return null;
-        });
-        mockSupabase(null);
+      it("returns unauthenticated response without invoking feature guard", async () => {
+        const probe = setupUnauthenticatedFeatureProbe();
 
         const response = await routeCase.call(
           new Request(`http://localhost/${routeCase.name}?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }),
@@ -268,7 +259,7 @@ describe("payroll run id-based write routes", () => {
           response,
           expectedStatus: 401,
           expectedError: PAYROLL_ROUTE_AUTH_REQUIRED_MESSAGE,
-          featureGuardCalls: featureCalls,
+          featureGuardCalls: probe.featureCalls,
         });
       });
 
@@ -374,25 +365,7 @@ describe("POST /api/hr/payroll-runs/:id/deductions", () => {
 
   it("applies canonical auth -> entity -> feature ordering", async () => {
     const order: string[] = [];
-    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
-      order.push("feature");
-      return null;
-    });
-    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
-      ({
-        auth: {
-          getUser: async () => {
-            order.push("auth");
-            return { data: { user: { id: "user-1" } }, error: null };
-          },
-        },
-      }) as never,
-    );
-    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
-    mock.method(identityServer, "resolveEntityIdForUser", async () => {
-      order.push("entity");
-      return "entity-1";
-    });
+    setupSafeRouteEntryOrderProbe(order);
 
     const response = await callRoute(
       new Request("http://localhost/deductions", {
@@ -405,13 +378,8 @@ describe("POST /api/hr/payroll-runs/:id/deductions", () => {
     assertCanonicalSafeHrRouteEntryOrder(order);
   });
 
-  it("returns unauthenticated without invoking feature guard", async () => {
-    let featureCalls = 0;
-    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
-      featureCalls += 1;
-      return null;
-    });
-    mockSupabase(null);
+  it("returns unauthenticated response without invoking feature guard", async () => {
+    const probe = setupUnauthenticatedFeatureProbe();
 
     const response = await callRoute(new Request("http://localhost/deductions", { method: "POST", body: JSON.stringify({}) }));
 
@@ -419,7 +387,7 @@ describe("POST /api/hr/payroll-runs/:id/deductions", () => {
       response,
       expectedStatus: 401,
       expectedError: PAYROLL_ROUTE_AUTH_REQUIRED_MESSAGE,
-      featureGuardCalls: featureCalls,
+      featureGuardCalls: probe.featureCalls,
     });
   });
 
@@ -505,25 +473,7 @@ describe("payroll route boundary drift guard", () => {
 describe("GET /api/hr/payroll-runs/:id guard ordering", () => {
   it("applies canonical auth -> entity -> feature ordering", async () => {
     const order: string[] = [];
-    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
-      order.push("feature");
-      return null;
-    });
-    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
-      ({
-        auth: {
-          getUser: async () => {
-            order.push("auth");
-            return { data: { user: { id: "user-1" } }, error: null };
-          },
-        },
-      }) as never,
-    );
-    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
-    mock.method(identityServer, "resolveEntityIdForUser", async () => {
-      order.push("entity");
-      return "entity-1";
-    });
+    setupSafeRouteEntryOrderProbe(order);
 
     const response = await getPayrollRunById(
       new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}?houseId=bad`) as never,
@@ -531,16 +481,11 @@ describe("GET /api/hr/payroll-runs/:id guard ordering", () => {
     );
 
     assert.equal(response.status, 400);
-    assert.deepEqual(order, ["auth", "entity", "feature"]);
+    assertCanonicalSafeHrRouteEntryOrder(order);
   });
 
-  it("returns unauthenticated without invoking feature guard", async () => {
-    let featureCalls = 0;
-    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
-      featureCalls += 1;
-      return null;
-    });
-    mockSupabase(null);
+  it("returns unauthenticated response without invoking feature guard", async () => {
+    const probe = setupUnauthenticatedFeatureProbe();
 
     const response = await getPayrollRunById(
       new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}?houseId=${HOUSE_ID}`) as never,
@@ -551,7 +496,7 @@ describe("GET /api/hr/payroll-runs/:id guard ordering", () => {
       response,
       expectedStatus: 401,
       expectedError: "Not authenticated",
-      featureGuardCalls: featureCalls,
+      featureGuardCalls: probe.featureCalls,
     });
   });
 });
@@ -559,25 +504,7 @@ describe("GET /api/hr/payroll-runs/:id guard ordering", () => {
 describe("POST /api/hr/payroll-runs/:id/post guard ordering", () => {
   it("applies canonical auth -> entity -> feature ordering", async () => {
     const order: string[] = [];
-    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
-      order.push("feature");
-      return null;
-    });
-    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
-      ({
-        auth: {
-          getUser: async () => {
-            order.push("auth");
-            return { data: { user: { id: "user-1" } }, error: null };
-          },
-        },
-      }) as never,
-    );
-    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
-    mock.method(identityServer, "resolveEntityIdForUser", async () => {
-      order.push("entity");
-      return "entity-1";
-    });
+    setupSafeRouteEntryOrderProbe(order);
 
     const response = await postPayrollRun(
       new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}/post?houseId=bad`, { method: "POST", body: "{}" }) as never,
@@ -588,13 +515,8 @@ describe("POST /api/hr/payroll-runs/:id/post guard ordering", () => {
     assertCanonicalSafeHrRouteEntryOrder(order);
   });
 
-  it("returns unauthenticated without invoking feature guard", async () => {
-    let featureCalls = 0;
-    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
-      featureCalls += 1;
-      return null;
-    });
-    mockSupabase(null);
+  it("returns unauthenticated response without invoking feature guard", async () => {
+    const probe = setupUnauthenticatedFeatureProbe();
 
     const response = await postPayrollRun(
       new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}/post?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }) as never,
@@ -605,7 +527,7 @@ describe("POST /api/hr/payroll-runs/:id/post guard ordering", () => {
       response,
       expectedStatus: 401,
       expectedError: "Not authenticated",
-      featureGuardCalls: featureCalls,
+      featureGuardCalls: probe.featureCalls,
     });
   });
 });
