@@ -719,10 +719,20 @@ export async function createEmployeeForHouseWithAccess(
   houseId: string,
   payload: EmployeeCreateInput,
 ): Promise<EmployeeProfile> {
+  const targetBranchId = await resolveEmployeeCreateBranchForHouseWithAccess(supabase, access, houseId, payload.branch_id);
+  return createEmployeeForHouse(supabase, houseId, { ...payload, branch_id: targetBranchId });
+}
+
+export async function resolveEmployeeCreateBranchForHouseWithAccess(
+  supabase: SupabaseClient<Database>,
+  access: HrBranchAccessDecision,
+  houseId: string,
+  branchIdInput: string | null | undefined,
+): Promise<string> {
   // Keep canonical write checks aligned: create validates assignment eligibility at create-time,
   // while update/delete validate mutability of an existing target via resolveEmployeeWriteTargetForHouseWithAccess.
   assertHrCreateAccess(access);
-  const targetBranchId = normalizeBranchId(payload.branch_id);
+  const targetBranchId = normalizeBranchId(branchIdInput);
   if (!targetBranchId) {
     throw new EmployeeBranchRequiredError("branch_id is required for employee creation");
   }
@@ -732,5 +742,5 @@ export async function createEmployeeForHouseWithAccess(
       throw new EmployeeAccessError("Not allowed to assign this employee to the selected branch");
     }
   }
-  return createEmployeeForHouse(supabase, houseId, { ...payload, branch_id: targetBranchId });
+  return targetBranchId;
 }

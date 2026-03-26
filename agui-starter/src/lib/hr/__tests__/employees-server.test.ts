@@ -15,6 +15,7 @@ import {
   getEmployeeByIdForHouse,
   listBranchesForHouse,
   listEmployeesByHouse,
+  resolveEmployeeCreateBranchForHouseWithAccess,
   updateEmployeeForHouseWithAccess,
 } from "../employees-server";
 import { normalizeWorkspaceRole } from "@/lib/workspaces/roles";
@@ -523,6 +524,53 @@ describe("createEmployeeForHouseWithAccess", () => {
     isBranchLimited: true,
     allowedBranchIds: ["branch-1"],
   };
+
+  it("resolves a canonical create-time branch gate for valid branch scope", async () => {
+    const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
+
+    const branchId = await resolveEmployeeCreateBranchForHouseWithAccess(
+      supabase as never,
+      allowedAccess,
+      "house-1",
+      "BRANCH-1",
+    );
+
+    assert.equal(branchId, "branch-1");
+  });
+
+  it("keeps branch-required enforcement in canonical create branch gate", async () => {
+    const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
+
+    await assert.rejects(
+      () => resolveEmployeeCreateBranchForHouseWithAccess(supabase as never, allowedAccess, "house-1", null),
+      EmployeeBranchRequiredError,
+    );
+  });
+
+  it("keeps branch-not-found enforcement in canonical create branch gate", async () => {
+    const supabase = new CreateSupabaseMock([], [{ id: "branch-x", house_id: "house-2", name: "Other" }]);
+
+    await assert.rejects(
+      () => resolveEmployeeCreateBranchForHouseWithAccess(supabase as never, allowedAccess, "house-1", "branch-x"),
+      EmployeeBranchNotFoundError,
+    );
+  });
+
+  it("keeps access-denied enforcement in canonical create branch gate", async () => {
+    const supabase = new CreateSupabaseMock([], [{ id: "branch-2", house_id: "house-1", name: "Remote" }]);
+
+    await assert.rejects(
+      () =>
+        resolveEmployeeCreateBranchForHouseWithAccess(
+          supabase as never,
+          branchLimitedAccess,
+          "house-1",
+          "branch-2",
+        ),
+      EmployeeAccessError,
+    );
+  });
+
   it("creates an employee within the same house and returns branch details", async () => {
     const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
 

@@ -11,6 +11,7 @@ import {
   EmployeeUpdateError,
   createEmployeeForHouseWithAccess,
   listEmployeesByHouse,
+  resolveEmployeeCreateBranchForHouseWithAccess,
 } from "@/lib/hr/employees-server";
 import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE, EmployeeAccessError } from "@/lib/hr/employees";
 import { requireHrAccessWithBranch } from "@/lib/hr/access";
@@ -259,6 +260,34 @@ export async function POST(req: NextRequest) {
   }
 
   const branchId = parsed.data.branch_id;
+  let validatedBranchId: string;
+  try {
+    validatedBranchId = await resolveEmployeeCreateBranchForHouseWithAccess(authed, hrAccess, houseId, branchId);
+  } catch (error) {
+    if (error instanceof EmployeeAccessError) {
+      return jsonError(403, "Not allowed");
+    }
+    if (error instanceof EmployeeBranchRequiredError) {
+      return jsonError(400, "Fix the highlighted fields and try again.", {
+        fieldErrors: { branch_id: ["Branch is required"] },
+      });
+    }
+    if (error instanceof EmployeeBranchNotFoundError) {
+      return jsonError(404, "Branch not found", { fieldErrors: { branch_id: ["Branch not found"] } });
+    }
+    if (error instanceof EmployeeCreateError) {
+      return jsonError(500, "Failed to create employee", { message: error.message });
+    }
+    logApiError({
+      route: ROUTE_NAME,
+      action: "create_employee_branch_gate",
+      userId,
+      entityId,
+      houseId,
+      error,
+    });
+    return jsonError(500, "Unexpected error while creating employee");
+  }
 
   const normalizedEmail = normalizeEmployeeEmail(parsed.data.email ?? null);
   if (parsed.data.email && !normalizedEmail) {
@@ -309,7 +338,7 @@ export async function POST(req: NextRequest) {
   try {
     const created = await createEmployeeForHouseWithAccess(authed, hrAccess, houseId, {
       full_name: parsed.data.full_name,
-      branch_id: branchId,
+      branch_id: validatedBranchId,
       rate_per_day: parsed.data.rate_per_day,
       status: parsed.data.status ?? "active",
       entity_id: resolvedEntityId,
