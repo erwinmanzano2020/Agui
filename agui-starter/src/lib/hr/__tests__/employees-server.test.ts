@@ -5,6 +5,8 @@ import type { EmployeeRow } from "@/lib/db.types";
 import { EmployeeAccessError } from "../employees";
 import type { HrBranchAccessDecision } from "../access";
 import {
+  EmployeeBranchNotFoundError,
+  EmployeeBranchRequiredError,
   EmployeeCreateError,
   EmployeeDuplicateIdentityError,
   EmployeeUpdateError,
@@ -560,10 +562,12 @@ describe("createEmployeeForHouseWithAccess", () => {
     const first = await createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
       full_name: "First Hire",
       rate_per_day: 800,
+      branch_id: "branch-1",
     });
     const second = await createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
       full_name: "Second Hire",
       rate_per_day: 900,
+      branch_id: "branch-1",
     });
 
     assert.notEqual(first.code, second.code);
@@ -577,6 +581,7 @@ describe("createEmployeeForHouseWithAccess", () => {
     const created = await createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
       full_name: "Linked Hire",
       rate_per_day: 950,
+      branch_id: "branch-1",
       entity_id: "entity-abc",
     });
 
@@ -602,6 +607,7 @@ describe("createEmployeeForHouseWithAccess", () => {
         createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
           full_name: "Duplicate Hire",
           rate_per_day: 900,
+          branch_id: "branch-1",
           entity_id: "entity-dup",
         }),
       (error: unknown) => {
@@ -630,6 +636,7 @@ describe("createEmployeeForHouseWithAccess", () => {
       await createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
         full_name: "Race Condition",
         rate_per_day: 900,
+        branch_id: "branch-1",
         entity_id: "entity-race",
       });
     } catch (error) {
@@ -660,6 +667,7 @@ describe("createEmployeeForHouseWithAccess", () => {
     const created = await createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
       full_name: "Rehire",
       rate_per_day: 900,
+      branch_id: "branch-1",
       entity_id: "entity-returning",
     });
 
@@ -690,7 +698,22 @@ describe("createEmployeeForHouseWithAccess", () => {
           rate_per_day: 800,
           branch_id: "branch-x",
         }),
-      EmployeeUpdateError,
+      EmployeeBranchNotFoundError,
+    );
+    assert.equal(supabase.employees.length, 0);
+  });
+
+  it("rejects creation when the branch does not exist", async () => {
+    const supabase = new CreateSupabaseMock([], []);
+
+    await assert.rejects(
+      () =>
+        createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
+          full_name: "Missing Branch",
+          rate_per_day: 800,
+          branch_id: "branch-missing",
+        }),
+      EmployeeBranchNotFoundError,
     );
     assert.equal(supabase.employees.length, 0);
   });
@@ -703,6 +726,7 @@ describe("createEmployeeForHouseWithAccess", () => {
         createEmployeeForHouseWithAccess(supabase as never, disallowedAccess, "house-1", {
           full_name: "Blocked Hire",
           rate_per_day: 700,
+          branch_id: "branch-1",
         }),
       EmployeeAccessError,
     );
@@ -730,7 +754,22 @@ describe("createEmployeeForHouseWithAccess", () => {
           rate_per_day: 700,
           branch_id: null,
         }),
-      EmployeeAccessError,
+      EmployeeBranchRequiredError,
+    );
+    assert.equal(supabase.employees.length, 0);
+  });
+
+  it("rejects creation when branch_id is missing", async () => {
+    const supabase = new CreateSupabaseMock([], [{ id: "branch-1", house_id: "house-1", name: "HQ" }]);
+
+    await assert.rejects(
+      () =>
+        createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
+          full_name: "Missing Branch",
+          rate_per_day: 700,
+          branch_id: null,
+        }),
+      EmployeeBranchRequiredError,
     );
     assert.equal(supabase.employees.length, 0);
   });
@@ -758,6 +797,7 @@ describe("createEmployeeForHouseWithAccess", () => {
         createEmployeeForHouseWithAccess(supabase as never, allowedAccess, "house-1", {
           full_name: "Insert Error",
           rate_per_day: 750,
+          branch_id: "branch-1",
         }),
       EmployeeCreateError,
     );

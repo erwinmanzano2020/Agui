@@ -74,6 +74,8 @@ export type EmployeeUpdateInput = {
 
 export class EmployeeUpdateError extends Error {}
 export class EmployeeCreateError extends Error {}
+export class EmployeeBranchRequiredError extends EmployeeCreateError {}
+export class EmployeeBranchNotFoundError extends EmployeeCreateError {}
 export class EmployeeDuplicateIdentityError extends EmployeeCreateError {
   constructor(
     message: string,
@@ -406,6 +408,29 @@ async function ensureBranchInHouse(
   return branch;
 }
 
+async function ensureBranchForCreateInHouse(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  branchId: string,
+): Promise<BranchLookupRow> {
+  const { data, error } = await supabase
+    .from("branches")
+    .select("id, house_id, name")
+    .eq("id", branchId)
+    .maybeSingle<BranchLookupRow>();
+
+  if (error) {
+    throw new EmployeeCreateError(error.message);
+  }
+
+  const branch = data ?? null;
+  if (!branch || !branch.id || branch.house_id !== houseId) {
+    throw new EmployeeBranchNotFoundError("Branch does not exist in this house");
+  }
+
+  return branch;
+}
+
 export async function updateEmployeeForHouse(
   supabase: SupabaseClient<Database>,
   houseId: string,
@@ -556,9 +581,10 @@ export async function createEmployeeForHouse(
   }
 
   const branchId = payload.branch_id?.trim() || null;
-  if (branchId) {
-    await ensureBranchInHouse(supabase, houseId, branchId);
+  if (!branchId) {
+    throw new EmployeeBranchRequiredError("branch_id is required for employee creation");
   }
+  await ensureBranchForCreateInHouse(supabase, houseId, branchId);
 
   const entityId = payload.entity_id?.trim() || null;
   if (entityId) {
@@ -696,11 +722,15 @@ export async function createEmployeeForHouseWithAccess(
   // Keep canonical write checks aligned: create validates assignment eligibility at create-time,
   // while update/delete validate mutability of an existing target via resolveEmployeeWriteTargetForHouseWithAccess.
   assertHrCreateAccess(access);
+  const targetBranchId = normalizeBranchId(payload.branch_id);
+  if (!targetBranchId) {
+    throw new EmployeeBranchRequiredError("branch_id is required for employee creation");
+  }
+  await ensureBranchForCreateInHouse(supabase, houseId, targetBranchId);
   if (access.isBranchLimited) {
-    const targetBranchId = normalizeBranchId(payload.branch_id);
-    if (!targetBranchId || !getAllowedBranchIdSet(access).has(targetBranchId)) {
+    if (!getAllowedBranchIdSet(access).has(targetBranchId)) {
       throw new EmployeeAccessError("Not allowed to assign this employee to the selected branch");
     }
   }
-  return createEmployeeForHouse(supabase, houseId, payload);
+  return createEmployeeForHouse(supabase, houseId, { ...payload, branch_id: targetBranchId });
 }

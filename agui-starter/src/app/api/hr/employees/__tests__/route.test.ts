@@ -9,6 +9,10 @@ import * as supabaseServer from "@/lib/supabase/server";
 import * as supabaseService from "@/lib/supabase-service";
 import { EmployeeAccessError } from "@/lib/hr/employees";
 import {
+  EmployeeBranchNotFoundError,
+  EmployeeBranchRequiredError,
+} from "@/lib/hr/employees-server";
+import {
   assertCanonicalSafeHrRouteEntryOrder,
   assertUnauthenticatedSafeHrRouteDrift,
 } from "@/app/api/hr/_shared/__tests__/safe-route-drift";
@@ -98,6 +102,63 @@ describe("POST /api/hr/employees boundary error mapping", () => {
     assert.match(String(payload?.error ?? ""), /Fix the highlighted fields/i);
   });
 
+  it("returns 400 when branch_id is missing", async () => {
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => createSupabaseStub() as never);
+    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
+    mock.method(identityServer, "resolveEntityIdForUser", async () => "entity-1");
+
+    const response = await POST(
+      new Request(`http://localhost/api/hr/employees?houseId=${HOUSE_ID}`, {
+        method: "POST",
+        body: JSON.stringify({ full_name: "No Branch", rate_per_day: 800 }),
+      }) as never,
+    );
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.match(String(payload?.error ?? ""), /Fix the highlighted fields/i);
+  });
+
+  it("returns 404 when branch does not exist in the house", async () => {
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => createSupabaseStub() as never);
+    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
+    mock.method(identityServer, "resolveEntityIdForUser", async () => "entity-1");
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
+      allowed: true,
+      hasWorkspaceAccess: true,
+      allowedByRole: true,
+      allowedByPolicy: false,
+      roles: ["house_owner"],
+      normalizedRoles: ["owner"],
+      policyKeys: [],
+      entityId: "entity-1",
+      branchId: null,
+      isBranchLimited: false,
+      allowedBranchIds: [],
+    }) as never);
+    mock.method(employeesServer, "createEmployeeForHouseWithAccess", async () => {
+      throw new EmployeeBranchNotFoundError("Branch does not exist in this house");
+    });
+
+    const response = await POST(
+      new Request(`http://localhost/api/hr/employees?houseId=${HOUSE_ID}`, {
+        method: "POST",
+        body: JSON.stringify({
+          full_name: "Unknown Branch",
+          branch_id: BRANCH_ID,
+          rate_per_day: 800,
+          entity_id: "22222222-2222-4222-8222-222222222222",
+        }),
+      }) as never,
+    );
+
+    assert.equal(response.status, 404);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Branch not found");
+  });
+
   it("returns 403 for authenticated forbidden create", async () => {
     mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
     mock.method(supabaseServer, "createServerSupabaseClient", async () => createSupabaseStub() as never);
@@ -174,6 +235,45 @@ describe("POST /api/hr/employees boundary error mapping", () => {
     assert.equal(response.status, 500);
     const payload = await response.json();
     assert.equal(payload?.error, "Unexpected error while creating employee");
+  });
+
+  it("maps domain branch-required failures to 400", async () => {
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => createSupabaseStub() as never);
+    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
+    mock.method(identityServer, "resolveEntityIdForUser", async () => "entity-1");
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
+      allowed: true,
+      hasWorkspaceAccess: true,
+      allowedByRole: true,
+      allowedByPolicy: false,
+      roles: ["house_owner"],
+      normalizedRoles: ["owner"],
+      policyKeys: [],
+      entityId: "entity-1",
+      branchId: null,
+      isBranchLimited: false,
+      allowedBranchIds: [],
+    }) as never);
+    mock.method(employeesServer, "createEmployeeForHouseWithAccess", async () => {
+      throw new EmployeeBranchRequiredError("branch_id is required");
+    });
+
+    const response = await POST(
+      new Request(`http://localhost/api/hr/employees?houseId=${HOUSE_ID}`, {
+        method: "POST",
+        body: JSON.stringify({
+          full_name: "No Branch",
+          branch_id: BRANCH_ID,
+          rate_per_day: 800,
+          entity_id: "22222222-2222-4222-8222-222222222222",
+        }),
+      }) as never,
+    );
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.match(String(payload?.error ?? ""), /Fix the highlighted fields/i);
   });
 
   it("applies canonical auth -> entity -> feature ordering", async () => {
