@@ -8,6 +8,10 @@ import * as payslipServer from "@/lib/hr/payslip-server";
 import * as supabaseServer from "@/lib/supabase/server";
 import * as supabaseService from "@/lib/supabase-service";
 import {
+  assertCanonicalSafeHrRouteEntryOrder,
+  assertUnauthenticatedSafeHrRouteDrift,
+} from "@/app/api/hr/_shared/__tests__/safe-route-drift";
+import {
   PAYROLL_ROUTE_AUTH_REQUIRED_MESSAGE,
   PAYROLL_ROUTE_FORBIDDEN_MESSAGE,
   PAYROLL_ROUTE_NOT_FOUND_MESSAGE,
@@ -43,6 +47,38 @@ function setupAuthOk() {
   mockSupabase();
   mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
   mock.method(identityServer, "resolveEntityIdForUser", async () => "entity-1");
+}
+
+function setupSafeRouteEntryOrderProbe(order: string[]) {
+  mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+    order.push("feature");
+    return null;
+  });
+  mock.method(supabaseServer, "createServerSupabaseClient", async () =>
+    ({
+      auth: {
+        getUser: async () => {
+          order.push("auth");
+          return { data: { user: { id: "user-1" } }, error: null };
+        },
+      },
+    }) as never,
+  );
+  mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
+  mock.method(identityServer, "resolveEntityIdForUser", async () => {
+    order.push("entity");
+    return "entity-1";
+  });
+}
+
+function setupUnauthenticatedFeatureProbe() {
+  const probe = { featureCalls: 0 };
+  mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+    probe.featureCalls += 1;
+    return null;
+  });
+  mockSupabase(null);
+  return probe;
 }
 
 afterEach(() => mock.restoreAll());
@@ -149,25 +185,7 @@ describe("POST /api/hr/payroll-runs", () => {
 
   it("applies canonical auth -> entity -> feature ordering", async () => {
     const order: string[] = [];
-    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
-      order.push("feature");
-      return null;
-    });
-    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
-      ({
-        auth: {
-          getUser: async () => {
-            order.push("auth");
-            return { data: { user: { id: "user-1" } }, error: null };
-          },
-        },
-      }) as never,
-    );
-    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
-    mock.method(identityServer, "resolveEntityIdForUser", async () => {
-      order.push("entity");
-      return "entity-1";
-    });
+    setupSafeRouteEntryOrderProbe(order);
 
     const response = await createPayrollRun(
       new Request("http://localhost/api/hr/payroll-runs", {
@@ -177,7 +195,7 @@ describe("POST /api/hr/payroll-runs", () => {
     );
 
     assert.equal(response.status, 400);
-    assert.deepEqual(order, ["auth", "entity", "feature"]);
+    assertCanonicalSafeHrRouteEntryOrder(order);
   });
 });
 
@@ -216,6 +234,33 @@ describe("payroll run id-based write routes", () => {
         mockSupabase(null);
         const response = await routeCase.call(new Request(`http://localhost/${routeCase.name}?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }));
         await assertCanonicalRouteError(response, 401, PAYROLL_ROUTE_AUTH_REQUIRED_MESSAGE);
+      });
+
+      it("applies canonical auth -> entity -> feature ordering", async () => {
+        const order: string[] = [];
+        setupSafeRouteEntryOrderProbe(order);
+
+        const response = await routeCase.call(
+          new Request(`http://localhost/${routeCase.name}?houseId=bad`, { method: "POST", body: "{}" }),
+        );
+
+        assert.equal(response.status, 400);
+        assertCanonicalSafeHrRouteEntryOrder(order);
+      });
+
+      it("returns unauthenticated response without invoking feature guard", async () => {
+        const probe = setupUnauthenticatedFeatureProbe();
+
+        const response = await routeCase.call(
+          new Request(`http://localhost/${routeCase.name}?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }),
+        );
+
+        await assertUnauthenticatedSafeHrRouteDrift({
+          response,
+          expectedStatus: 401,
+          expectedError: PAYROLL_ROUTE_AUTH_REQUIRED_MESSAGE,
+          featureGuardCalls: probe.featureCalls,
+        });
       });
 
       it("returns forbidden boundary", async () => {
@@ -318,6 +363,34 @@ describe("POST /api/hr/payroll-runs/:id/deductions", () => {
     await assertCanonicalRouteError(response, 401, PAYROLL_ROUTE_AUTH_REQUIRED_MESSAGE);
   });
 
+  it("applies canonical auth -> entity -> feature ordering", async () => {
+    const order: string[] = [];
+    setupSafeRouteEntryOrderProbe(order);
+
+    const response = await callRoute(
+      new Request("http://localhost/deductions", {
+        method: "POST",
+        body: JSON.stringify({ houseId: "bad" }),
+      }),
+    );
+
+    assert.equal(response.status, 400);
+    assertCanonicalSafeHrRouteEntryOrder(order);
+  });
+
+  it("returns unauthenticated response without invoking feature guard", async () => {
+    const probe = setupUnauthenticatedFeatureProbe();
+
+    const response = await callRoute(new Request("http://localhost/deductions", { method: "POST", body: JSON.stringify({}) }));
+
+    await assertUnauthenticatedSafeHrRouteDrift({
+      response,
+      expectedStatus: 401,
+      expectedError: PAYROLL_ROUTE_AUTH_REQUIRED_MESSAGE,
+      featureGuardCalls: probe.featureCalls,
+    });
+  });
+
   it("returns forbidden boundary", async () => {
     setupAuthOk();
     mock.method(payslipServer, "resolvePayrollRunDeductionWriteContext", async () => {
@@ -400,25 +473,7 @@ describe("payroll route boundary drift guard", () => {
 describe("GET /api/hr/payroll-runs/:id guard ordering", () => {
   it("applies canonical auth -> entity -> feature ordering", async () => {
     const order: string[] = [];
-    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
-      order.push("feature");
-      return null;
-    });
-    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
-      ({
-        auth: {
-          getUser: async () => {
-            order.push("auth");
-            return { data: { user: { id: "user-1" } }, error: null };
-          },
-        },
-      }) as never,
-    );
-    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
-    mock.method(identityServer, "resolveEntityIdForUser", async () => {
-      order.push("entity");
-      return "entity-1";
-    });
+    setupSafeRouteEntryOrderProbe(order);
 
     const response = await getPayrollRunById(
       new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}?houseId=bad`) as never,
@@ -426,51 +481,30 @@ describe("GET /api/hr/payroll-runs/:id guard ordering", () => {
     );
 
     assert.equal(response.status, 400);
-    assert.deepEqual(order, ["auth", "entity", "feature"]);
+    assertCanonicalSafeHrRouteEntryOrder(order);
   });
 
-  it("returns unauthenticated without invoking feature guard", async () => {
-    let featureCalls = 0;
-    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
-      featureCalls += 1;
-      return null;
-    });
-    mockSupabase(null);
+  it("returns unauthenticated response without invoking feature guard", async () => {
+    const probe = setupUnauthenticatedFeatureProbe();
 
     const response = await getPayrollRunById(
       new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}?houseId=${HOUSE_ID}`) as never,
       { params: Promise.resolve({ id: RUN_ID }) },
     );
 
-    assert.equal(response.status, 401);
-    const payload = await response.json();
-    assert.equal(payload.error, "Not authenticated");
-    assert.equal(featureCalls, 0);
+    await assertUnauthenticatedSafeHrRouteDrift({
+      response,
+      expectedStatus: 401,
+      expectedError: "Not authenticated",
+      featureGuardCalls: probe.featureCalls,
+    });
   });
 });
 
 describe("POST /api/hr/payroll-runs/:id/post guard ordering", () => {
   it("applies canonical auth -> entity -> feature ordering", async () => {
     const order: string[] = [];
-    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
-      order.push("feature");
-      return null;
-    });
-    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
-      ({
-        auth: {
-          getUser: async () => {
-            order.push("auth");
-            return { data: { user: { id: "user-1" } }, error: null };
-          },
-        },
-      }) as never,
-    );
-    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
-    mock.method(identityServer, "resolveEntityIdForUser", async () => {
-      order.push("entity");
-      return "entity-1";
-    });
+    setupSafeRouteEntryOrderProbe(order);
 
     const response = await postPayrollRun(
       new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}/post?houseId=bad`, { method: "POST", body: "{}" }) as never,
@@ -478,25 +512,22 @@ describe("POST /api/hr/payroll-runs/:id/post guard ordering", () => {
     );
 
     assert.equal(response.status, 400);
-    assert.deepEqual(order, ["auth", "entity", "feature"]);
+    assertCanonicalSafeHrRouteEntryOrder(order);
   });
 
-  it("returns unauthenticated without invoking feature guard", async () => {
-    let featureCalls = 0;
-    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
-      featureCalls += 1;
-      return null;
-    });
-    mockSupabase(null);
+  it("returns unauthenticated response without invoking feature guard", async () => {
+    const probe = setupUnauthenticatedFeatureProbe();
 
     const response = await postPayrollRun(
       new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}/post?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }) as never,
       { params: Promise.resolve({ id: RUN_ID }) },
     );
 
-    assert.equal(response.status, 401);
-    const payload = await response.json();
-    assert.equal(payload.error, "Not authenticated");
-    assert.equal(featureCalls, 0);
+    await assertUnauthenticatedSafeHrRouteDrift({
+      response,
+      expectedStatus: 401,
+      expectedError: "Not authenticated",
+      featureGuardCalls: probe.featureCalls,
+    });
   });
 });

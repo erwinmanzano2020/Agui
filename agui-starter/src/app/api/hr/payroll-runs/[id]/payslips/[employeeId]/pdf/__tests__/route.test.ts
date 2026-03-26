@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import type { NextRequest } from "next/server";
+import {
+  assertCanonicalSafeHrRouteEntryOrder,
+  assertUnauthenticatedSafeHrRouteDrift,
+} from "@/app/api/hr/_shared/__tests__/safe-route-drift";
 
 type QueryResult<T> = Promise<{ data: T; error: null }>;
 
@@ -316,7 +320,7 @@ describe("GET /api/hr/payroll-runs/[id]/payslips/[employeeId]/pdf", () => {
     );
 
     assert.equal(response.status, 400);
-    assert.deepEqual(order, ["auth", "entity", "feature"]);
+    assertCanonicalSafeHrRouteEntryOrder(order);
   });
 
   it("returns unauthenticated response without invoking feature guard", async () => {
@@ -335,9 +339,11 @@ describe("GET /api/hr/payroll-runs/[id]/payslips/[employeeId]/pdf", () => {
       { params: Promise.resolve({ id: supabase.runId, employeeId: supabase.employeeId }) },
     );
 
-    assert.equal(response.status, 401);
-    const payload = await response.json();
-    assert.equal(payload.error, "Not authenticated");
-    assert.equal(featureCalls, 0);
+    await assertUnauthenticatedSafeHrRouteDrift({
+      response,
+      expectedStatus: 401,
+      expectedError: "Not authenticated",
+      featureGuardCalls: featureCalls,
+    });
   });
 });
