@@ -8,7 +8,9 @@ import {
   type MagicLinkResult,
   sanitizeNextPath,
 } from "@/lib/auth/magic-link";
+import { NEXT_PUBLIC_SUPABASE_URL } from "@/lib/env";
 import { getSupabase } from "@/lib/supabase";
+import { inspectSupabaseRuntimeConfig } from "@/lib/auth/supabase-runtime";
 
 const supabaseClient = getSupabase();
 
@@ -72,6 +74,23 @@ export async function syncSession(session?: Session | null) {
 export async function sendMagicLink(email: string, next: string = "/me"): Promise<MagicLinkResult> {
   const safeNext = sanitizeNextPath(next);
   const origin = typeof location !== "undefined" ? location.origin : "";
+  const runtimeCheck = inspectSupabaseRuntimeConfig({
+    supabaseUrl: NEXT_PUBLIC_SUPABASE_URL,
+    currentOrigin: origin || null,
+  });
+
+  if (!runtimeCheck.ok) {
+    return {
+      ok: false,
+      kind: "config",
+      diagnostic: runtimeCheck.diagnostic,
+      error:
+        runtimeCheck.diagnostic === "same_origin_supabase_url"
+          ? "Sign-in is unavailable due to invalid auth host configuration."
+          : "Sign-in is unavailable due to missing or invalid auth configuration.",
+    };
+  }
+
   const redirectTo = buildMagicLinkRedirect(origin, safeNext);
 
   try {
