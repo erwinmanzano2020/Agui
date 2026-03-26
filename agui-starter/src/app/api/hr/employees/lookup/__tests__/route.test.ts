@@ -5,6 +5,10 @@ import * as featureGuard from "@/lib/auth/feature-guard";
 import * as identityServer from "@/lib/identity/entity-server";
 import * as supabaseServer from "@/lib/supabase/server";
 import * as supabaseService from "@/lib/supabase-service";
+import {
+  assertCanonicalSafeHrRouteEntryOrder,
+  assertUnauthenticatedSafeHrRouteDrift,
+} from "@/app/api/hr/_shared/__tests__/safe-route-drift";
 import { POST } from "../route";
 
 describe("POST /api/hr/employees/lookup route-entry drift guard", () => {
@@ -23,9 +27,12 @@ describe("POST /api/hr/employees/lookup route-entry drift guard", () => {
       }) as never,
     );
 
-    assert.equal(response.status, 401);
-    assert.equal((await response.json()).error, "Not authenticated");
-    assert.equal(featureMock.mock.callCount(), 0);
+    await assertUnauthenticatedSafeHrRouteDrift({
+      response,
+      expectedStatus: 401,
+      expectedError: "Not authenticated",
+      featureGuardCalls: featureMock.mock.callCount(),
+    });
   });
 
   it("preserves auth -> entity -> feature route-entry ordering", async () => {
@@ -58,6 +65,6 @@ describe("POST /api/hr/employees/lookup route-entry drift guard", () => {
     );
 
     assert.equal(response.status, 400);
-    assert.deepEqual(order, ["auth", "entity", "feature"]);
+    assertCanonicalSafeHrRouteEntryOrder(order);
   });
 });

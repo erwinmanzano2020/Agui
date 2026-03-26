@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
 
 import type { NextRequest } from "next/server";
+import {
+  assertCanonicalSafeHrRouteEntryOrder,
+  assertUnauthenticatedSafeHrRouteDrift,
+} from "@/app/api/hr/_shared/__tests__/safe-route-drift";
 
 let POST: typeof import("../route").POST;
 let runtime: typeof import("../route").runtime;
@@ -122,7 +126,7 @@ describe("POST /api/hr/employee-ids/print", () => {
     const response = await POST(request);
 
     assert.equal(response.status, 200);
-    assert.deepEqual(order, ["auth", "entity", "feature", "payload"]);
+    assertCanonicalSafeHrRouteEntryOrder(order, ["payload"]);
   });
 
   it("returns unauthenticated response before payload validation and without invoking feature guard", async () => {
@@ -153,10 +157,12 @@ describe("POST /api/hr/employee-ids/print", () => {
 
     const response = await POST(unauthenticatedRequest);
 
-    assert.equal(response.status, 403);
-    const payload = await response.json();
-    assert.deepEqual(payload, { error: "Not allowed" });
-    assert.equal(featureCalls, 0);
-    assert.equal(payloadCalls, 0);
+    await assertUnauthenticatedSafeHrRouteDrift({
+      response,
+      expectedStatus: 403,
+      expectedError: "Not allowed",
+      featureGuardCalls: featureCalls,
+      payloadParseCalls: payloadCalls,
+    });
   });
 });

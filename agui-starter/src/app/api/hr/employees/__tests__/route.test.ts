@@ -8,6 +8,10 @@ import * as employeesServer from "@/lib/hr/employees-server";
 import * as supabaseServer from "@/lib/supabase/server";
 import * as supabaseService from "@/lib/supabase-service";
 import { EmployeeAccessError } from "@/lib/hr/employees";
+import {
+  assertCanonicalSafeHrRouteEntryOrder,
+  assertUnauthenticatedSafeHrRouteDrift,
+} from "@/app/api/hr/_shared/__tests__/safe-route-drift";
 import { POST } from "../route";
 
 const HOUSE_ID = "33333333-3333-4333-8333-333333333333";
@@ -50,7 +54,11 @@ describe("POST /api/hr/employees boundary error mapping", () => {
   afterEach(() => mock.restoreAll());
 
   it("returns 401 when unauthenticated", async () => {
-    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
+    let featureCalls = 0;
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+      featureCalls += 1;
+      return null;
+    });
     mock.method(supabaseServer, "createServerSupabaseClient", async () =>
       ({
         auth: { getUser: async () => ({ data: { user: null }, error: null }) },
@@ -64,9 +72,12 @@ describe("POST /api/hr/employees boundary error mapping", () => {
       }) as never,
     );
 
-    assert.equal(response.status, 401);
-    const payload = await response.json();
-    assert.equal(payload?.error, "Not authenticated");
+    await assertUnauthenticatedSafeHrRouteDrift({
+      response,
+      expectedStatus: 401,
+      expectedError: "Not authenticated",
+      featureGuardCalls: featureCalls,
+    });
   });
 
   it("returns 400 for invalid create payload", async () => {
@@ -196,6 +207,6 @@ describe("POST /api/hr/employees boundary error mapping", () => {
     );
 
     assert.equal(response.status, 400);
-    assert.deepEqual(order, ["auth", "entity", "feature"]);
+    assertCanonicalSafeHrRouteEntryOrder(order);
   });
 });
