@@ -106,7 +106,14 @@ export async function createEmployeeAction(
   }
 
   const normalizedBranchId = parsed.data.branch_id?.trim() || null;
-  if (normalizedBranchId && !UUID_REGEX.test(normalizedBranchId)) {
+  if (!normalizedBranchId) {
+    return {
+      status: "error",
+      fieldErrors: { branch_id: ["Choose a branch within this workspace"] },
+      message: "Fix the highlighted fields and try again.",
+    } satisfies CreateEmployeeState;
+  }
+  if (!UUID_REGEX.test(normalizedBranchId)) {
     return {
       status: "error",
       fieldErrors: { branch_id: ["Choose a branch within this workspace"] },

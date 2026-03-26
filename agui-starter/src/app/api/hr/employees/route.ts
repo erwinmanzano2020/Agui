@@ -4,11 +4,14 @@ import { jsonError, jsonOk } from "@/lib/api/http";
 import { logApiError, logApiWarning } from "@/lib/api/logging";
 import { AppFeature } from "@/lib/auth/permissions";
 import {
+  EmployeeBranchNotFoundError,
+  EmployeeBranchRequiredError,
   EmployeeCreateError,
   EmployeeDuplicateIdentityError,
   EmployeeUpdateError,
   createEmployeeForHouseWithAccess,
   listEmployeesByHouse,
+  resolveEmployeeCreateBranchForHouseWithAccess,
 } from "@/lib/hr/employees-server";
 import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE, EmployeeAccessError } from "@/lib/hr/employees";
 import { requireHrAccessWithBranch } from "@/lib/hr/access";
@@ -60,28 +63,10 @@ async function resolveHouseForEntity(
   return rows[0]?.house_id ?? null;
 }
 
-async function resolveBranchesForHouse(
-  service: SupabaseClient<Database>,
-  houseId: string,
-): Promise<string[]> {
-  const { data, error } = await service
-    .from("branches")
-    .select("id")
-    .eq("house_id", houseId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return (data ?? [])
-    .map((row) => (row as { id?: string | null }).id)
-    .filter((id): id is string => Boolean(id));
-}
-
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CreateEmployeePayloadSchema = z.object({
   full_name: z.string().trim().min(2).max(200),
-  branch_id: z.string().trim().uuid().optional(),
+  branch_id: z.string().trim().uuid(),
   rate_per_day: z.number().positive(),
   position_title: z.string().trim().max(120).optional(),
   status: z.enum(["active", "inactive"]).default("active").optional(),
@@ -258,24 +243,8 @@ export async function POST(req: NextRequest) {
     return jsonError(403, "No accessible house");
   }
 
-  let branchIds: string[] = [];
-  try {
-    branchIds = await resolveBranchesForHouse(authed, houseId);
-  } catch (error) {
-    logApiError({
-      route: ROUTE_NAME,
-      action: "resolve_branches",
-      userId,
-      entityId,
-      houseId,
-      error,
-    });
-    return jsonError(500, "Failed to resolve house departments");
-  }
-
   const hrAccess = await requireHrAccessWithBranch(authed, {
     houseId,
-    branchId: parsed.data.branch_id ?? null,
     requiredLevel: "write",
   });
   if (!hrAccess.allowed) {
@@ -290,9 +259,34 @@ export async function POST(req: NextRequest) {
     return jsonError(403, "Not allowed");
   }
 
-  const branchId = parsed.data.branch_id ?? null;
-  if (branchId && !branchIds.includes(branchId)) {
-    return jsonError(400, "Select a branch within this house", { fieldErrors: { branch_id: ["Invalid branch"] } });
+  const branchId = parsed.data.branch_id;
+  let validatedBranchId: string;
+  try {
+    validatedBranchId = await resolveEmployeeCreateBranchForHouseWithAccess(authed, hrAccess, houseId, branchId);
+  } catch (error) {
+    if (error instanceof EmployeeAccessError) {
+      return jsonError(403, "Not allowed");
+    }
+    if (error instanceof EmployeeBranchRequiredError) {
+      return jsonError(400, "Fix the highlighted fields and try again.", {
+        fieldErrors: { branch_id: ["Branch is required"] },
+      });
+    }
+    if (error instanceof EmployeeBranchNotFoundError) {
+      return jsonError(404, "Branch not found", { fieldErrors: { branch_id: ["Branch not found"] } });
+    }
+    if (error instanceof EmployeeCreateError) {
+      return jsonError(500, "Failed to create employee", { message: error.message });
+    }
+    logApiError({
+      route: ROUTE_NAME,
+      action: "create_employee_branch_gate",
+      userId,
+      entityId,
+      houseId,
+      error,
+    });
+    return jsonError(500, "Unexpected error while creating employee");
   }
 
   const normalizedEmail = normalizeEmployeeEmail(parsed.data.email ?? null);
@@ -344,7 +338,7 @@ export async function POST(req: NextRequest) {
   try {
     const created = await createEmployeeForHouseWithAccess(authed, hrAccess, houseId, {
       full_name: parsed.data.full_name,
-      branch_id: branchId,
+      branch_id: validatedBranchId,
       rate_per_day: parsed.data.rate_per_day,
       status: parsed.data.status ?? "active",
       entity_id: resolvedEntityId,
@@ -355,6 +349,14 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     if (error instanceof EmployeeAccessError) {
       return jsonError(403, "Not allowed");
+    }
+    if (error instanceof EmployeeBranchRequiredError) {
+      return jsonError(400, "Fix the highlighted fields and try again.", {
+        fieldErrors: { branch_id: ["Branch is required"] },
+      });
+    }
+    if (error instanceof EmployeeBranchNotFoundError) {
+      return jsonError(404, "Branch not found", { fieldErrors: { branch_id: ["Branch not found"] } });
     }
     if (error instanceof EmployeeUpdateError) {
       return jsonError(400, "Select a branch within this house", { fieldErrors: { branch_id: ["Invalid branch"] } });
