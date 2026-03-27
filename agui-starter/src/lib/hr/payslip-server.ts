@@ -12,7 +12,11 @@ import type {
   HrPayrollRunRow,
 } from "@/lib/db.types";
 import { requireHrAccess, type HrAccessDecision } from "./access";
-import { getScheduleForEmployeeOnDate, parseDateParts } from "./overtime-engine";
+import {
+  getScheduleForEmployeeOnDate,
+  parseDateParts,
+  type ScheduleResolution,
+} from "./overtime-engine";
 import { computeDailyRateBreakdown } from "./payroll-math";
 import { isWorkDateMismatch, toManilaDate } from "./timezone";
 
@@ -193,20 +197,29 @@ async function loadEmployees(
   return (data as EmployeeRow[] | null) ?? [];
 }
 
-async function loadRunDeductions(
+async function loadRunDeductionsForEmployees(
   supabase: SupabaseClient<Database>,
   runId: string,
-  employeeId: string,
-): Promise<HrPayrollRunDeductionRow[]> {
+  employeeIds: string[],
+): Promise<Map<string, HrPayrollRunDeductionRow[]>> {
+  if (employeeIds.length === 0) return new Map();
   const { data, error } = await supabase
     .from("hr_payroll_run_deductions")
     .select("id, run_id, house_id, employee_id, label, amount, created_by, created_at")
     .eq("run_id", runId)
-    .eq("employee_id", employeeId)
+    .in("employee_id", employeeIds)
     .order("created_at", { ascending: true });
 
   if (error) throw new PayslipFetchError(error.message);
-  return (data as HrPayrollRunDeductionRow[] | null) ?? [];
+
+  const rows = (data as HrPayrollRunDeductionRow[] | null) ?? [];
+  const deductionsByEmployee = new Map<string, HrPayrollRunDeductionRow[]>();
+  rows.forEach((row) => {
+    const bucket = deductionsByEmployee.get(row.employee_id) ?? [];
+    bucket.push(row);
+    deductionsByEmployee.set(row.employee_id, bucket);
+  });
+  return deductionsByEmployee;
 }
 
 async function loadSegmentsForPeriod(
@@ -255,7 +268,6 @@ export async function getPayPolicyForHouse(
 }
 
 async function computeScheduleMinutes(
-  supabase: SupabaseClient<Database>,
   input: {
     houseId: string;
     employeeId: string;
@@ -263,7 +275,7 @@ async function computeScheduleMinutes(
     periodEnd: string;
     policy: PayPolicySnapshot;
   },
-  access: HrAccessDecision,
+  getSchedule: (workDate: string) => Promise<ScheduleResolution>,
 ): Promise<{ totalMinutes: number; missingScheduleDays: number; dayCount: number }> {
   const dates = listDatesBetween(input.periodStart, input.periodEnd);
   const dayCount = dates.length;
@@ -284,11 +296,7 @@ async function computeScheduleMinutes(
   let scheduleDayCount = 0;
 
   for (const workDate of dates) {
-    const schedule = await getScheduleForEmployeeOnDate(
-      supabase,
-      { houseId: input.houseId, employeeId: input.employeeId, workDate },
-      { access },
-    );
+    const schedule = await getSchedule(workDate);
 
     if (schedule.status !== "ok" || !schedule.scheduledStartTs || !schedule.scheduledEndTs) {
       missingScheduleDays += 1;
@@ -317,14 +325,11 @@ async function computeScheduleMinutes(
 }
 
 async function computeScheduleMinutesForDates(
-  supabase: SupabaseClient<Database>,
   input: {
-    houseId: string;
-    employeeId: string;
     dates: string[];
     policy: PayPolicySnapshot;
   },
-  access: HrAccessDecision,
+  getSchedule: (workDate: string) => Promise<ScheduleResolution>,
 ): Promise<{ totalMinutes: number; missingScheduleDays: number; minutesByDate: Map<string, number> }> {
   if (input.dates.length === 0) {
     return { totalMinutes: 0, missingScheduleDays: 0, minutesByDate: new Map() };
@@ -347,11 +352,7 @@ async function computeScheduleMinutesForDates(
   const minutesByDate = new Map<string, number>();
 
   for (const workDate of input.dates) {
-    const schedule = await getScheduleForEmployeeOnDate(
-      supabase,
-      { houseId: input.houseId, employeeId: input.employeeId, workDate },
-      { access },
-    );
+    const schedule = await getSchedule(workDate);
 
     if (schedule.status !== "ok" || !schedule.scheduledStartTs || !schedule.scheduledEndTs) {
       missingScheduleDays += 1;
@@ -486,16 +487,32 @@ export async function computePayslipsForPayrollRun(
 
   const policy = await getPayPolicyForHouse(supabase, input.houseId);
   const employeeIds = Array.from(new Set(items.map((item) => item.employee_id)));
-  const employees = await loadEmployees(supabase, input.houseId, employeeIds);
+  const [employees, deductionsByEmployee] = await Promise.all([
+    loadEmployees(supabase, input.houseId, employeeIds),
+    loadRunDeductionsForEmployees(supabase, input.runId, employeeIds),
+  ]);
   const employeeMap = new Map(employees.map((employee) => [employee.id, employee]));
+  const scheduleCache = new Map<string, Promise<ScheduleResolution>>();
 
   const rows: PayslipPreviewRow[] = [];
   for (const item of items) {
     const employee = employeeMap.get(item.employee_id);
     if (!employee) continue;
 
+    const getSchedule = (workDate: string) => {
+      const key = `${item.employee_id}:${workDate}`;
+      const cached = scheduleCache.get(key);
+      if (cached) return cached;
+      const schedulePromise = getScheduleForEmployeeOnDate(
+        supabase,
+        { houseId: input.houseId, employeeId: item.employee_id, workDate },
+        { access },
+      );
+      scheduleCache.set(key, schedulePromise);
+      return schedulePromise;
+    };
+
     const schedule = await computeScheduleMinutes(
-      supabase,
       {
         houseId: input.houseId,
         employeeId: item.employee_id,
@@ -503,7 +520,7 @@ export async function computePayslipsForPayrollRun(
         periodEnd: run.period_end,
         policy,
       },
-      access,
+      getSchedule,
     );
 
     const segments = await loadSegmentsForPeriod(supabase, {
@@ -539,11 +556,7 @@ export async function computePayslipsForPayrollRun(
     const workedMinutesByDate = new Map<string, number>();
     const closedMinutesByDate = new Map<string, number>();
     for (const date of attendanceDates) {
-      const schedule = await getScheduleForEmployeeOnDate(
-        supabase,
-        { houseId: input.houseId, employeeId: item.employee_id, workDate: date },
-        { access },
-      );
+      const schedule = await getSchedule(date);
       const breakdown = computeDailyRateBreakdown(
         segmentsByDate.get(date) ?? [],
         schedule.status === "ok"
@@ -574,14 +587,11 @@ export async function computePayslipsForPayrollRun(
     const attendedDateList = Array.from(attendanceDates).sort();
 
     const scheduleForAttendance = await computeScheduleMinutesForDates(
-      supabase,
       {
-        houseId: input.houseId,
-        employeeId: item.employee_id,
         dates: attendedDateList,
         policy,
       },
-      access,
+      getSchedule,
     );
 
     let undertimeMinutes = 0;
@@ -621,7 +631,7 @@ export async function computePayslipsForPayrollRun(
     const diagnosticsGross =
       diagnosticsRate !== null ? diagnosticsRate * daysWorked : null;
 
-    const deductions = await loadRunDeductions(supabase, input.runId, item.employee_id);
+    const deductions = deductionsByEmployee.get(item.employee_id) ?? [];
     const preview = computePayslipPreview({
       run,
       item,
