@@ -13,6 +13,8 @@ Based on active-phase rules and current implementation, the live HR focus is:
 
 **Overall:** HR is functionally broad across core domains, but still requires consolidation, hardening, and contract-aligned stabilization before it should be considered stable.
 
+Current execution mode: Hardening and consolidation, not feature expansion.
+
 ## 3. Status Summary
 | Status | Snapshot |
 |---|---|
