@@ -3,6 +3,7 @@
 import * as React from "react";
 
 import { resolveConnectedLabel } from "@/lib/hr/kiosk/connected-label";
+import { normalizeProvisioningTokenInput } from "@/lib/hr/kiosk/provisioning-handoff";
 import { parseKioskTimestamp } from "@/lib/hr/kiosk/timestamp";
 import {
   shouldAutoFocusWedge,
@@ -771,6 +772,13 @@ export default function KioskClient({ slug }: { slug: string }) {
   React.useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     setDebugQueryEnabled(params.get("debug") === "1");
+
+    const setupFromHandoff = params.get("setup") === "1";
+    if (setupFromHandoff) {
+      setSetupOpen(true);
+      setSetupStep("token");
+      setKioskMode("setup");
+    }
   }, []);
 
   React.useEffect(() => {
@@ -783,8 +791,9 @@ export default function KioskClient({ slug }: { slug: string }) {
     const savedVerifiedBranchLabel = localStorage.getItem(VERIFIED_BRANCH_LABEL_STORAGE_KEY);
     const savedLastSyncAt = localStorage.getItem(LAST_SYNC_STORAGE_KEY);
 
-    setKioskToken(savedToken);
-    setDraftToken(savedToken);
+    const normalizedSavedToken = normalizeProvisioningTokenInput(savedToken);
+    setKioskToken(normalizedSavedToken);
+    setDraftToken(normalizedSavedToken);
     setPin(savedPin);
     setDraftPin(savedPin);
     setDisplayName(savedDisplayName);
@@ -809,9 +818,13 @@ export default function KioskClient({ slug }: { slug: string }) {
       }
     }
 
-    const requiresSetup = !savedToken || !savedVerifiedDeviceId;
-    setSetupOpen(requiresSetup);
-    setKioskMode(requiresSetup ? "setup" : "ready");
+    const params = new URLSearchParams(window.location.search);
+    const setupFromHandoff = params.get("setup") === "1";
+    const requiresSetup = !normalizedSavedToken || !savedVerifiedDeviceId;
+    const shouldOpenSetup = requiresSetup || setupFromHandoff;
+    setSetupOpen(shouldOpenSetup);
+    setSetupStep(shouldOpenSetup ? "token" : "welcome");
+    setKioskMode(shouldOpenSetup ? "setup" : "ready");
 
     const onOnline = () => setStatus("online");
     const onOffline = () => setStatus("offline");
@@ -962,15 +975,16 @@ export default function KioskClient({ slug }: { slug: string }) {
   }
 
   function saveSettings() {
-    localStorage.setItem(TOKEN_STORAGE_KEY, draftToken);
+    const normalizedDraftToken = normalizeProvisioningTokenInput(draftToken);
+    localStorage.setItem(TOKEN_STORAGE_KEY, normalizedDraftToken);
     localStorage.setItem(PIN_STORAGE_KEY, draftPin);
     localStorage.setItem(DISPLAY_NAME_STORAGE_KEY, draftDisplayName);
-    setKioskToken(draftToken);
+    setKioskToken(normalizedDraftToken);
     setPin(draftPin);
     setDisplayName(draftDisplayName);
     setSettingsError(null);
 
-    if (draftToken !== kioskToken) {
+    if (normalizedDraftToken !== kioskToken) {
       localStorage.removeItem(VERIFIED_DEVICE_ID_STORAGE_KEY);
       localStorage.removeItem(VERIFIED_DEVICE_NAME_STORAGE_KEY);
       localStorage.removeItem(VERIFIED_BRANCH_LABEL_STORAGE_KEY);
@@ -1028,7 +1042,7 @@ export default function KioskClient({ slug }: { slug: string }) {
       return;
     }
 
-    const tokenToSave = draftToken.trim();
+    const tokenToSave = normalizeProvisioningTokenInput(draftToken.trim());
     localStorage.setItem(TOKEN_STORAGE_KEY, tokenToSave);
     localStorage.setItem(PIN_STORAGE_KEY, draftPin);
     localStorage.setItem(DISPLAY_NAME_STORAGE_KEY, draftDisplayName);
@@ -1179,7 +1193,12 @@ export default function KioskClient({ slug }: { slug: string }) {
           {setupStep === "token" && (
             <div className="space-y-2">
               <label className="block font-medium">Enter kiosk token</label>
-              <input className="w-full rounded border p-2" value={draftToken} onChange={(event) => setDraftToken(event.target.value)} placeholder="Paste x-kiosk-token" />
+              <input
+                className="w-full rounded border p-2"
+                value={draftToken}
+                onChange={(event) => setDraftToken(normalizeProvisioningTokenInput(event.target.value))}
+                placeholder="Paste or scan provisioning token"
+              />
               <div className="flex gap-2">
                 <button className="rounded border px-3 py-2" onClick={() => setSetupStep("welcome")}>Back</button>
                 <button className="rounded border px-3 py-2" disabled={!draftToken.trim()} onClick={() => setSetupStep("verify")}>Continue</button>
@@ -1363,7 +1382,12 @@ export default function KioskClient({ slug }: { slug: string }) {
             <p>Queue length: {queue.length}</p>
             <p>Connectivity: {status}</p>
 
-            <input className="w-full rounded border p-2" placeholder="Kiosk token" value={draftToken} onChange={(event) => setDraftToken(event.target.value)} />
+            <input
+              className="w-full rounded border p-2"
+              placeholder="Kiosk token"
+              value={draftToken}
+              onChange={(event) => setDraftToken(normalizeProvisioningTokenInput(event.target.value))}
+            />
             <input className="w-full rounded border p-2" placeholder="Display name" value={draftDisplayName} onChange={(event) => setDraftDisplayName(event.target.value)} />
             <input className="w-full rounded border p-2" placeholder="PIN (leave blank to disable)" type="password" value={draftPin} onChange={(event) => setDraftPin(event.target.value)} />
 
