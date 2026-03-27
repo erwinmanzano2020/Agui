@@ -846,8 +846,8 @@ describe("payslip preview", () => {
       { access: baseAccess },
     );
 
-    assert.equal(supabase.fromCounts.get("hr_branch_schedule_assignments"), 2);
-    assert.equal(supabase.fromCounts.get("hr_schedule_windows"), 2);
+    assert.equal(supabase.fromCounts.get("hr_branch_schedule_assignments"), 1);
+    assert.equal(supabase.fromCounts.get("hr_schedule_windows"), 1);
     assert.equal(supabase.fromCounts.get("hr_payroll_run_deductions"), 1);
   });
 

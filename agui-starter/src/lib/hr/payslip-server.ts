@@ -6,14 +6,17 @@ import type {
   Database,
   DtrSegmentRow,
   EmployeeRow,
+  HrBranchScheduleAssignmentRow,
   HrPayPolicyRow,
   HrPayrollRunDeductionRow,
   HrPayrollRunItemRow,
   HrPayrollRunRow,
+  HrScheduleWindowRow,
 } from "@/lib/db.types";
 import { requireHrAccess, type HrAccessDecision } from "./access";
 import {
-  getScheduleForEmployeeOnDate,
+  buildZonedDateTime,
+  getDayOfWeekInTimeZone,
   parseDateParts,
   type ScheduleResolution,
 } from "./overtime-engine";
@@ -109,6 +112,7 @@ const DEFAULT_POLICY: PayPolicySnapshot = {
 
 const DTR_SEGMENT_COLUMNS =
   "id, house_id, employee_id, work_date, time_in, time_out, status";
+const MANILA_TIMEZONE = "Asia/Manila";
 
 function asNumber(value: number | string | null | undefined): number {
   if (typeof value === "number") return value;
@@ -188,7 +192,7 @@ async function loadEmployees(
   if (employeeIds.length === 0) return [];
   const { data, error } = await supabase
     .from("employees")
-    .select("id, house_id, full_name, code, rate_per_day")
+    .select("id, house_id, full_name, code, rate_per_day, branch_id")
     .eq("house_id", houseId)
     .in("id", employeeIds)
     .order("full_name", { ascending: true });
@@ -238,6 +242,120 @@ async function loadSegmentsForPeriod(
 
   if (error) throw new PayslipFetchError(error.message);
   return (data as DtrSegmentRow[] | null) ?? [];
+}
+
+async function loadAssignmentsForBranches(
+  supabase: SupabaseClient<Database>,
+  input: { houseId: string; branchIds: string[]; periodEnd: string },
+): Promise<Map<string, HrBranchScheduleAssignmentRow[]>> {
+  if (input.branchIds.length === 0) return new Map();
+  const { data, error } = await supabase
+    .from("hr_branch_schedule_assignments")
+    .select("id, house_id, branch_id, schedule_id, effective_from, created_at")
+    .eq("house_id", input.houseId)
+    .in("branch_id", input.branchIds)
+    .lte("effective_from", input.periodEnd)
+    .order("effective_from", { ascending: false });
+
+  if (error) throw new PayslipFetchError(error.message);
+
+  const rows = (data as HrBranchScheduleAssignmentRow[] | null) ?? [];
+  const assignmentsByBranch = new Map<string, HrBranchScheduleAssignmentRow[]>();
+  rows.forEach((row) => {
+    const bucket = assignmentsByBranch.get(row.branch_id) ?? [];
+    bucket.push(row);
+    assignmentsByBranch.set(row.branch_id, bucket);
+  });
+
+  return assignmentsByBranch;
+}
+
+async function loadScheduleWindowsForSchedules(
+  supabase: SupabaseClient<Database>,
+  input: { houseId: string; scheduleIds: string[] },
+): Promise<Map<string, HrScheduleWindowRow[]>> {
+  if (input.scheduleIds.length === 0) return new Map();
+  const { data, error } = await supabase
+    .from("hr_schedule_windows")
+    .select("id, house_id, schedule_id, day_of_week, start_time, end_time, break_start, break_end")
+    .eq("house_id", input.houseId)
+    .in("schedule_id", input.scheduleIds)
+    .order("start_time", { ascending: true });
+
+  if (error) throw new PayslipFetchError(error.message);
+
+  const rows = (data as HrScheduleWindowRow[] | null) ?? [];
+  const windowsByScheduleAndDay = new Map<string, HrScheduleWindowRow[]>();
+  rows.forEach((row) => {
+    const key = `${row.schedule_id}:${row.day_of_week}`;
+    const bucket = windowsByScheduleAndDay.get(key) ?? [];
+    bucket.push(row);
+    windowsByScheduleAndDay.set(key, bucket);
+  });
+  return windowsByScheduleAndDay;
+}
+
+type PrefetchedScheduleContext = {
+  branchByEmployeeId: Map<string, string | null>;
+  assignmentsByBranch: Map<string, HrBranchScheduleAssignmentRow[]>;
+  windowsByScheduleAndDay: Map<string, HrScheduleWindowRow[]>;
+};
+
+function resolveScheduleFromPrefetch(
+  context: PrefetchedScheduleContext,
+  input: { employeeId: string; workDate: string },
+): ScheduleResolution {
+  const branchId = context.branchByEmployeeId.get(input.employeeId);
+  if (branchId === undefined) {
+    return { status: "no_schedule", reason: "employee_not_found" };
+  }
+  if (!branchId) {
+    return { status: "no_schedule", reason: "no_branch" };
+  }
+
+  const assignments = context.assignmentsByBranch.get(branchId) ?? [];
+  const assignment = assignments.find((row) => row.effective_from <= input.workDate);
+  if (!assignment) {
+    return { status: "no_schedule", reason: "no_assignment" };
+  }
+
+  const dayOfWeek = getDayOfWeekInTimeZone(input.workDate, MANILA_TIMEZONE);
+  if (dayOfWeek === null) {
+    return { status: "no_schedule", reason: "invalid_date" };
+  }
+
+  const windows = context.windowsByScheduleAndDay.get(`${assignment.schedule_id}:${dayOfWeek}`) ?? [];
+  const window = windows[0];
+  if (!window) {
+    return { status: "no_schedule", reason: "no_window" };
+  }
+
+  const scheduledStart = buildZonedDateTime(input.workDate, window.start_time, MANILA_TIMEZONE);
+  const scheduledEnd = buildZonedDateTime(input.workDate, window.end_time, MANILA_TIMEZONE);
+  if (!scheduledStart || !scheduledEnd) {
+    return { status: "no_schedule", reason: "invalid_schedule_time" };
+  }
+
+  const scheduledBreakStart =
+    window.break_start && window.break_end
+      ? buildZonedDateTime(input.workDate, window.break_start, MANILA_TIMEZONE)
+      : null;
+  const scheduledBreakEnd =
+    window.break_start && window.break_end
+      ? buildZonedDateTime(input.workDate, window.break_end, MANILA_TIMEZONE)
+      : null;
+
+  return {
+    status: "ok",
+    scheduleId: assignment.schedule_id,
+    templateId: assignment.schedule_id,
+    windowId: window.id,
+    scheduledStartTs: scheduledStart.toISOString(),
+    scheduledEndTs: scheduledEnd.toISOString(),
+    breakStartTs: scheduledBreakStart ? scheduledBreakStart.toISOString() : null,
+    breakEndTs: scheduledBreakEnd ? scheduledBreakEnd.toISOString() : null,
+    timeZone: MANILA_TIMEZONE,
+  };
 }
 
 export async function getPayPolicyForHouse(
@@ -492,6 +610,30 @@ export async function computePayslipsForPayrollRun(
     loadRunDeductionsForEmployees(supabase, input.runId, employeeIds),
   ]);
   const employeeMap = new Map(employees.map((employee) => [employee.id, employee]));
+  const branchIds = Array.from(
+    new Set(employees.map((employee) => employee.branch_id).filter((branchId): branchId is string => Boolean(branchId))),
+  );
+  const assignmentsByBranch = await loadAssignmentsForBranches(supabase, {
+    houseId: input.houseId,
+    branchIds,
+    periodEnd: run.period_end,
+  });
+  const scheduleIds = Array.from(
+    new Set(
+      Array.from(assignmentsByBranch.values())
+        .flat()
+        .map((assignment) => assignment.schedule_id),
+    ),
+  );
+  const windowsByScheduleAndDay = await loadScheduleWindowsForSchedules(supabase, {
+    houseId: input.houseId,
+    scheduleIds,
+  });
+  const scheduleContext: PrefetchedScheduleContext = {
+    branchByEmployeeId: new Map(employees.map((employee) => [employee.id, employee.branch_id])),
+    assignmentsByBranch,
+    windowsByScheduleAndDay,
+  };
   const scheduleCache = new Map<string, Promise<ScheduleResolution>>();
 
   const rows: PayslipPreviewRow[] = [];
@@ -503,10 +645,11 @@ export async function computePayslipsForPayrollRun(
       const key = `${item.employee_id}:${workDate}`;
       const cached = scheduleCache.get(key);
       if (cached) return cached;
-      const schedulePromise = getScheduleForEmployeeOnDate(
-        supabase,
-        { houseId: input.houseId, employeeId: item.employee_id, workDate },
-        { access },
+      const schedulePromise = Promise.resolve(
+        resolveScheduleFromPrefetch(scheduleContext, {
+          employeeId: item.employee_id,
+          workDate,
+        }),
       );
       scheduleCache.set(key, schedulePromise);
       return schedulePromise;
