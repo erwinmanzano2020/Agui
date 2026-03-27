@@ -28,6 +28,7 @@ This feature adds HR-managed kiosk device provisioning and monitoring so houses 
 - Database stores **hash only** (`token_hash`).
 - Plaintext token is shown to HR **once** and cannot be retrieved later.
 - Setup wizard URL and provisioning token remain separate concepts (token is not required in setup URL by default).
+- Provisioning token QR encodes the exact raw kiosk token value used by manual paste.
 - Kiosk setup does not require admin login on the kiosk device; admin actions remain authenticated in HR admin surface.
 
 ## Provisioning / Rotation Flow (Operational)

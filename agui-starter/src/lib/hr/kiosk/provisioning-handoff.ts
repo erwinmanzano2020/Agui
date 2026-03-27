@@ -1,5 +1,5 @@
-const KIOSK_TOKEN_PREFIX = "agui-kiosk-token::";
 const KIOSK_TOKEN_QUERY_KEYS = ["kioskToken", "token"] as const;
+const LEGACY_KIOSK_TOKEN_PREFIX = "agui-kiosk-token::";
 
 export function buildKioskSetupWizardUrl(input: { origin: string; houseSlug: string }): string {
   const url = new URL(`/company/${input.houseSlug}/kiosk`, input.origin);
@@ -8,7 +8,7 @@ export function buildKioskSetupWizardUrl(input: { origin: string; houseSlug: str
 }
 
 export function buildProvisioningTokenPayload(token: string): string {
-  return `${KIOSK_TOKEN_PREFIX}${token}`;
+  return token.trim();
 }
 
 export function normalizeProvisioningTokenInput(raw: string): string {
@@ -19,8 +19,8 @@ export function normalizeProvisioningTokenInput(raw: string): string {
     return trimmed;
   }
 
-  const prefixed = trimmed.toLowerCase().startsWith(KIOSK_TOKEN_PREFIX)
-    ? trimmed.slice(KIOSK_TOKEN_PREFIX.length)
+  const prefixed = trimmed.toLowerCase().startsWith(LEGACY_KIOSK_TOKEN_PREFIX)
+    ? trimmed.slice(LEGACY_KIOSK_TOKEN_PREFIX.length)
     : null;
   if (prefixed && /^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/i.test(prefixed.trim())) {
     return prefixed.trim();

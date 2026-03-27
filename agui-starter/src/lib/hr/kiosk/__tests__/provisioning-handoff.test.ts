@@ -20,8 +20,8 @@ describe("kiosk provisioning handoff helpers", () => {
     assert.equal(url.includes(token), false);
   });
 
-  it("builds scanner-friendly token payload", () => {
-    assert.equal(buildProvisioningTokenPayload(token), `agui-kiosk-token::${token}`);
+  it("returns raw token payload for provisioning QR", () => {
+    assert.equal(buildProvisioningTokenPayload(token), token);
   });
 
   it("normalizes plain token input", () => {
