@@ -2,7 +2,15 @@
 
 import type { Session } from "@supabase/supabase-js";
 
+import {
+  buildMagicLinkRedirect,
+  classifyMagicLinkError,
+  type MagicLinkResult,
+  sanitizeNextPath,
+} from "@/lib/auth/magic-link";
+import { NEXT_PUBLIC_SUPABASE_URL } from "@/lib/env";
 import { getSupabase } from "@/lib/supabase";
+import { inspectSupabaseRuntimeConfig } from "@/lib/auth/supabase-runtime";
 
 const supabaseClient = getSupabase();
 
@@ -63,23 +71,53 @@ export async function syncSession(session?: Session | null) {
 }
 
 /** Send magic link to a public callback URL (no middleware redirect). */
-export async function sendMagicLink(
-  email: string,
-  next: string = "/me",
-): Promise<{ ok: boolean; error?: string }> {
+export async function sendMagicLink(email: string, next: string = "/me"): Promise<MagicLinkResult> {
+  const safeNext = sanitizeNextPath(next);
   const origin = typeof location !== "undefined" ? location.origin : "";
-  const redirectTo = origin ? `${origin}/auth/callback?next=${encodeURIComponent(next)}` : undefined;
-
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
+  const runtimeCheck = inspectSupabaseRuntimeConfig({
+    supabaseUrl: NEXT_PUBLIC_SUPABASE_URL,
+    currentOrigin: origin || null,
   });
 
-  if (error) {
-    return { ok: false, error: error.message };
+  if (!runtimeCheck.ok) {
+    return {
+      ok: false,
+      kind: "config",
+      diagnostic: runtimeCheck.diagnostic,
+      error:
+        runtimeCheck.diagnostic === "same_origin_supabase_url"
+          ? "Sign-in is unavailable due to invalid auth host configuration."
+          : "Sign-in is unavailable due to missing or invalid auth configuration.",
+    };
   }
 
-  return { ok: true };
+  const redirectTo = buildMagicLinkRedirect(origin, safeNext);
+
+  try {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: redirectTo ? { emailRedirectTo: redirectTo } : undefined,
+    });
+
+    if (error) {
+      return {
+        ok: false,
+        error: error.message,
+        kind: "auth",
+        diagnostic: "auth_api_error",
+      };
+    }
+
+    return { ok: true };
+  } catch (error) {
+    const classified = classifyMagicLinkError(error);
+    return {
+      ok: false,
+      error: classified.message,
+      kind: classified.kind,
+      diagnostic: classified.diagnostic,
+    };
+  }
 }
 
 /** Client sign-out + clear server cookies. */
