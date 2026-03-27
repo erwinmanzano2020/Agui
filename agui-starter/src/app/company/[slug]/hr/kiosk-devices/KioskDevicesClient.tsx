@@ -34,7 +34,7 @@ function metadataSummary(metadata: Record<string, unknown>): string {
   return pairs.join(" • ") || "—";
 }
 
-export function KioskDevicesClient({ houseId, branches, initialDevices }: Props) {
+export function KioskDevicesClient({ houseId, houseSlug, branches, initialDevices }: Props) {
   const [devices, setDevices] = React.useState(initialDevices);
   const [selectedBranch, setSelectedBranch] = React.useState("");
   const [name, setName] = React.useState("");
@@ -110,6 +110,28 @@ export function KioskDevicesClient({ houseId, branches, initialDevices }: Props)
 
   return (
     <div className="space-y-6">
+      <section className="rounded-xl border bg-white p-4">
+        <h2 className="text-lg font-semibold">Kiosk Setup Wizard</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          After creating or rotating a device token, open the kiosk onboarding wizard to verify connection, set a display label, and configure a local PIN.
+        </p>
+        <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+          <li>Create device token from this page.</li>
+          <li>Open the kiosk wizard on the tablet/device.</li>
+          <li>Paste token, verify branch/house match, then complete setup.</li>
+        </ol>
+        <div className="mt-3">
+          <a
+            href={`/company/${houseSlug}/kiosk`}
+            className="inline-flex rounded border px-3 py-1.5 text-sm"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open Kiosk Setup Wizard
+          </a>
+        </div>
+      </section>
+
       <section className="rounded-xl border bg-white p-4">
         <h2 className="text-lg font-semibold">Create Device</h2>
         <form onSubmit={handleCreate} className="mt-3 grid gap-3 md:grid-cols-3">

@@ -1,7 +1,7 @@
 # HR-3.0 Payroll Runs (Draft Snapshot)
 
 ## Goal
-Payroll Runs introduce a draft, house-scoped container for payroll preview snapshots. Creating a run copies the read-only payroll preview (HR-2.3.3) output into run items. This release does **not** compute money, totals, or deductions.
+Payroll Runs introduce a draft, house-scoped container for payroll preview snapshots. Creating a run copies the read-only payroll preview (HR-2.3.3) output into run items. Draft snapshot creation remains read-only, while computed payslip preview and manual deductions are now handled in HR-3.2+ surfaces.
 
 ## Guardrails (Non-Negotiable)
 - HR-2.3 is frozen and read-only. (`docs/hr/hr-2-3-freeze.md`)
@@ -55,7 +55,7 @@ Payroll Runs introduce a draft, house-scoped container for payroll preview snaps
 ## UI
 - HR → Payroll Runs list with period picker + “Create draft run”.
 - Run detail shows snapshot rows per employee (read-only).
-- Notice: “Snapshot. Read-only. No money computed.”
+- Notice: “Snapshot rows are locked at finalize; computed payslip preview + deductions are available in run detail and Payslips tab.”
 
 ## References
 - `docs/hr/hr-2-3-freeze.md`
