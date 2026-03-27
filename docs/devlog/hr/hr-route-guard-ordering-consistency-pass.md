@@ -1,0 +1,41 @@
+# HR route guard ordering consistency pass
+
+Date: 2026-03-25
+
+## What was standardized
+
+- Added a shared HR route-entry helper (`resolveHrRouteActorContext`) that enforces a canonical entry sequence for in-scope HR route families:
+  1. authenticate/session
+  2. resolve caller entity
+  3. feature gate
+- Applied the shared entry ordering to these route families in scope:
+  - employees (`/api/hr/employees`, `/api/hr/employees/lookup`)
+  - payroll (`/api/hr/payroll-runs`, `/api/hr/payroll-preview`)
+  - payslip/deduction routes (`/api/hr/payroll-runs/:id/payslips`, `/api/hr/payroll-runs/:id/deductions`)
+- Updated foundation documentation to define canonical ordering and list route-family status/intentional exceptions.
+- Added helper-level tests for unauthenticated, entity failure/not-linked, feature deny, success context, and call-order contract.
+
+## Follow-up blocker fix (stabilization pass)
+
+- Fixed a TypeScript regression in `employees` ordering test by keeping the Supabase stub structurally typed (so `.from` remains available) and casting only at mock boundaries.
+
+## What was intentionally not changed
+
+- No permission-system redesign.
+- No schema or tenancy-model changes.
+- No changes to role model, branch assignment model, RLS, or policies.
+- No attempt to force identical house/target-resolution mechanics across all families.
+- Existing domain-layer access checks (for example payroll/payslip `*AccessError`) were preserved.
+
+## Explicit exceptions kept
+
+- Some families still resolve/derive house context differently based on resource shape (query/body house vs run-target-derived house).
+- Payroll/payslip families continue to keep significant authorization/validation in domain resolvers, with route-level ordering standardized only at entry.
+- No standalone `/api/hr/dtr/*` family was introduced; DTR constraints remain within payroll/DTR domain flows already in scope.
+
+## Deferred follow-ups
+
+- Helper adoption audit result: no additional low-risk adoptions were applied beyond the already in-scope families for this pass.
+- Response-envelope wording still varies by family where route/domain contracts differ; this pass only polishes local drift and does not force a single envelope helper.
+- Expand the same explicit ordering audit to remaining HR families not included in this focused pass (for example kiosk/device routes) under a separate scoped change.
+- Continue workspace-vs-house naming cleanup in legacy fields without changing semantics.

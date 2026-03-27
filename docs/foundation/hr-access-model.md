@@ -1,0 +1,229 @@
+# HR Access Model (Current-State Canonical)
+
+## Purpose
+
+This document defines the current HR access stack as implemented today.
+
+It is a foundation-alignment document only:
+- no schema change
+- no route additions
+- no access-system redesign
+
+## Core distinction (must stay explicit)
+
+Authentication **!=** feature access **!=** tenancy scope **!=** branch scope **!=** domain-valid mutation.
+
+Passing one layer does not imply the next layer.
+
+## Current access stack (what exists today)
+
+### 1) Authentication
+- Request/session auth is resolved via Supabase session checks (`supabase.auth.getUser()`) and route/server helpers.
+- Unauthenticated requests are rejected before HR business checks.
+
+### 2) Entity + house context
+- HR routes commonly resolve the caller entity and then resolve/validate house context.
+- House is the tenant boundary for HR records.
+
+### 3) Feature gate layer
+- Feature guards (`requireFeatureAccess*`, `requireAnyFeatureAccessApi`) are module-entry gates based on `AppFeature` policy requirements.
+- `requireAnyFeatureAccessApi` returns `403` JSON when none of the requested features are accessible.
+- This layer is used widely in HR APIs and must stay separate from business authorization.
+
+### 4) HR business access layer
+- `requireHrAccess` / `resolveHrAccess` evaluates house-scoped HR access using:
+  - house roles (`owner` / `manager`) and
+  - HR policy keys (`tiles.hr.read`, `tiles.payroll.read`).
+- Access is allowed only when the actor has house context and either role-based or policy-based HR access.
+
+### 5) Branch restriction layer (when applicable)
+- `requireHrAccessWithBranch` applies additional branch-limiting behavior for branch-scoped actors.
+- Branch scope is restriction-only; it does not grant access by itself.
+
+### 6) Route/domain validation layer
+- Even after access passes, route handlers and domain services still validate:
+  - target existence
+  - house ownership match
+  - branch-target compatibility for branch-limited actors
+  - state machine/status constraints before mutation
+  - payload/business invariants
+
+## Canonical HR route guard sequence (route-family consistency pass)
+
+For HR API families in current scope, the canonical sequencing target is:
+
+1. authenticate / session resolution
+2. resolve caller entity
+3. feature gate / module-entry gate
+4. resolve house / tenant context
+5. evaluate HR business access
+6. apply branch narrowing when applicable
+7. validate target + domain/state constraints
+8. execute read/mutation
+
+Notes:
+- This sequence describes **ordering of concerns**, not identical implementation mechanics.
+- Deviations are allowed only when they are explicit and documented.
+- Route-entry ordering is now covered by route-family tests and a helper-level contract test for `resolveHrRouteActorContext`.
+
+## Route-family ordering audit (March 25, 2026)
+
+This remains a scoped HR-family pass, not a whole-HR/global standardization claim.
+
+### Employees routes (`/api/hr/employees`, `/api/hr/employees/lookup`)
+- Standardized order now follows canonical sequence through auth/entity/feature before house + HR access checks.
+- Branch restriction remains explicit through `requireHrAccessWithBranch` where applicable.
+
+### Payroll routes (`/api/hr/payroll-runs`, `/api/hr/payroll-preview`)
+- Standardized auth/entity/feature ordering at route entry.
+- House/target/domain checks remain in payroll domain services (`PayrollRunAccessError`, `PayrollPreviewAccessError`, validation/mutation errors).
+
+### Payslip / deduction HR routes (`/api/hr/payroll-runs/:id/payslips`, `/api/hr/payroll-runs/:id/deductions`)
+- Standardized auth/entity/feature ordering at route entry.
+- Run/house/employee target validation and lock/state checks remain in payslip/deduction domain functions.
+
+## Route-family ordering audit (Pass 2)
+
+This pass remains explicitly scoped to route-entry guard consistency for selected `/api/hr/**` families; it is **not** a global HR redesign.
+
+### Newly adopted in Pass 2
+
+- Payroll run id-based routes:
+  - `/api/hr/payroll-runs/:id`
+  - `/api/hr/payroll-runs/:id/post`
+  - `/api/hr/payroll-runs/:id/adjustments`
+  - `/api/hr/payroll-runs/:id/finalize`
+  - `/api/hr/payroll-runs/:id/mark-paid`
+- Payroll PDF export routes:
+  - `/api/hr/payroll-runs/:id/pdf`
+  - `/api/hr/payroll-runs/:id/payslips/:employeeId/pdf`
+
+All of the above now enter through canonical guard ordering (`auth -> entity -> feature`) via `resolveHrRouteActorContext`, while preserving existing house/access/domain checks after entry.
+
+### Explicit exceptions (Pass 2)
+
+Routes intentionally excluded from helper adoption because they are kiosk/device/public-terminal identity flows:
+
+- `/api/hr/kiosk/**`
+- `/api/hr/kiosk-devices/**`
+
+These paths use non-session/device-oriented identity and are outside this pass by design.
+
+### Deferred / partial (Pass 2)
+
+- `/api/hr/employees/[employeeId]/id-card.pdf`
+- `/api/hr/employees/[employeeId]/photo`
+- `/api/hr/employees/[employeeId]/photo/upload`
+
+These remain unchanged in this pass due to mixed or specialized access-entry behavior that is not yet a safe mechanical fit for helper adoption.
+
+## Route-family ordering audit (Pass 3)
+
+This is a scoped HR route-entry consistency pass, not a global standardization.
+
+### SAFE (adopted in Pass 3)
+
+- `/api/hr/employee-ids/print`
+  - Adopted route-entry helper: `resolveHrRouteActorContext(...)`.
+  - Canonical entry order is now `auth -> entity -> feature`.
+  - Request payload parsing/validation now happens after route entry guard resolution; house payload resolution, HR access checks, and domain/response behavior remain route-local.
+
+### PARTIAL (deferred in Pass 3)
+
+- `/api/hr/employees/[employeeId]/id-card.pdf`
+  - Uses specialized house-scoped access-chain helpers (`requireAuthentication -> resolveAccessContext -> requireModuleAccess -> requireHrBusinessAccess`).
+  - Deferred to avoid redesigning existing membership and authorization assumptions in this scoped pass.
+
+- `/api/hr/employees/[employeeId]/photo`
+  - Coupled to branch-limited write access (`requireHrAccessWithBranch(..., { requiredLevel: "write" })`) and employee write-target checks.
+  - Deferred to preserve current branch/write semantics without moving domain access logic into shared helper paths.
+
+- `/api/hr/employees/[employeeId]/photo/upload`
+  - Uses split upload-entry checks (session auth + HR access + employee ownership anti-enumeration timing).
+  - Deferred to avoid changing specialized upload authorization behavior in a mechanical ordering pass.
+
+### EXCEPTION (explicitly excluded)
+
+- `/api/hr/kiosk/**`
+- `/api/hr/kiosk-devices/**`
+
+These remain out of scope for session-based route-entry helper adoption.
+
+### DTR routes in HR scope
+- No standalone `/api/hr/dtr/*` route family is currently present in this tree.
+- DTR constraints in scope continue to be enforced through payroll preview/run computations and DTR-dependent domain validations.
+
+## Explicit exceptions (intentional, not drift)
+
+1. **House/target resolution timing differs by family.**
+   - Some routes accept `houseId` from query/body and validate it before domain calls.
+   - Some routes resolve run target first, then derive house context from target.
+   - This is intentional domain-shape variance, not an access-model change.
+
+2. **Business-access checks can live in domain resolvers.**
+   - Payroll/payslip families often raise domain access errors (`*AccessError`) instead of calling `requireHrAccessWithBranch` directly in route handlers.
+   - This remains allowed as long as tenant/branch/domain constraints are still enforced.
+
+3. **Feature deny remains a `403` entry gate.**
+   - Feature gate is not a substitute for house/domain rights and remains separate from business-access success.
+
+## What `requireAnyFeatureAccessApi` is responsible for
+
+`requireAnyFeatureAccessApi` is responsible for:
+- checking whether the current user has **any** of a provided feature set
+- returning an API-friendly `403` response on deny
+- acting as module-entry guard behavior for API routes
+
+It is **not** responsible for:
+- proving house membership for a specific target house
+- proving branch eligibility
+- proving target ownership/state correctness
+- replacing route/domain mutation validation
+
+## What feature guards guarantee vs do not guarantee
+
+Feature guards guarantee:
+- module/feature-level discoverability gate outcome
+
+Feature guards do **not** guarantee:
+- tenant/house scope validity for a requested resource
+- branch scope validity
+- business permission correctness for a concrete record
+- state-transition legality (for example, payroll run status transitions)
+
+## Where house scoping is enforced
+
+House scoping is enforced by a combination of:
+- house-role lookups in HR access resolution
+- house filters in domain queries/mutations
+- write-target resolvers that verify target belongs to the requested house
+
+## Where branch scoping is enforced
+
+Branch scoping is enforced when branch-limited lanes apply, primarily by:
+- branch-scoped policy extraction in `requireHrAccessWithBranch`
+- branch checks in domain write-target resolvers (for example employee and DTR write target resolution)
+
+## Where route/domain validation still applies after access
+
+After authentication + entity + feature + HR access pass, routes/services still perform domain validation such as:
+- payroll run existence and house match
+- payroll run status preconditions (draft/finalized/posted transitions)
+- open-segment blocking for finalize/post operations
+- employee/segment existence and house ownership checks
+- payload/date/time schema and business validation
+
+## Drift audit findings (this closure pass)
+
+### Confirmed aligned
+- House remains the tenant boundary in HR authorization and target resolution.
+- Branch remains restriction-only and does not independently authorize.
+- Feature guards and HR business access are both present as separate layers.
+- HR route families in scope now use explicit, documented auth/entity/feature ordering at route entry.
+
+### Needs wording cleanup
+- Existing docs/code still mix `workspace` and `house` language in places (for example `hasWorkspaceAccess` naming in HR access decisions); canonical docs should treat house as tenant truth and use workspace only where explicitly legacy/UI-contextual.
+- Feature-vs-role language can sound interchangeable in older docs; this document keeps them explicitly separate.
+
+### Future issue (out of scope)
+- Feature definitions still include some action-like requirements (for example payroll wildcard policy), which blurs pure module-entry semantics. This pass documents the reality and does not redesign it.

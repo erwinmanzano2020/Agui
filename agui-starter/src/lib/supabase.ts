@@ -5,6 +5,7 @@ import {
   NEXT_PUBLIC_SUPABASE_URL,
   NEXT_PUBLIC_SUPABASE_ANON_KEY,
 } from "./env";
+import { inspectSupabaseRuntimeConfig } from "@/lib/auth/supabase-runtime";
 
 let _client: SupabaseClient<Database> | null = null;
 
@@ -30,6 +31,20 @@ export function getSupabase(): SupabaseClient<Database> | null {
     throw new Error(
       "Supabase not configured. Missing NEXT_PUBLIC_SUPABASE_URL and/or NEXT_PUBLIC_SUPABASE_ANON_KEY."
     );
+  }
+
+  const runtimeCheck = inspectSupabaseRuntimeConfig({
+    supabaseUrl: url,
+    currentOrigin: typeof window !== "undefined" ? window.location.origin : null,
+  });
+
+  if (!runtimeCheck.ok) {
+    const message = `Supabase URL invalid for runtime (${runtimeCheck.diagnostic}).`;
+    if (typeof window !== "undefined") {
+      console.error(message);
+      return null;
+    }
+    throw new Error(message);
   }
 
   _client = createClient<Database>(url, anon);

@@ -8,7 +8,11 @@ import type {
   HrScheduleTemplateRow,
   HrScheduleWindowRow,
 } from "@/lib/db.types";
-import { requireHrAccess, type HrAccessDecision } from "./access";
+import {
+  requireHrAccess,
+  requireHrAccessWithBranch,
+  type HrAccessDecision,
+} from "./access";
 
 const TEMPLATE_COLUMNS = "id, house_id, name, timezone, created_at";
 const WINDOW_COLUMNS =
@@ -132,7 +136,13 @@ export async function createBranchScheduleAssignment(
   },
   options: { access?: HrAccessDecision } = {},
 ): Promise<HrBranchScheduleAssignmentRow> {
-  const access = await resolveAccess(supabase, input.houseId, options.access);
+  const access =
+    options.access ??
+    (await requireHrAccessWithBranch(supabase, {
+      houseId: input.houseId,
+      branchId: input.branchId,
+      requiredLevel: "write",
+    }));
   if (!access.allowed) {
     throw new ScheduleAssignmentError("Not allowed to assign schedules for this house.");
   }

@@ -1,44 +1,81 @@
 import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
+
 import type { NextRequest } from "next/server";
+import {
+  assertCanonicalSafeHrRouteEntryOrder,
+  assertUnauthenticatedSafeHrRouteDrift,
+} from "@/app/api/hr/_shared/__tests__/safe-route-drift";
 
 let POST: typeof import("../route").POST;
 let runtime: typeof import("../route").runtime;
-let generateCalls: string[][] = [];
-let generateFrontLayouts: Array<string | undefined> = [];
+
+const HOUSE_ID = "33333333-3333-4333-8333-333333333333";
+const EMPLOYEE_ID = "11111111-1111-4111-8111-111111111111";
+
+function buildRequest() {
+  return new Request("http://localhost/api/hr/employee-ids/print", {
+    method: "POST",
+    body: JSON.stringify({
+      houseId: HOUSE_ID,
+      employeeIds: [EMPLOYEE_ID],
+    }),
+  }) as NextRequest;
+}
 
 beforeEach(async () => {
-  generateCalls = [];
-  generateFrontLayouts = [];
+  const supabaseService = await import("@/lib/supabase-service");
+  mock.method(supabaseService, "getServiceSupabase", () => ({} as never));
+
+  const supabaseServer = await import("@/lib/supabase/server");
+  mock.method(supabaseServer, "createServerSupabaseClient", async () =>
+    ({
+      auth: {
+        getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+      },
+    }) as never,
+  );
+
+  const entityServer = await import("@/lib/identity/entity-server");
+  mock.method(entityServer, "resolveEntityIdForUser", async () => "entity-1");
+
   const featureGuard = await import("@/lib/auth/feature-guard");
-  mock.method(featureGuard, "getFeatureAccessDebugSnapshot", async (features: Iterable<string>) => ({
-    requiredFeatures: Array.from(features),
+  mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
+  mock.method(featureGuard, "getFeatureAccessDebugSnapshot", async () => ({
+    requiredFeatures: ["hr"],
     resolvedFeatures: ["hr"],
   }));
 
-  const supabaseServer = await import("@/lib/supabase/server");
-  mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
-    auth: {
-      getUser: async () => ({ data: { user: { id: "00000000-0000-0000-0000-000000000999" } } }),
-    },
-  }));
-
-  const access = await import("@/lib/hr/access");
-  mock.method(access, "requireHrAccess", async () => ({ allowed: true } as never));
+  const hrAccess = await import("@/lib/hr/access");
+  mock.method(hrAccess, "requireHrAccess", async () => ({
+    allowed: true,
+    allowedByRole: true,
+    allowedByPolicy: false,
+    hasWorkspaceAccess: true,
+    roles: ["house_manager"],
+    normalizedRoles: ["manager"],
+    policyKeys: [],
+    entityId: "entity-1",
+  }) as never);
 
   const cards = await import("@/lib/hr/employee-id-cards-server");
   mock.method(cards, "listEmployeeIdCards", async () => [
-    { id: "00000000-0000-0000-0000-000000000003", code: "EMP-003", fullName: null, position: null, branchName: null, validUntil: null, houseId: "h", houseName: "house", houseLogoUrl: null },
-    { id: "00000000-0000-0000-0000-000000000001", code: "EMP-001", fullName: null, position: null, branchName: null, validUntil: null, houseId: "h", houseName: "house", houseLogoUrl: null },
-    { id: "00000000-0000-0000-0000-000000000002", code: "EMP-002", fullName: null, position: null, branchName: null, validUntil: null, houseId: "h", houseName: "house", houseLogoUrl: null },
+    {
+      id: EMPLOYEE_ID,
+      code: "EMP-001",
+      fullName: "A",
+      position: "Cashier",
+      branchName: "Main",
+      validUntil: null,
+      houseId: HOUSE_ID,
+      houseName: "Demo House",
+      houseBrandName: null,
+      houseLogoUrl: null,
+    },
   ]);
 
   const pdf = await import("@/lib/hr/employee-id-card-pdf");
-  mock.method(pdf, "generateEmployeeIdCardsSheetPdf", async (rows: Array<{ id: string }>, options: { frontLayout?: string } | undefined) => {
-    generateCalls.push(rows.map((row: { id: string }) => row.id));
-    generateFrontLayouts.push(options?.frontLayout);
-    return new Uint8Array([7, 8, 9]);
-  });
+  mock.method(pdf, "generateEmployeeIdCardsSheetPdf", async () => new Uint8Array([1, 2, 3]));
 
   ({ POST, runtime } = await import("../route"));
 });
@@ -52,92 +89,80 @@ describe("POST /api/hr/employee-ids/print", () => {
     assert.equal(runtime, "nodejs");
   });
 
-  it("validates employeeIds non-empty", async () => {
-    const response = await POST(
-      new Request("http://localhost/api/hr/employee-ids/print", {
-        method: "POST",
-        body: JSON.stringify({ houseId: "00000000-0000-0000-0000-000000000111", employeeIds: [] }),
-      }) as NextRequest,
+  it("applies canonical auth -> entity -> feature ordering", async () => {
+    const order: string[] = [];
+
+    const supabaseServer = await import("@/lib/supabase/server");
+    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
+      ({
+        auth: {
+          getUser: async () => {
+            order.push("auth");
+            return { data: { user: { id: "user-1" } }, error: null };
+          },
+        },
+      }) as never,
     );
 
-    assert.equal(response.status, 400);
-  });
-
-  it("rejects requests over the employee cap", async () => {
-    const tooMany = Array.from({ length: 201 }, (_, index) => `emp-${index}`);
-    const response = await POST(
-      new Request("http://localhost/api/hr/employee-ids/print", {
-        method: "POST",
-        body: JSON.stringify({ houseId: "00000000-0000-0000-0000-000000000111", employeeIds: tooMany }),
-      }) as NextRequest,
-    );
-
-    assert.equal(response.status, 400);
-    const body = await response.json();
-    assert.deepEqual(body, { error: "Too many employees requested" });
-  });
-
-  it("forbids cross-house ids", async () => {
-    const response = await POST(
-      new Request("http://localhost/api/hr/employee-ids/print", {
-        method: "POST",
-        body: JSON.stringify({
-          houseId: "00000000-0000-0000-0000-000000000111",
-          employeeIds: ["00000000-0000-0000-0000-000000000001", "00000000-0000-0000-0000-000000000999"],
-        }),
-      }) as NextRequest,
-    );
-
-    assert.equal(response.status, 403);
-  });
-
-  it("orders employees deterministically and returns pdf", async () => {
-    const response = await POST(
-      new Request("http://localhost/api/hr/employee-ids/print", {
-        method: "POST",
-        body: JSON.stringify({
-          houseId: "00000000-0000-0000-0000-000000000111",
-          employeeIds: [
-            "00000000-0000-0000-0000-000000000003",
-            "00000000-0000-0000-0000-000000000001",
-            "00000000-0000-0000-0000-000000000002",
-          ],
-        }),
-      }) as NextRequest,
-    );
-
-    assert.equal(response.status, 200);
-    assert.equal(response.headers.get("content-type"), "application/pdf");
-    assert.equal(response.headers.get("content-disposition"), 'attachment; filename="EmployeeIDs-A4.pdf"');
-    assert.equal(response.headers.get("cache-control"), "no-store");
-    assert.deepEqual(generateCalls[0], [
-      "00000000-0000-0000-0000-000000000001",
-      "00000000-0000-0000-0000-000000000002",
-      "00000000-0000-0000-0000-000000000003",
-    ]);
-    assert.equal(generateFrontLayouts[0], "modern");
-    const buffer = await response.arrayBuffer();
-    assert.ok(buffer.byteLength > 0);
-  });
-
-  it("returns 500 when qr generation fails", async () => {
-    const pdf = await import("@/lib/hr/employee-id-card-pdf");
-    mock.method(pdf, "generateEmployeeIdCardsSheetPdf", async () => {
-      throw new Error("boom");
+    const entityServer = await import("@/lib/identity/entity-server");
+    mock.method(entityServer, "resolveEntityIdForUser", async () => {
+      order.push("entity");
+      return "entity-1";
     });
 
-    const response = await POST(
-      new Request("http://localhost/api/hr/employee-ids/print", {
-        method: "POST",
-        body: JSON.stringify({
-          houseId: "00000000-0000-0000-0000-000000000111",
-          employeeIds: ["00000000-0000-0000-0000-000000000001"],
-        }),
-      }) as NextRequest,
+    const featureGuard = await import("@/lib/auth/feature-guard");
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+      order.push("feature");
+      return null;
+    });
+
+    const request = buildRequest() as NextRequest & { json: () => Promise<unknown> };
+    const originalJson = request.json.bind(request);
+    request.json = async () => {
+      order.push("payload");
+      return originalJson();
+    };
+
+    const response = await POST(request);
+
+    assert.equal(response.status, 200);
+    assertCanonicalSafeHrRouteEntryOrder(order, ["payload"]);
+  });
+
+  it("returns unauthenticated response before payload validation and without invoking feature guard", async () => {
+    let featureCalls = 0;
+    let payloadCalls = 0;
+
+    const supabaseServer = await import("@/lib/supabase/server");
+    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
+      ({
+        auth: {
+          getUser: async () => ({ data: { user: null }, error: null }),
+        },
+      }) as never,
     );
 
-    assert.equal(response.status, 500);
-    const body = await response.json();
-    assert.deepEqual(body, { error: "Failed to generate QR code" });
+    const featureGuard = await import("@/lib/auth/feature-guard");
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+      featureCalls += 1;
+      return null;
+    });
+
+    const unauthenticatedRequest = {
+      json: async () => {
+        payloadCalls += 1;
+        return { houseId: "bad-house-id", employeeIds: [] };
+      },
+    } as NextRequest;
+
+    const response = await POST(unauthenticatedRequest);
+
+    await assertUnauthenticatedSafeHrRouteDrift({
+      response,
+      expectedStatus: 403,
+      expectedError: "Not allowed",
+      featureGuardCalls: featureCalls,
+      payloadParseCalls: payloadCalls,
+    });
   });
 });

@@ -1,9 +1,15 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
+import QRCode from "qrcode";
 
 import type { BranchListItem } from "@/lib/hr/employees-server";
 import type { KioskDeviceAdminRow, KioskDeviceEventRow } from "@/lib/hr/kiosk/admin";
+import {
+  buildKioskSetupWizardUrl,
+  buildProvisioningTokenPayload,
+} from "@/lib/hr/kiosk/provisioning-handoff";
 
 type Props = {
   houseId: string;
@@ -34,7 +40,7 @@ function metadataSummary(metadata: Record<string, unknown>): string {
   return pairs.join(" • ") || "—";
 }
 
-export function KioskDevicesClient({ houseId, branches, initialDevices }: Props) {
+export function KioskDevicesClient({ houseId, houseSlug, branches, initialDevices }: Props) {
   const [devices, setDevices] = React.useState(initialDevices);
   const [selectedBranch, setSelectedBranch] = React.useState("");
   const [name, setName] = React.useState("");
@@ -42,6 +48,40 @@ export function KioskDevicesClient({ houseId, branches, initialDevices }: Props)
   const [events, setEvents] = React.useState<KioskDeviceEventRow[]>([]);
   const [selectedDevice, setSelectedDevice] = React.useState<KioskDeviceAdminRow | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [setupUrl, setSetupUrl] = React.useState<string>("");
+  const [setupQrDataUrl, setSetupQrDataUrl] = React.useState<string | null>(null);
+  const [tokenQrDataUrl, setTokenQrDataUrl] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const nextSetupUrl = buildKioskSetupWizardUrl({ origin: window.location.origin, houseSlug });
+    setSetupUrl(nextSetupUrl);
+
+    void QRCode.toDataURL(nextSetupUrl, {
+      type: "image/png",
+      errorCorrectionLevel: "M",
+      margin: 0,
+      width: 256,
+    })
+      .then((dataUrl) => setSetupQrDataUrl(dataUrl))
+      .catch(() => setSetupQrDataUrl(null));
+  }, [houseSlug]);
+
+  React.useEffect(() => {
+    if (!token) {
+      setTokenQrDataUrl(null);
+      return;
+    }
+
+    const tokenPayload = buildProvisioningTokenPayload(token);
+    void QRCode.toDataURL(tokenPayload, {
+      type: "image/png",
+      errorCorrectionLevel: "M",
+      margin: 0,
+      width: 256,
+    })
+      .then((dataUrl) => setTokenQrDataUrl(dataUrl))
+      .catch(() => setTokenQrDataUrl(null));
+  }, [token]);
 
   const refresh = React.useCallback(async (branchId?: string) => {
     const url = new URL("/api/hr/kiosk-devices", window.location.origin);
@@ -111,6 +151,50 @@ export function KioskDevicesClient({ houseId, branches, initialDevices }: Props)
   return (
     <div className="space-y-6">
       <section className="rounded-xl border bg-white p-4">
+        <h2 className="text-lg font-semibold">Kiosk Setup Wizard</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Keep admin login on your own device. Create or rotate token here, then hand off setup to the kiosk tablet using the setup QR and provisioning token QR.
+        </p>
+        <ol className="mt-3 list-decimal space-y-1 pl-5 text-sm text-muted-foreground">
+          <li>Create or rotate device token on this page.</li>
+          <li>Scan Setup QR on the kiosk tablet to open setup mode without admin login.</li>
+          <li>Scan Provisioning Token QR into token input, or paste manually, then verify and finish setup.</li>
+        </ol>
+        <div className="mt-3 flex flex-wrap gap-3">
+          <a
+            href={setupUrl || `/company/${houseSlug}/kiosk?setup=1`}
+            className="inline-flex rounded border px-3 py-1.5 text-sm"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open Kiosk Setup Wizard
+          </a>
+          {setupUrl ? (
+            <button className="inline-flex rounded border px-3 py-1.5 text-sm" onClick={() => navigator.clipboard.writeText(setupUrl)}>
+              Copy setup URL
+            </button>
+          ) : null}
+        </div>
+        {setupQrDataUrl ? (
+          <div className="mt-3 rounded border bg-slate-50 p-3 text-sm">
+            <p className="font-medium">Setup QR (open wizard on kiosk device)</p>
+            <Image
+              alt="Kiosk setup wizard QR code"
+              className="mt-2 rounded border bg-white p-2"
+              src={setupQrDataUrl}
+              width={160}
+              height={160}
+              unoptimized
+            />
+            <p className="mt-2 break-all text-xs text-muted-foreground">{setupUrl}</p>
+          </div>
+        ) : null}
+        <p className="mt-3 text-xs text-muted-foreground">
+          Setup URL and provisioning token are separated by design. Do not log in as admin on the kiosk tablet.
+        </p>
+      </section>
+
+      <section className="rounded-xl border bg-white p-4">
         <h2 className="text-lg font-semibold">Create Device</h2>
         <form onSubmit={handleCreate} className="mt-3 grid gap-3 md:grid-cols-3">
           <select className="rounded border px-2 py-1" value={selectedBranch} onChange={(e) => setSelectedBranch(e.target.value)} required>
@@ -127,6 +211,19 @@ export function KioskDevicesClient({ houseId, branches, initialDevices }: Props)
             <p className="font-medium">Save this token now. You won’t be able to view it again.</p>
             <code className="mt-2 block break-all rounded bg-white p-2">{token}</code>
             <button className="mt-2 rounded border px-2 py-1" onClick={() => navigator.clipboard.writeText(token)}>Copy token</button>
+            {tokenQrDataUrl ? (
+              <div className="mt-3">
+                <p className="font-medium">Provisioning Token QR (scan into kiosk token field)</p>
+                <Image
+                  alt="Kiosk provisioning token QR code"
+                  className="mt-2 rounded border bg-white p-2"
+                  src={tokenQrDataUrl}
+                  width={160}
+                  height={160}
+                  unoptimized
+                />
+              </div>
+            ) : null}
           </div>
         ) : null}
         {error ? <p className="mt-2 text-sm text-red-600">{error}</p> : null}

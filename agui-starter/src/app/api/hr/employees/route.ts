@@ -2,25 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { jsonError, jsonOk } from "@/lib/api/http";
 import { logApiError, logApiWarning } from "@/lib/api/logging";
-import { requireAnyFeatureAccessApi } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
-import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import {
+  EmployeeBranchNotFoundError,
+  EmployeeBranchRequiredError,
   EmployeeCreateError,
   EmployeeDuplicateIdentityError,
   EmployeeUpdateError,
   createEmployeeForHouseWithAccess,
   listEmployeesByHouse,
+  resolveEmployeeCreateBranchForHouseWithAccess,
 } from "@/lib/hr/employees-server";
-import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE } from "@/lib/hr/employees";
-import { resolveHrAccess } from "@/lib/hr/access";
+import { DUPLICATE_ACTIVE_EMPLOYEE_MESSAGE, EmployeeAccessError } from "@/lib/hr/employees";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import {
   findOrCreateEntityForEmployee,
   normalizeEmployeeEmail,
   normalizeEmployeePhoneDetails,
 } from "@/lib/hr/employee-identity";
-import { getServiceSupabase } from "@/lib/supabase-service";
-import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { resolveHrRouteActorContext } from "@/app/api/hr/_shared/route-guard-order";
 import { z } from "@/lib/z";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, HouseRoleRow } from "@/lib/db.types";
@@ -63,28 +63,10 @@ async function resolveHouseForEntity(
   return rows[0]?.house_id ?? null;
 }
 
-async function resolveBranchesForHouse(
-  service: SupabaseClient<Database>,
-  houseId: string,
-): Promise<string[]> {
-  const { data, error } = await service
-    .from("branches")
-    .select("id")
-    .eq("house_id", houseId);
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return (data ?? [])
-    .map((row) => (row as { id?: string | null }).id)
-    .filter((id): id is string => Boolean(id));
-}
-
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const CreateEmployeePayloadSchema = z.object({
   full_name: z.string().trim().min(2).max(200),
-  branch_id: z.string().trim().uuid().optional(),
+  branch_id: z.string().trim().uuid(),
   rate_per_day: z.number().positive(),
   position_title: z.string().trim().max(120).optional(),
   status: z.enum(["active", "inactive"]).default("active").optional(),
@@ -98,53 +80,17 @@ const CreateEmployeePayloadSchema = z.object({
 });
 
 export async function GET(req: NextRequest) {
-  const guard = await requireAnyFeatureAccessApi([
-    AppFeature.PAYROLL,
-    AppFeature.TEAM,
-    AppFeature.DTR_BULK,
-  ]);
-  if (guard) {
-    return guard;
+  const actor = await resolveHrRouteActorContext({
+    routeName: ROUTE_NAME,
+    features: [AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK],
+    onUnauthenticated: () => jsonError(401, "Not authenticated"),
+    onEntityNotLinked: () => jsonError(403, "Account not linked"),
+  });
+  if (actor instanceof NextResponse) {
+    return actor;
   }
 
-  let supabase: SupabaseClient<Database>;
-  try {
-    supabase = await createServerSupabaseClient();
-  } catch (error) {
-    logApiError({ route: ROUTE_NAME, action: "init_supabase_client", error });
-    return jsonError(503, "Supabase not configured");
-  }
-
-  const { data: userResult, error: userError } = await supabase.auth.getUser();
-  if (userError) {
-    logApiError({ route: ROUTE_NAME, action: "get_user", error: userError });
-    return jsonError(500, "Failed to load user", { code: userError.code });
-  }
-
-  if (!userResult.user) {
-    logApiWarning({ route: ROUTE_NAME, action: "unauthenticated" });
-    return jsonError(401, "Not authenticated");
-  }
-
-  const authed = supabase;
-  const admin = getServiceSupabase();
-  let entityId: string | null = null;
-  try {
-    entityId = await resolveEntityIdForUser(userResult.user, admin);
-  } catch (error) {
-    logApiError({
-      route: ROUTE_NAME,
-      action: "resolve_entity",
-      userId: userResult.user.id,
-      error,
-    });
-    return jsonError(500, "Failed to resolve account");
-  }
-
-  if (!entityId) {
-    logApiWarning({ route: ROUTE_NAME, action: "entity_not_linked", userId: userResult.user.id });
-    return jsonError(403, "Account not linked");
-  }
+  const { supabase: authed, entityId, userId } = actor;
 
   const url = new URL(req.url);
   const requestedHouseId = url.searchParams.get("houseId");
@@ -156,7 +102,7 @@ export async function GET(req: NextRequest) {
     logApiError({
       route: ROUTE_NAME,
       action: "resolve_house",
-      userId: userResult.user.id,
+      userId,
       entityId,
       error,
     });
@@ -167,33 +113,18 @@ export async function GET(req: NextRequest) {
     logApiWarning({
       route: ROUTE_NAME,
       action: "no_accessible_house",
-      userId: userResult.user.id,
+      userId,
       entityId,
     });
     return jsonError(403, "No accessible house");
   }
 
-  let branchIds: string[] = [];
-  try {
-    branchIds = await resolveBranchesForHouse(authed, houseId);
-  } catch (error) {
-    logApiError({
-      route: ROUTE_NAME,
-      action: "resolve_branches",
-      userId: userResult.user.id,
-      entityId,
-      houseId,
-      error,
-    });
-    return jsonError(500, "Failed to resolve house departments");
-  }
-
-  const hrAccess = await resolveHrAccess(authed, houseId);
+  const hrAccess = await requireHrAccessWithBranch(authed, { houseId });
   if (!hrAccess.allowed) {
     logApiWarning({
       route: ROUTE_NAME,
       action: "hr_access_denied",
-      userId: userResult.user.id,
+      userId,
       entityId,
       houseId,
       details: { allowedByPolicy: hrAccess.allowedByPolicy, allowedByRole: hrAccess.allowedByRole },
@@ -201,16 +132,22 @@ export async function GET(req: NextRequest) {
     return jsonError(403, "Not allowed");
   }
 
-  const employeesResult = await listEmployeesByHouse(authed, houseId, {}, { allowedBranchIds: branchIds, includeIdentity: true });
+  const employeesResult = await listEmployeesByHouse(authed, houseId, {}, {
+    readScope: {
+      isBranchLimited: hrAccess.isBranchLimited,
+      allowedBranchIds: hrAccess.allowedBranchIds,
+    },
+    includeIdentity: true,
+  });
   if (employeesResult.error) {
     logApiError({
       route: ROUTE_NAME,
       action: "list_employees",
-      userId: userResult.user.id,
+      userId,
       entityId,
       houseId,
       error: employeesResult.error,
-      details: { branchCount: branchIds.length },
+      details: { branchCount: hrAccess.allowedBranchIds.length, branchLimited: hrAccess.isBranchLimited },
     });
     return jsonError(500, "Failed to load employees", { message: employeesResult.error });
   }
@@ -219,53 +156,17 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
-  const guard = await requireAnyFeatureAccessApi([
-    AppFeature.PAYROLL,
-    AppFeature.TEAM,
-    AppFeature.DTR_BULK,
-  ]);
-  if (guard) {
-    return guard;
+  const actor = await resolveHrRouteActorContext({
+    routeName: ROUTE_NAME,
+    features: [AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK],
+    onUnauthenticated: () => jsonError(401, "Not authenticated"),
+    onEntityNotLinked: () => jsonError(403, "Account not linked"),
+  });
+  if (actor instanceof NextResponse) {
+    return actor;
   }
 
-  let supabase: SupabaseClient<Database>;
-  try {
-    supabase = await createServerSupabaseClient();
-  } catch (error) {
-    logApiError({ route: ROUTE_NAME, action: "init_supabase_client", error });
-    return jsonError(503, "Supabase not configured");
-  }
-
-  const { data: userResult, error: userError } = await supabase.auth.getUser();
-  if (userError) {
-    logApiError({ route: ROUTE_NAME, action: "get_user", error: userError });
-    return jsonError(500, "Failed to load user", { code: userError.code });
-  }
-
-  if (!userResult.user) {
-    logApiWarning({ route: ROUTE_NAME, action: "unauthenticated" });
-    return jsonError(401, "Not authenticated");
-  }
-
-  const authed = supabase;
-  const admin = getServiceSupabase();
-  let entityId: string | null = null;
-  try {
-    entityId = await resolveEntityIdForUser(userResult.user, admin);
-  } catch (error) {
-    logApiError({
-      route: ROUTE_NAME,
-      action: "resolve_entity",
-      userId: userResult.user.id,
-      error,
-    });
-    return jsonError(500, "Failed to resolve account");
-  }
-
-  if (!entityId) {
-    logApiWarning({ route: ROUTE_NAME, action: "entity_not_linked", userId: userResult.user.id });
-    return jsonError(403, "Account not linked");
-  }
+  const { supabase: authed, entityId, userId } = actor;
 
   let body: unknown;
   try {
@@ -325,7 +226,7 @@ export async function POST(req: NextRequest) {
     logApiError({
       route: ROUTE_NAME,
       action: "resolve_house",
-      userId: userResult.user.id,
+      userId,
       entityId,
       error,
     });
@@ -336,33 +237,21 @@ export async function POST(req: NextRequest) {
     logApiWarning({
       route: ROUTE_NAME,
       action: "no_accessible_house",
-      userId: userResult.user.id,
+      userId,
       entityId,
     });
     return jsonError(403, "No accessible house");
   }
 
-  let branchIds: string[] = [];
-  try {
-    branchIds = await resolveBranchesForHouse(authed, houseId);
-  } catch (error) {
-    logApiError({
-      route: ROUTE_NAME,
-      action: "resolve_branches",
-      userId: userResult.user.id,
-      entityId,
-      houseId,
-      error,
-    });
-    return jsonError(500, "Failed to resolve house departments");
-  }
-
-  const hrAccess = await resolveHrAccess(authed, houseId);
+  const hrAccess = await requireHrAccessWithBranch(authed, {
+    houseId,
+    requiredLevel: "write",
+  });
   if (!hrAccess.allowed) {
     logApiWarning({
       route: ROUTE_NAME,
       action: "hr_access_denied",
-      userId: userResult.user.id,
+      userId,
       entityId,
       houseId,
       details: { allowedByPolicy: hrAccess.allowedByPolicy, allowedByRole: hrAccess.allowedByRole },
@@ -370,9 +259,34 @@ export async function POST(req: NextRequest) {
     return jsonError(403, "Not allowed");
   }
 
-  const branchId = parsed.data.branch_id ?? null;
-  if (branchId && !branchIds.includes(branchId)) {
-    return jsonError(400, "Select a branch within this house", { fieldErrors: { branch_id: ["Invalid branch"] } });
+  const branchId = parsed.data.branch_id;
+  let validatedBranchId: string;
+  try {
+    validatedBranchId = await resolveEmployeeCreateBranchForHouseWithAccess(authed, hrAccess, houseId, branchId);
+  } catch (error) {
+    if (error instanceof EmployeeAccessError) {
+      return jsonError(403, "Not allowed");
+    }
+    if (error instanceof EmployeeBranchRequiredError) {
+      return jsonError(400, "Fix the highlighted fields and try again.", {
+        fieldErrors: { branch_id: ["Branch is required"] },
+      });
+    }
+    if (error instanceof EmployeeBranchNotFoundError) {
+      return jsonError(404, "Branch not found", { fieldErrors: { branch_id: ["Branch not found"] } });
+    }
+    if (error instanceof EmployeeCreateError) {
+      return jsonError(500, "Failed to create employee", { message: error.message });
+    }
+    logApiError({
+      route: ROUTE_NAME,
+      action: "create_employee_branch_gate",
+      userId,
+      entityId,
+      houseId,
+      error,
+    });
+    return jsonError(500, "Unexpected error while creating employee");
   }
 
   const normalizedEmail = normalizeEmployeeEmail(parsed.data.email ?? null);
@@ -402,7 +316,7 @@ export async function POST(req: NextRequest) {
       logApiError({
         route: ROUTE_NAME,
         action: "link_entity",
-        userId: userResult.user.id,
+        userId,
         entityId,
         houseId,
         error: message,
@@ -424,7 +338,7 @@ export async function POST(req: NextRequest) {
   try {
     const created = await createEmployeeForHouseWithAccess(authed, hrAccess, houseId, {
       full_name: parsed.data.full_name,
-      branch_id: branchId,
+      branch_id: validatedBranchId,
       rate_per_day: parsed.data.rate_per_day,
       status: parsed.data.status ?? "active",
       entity_id: resolvedEntityId,
@@ -433,6 +347,17 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ employee: created }, { status: 201 });
   } catch (error) {
+    if (error instanceof EmployeeAccessError) {
+      return jsonError(403, "Not allowed");
+    }
+    if (error instanceof EmployeeBranchRequiredError) {
+      return jsonError(400, "Fix the highlighted fields and try again.", {
+        fieldErrors: { branch_id: ["Branch is required"] },
+      });
+    }
+    if (error instanceof EmployeeBranchNotFoundError) {
+      return jsonError(404, "Branch not found", { fieldErrors: { branch_id: ["Branch not found"] } });
+    }
     if (error instanceof EmployeeUpdateError) {
       return jsonError(400, "Select a branch within this house", { fieldErrors: { branch_id: ["Invalid branch"] } });
     }
@@ -451,7 +376,7 @@ export async function POST(req: NextRequest) {
     logApiError({
       route: ROUTE_NAME,
       action: "create_employee",
-      userId: userResult.user.id,
+      userId,
       entityId,
       houseId,
       error,

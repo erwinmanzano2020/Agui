@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 
 import { sendMagicLink, supabase, syncSession } from "@/lib/auth/client";
+import { sanitizeNextPath } from "@/lib/auth/magic-link";
 
 export default function WelcomePage() {
   const searchParams = useSearchParams();
@@ -91,15 +92,23 @@ export default function WelcomePage() {
     setStatus("sending");
     setError(null);
 
-    const nextPath = searchParams.get("next") || "/me";
-    const { ok, error: sendError } = await sendMagicLink(email.trim(), nextPath);
+    const nextPath = sanitizeNextPath(searchParams.get("next"));
+    const { ok, error: sendError, kind, diagnostic } = await sendMagicLink(email.trim(), nextPath);
     if (ok) {
       setStatus("sent");
       return;
     }
 
     setStatus("error");
-    setError(sendError ?? "Failed to send magic link.");
+    const fallback = sendError ?? "Failed to send magic link.";
+    const userMessage =
+      kind === "network"
+        ? "Network error while contacting sign-in service. Please retry."
+        : kind === "config"
+          ? "Sign-in is unavailable due to configuration. Please contact support."
+          : fallback;
+    setError(userMessage);
+    console.warn("Magic link request failed", { kind: kind ?? "unknown", diagnostic: diagnostic ?? "none" });
   }
 
   return (

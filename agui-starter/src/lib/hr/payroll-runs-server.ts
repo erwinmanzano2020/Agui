@@ -62,6 +62,14 @@ export type PayrollRunDetails = {
   items: PayrollRunItemSnapshot[];
 };
 
+export type PayrollRunWriteTarget = {
+  id: string;
+  houseId: string;
+  periodStart: string;
+  periodEnd: string;
+  status: PayrollRunStatus;
+};
+
 export class PayrollRunAccessError extends Error {
   constructor(message: string) {
     super(message);
@@ -348,11 +356,38 @@ export type PayrollRunCreateInput = {
   createdBy?: string | null;
 };
 
-export async function finalizePayrollRunForHouse(
+function mapWriteTarget(row: HrPayrollRunRow): PayrollRunWriteTarget {
+  return {
+    id: row.id,
+    houseId: row.house_id,
+    periodStart: row.period_start,
+    periodEnd: row.period_end,
+    status: row.status,
+  } satisfies PayrollRunWriteTarget;
+}
+
+export async function resolvePayrollRunWriteTargetForHouseWithAccess(
   supabase: SupabaseClient<Database>,
   houseId: string,
   runId: string,
   options: { access?: HrAccessDecision } = {},
+): Promise<PayrollRunWriteTarget | null> {
+  const access = await resolveAccess(supabase, houseId, options.access);
+  if (!access.allowed) {
+    throw new PayrollRunAccessError("Not allowed to mutate payroll runs for this house.");
+  }
+
+  const run = await loadPayrollRun(supabase, runId);
+  if (!run) return null;
+  if (run.house_id !== houseId) return null;
+  return mapWriteTarget(run);
+}
+
+export async function finalizePayrollRunForHouse(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  runId: string,
+  options: { access?: HrAccessDecision; resolvedTarget?: PayrollRunWriteTarget | null } = {},
 ): Promise<{ run: PayrollRunListItem; itemsCount: number }> {
   const access = await resolveAccess(supabase, houseId, options.access);
   if (!access.allowed) {
@@ -360,8 +395,11 @@ export async function finalizePayrollRunForHouse(
   }
 
   const run = await loadPayrollRun(supabase, runId);
-
   if (!run || run.house_id !== houseId) {
+    throw new PayrollRunNotFoundError("Payroll run not found.");
+  }
+
+  if (options.resolvedTarget && (options.resolvedTarget.id !== runId || options.resolvedTarget.houseId !== houseId)) {
     throw new PayrollRunNotFoundError("Payroll run not found.");
   }
 
@@ -591,7 +629,7 @@ export async function postPayrollRunForHouse(
 export async function markPayrollRunPaidForHouse(
   supabase: SupabaseClient<Database>,
   input: { houseId: string; runId: string; paymentMethod?: string | null; paymentNote?: string | null },
-  options: { access?: HrAccessDecision } = {},
+  options: { access?: HrAccessDecision; resolvedTarget?: PayrollRunWriteTarget | null } = {},
 ): Promise<PayrollRunListItem> {
   const access = await resolveAccess(supabase, input.houseId, options.access);
   if (!access.allowed) {
@@ -600,6 +638,10 @@ export async function markPayrollRunPaidForHouse(
 
   const run = await loadPayrollRun(supabase, input.runId);
   if (!run || run.house_id !== input.houseId) {
+    throw new PayrollRunNotFoundError("Payroll run not found.");
+  }
+
+  if (options.resolvedTarget && (options.resolvedTarget.id !== input.runId || options.resolvedTarget.houseId !== input.houseId)) {
     throw new PayrollRunNotFoundError("Payroll run not found.");
   }
 
@@ -646,7 +688,7 @@ export async function markPayrollRunPaidForHouse(
 export async function createAdjustmentRunForHouse(
   supabase: SupabaseClient<Database>,
   input: { houseId: string; adjustsRunId: string; note?: string | null },
-  options: { access?: HrAccessDecision } = {},
+  options: { access?: HrAccessDecision; resolvedTarget?: PayrollRunWriteTarget | null } = {},
 ): Promise<{ runId: string }> {
   void input.note;
   const access = await resolveAccess(supabase, input.houseId, options.access);
@@ -656,6 +698,13 @@ export async function createAdjustmentRunForHouse(
 
   const originalRun = await loadPayrollRun(supabase, input.adjustsRunId);
   if (!originalRun || originalRun.house_id !== input.houseId) {
+    throw new PayrollRunNotFoundError("Payroll run not found.");
+  }
+
+  if (
+    options.resolvedTarget &&
+    (options.resolvedTarget.id !== input.adjustsRunId || options.resolvedTarget.houseId !== input.houseId)
+  ) {
     throw new PayrollRunNotFoundError("Payroll run not found.");
   }
 

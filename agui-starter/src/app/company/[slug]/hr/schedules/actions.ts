@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { requireHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { OvertimePolicyError, upsertOvertimePolicy } from "@/lib/hr/overtime-policy-server";
 import { createBranchScheduleAssignment, ScheduleAssignmentError } from "@/lib/hr/schedules-server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -81,7 +81,10 @@ export async function createScheduleTemplateAction(formData: FormData) {
   const supabase = await createServerSupabaseClient();
   if (!supabase) return;
 
-  const access = await requireHrAccess(supabase, parsed.data.houseId);
+  const access = await requireHrAccessWithBranch(supabase, {
+    houseId: parsed.data.houseId,
+    requiredLevel: "write",
+  });
   if (!access.allowed) return;
 
   const { data: template, error: templateError } = await supabase
@@ -137,7 +140,10 @@ export async function addScheduleWindowAction(formData: FormData) {
   const supabase = await createServerSupabaseClient();
   if (!supabase) return;
 
-  const access = await requireHrAccess(supabase, parsed.data.houseId);
+  const access = await requireHrAccessWithBranch(supabase, {
+    houseId: parsed.data.houseId,
+    requiredLevel: "write",
+  });
   if (!access.allowed) return;
 
   const { error } = await supabase.from("hr_schedule_windows").insert({

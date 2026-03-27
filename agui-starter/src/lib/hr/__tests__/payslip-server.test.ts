@@ -136,9 +136,13 @@ type MockData = {
 };
 
 class SupabaseMock {
+  readonly fromCounts = new Map<string, number>();
+
   constructor(private data: MockData) {}
 
   from(table: string) {
+    const current = this.fromCounts.get(table) ?? 0;
+    this.fromCounts.set(table, current + 1);
     if (table === "hr_payroll_runs") return new QueryMock(this.data.runs);
     if (table === "hr_payroll_run_items") return new QueryMock(this.data.items);
     if (table === "dtr_segments") return new QueryMock(this.data.segments);
@@ -805,6 +809,46 @@ describe("payslip preview", () => {
     );
 
     assert.equal(payslip.diagnostics?.daysWorked, 0);
+  });
+
+  it("reuses schedule lookups and batches deductions for run computations", async () => {
+    const supabase = new SupabaseMock(
+      buildBaseData({
+        runs: [
+          {
+            id: "run-1",
+            house_id: "house-1",
+            period_start: "2024-01-01",
+            period_end: "2024-01-02",
+            status: "draft",
+            created_by: null,
+            created_at: "2024-01-01T00:00:00Z",
+            finalized_at: null,
+            finalized_by: null,
+            finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
+          },
+        ],
+      }),
+    );
+
+    await computePayslipForPayrollRunEmployee(
+      supabase as never,
+      { houseId: "house-1", runId: "run-1", employeeId: "emp-1" },
+      { access: baseAccess },
+    );
+
+    assert.equal(supabase.fromCounts.get("hr_branch_schedule_assignments"), 1);
+    assert.equal(supabase.fromCounts.get("hr_schedule_windows"), 1);
+    assert.equal(supabase.fromCounts.get("hr_payroll_run_deductions"), 1);
   });
 
   it("does not double-deduct undertime across varying schedules", async () => {

@@ -1,50 +1,70 @@
-## Checklist
-- [ ] Uses authenticated Supabase client for UI-facing queries
-- [ ] service_role used only for admin-only steps (entity resolution/backfill)
-- [ ] API returns non-200 on Supabase error (no silent 200 + error)
-- [ ] Verified RLS policy behavior (SELECT/INSERT/UPDATE) for affected tables
-- [ ] Verified grants only after confirming client + RLS correctness
-- [ ] Added/updated tests for tenancy + access control
-- [ ] Implementation Digest included (files changed, helpers, tenancy enforcement, UI behavior, tests, non-changes, follow-ups)
-- [ ] Data Access Plan included (client split, tables touched, tenancy scoping, RLS expectation)
-- [ ] Updated db-contract.md if DB/RLS/tenancy changed
-- [ ] Updated access-control.md if roles/permissions/guards changed
-- [ ] Added Devlog entry for user-facing module changes
-- [ ] Runbook updated if debugging procedure changed
-
 ## Summary
-- What changed and why
 
-## Data Access Plan
-- Authenticated client usage:
-- service_role usage:
-- Tables touched:
-- Tenancy scoping:
-- RLS expectation:
+<!-- What does this PR do? -->
 
-## Implementation Digest
-- Files changed:
-- Helpers added/updated:
-- Tenancy enforcement (house_id and scope):
-- UI behavior:
-- Tests added/updated:
-- Notable non-changes:
-- Follow-ups:
+---
 
-## Devlog
-- Devlog entry path:
+## Type of Change
 
-## Contracts
-- Contracts touched (db-contract/access-control/runbook):
+- [ ] Feature
+- [ ] Bug fix
+- [ ] Refactor
+- [ ] Documentation
+- [ ] Migration / Schema
+- [ ] Authorization / Access logic
 
-## Docs & Contracts Sync (Required when applicable)
-- [ ] DB contract updated (schema, RLS, tenancy rules)
-- [ ] Access-control contract updated (roles, permissions, scope)
-- [ ] Devlog entry added (bugs, incidents, non-trivial behavior changes)
-- [ ] Relevant runbook referenced/updated (debugging or infra work)
+---
+
+## Codex Review Checklist (Required for non-trivial changes)
+
+For any PR affecting:
+- routes
+- authorization
+- storage
+- schema
+- access layer
+- multi-tenant logic
+
+Confirm:
+
+- [ ] Security / Authorization review run
+- [ ] Multi-tenant / Scope review run
+- [ ] Robustness / Edge-case review run
+- [ ] Architecture / Layering review run
+
+Reference:
+- docs/engineering/agui-codex-review-kit.md
+
+---
+
+## Engineering Discipline (when applicable)
+
+- [ ] Data access pattern is explicit (auth client vs service role)
+- [ ] Tenancy is enforced correctly (house_id / scope)
+- [ ] RLS behavior verified for affected tables
+- [ ] No silent success on backend errors
+- [ ] Relevant docs updated (if applicable)
+
+---
+
+## Risk Assessment
+
+- Does this affect authorization?
+- Does this affect tenant isolation?
+- Does this change behavior?
+
+<!-- Explain briefly -->
+
+---
 
 ## Testing
-- [ ] `npm run lint`
-- [ ] `npm run typecheck`
-- [ ] `npm run build`
-- [ ] `npm run test`
+
+- [ ] Typecheck passed
+- [ ] Lint passed
+- [ ] Tests passed
+
+---
+
+## Notes
+
+<!-- Anything reviewers should know -->

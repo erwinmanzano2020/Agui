@@ -3,6 +3,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database, DtrSegmentRow, EmployeeRow } from "@/lib/db.types";
+import type { HrBranchAccessDecision } from "@/lib/hr/access";
 import { assertManilaReasonableSegment, normalizeManilaTimestamp } from "@/lib/hr/timezone";
 
 const DTR_SEGMENT_COLUMNS =
@@ -10,12 +11,27 @@ const DTR_SEGMENT_COLUMNS =
 
 type DateRange = { start: string; end: string };
 type MinimalEmployee = Pick<EmployeeRow, "id" | "house_id" | "branch_id">;
+type DtrSegmentWriteTarget = {
+  id: string;
+  house_id: string;
+  employee_id: string;
+  employee_branch_id: string | null;
+};
+type DtrEmployeeWriteTarget = Pick<MinimalEmployee, "id" | "house_id" | "branch_id">;
 
 export class DtrSegmentAccessError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "DtrSegmentAccessError";
   }
+}
+
+function getAllowedBranchIdSet(access: HrBranchAccessDecision): Set<string> {
+  return new Set(
+    (access.allowedBranchIds ?? [])
+      .map((branchId) => branchId?.trim().toLowerCase())
+      .filter((branchId): branchId is string => Boolean(branchId)),
+  );
 }
 
 function isPermissionDenied(error: unknown): boolean {
@@ -39,6 +55,7 @@ function normalizeSegments(rows: DtrSegmentRow[] | null | undefined): DtrSegment
 async function loadEmployeeForAccess(
   supabase: SupabaseClient<Database>,
   employeeId: string,
+  options: { suppressPermissionDenied?: boolean } = {},
 ): Promise<MinimalEmployee | null> {
   const { data, error } = await supabase
     .from("employees")
@@ -47,7 +64,10 @@ async function loadEmployeeForAccess(
     .maybeSingle<MinimalEmployee>();
 
   if (error) {
-    if (isPermissionDenied(error)) return null;
+    if (isPermissionDenied(error)) {
+      if (options.suppressPermissionDenied ?? true) return null;
+      throw new DtrSegmentAccessError("Not allowed to update this segment");
+    }
     throw new Error(error.message);
   }
 
@@ -55,6 +75,108 @@ async function loadEmployeeForAccess(
   if (!data.house_id) return null;
 
   return data;
+}
+
+async function loadDtrSegmentWriteTarget(
+  supabase: SupabaseClient<Database>,
+  segmentId: string,
+  options: { suppressPermissionDenied?: boolean } = {},
+): Promise<Pick<DtrSegmentWriteTarget, "id" | "house_id" | "employee_id"> | null> {
+  const { data, error } = await supabase
+    .from("dtr_segments")
+    .select("id, house_id, employee_id")
+    .eq("id", segmentId)
+    .maybeSingle<Pick<DtrSegmentWriteTarget, "id" | "house_id" | "employee_id">>();
+
+  if (error) {
+    if (isPermissionDenied(error)) {
+      if (options.suppressPermissionDenied ?? true) return null;
+      throw new DtrSegmentAccessError("Not allowed to update this segment");
+    }
+    throw new Error(error.message);
+  }
+
+  return data ?? null;
+}
+
+export async function resolveDtrSegmentWriteTargetForHouseWithAccess(
+  supabase: SupabaseClient<Database>,
+  access: HrBranchAccessDecision,
+  houseId: string,
+  segmentId: string,
+): Promise<DtrSegmentWriteTarget | null> {
+  if (!access.allowed || !access.hasWorkspaceAccess) {
+    throw new DtrSegmentAccessError("Not allowed to update this segment");
+  }
+
+  const segment = await loadDtrSegmentWriteTarget(supabase, segmentId, {
+    suppressPermissionDenied: false,
+  });
+  if (!segment) {
+    return null;
+  }
+
+  if (segment.house_id !== houseId) {
+    return null;
+  }
+
+  const employee = await loadEmployeeForAccess(supabase, segment.employee_id, {
+    suppressPermissionDenied: false,
+  });
+  if (!employee || employee.house_id !== houseId) {
+    return null;
+  }
+
+  if (access.isBranchLimited) {
+    const employeeBranchId = employee.branch_id?.trim().toLowerCase() ?? null;
+    if (!employeeBranchId) {
+      throw new DtrSegmentAccessError("Not allowed to update this segment");
+    }
+    if (!getAllowedBranchIdSet(access).has(employeeBranchId)) {
+      throw new DtrSegmentAccessError("Not allowed to update this segment");
+    }
+  }
+
+  return {
+    id: segment.id,
+    house_id: segment.house_id,
+    employee_id: segment.employee_id,
+    employee_branch_id: employee.branch_id ?? null,
+  };
+}
+
+export async function resolveDtrEmployeeWriteTargetForHouseWithAccess(
+  supabase: SupabaseClient<Database>,
+  access: HrBranchAccessDecision,
+  houseId: string,
+  employeeId: string,
+): Promise<DtrEmployeeWriteTarget | null> {
+  if (!access.allowed || !access.hasWorkspaceAccess) {
+    throw new DtrSegmentAccessError("Not allowed to update this segment");
+  }
+
+  const employee = await loadEmployeeForAccess(supabase, employeeId, {
+    suppressPermissionDenied: false,
+  });
+  if (!employee) {
+    return null;
+  }
+
+  if (employee.house_id !== houseId) {
+    return null;
+  }
+
+  if (access.isBranchLimited) {
+    const employeeBranchId = employee.branch_id?.trim().toLowerCase() ?? null;
+    if (!employeeBranchId) {
+      throw new DtrSegmentAccessError("Not allowed to update this segment");
+    }
+    if (!getAllowedBranchIdSet(access).has(employeeBranchId)) {
+      throw new DtrSegmentAccessError("Not allowed to update this segment");
+    }
+  }
+
+  return employee;
 }
 
 export async function listDtrByHouseAndDate(
