@@ -992,7 +992,7 @@ export default function KioskClient({ slug }: { slug: string }) {
       setVerifiedDeviceId(null);
       clearOperatorMemory();
       setSetupOpen(true);
-      setSetupStep("verify");
+      setSetupStep("token");
       setVerifyError("Token changed. Re-verify connection.");
       setKioskMode("setup");
     }
@@ -1038,7 +1038,7 @@ export default function KioskClient({ slug }: { slug: string }) {
   function finishSetup() {
     if (!allowOfflineSetup && !verifiedDevice?.id) {
       setVerifyError("Verify token first or choose Continue offline.");
-      setSetupStep("verify");
+      setSetupStep("token");
       return;
     }
 
@@ -1199,36 +1199,38 @@ export default function KioskClient({ slug }: { slug: string }) {
                 onChange={(event) => setDraftToken(normalizeProvisioningTokenInput(event.target.value))}
                 placeholder="Paste or scan provisioning token"
               />
-              <div className="flex gap-2">
-                <button className="rounded border px-3 py-2" onClick={() => setSetupStep("welcome")}>Back</button>
-                <button className="rounded border px-3 py-2" disabled={!draftToken.trim()} onClick={() => setSetupStep("verify")}>Continue</button>
-              </div>
-            </div>
-          )}
-
-          {setupStep === "verify" && (
-            <div className="space-y-2">
-              <button className="rounded border px-3 py-2" onClick={async () => {
-                const ok = await verifyToken(draftToken.trim());
-                if (ok) setSetupStep("confirm");
-              }} disabled={!draftToken.trim()}>
-                Verify connection
-              </button>
-              {verifiedDevice ? <div className="rounded border border-green-500 bg-green-50 p-2">✅ {connectedLabel}</div> : null}
               {verifyError ? <div className="rounded border border-red-500 bg-red-50 p-2">❌ {verifyError}</div> : null}
               <div className="flex gap-2">
-                <button className="rounded border px-3 py-2" onClick={() => setSetupStep("token")}>Back</button>
-                <button className="rounded border px-3 py-2" onClick={() => { setAllowOfflineSetup(true); setSetupStep("confirm"); }}>Continue offline</button>
+                <button className="rounded border px-3 py-2" onClick={() => setSetupStep("welcome")}>Back</button>
+                <button
+                  className="rounded border px-3 py-2"
+                  disabled={!draftToken.trim()}
+                  onClick={async () => {
+                    const ok = await verifyToken(draftToken.trim());
+                    if (ok) setSetupStep("confirm");
+                  }}
+                >
+                  Verify and continue
+                </button>
+                <button className="rounded border px-3 py-2" onClick={() => { setAllowOfflineSetup(true); setSetupStep("confirm"); }}>
+                  Continue offline
+                </button>
               </div>
             </div>
           )}
 
           {setupStep === "confirm" && (
             <div className="space-y-2">
+              {verifiedDevice ? (
+                <div className="rounded border-2 border-green-600 bg-green-50 p-3 text-green-900">
+                  <p className="text-base font-semibold">✅ Verified connection</p>
+                  <p className="mt-1 text-sm">{connectedLabel}</p>
+                </div>
+              ) : null}
               <input className="w-full rounded border p-2" placeholder="Display name" value={draftDisplayName} onChange={(event) => setDraftDisplayName(event.target.value)} />
               <input className="w-full rounded border p-2" placeholder="PIN (optional)" type="password" value={draftPin} onChange={(event) => setDraftPin(event.target.value)} />
               <div className="flex gap-2">
-                <button className="rounded border px-3 py-2" onClick={() => setSetupStep("verify")}>Back</button>
+                <button className="rounded border px-3 py-2" onClick={() => setSetupStep("token")}>Back</button>
                 <button className="rounded border px-3 py-2" onClick={finishSetup}>Finish setup</button>
               </div>
             </div>
