@@ -79,6 +79,7 @@ export function EmployeeIdsClient({
         <thead>
           <tr className="border-b">
             <th className="py-2">Select</th>
+            <th>Photo</th>
             <th>Name</th>
             <th>Code</th>
             <th>Position</th>
@@ -91,6 +92,13 @@ export function EmployeeIdsClient({
             <tr key={employee.id} className="border-b">
               <td>
                 <input type="checkbox" checked={Boolean(selected[employee.id])} onChange={() => toggle(employee.id)} />
+              </td>
+              <td className="py-2">
+                {employee.photoUrl ? (
+                  <img src={employee.photoUrl} alt={`${employee.fullName ?? employee.code} photo`} className="h-10 w-8 rounded object-cover" />
+                ) : (
+                  <span className="text-xs text-muted-foreground">No photo</span>
+                )}
               </td>
               <td>{employee.fullName ?? employee.code}</td>
               <td>{employee.code}</td>

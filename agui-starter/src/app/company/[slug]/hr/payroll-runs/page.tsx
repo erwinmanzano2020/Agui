@@ -38,7 +38,7 @@ export default async function PayrollRunsPage({ params }: Props) {
         <div className="space-y-2">
           <h2 className="text-xl font-semibold text-foreground">Payroll Runs</h2>
           <p className="text-sm text-muted-foreground">
-            Snapshot-only draft runs. This does not calculate money or generate payslips.
+            Draft runs preserve snapshot minutes and now support computed payslip preview + deductions from run detail and the Payslips tab.
           </p>
         </div>
         <PayrollRunCreateForm
