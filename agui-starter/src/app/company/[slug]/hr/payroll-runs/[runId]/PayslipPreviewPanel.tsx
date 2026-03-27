@@ -78,6 +78,7 @@ export default function PayslipPreviewPanel({
 }) {
   const [rows, setRows] = useState<PayslipPreviewRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [loadedOnce, setLoadedOnce] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const [employeeId, setEmployeeId] = useState(employees[0]?.id ?? "");
@@ -100,10 +101,16 @@ export default function PayslipPreviewPanel({
         throw new Error(payload?.error ?? "Failed to load payslip previews.");
       }
       setRows((payload ?? []) as PayslipPreviewRow[]);
+      setLoadedOnce(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load payslip previews.");
+      if (err instanceof TypeError && err.message.toLowerCase().includes("failed to fetch")) {
+        setError("Unable to reach the payslip service right now. Please retry.");
+      } else {
+        setError(err instanceof Error ? err.message : "Failed to load payslip previews.");
+      }
       setRows([]);
     } finally {
+      setLoadedOnce(true);
       setLoading(false);
     }
   }, [runId]);
@@ -183,6 +190,12 @@ export default function PayslipPreviewPanel({
       {error ? (
         <div className="rounded-lg border border-dashed border-border bg-white/60 p-4 text-sm text-muted-foreground">
           {error}
+        </div>
+      ) : null}
+
+      {loading && !loadedOnce ? (
+        <div className="rounded-lg border border-dashed border-border bg-white/60 p-4 text-sm text-muted-foreground">
+          Loading payslip previews…
         </div>
       ) : null}
 
@@ -286,7 +299,7 @@ export default function PayslipPreviewPanel({
                 </td>
               </tr>
             ))}
-            {!loading && rows.length === 0 ? (
+            {!loading && loadedOnce && rows.length === 0 ? (
               <tr>
                 <td
                   className="px-6 py-6 text-center text-sm text-muted-foreground"
