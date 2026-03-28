@@ -17,7 +17,7 @@ export default function FinalizePayrollRunButton({ runId, houseId }: Props) {
 
   const handleFinalize = () => {
     setError(null);
-    const confirmed = window.confirm("This locks the snapshot and prevents edits.");
+    const confirmed = window.confirm("This locks snapshot rows. Payslip preview stays available; deductions lock only after posting.");
     if (!confirmed) return;
 
     startTransition(async () => {
@@ -56,7 +56,9 @@ export default function FinalizePayrollRunButton({ runId, houseId }: Props) {
       <Button type="button" size="sm" onClick={handleFinalize} disabled={isPending}>
         {isPending ? "Finalizing…" : "Finalize run"}
       </Button>
-      <p className="text-xs text-muted-foreground">This locks the snapshot and prevents edits.</p>
+      <p className="text-xs text-muted-foreground">
+        Locks snapshot rows. Deductions can still be updated until posting.
+      </p>
       {error ? <p className="text-xs text-red-600">{error}</p> : null}
     </div>
   );

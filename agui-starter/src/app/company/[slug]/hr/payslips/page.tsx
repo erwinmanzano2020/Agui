@@ -35,7 +35,10 @@ export default async function HrPayslipsPage({ params, searchParams }: Props) {
         <div className="space-y-2">
           <h2 className="text-xl font-semibold text-foreground">Payslips</h2>
           <p className="text-sm text-muted-foreground">
-            Review computed payslips by payroll run, using the same computation and deductions used in payroll run detail.
+            Review computed payslips by payroll run using the same snapshot-based computation and deductions shown in payroll run detail.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Government deductions and payout integrations are intentionally deferred in the current HR phase.
           </p>
         </div>
         {runs.length > 0 ? (

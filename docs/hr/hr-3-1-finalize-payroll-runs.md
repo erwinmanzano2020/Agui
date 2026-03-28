@@ -1,7 +1,7 @@
 # HR-3.1 Finalize Payroll Runs (Immutable Snapshot)
 
 ## Goal
-Add a finalize workflow that locks payroll run headers and items. Finalization **does not** compute any money, totals, or deductions.
+Add a finalize workflow that locks payroll run headers and items. Finalization itself is a lock transition and **does not** introduce a new money computation step; payslip preview computation and manual deductions are handled in HR-3.2 surfaces.
 
 ## Scope
 - Draft runs can be finalized exactly once.
@@ -19,10 +19,10 @@ Add a finalize workflow that locks payroll run headers and items. Finalization *
 
 ## UI
 - Payroll run detail page shows status badge and finalization metadata.
-- Draft runs show a “Finalize run” CTA with confirmation copy: “This locks the snapshot and prevents edits.”
+- Draft runs show a “Finalize run” CTA with confirmation copy that locks snapshot rows while keeping payslip preview available.
 
 ## Boundary (Explicit)
-**Finalization locks the snapshot only; no pay computation yet.**
+**Finalization locks snapshot rows only; computed payslip preview remains read-only output from HR-3.2 and deduction edits stay within lifecycle lock rules (locked after posting).**
 
 ## References
 - `docs/hr/hr-3-0-payroll-runs.md`
