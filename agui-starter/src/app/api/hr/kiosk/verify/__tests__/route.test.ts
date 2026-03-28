@@ -1,13 +1,20 @@
 import assert from "node:assert/strict";
-import { afterEach, describe, it, mock } from "node:test";
+import { afterEach, beforeEach, describe, it, mock } from "node:test";
 
+import { hashKioskToken } from "@/lib/hr/kiosk/device-auth";
 import * as service from "@/lib/supabase/service";
 import { POST } from "../route";
 
 afterEach(() => mock.restoreAll());
 
 describe("POST /api/hr/kiosk/verify", () => {
+  beforeEach(() => {
+    process.env.HR_KIOSK_DEVICE_TOKEN_PEPPER = "pepper";
+  });
+
   it("rejects token when slug does not match token house", async () => {
+    const tokenHash = hashKioskToken("token-a");
+
     mock.method(service, "createServiceSupabaseClient", () => {
       return {
         from(table: string) {
@@ -16,7 +23,10 @@ describe("POST /api/hr/kiosk/verify", () => {
               select() {
                 return this;
               },
-              eq() {
+              eq(column: string, value: string) {
+                if (column === "token_hash") {
+                  assert.equal(value, tokenHash);
+                }
                 return this;
               },
               maybeSingle: async () => ({
@@ -37,8 +47,7 @@ describe("POST /api/hr/kiosk/verify", () => {
               select() {
                 return this;
               },
-              eq(column: string) {
-                if (column === "id") return this;
+              eq() {
                 return this;
               },
               maybeSingle: async () => ({ data: { slug: "house-a" }, error: null }),
@@ -74,5 +83,79 @@ describe("POST /api/hr/kiosk/verify", () => {
     assert.equal(response.status, 403);
     const payload = await response.json();
     assert.equal(payload.reason, "slug_mismatch");
+  });
+
+  it("accepts token when slug matches kiosk house", async () => {
+    const tokenHash = hashKioskToken("token-a");
+
+    mock.method(service, "createServiceSupabaseClient", () => {
+      return {
+        from(table: string) {
+          if (table === "hr_kiosk_devices") {
+            return {
+              select() {
+                return this;
+              },
+              eq(column: string, value: string) {
+                if (column === "token_hash") {
+                  assert.equal(value, tokenHash);
+                }
+                return this;
+              },
+              maybeSingle: async () => ({
+                data: {
+                  id: "device-1",
+                  house_id: "house-a",
+                  branch_id: "branch-a",
+                  name: "Front",
+                  is_active: true,
+                  disabled_at: null,
+                },
+                error: null,
+              }),
+            };
+          }
+          if (table === "houses") {
+            return {
+              select() {
+                return this;
+              },
+              eq() {
+                return this;
+              },
+              maybeSingle: async () => ({ data: { slug: "house-a" }, error: null }),
+            };
+          }
+          if (table === "branches") {
+            return {
+              select() {
+                return this;
+              },
+              eq() {
+                return this;
+              },
+              maybeSingle: async () => ({ data: { name: "Main" }, error: null }),
+            };
+          }
+          throw new Error(`unexpected table ${table}`);
+        },
+      } as never;
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/hr/kiosk/verify", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer token-a",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ slug: "house-a" }),
+      }),
+    );
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.ok, true);
+    assert.equal(payload.house_id, "house-a");
   });
 });
