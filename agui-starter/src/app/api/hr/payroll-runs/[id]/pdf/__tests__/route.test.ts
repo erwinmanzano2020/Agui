@@ -276,8 +276,14 @@ describe("GET /api/hr/payroll-runs/[id]/pdf", () => {
   });
 
   it("denies access when HR scope is missing", async () => {
+    let computeCalls = 0;
     const accessModule = await import("@/lib/hr/access");
     mock.method(accessModule, "requireHrAccess", async () => ({ ...allowedAccess, allowed: false }));
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    mock.method(payslipServer, "computePayslipsForPayrollRun", async () => {
+      computeCalls += 1;
+      return [];
+    });
 
     const response = await GET(
       new Request(`http://localhost/api/hr/payroll-runs/${supabase.runId}/pdf`) as NextRequest,
@@ -285,6 +291,10 @@ describe("GET /api/hr/payroll-runs/[id]/pdf", () => {
     );
 
     assert.equal(response.status, 403);
+    assert.equal(computeCalls, 0);
+    const payload = await response.json();
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.runId, undefined);
   });
 
   it("returns a PDF payload for finalized/posted/paid runs", async () => {

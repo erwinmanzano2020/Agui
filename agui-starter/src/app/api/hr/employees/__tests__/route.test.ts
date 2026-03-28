@@ -682,4 +682,63 @@ describe("GET /api/hr/employees tenancy boundaries", () => {
       allowedBranchIds: ["branch-1"],
     });
   });
+
+  it("preserves deny-by-default empty branch scope for branch-limited actors", async () => {
+    mock.method(routeGuardOrder, "resolveHrRouteActorContext", async () => ({
+      supabase: {
+        from() {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            order() {
+              return this;
+            },
+            limit() {
+              return Promise.resolve({
+                data: [{ house_id: HOUSE_ID }],
+                error: null,
+              });
+            },
+            maybeSingle() {
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
+        },
+      } as never,
+      entityId: "entity-empty-branches",
+      userId: "user-empty-branches",
+    }));
+
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
+      allowed: true,
+      hasWorkspaceAccess: true,
+      allowedByRole: false,
+      allowedByPolicy: true,
+      roles: ["house_staff"],
+      normalizedRoles: ["staff"],
+      policyKeys: ["tiles.hr.read"],
+      entityId: "entity-empty-branches",
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: [],
+    }) as never);
+
+    let capturedReadScope: { isBranchLimited: boolean; allowedBranchIds: string[] } | null = null;
+    mock.method(employeesServer, "listEmployeesByHouse", async (_supabase: unknown, _houseId: string, _filters: unknown, options: unknown) => {
+      capturedReadScope = (options as { readScope: { isBranchLimited: boolean; allowedBranchIds: string[] } }).readScope;
+      return { employees: [], error: null };
+    });
+
+    const response = await GET(new Request("http://localhost/api/hr/employees") as never);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(capturedReadScope, {
+      isBranchLimited: true,
+      allowedBranchIds: [],
+    });
+  });
 });
