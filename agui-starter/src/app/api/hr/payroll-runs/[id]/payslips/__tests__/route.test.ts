@@ -121,6 +121,8 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
     assert.equal(response.status, 403);
     const payload = await response.json();
     assert.equal(payload.error, "Not allowed");
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.runId, undefined);
   });
 
   it("resolves house scope from payroll run when houseId is omitted", async () => {

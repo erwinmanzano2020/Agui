@@ -83,6 +83,31 @@ describe("POST /api/hr/kiosk/verify", () => {
     assert.equal(response.status, 403);
     const payload = await response.json();
     assert.equal(payload.reason, "slug_mismatch");
+    assert.equal(payload.house_id, undefined);
+    assert.equal(payload.device, undefined);
+  });
+
+  it("short-circuits on missing token before service lookup", async () => {
+    let createServiceCalls = 0;
+    mock.method(service, "createServiceSupabaseClient", () => {
+      createServiceCalls += 1;
+      return {} as never;
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/hr/kiosk/verify", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ slug: "house-a" }),
+      }),
+    );
+
+    assert.equal(response.status, 401);
+    assert.equal(createServiceCalls, 0);
+    const payload = await response.json();
+    assert.equal(payload.reason, "missing_token");
+    assert.equal(payload.house_id, undefined);
+    assert.equal(payload.device, undefined);
   });
 
   it("accepts token when slug matches kiosk house", async () => {
