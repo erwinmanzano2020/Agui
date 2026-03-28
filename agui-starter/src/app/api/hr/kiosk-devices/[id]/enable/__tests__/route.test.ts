@@ -54,5 +54,32 @@ describe("POST /api/hr/kiosk-devices/[id]/enable", () => {
     assert.equal(response.status, 403);
     const payload = await response.json();
     assert.equal(payload?.error, "Not allowed");
+    assert.equal(payload?.token, undefined);
+  });
+
+  it("returns 400 when houseId is missing", async () => {
+    let mutationCalls = 0;
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+      auth: {
+        getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+      },
+    }) as never);
+    mock.method(kioskAdmin, "setKioskDeviceEnabled", async () => {
+      mutationCalls += 1;
+    });
+
+    const response = await POST(
+      new Request(`http://localhost/api/hr/kiosk-devices/${DEVICE_ID}/enable`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      }) as never,
+      { params: Promise.resolve({ id: DEVICE_ID }) },
+    );
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Invalid payload");
+    assert.equal(mutationCalls, 0);
   });
 });

@@ -34,5 +34,35 @@ describe("POST /api/hr/kiosk-devices/[id]/rotate-token", () => {
     const payload = await response.json();
     assert.equal(payload?.error, "Not allowed");
     assert.equal(payload?.token, undefined);
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.deviceId, undefined);
+  });
+
+  it("returns 400 when houseId is missing and does not call rotation helper", async () => {
+    let rotateCalls = 0;
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+      auth: {
+        getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+      },
+    }) as never);
+    mock.method(kioskAdmin, "rotateKioskDeviceToken", async () => {
+      rotateCalls += 1;
+      return { plaintextToken: "token-123" };
+    });
+
+    const response = await POST(
+      new Request(`http://localhost/api/hr/kiosk-devices/${DEVICE_ID}/rotate-token`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      }) as never,
+      { params: Promise.resolve({ id: DEVICE_ID }) },
+    );
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Invalid payload");
+    assert.equal(payload?.token, undefined);
+    assert.equal(rotateCalls, 0);
   });
 });
