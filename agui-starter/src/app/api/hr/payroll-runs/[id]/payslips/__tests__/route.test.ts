@@ -122,4 +122,91 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
     const payload = await response.json();
     assert.equal(payload.error, "Not allowed");
   });
+
+  it("resolves house scope from payroll run when houseId is omitted", async () => {
+    let resolvedHouseId: string | null = null;
+    const runHouseId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+
+    const supabaseService = await import("@/lib/supabase-service");
+    mock.method(supabaseService, "getServiceSupabase", () => ({} as never));
+
+    const supabaseServer = await import("@/lib/supabase/server");
+    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
+      ({
+        auth: {
+          getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+        },
+        from(table: string) {
+          if (table !== "hr_payroll_runs") throw new Error(`unexpected table ${table}`);
+          return {
+            select() {
+              return this;
+            },
+            eq(column: string, value: string) {
+              assert.equal(column, "id");
+              assert.equal(value, RUN_ID);
+              return this;
+            },
+            maybeSingle: async () => ({ data: { id: RUN_ID, house_id: runHouseId }, error: null }),
+          };
+        },
+      }) as never,
+    );
+
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    mock.method(payslipServer, "computePayslipsForPayrollRun", async (_supabase: unknown, input: { houseId: string }) => {
+      resolvedHouseId = input.houseId;
+      return [];
+    });
+
+    const response = await GET(new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}/payslips`) as NextRequest, {
+      params: Promise.resolve({ id: RUN_ID }),
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(resolvedHouseId, runHouseId);
+  });
+
+  it("returns 404 without cross-house details when run cannot be resolved", async () => {
+    const supabaseService = await import("@/lib/supabase-service");
+    mock.method(supabaseService, "getServiceSupabase", () => ({} as never));
+
+    const supabaseServer = await import("@/lib/supabase/server");
+    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
+      ({
+        auth: {
+          getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+        },
+        from(table: string) {
+          if (table !== "hr_payroll_runs") throw new Error(`unexpected table ${table}`);
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            maybeSingle: async () => ({ data: null, error: null }),
+          };
+        },
+      }) as never,
+    );
+
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    let computeCalls = 0;
+    mock.method(payslipServer, "computePayslipsForPayrollRun", async () => {
+      computeCalls += 1;
+      return [];
+    });
+
+    const response = await GET(new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}/payslips`) as NextRequest, {
+      params: Promise.resolve({ id: RUN_ID }),
+    });
+
+    assert.equal(response.status, 404);
+    assert.equal(computeCalls, 0);
+    const payload = await response.json();
+    assert.equal(payload.error, "Payroll run not found");
+    assert.equal(payload?.details?.house_id, undefined);
+  });
 });
