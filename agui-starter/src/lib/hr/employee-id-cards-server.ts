@@ -4,6 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/db.types";
 import type { EmployeeIdCardRow } from "@/lib/hr/employee-id-cards";
+import { normalizeEmployeePhotoUrl } from "@/lib/hr/employee-id-cards";
 
 export async function listEmployeeIdCards(
   supabase: SupabaseClient<Database>,
@@ -48,7 +49,7 @@ export async function listEmployeeIdCards(
     houseName: house?.name ?? "",
     houseBrandName: house?.brand_name ?? null,
     houseLogoUrl: house?.logo_url ?? null,
-    photoUrl: employee.photo_url ?? null,
+    photoUrl: normalizeEmployeePhotoUrl(employee.photo_url),
   }));
 }
 
@@ -92,6 +93,6 @@ export async function getEmployeeIdCardById(
     houseName: house?.name ?? "",
     houseBrandName: house?.brand_name ?? null,
     houseLogoUrl: house?.logo_url ?? null,
-    photoUrl: employee.photo_url ?? null,
+    photoUrl: normalizeEmployeePhotoUrl(employee.photo_url),
   };
 }

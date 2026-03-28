@@ -8,6 +8,7 @@ type EmployeeRowLite = {
   code: string;
   full_name: string;
   position_title: string | null;
+  photo_url?: string | null;
   house_id: string;
   branch_id: string | null;
   status: "active" | "inactive";
@@ -81,7 +82,7 @@ class SupabaseMock {
   }
 }
 
-describe("employee-id-cards-server", () => {
+describe("employee-id-cards-server", { concurrency: false }, () => {
   it("uses employees.position_title when entity_id is null", async () => {
     const supabase = new SupabaseMock({
       employees: [
@@ -90,6 +91,7 @@ describe("employee-id-cards-server", () => {
           code: "EI-001",
           full_name: "Ada Lovelace",
           position_title: "Store Supervisor",
+          photo_url: " https://cdn.example.com/photo.jpg ",
           house_id: "house-1",
           branch_id: "branch-1",
           status: "active",
@@ -105,6 +107,7 @@ describe("employee-id-cards-server", () => {
     assert.equal(card?.position, "Store Supervisor");
     assert.equal(card?.fullName, "Ada Lovelace");
     assert.equal(card?.houseBrandName, "Demo Brand");
+    assert.equal(card?.photoUrl, "https://cdn.example.com/photo.jpg");
   });
 
   it("lists cards without querying employments", async () => {
@@ -115,6 +118,7 @@ describe("employee-id-cards-server", () => {
           code: "EI-001",
           full_name: "Ada Lovelace",
           position_title: "Cashier",
+          photo_url: "not-a-valid-url",
           house_id: "house-1",
           branch_id: null,
           status: "active",
@@ -128,5 +132,6 @@ describe("employee-id-cards-server", () => {
     assert.equal(cards.length, 1);
     assert.equal(cards[0]?.position, "Cashier");
     assert.equal(cards[0]?.houseBrandName, null);
+    assert.equal(cards[0]?.photoUrl, null);
   });
 });

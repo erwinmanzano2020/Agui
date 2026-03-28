@@ -3,7 +3,7 @@ import "server-only";
 import { jsPDF } from "jspdf";
 
 import type { EmployeeIdCardRow } from "@/lib/hr/employee-id-cards";
-import { orderEmployeeIdCards } from "@/lib/hr/employee-id-cards";
+import { normalizeEmployeePhotoUrl, orderEmployeeIdCards } from "@/lib/hr/employee-id-cards";
 import { createEmployeeQrToken } from "@/lib/hr/kiosk/qr";
 import { generateQrPngDataUrl, mapWithConcurrency } from "@/lib/hr/qr-local";
 
@@ -240,8 +240,8 @@ export async function resolveHouseLogo(logoUrl: string | null, cache: Map<string
   }
 }
 
-async function resolveEmployeePhoto(photoUrl: string | null, cache: Map<string, EmployeePhoto | null>): Promise<EmployeePhoto | null> {
-  const url = cleanText(photoUrl);
+export async function resolveEmployeePhoto(photoUrl: string | null, cache: Map<string, EmployeePhoto | null>): Promise<EmployeePhoto | null> {
+  const url = normalizeEmployeePhotoUrl(photoUrl);
   if (!url) return null;
 
   if (cache.has(url)) {
