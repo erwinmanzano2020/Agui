@@ -3,7 +3,7 @@ import { afterEach, describe, it, mock } from "node:test";
 
 import * as kioskAdmin from "@/lib/hr/kiosk/admin";
 import * as supabaseServer from "@/lib/supabase/server";
-import { GET } from "../route";
+import { GET, POST } from "../route";
 
 const HOUSE_ID = "11111111-1111-4111-8111-111111111111";
 const BRANCH_ID = "22222222-2222-4222-8222-222222222222";
@@ -88,5 +88,65 @@ describe("GET /api/hr/kiosk-devices", () => {
     assert.equal(response.status, 403);
     const payload = await response.json();
     assert.equal(payload?.error, "Branch is not part of this house.");
+  });
+});
+
+describe("POST /api/hr/kiosk-devices", () => {
+  afterEach(() => mock.restoreAll());
+
+  it("returns 403 for cross-house device creation attempts", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+      auth: {
+        getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+      },
+    }) as never);
+    mock.method(kioskAdmin, "createKioskDeviceForBranch", async () => {
+      throw new kioskAdmin.KioskAdminError("Not allowed", 403);
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/hr/kiosk-devices", {
+        method: "POST",
+        body: JSON.stringify({
+          houseId: HOUSE_ID,
+          branchId: BRANCH_ID,
+          name: "Cross-House Device",
+        }),
+      }) as never,
+    );
+
+    assert.ok(response);
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Not allowed");
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.deviceId, undefined);
+  });
+
+  it("returns 403 deny-by-default when actor has empty allowedBranchIds", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+      auth: {
+        getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+      },
+    }) as never);
+    mock.method(kioskAdmin, "createKioskDeviceForBranch", async () => {
+      throw new kioskAdmin.KioskAdminError("No branch access.", 403);
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/hr/kiosk-devices", {
+        method: "POST",
+        body: JSON.stringify({
+          houseId: HOUSE_ID,
+          branchId: BRANCH_ID,
+          name: "Denied Device",
+        }),
+      }) as never,
+    );
+
+    assert.ok(response);
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload?.error, "No branch access.");
   });
 });

@@ -274,9 +274,15 @@ describe("payroll run id-based write routes", () => {
 
       it("returns not-found boundary", async () => {
         setupAuthOk();
+        let mutateCalls = 0;
         mock.method(payrollRunsServer, "resolvePayrollRunWriteTargetForHouseWithAccess", async () => null);
+        mock.method(payrollRunsServer, routeCase.mutate, async () => {
+          mutateCalls += 1;
+          return routeCase.mutate === "createAdjustmentRunForHouse" ? { runId: RUN_ID } : ({ run: {} } as never);
+        });
         const response = await routeCase.call(new Request(`http://localhost/${routeCase.name}?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }));
         await assertCanonicalRouteError(response, 404, PAYROLL_ROUTE_NOT_FOUND_MESSAGE);
+        assert.equal(mutateCalls, 0);
       });
 
       it("returns unexpected boundary", async () => {
@@ -393,8 +399,13 @@ describe("POST /api/hr/payroll-runs/:id/deductions", () => {
 
   it("returns forbidden boundary", async () => {
     setupAuthOk();
+    let mutateCalls = 0;
     mock.method(payslipServer, "resolvePayrollRunDeductionWriteContext", async () => {
       throw new payslipServer.PayslipAccessError("denied");
+    });
+    mock.method(payslipServer, "createPayrollRunDeduction", async () => {
+      mutateCalls += 1;
+      return { id: "deduction-1" };
     });
     const response = await callRoute(
       new Request("http://localhost/deductions", {
@@ -403,11 +414,17 @@ describe("POST /api/hr/payroll-runs/:id/deductions", () => {
       }),
     );
     await assertCanonicalRouteError(response, 403, PAYROLL_ROUTE_FORBIDDEN_MESSAGE);
+    assert.equal(mutateCalls, 0);
   });
 
   it("returns not-found boundary", async () => {
     setupAuthOk();
+    let mutateCalls = 0;
     mock.method(payslipServer, "resolvePayrollRunDeductionWriteContext", async () => null);
+    mock.method(payslipServer, "createPayrollRunDeduction", async () => {
+      mutateCalls += 1;
+      return { id: "deduction-1" };
+    });
     const response = await callRoute(
       new Request("http://localhost/deductions", {
         method: "POST",
@@ -415,6 +432,26 @@ describe("POST /api/hr/payroll-runs/:id/deductions", () => {
       }),
     );
     await assertCanonicalRouteError(response, 404, PAYROLL_ROUTE_NOT_FOUND_MESSAGE);
+    assert.equal(mutateCalls, 0);
+  });
+
+  it("returns conflict boundary when payroll run is locked after posting", async () => {
+    setupAuthOk();
+    mock.method(payslipServer, "resolvePayrollRunDeductionWriteContext", async () => ({ runId: RUN_ID, houseId: HOUSE_ID }));
+    mock.method(payslipServer, "createPayrollRunDeduction", async () => {
+      throw new payslipServer.PayrollRunDeductionLockedError("Payroll run is posted");
+    });
+
+    const response = await callRoute(
+      new Request("http://localhost/deductions", {
+        method: "POST",
+        body: JSON.stringify({ employeeId: EMPLOYEE_ID, label: "Cash advance", amount: 100 }),
+      }),
+    );
+
+    assert.equal(response.status, 409);
+    const payload = await response.json();
+    assert.equal(payload.error, "Payroll run is locked");
   });
 
   it("returns unexpected boundary", async () => {
@@ -529,5 +566,42 @@ describe("POST /api/hr/payroll-runs/:id/post guard ordering", () => {
       expectedError: "Not authenticated",
       featureGuardCalls: probe.featureCalls,
     });
+  });
+
+  it("returns validation error when houseId is omitted (deny-by-default)", async () => {
+    setupAuthOk();
+    let mutateCalls = 0;
+    mock.method(payrollRunsServer, "postPayrollRunForHouse", async () => {
+      mutateCalls += 1;
+      return {} as never;
+    });
+
+    const response = await postPayrollRun(
+      new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}/post`, { method: "POST", body: "{}" }) as never,
+      { params: Promise.resolve({ id: RUN_ID }) },
+    );
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.equal(payload.error, "Fix the highlighted fields and try again.");
+    assert.equal(mutateCalls, 0);
+  });
+
+  it("returns forbidden boundary for cross-house or out-of-scope post mutations", async () => {
+    setupAuthOk();
+    mock.method(payrollRunsServer, "postPayrollRunForHouse", async () => {
+      throw new payrollRunsServer.PayrollRunAccessError("Not allowed to mutate payroll runs for this house.");
+    });
+
+    const response = await postPayrollRun(
+      new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}/post?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }) as never,
+      { params: Promise.resolve({ id: RUN_ID }) },
+    );
+
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload.error, "Not allowed");
+    assert.equal(payload.details?.runId, undefined);
+    assert.equal(payload.details?.houseId, undefined);
   });
 });
