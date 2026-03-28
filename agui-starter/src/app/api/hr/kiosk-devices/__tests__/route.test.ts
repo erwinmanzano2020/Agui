@@ -94,6 +94,50 @@ describe("GET /api/hr/kiosk-devices", () => {
 describe("POST /api/hr/kiosk-devices", () => {
   afterEach(() => mock.restoreAll());
 
+  it("returns 400 when houseId is missing", async () => {
+    let createCalls = 0;
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+      auth: {
+        getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+      },
+    }) as never);
+    mock.method(kioskAdmin, "createKioskDeviceForBranch", async () => {
+      createCalls += 1;
+      return {
+        deviceRow: {
+          id: "device-1",
+          house_id: HOUSE_ID,
+          branch_id: BRANCH_ID,
+          name: "Frontdesk",
+          is_active: true,
+          created_at: "2026-03-28T00:00:00.000Z",
+          last_seen_at: null,
+          last_event_at: null,
+          disabled_at: null,
+          disabled_by: null,
+        },
+        plaintextToken: "token-123",
+      };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/hr/kiosk-devices", {
+        method: "POST",
+        body: JSON.stringify({
+          branchId: BRANCH_ID,
+          name: "Denied Device",
+        }),
+      }) as never,
+    );
+
+    assert.ok(response);
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Invalid payload");
+    assert.equal(payload?.token, undefined);
+    assert.equal(createCalls, 0);
+  });
+
   it("returns 403 for cross-house device creation attempts", async () => {
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
       auth: {

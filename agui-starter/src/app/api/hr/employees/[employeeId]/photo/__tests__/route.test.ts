@@ -103,9 +103,15 @@ describe("POST /api/hr/employees/[employeeId]/photo boundary error mapping", () 
   });
 
   it("returns 404 when target employee is not found", async () => {
+    let mutationCalls = 0;
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
     mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true, hasWorkspaceAccess: true } as never));
     mock.method(supabaseService, "getServiceSupabase", () => createServiceStub({ targetData: null }));
+    mock.method(employeesServer, "resolveEmployeeWriteTargetForHouseWithAccess", async () => null);
+    mock.method(employeesServer, "updateEmployeeForHouseWithAccess", async () => {
+      mutationCalls += 1;
+      return null;
+    });
 
     const response = await POST(
       new Request(`http://localhost/api/hr/employees/${EMPLOYEE_ID}/photo`, {
@@ -118,6 +124,7 @@ describe("POST /api/hr/employees/[employeeId]/photo boundary error mapping", () 
     assert.equal(response.status, 404);
     const payload = await response.json();
     assert.equal(payload?.error, "Employee not found");
+    assert.equal(mutationCalls, 0);
   });
 
   it("returns 500 for unexpected helper failures", async () => {
@@ -139,6 +146,12 @@ describe("POST /api/hr/employees/[employeeId]/photo boundary error mapping", () 
   });
 
   it("returns 400 on DELETE when houseId is omitted (deny-by-default)", async () => {
+    let mutationCalls = 0;
+    mock.method(employeesServer, "updateEmployeeForHouseWithAccess", async () => {
+      mutationCalls += 1;
+      return null;
+    });
+
     const response = await DELETE(
       new Request(`http://localhost/api/hr/employees/${EMPLOYEE_ID}/photo`, {
         method: "DELETE",
@@ -150,6 +163,7 @@ describe("POST /api/hr/employees/[employeeId]/photo boundary error mapping", () 
     assert.equal(response.status, 400);
     const payload = await response.json();
     assert.equal(payload?.error, "Invalid payload");
+    assert.equal(mutationCalls, 0);
   });
 
   it("returns 403 on DELETE when branch-limited actor is out of scope", async () => {

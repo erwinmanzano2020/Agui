@@ -16,10 +16,12 @@ describe("employee [id] server action boundary error mapping", () => {
   afterEach(() => mock.restoreAll());
 
   it("updateEmployeeAction returns explicit permission-denied message", async () => {
+    let mutationCalls = 0;
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
     mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true, hasWorkspaceAccess: true } as never));
     mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
     mock.method(employeesServer, "updateEmployeeForHouseWithAccess", async () => {
+      mutationCalls += 1;
       throw new EmployeeAccessError("Not allowed");
     });
 
@@ -36,10 +38,16 @@ describe("employee [id] server action boundary error mapping", () => {
 
     assert.equal(result.status, "error");
     assert.equal(result.message, "You are not allowed to edit this employee.");
+    assert.equal(mutationCalls, 1);
   });
 
   it("updateEmployeeAction returns authentication-required when session is missing", async () => {
+    let mutationCalls = 0;
     mock.method(supabaseServer, "createServerSupabaseClient", async () => null as never);
+    mock.method(employeesServer, "updateEmployeeForHouseWithAccess", async () => {
+      mutationCalls += 1;
+      return null;
+    });
 
     const formData = new FormData();
     formData.set("houseId", HOUSE_ID);
@@ -54,6 +62,7 @@ describe("employee [id] server action boundary error mapping", () => {
 
     assert.equal(result.status, "error");
     assert.equal(result.message, "Authentication required.");
+    assert.equal(mutationCalls, 0);
   });
 
   it("updateEmployeeAction returns not-found when target is missing", async () => {
@@ -101,10 +110,12 @@ describe("employee [id] server action boundary error mapping", () => {
   });
 
   it("deleteEmployeeAction returns explicit permission-denied message", async () => {
+    let mutationCalls = 0;
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
     mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true, hasWorkspaceAccess: true } as never));
     mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
     mock.method(employeesServer, "deleteEmployeeForHouseWithAccess", async () => {
+      mutationCalls += 1;
       throw new EmployeeAccessError("Not allowed");
     });
 
@@ -117,6 +128,7 @@ describe("employee [id] server action boundary error mapping", () => {
 
     assert.equal(result.status, "error");
     assert.equal(result.message, "You are not allowed to delete this employee.");
+    assert.equal(mutationCalls, 1);
   });
 
   it("deleteEmployeeAction returns not-found when target is missing", async () => {
@@ -137,7 +149,12 @@ describe("employee [id] server action boundary error mapping", () => {
   });
 
   it("deleteEmployeeAction returns authentication-required when session is missing", async () => {
+    let mutationCalls = 0;
     mock.method(supabaseServer, "createServerSupabaseClient", async () => null as never);
+    mock.method(employeesServer, "deleteEmployeeForHouseWithAccess", async () => {
+      mutationCalls += 1;
+      return false;
+    });
 
     const formData = new FormData();
     formData.set("houseId", HOUSE_ID);
@@ -148,6 +165,7 @@ describe("employee [id] server action boundary error mapping", () => {
 
     assert.equal(result.status, "error");
     assert.equal(result.message, "Authentication required.");
+    assert.equal(mutationCalls, 0);
   });
 
   it("deleteEmployeeAction returns generic failure for unexpected errors", async () => {

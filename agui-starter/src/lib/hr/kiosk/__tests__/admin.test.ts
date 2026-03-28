@@ -227,16 +227,35 @@ describe("kiosk admin", () => {
   });
 
   it("prevents cross-house rotate/disable", async () => {
-    const { supabase } = createSupabaseStub();
+    const { supabase, state } = createSupabaseStub();
     await assert.rejects(
       () => rotateKioskDeviceToken(supabase as never, { houseId: "house-2", deviceId: "device-1" }),
       (error: unknown) => error instanceof KioskAdminError && error.status === 404,
     );
+    assert.equal(state.lastUpdate, null);
 
     await assert.rejects(
       () => setKioskDeviceEnabled(supabase as never, { houseId: "house-2", deviceId: "device-1", enabled: false }),
       (error: unknown) => error instanceof KioskAdminError && error.status === 404,
     );
+    assert.equal(state.lastUpdate, null);
+  });
+
+  it("short-circuits rotate/disable when target device cannot be resolved", async () => {
+    const { supabase, state } = createSupabaseStub();
+    state.deviceExists = false;
+
+    await assert.rejects(
+      () => rotateKioskDeviceToken(supabase as never, { houseId: "house-1", deviceId: "device-1" }),
+      (error: unknown) => error instanceof KioskAdminError && error.status === 404,
+    );
+    assert.equal(state.lastUpdate, null);
+
+    await assert.rejects(
+      () => setKioskDeviceEnabled(supabase as never, { houseId: "house-1", deviceId: "device-1", enabled: false }),
+      (error: unknown) => error instanceof KioskAdminError && error.status === 404,
+    );
+    assert.equal(state.lastUpdate, null);
   });
 
   it("returns branch relation as an object for UI branch name display", async () => {

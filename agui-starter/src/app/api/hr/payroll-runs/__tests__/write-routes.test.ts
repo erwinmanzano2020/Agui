@@ -229,6 +229,25 @@ describe("payroll run id-based write routes", () => {
         await assertCanonicalRouteError(response, 400, PAYROLL_ROUTE_VALIDATION_MESSAGE);
       });
 
+      it("returns validation boundary when houseId is omitted (deny-by-default)", async () => {
+        setupAuthOk();
+        let resolverCalls = 0;
+        let mutateCalls = 0;
+        mock.method(payrollRunsServer, "resolvePayrollRunWriteTargetForHouseWithAccess", async () => {
+          resolverCalls += 1;
+          return null;
+        });
+        mock.method(payrollRunsServer, routeCase.mutate, async () => {
+          mutateCalls += 1;
+          return routeCase.mutate === "createAdjustmentRunForHouse" ? { runId: RUN_ID } : ({ run: {} } as never);
+        });
+
+        const response = await routeCase.call(new Request(`http://localhost/${routeCase.name}`, { method: "POST", body: "{}" }));
+        await assertCanonicalRouteError(response, 400, PAYROLL_ROUTE_VALIDATION_MESSAGE);
+        assert.equal(resolverCalls, 0);
+        assert.equal(mutateCalls, 0);
+      });
+
       it("returns auth-required boundary", async () => {
         mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
         mockSupabase(null);
@@ -265,11 +284,21 @@ describe("payroll run id-based write routes", () => {
 
       it("returns forbidden boundary", async () => {
         setupAuthOk();
+        let mutateCalls = 0;
         mock.method(payrollRunsServer, "resolvePayrollRunWriteTargetForHouseWithAccess", async () => {
           throw new payrollRunsServer.PayrollRunAccessError("denied");
         });
+        mock.method(payrollRunsServer, routeCase.mutate, async () => {
+          mutateCalls += 1;
+          return routeCase.mutate === "createAdjustmentRunForHouse" ? { runId: RUN_ID } : ({ run: {} } as never);
+        });
         const response = await routeCase.call(new Request(`http://localhost/${routeCase.name}?houseId=${HOUSE_ID}`, { method: "POST", body: "{}" }));
-        await assertCanonicalRouteError(response, 403, PAYROLL_ROUTE_FORBIDDEN_MESSAGE);
+        assert.equal(response.status, 403);
+        const payload = await response.json();
+        assert.equal(payload.error, PAYROLL_ROUTE_FORBIDDEN_MESSAGE);
+        assert.equal(payload.details?.runId, undefined);
+        assert.equal(payload.details?.houseId, undefined);
+        assert.equal(mutateCalls, 0);
       });
 
       it("returns not-found boundary", async () => {
@@ -413,7 +442,11 @@ describe("POST /api/hr/payroll-runs/:id/deductions", () => {
         body: JSON.stringify({ employeeId: EMPLOYEE_ID, label: "Cash advance", amount: 100 }),
       }),
     );
-    await assertCanonicalRouteError(response, 403, PAYROLL_ROUTE_FORBIDDEN_MESSAGE);
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload.error, PAYROLL_ROUTE_FORBIDDEN_MESSAGE);
+    assert.equal(payload.details?.runId, undefined);
+    assert.equal(payload.details?.houseId, undefined);
     assert.equal(mutateCalls, 0);
   });
 
