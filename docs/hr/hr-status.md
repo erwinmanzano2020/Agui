@@ -19,8 +19,8 @@ Current execution mode: Hardening and consolidation, not feature expansion.
 | Status | Snapshot |
 |---|---|
 | Completed (implemented baseline) | Core HR shell, access gates, employee management, DTR/schedules, payroll run lifecycle, kiosk devices/scans, and PDF export surfaces are implemented and usable. Stability/hardening is still required in some areas listed below. |
-| In Progress | UX consolidation and hardening areas remain (notably payroll wording alignment and operational setup flows). |
-| Partial | Some HR capabilities are implemented with explicit limitations (snapshot-era messaging drift and photo support gaps). |
+| In Progress | UX consolidation and hardening areas remain (operator empty-state/helper-copy consistency across payroll and payslip surfaces). |
+| Partial | Some HR capabilities are implemented with explicit limitations (deferred government deductions/payout integrations and non-blocking ID output clarity polish). |
 | Blocked / Dependency | Government deductions, payout/payment integrations, and non-HR phase work remain intentionally out of scope per HR docs. |
 | Not Started | Certain documented HR follow-ups (e.g., kiosk setup wizard flow) are not yet evident in implementation. |
 
@@ -50,17 +50,17 @@ The following are clearly implemented in code and/or tests and usable for curren
 - Broad HR automated coverage exists (lib/app/api HR tests across access, payroll routes, kiosk, ID cards, employee flows).
 
 ## 6. In Progress
-- Payslip user journey is now available in both payroll run detail and `/hr/payslips`, but wording and operator guidance still need hardening for consistency.
+- Payslip user journey is available in both payroll run detail and `/hr/payslips`; this pass tightens empty states and lock-stage helper copy to keep operator guidance consistent.
 - Employee detail contains minor placeholder UX (“Shortcuts coming soon”), suggesting UX completion is still underway.
 - Continued route-boundary/guard hardening appears active from dedicated helper/tests and devlog artifacts.
 
 ## 7. Partial / Needs Hardening
-- Payroll surfaces still present “snapshot/no money computed” framing in key pages while payslip math + deductions now exist; messaging and contract wording should be harmonized.
+- Payroll surfaces now use harmonized operator copy for snapshot vs computed payslip behavior and finalize/post lock semantics, but should continue to avoid wording drift in future edits.
 - Payroll lifecycle behavior and locking semantics are documented in [`payroll-lifecycle-explainer.md`](./payroll-lifecycle-explainer.md) for canonical reference.
 - Employee ID cards remain constrained by current contract (photo placeholder / no photo render in the v1 card flow).
 - Some capability verification remains documentation-level unless runtime-verified in a deployed DB (RLS/trigger behavior depends on migration application state).
 - Consolidated HR reporting UX is uneven (working capabilities distributed across multiple tabs/routes).
-- Photo pipeline and ID-output hardening details are tracked in [`employee-photo-pipeline-hardening.md`](./employee-photo-pipeline-hardening.md) for current behavior/fallback expectations.
+- Photo pipeline and ID-output hardening details are tracked in [`employee-photo-pipeline-hardening.md`](./employee-photo-pipeline-hardening.md), including status guidance for invalid/broken photo URLs.
 
 ## 8. Blocked / Dependencies
 - Intentionally deferred by HR contract boundaries:
@@ -89,11 +89,10 @@ Treat HR MVP as complete only when all of the following are true at the same tim
 
 ## 11. Next Approved Tasks
 Ordered by execution fit with current repo state and HR boundaries:
-1. **Harden payslip operator UX**: keep `/hr/payslips` and payroll run detail wording/empty states aligned to current snapshot + computed-preview behavior (no contract expansion).
+1. **Continue micro-hardening for payroll/payslip operator UX**: preserve wording consistency as lifecycle controls evolve (snapshot vs computed preview, finalize vs post locks, deferred scope reminders).
 2. **Implement HR-3.5.1a kiosk setup wizard** using existing kiosk device APIs/contracts to reduce ops friction.
-3. **Complete employee ID photo pipeline in approved scope** (photo upload/placement wiring for ID output, no kiosk contract changes).
-4. **Continue payroll messaging + docs hardening** so UI text and freeze docs consistently describe what is computed today vs deferred.
-5. **Targeted tenancy/auth regression checks** for branch-limited HR paths and write actions to preserve house boundary guarantees.
+3. **Maintain employee ID output clarity** with small operator guidance improvements while preserving the normalized-photo contract.
+4. **Targeted tenancy/auth regression checks** for branch-limited HR paths and write actions to preserve house boundary guarantees.
 
 ## 12. Known Risks (Prioritized)
 ### High risk
@@ -141,4 +140,4 @@ Current HR work must continue to preserve:
 - Additive, contract-safe evolution only.
 
 ## 14. Last Updated
-Initial generated version refined for tighter phase/stability alignment on **2026-03-27 (UTC)**; tenancy/auth regression coverage updated on **2026-03-28 (UTC)**.
+Initial generated version refined for tighter phase/stability alignment on **2026-03-27 (UTC)**; tenancy/auth regression coverage updated on **2026-03-28 (UTC)**; payroll/payslip + employee-ID operator hardening alignment refreshed on **2026-03-28 (UTC)**.

@@ -35,10 +35,10 @@ export default async function HrPayslipsPage({ params, searchParams }: Props) {
         <div className="space-y-2">
           <h2 className="text-xl font-semibold text-foreground">Payslips</h2>
           <p className="text-sm text-muted-foreground">
-            Review computed payslips by payroll run using the same snapshot-based computation and deductions shown in payroll run detail.
+            Review computed payslips by payroll run using the same snapshot-based computation and manual deductions shown in payroll run detail.
           </p>
           <p className="text-xs text-muted-foreground">
-            Government deductions and payout integrations are intentionally deferred in the current HR phase.
+            Finalize locks snapshot rows only. Posting locks deductions and payslip outputs. Government deductions and payout integrations remain intentionally deferred.
           </p>
         </div>
         {runs.length > 0 ? (
@@ -74,7 +74,7 @@ export default async function HrPayslipsPage({ params, searchParams }: Props) {
 
       {selectedRun && employees.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-white/60 p-6 text-sm text-muted-foreground">
-          No payslip rows are available for this run.
+          This run has no snapshot rows yet, so there are no computed payslips to show.
         </div>
       ) : null}
     </div>

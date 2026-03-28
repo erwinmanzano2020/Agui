@@ -95,7 +95,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
           </div>
           <div className="flex flex-col items-end gap-3 text-xs text-muted-foreground">
             <div className="rounded-lg border border-dashed border-border bg-white/60 px-4 py-2">
-              Finalize locks snapshot rows. Payslip computation stays available below, and deductions lock only after posting.
+              Finalize locks snapshot rows only. Payslip computation stays available below, and posting locks deductions and payslip outputs.
             </div>
             <DownloadPayrollRunPdfButton runId={run.id} runStatus={run.status} />
             {canFinalize ? <FinalizePayrollRunButton runId={run.id} houseId={house.id} /> : null}
@@ -134,7 +134,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
 
       {items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-white/60 p-6 text-sm text-muted-foreground">
-          No payroll preview rows were captured for this period.
+          No payroll preview rows were captured for this period, so there are no computed payslips for this run.
         </div>
       ) : (
         <section className="overflow-hidden rounded-2xl border border-border bg-white/70 shadow-sm">

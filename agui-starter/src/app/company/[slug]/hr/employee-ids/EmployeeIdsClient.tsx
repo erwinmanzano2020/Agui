@@ -95,7 +95,18 @@ export function EmployeeIdsClient({
             <th>Code</th>
             <th>Position</th>
             <th>Branch</th>
-            <th>Output status</th>
+            <th>
+              <span className="inline-flex items-center gap-1">
+                Output status
+                <span
+                  className="cursor-help text-xs text-muted-foreground"
+                  title="Photo unavailable means the saved photo URL is invalid, broken, or unreachable at print/preview time."
+                  aria-label="Output status help"
+                >
+                  ⓘ
+                </span>
+              </span>
+            </th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -123,7 +134,14 @@ export function EmployeeIdsClient({
               <td>{employee.code}</td>
               <td>{employee.position ?? "—"}</td>
               <td>{employee.branchName ?? "—"}</td>
-              <td className="text-xs text-muted-foreground">{photoStatusLabel(employee)}</td>
+              <td
+                className="text-xs text-muted-foreground"
+                title={photoStatusLabel(employee) === "Photo unavailable"
+                  ? "Photo unavailable can mean the stored URL is invalid, broken, or unreachable."
+                  : undefined}
+              >
+                {photoStatusLabel(employee)}
+              </td>
               <td className="space-x-2 py-2">
                 <a
                   href={`/api/hr/employees/${employee.id}/id-card.pdf?houseId=${houseId}&format=cr80&disposition=inline`}
