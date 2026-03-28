@@ -19,8 +19,8 @@ Current execution mode: Hardening and consolidation, not feature expansion.
 | Status | Snapshot |
 |---|---|
 | Completed (implemented baseline) | Core HR shell, access gates, employee management, DTR/schedules, payroll run lifecycle, kiosk devices/scans, and PDF export surfaces are implemented and usable. Stability/hardening is still required in some areas listed below. |
-| In Progress | UX consolidation and hardening areas remain (notably payslip tab UX vs run-detail payslip workflow, and operational setup flows). |
-| Partial | Some HR capabilities are implemented with explicit limitations (snapshot-era messaging drift, placeholder UX, photo support gaps). |
+| In Progress | UX consolidation and hardening areas remain (notably payroll wording alignment and operational setup flows). |
+| Partial | Some HR capabilities are implemented with explicit limitations (snapshot-era messaging drift and photo support gaps). |
 | Blocked / Dependency | Government deductions, payout/payment integrations, and non-HR phase work remain intentionally out of scope per HR docs. |
 | Not Started | Certain documented HR follow-ups (e.g., kiosk setup wizard flow) are not yet evident in implementation. |
 
@@ -50,9 +50,7 @@ The following are clearly implemented in code and/or tests and usable for curren
 - Broad HR automated coverage exists (lib/app/api HR tests across access, payroll routes, kiosk, ID cards, employee flows).
 
 ## 6. In Progress
-- Payslip user journey appears split:
-  - dedicated `/hr/payslips` page remains placeholder text
-  - working payslip preview experience lives in payroll run detail
+- Payslip user journey is now available in both payroll run detail and `/hr/payslips`, but wording and operator guidance still need hardening for consistency.
 - Employee detail contains minor placeholder UX (“Shortcuts coming soon”), suggesting UX completion is still underway.
 - Continued route-boundary/guard hardening appears active from dedicated helper/tests and devlog artifacts.
 
@@ -75,7 +73,6 @@ The following are clearly implemented in code and/or tests and usable for curren
 ## 9. Not Started Yet
 From documented HR scope/follow-up docs, these are not clearly present in current repo UI/routes:
 - HR-3.5.1a kiosk setup wizard end-to-end flow.
-- A dedicated non-placeholder payslip tab experience at `/hr/payslips`.
 
 Items documented as future/deferred (not expected to be started under current constraints):
 - Government deduction engines and payment integrations.
@@ -91,10 +88,10 @@ Treat HR MVP as complete only when all of the following are true at the same tim
 
 ## 11. Next Approved Tasks
 Ordered by execution fit with current repo state and HR boundaries:
-1. **Close payslip UX gap**: implement `/hr/payslips` as a real read surface backed by existing payslip computation routes (no contract expansion).
+1. **Harden payslip operator UX**: keep `/hr/payslips` and payroll run detail wording/empty states aligned to current snapshot + computed-preview behavior (no contract expansion).
 2. **Implement HR-3.5.1a kiosk setup wizard** using existing kiosk device APIs/contracts to reduce ops friction.
 3. **Complete employee ID photo pipeline in approved scope** (photo upload/placement wiring for ID output, no kiosk contract changes).
-4. **Hardening pass on payroll messaging + docs** so UI text and freeze docs consistently describe what is computed today vs deferred.
+4. **Continue payroll messaging + docs hardening** so UI text and freeze docs consistently describe what is computed today vs deferred.
 5. **Targeted tenancy/auth regression checks** for branch-limited HR paths and write actions to preserve house boundary guarantees.
 
 ## 12. Known Risks (Prioritized)

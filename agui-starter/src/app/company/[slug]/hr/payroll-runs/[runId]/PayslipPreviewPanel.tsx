@@ -163,7 +163,7 @@ export default function PayslipPreviewPanel({
         <div>
           <h3 className="text-lg font-semibold text-foreground">Payslip Preview (Read-only)</h3>
           <p className="text-sm text-muted-foreground">
-            Computed from payroll run snapshots. Open segments are ignored for pay.
+            Computed from payroll run snapshots. Open segments are ignored for pay; government deductions and payout rails remain deferred.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -318,7 +318,7 @@ export default function PayslipPreviewPanel({
           <div>
             <h4 className="text-sm font-semibold text-foreground">Add manual deduction</h4>
             <p className="text-xs text-muted-foreground">
-              Cash advances, uniforms, and other one-off adjustments.
+              Cash advances, uniforms, and other one-off adjustments for this run snapshot.
             </p>
           </div>
           {deductionsLocked ? (

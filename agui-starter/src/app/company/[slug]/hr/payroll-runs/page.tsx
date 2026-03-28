@@ -38,7 +38,7 @@ export default async function PayrollRunsPage({ params }: Props) {
         <div className="space-y-2">
           <h2 className="text-xl font-semibold text-foreground">Payroll Runs</h2>
           <p className="text-sm text-muted-foreground">
-            Draft runs preserve snapshot minutes and now support computed payslip preview + deductions from run detail and the Payslips tab.
+            Draft runs snapshot payroll preview rows. Run detail and the Payslips tab compute payslip pay/deductions from that snapshot, while government deductions and payout integrations remain deferred.
           </p>
         </div>
         <PayrollRunCreateForm
@@ -56,7 +56,7 @@ export default async function PayrollRunsPage({ params }: Props) {
       ) : (
         <section className="overflow-hidden rounded-2xl border border-border bg-white/70 shadow-sm">
           <div className="border-b border-border/70 px-6 py-4">
-            <h3 className="text-lg font-semibold text-foreground">Draft runs</h3>
+            <h3 className="text-lg font-semibold text-foreground">Payroll runs</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">

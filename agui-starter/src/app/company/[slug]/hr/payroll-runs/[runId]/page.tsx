@@ -95,7 +95,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
           </div>
           <div className="flex flex-col items-end gap-3 text-xs text-muted-foreground">
             <div className="rounded-lg border border-dashed border-border bg-white/60 px-4 py-2">
-              Snapshot rows are locked at finalize; payslip computation and deductions are available below.
+              Finalize locks snapshot rows. Payslip computation stays available below, and deductions lock only after posting.
             </div>
             <DownloadPayrollRunPdfButton runId={run.id} runStatus={run.status} />
             {canFinalize ? <FinalizePayrollRunButton runId={run.id} houseId={house.id} /> : null}
