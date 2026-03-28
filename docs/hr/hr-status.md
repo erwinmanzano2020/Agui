@@ -1,143 +1,127 @@
-# HR Status (Initial Repo Audit)
+# HR Status (Canonical Repo Re-Audit Snapshot)
 
 ## 1. Purpose
-This document is the **current execution snapshot** for HR delivery based on repository audit as of 2026-03-27. It is a planning/status tracker and **does not replace** the roadmap, operating principles, or HR master/freeze docs.
+This document is the **canonical execution snapshot** for HR delivery based on a conservative repository re-audit completed on **2026-03-28 (UTC)**. It is a planning/status tracker and **does not replace** the roadmap, operating principles, HR master plan, or freeze declarations.
 
 ## 2. Current HR Focus
-Based on active-phase rules and current implementation, the live HR focus is:
-- house-scoped HR access + branch-aware enforcement
-- employee identity + employee lifecycle flows
-- DTR + schedules + overtime derivation
-- payroll preview/run lifecycle + export surfaces
-- kiosk attendance + employee ID issuance
+Based on active-phase rules and current implementation, live HR focus remains:
+- tenancy-safe HR access and branch-aware authorization enforcement
+- employee lifecycle and identity-safe employee operations
+- DTR + schedules + overtime-derived payroll preview inputs
+- payroll run lifecycle + payslip review + PDF export operations
+- kiosk device administration, kiosk setup/onboarding, and employee ID issuance/output hardening
 
-**Overall:** HR is functionally broad across core domains, but still requires consolidation, hardening, and contract-aligned stabilization before it should be considered stable.
-
-Current execution mode: Hardening and consolidation, not feature expansion.
+**Overall:** HR now has broad implemented coverage across planned MVP surfaces, but delivery mode remains **hardening and consolidation**, not feature expansion.
 
 ## 3. Status Summary
 | Status | Snapshot |
 |---|---|
-| Completed (implemented baseline) | Core HR shell, access gates, employee management, DTR/schedules, payroll run lifecycle, kiosk devices/scans, and PDF export surfaces are implemented and usable. Stability/hardening is still required in some areas listed below. |
-| In Progress | UX consolidation and hardening areas remain (operator empty-state/helper-copy consistency across payroll and payslip surfaces). |
-| Partial | Some HR capabilities are implemented with explicit limitations (deferred government deductions/payout integrations and non-blocking ID output clarity polish). |
-| Blocked / Dependency | Government deductions, payout/payment integrations, and non-HR phase work remain intentionally out of scope per HR docs. |
-| Not Started | Certain documented HR follow-ups (e.g., kiosk setup wizard flow) are not yet evident in implementation. |
+| Completed (implemented baseline) | Core HR shell, access gates, employee management, DTR/schedules/overtime policy surfaces, payroll preview + run lifecycle, payslip review/PDF exports, kiosk devices admin, public kiosk setup/scan flow, and employee ID issuance/download are implemented and usable. |
+| In Progress | Consolidation hardening remains active across UX consistency, runtime confidence, and guardrail regression depth. |
+| Partial | Some capabilities are intentionally limited by contract (no government deductions/payout rails; employee photo pipeline and ID output remain v1-constrained). |
+| Blocked / Dependency | Deferred contract items (government deductions, payout/payment integrations, broader accounting integration) remain out of scope. |
+| Not Started | No additional in-scope HR MVP surface is newly identified as completely unimplemented in this re-audit; remaining work is mostly hardening/consolidation or explicitly deferred scope. |
 
-## 4. HR Phase Mapping (Audit View)
-- **HR-1:** mostly implemented, but should remain treated as frozen-contract sensitive (identity + tenancy boundaries must stay strict).
-- **HR-2:** mostly implemented in functional surface (DTR/schedules/preview), with ongoing hardening and consolidation needs.
-- **HR-3:** implemented with hardening needed; lifecycle and export surfaces exist, but messaging/UX alignment and stabilization are still needed.
-- **HR-3.5:** partially implemented; kiosk/admin and ID issuance flows exist, while setup/operational polish work remains.
+## 4. HR Phase Mapping (Conservative Audit View)
+- **HR-1:** implemented and frozen-contract sensitive; identity and tenancy boundaries must remain strict.
+- **HR-2:** implemented baseline (DTR/schedules/overtime/preview paths), with continued hardening expected.
+- **HR-3:** implemented baseline (run lifecycle + payslip + export surfaces), still treated as hardening-active rather than “fully stable.”
+- **HR-3.5:** implemented baseline for kiosk/admin/ID + setup flow; operational hardening and regression expansion remain appropriate.
 
 ## 5. Completed (Implemented Baseline, Not Automatic Stability)
-The following are clearly implemented in code and/or tests and usable for current HR execution, but not all should be read as fully production-stable:
+The following are clearly implemented in code and/or tests and usable for current HR execution:
 - HR workspace shell and tabbed navigation with auth checks.
-- HR access enforcement (`requireHrAccess`, branch-scoped policy extraction, role/policy evaluation).
-- Employee list/create/edit flows plus identity lookup endpoint.
-- DTR segment creation/update UI and server actions, with overtime derivation helpers.
-- Schedule templates/windows, branch assignments, and overtime policy management.
-- Payroll preview computation and filterable UI.
-- Payroll run lifecycle foundations:
-  - draft creation + snapshot rows
-  - finalize/post/paid status actions
-  - adjustment run creation path
-  - run detail status metadata and controls
-- Payslip preview computation + deductions workflow in payroll run detail.
-- Payslip PDF route and payroll run merged PDF export route.
-- Kiosk devices admin + kiosk scan/sync/verify/ping API surfaces.
-- Employee ID listing/print flow and single ID card PDF route.
-- Broad HR automated coverage exists (lib/app/api HR tests across access, payroll routes, kiosk, ID cards, employee flows).
+- HR access enforcement (`requireHrAccess`, `requireHrAccessWithBranch`) across pages, server paths, and APIs.
+- Employee list/create/edit + identity lookup flows.
+- DTR segment management and overtime/schedule support surfaces.
+- Payroll preview computation and payroll run lifecycle (draft/finalize/post/paid/adjustment) with snapshot semantics.
+- Payslip review path in payroll-run detail and `/hr/payslips`.
+- Payslip PDF route and merged payroll-run PDF export route.
+- Kiosk devices admin (provision/enable/disable/rotate/events).
+- Public kiosk route (`/company/[slug]/kiosk`) with multi-step setup wizard baseline (welcome → token verify/continue offline → confirm/PIN → setup complete), guarded Settings access, queue management, and reset controls.
+- Employee ID listing/print flow and per-employee ID card PDF route.
+- Broad HR automated coverage across access, employees, kiosk, payroll-run/payslip, PDF, and photo-route boundaries.
 
 ## 6. In Progress
-- Payslip user journey is available in both payroll run detail and `/hr/payslips`; this pass tightens empty states and lock-stage helper copy to keep operator guidance consistent.
-- Employee detail contains minor placeholder UX (“Shortcuts coming soon”), suggesting UX completion is still underway.
-- Continued route-boundary/guard hardening appears active from dedicated helper/tests and devlog artifacts.
+- Hardening continues on operator guidance consistency across payroll and payslip surfaces to prevent wording/behavior drift.
+- Employee detail still includes minor placeholder UX (“Shortcuts coming soon”), signaling ongoing UX consolidation.
+- Tenancy/auth guardrail regression depth should continue to expand around high-risk route combinations and runtime-sensitive behavior.
 
 ## 7. Partial / Needs Hardening
-- Payroll surfaces now use harmonized operator copy for snapshot vs computed payslip behavior and finalize/post lock semantics, but should continue to avoid wording drift in future edits.
-- Payroll lifecycle behavior and locking semantics are documented in [`payroll-lifecycle-explainer.md`](./payroll-lifecycle-explainer.md) for canonical reference.
-- Employee ID cards remain constrained by current contract (photo placeholder / no photo render in the v1 card flow).
-- Some capability verification remains documentation-level unless runtime-verified in a deployed DB (RLS/trigger behavior depends on migration application state).
-- Consolidated HR reporting UX is uneven (working capabilities distributed across multiple tabs/routes).
-- Photo pipeline and ID-output hardening details are tracked in [`employee-photo-pipeline-hardening.md`](./employee-photo-pipeline-hardening.md), including status guidance for invalid/broken photo URLs.
+- Payroll and payslip behavior is implemented and documented, but still requires ongoing contract-safe wording/lock semantics discipline. See [`payroll-lifecycle-explainer.md`](./payroll-lifecycle-explainer.md).
+- Kiosk setup flow now exists, but still belongs to hardening mode (operational guidance robustness, edge-case regression confidence, and deployment playbook maturity).
+- Employee photo + ID output remain under constrained v1 contract/hardening posture. See [`employee-photo-pipeline-hardening.md`](./employee-photo-pipeline-hardening.md).
+- Runtime guarantees that depend on deploy-state DB objects (RLS/grants/triggers/migrations applied consistently) still need environment-level validation beyond mocked/unit boundaries.
 
 ## 8. Blocked / Dependencies
-- Intentionally deferred by HR contract boundaries:
-  - government deductions
-  - payment integrations/payout rails
-  - broader payroll/accounting integrations beyond approved HR milestones
-- Capability dependencies for certain follow-ups:
-  - kiosk setup onboarding UX depends on implementing the documented wizard flow
-  - richer ID card output depends on approved photo pipeline completion
+Intentionally deferred by approved HR boundaries:
+- government deduction engines
+- payment/payout rails and settlement integrations
+- non-HR phase expansion (POS+ future systems)
+
+Dependency-shaped follow-ups (hardening, not scope expansion):
+- deeper kiosk operational rollout confidence (field/deployment checklist and regression depth)
+- richer ID card/photo output behavior only when explicitly approved by HR freeze discipline
 
 ## 9. Not Started Yet
-From documented HR scope/follow-up docs, these are not clearly present in current repo UI/routes:
-- HR-3.5.1a kiosk setup wizard end-to-end flow.
-
-Items documented as future/deferred (not expected to be started under current constraints):
-- Government deduction engines and payment integrations.
+Conservative re-audit result:
+- No additional approved in-scope HR MVP surface is clearly “not started.”
+- Remaining unimplemented items are deferred by contract (government deductions, payout/payment integrations, broader accounting integration).
 
 ## 10. Current Definition of Done (HR MVP Guidance)
-Treat HR MVP as complete only when all of the following are true at the same time:
-- employee lifecycle flows are stable and identity-safe under frozen HR-1 rules
-- DTR output is accurate, explainable, and operationally verifiable
-- payroll outputs are consistent, explainable, and contract-aligned
-- payslip experience is stable and accessible from intended HR surfaces
-- kiosk setup/use is operationally usable for branch teams
-- tenancy/auth boundaries (`house_id` scope + branch limits) remain enforced end-to-end
+Treat HR MVP as complete only when all are simultaneously true:
+- employee lifecycle is identity-safe and stable under frozen HR-1 constraints
+- DTR/schedule/overtime behavior is operationally reliable and explainable
+- payroll run and payslip behavior is stable, lock-safe, and contract-aligned
+- kiosk onboarding and daily kiosk operation are branch-usable with predictable recovery flows
+- employee ID and photo-output path are clear and operationally safe within approved contract limits
+- tenancy/auth boundaries (`house_id` + branch-scoped authorization) remain enforced end-to-end
 
-## 11. Next Approved Tasks
-Ordered by execution fit with current repo state and HR boundaries:
-1. **Continue micro-hardening for payroll/payslip operator UX**: preserve wording consistency as lifecycle controls evolve (snapshot vs computed preview, finalize vs post locks, deferred scope reminders).
-2. **Implement HR-3.5.1a kiosk setup wizard** using existing kiosk device APIs/contracts to reduce ops friction.
-3. **Maintain employee ID output clarity** with small operator guidance improvements while preserving the normalized-photo contract.
-4. **Targeted tenancy/auth regression checks** for branch-limited HR paths and write actions to preserve house boundary guarantees.
+## 11. Next Approved Tasks (Re-ranked)
+Ordered for post-hardening execution fit with current repo state:
+1. **Tenancy/Auth regression expansion at high-risk boundaries** (route + service + runtime-sensitive paths) to preserve frozen house/branch guardrails as HR surfaces grow.
+2. **Kiosk setup/operations hardening slice** (wizard robustness, setup recovery clarity, and rollout checklist confidence) without changing approved kiosk contract scope.
+3. **Payroll/payslip UX wording and lock-state consistency hardening** to prevent contract drift across run-detail, payslips tab, and export messaging.
+4. **Employee photo/ID output clarity hardening** within existing HR-3.5.2 constraints (no contract expansion).
 
 ## 12. Known Risks (Prioritized)
 ### High risk
-- Tenancy/access drift: any `house_id` or branch-scope leakage is a critical contract failure.
-- Auth/session/policy drift: guard-order or policy drift can silently over-allow or over-deny HR access.
+- Tenancy/access drift (`house_id` or branch leakage) remains the highest-severity risk.
+- Auth/session/policy drift can silently over-allow or over-deny HR actions.
 
 ### Medium risk
-- Identity workflow regression: duplicate or conflict handling drift can weaken frozen HR-1 guarantees.
-- Runtime drift across environments: migration-level locks/RLS can differ if deploy state is inconsistent.
+- Runtime/deploy drift (migrations, grants, RLS, trigger state mismatch across environments) can undermine assumptions validated in local tests.
+- Identity workflow regression could weaken frozen HR-1 duplicate/conflict handling discipline.
 
 ### Lower risk
-- Payroll expectation/documentation drift: misleading wording can cause planning confusion, but is lower severity than tenancy/auth leakage.
+- Documentation/expectation drift across HR docs and UI copy can mislead planning and operations even when behavior is unchanged.
 
+## 12A. Tenancy & Auth Regression Coverage Snapshot
+Current regression posture includes explicit tests for:
+- missing or mismatched `houseId` rejection on HR employee and kiosk-admin endpoints
+- cross-house kiosk-device event access denial without payload leakage
+- branch scoping behavior that remains house-first and rejects cross-house branch filters
+- kiosk token boundary outcomes (missing/invalid/disabled/mismatched slug rejected; valid slug+token accepted)
 
-## 12A. Tenancy & Auth Regression Coverage
-This hardening pass expands regression checks for existing HR endpoints (no contract/surface expansion) to lock tenancy and auth behavior in test coverage.
+Conservative caveat:
+- coverage is strong at route/service boundaries but still not a full substitute for environment-integrated database/runtime verification.
 
-What is now explicitly enforced:
-- Requests with missing or mismatched `houseId` are rejected for HR employee and kiosk-admin routes.
-- Cross-house resource access is denied for kiosk device events (`404` not-found pattern, no event payload leakage).
-- Branch scoping remains house-first: house-wide listing is allowed only when `branchId` is omitted; cross-house branch filters are rejected.
-- Kiosk token boundaries are explicit in route-level tests:
-  - invalid/rotated token is rejected,
-  - disabled device token is rejected,
-  - slug mismatch is rejected,
-  - matching slug + token pair succeeds.
+## 13. Canonical Cross-Doc References
+Use these alongside this status snapshot:
+- HR master plan: [`hr-master-plan.md`](./hr-master-plan.md)
+- Payroll behavior/locks explainer: [`payroll-lifecycle-explainer.md`](./payroll-lifecycle-explainer.md)
+- Kiosk setup contract: [`hr-3-5-1a-kiosk-setup-wizard.md`](./hr-3-5-1a-kiosk-setup-wizard.md)
+- Kiosk devices admin contract: [`hr-3-5-1-kiosk-devices.md`](./hr-3-5-1-kiosk-devices.md)
+- Employee photo hardening: [`employee-photo-pipeline-hardening.md`](./employee-photo-pipeline-hardening.md)
+- Employee ID + freeze references: [`hr-3-5-2-employee-id-cards.md`](./hr-3-5-2-employee-id-cards.md), [`hr-3-5-2-freeze.md`](./hr-3-5-2-freeze.md)
 
-What is now explicitly tested:
-- `GET /api/hr/employees`: missing membership reject, mismatched `houseId` reject, omitted `houseId` returns scoped house data.
-- `GET /api/hr/kiosk-devices`: missing `houseId` reject, house-scoped listing success, cross-house `branchId` reject.
-- `GET /api/hr/kiosk-devices/:id/events`: malformed ID reject, missing `houseId` reject, cross-house device reject without `events` payload.
-- `/api/kiosk/*` and `/api/hr/kiosk/verify`: missing token reject, invalid token reject, disabled token reject, slug mismatch reject, valid slug/token allow.
-
-Known gaps (intentional, pending later hardening slices):
-- Existing coverage is primarily route-entry and service-boundary regression tests with mocked persistence, not full end-to-end database integration suites.
-- Legacy `/api/kiosk/scan` and `/api/kiosk/sync` do not take slug input by design; slug mismatch coverage is anchored to verify flow where slug is an explicit contract input.
-- This pass does not alter identity model behavior, RBAC model, middleware architecture, or database schema.
-
-## 13. Frozen Boundaries / Non-Negotiables
+## 14. Frozen Boundaries / Non-Negotiables
 Current HR work must continue to preserve:
-- HR-first phase discipline (no POS/future-phase implementation leapfrogging).
-- House as tenant boundary; no cross-house data exposure.
-- Frozen HR-1 identity contracts (canonical identifier fields + canonical RPC signatures).
-- No stealth contract changes to statuses, APIs, or semantics without explicit milestone approval.
-- Additive, contract-safe evolution only.
+- HR-first phase discipline (no POS/future-phase implementation leapfrogging)
+- House as tenant boundary; no cross-house exposure
+- Frozen HR-1 identity contracts and approved HR freeze semantics
+- No stealth contract changes to statuses, APIs, RPCs, or behavior semantics
+- Additive, contract-safe hardening over speculative expansion
 
-## 14. Last Updated
-Initial generated version refined for tighter phase/stability alignment on **2026-03-27 (UTC)**; tenancy/auth regression coverage updated on **2026-03-28 (UTC)**; payroll/payslip + employee-ID operator hardening alignment refreshed on **2026-03-28 (UTC)**.
+## 15. Last Updated
+Canonical re-audit refresh completed on **2026-03-28 (UTC)**.
