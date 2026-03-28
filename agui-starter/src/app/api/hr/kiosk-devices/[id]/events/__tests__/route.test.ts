@@ -11,6 +11,27 @@ const DEVICE_ID = "44444444-4444-4444-8444-444444444444";
 describe("GET /api/hr/kiosk-devices/[id]/events", () => {
   afterEach(() => mock.restoreAll());
 
+  it("returns 401 when unauthenticated and does not call events resolver", async () => {
+    let resolverCalls = 0;
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+      auth: {
+        getUser: async () => ({ data: { user: null }, error: null }),
+      },
+    }) as never);
+    mock.method(kioskAdmin, "listKioskDeviceEvents", async () => {
+      resolverCalls += 1;
+      return [];
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/kiosk-devices/${DEVICE_ID}/events?houseId=${HOUSE_ID}`) as never,
+      { params: Promise.resolve({ id: DEVICE_ID }) },
+    );
+
+    assert.equal(response.status, 401);
+    assert.equal(resolverCalls, 0);
+  });
+
   it("returns 400 when device id param is not a UUID", async () => {
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
       auth: {
@@ -29,11 +50,16 @@ describe("GET /api/hr/kiosk-devices/[id]/events", () => {
   });
 
   it("returns 400 when houseId is missing", async () => {
+    let resolverCalls = 0;
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
       auth: {
         getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
       },
     }) as never);
+    mock.method(kioskAdmin, "listKioskDeviceEvents", async () => {
+      resolverCalls += 1;
+      return [];
+    });
 
     const response = await GET(
       new Request(`http://localhost/api/hr/kiosk-devices/${DEVICE_ID}/events`) as never,
@@ -41,6 +67,7 @@ describe("GET /api/hr/kiosk-devices/[id]/events", () => {
     );
 
     assert.equal(response.status, 400);
+    assert.equal(resolverCalls, 0);
     const payload = await response.json();
     assert.equal(payload?.error, "Invalid query");
   });
