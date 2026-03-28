@@ -11,6 +11,31 @@ const HOUSE_ID = "11111111-1111-4111-8111-111111111111";
 describe("POST /api/hr/kiosk-devices/[id]/rotate-token", () => {
   afterEach(() => mock.restoreAll());
 
+  it("returns 401 when unauthenticated and does not rotate token", async () => {
+    let rotateCalls = 0;
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+      auth: {
+        getUser: async () => ({ data: { user: null }, error: null }),
+      },
+    }) as never);
+    mock.method(kioskAdmin, "rotateKioskDeviceToken", async () => {
+      rotateCalls += 1;
+      return { plaintextToken: "token-123" };
+    });
+
+    const response = await POST(
+      new Request(`http://localhost/api/hr/kiosk-devices/${DEVICE_ID}/rotate-token`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ houseId: HOUSE_ID }),
+      }) as never,
+      { params: Promise.resolve({ id: DEVICE_ID }) },
+    );
+
+    assert.equal(response.status, 401);
+    assert.equal(rotateCalls, 0);
+  });
+
   it("returns 403 for cross-house token rotations", async () => {
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
       auth: {

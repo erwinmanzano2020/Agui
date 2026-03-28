@@ -12,6 +12,36 @@ const HOUSE_ID = "11111111-1111-4111-8111-111111111111";
 describe("POST /api/hr/kiosk-devices/[id]/disable", () => {
   afterEach(() => mock.restoreAll());
 
+  it("returns 401 when unauthenticated and short-circuits entity/mutation", async () => {
+    let resolveCalls = 0;
+    let mutationCalls = 0;
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+      auth: {
+        getUser: async () => ({ data: { user: null }, error: null }),
+      },
+    }) as never);
+    mock.method(identityServer, "resolveEntityIdForUser", async () => {
+      resolveCalls += 1;
+      return "entity-1";
+    });
+    mock.method(kioskAdmin, "setKioskDeviceEnabled", async () => {
+      mutationCalls += 1;
+    });
+
+    const response = await POST(
+      new Request(`http://localhost/api/hr/kiosk-devices/${DEVICE_ID}/disable`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ houseId: HOUSE_ID }),
+      }) as never,
+      { params: Promise.resolve({ id: DEVICE_ID }) },
+    );
+
+    assert.equal(response.status, 401);
+    assert.equal(resolveCalls, 0);
+    assert.equal(mutationCalls, 0);
+  });
+
   it("returns 403 for branch mismatch mutations", async () => {
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
       auth: {
@@ -40,13 +70,17 @@ describe("POST /api/hr/kiosk-devices/[id]/disable", () => {
   });
 
   it("returns 400 when houseId is missing", async () => {
+    let resolveCalls = 0;
     let mutationCalls = 0;
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
       auth: {
         getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
       },
     }) as never);
-    mock.method(identityServer, "resolveEntityIdForUser", async () => "entity-1");
+    mock.method(identityServer, "resolveEntityIdForUser", async () => {
+      resolveCalls += 1;
+      return "entity-1";
+    });
     mock.method(kioskAdmin, "setKioskDeviceEnabled", async () => {
       mutationCalls += 1;
     });
@@ -63,6 +97,7 @@ describe("POST /api/hr/kiosk-devices/[id]/disable", () => {
     assert.equal(response.status, 400);
     const payload = await response.json();
     assert.equal(payload?.error, "Invalid payload");
+    assert.equal(resolveCalls, 1);
     assert.equal(mutationCalls, 0);
   });
 });
