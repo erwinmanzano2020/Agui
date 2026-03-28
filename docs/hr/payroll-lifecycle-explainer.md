@@ -172,6 +172,12 @@ All UI, docs, and future work MUST:
 
 This document sits **above them as behavioral truth**.
 
+Operator UX note (hardening alignment, 2026-03-28 UTC):
+- `/hr/payroll-runs`, payroll run detail, `/hr/payslips`, and `PayslipPreviewPanel` now use aligned helper/empty-state wording for:
+  - snapshot vs computed preview,
+  - finalize lock vs post lock,
+  - deferred government deductions/payout integrations.
+
 ---
 
 ## 11. Future Extensions (Guardrails)

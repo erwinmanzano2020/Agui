@@ -38,7 +38,10 @@ export default async function PayrollRunsPage({ params }: Props) {
         <div className="space-y-2">
           <h2 className="text-xl font-semibold text-foreground">Payroll Runs</h2>
           <p className="text-sm text-muted-foreground">
-            Draft runs snapshot payroll preview rows. Run detail and the Payslips tab compute payslip pay/deductions from that snapshot, while government deductions and payout integrations remain deferred.
+            Draft runs snapshot payroll preview rows. Run detail and the Payslips tab compute payslip pay and manual deductions from that snapshot.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Finalize locks snapshot rows. Posting locks deductions and payslip outputs. Government deductions and payout integrations remain deferred in the current HR phase.
           </p>
         </div>
         <PayrollRunCreateForm
@@ -51,7 +54,7 @@ export default async function PayrollRunsPage({ params }: Props) {
 
       {runs.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-white/60 p-6 text-sm text-muted-foreground">
-          No payroll runs yet. Create a draft run to snapshot the current preview.
+          No payroll runs yet. Create a draft run to capture a snapshot, then review computed payslips from run detail or the Payslips tab.
         </div>
       ) : (
         <section className="overflow-hidden rounded-2xl border border-border bg-white/70 shadow-sm">

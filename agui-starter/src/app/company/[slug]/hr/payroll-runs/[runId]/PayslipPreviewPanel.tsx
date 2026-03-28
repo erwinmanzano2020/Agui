@@ -163,7 +163,10 @@ export default function PayslipPreviewPanel({
         <div>
           <h3 className="text-lg font-semibold text-foreground">Payslip Preview (Read-only)</h3>
           <p className="text-sm text-muted-foreground">
-            Computed from payroll run snapshots. Open segments are ignored for pay; government deductions and payout rails remain deferred.
+            Computed from payroll run snapshots. Open segments are ignored for pay.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Finalize locks snapshot rows; posting locks deductions and payslip outputs. Government deductions and payout rails remain deferred.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -305,7 +308,7 @@ export default function PayslipPreviewPanel({
                   className="px-6 py-6 text-center text-sm text-muted-foreground"
                   colSpan={showDiagnostics ? 11 : 8}
                 >
-                  No payslip previews available for this run.
+                  No computed payslip previews available for this run snapshot.
                 </td>
               </tr>
             ) : null}
@@ -318,7 +321,7 @@ export default function PayslipPreviewPanel({
           <div>
             <h4 className="text-sm font-semibold text-foreground">Add manual deduction</h4>
             <p className="text-xs text-muted-foreground">
-              Cash advances, uniforms, and other one-off adjustments for this run snapshot.
+              Cash advances, uniforms, and other one-off adjustments for this run snapshot. Deductions stay editable in draft/finalized and lock after posting.
             </p>
           </div>
           {deductionsLocked ? (
