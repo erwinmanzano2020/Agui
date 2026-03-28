@@ -6,7 +6,7 @@ import { EmployeeAccessError } from "@/lib/hr/employees";
 import * as employeesServer from "@/lib/hr/employees-server";
 import * as supabaseServer from "@/lib/supabase/server";
 import * as supabaseService from "@/lib/supabase-service";
-import { POST } from "../route";
+import { DELETE, POST } from "../route";
 
 const HOUSE_ID = "33333333-3333-4333-8333-333333333333";
 const EMPLOYEE_ID = "11111111-1111-4111-8111-111111111111";
@@ -98,6 +98,8 @@ describe("POST /api/hr/employees/[employeeId]/photo boundary error mapping", () 
     assert.equal(response.status, 403);
     const payload = await response.json();
     assert.equal(payload?.error, "Not allowed");
+    assert.equal(payload?.details?.employeeId, undefined);
+    assert.equal(payload?.details?.houseId, undefined);
   });
 
   it("returns 404 when target employee is not found", async () => {
@@ -134,5 +136,52 @@ describe("POST /api/hr/employees/[employeeId]/photo boundary error mapping", () 
     assert.equal(response.status, 500);
     const payload = await response.json();
     assert.equal(payload?.error, "Unable to persist employee photo");
+  });
+
+  it("returns 400 on DELETE when houseId is omitted (deny-by-default)", async () => {
+    const response = await DELETE(
+      new Request(`http://localhost/api/hr/employees/${EMPLOYEE_ID}/photo`, {
+        method: "DELETE",
+        body: JSON.stringify({}),
+      }) as never,
+      { params: Promise.resolve({ employeeId: EMPLOYEE_ID }) },
+    );
+
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Invalid payload");
+  });
+
+  it("returns 403 on DELETE when branch-limited actor is out of scope", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
+      allowed: true,
+      hasWorkspaceAccess: true,
+      allowedByRole: false,
+      allowedByPolicy: true,
+      roles: ["house_staff"],
+      normalizedRoles: ["staff"],
+      policyKeys: ["hr.branch.11111111-1111-4111-8111-111111111111"],
+      entityId: "entity-1",
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: ["11111111-1111-4111-8111-111111111111"],
+    }) as never);
+    mock.method(supabaseService, "getServiceSupabase", () => createServiceStub());
+    mock.method(employeesServer, "updateEmployeeForHouseWithAccess", async () => {
+      throw new EmployeeAccessError("Not allowed");
+    });
+
+    const response = await DELETE(
+      new Request(`http://localhost/api/hr/employees/${EMPLOYEE_ID}/photo`, {
+        method: "DELETE",
+        body: JSON.stringify({ houseId: HOUSE_ID }),
+      }) as never,
+      { params: Promise.resolve({ employeeId: EMPLOYEE_ID }) },
+    );
+
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Not allowed");
   });
 });
