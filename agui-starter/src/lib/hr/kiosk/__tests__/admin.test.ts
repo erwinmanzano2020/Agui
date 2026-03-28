@@ -268,6 +268,28 @@ describe("kiosk admin", () => {
     assert.equal(rows[0]?.branch_id, "branch-1");
   });
 
+  it("denies-by-default list scope when branch-limited actor has no allowed branches", async () => {
+    mock.restoreAll();
+    mock.method(access, "requireHrAccessWithBranch", async () => ({
+      allowed: true,
+      allowedByPolicy: true,
+      allowedByRole: false,
+      hasWorkspaceAccess: true,
+      roles: ["house_staff"],
+      normalizedRoles: ["staff"],
+      policyKeys: ["tiles.hr.read"],
+      entityId: "entity-2",
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: [],
+    }));
+
+    const { supabase, state } = createSupabaseStub();
+    const rows = await listKioskDevicesForHouse(supabase as never, "house-1");
+    assert.equal(rows.length, 0);
+    assert.deepEqual(state.branchInFilter, []);
+  });
+
   it("denies cross-branch mutation for branch-limited actors", async () => {
     mock.restoreAll();
     mock.method(access, "requireHrAccess", async () => ({

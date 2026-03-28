@@ -613,4 +613,73 @@ describe("GET /api/hr/employees tenancy boundaries", () => {
     assert.equal(payload?.employees?.length, 1);
     assert.equal(payload?.employees?.[0]?.house_id, HOUSE_ID);
   });
+
+  it("passes branch-limited read scope to employee listing when houseId is omitted", async () => {
+    mock.method(routeGuardOrder, "resolveHrRouteActorContext", async () => ({
+      supabase: {
+        from() {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            order() {
+              return this;
+            },
+            limit() {
+              return Promise.resolve({
+                data: [{ house_id: HOUSE_ID }],
+                error: null,
+              });
+            },
+            maybeSingle() {
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
+        },
+      } as never,
+      entityId: "entity-branch-limited",
+      userId: "user-branch-limited",
+    }));
+
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
+      allowed: true,
+      hasWorkspaceAccess: true,
+      allowedByRole: false,
+      allowedByPolicy: true,
+      roles: ["house_staff"],
+      normalizedRoles: ["staff"],
+      policyKeys: ["tiles.hr.read", "tiles.hr.branch.branch-1"],
+      entityId: "entity-branch-limited",
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: ["branch-1"],
+    }) as never);
+
+    let capturedReadScope: { isBranchLimited: boolean; allowedBranchIds: string[] } | null = null;
+    mock.method(employeesServer, "listEmployeesByHouse", async (_supabase: unknown, houseId: string, _filters: unknown, options: unknown) => {
+      capturedReadScope = (options as { readScope: { isBranchLimited: boolean; allowedBranchIds: string[] } }).readScope;
+      return {
+        employees: [
+          {
+            id: "emp-branch-1",
+            house_id: houseId,
+            branch_id: "branch-1",
+            full_name: "Scoped Employee",
+          },
+        ],
+        error: null,
+      };
+    });
+
+    const response = await GET(new Request("http://localhost/api/hr/employees") as never);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(capturedReadScope, {
+      isBranchLimited: true,
+      allowedBranchIds: ["branch-1"],
+    });
+  });
 });
