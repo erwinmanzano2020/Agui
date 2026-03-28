@@ -20,6 +20,16 @@ const baseContext = {
   elevatedAuthority: { hasOperationalElevatedAuthority: false, sourceRole: null },
 } as const;
 
+const baseContext = {
+  userId: "00000000-0000-0000-0000-000000000999",
+  scopeType: "house",
+  scopeId: "00000000-0000-0000-0000-000000000111",
+  roles: { PLATFORM: [], GUILD: [], HOUSE: ["house_manager"] },
+  permissions: [],
+  membership: { isMember: true, roleCount: 1, scopeRoleScope: "HOUSE" },
+  elevatedAuthority: { hasOperationalElevatedAuthority: false, sourceRole: null },
+} as const;
+
 beforeEach(async () => {
   lastFrontLayout = undefined;
 
