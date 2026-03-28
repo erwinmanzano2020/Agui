@@ -162,6 +162,7 @@ Return:
 Run the relevant test suite(s), plus:
 - `npm run lint`
 - `npm run typecheck`
+- `npm run build`
 
 If a combined run flakes, isolate and explain the root cause clearly before proposing any stabilizing change. Do not hand-wave intermittent failures.
 
