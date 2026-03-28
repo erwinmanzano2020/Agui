@@ -61,6 +61,7 @@ The following are clearly implemented in code and/or tests and usable for curren
 - Employee ID cards remain constrained by current contract (photo placeholder / no photo render in the v1 card flow).
 - Some capability verification remains documentation-level unless runtime-verified in a deployed DB (RLS/trigger behavior depends on migration application state).
 - Consolidated HR reporting UX is uneven (working capabilities distributed across multiple tabs/routes).
+- Photo pipeline and ID-output hardening details are tracked in [`employee-photo-pipeline-hardening.md`](./employee-photo-pipeline-hardening.md) for current behavior/fallback expectations.
 
 ## 8. Blocked / Dependencies
 - Intentionally deferred by HR contract boundaries:

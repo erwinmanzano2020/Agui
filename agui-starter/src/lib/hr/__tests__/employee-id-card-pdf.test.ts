@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it, mock } from "node:test";
 import { jsPDF } from "jspdf";
 
-import { fitTextToBox, getHeaderBrandName, resolveHouseLogo } from "@/lib/hr/employee-id-card-pdf";
+import { fitTextToBox, getHeaderBrandName, resolveEmployeePhoto, resolveHouseLogo } from "@/lib/hr/employee-id-card-pdf";
 
 afterEach(() => {
   mock.restoreAll();
@@ -81,4 +81,30 @@ describe("resolveHouseLogo", () => {
     assert.equal(result, null);
   });
 
+});
+
+describe("resolveEmployeePhoto", () => {
+  it("returns null for unsupported image content types", async () => {
+    mock.method(globalThis, "fetch", async () =>
+      new Response("gif", {
+        status: 200,
+        headers: { "content-type": "image/gif" },
+      }),
+    );
+
+    const result = await resolveEmployeePhoto("https://example.com/photo.gif", new Map());
+    assert.equal(result, null);
+  });
+
+  it("returns null for invalid URLs and skips fetch", async () => {
+    let calls = 0;
+    mock.method(globalThis, "fetch", async () => {
+      calls += 1;
+      return new Response();
+    });
+
+    const result = await resolveEmployeePhoto("not-a-valid-url", new Map());
+    assert.equal(result, null);
+    assert.equal(calls, 0);
+  });
 });

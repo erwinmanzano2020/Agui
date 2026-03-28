@@ -41,6 +41,17 @@ This note captures the current stable baseline for the employee photo flow befor
 - Debug panel is shown only when explicit debug mode is enabled (`?debug=1`).
 - Structured phase logs remain available for failures and troubleshooting.
 
+## Employee ID output hardening behavior
+
+- Employee ID list, single-card PDF, and bulk-print PDF now share the same normalized photo URL behavior.
+- `photo_url` is treated as usable only when it is a valid `http/https` URL after trimming.
+- If URL is missing/blank/invalid, ID output intentionally falls back to the existing PHOTO placeholder area instead of broken image output.
+- HR Employee IDs table now shows an explicit output status:
+  - `Photo ready` when a usable URL is present and thumbnail is loadable.
+  - `Photo unavailable` when URL is invalid or image fetch fails.
+  - `No photo` when no URL is stored.
+- Single-card preview uses the same PDF route with inline disposition (`disposition=inline`) so operators can confirm output behavior before download.
+
 ## Known remaining enhancement
 
 - Background removal is intentionally deferred and not included in this baseline.

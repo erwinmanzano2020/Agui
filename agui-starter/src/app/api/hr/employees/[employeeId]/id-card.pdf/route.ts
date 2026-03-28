@@ -58,6 +58,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
   if (!houseId) {
     return jsonError(400, "houseId is required");
   }
+  const disposition = new URL(req.url).searchParams.get("disposition")?.trim();
+  const contentDispositionType = disposition === "inline" ? "inline" : "attachment";
 
   const supabase = await createServerSupabaseClient();
   const {
@@ -117,7 +119,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Disposition": `${contentDispositionType}; filename="${filename}"`,
         "Cache-Control": "no-store",
       },
     });

@@ -7,6 +7,8 @@ import { AuthorizationDeniedError } from "@/lib/access/access-errors";
 let GET: typeof import("../route").GET;
 let runtime: typeof import("../route").runtime;
 let lastFrontLayout: string | undefined;
+const HOUSE_ID = "00000000-0000-0000-0000-000000000111";
+const EMPLOYEE_ID = "00000000-0000-0000-0000-000000000001";
 
 const baseContext = {
   userId: "00000000-0000-0000-0000-000000000999",
@@ -28,9 +30,65 @@ beforeEach(async () => {
   }));
 
   const supabaseServer = await import("@/lib/supabase/server");
+  class QueryMock {
+    constructor(
+      private readonly table: string,
+      private readonly selected = "",
+      private readonly filters: Record<string, string> = {},
+    ) {}
+
+    select(columns: string) {
+      return new QueryMock(this.table, columns, this.filters);
+    }
+
+    eq(column: string, value: string) {
+      return new QueryMock(this.table, this.selected, { ...this.filters, [column]: value });
+    }
+
+    async maybeSingle<T>() {
+      if (this.table === "houses") {
+        return {
+          data: this.filters.id === HOUSE_ID
+            ? { id: HOUSE_ID, name: "Demo House", brand_name: null, logo_url: null }
+            : null,
+          error: null,
+        } as const;
+      }
+
+      if (this.table === "employees" && this.selected.includes("branches(")) {
+        return {
+          data: this.filters.id === EMPLOYEE_ID && this.filters.house_id === HOUSE_ID
+            ? ({ branches: { name: "Main" } } as T)
+            : null,
+          error: null,
+        } as const;
+      }
+
+      if (this.table === "employees") {
+        const employee = this.filters.id === EMPLOYEE_ID && this.filters.house_id === HOUSE_ID
+          ? {
+              id: EMPLOYEE_ID,
+              code: "EMP-001",
+              full_name: "A",
+              position_title: "Cashier",
+              photo_url: null,
+              house_id: HOUSE_ID,
+              branch_id: "branch-1",
+            }
+          : null;
+        return { data: employee as T | null, error: null } as const;
+      }
+
+      throw new Error(`Unsupported table ${this.table}`);
+    }
+  }
+
   mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
     auth: {
       getUser: async () => ({ data: { user: { id: "00000000-0000-0000-0000-000000000999" } } }),
+    },
+    from(table: string) {
+      return new QueryMock(table);
     },
   } as never));
 
@@ -43,20 +101,6 @@ beforeEach(async () => {
   mock.method(accessResolver, "resolveAccessContext", async () => baseContext as never);
 
   mock.method(accessCheck, "requireHrBusinessAccess", async () => baseContext as never);
-
-  const cards = await import("@/lib/hr/employee-id-cards-server");
-  mock.method(cards, "getEmployeeIdCardById", async () => ({
-    id: "00000000-0000-0000-0000-000000000001",
-    code: "EMP-001",
-    fullName: "A",
-    position: "Cashier",
-    branchName: "Main",
-    validUntil: null,
-    houseId: "00000000-0000-0000-0000-000000000111",
-    houseName: "Demo House",
-    houseBrandName: null,
-    houseLogoUrl: null,
-  }));
 
   const pdf = await import("@/lib/hr/employee-id-card-pdf");
   mock.method(pdf, "generateEmployeeIdCardPdf", async (_row: unknown, options: { frontLayout?: string } | undefined) => {
@@ -71,7 +115,7 @@ afterEach(() => {
   mock.restoreAll();
 });
 
-describe("GET /api/hr/employees/[employeeId]/id-card.pdf", () => {
+describe("GET /api/hr/employees/[employeeId]/id-card.pdf", { concurrency: false }, () => {
   it("uses nodejs runtime", () => {
     assert.equal(runtime, "nodejs");
   });
@@ -193,6 +237,19 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", () => {
     const buffer = await response.arrayBuffer();
     assert.ok(buffer.byteLength > 0);
     assert.equal(lastFrontLayout, "modern");
+  });
+
+  it("supports inline disposition for preview", async () => {
+    const response = await GET(
+      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111&disposition=inline") as NextRequest,
+      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
+    );
+
+    assert.equal(response.status, 200);
+    assert.match(
+      response.headers.get("content-disposition") ?? "",
+      /^inline; filename="EmployeeID-EMP-001-00000000-0000-0000-0000-000000000001\.pdf"$/,
+    );
   });
 
   it("returns 500 when qr generation fails", async () => {
