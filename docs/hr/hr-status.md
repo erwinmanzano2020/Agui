@@ -56,6 +56,7 @@ The following are clearly implemented in code and/or tests and usable for curren
 
 ## 7. Partial / Needs Hardening
 - Payroll surfaces still present “snapshot/no money computed” framing in key pages while payslip math + deductions now exist; messaging and contract wording should be harmonized.
+- Payroll lifecycle behavior and locking semantics are documented in [`payroll-lifecycle-explainer.md`](./payroll-lifecycle-explainer.md) for canonical reference.
 - Employee ID cards remain constrained by current contract (photo placeholder / no photo render in the v1 card flow).
 - Some capability verification remains documentation-level unless runtime-verified in a deployed DB (RLS/trigger behavior depends on migration application state).
 - Consolidated HR reporting UX is uneven (working capabilities distributed across multiple tabs/routes).

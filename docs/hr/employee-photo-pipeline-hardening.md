@@ -55,3 +55,10 @@ This note captures the current stable baseline for the employee photo flow befor
 ## Known remaining enhancement
 
 - Background removal is intentionally deferred and not included in this baseline.
+
+## Optional UX polish (non-blocking)
+
+- Consider adding a tooltip/help text in HR Employee IDs table:
+  - Clarify that “Photo unavailable” may include broken or unreachable image URLs.
+- Consider adding a lightweight UI test for:
+  - image `onError` fallback behavior in Employee IDs page.
