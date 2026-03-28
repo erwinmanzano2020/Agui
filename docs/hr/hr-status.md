@@ -108,6 +108,31 @@ Ordered by execution fit with current repo state and HR boundaries:
 ### Lower risk
 - Payroll expectation/documentation drift: misleading wording can cause planning confusion, but is lower severity than tenancy/auth leakage.
 
+
+## 12A. Tenancy & Auth Regression Coverage
+This hardening pass expands regression checks for existing HR endpoints (no contract/surface expansion) to lock tenancy and auth behavior in test coverage.
+
+What is now explicitly enforced:
+- Requests with missing or mismatched `houseId` are rejected for HR employee and kiosk-admin routes.
+- Cross-house resource access is denied for kiosk device events (`404` not-found pattern, no event payload leakage).
+- Branch scoping remains house-first: house-wide listing is allowed only when `branchId` is omitted; cross-house branch filters are rejected.
+- Kiosk token boundaries are explicit in route-level tests:
+  - invalid/rotated token is rejected,
+  - disabled device token is rejected,
+  - slug mismatch is rejected,
+  - matching slug + token pair succeeds.
+
+What is now explicitly tested:
+- `GET /api/hr/employees`: missing membership reject, mismatched `houseId` reject, omitted `houseId` returns scoped house data.
+- `GET /api/hr/kiosk-devices`: missing `houseId` reject, house-scoped listing success, cross-house `branchId` reject.
+- `GET /api/hr/kiosk-devices/:id/events`: malformed ID reject, missing `houseId` reject, cross-house device reject without `events` payload.
+- `/api/kiosk/*` and `/api/hr/kiosk/verify`: missing token reject, invalid token reject, disabled token reject, slug mismatch reject, valid slug/token allow.
+
+Known gaps (intentional, pending later hardening slices):
+- Existing coverage is primarily route-entry and service-boundary regression tests with mocked persistence, not full end-to-end database integration suites.
+- Legacy `/api/kiosk/scan` and `/api/kiosk/sync` do not take slug input by design; slug mismatch coverage is anchored to verify flow where slug is an explicit contract input.
+- This pass does not alter identity model behavior, RBAC model, middleware architecture, or database schema.
+
 ## 13. Frozen Boundaries / Non-Negotiables
 Current HR work must continue to preserve:
 - HR-first phase discipline (no POS/future-phase implementation leapfrogging).
@@ -117,4 +142,4 @@ Current HR work must continue to preserve:
 - Additive, contract-safe evolution only.
 
 ## 14. Last Updated
-Initial generated version refined for tighter phase/stability alignment on **2026-03-27 (UTC)**.
+Initial generated version refined for tighter phase/stability alignment on **2026-03-27 (UTC)**; tenancy/auth regression coverage updated on **2026-03-28 (UTC)**.
