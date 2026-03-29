@@ -229,23 +229,34 @@ type SyncBody = {
 };
 
 export async function handleKioskSync(request: Request) {
-  let body: SyncBody;
-  try {
-    body = (await request.json()) as SyncBody;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
-  }
-
-  const events = (body.events ?? []).filter((event) => event.qrToken && event.clientEventId) as Array<{
-    qrToken: string;
-    occurredAt?: string;
-    clientEventId: string;
-  }>;
-
   try {
     const token = readBearerKioskToken(request);
     const supabase = createServiceSupabaseClient();
     const auth = await requireKioskDevice(supabase, token);
+
+    let body: SyncBody;
+    try {
+      body = (await request.json()) as SyncBody;
+    } catch {
+      return NextResponse.json({ error: "Invalid JSON body." }, { status: 400 });
+    }
+
+    if (!body || typeof body !== "object" || (body.events !== undefined && !Array.isArray(body.events))) {
+      return NextResponse.json({ error: "Invalid sync payload." }, { status: 400 });
+    }
+
+    const events = (body.events ?? []).filter((event) => (
+      !!event
+      && typeof event === "object"
+      && typeof event.qrToken === "string"
+      && event.qrToken.trim().length > 0
+      && typeof event.clientEventId === "string"
+      && event.clientEventId.trim().length > 0
+    )) as Array<{
+      qrToken: string;
+      occurredAt?: string;
+      clientEventId: string;
+    }>;
 
     if (events.length === 0) {
       return NextResponse.json({ results: [] });
@@ -263,10 +274,9 @@ export async function handleKioskSync(request: Request) {
       return NextResponse.json({ error: error.message, reason: error.reason }, { status: error.status });
     }
     if (error instanceof KioskAuthError) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized kiosk device." }, { status: 401 });
     }
-    const message = error instanceof Error ? error.message : "Failed kiosk sync.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json({ error: "Failed kiosk sync." }, { status: 400 });
   }
 }
 
@@ -281,19 +291,18 @@ function readExpectedSlug(body: unknown): string | null {
 }
 
 export async function handleKioskVerify(request: Request) {
-  let body: VerifyBody | null = null;
-  try {
-    body = (await request.json()) as VerifyBody;
-  } catch {
-    body = null;
-  }
-
   try {
     const token = readBearerKioskToken(request);
     const supabase = createServiceSupabaseClient();
-    const auth = await requireKioskDevice(supabase, token, {
-      expectedSlug: readExpectedSlug(body),
-    });
+    const auth = await requireKioskDevice(supabase, token);
+
+    let body: VerifyBody | null = null;
+    try {
+      body = (await request.json()) as VerifyBody;
+    } catch {
+      body = null;
+    }
+    const expectedSlug = readExpectedSlug(body);
 
     const { data: house, error: houseError } = await supabase
       .from("houses")
@@ -302,6 +311,12 @@ export async function handleKioskVerify(request: Request) {
       .maybeSingle<{ slug: string | null }>();
     if (houseError) {
       return NextResponse.json({ error: houseError.message }, { status: 500 });
+    }
+    if (expectedSlug && house?.slug !== expectedSlug) {
+      return NextResponse.json(
+        { error: "Kiosk token is not valid for this workspace.", reason: "slug_mismatch" },
+        { status: 403 },
+      );
     }
 
     const { data: branch, error: branchError } = await supabase
