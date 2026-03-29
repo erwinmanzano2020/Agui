@@ -10,6 +10,7 @@ import {
   PayslipFetchError,
   PayslipValidationError,
 } from "@/lib/hr/payslip-server";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { z } from "@/lib/z";
 
 const ROUTE_NAME = "api/hr/payroll-runs/:id/payslips";
@@ -74,10 +75,28 @@ export async function GET(
         return jsonError(404, "Payroll run not found");
       }
 
+      const access = await requireHrAccessWithBranch(supabase, { houseId: run.house_id });
+      if (!access.allowed) {
+        logApiWarning({
+          route: ROUTE_NAME,
+          action: "access_denied",
+          userId,
+          entityId,
+          details: { runId: parsedParams.data.id },
+        });
+        return jsonError(403, "Not allowed");
+      }
+
       const rows = await computePayslipsForPayrollRun(supabase, {
         houseId: run.house_id,
         runId: parsedParams.data.id,
         employeeId,
+      }, {
+        access,
+        branchScope: {
+          isBranchLimited: access.isBranchLimited,
+          allowedBranchIds: access.allowedBranchIds,
+        },
       });
 
       if (employeeId) {
@@ -87,11 +106,33 @@ export async function GET(
       return jsonOk(rows);
     }
 
-    const rows = await computePayslipsForPayrollRun(supabase, {
-      houseId,
-      runId: parsedParams.data.id,
-      employeeId,
-    });
+    const access = await requireHrAccessWithBranch(supabase, { houseId });
+    if (!access.allowed) {
+      logApiWarning({
+        route: ROUTE_NAME,
+        action: "access_denied",
+        userId,
+        entityId,
+        details: { runId: parsedParams.data.id },
+      });
+      return jsonError(403, "Not allowed");
+    }
+
+    const rows = await computePayslipsForPayrollRun(
+      supabase,
+      {
+        houseId,
+        runId: parsedParams.data.id,
+        employeeId,
+      },
+      {
+        access,
+        branchScope: {
+          isBranchLimited: access.isBranchLimited,
+          allowedBranchIds: access.allowedBranchIds,
+        },
+      },
+    );
 
     if (employeeId) {
       return jsonOk(rows[0] ?? null);
