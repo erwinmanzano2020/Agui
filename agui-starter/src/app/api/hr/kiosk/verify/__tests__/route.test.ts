@@ -65,6 +65,7 @@ function mockVerifySupabase(tokenHash: string) {
 
 describe("POST /api/hr/kiosk/verify", () => {
   beforeEach(() => {
+    mock.restoreAll();
     process.env.HR_KIOSK_DEVICE_TOKEN_PEPPER = "pepper";
   });
 

@@ -13,6 +13,7 @@ const RUN_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const HOUSE_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 
 beforeEach(async () => {
+  mock.restoreAll();
   const supabaseService = await import("@/lib/supabase-service");
   mock.method(supabaseService, "getServiceSupabase", () => ({} as never));
 

@@ -240,6 +240,7 @@ const allowedAccess: HrAccessDecision = {
 };
 
 beforeEach(async () => {
+  mock.restoreAll();
   supabase = new PayrollRunPdfSupabaseMock();
 
   const featureGuard = await import("@/lib/auth/feature-guard");
