@@ -35,6 +35,21 @@ beforeEach(async () => {
   const payslipServer = await import("@/lib/hr/payslip-server");
   mock.method(payslipServer, "computePayslipsForPayrollRun", async () => []);
 
+  const accessModule = await import("@/lib/hr/access");
+  mock.method(accessModule, "requireHrAccessWithBranch", async () => ({
+    allowed: true,
+    allowedByRole: true,
+    allowedByPolicy: false,
+    hasWorkspaceAccess: true,
+    roles: [],
+    normalizedRoles: [],
+    policyKeys: [],
+    entityId: "entity-1",
+    branchId: null,
+    isBranchLimited: false,
+    allowedBranchIds: [],
+  }));
+
   ({ GET } = await import("../route"));
 });
 
@@ -343,5 +358,50 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
     assert.equal(response.status, 200);
     assert.equal(resolvedHouseId, HOUSE_ID);
     assert.equal(runLookupCalls, 0);
+  });
+
+  it("passes branch-limited scope into payslip compute options", async () => {
+    let capturedBranchScope: { isBranchLimited: boolean; allowedBranchIds: string[] } | null = null;
+    const scopedBranchId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+
+    const accessModule = await import("@/lib/hr/access");
+    mock.method(accessModule, "requireHrAccessWithBranch", async () => ({
+      allowed: true,
+      allowedByRole: false,
+      allowedByPolicy: true,
+      hasWorkspaceAccess: true,
+      roles: [],
+      normalizedRoles: [],
+      policyKeys: [`hr.branch.${scopedBranchId}`],
+      entityId: "entity-1",
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: [scopedBranchId],
+    }));
+
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    mock.method(
+      payslipServer,
+      "computePayslipsForPayrollRun",
+      async (
+        _supabase: unknown,
+        _input: { houseId: string; runId: string },
+        options?: { branchScope?: { isBranchLimited: boolean; allowedBranchIds: string[] } },
+      ) => {
+        capturedBranchScope = options?.branchScope ?? null;
+        return [];
+      },
+    );
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}/payslips?houseId=${HOUSE_ID}`) as NextRequest,
+      { params: Promise.resolve({ id: RUN_ID }) },
+    );
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(capturedBranchScope, {
+      isBranchLimited: true,
+      allowedBranchIds: [scopedBranchId],
+    });
   });
 });

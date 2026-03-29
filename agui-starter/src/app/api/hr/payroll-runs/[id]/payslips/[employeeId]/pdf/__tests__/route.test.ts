@@ -206,7 +206,12 @@ beforeEach(async () => {
   mock.method(entityServer, "resolveEntityIdForUser", async () => "entity-1");
 
   const accessModule = await import("@/lib/hr/access");
-  mock.method(accessModule, "requireHrAccess", async () => allowedAccess);
+  mock.method(accessModule, "requireHrAccessWithBranch", async () => ({
+    ...allowedAccess,
+    branchId: null,
+    isBranchLimited: false,
+    allowedBranchIds: [],
+  }));
 
   ({ GET } = await import("../route"));
 });
@@ -229,7 +234,13 @@ describe("GET /api/hr/payroll-runs/[id]/payslips/[employeeId]/pdf", () => {
   it("denies access when HR scope is missing", async () => {
     let computeCalls = 0;
     const accessModule = await import("@/lib/hr/access");
-    mock.method(accessModule, "requireHrAccess", async () => ({ ...allowedAccess, allowed: false }));
+    mock.method(accessModule, "requireHrAccessWithBranch", async () => ({
+      ...allowedAccess,
+      allowed: false,
+      branchId: null,
+      isBranchLimited: false,
+      allowedBranchIds: [],
+    }));
     const payslipServer = await import("@/lib/hr/payslip-server");
     mock.method(payslipServer, "computePayslipsForPayrollRun", async () => {
       computeCalls += 1;
@@ -247,6 +258,71 @@ describe("GET /api/hr/payroll-runs/[id]/payslips/[employeeId]/pdf", () => {
     assert.equal(payload?.details?.houseId, undefined);
     assert.equal(payload?.details?.runId, undefined);
     assert.equal(payload?.details?.employeeId, undefined);
+  });
+
+  it("passes branch-limited scope into employee payslip compute options", async () => {
+    let capturedBranchScope: { isBranchLimited: boolean; allowedBranchIds: string[] } | null = null;
+    const accessModule = await import("@/lib/hr/access");
+    mock.method(accessModule, "requireHrAccessWithBranch", async () => ({
+      ...allowedAccess,
+      allowedByRole: false,
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: [supabase.branchId],
+    }));
+
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    mock.method(
+      payslipServer,
+      "computePayslipsForPayrollRun",
+      async (
+        _supabase: unknown,
+        _input: { houseId: string; runId: string; employeeId: string },
+        options?: { branchScope?: { isBranchLimited: boolean; allowedBranchIds: string[] } },
+      ) => {
+        capturedBranchScope = options?.branchScope ?? null;
+        return [
+          {
+            employeeId: supabase.employeeId,
+            periodStart: "2024-01-01",
+            periodEnd: "2024-01-01",
+            ratePerDay: 1000,
+            scheduledMinutes: 480,
+            workMinutes: 480,
+            regularMinutes: 480,
+            overtimeMinutes: 0,
+            undertimeMinutes: 0,
+            perMinuteRate: 2.08,
+            regularPay: 1000,
+            overtimePay: 0,
+            undertimeDeduction: 0,
+            otherDeductions: [],
+            deductionsTotal: 0,
+            grossPay: 1000,
+            netPay: 1000,
+            flags: {
+              missingScheduleDays: 0,
+              openSegment: false,
+              absentDays: 0,
+              timezoneMismatchDays: 0,
+            },
+            employeeName: "Jamie Santos",
+            employeeCode: "EMP-010",
+          },
+        ];
+      },
+    );
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${supabase.runId}/payslips/${supabase.employeeId}/pdf`) as NextRequest,
+      { params: Promise.resolve({ id: supabase.runId, employeeId: supabase.employeeId }) },
+    );
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(capturedBranchScope, {
+      isBranchLimited: true,
+      allowedBranchIds: [supabase.branchId],
+    });
   });
 
   it("keeps no-leak payload when payslip computation denies run/employee scope", async () => {
