@@ -52,16 +52,36 @@ if (resolvedTestFiles.length === 0) {
   process.exit(1);
 }
 
-const scopedDir = path.join(distDir, ".scoped-tests");
-mkdirSync(scopedDir, { recursive: true });
-const manifestPath = path.join(scopedDir, "manifest.test.mjs");
-const manifestSource = resolvedTestFiles
-  .map((filePath) => toPosix(path.relative(scopedDir, filePath)))
-  .map((relativePath) => `import ${JSON.stringify(relativePath.startsWith(".") ? relativePath : `./${relativePath}`)};`)
-  .join("\n");
+if (resolvedTestFiles.length > 1) {
+  const scopedDir = path.join(distDir, ".scoped-tests");
+  mkdirSync(scopedDir, { recursive: true });
 
-writeFileSync(manifestPath, `${manifestSource}\n`, "utf8");
-run("node", [...sharedNodeArgs, ...cliFlags, "--test", toPosix(path.relative(rootDir, manifestPath))], rootDir);
+  resolvedTestFiles.forEach((filePath, index) => {
+    const manifestPath = path.join(scopedDir, `manifest-${index}.test.mjs`);
+    const relativePath = toPosix(path.relative(scopedDir, filePath));
+    writeFileSync(
+      manifestPath,
+      `import ${JSON.stringify(relativePath.startsWith(".") ? relativePath : `./${relativePath}`)};\n`,
+      "utf8",
+    );
+    run("node", [...sharedNodeArgs, ...cliFlags, "--test", toPosix(path.relative(rootDir, manifestPath))], rootDir);
+  });
+  process.exit(0);
+}
+
+if (resolvedTestFiles.length === 1) {
+  const scopedDir = path.join(distDir, ".scoped-tests");
+  mkdirSync(scopedDir, { recursive: true });
+  const manifestPath = path.join(scopedDir, "manifest.test.mjs");
+  const relativePath = toPosix(path.relative(scopedDir, resolvedTestFiles[0]));
+  writeFileSync(
+    manifestPath,
+    `import ${JSON.stringify(relativePath.startsWith(".") ? relativePath : `./${relativePath}`)};\n`,
+    "utf8",
+  );
+  run("node", [...sharedNodeArgs, ...cliFlags, "--test", toPosix(path.relative(rootDir, manifestPath))], rootDir);
+  process.exit(0);
+}
 
 function mapToDistTarget(target) {
   const normalized = target.replace(/\\/g, "/").replace(/^\.\//, "");

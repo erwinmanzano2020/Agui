@@ -7,67 +7,71 @@ import { POST } from "../route";
 
 afterEach(() => mock.restoreAll());
 
+function mockVerifySupabase(tokenHash: string) {
+  mock.method(service, "createServiceSupabaseClient", () => {
+    return {
+      from(table: string) {
+        if (table === "hr_kiosk_devices") {
+          return {
+            select() {
+              return this;
+            },
+            eq(column: string, value: string) {
+              if (column === "token_hash") {
+                assert.equal(value, tokenHash);
+              }
+              return this;
+            },
+            maybeSingle: async () => ({
+              data: {
+                id: "device-1",
+                house_id: "house-a",
+                branch_id: "branch-a",
+                name: "Front",
+                is_active: true,
+                disabled_at: null,
+              },
+              error: null,
+            }),
+          };
+        }
+        if (table === "houses") {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            maybeSingle: async () => ({ data: { slug: "house-a" }, error: null }),
+          };
+        }
+        if (table === "branches") {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            maybeSingle: async () => ({ data: { name: "Main" }, error: null }),
+          };
+        }
+        throw new Error(`unexpected table ${table}`);
+      },
+    } as never;
+  });
+}
+
 describe("POST /api/hr/kiosk/verify", () => {
   beforeEach(() => {
+    mock.restoreAll();
     process.env.HR_KIOSK_DEVICE_TOKEN_PEPPER = "pepper";
   });
 
   it("rejects token when slug does not match token house", async () => {
     const tokenHash = hashKioskToken("token-a");
-
-    mock.method(service, "createServiceSupabaseClient", () => {
-      return {
-        from(table: string) {
-          if (table === "hr_kiosk_devices") {
-            return {
-              select() {
-                return this;
-              },
-              eq(column: string, value: string) {
-                if (column === "token_hash") {
-                  assert.equal(value, tokenHash);
-                }
-                return this;
-              },
-              maybeSingle: async () => ({
-                data: {
-                  id: "device-1",
-                  house_id: "house-a",
-                  branch_id: "branch-a",
-                  name: "Front",
-                  is_active: true,
-                  disabled_at: null,
-                },
-                error: null,
-              }),
-            };
-          }
-          if (table === "houses") {
-            return {
-              select() {
-                return this;
-              },
-              eq() {
-                return this;
-              },
-              maybeSingle: async () => ({ data: { slug: "house-a" }, error: null }),
-            };
-          }
-          if (table === "branches") {
-            return {
-              select() {
-                return this;
-              },
-              eq() {
-                return this;
-              },
-              maybeSingle: async () => ({ data: { name: "Main" }, error: null }),
-            };
-          }
-          throw new Error(`unexpected table ${table}`);
-        },
-      } as never;
-    });
+    mockVerifySupabase(tokenHash);
 
     const response = await POST(
       new Request("http://localhost/api/hr/kiosk/verify", {
@@ -135,60 +139,7 @@ describe("POST /api/hr/kiosk/verify", () => {
 
   it("accepts token when slug matches kiosk house", async () => {
     const tokenHash = hashKioskToken("token-a");
-
-    mock.method(service, "createServiceSupabaseClient", () => {
-      return {
-        from(table: string) {
-          if (table === "hr_kiosk_devices") {
-            return {
-              select() {
-                return this;
-              },
-              eq(column: string, value: string) {
-                if (column === "token_hash") {
-                  assert.equal(value, tokenHash);
-                }
-                return this;
-              },
-              maybeSingle: async () => ({
-                data: {
-                  id: "device-1",
-                  house_id: "house-a",
-                  branch_id: "branch-a",
-                  name: "Front",
-                  is_active: true,
-                  disabled_at: null,
-                },
-                error: null,
-              }),
-            };
-          }
-          if (table === "houses") {
-            return {
-              select() {
-                return this;
-              },
-              eq() {
-                return this;
-              },
-              maybeSingle: async () => ({ data: { slug: "house-a" }, error: null }),
-            };
-          }
-          if (table === "branches") {
-            return {
-              select() {
-                return this;
-              },
-              eq() {
-                return this;
-              },
-              maybeSingle: async () => ({ data: { name: "Main" }, error: null }),
-            };
-          }
-          throw new Error(`unexpected table ${table}`);
-        },
-      } as never;
-    });
+    mockVerifySupabase(tokenHash);
 
     const response = await POST(
       new Request("http://localhost/api/hr/kiosk/verify", {
@@ -205,5 +156,47 @@ describe("POST /api/hr/kiosk/verify", () => {
     const payload = await response.json();
     assert.equal(payload.ok, true);
     assert.equal(payload.house_id, "house-a");
+  });
+
+  it("accepts valid token when body is malformed JSON (token-first auth)", async () => {
+    const tokenHash = hashKioskToken("token-a");
+    mockVerifySupabase(tokenHash);
+
+    const response = await POST(
+      new Request("http://localhost/api/hr/kiosk/verify", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer token-a",
+          "content-type": "application/json",
+        },
+        body: "{bad-json",
+      }),
+    );
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.ok, true);
+    assert.equal(payload.reason, undefined);
+  });
+
+  it("ignores non-string slug and does not force slug_mismatch", async () => {
+    const tokenHash = hashKioskToken("token-a");
+    mockVerifySupabase(tokenHash);
+
+    const response = await POST(
+      new Request("http://localhost/api/hr/kiosk/verify", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer token-a",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ slug: 101, houseId: "conflicting-house" }),
+      }),
+    );
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.ok, true);
+    assert.equal(payload.reason, undefined);
   });
 });

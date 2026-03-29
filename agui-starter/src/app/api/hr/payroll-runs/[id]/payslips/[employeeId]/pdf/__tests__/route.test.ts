@@ -190,6 +190,7 @@ const allowedAccess: HrAccessDecision = {
 };
 
 beforeEach(async () => {
+  mock.restoreAll();
   supabase = new PayslipPdfSupabaseMock();
 
   const featureGuard = await import("@/lib/auth/feature-guard");
@@ -243,6 +244,25 @@ describe("GET /api/hr/payroll-runs/[id]/payslips/[employeeId]/pdf", () => {
     assert.equal(response.status, 403);
     assert.equal(computeCalls, 0);
     const payload = await response.json();
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.runId, undefined);
+    assert.equal(payload?.details?.employeeId, undefined);
+  });
+
+  it("keeps no-leak payload when payslip computation denies run/employee scope", async () => {
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    mock.method(payslipServer, "computePayslipsForPayrollRun", async () => {
+      throw new payslipServer.PayslipAccessError("Not allowed");
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${supabase.runId}/payslips/${supabase.employeeId}/pdf`) as NextRequest,
+      { params: Promise.resolve({ id: supabase.runId, employeeId: supabase.employeeId }) },
+    );
+
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload.error, "Not allowed");
     assert.equal(payload?.details?.houseId, undefined);
     assert.equal(payload?.details?.runId, undefined);
     assert.equal(payload?.details?.employeeId, undefined);

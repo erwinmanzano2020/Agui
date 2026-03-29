@@ -240,6 +240,7 @@ const allowedAccess: HrAccessDecision = {
 };
 
 beforeEach(async () => {
+  mock.restoreAll();
   supabase = new PayrollRunPdfSupabaseMock();
 
   const featureGuard = await import("@/lib/auth/feature-guard");
@@ -293,6 +294,24 @@ describe("GET /api/hr/payroll-runs/[id]/pdf", () => {
     assert.equal(response.status, 403);
     assert.equal(computeCalls, 0);
     const payload = await response.json();
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.runId, undefined);
+  });
+
+  it("keeps no-leak payload when payslip computation denies cross-house scope", async () => {
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    mock.method(payslipServer, "computePayslipsForPayrollRun", async () => {
+      throw new payslipServer.PayslipAccessError("Not allowed");
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${supabase.runId}/pdf`) as NextRequest,
+      { params: Promise.resolve({ id: supabase.runId }) },
+    );
+
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload.error, "Not allowed");
     assert.equal(payload?.details?.houseId, undefined);
     assert.equal(payload?.details?.runId, undefined);
   });
