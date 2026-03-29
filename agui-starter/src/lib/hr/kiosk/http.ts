@@ -272,6 +272,14 @@ export async function handleKioskSync(request: Request) {
 
 type VerifyBody = { slug?: string };
 
+function readExpectedSlug(body: unknown): string | null {
+  if (!body || typeof body !== "object") return null;
+  const candidate = (body as { slug?: unknown }).slug;
+  if (typeof candidate !== "string") return null;
+  const normalized = candidate.trim();
+  return normalized.length > 0 ? normalized : null;
+}
+
 export async function handleKioskVerify(request: Request) {
   let body: VerifyBody | null = null;
   try {
@@ -284,7 +292,7 @@ export async function handleKioskVerify(request: Request) {
     const token = readBearerKioskToken(request);
     const supabase = createServiceSupabaseClient();
     const auth = await requireKioskDevice(supabase, token, {
-      expectedSlug: body?.slug?.trim() || null,
+      expectedSlug: readExpectedSlug(body),
     });
 
     const { data: house, error: houseError } = await supabase
