@@ -440,4 +440,85 @@ describe("GET /api/hr/payroll-runs/[id]/pdf", () => {
       featureGuardCalls: featureCalls,
     });
   });
+
+  it("returns unauthenticated response before param/query validation", async () => {
+    let featureCalls = 0;
+    let runLookupCalls = 0;
+
+    const featureGuard = await import("@/lib/auth/feature-guard");
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+      featureCalls += 1;
+      return null;
+    });
+
+    supabase.auth.getUser = async () => ({ data: { user: null }, error: null });
+
+    const originalFrom = supabase.from.bind(supabase);
+    supabase.from = ((table: string) => {
+      if (table === "hr_payroll_runs") {
+        runLookupCalls += 1;
+      }
+      return originalFrom(table);
+    }) as typeof supabase.from;
+
+    const response = await GET(
+      new Request("http://localhost/api/hr/payroll-runs/not-a-uuid/pdf?format=bad") as NextRequest,
+      { params: Promise.resolve({ id: "not-a-uuid" }) },
+    );
+
+    await assertUnauthenticatedSafeHrRouteDrift({
+      response,
+      expectedStatus: 401,
+      expectedError: "Not authenticated",
+      featureGuardCalls: featureCalls,
+      payloadParseCalls: 0,
+    });
+    assert.equal(runLookupCalls, 0);
+  });
+
+  it("returns 404 and short-circuits access/compute when payroll run is unresolved", async () => {
+    let accessCalls = 0;
+    let computeCalls = 0;
+
+    const originalFrom = supabase.from.bind(supabase);
+    supabase.from = ((table: string) => {
+      if (table === "hr_payroll_runs") {
+        return {
+          select() {
+            return this;
+          },
+          eq() {
+            return this;
+          },
+          maybeSingle: async () => ({ data: null, error: null }),
+        };
+      }
+      return originalFrom(table);
+    }) as typeof supabase.from;
+
+    const accessModule = await import("@/lib/hr/access");
+    mock.method(accessModule, "requireHrAccess", async () => {
+      accessCalls += 1;
+      return allowedAccess;
+    });
+
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    mock.method(payslipServer, "computePayslipsForPayrollRun", async () => {
+      computeCalls += 1;
+      return [];
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${supabase.runId}/pdf`) as NextRequest,
+      { params: Promise.resolve({ id: supabase.runId }) },
+    );
+
+    assert.equal(response.status, 404);
+    assert.equal(accessCalls, 0);
+    assert.equal(computeCalls, 0);
+    const payload = await response.json();
+    assert.equal(payload.error, "Payroll run not found");
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.runId, undefined);
+  });
 });
