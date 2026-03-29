@@ -13,7 +13,7 @@ import type {
   HrPayrollRunRow,
   HrScheduleWindowRow,
 } from "@/lib/db.types";
-import { requireHrAccess, type HrAccessDecision } from "./access";
+import { requireHrAccess, type HrAccessDecision, type HrBranchAccessDecision } from "./access";
 import {
   buildZonedDateTime,
   getDayOfWeekInTimeZone,
@@ -67,6 +67,8 @@ export type PayslipPreviewRow = PayslipPreview & {
   employeeName: string;
   employeeCode: string;
 };
+
+type PayslipReadBranchScope = Pick<HrBranchAccessDecision, "isBranchLimited" | "allowedBranchIds">;
 
 export class PayslipAccessError extends Error {
   constructor(message: string) {
@@ -580,7 +582,7 @@ function computePayslipPreview(input: {
 export async function computePayslipsForPayrollRun(
   supabase: SupabaseClient<Database>,
   input: { houseId: string; runId: string; employeeId?: string },
-  options: { access?: HrAccessDecision } = {},
+  options: { access?: HrAccessDecision; branchScope?: PayslipReadBranchScope } = {},
 ): Promise<PayslipPreviewRow[]> {
   const access = await resolveAccess(supabase, input.houseId, options.access);
   if (!access.allowed) {
@@ -604,13 +606,9 @@ export async function computePayslipsForPayrollRun(
   if (items.length === 0) return [];
 
   const policy = await getPayPolicyForHouse(supabase, input.houseId);
-  const accessWithBranch = access as HrAccessDecision & {
-    isBranchLimited?: boolean;
-    allowedBranchIds?: string[];
-  };
-  const isBranchLimited = accessWithBranch.isBranchLimited === true;
+  const isBranchLimited = options.branchScope?.isBranchLimited === true;
   const allowedBranchIds = new Set(
-    (accessWithBranch.allowedBranchIds ?? []).map((branchId) => branchId.trim().toLowerCase()),
+    (options.branchScope?.allowedBranchIds ?? []).map((branchId) => branchId.trim().toLowerCase()),
   );
   if (isBranchLimited && allowedBranchIds.size === 0) {
     throw new PayslipAccessError("Not allowed to access payslip previews for this house.");
@@ -844,7 +842,7 @@ export async function computePayslipsForPayrollRun(
 export async function computePayslipForPayrollRunEmployee(
   supabase: SupabaseClient<Database>,
   input: { houseId: string; runId: string; employeeId: string },
-  options: { access?: HrAccessDecision } = {},
+  options: { access?: HrAccessDecision; branchScope?: PayslipReadBranchScope } = {},
 ): Promise<PayslipPreview> {
   const rows = await computePayslipsForPayrollRun(
     supabase,

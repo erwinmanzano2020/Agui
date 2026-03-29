@@ -860,13 +860,8 @@ describe("payslip preview", () => {
         supabase as never,
         { houseId: "house-1", runId: "run-1" },
         {
-          access: {
-            ...baseAccess,
-            allowed: true,
-            allowedByRole: false,
-            isBranchLimited: true,
-            allowedBranchIds: [],
-          } as never,
+          access: { ...baseAccess, allowed: true, allowedByRole: false },
+          branchScope: { isBranchLimited: true, allowedBranchIds: [] },
         },
       ),
       (error: unknown) =>
@@ -925,13 +920,8 @@ describe("payslip preview", () => {
       supabase as never,
       { houseId: "house-1", runId: "run-1" },
       {
-        access: {
-          ...baseAccess,
-          allowed: true,
-          allowedByRole: false,
-          isBranchLimited: true,
-          allowedBranchIds: ["branch-1"],
-        } as never,
+        access: { ...baseAccess, allowed: true, allowedByRole: false },
+        branchScope: { isBranchLimited: true, allowedBranchIds: ["branch-1"] },
       },
     );
 
@@ -947,13 +937,8 @@ describe("payslip preview", () => {
         supabase as never,
         { houseId: "house-1", runId: "run-1", employeeId: "emp-1" },
         {
-          access: {
-            ...baseAccess,
-            allowed: true,
-            allowedByRole: false,
-            isBranchLimited: true,
-            allowedBranchIds: ["branch-2"],
-          } as never,
+          access: { ...baseAccess, allowed: true, allowedByRole: false },
+          branchScope: { isBranchLimited: true, allowedBranchIds: ["branch-2"] },
         },
       ),
       (error: unknown) =>
