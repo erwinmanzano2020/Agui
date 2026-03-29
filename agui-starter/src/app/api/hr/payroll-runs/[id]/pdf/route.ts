@@ -144,6 +144,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       }
       return aKey.localeCompare(bKey);
     });
+    const scopedEmployeeIds = new Set(orderedRows.map((row) => row.employeeId));
+    const scopedRunItems = runItems.filter((item) => scopedEmployeeIds.has(item.employee_id));
 
     const summary = orderedRows.reduce(
       (acc, row) => {
@@ -167,7 +169,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       },
     );
 
-    const diagnostics = runItems.reduce(
+    const diagnostics = scopedRunItems.reduce(
       (acc, item) => {
         acc.missingScheduleDays += item.missing_schedule_days ?? 0;
         acc.correctedSegments += item.corrected_segment_days ?? 0;
