@@ -158,6 +158,41 @@ describe("POST /api/hr/kiosk/verify", () => {
     assert.equal(payload.device, undefined);
   });
 
+  it("short-circuits invalid token before JSON parsing", async () => {
+    let jsonCalls = 0;
+    mock.method(service, "createServiceSupabaseClient", () => {
+      return {
+        from(table: string) {
+          if (table !== "hr_kiosk_devices") throw new Error(`unexpected table ${table}`);
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            maybeSingle: async () => ({ data: null, error: null }),
+          };
+        },
+      } as never;
+    });
+
+    const response = await POST({
+      headers: new Headers({ authorization: "Bearer bad-token" }),
+      async json() {
+        jsonCalls += 1;
+        return { slug: "house-a" };
+      },
+    } as unknown as Request);
+
+    assert.equal(response.status, 401);
+    assert.equal(jsonCalls, 0);
+    const payload = await response.json();
+    assert.equal(payload.reason, "invalid_token");
+    assert.equal(payload.house_id, undefined);
+    assert.equal(payload.device, undefined);
+  });
+
   it("accepts token when slug matches kiosk house", async () => {
     const tokenHash = hashKioskToken("token-a");
     mockVerifySupabase(tokenHash);

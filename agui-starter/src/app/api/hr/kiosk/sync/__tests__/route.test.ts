@@ -95,6 +95,37 @@ describe("POST /api/hr/kiosk/sync", () => {
     assert.equal(payload.device_id, undefined);
   });
 
+  it("returns 401 for invalid token before JSON parsing", async () => {
+    let jsonCalls = 0;
+    mock.method(service, "createServiceSupabaseClient", () => {
+      return {
+        from(table: string) {
+          if (table !== "hr_kiosk_devices") throw new Error(`unexpected table ${table}`);
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            maybeSingle: async () => ({ data: null, error: null }),
+          };
+        },
+      } as never;
+    });
+
+    const response = await POST({
+      headers: new Headers({ authorization: "Bearer bad-token" }),
+      async json() {
+        jsonCalls += 1;
+        return { events: [{ qrToken: "qr-1", clientEventId: "evt-1" }] };
+      },
+    } as unknown as Request);
+
+    assert.equal(response.status, 401);
+    assert.equal(jsonCalls, 0);
+  });
+
   it("returns 400 for invalid payload shape without internal leakage", async () => {
     mock.method(service, "createServiceSupabaseClient", () => {
       return {

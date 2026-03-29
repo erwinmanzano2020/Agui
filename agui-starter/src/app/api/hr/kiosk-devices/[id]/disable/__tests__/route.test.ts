@@ -97,7 +97,37 @@ describe("POST /api/hr/kiosk-devices/[id]/disable", () => {
     assert.equal(response.status, 400);
     const payload = await response.json();
     assert.equal(payload?.error, "Invalid payload");
-    assert.equal(resolveCalls, 1);
+    assert.equal(resolveCalls, 0);
+    assert.equal(mutationCalls, 0);
+  });
+
+  it("returns 400 for invalid device id and short-circuits entity/mutation", async () => {
+    let resolveCalls = 0;
+    let mutationCalls = 0;
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+      auth: {
+        getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+      },
+    }) as never);
+    mock.method(identityServer, "resolveEntityIdForUser", async () => {
+      resolveCalls += 1;
+      return "entity-1";
+    });
+    mock.method(kioskAdmin, "setKioskDeviceEnabled", async () => {
+      mutationCalls += 1;
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/hr/kiosk-devices/not-a-uuid/disable", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ houseId: HOUSE_ID }),
+      }) as never,
+      { params: Promise.resolve({ id: "not-a-uuid" }) },
+    );
+
+    assert.equal(response.status, 400);
+    assert.equal(resolveCalls, 0);
     assert.equal(mutationCalls, 0);
   });
 });

@@ -90,4 +90,29 @@ describe("POST /api/hr/kiosk-devices/[id]/rotate-token", () => {
     assert.equal(payload?.token, undefined);
     assert.equal(rotateCalls, 0);
   });
+
+  it("returns 400 for invalid device id and does not call rotation helper", async () => {
+    let rotateCalls = 0;
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+      auth: {
+        getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+      },
+    }) as never);
+    mock.method(kioskAdmin, "rotateKioskDeviceToken", async () => {
+      rotateCalls += 1;
+      return { plaintextToken: "token-123" };
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/hr/kiosk-devices/not-a-uuid/rotate-token", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ houseId: HOUSE_ID }),
+      }) as never,
+      { params: Promise.resolve({ id: "not-a-uuid" }) },
+    );
+
+    assert.equal(response.status, 400);
+    assert.equal(rotateCalls, 0);
+  });
 });
