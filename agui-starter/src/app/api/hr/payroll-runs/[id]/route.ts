@@ -9,6 +9,7 @@ import {
   PayrollRunAccessError,
   PayrollRunFetchError,
 } from "@/lib/hr/payroll-runs-server";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { z } from "@/lib/z";
 
 const ROUTE_NAME = "api/hr/payroll-runs/:id";
@@ -51,10 +52,31 @@ export async function GET(
   }
 
   try {
+    const access = await requireHrAccessWithBranch(actor.supabase, {
+      houseId: parsedQuery.data.houseId,
+    });
+    if (!access.allowed) {
+      logApiWarning({
+        route: ROUTE_NAME,
+        action: "access_denied",
+        userId: actor.userId,
+        entityId: actor.entityId,
+        details: { runId: parsedParams.data.id },
+      });
+      return jsonError(403, "Not allowed");
+    }
+
     const result = await getPayrollRunWithItems(
       actor.supabase,
       parsedQuery.data.houseId,
       parsedParams.data.id,
+      {
+        access,
+        branchScope: {
+          isBranchLimited: access.isBranchLimited,
+          allowedBranchIds: access.allowedBranchIds,
+        },
+      },
     );
 
     if (!result) {

@@ -33,6 +33,20 @@ beforeEach(async () => {
 
   const payrollServer = await import("@/lib/hr/payroll-runs-server");
   mock.method(payrollServer, "getPayrollRunWithItems", async () => null);
+  const access = await import("@/lib/hr/access");
+  mock.method(access, "requireHrAccessWithBranch", async () => ({
+    allowed: true,
+    allowedByRole: true,
+    allowedByPolicy: false,
+    hasWorkspaceAccess: true,
+    roles: [],
+    normalizedRoles: [],
+    policyKeys: [],
+    entityId: "entity-1",
+    branchId: null,
+    isBranchLimited: false,
+    allowedBranchIds: [],
+  }));
 
   ({ GET } = await import("../route"));
 });
@@ -151,5 +165,84 @@ describe("GET /api/hr/payroll-runs/[id]", () => {
     assert.equal(payload.error, "Not allowed");
     assert.equal(payload?.details?.houseId, undefined);
     assert.equal(payload?.details?.runId, undefined);
+  });
+
+  it("short-circuits before run fetch when branch-scoped access denies", async () => {
+    let getRunCalls = 0;
+    const payrollServer = await import("@/lib/hr/payroll-runs-server");
+    mock.method(payrollServer, "getPayrollRunWithItems", async () => {
+      getRunCalls += 1;
+      return null;
+    });
+    const access = await import("@/lib/hr/access");
+    mock.method(access, "requireHrAccessWithBranch", async () => ({
+      allowed: false,
+      allowedByRole: false,
+      allowedByPolicy: true,
+      hasWorkspaceAccess: true,
+      roles: [],
+      normalizedRoles: [],
+      policyKeys: [`hr.branch.${HOUSE_ID}`],
+      entityId: "entity-1",
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: [HOUSE_ID],
+    }));
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}?houseId=${HOUSE_ID}`) as NextRequest,
+      { params: Promise.resolve({ id: RUN_ID }) },
+    );
+
+    assert.equal(response.status, 403);
+    assert.equal(getRunCalls, 0);
+    const payload = await response.json();
+    assert.equal(payload.error, "Not allowed");
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.runId, undefined);
+  });
+
+  it("forwards branch-limited access scope into run read helper", async () => {
+    let capturedOptions:
+      | { branchScope?: { isBranchLimited: boolean; allowedBranchIds: string[] } }
+      | undefined;
+    const access = await import("@/lib/hr/access");
+    mock.method(access, "requireHrAccessWithBranch", async () => ({
+      allowed: true,
+      allowedByRole: false,
+      allowedByPolicy: true,
+      hasWorkspaceAccess: true,
+      roles: [],
+      normalizedRoles: [],
+      policyKeys: [`hr.branch.${HOUSE_ID}`],
+      entityId: "entity-1",
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: [HOUSE_ID],
+    }));
+
+    const payrollServer = await import("@/lib/hr/payroll-runs-server");
+    mock.method(
+      payrollServer,
+      "getPayrollRunWithItems",
+      async (
+        _supabase: unknown,
+        _houseId: string,
+        _runId: string,
+        options?: { branchScope?: { isBranchLimited: boolean; allowedBranchIds: string[] } },
+      ) => {
+        capturedOptions = options;
+        return null;
+      },
+    );
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}?houseId=${HOUSE_ID}`) as NextRequest,
+      { params: Promise.resolve({ id: RUN_ID }) },
+    );
+
+    assert.equal(response.status, 404);
+    assert.equal(capturedOptions?.branchScope?.isBranchLimited, true);
+    assert.deepEqual(capturedOptions?.branchScope?.allowedBranchIds, [HOUSE_ID]);
   });
 });
