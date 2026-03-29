@@ -114,6 +114,27 @@ describe("POST /api/hr/kiosk/verify", () => {
     assert.equal(payload.device, undefined);
   });
 
+  it("runs token auth before JSON parsing for missing token", async () => {
+    let jsonCalls = 0;
+    let createServiceCalls = 0;
+    mock.method(service, "createServiceSupabaseClient", () => {
+      createServiceCalls += 1;
+      return {} as never;
+    });
+
+    const response = await POST({
+      headers: new Headers(),
+      async json() {
+        jsonCalls += 1;
+        return { slug: "house-a" };
+      },
+    } as unknown as Request);
+
+    assert.equal(response.status, 401);
+    assert.equal(createServiceCalls, 0);
+    assert.equal(jsonCalls, 0);
+  });
+
   it("short-circuits on malformed JSON + missing token before service lookup", async () => {
     let createServiceCalls = 0;
     mock.method(service, "createServiceSupabaseClient", () => {
@@ -177,6 +198,79 @@ describe("POST /api/hr/kiosk/verify", () => {
     const payload = await response.json();
     assert.equal(payload.ok, true);
     assert.equal(payload.reason, undefined);
+  });
+
+  it("runs token auth before JSON parsing even with malformed JSON", async () => {
+    const tokenHash = hashKioskToken("token-a");
+    let createServiceCalls = 0;
+    mock.method(service, "createServiceSupabaseClient", () => {
+      createServiceCalls += 1;
+      return {
+        from(table: string) {
+          if (table === "hr_kiosk_devices") {
+            return {
+              select() {
+                return this;
+              },
+              eq(column: string, value: string) {
+                if (column === "token_hash") {
+                  assert.equal(value, tokenHash);
+                }
+                return this;
+              },
+              maybeSingle: async () => ({
+                data: {
+                  id: "device-1",
+                  house_id: "house-a",
+                  branch_id: "branch-a",
+                  name: "Front",
+                  is_active: true,
+                  disabled_at: null,
+                },
+                error: null,
+              }),
+            };
+          }
+          if (table === "houses") {
+            return {
+              select() {
+                return this;
+              },
+              eq() {
+                return this;
+              },
+              maybeSingle: async () => ({ data: { slug: "house-a" }, error: null }),
+            };
+          }
+          if (table === "branches") {
+            return {
+              select() {
+                return this;
+              },
+              eq() {
+                return this;
+              },
+              maybeSingle: async () => ({ data: { name: "Main" }, error: null }),
+            };
+          }
+          throw new Error(`unexpected table ${table}`);
+        },
+      } as never;
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/hr/kiosk/verify", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer token-a",
+          "content-type": "application/json",
+        },
+        body: "{bad-json",
+      }),
+    );
+
+    assert.equal(response.status, 200);
+    assert.equal(createServiceCalls, 1);
   });
 
   it("ignores non-string slug and does not force slug_mismatch", async () => {
