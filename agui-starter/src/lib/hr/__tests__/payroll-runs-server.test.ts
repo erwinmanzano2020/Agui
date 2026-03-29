@@ -605,6 +605,122 @@ describe("payroll runs", () => {
     assert.deepEqual(result.items.map((item) => item.employeeId), ["emp-1"]);
   });
 
+  it("returns null when branch-limited scope has no allowed branches", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-2",
+            house_id: "house-1",
+            period_start: "2024-06-01",
+            period_end: "2024-06-15",
+            status: "draft",
+            created_by: null,
+            created_at: "2024-06-02T00:00:00Z",
+            finalized_at: null,
+            finalized_by: null,
+            finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
+          },
+        ],
+        items: [
+          {
+            id: "item-1",
+            run_id: "run-2",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_minutes: 120,
+            overtime_minutes_raw: 10,
+            overtime_minutes_rounded: 15,
+            missing_schedule_days: 0,
+            open_segment_days: 0,
+            corrected_segment_days: 0,
+            notes: {},
+            created_at: "2024-06-02T00:00:00Z",
+          },
+        ],
+        segments: [],
+        employees: [{ id: "emp-1", house_id: "house-1", code: "EMP-1", full_name: "Ada", branch_id: "branch-a" }],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
+    );
+
+    const result = await getPayrollRunWithItems(supabase as never, "house-1", "run-2", {
+      access: accessAllowed,
+      branchScope: { isBranchLimited: true, allowedBranchIds: [] },
+    });
+
+    assert.equal(result, null);
+  });
+
+  it("returns null when branch-limited scope excludes all run item branches", async () => {
+    const runResult = { run: null, error: null };
+    const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };
+    const supabase = new SupabaseMock(
+      {
+        runs: [
+          {
+            id: "run-2",
+            house_id: "house-1",
+            period_start: "2024-06-01",
+            period_end: "2024-06-15",
+            status: "draft",
+            created_by: null,
+            created_at: "2024-06-02T00:00:00Z",
+            finalized_at: null,
+            finalized_by: null,
+            finalize_note: null,
+            posted_at: null,
+            posted_by: null,
+            post_note: null,
+            paid_at: null,
+            paid_by: null,
+            payment_method: null,
+            payment_note: null,
+            reference_code: null,
+            adjusts_run_id: null,
+          },
+        ],
+        items: [
+          {
+            id: "item-1",
+            run_id: "run-2",
+            house_id: "house-1",
+            employee_id: "emp-1",
+            work_minutes: 120,
+            overtime_minutes_raw: 10,
+            overtime_minutes_rounded: 15,
+            missing_schedule_days: 0,
+            open_segment_days: 0,
+            corrected_segment_days: 0,
+            notes: {},
+            created_at: "2024-06-02T00:00:00Z",
+          },
+        ],
+        segments: [],
+        employees: [{ id: "emp-1", house_id: "house-1", code: "EMP-1", full_name: "Ada", branch_id: "branch-a" }],
+      },
+      { runResult, itemResult, runUpdateResult: { error: null }, referenceCounter: new Map() },
+    );
+
+    const result = await getPayrollRunWithItems(supabase as never, "house-1", "run-2", {
+      access: accessAllowed,
+      branchScope: { isBranchLimited: true, allowedBranchIds: ["branch-b"] },
+    });
+
+    assert.equal(result, null);
+  });
+
   it("surfaces unique constraint errors on items", async () => {
     const runResult = { run: null, error: null };
     const itemResult = {

@@ -361,6 +361,10 @@ export async function getPayrollRunWithItems(
         })
       : items;
 
+  if (options.branchScope?.isBranchLimited && scopedItems.length === 0) {
+    return null;
+  }
+
   const run = mapRun(data, scopedItems.length);
   const mappedItems = scopedItems.map((item) => mapItem(item, employeeLookup));
 
