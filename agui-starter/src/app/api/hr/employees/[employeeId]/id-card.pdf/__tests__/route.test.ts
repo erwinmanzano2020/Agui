@@ -20,16 +20,6 @@ const baseContext = {
   elevatedAuthority: { hasOperationalElevatedAuthority: false, sourceRole: null },
 } as const;
 
-const baseContext = {
-  userId: "00000000-0000-0000-0000-000000000999",
-  scopeType: "house",
-  scopeId: "00000000-0000-0000-0000-000000000111",
-  roles: { PLATFORM: [], GUILD: [], HOUSE: ["house_manager"] },
-  permissions: [],
-  membership: { isMember: true, roleCount: 1, scopeRoleScope: "HOUSE" },
-  elevatedAuthority: { hasOperationalElevatedAuthority: false, sourceRole: null },
-} as const;
-
 beforeEach(async () => {
   lastFrontLayout = undefined;
 
@@ -137,6 +127,52 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", { concurrency: false 
     );
 
     assert.equal(response.status, 200);
+  });
+
+  it("returns 400 when houseId is omitted and short-circuits auth chain", async () => {
+    let authCalls = 0;
+    let contextCalls = 0;
+    const accessCheck = await import("@/lib/access/access-check");
+    mock.method(accessCheck, "requireAuthentication", async () => {
+      authCalls += 1;
+      return baseContext as never;
+    });
+
+    const accessResolver = await import("@/lib/access/access-resolver");
+    mock.method(accessResolver, "resolveAccessContext", async () => {
+      contextCalls += 1;
+      return baseContext as never;
+    });
+
+    const response = await GET(
+      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf") as NextRequest,
+      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
+    );
+
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.deepEqual(body, { error: "houseId is required" });
+    assert.equal(authCalls, 0);
+    assert.equal(contextCalls, 0);
+  });
+
+  it("returns 400 for invalid employee id and short-circuits auth chain", async () => {
+    let authCalls = 0;
+    const accessCheck = await import("@/lib/access/access-check");
+    mock.method(accessCheck, "requireAuthentication", async () => {
+      authCalls += 1;
+      return baseContext as never;
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/employees/not-a-uuid/id-card.pdf?houseId=${HOUSE_ID}`) as NextRequest,
+      { params: Promise.resolve({ employeeId: "not-a-uuid" }) },
+    );
+
+    assert.equal(response.status, 400);
+    const body = await response.json();
+    assert.deepEqual(body, { error: "Invalid employee id" });
+    assert.equal(authCalls, 0);
   });
 
   it("allows role-based HR access", async () => {
