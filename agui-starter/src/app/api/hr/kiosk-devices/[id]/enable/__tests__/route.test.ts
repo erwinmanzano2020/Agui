@@ -11,6 +11,54 @@ describe("POST /api/hr/kiosk-devices/[id]/enable", () => {
 
   afterEach(() => mock.restoreAll());
 
+  it("returns 401 when unauthenticated and short-circuits enable mutation", async () => {
+    let mutationCalls = 0;
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+      auth: {
+        getUser: async () => ({ data: { user: null }, error: null }),
+      },
+    }) as never);
+    mock.method(kioskAdmin, "setKioskDeviceEnabled", async () => {
+      mutationCalls += 1;
+    });
+
+    const response = await POST(
+      new Request(`http://localhost/api/hr/kiosk-devices/${DEVICE_ID}/enable`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ houseId: HOUSE_ID }),
+      }) as never,
+      { params: Promise.resolve({ id: DEVICE_ID }) },
+    );
+
+    assert.equal(response.status, 401);
+    assert.equal(mutationCalls, 0);
+  });
+
+  it("returns 401 when auth session is invalid and does not continue downstream", async () => {
+    let mutationCalls = 0;
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+      auth: {
+        getUser: async () => ({ data: { user: null }, error: new Error("invalid session") }),
+      },
+    }) as never);
+    mock.method(kioskAdmin, "setKioskDeviceEnabled", async () => {
+      mutationCalls += 1;
+    });
+
+    const response = await POST(
+      new Request(`http://localhost/api/hr/kiosk-devices/${DEVICE_ID}/enable`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ houseId: HOUSE_ID }),
+      }) as never,
+      { params: Promise.resolve({ id: DEVICE_ID }) },
+    );
+
+    assert.equal(response.status, 401);
+    assert.equal(mutationCalls, 0);
+  });
+
   it("returns 400 when device id param is not a UUID", async () => {
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
       auth: {
@@ -55,6 +103,9 @@ describe("POST /api/hr/kiosk-devices/[id]/enable", () => {
     const payload = await response.json();
     assert.equal(payload?.error, "Not allowed");
     assert.equal(payload?.token, undefined);
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.branchId, undefined);
+    assert.equal(payload?.details?.deviceId, undefined);
   });
 
   it("returns 400 when houseId is missing", async () => {

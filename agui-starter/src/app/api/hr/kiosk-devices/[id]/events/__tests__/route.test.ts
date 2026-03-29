@@ -32,12 +32,38 @@ describe("GET /api/hr/kiosk-devices/[id]/events", () => {
     assert.equal(resolverCalls, 0);
   });
 
-  it("returns 400 when device id param is not a UUID", async () => {
+  it("returns 401 when auth session is invalid and does not call events resolver", async () => {
+    let resolverCalls = 0;
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+      auth: {
+        getUser: async () => ({ data: { user: null }, error: new Error("invalid session") }),
+      },
+    }) as never);
+    mock.method(kioskAdmin, "listKioskDeviceEvents", async () => {
+      resolverCalls += 1;
+      return [];
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/kiosk-devices/${DEVICE_ID}/events?houseId=${HOUSE_ID}`) as never,
+      { params: Promise.resolve({ id: DEVICE_ID }) },
+    );
+
+    assert.equal(response.status, 401);
+    assert.equal(resolverCalls, 0);
+  });
+
+  it("returns 400 when device id param is not a UUID and does not call events resolver", async () => {
+    let resolverCalls = 0;
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
       auth: {
         getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
       },
     }) as never);
+    mock.method(kioskAdmin, "listKioskDeviceEvents", async () => {
+      resolverCalls += 1;
+      return [];
+    });
 
     const response = await GET(
       new Request("http://localhost/api/hr/kiosk-devices/not-a-uuid/events?houseId=11111111-1111-1111-1111-111111111111") as never,
@@ -45,6 +71,7 @@ describe("GET /api/hr/kiosk-devices/[id]/events", () => {
     );
 
     assert.equal(response.status, 400);
+    assert.equal(resolverCalls, 0);
     const payload = await response.json();
     assert.equal(payload?.error, "Invalid device id");
   });
@@ -91,5 +118,9 @@ describe("GET /api/hr/kiosk-devices/[id]/events", () => {
     const payload = await response.json();
     assert.equal(payload?.error, "Device not found.");
     assert.equal((payload as { events?: unknown[] }).events, undefined);
+    assert.equal(payload?.houseId, undefined);
+    assert.equal(payload?.branchId, undefined);
+    assert.equal(payload?.deviceId, undefined);
+    assert.equal(payload?.token, undefined);
   });
 });
