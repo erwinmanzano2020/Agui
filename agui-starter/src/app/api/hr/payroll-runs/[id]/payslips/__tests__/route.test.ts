@@ -260,6 +260,49 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
     assert.equal(payload?.details?.runId, undefined);
   });
 
+  it("keeps no-leak forbidden payload when derived house scope later denies access", async () => {
+    let runLookupCalls = 0;
+
+    const supabaseServer = await import("@/lib/supabase/server");
+    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
+      ({
+        auth: {
+          getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+        },
+        from(table: string) {
+          if (table !== "hr_payroll_runs") throw new Error(`unexpected table ${table}`);
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              runLookupCalls += 1;
+              return this;
+            },
+            maybeSingle: async () => ({ data: { id: RUN_ID, house_id: HOUSE_ID }, error: null }),
+          };
+        },
+      }) as never,
+    );
+
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    mock.method(payslipServer, "computePayslipsForPayrollRun", async () => {
+      throw new payslipServer.PayslipAccessError("Not allowed");
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}/payslips`) as NextRequest,
+      { params: Promise.resolve({ id: RUN_ID }) },
+    );
+
+    assert.equal(response.status, 403);
+    assert.equal(runLookupCalls, 1);
+    const payload = await response.json();
+    assert.equal(payload.error, "Not allowed");
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.runId, undefined);
+  });
+
   it("uses explicit houseId without fallback lookup widening", async () => {
     let runLookupCalls = 0;
     let resolvedHouseId: string | null = null;

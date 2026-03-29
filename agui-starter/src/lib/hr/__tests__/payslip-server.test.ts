@@ -13,6 +13,7 @@ import type {
 } from "@/lib/db.types";
 import { evaluateHrAccess } from "../access";
 import {
+  computePayslipsForPayrollRun,
   computePayslipForPayrollRunEmployee,
   createPayrollRunDeduction,
   getPayPolicyForHouse,
@@ -849,6 +850,116 @@ describe("payslip preview", () => {
     assert.equal(supabase.fromCounts.get("hr_branch_schedule_assignments"), 1);
     assert.equal(supabase.fromCounts.get("hr_schedule_windows"), 1);
     assert.equal(supabase.fromCounts.get("hr_payroll_run_deductions"), 1);
+  });
+
+  it("denies branch-limited reads when allowedBranchIds is empty", async () => {
+    const supabase = new SupabaseMock(buildBaseData());
+
+    await assert.rejects(
+      computePayslipsForPayrollRun(
+        supabase as never,
+        { houseId: "house-1", runId: "run-1" },
+        {
+          access: {
+            ...baseAccess,
+            allowed: true,
+            allowedByRole: false,
+            isBranchLimited: true,
+            allowedBranchIds: [],
+          } as never,
+        },
+      ),
+      (error: unknown) =>
+        error instanceof PayslipAccessError &&
+        error.message === "Not allowed to access payslip previews for this house.",
+    );
+  });
+
+  it("returns only in-scope rows for branch-limited run reads with partial allowed branches", async () => {
+    const supabase = new SupabaseMock(
+      buildBaseData({
+        employees: [
+          {
+            ...buildBaseData().employees[0],
+            id: "emp-1",
+            code: "EMP-001",
+            full_name: "Ana Reyes",
+            branch_id: "branch-1",
+          },
+          {
+            ...buildBaseData().employees[0],
+            id: "emp-2",
+            code: "EMP-002",
+            full_name: "Ben Cruz",
+            branch_id: "branch-2",
+          },
+        ],
+        items: [
+          {
+            ...buildBaseData().items[0],
+            id: "item-1",
+            employee_id: "emp-1",
+          },
+          {
+            ...buildBaseData().items[0],
+            id: "item-2",
+            employee_id: "emp-2",
+          },
+        ],
+        segments: [
+          {
+            ...buildBaseData().segments[0],
+            id: "segment-1",
+            employee_id: "emp-1",
+          },
+          {
+            ...buildBaseData().segments[0],
+            id: "segment-2",
+            employee_id: "emp-2",
+          },
+        ],
+      }),
+    );
+
+    const rows = await computePayslipsForPayrollRun(
+      supabase as never,
+      { houseId: "house-1", runId: "run-1" },
+      {
+        access: {
+          ...baseAccess,
+          allowed: true,
+          allowedByRole: false,
+          isBranchLimited: true,
+          allowedBranchIds: ["branch-1"],
+        } as never,
+      },
+    );
+
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0]?.employeeId, "emp-1");
+  });
+
+  it("denies employee-specific reads for out-of-branch targets under branch-limited access", async () => {
+    const supabase = new SupabaseMock(buildBaseData());
+
+    await assert.rejects(
+      computePayslipsForPayrollRun(
+        supabase as never,
+        { houseId: "house-1", runId: "run-1", employeeId: "emp-1" },
+        {
+          access: {
+            ...baseAccess,
+            allowed: true,
+            allowedByRole: false,
+            isBranchLimited: true,
+            allowedBranchIds: ["branch-2"],
+          } as never,
+        },
+      ),
+      (error: unknown) =>
+        error instanceof PayslipAccessError &&
+        error.message === "Employee does not belong to this payroll run.",
+    );
   });
 
   it("does not double-deduct undertime across varying schedules", async () => {
