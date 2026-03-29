@@ -538,6 +538,33 @@ describe("payroll route boundary drift guard", () => {
     const invalidHouse = await listPayrollRuns(new Request("http://localhost/api/hr/payroll-runs?houseId=bad") as never);
     await assertCanonicalRouteError(invalidHouse, 400, PAYROLL_ROUTE_VALIDATION_MESSAGE);
   });
+
+  it("short-circuits list helper when houseId is omitted (deny-by-default)", async () => {
+    setupAuthOk();
+    let listCalls = 0;
+    mock.method(payrollRunsServer, "listPayrollRunsForHouse", async () => {
+      listCalls += 1;
+      return [];
+    });
+
+    const response = await listPayrollRuns(new Request("http://localhost/api/hr/payroll-runs") as never);
+    await assertCanonicalRouteError(response, 400, PAYROLL_ROUTE_VALIDATION_MESSAGE);
+    assert.equal(listCalls, 0);
+  });
+
+  it("keeps forbidden payload no-leak when list access is denied", async () => {
+    setupAuthOk();
+    mock.method(payrollRunsServer, "listPayrollRunsForHouse", async () => {
+      throw new payrollRunsServer.PayrollRunAccessError("cross-house access denied");
+    });
+
+    const response = await listPayrollRuns(new Request(`http://localhost/api/hr/payroll-runs?houseId=${HOUSE_ID}`) as never);
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload.error, PAYROLL_ROUTE_FORBIDDEN_MESSAGE);
+    assert.equal(payload.details?.houseId, undefined);
+    assert.equal(payload.details?.runId, undefined);
+  });
 });
 
 describe("GET /api/hr/payroll-runs/:id guard ordering", () => {
