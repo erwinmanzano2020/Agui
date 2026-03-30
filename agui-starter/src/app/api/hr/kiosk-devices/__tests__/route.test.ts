@@ -68,6 +68,53 @@ describe("GET /api/hr/kiosk-devices", () => {
     assert.equal(payload?.devices?.[0]?.house_id, HOUSE_ID);
   });
 
+
+
+  it("returns 403 deny-by-default when branch-limited actor has no allowed branches", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+      auth: {
+        getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+      },
+    }) as never);
+    mock.method(kioskAdmin, "listKioskDevicesForHouse", async () => {
+      throw new kioskAdmin.KioskAdminError("No branch access.", 403);
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/kiosk-devices?houseId=${HOUSE_ID}`) as never,
+    );
+
+    assert.ok(response);
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload?.error, "No branch access.");
+    assert.equal(payload?.devices, undefined);
+    assert.equal(payload?.details, undefined);
+  });
+
+  it("short-circuits list helper for invalid branchId query payload", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
+      auth: {
+        getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+      },
+    }) as never);
+
+    let listCalls = 0;
+    mock.method(kioskAdmin, "listKioskDevicesForHouse", async () => {
+      listCalls += 1;
+      return [];
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/kiosk-devices?houseId=${HOUSE_ID}&branchId=not-a-uuid`) as never,
+    );
+
+    assert.ok(response);
+    assert.equal(response.status, 400);
+    const payload = await response.json();
+    assert.equal(payload?.error, "Invalid query");
+    assert.equal(listCalls, 0);
+  });
   it("rejects branchId from another house via admin guard", async () => {
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
       auth: {
