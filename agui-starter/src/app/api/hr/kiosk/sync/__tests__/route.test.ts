@@ -363,4 +363,129 @@ describe("POST /api/hr/kiosk/sync", () => {
     assert.equal(payload.branch_id, undefined);
     assert.equal(payload.device_id, undefined);
   });
+
+  it("keeps top-level payload constrained to filtered in-scope events only", async () => {
+    mock.method(service, "createServiceSupabaseClient", () => {
+      return {
+        from(table: string) {
+          if (table !== "hr_kiosk_devices") throw new Error(`unexpected table ${table}`);
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            maybeSingle: async () => ({
+              data: {
+                id: "device-1",
+                house_id: "house-1",
+                branch_id: "branch-1",
+                name: "Frontdesk",
+                is_active: true,
+                disabled_at: null,
+              },
+              error: null,
+            }),
+          };
+        },
+      } as never;
+    });
+
+    mock.method(kioskRepository, "createSupabaseKioskRepo", () => ({}) as never);
+    mock.method(kioskService, "processKioskSync", async (_repo: unknown, input: {
+      events: Array<{ qrToken: string; clientEventId: string; occurredAt?: string }>;
+    }) => ({
+      results: input.events.map((event) => ({
+        clientEventId: event.clientEventId,
+        status: "processed" as const,
+        result: {
+          action: "clock_in" as const,
+          employee: { id: "emp-1", code: "E-001", displayName: "Test Employee" },
+          segmentId: "seg-1",
+          workDate: "2026-02-01",
+          time: "2026-02-01T01:00:00.000Z",
+          offlineAccepted: true,
+        },
+      })),
+    }));
+
+    const response = await POST(
+      new Request("http://localhost/api/hr/kiosk/sync", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer valid-token",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          events: [
+            { qrToken: "qr-1", clientEventId: "evt-1" },
+            { qrToken: "", clientEventId: "evt-2" },
+            { qrToken: "qr-3", clientEventId: "" },
+            { qrToken: "qr-4", clientEventId: "evt-4", occurredAt: "2026-02-02T00:00:00.000Z" },
+          ],
+        }),
+      }),
+    );
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.deepEqual(payload.results.map((entry: { clientEventId: string }) => entry.clientEventId), ["evt-1", "evt-4"]);
+    assert.equal(payload.error, undefined);
+    assert.equal(payload.reason, undefined);
+    assert.equal(payload.house_id, undefined);
+    assert.equal(payload.branch_id, undefined);
+    assert.equal(payload.device_id, undefined);
+  });
+
+  it("returns no-leak unauthorized payload without mixed results when token auth fails", async () => {
+    mock.method(service, "createServiceSupabaseClient", () => {
+      return {
+        from(table: string) {
+          if (table !== "hr_kiosk_devices") throw new Error(`unexpected table ${table}`);
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            maybeSingle: async () => ({
+              data: {
+                id: "device-1",
+                house_id: "house-1",
+                branch_id: "branch-1",
+                name: "Frontdesk",
+                is_active: true,
+                disabled_at: null,
+              },
+              error: null,
+            }),
+          };
+        },
+      } as never;
+    });
+
+    mock.method(kioskRepository, "createSupabaseKioskRepo", () => ({}) as never);
+    mock.method(kioskService, "processKioskSync", async () => {
+      throw new kioskService.KioskAuthError("Invalid kiosk token.");
+    });
+
+    const response = await POST(
+      new Request("http://localhost/api/hr/kiosk/sync", {
+        method: "POST",
+        headers: {
+          authorization: "Bearer valid-token",
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          events: [{ qrToken: "qr-1", clientEventId: "evt-1" }],
+        }),
+      }),
+    );
+
+    assert.equal(response.status, 401);
+    const payload = await response.json();
+    assert.deepEqual(payload, { error: "Unauthorized kiosk device." });
+  });
 });
