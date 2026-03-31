@@ -184,4 +184,65 @@ describe("employee-id-cards-server", { concurrency: false }, () => {
 
     assert.deepEqual(cards.map((card) => card.id), ["emp-1"]);
   });
+
+  it("degrades safely when optional metadata loaders fail at runtime", async () => {
+    const supabase = {
+      from(table: string) {
+        if (table === "employees") {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            ilike() {
+              return this;
+            },
+            order: async () => ({
+              data: [
+                {
+                  id: "emp-1",
+                  code: "EI-001",
+                  full_name: "Ada Lovelace",
+                  position_title: "Cashier",
+                  photo_url: null,
+                  house_id: "house-1",
+                  branch_id: "branch-1",
+                  status: "active",
+                },
+              ],
+              error: null,
+            }),
+          };
+        }
+
+        if (table === "houses" || table === "branches") {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            maybeSingle: async () => ({
+              data: null,
+              error: { code: "42P01", message: `relation ${table} missing` },
+            }),
+            then: (resolve: (value: { data: null; error: { code: string; message: string } }) => unknown) =>
+              Promise.resolve(resolve({ data: null, error: { code: "42P01", message: `relation ${table} missing` } })),
+          };
+        }
+
+        throw new Error(`Unexpected table ${table}`);
+      },
+    };
+
+    const cards = await listEmployeeIdCards(supabase as never, "house-1");
+    assert.equal(cards.length, 1);
+    assert.equal(cards[0]?.id, "emp-1");
+    assert.equal(cards[0]?.branchName, null);
+    assert.equal(cards[0]?.houseName, "");
+    assert.equal(cards[0]?.houseBrandName, null);
+  });
 });

@@ -47,6 +47,41 @@ describe("evaluateHrAccess", () => {
 });
 
 describe("requireHrAccessWithBranch", () => {
+  it("fails closed when house_roles lookup is unavailable in runtime", async () => {
+    mock.method(policyServer, "getCurrentEntityAndPolicies", async () => ({
+      entityId: "entity-1",
+      policyKeys: ["tiles.hr.read"],
+    }) as never);
+
+    const supabase = {
+      from() {
+        let eqCalls = 0;
+        return {
+          select() {
+            return this;
+          },
+          eq() {
+            eqCalls += 1;
+            if (eqCalls >= 2) {
+              return Promise.resolve({
+                data: null,
+                error: { code: "42P01", message: "relation house_roles does not exist" },
+              });
+            }
+            return this;
+          },
+        };
+      },
+    };
+
+    const decision = await requireHrAccessWithBranch(supabase as never, { houseId: "house-1" });
+    assert.equal(decision.allowed, false);
+    assert.equal(decision.allowedByPolicy, true);
+    assert.equal(decision.hasWorkspaceAccess, false);
+    assert.equal(decision.isBranchLimited, false);
+    assert.deepEqual(decision.allowedBranchIds, []);
+  });
+
   it("denies zero-scope branch access for non-role actors", async () => {
     mock.method(policyServer, "getCurrentEntityAndPolicies", async () => ({
       entityId: "entity-1",
