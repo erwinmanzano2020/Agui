@@ -1,7 +1,7 @@
 # Codex Task — Tenancy/Auth Regression Consistency Audit Across HR Routes
 
 ## Status
-- active
+- closed
 
 ## Canonical context to use
 - Treat `docs/hr/hr-status.md` as the canonical HR execution snapshot for this task.
@@ -168,3 +168,40 @@ If a combined run flakes, isolate and explain the root cause clearly before prop
 
 ## Final instruction
 Stay conservative. This task is about making HR tenancy/auth behavior **uniformly enforced and regression-locked**, not about broadening scope or “improving things while here.”
+
+
+## Closure evidence (2026-03-31 UTC)
+
+### 1) Enumerated HR route families (API + page + helper entry points)
+
+#### API route families audited
+- `api/hr/employees` (+ `lookup`, `photo`, `photo/upload`, `id-card.pdf`)
+- `api/hr/payroll-preview`
+- `api/hr/payroll-runs` (+ id/detail, write actions, payslips, pdf exports)
+- `api/hr/kiosk-devices` (+ enable/disable/rotate-token/events)
+- `api/hr/kiosk` (+ verify/ping/sync/scan)
+- `api/hr/employee-ids/print`
+
+#### HR page families (entry/guard boundaries cross-checked)
+- `/company/[slug]/hr` shell and access-denied boundary
+- `/company/[slug]/hr/employees` (+ new/detail/edit)
+- `/company/[slug]/hr/payroll`, `/payroll-preview`, `/payroll-runs`, `/payslips`
+- `/company/[slug]/hr/kiosk-devices`
+- `/company/[slug]/hr/employee-ids`
+- `/company/[slug]/hr/dtr`, `/schedules`
+
+#### Helper/service entry points audited for consistency-sensitive behavior
+- `resolveHrRouteActorContext` (canonical auth/entity/feature ordering)
+- `requireHrAccess` / `requireHrAccessWithBranch`
+- payroll-run route boundary helpers and write-target resolvers
+- kiosk admin/service auth + branch/house target resolution
+- payroll preview access + scope resolution helper (`computePayrollPreviewForHousePeriod`)
+
+### 2) Inconsistencies found and disposition
+- Found one remaining deny-payload inconsistency in `api/hr/payroll-preview`: access-denied responses surfaced helper `message` details, unlike other hardened HR deny boundaries.
+- Added regression coverage first, then hardened response mapping to no-leak `403 { error: "Not allowed" }` while preserving server-side warning logs.
+
+### 3) Final closure decision
+- Active inconsistency is fixed and regression-tested.
+- No additional tenancy/access drift was identified in the audited HR route families.
+- Task status is now closed.
