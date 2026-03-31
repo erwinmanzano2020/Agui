@@ -68,7 +68,7 @@ export async function GET(req: NextRequest) {
         houseId: parsed.data.houseId,
         error: message,
       });
-      return jsonError(403, "Not allowed", { message });
+      return jsonError(403, "Not allowed");
     }
 
     if (error instanceof PayrollPreviewValidationError) {
