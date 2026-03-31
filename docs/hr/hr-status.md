@@ -139,5 +139,33 @@ Current HR work must continue to preserve:
 - No stealth contract changes to statuses, APIs, RPCs, or behavior semantics
 - Additive, contract-safe hardening over speculative expansion
 
-## 15. Last Updated
-Canonical re-audit refresh completed on **2026-03-28 (UTC)**.
+## 15. HR Stability Gate Assessment (Final Conservative Check — 2026-03-31 UTC)
+
+### Decision
+**Recommended gate result: NOT YET STABLE.**
+
+### Why this is conservative and evidence-based
+- Sections 1–6 implementation streams are materially complete at baseline level, but the repository still documents HR as **hardening-active** rather than fully stabilized.
+- Active hardening tasks remain explicitly open in canonical task docs (`Status: active`) for:
+  - tenancy/auth regression consistency audit
+  - non-payroll mixed metadata + row parity audit
+  - payroll read/export sibling parity hardening
+- Canonical status still records in-progress hardening for:
+  - tenancy/auth regression depth
+  - read-path metadata/row parity
+  - payroll/payslip wording and lock-state consistency
+  - kiosk operations hardening
+- High-severity risk classification remains unchanged for tenancy/access drift and auth/session/policy drift.
+
+### Blocker interpretation for POS unlock
+- **Blocker:** Any unresolved tenancy/access drift risk, branch-scope parity gap, or unresolved no-leak inconsistency in HR read/write boundaries.
+- **Non-blocking hardening follow-up:** Lower-risk UX polish that does not alter authorization, tenancy, identity, or lock semantics.
+- **Documentation/operational note only:** rollout playbook clarifications that do not change runtime behavior.
+
+### Smallest remaining pre-unlock hardening slices (ordered)
+1. Close active tenancy/auth consistency audit with explicit pass evidence across high-risk HR route families.
+2. Close mixed metadata+row parity audits (non-payroll + payroll sibling export paths) with no known widening or leakage gaps.
+3. Record one consolidated “no known blocker regressions remain” checkpoint in HR status once the above are complete.
+
+## 16. Last Updated
+Canonical re-audit refresh completed on **2026-03-31 (UTC)**, including final conservative stability-gate assessment.
