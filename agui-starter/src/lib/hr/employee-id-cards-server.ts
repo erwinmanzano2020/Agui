@@ -10,7 +10,19 @@ export async function listEmployeeIdCards(
   supabase: SupabaseClient<Database>,
   houseId: string,
   filters: { branchId?: string | null; search?: string } = {},
+  options: { readScope?: { isBranchLimited?: boolean; allowedBranchIds?: string[] } } = {},
 ): Promise<EmployeeIdCardRow[]> {
+  const readScope = options.readScope ?? {};
+  const isBranchLimited = readScope.isBranchLimited === true;
+  const allowedBranchIds = readScope.allowedBranchIds ?? [];
+
+  if (filters.branchId && isBranchLimited && !allowedBranchIds.includes(filters.branchId)) {
+    return [];
+  }
+  if (isBranchLimited && allowedBranchIds.length === 0) {
+    return [];
+  }
+
   let query = supabase
     .from("employees")
     .select("id, code, full_name, position_title, photo_url, house_id, branch_id")
@@ -24,6 +36,10 @@ export async function listEmployeeIdCards(
   if (filters.search?.trim()) {
     const term = `%${filters.search.trim()}%`;
     query = query.ilike("code", term);
+  }
+
+  if (isBranchLimited) {
+    query = query.in("branch_id", allowedBranchIds);
   }
 
   const [{ data: employees, error }, { data: house }, { data: branches }] = await Promise.all([

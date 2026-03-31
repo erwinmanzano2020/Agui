@@ -4,7 +4,7 @@ import { resolveHrRouteActorContext } from "@/app/api/hr/_shared/route-guard-ord
 import { jsonError } from "@/lib/api/http";
 import { getFeatureAccessDebugSnapshot } from "@/lib/auth/feature-guard";
 import { AppFeature } from "@/lib/auth/permissions";
-import { requireHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { generateEmployeeIdCardsSheetPdf } from "@/lib/hr/employee-id-card-pdf";
 import { orderEmployeeIdCards } from "@/lib/hr/employee-id-cards";
 import { listEmployeeIdCards } from "@/lib/hr/employee-id-cards-server";
@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
   const houseId = parsedHouseId.data;
   const featureSnapshot = await getFeatureAccessDebugSnapshot([AppFeature.HR]);
 
-  const access = await requireHrAccess(actor.supabase, houseId);
+  const access = await requireHrAccessWithBranch(actor.supabase, { houseId });
   if (!access.allowed) {
     console.warn("[hr][employee-ids/print] Forbidden by HR access guard", {
       denyStage: "hr_access",
@@ -80,7 +80,12 @@ export async function POST(req: NextRequest) {
     resolvedFeatures: featureSnapshot.resolvedFeatures,
   });
 
-  const allEmployees = await listEmployeeIdCards(actor.supabase, houseId);
+  const allEmployees = await listEmployeeIdCards(actor.supabase, houseId, {}, {
+    readScope: {
+      isBranchLimited: access.isBranchLimited,
+      allowedBranchIds: access.allowedBranchIds,
+    },
+  });
   const allowed = new Map(allEmployees.map((row) => [row.id, row]));
   const selected = employeeIds
     .map((id) => allowed.get(id) ?? null)

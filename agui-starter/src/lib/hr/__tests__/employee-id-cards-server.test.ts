@@ -34,9 +34,20 @@ class QueryMock {
     return this;
   }
 
+  in(column: string, values: string[]) {
+    return new QueryMock(this.table, this.db, this.selected, { ...this.filters, [`in:${column}`]: values.join(",") });
+  }
+
   order() {
     if (this.table === "employees") {
-      return Promise.resolve({ data: this.db.employees.filter((row) => row.house_id === this.filters.house_id), error: null } as const);
+      const scopedBranches = this.filters["in:branch_id"]?.split(",").filter(Boolean) ?? null;
+      return Promise.resolve({
+        data: this.db.employees.filter((row) =>
+          row.house_id === this.filters.house_id
+          && (!scopedBranches || (row.branch_id ? scopedBranches.includes(row.branch_id) : false))
+        ),
+        error: null,
+      } as const);
     }
     if (this.table === "branches") {
       return Promise.resolve({ data: this.db.branches.filter((row) => row.house_id === this.filters.house_id), error: null } as const);
@@ -133,5 +144,44 @@ describe("employee-id-cards-server", { concurrency: false }, () => {
     assert.equal(cards[0]?.position, "Cashier");
     assert.equal(cards[0]?.houseBrandName, null);
     assert.equal(cards[0]?.photoUrl, null);
+  });
+
+  it("keeps branch-limited id card reads scoped to allowed branch ids", async () => {
+    const supabase = new SupabaseMock({
+      employees: [
+        {
+          id: "emp-1",
+          code: "EI-001",
+          full_name: "Ada Lovelace",
+          position_title: "Cashier",
+          house_id: "house-1",
+          branch_id: "branch-1",
+          status: "active",
+        },
+        {
+          id: "emp-2",
+          code: "EI-002",
+          full_name: "Grace Hopper",
+          position_title: "Cashier",
+          house_id: "house-1",
+          branch_id: "branch-2",
+          status: "active",
+        },
+      ],
+      house: { id: "house-1", name: "Demo House", brand_name: null, logo_url: null },
+      branches: [
+        { id: "branch-1", house_id: "house-1", name: "Main" },
+        { id: "branch-2", house_id: "house-1", name: "Annex" },
+      ],
+    });
+
+    const cards = await listEmployeeIdCards(
+      supabase as never,
+      "house-1",
+      {},
+      { readScope: { isBranchLimited: true, allowedBranchIds: ["branch-1"] } },
+    );
+
+    assert.deepEqual(cards.map((card) => card.id), ["emp-1"]);
   });
 });

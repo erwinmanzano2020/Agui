@@ -69,14 +69,17 @@ describe("EmployeeIdsPage", () => {
     assert.equal(props?.initialBranchId, "");
 
     assert.equal(listEmployeeIdCardsMock.mock.calls.length, 1);
-    const [supabaseArg, houseIdArg, filtersArg] = listEmployeeIdCardsMock.mock.calls[0].arguments as [
+    const [supabaseArg, houseIdArg, filtersArg, optionsArg] = listEmployeeIdCardsMock.mock.calls[0].arguments as [
       unknown,
       string,
       { branchId?: string; search?: string },
+      { readScope?: { isBranchLimited?: boolean; allowedBranchIds?: string[] } },
     ];
     assert.ok(supabaseArg);
     assert.equal(houseIdArg, "house-1");
     assert.equal(filtersArg.branchId, undefined);
+    assert.equal(optionsArg.readScope?.isBranchLimited, true);
+    assert.deepEqual(optionsArg.readScope?.allowedBranchIds, ["branch-1"]);
   });
 
   it("preserves allowed branch filter when branch metadata list is empty", async () => {
@@ -130,12 +133,15 @@ describe("EmployeeIdsPage", () => {
     assert.equal(props?.initialBranchId, "branch-1");
 
     assert.equal(listEmployeeIdCardsMock.mock.calls.length, 1);
-    const [, , filtersArg] = listEmployeeIdCardsMock.mock.calls[0].arguments as [
+    const [, , filtersArg, optionsArg] = listEmployeeIdCardsMock.mock.calls[0].arguments as [
       unknown,
       string,
       { branchId?: string; search?: string },
+      { readScope?: { isBranchLimited?: boolean; allowedBranchIds?: string[] } },
     ];
     assert.equal(filtersArg.branchId, "branch-1");
+    assert.equal(optionsArg.readScope?.isBranchLimited, true);
+    assert.deepEqual(optionsArg.readScope?.allowedBranchIds, ["branch-1"]);
   });
 
 });
