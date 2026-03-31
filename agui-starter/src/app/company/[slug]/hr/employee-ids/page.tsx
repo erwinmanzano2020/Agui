@@ -28,10 +28,14 @@ export default async function EmployeeIdsPage({
   const accessibleBranches = access.isBranchLimited
     ? branches.branches.filter((branch) => access.allowedBranchIds.includes(branch.id))
     : branches.branches;
-  const allowedBranchIds = new Set(accessibleBranches.map((branch) => branch.id));
+  const allowedBranchIds = new Set(access.allowedBranchIds);
 
   const requestedBranchId = typeof search.branch === "string" ? search.branch : undefined;
-  const branchId = requestedBranchId && allowedBranchIds.has(requestedBranchId) ? requestedBranchId : undefined;
+  const branchId = access.isBranchLimited
+    ? requestedBranchId && allowedBranchIds.has(requestedBranchId)
+      ? requestedBranchId
+      : undefined
+    : requestedBranchId;
   const codeSearch = typeof search.q === "string" ? search.q : "";
   const employees = await listEmployeeIdCards(supabase, house.id, {
     branchId: branchId || undefined,

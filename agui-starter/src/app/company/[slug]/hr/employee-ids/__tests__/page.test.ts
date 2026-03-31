@@ -78,4 +78,64 @@ describe("EmployeeIdsPage", () => {
     assert.equal(houseIdArg, "house-1");
     assert.equal(filtersArg.branchId, undefined);
   });
+
+  it("preserves allowed branch filter when branch metadata list is empty", async () => {
+    const house = { id: "house-1", slug: "demo-house", name: "Demo House" };
+
+    mock.method(requireAuthModule, "requireAuth", async () => ({
+      supabase: {
+        from(table: string) {
+          assert.equal(table, "houses");
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            maybeSingle: async () => ({ data: house, error: null }),
+          };
+        },
+      } as never,
+    }));
+
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
+      allowed: true,
+      hasWorkspaceAccess: true,
+      allowedByRole: false,
+      allowedByPolicy: true,
+      roles: ["house_staff"],
+      normalizedRoles: ["staff"],
+      policyKeys: ["tiles.hr.read", "tiles.hr.branch.branch-1"],
+      entityId: "entity-1",
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: ["branch-1"],
+    }) as never);
+
+    mock.method(employeesServer, "listBranchesForHouse", async () => ({
+      branches: [],
+      error: "Failed to load branches",
+    }));
+
+    const listEmployeeIdCardsMock = mock.method(employeeIdCardsServer, "listEmployeeIdCards", async () => []);
+
+    const element = await EmployeeIdsPage({
+      params: Promise.resolve({ slug: "demo-house" }),
+      searchParams: Promise.resolve({ branch: "branch-1" }),
+    });
+
+    const props = (element as { props?: { branches?: Array<{ id: string }>; initialBranchId?: string } }).props;
+    assert.deepEqual(props?.branches ?? [], []);
+    assert.equal(props?.initialBranchId, "branch-1");
+
+    assert.equal(listEmployeeIdCardsMock.mock.calls.length, 1);
+    const [, , filtersArg] = listEmployeeIdCardsMock.mock.calls[0].arguments as [
+      unknown,
+      string,
+      { branchId?: string; search?: string },
+    ];
+    assert.equal(filtersArg.branchId, "branch-1");
+  });
+
 });
