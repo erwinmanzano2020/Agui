@@ -14,7 +14,7 @@
 
 ## HR Track Status
 - HR-0 to HR-3.5: **implemented baseline, hardening-active**
-- HR is functionally complete at MVP scope
+- HR is functionally complete at approved MVP scope (implementation baseline)
 - Remaining work is focused on:
   - regression depth
   - parity enforcement
