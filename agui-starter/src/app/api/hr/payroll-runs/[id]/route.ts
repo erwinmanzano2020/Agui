@@ -96,7 +96,7 @@ export async function GET(
         details: { runId: parsedParams.data.id },
         error: message,
       });
-      return jsonError(403, "Not allowed", { message });
+      return jsonError(403, "Not allowed");
     }
 
     if (error instanceof PayrollRunFetchError) {
