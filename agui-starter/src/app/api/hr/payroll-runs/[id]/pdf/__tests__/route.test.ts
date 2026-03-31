@@ -121,6 +121,16 @@ class PayrollRunPdfSupabaseMock {
   }
 
   from(table: string) {
+    if (table === "house_roles") {
+      return this.buildQuery([
+        {
+          entity_id: "entity-1",
+          house_id: this.houseId,
+          created_at: "2024-01-01T00:00:00.000Z",
+        },
+      ]);
+    }
+
     if (table === "dtr_segments") {
       return this.buildQuery(this.segments);
     }
@@ -680,6 +690,48 @@ describe("GET /api/hr/payroll-runs/[id]/pdf", () => {
     assert.equal(computeCalls, 0);
     const payload = await response.json();
     assert.equal(payload.error, "Payroll run not found");
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.runId, undefined);
+  });
+
+  it("degrades safely when house_roles lookup fails and houseId is omitted", async () => {
+    let computeCalls = 0;
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    mock.method(payslipServer, "computePayslipsForPayrollRun", async () => {
+      computeCalls += 1;
+      return [];
+    });
+
+    const localSupabase = {
+      auth: {
+        getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+      },
+      from(table: string) {
+        if (table !== "house_roles") throw new Error(`Unexpected table: ${table}`);
+        return {
+          select() {
+            return this;
+          },
+          eq() {
+            return this;
+          },
+          order: async () => ({ data: null, error: { message: "permission denied", code: "42501" } }),
+        };
+      },
+    };
+
+    const supabaseModule = await import("@/lib/supabase/server");
+    mock.method(supabaseModule, "createServerSupabaseClient", async () => localSupabase as never);
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${supabase.runId}/pdf`) as NextRequest,
+      { params: Promise.resolve({ id: supabase.runId }) },
+    );
+
+    assert.equal(response.status, 403);
+    assert.equal(computeCalls, 0);
+    const payload = await response.json();
+    assert.equal(payload.error, "Not allowed");
     assert.equal(payload?.details?.houseId, undefined);
     assert.equal(payload?.details?.runId, undefined);
   });

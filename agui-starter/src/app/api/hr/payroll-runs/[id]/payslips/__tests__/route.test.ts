@@ -23,6 +23,31 @@ beforeEach(async () => {
       auth: {
         getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
       },
+      from(table: string) {
+        if (table === "house_roles") {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            order: async () => ({ data: [{ house_id: HOUSE_ID, created_at: "2026-01-01T00:00:00.000Z" }], error: null }),
+          };
+        }
+        if (table === "hr_payroll_runs") {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            maybeSingle: async () => ({ data: { id: RUN_ID, house_id: HOUSE_ID }, error: null }),
+          };
+        }
+        throw new Error(`unexpected table ${table}`);
+      },
     }) as never,
   );
 
@@ -69,6 +94,18 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
             order.push("auth");
             return { data: { user: { id: "user-1" } }, error: null };
           },
+        },
+        from(table: string) {
+          if (table !== "hr_payroll_runs") throw new Error(`unexpected table ${table}`);
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            maybeSingle: async () => ({ data: { id: RUN_ID, house_id: HOUSE_ID }, error: null }),
+          };
         },
       }) as never,
     );
@@ -141,10 +178,10 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
     assert.equal(payload?.details?.runId, undefined);
   });
 
-  it("resolves house scope from payroll run when houseId is omitted", async () => {
+  it("resolves access before run lookup when houseId is omitted", async () => {
     let resolvedHouseId: string | null = null;
-    let runLookupCalls = 0;
     const runHouseId = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+    const callOrder: string[] = [];
 
     const supabaseService = await import("@/lib/supabase-service");
     mock.method(supabaseService, "getServiceSupabase", () => ({} as never));
@@ -156,15 +193,30 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
           getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
         },
         from(table: string) {
+          if (table === "house_roles") {
+            return {
+              select() {
+                return this;
+              },
+              eq() {
+                return this;
+              },
+              order: async () => {
+                callOrder.push("house_roles");
+                return { data: [{ house_id: runHouseId, created_at: "2026-01-01T00:00:00.000Z" }], error: null };
+              },
+            };
+          }
           if (table !== "hr_payroll_runs") throw new Error(`unexpected table ${table}`);
           return {
             select() {
               return this;
             },
             eq(column: string, value: string) {
-              runLookupCalls += 1;
-              assert.equal(column, "id");
-              assert.equal(value, RUN_ID);
+              if (column === "house_id") {
+                callOrder.push("run_lookup");
+                assert.equal(value, runHouseId);
+              }
               return this;
             },
             maybeSingle: async () => ({ data: { id: RUN_ID, house_id: runHouseId }, error: null }),
@@ -172,6 +224,24 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
         },
       }) as never,
     );
+
+    const accessModule = await import("@/lib/hr/access");
+    mock.method(accessModule, "requireHrAccessWithBranch", async () => {
+      callOrder.push("access");
+      return {
+        allowed: true,
+        allowedByRole: true,
+        allowedByPolicy: false,
+        hasWorkspaceAccess: true,
+        roles: [],
+        normalizedRoles: [],
+        policyKeys: [],
+        entityId: "entity-1",
+        branchId: null,
+        isBranchLimited: false,
+        allowedBranchIds: [],
+      } as never;
+    });
 
     const payslipServer = await import("@/lib/hr/payslip-server");
     mock.method(payslipServer, "computePayslipsForPayrollRun", async (_supabase: unknown, input: { houseId: string }) => {
@@ -185,7 +255,7 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
 
     assert.equal(response.status, 200);
     assert.equal(resolvedHouseId, runHouseId);
-    assert.equal(runLookupCalls, 1);
+    assert.deepEqual(callOrder, ["house_roles", "access", "run_lookup"]);
   });
 
   it("returns 404 without cross-house details when run cannot be resolved", async () => {
@@ -199,6 +269,17 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
           getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
         },
         from(table: string) {
+          if (table === "house_roles") {
+            return {
+              select() {
+                return this;
+              },
+              eq() {
+                return this;
+              },
+              order: async () => ({ data: [{ house_id: HOUSE_ID, created_at: "2026-01-01T00:00:00.000Z" }], error: null }),
+            };
+          }
           if (table !== "hr_payroll_runs") throw new Error(`unexpected table ${table}`);
           return {
             select() {
@@ -242,6 +323,17 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
           getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
         },
         from(table: string) {
+          if (table === "house_roles") {
+            return {
+              select() {
+                return this;
+              },
+              eq() {
+                return this;
+              },
+              order: async () => ({ data: [{ house_id: HOUSE_ID, created_at: "2026-01-01T00:00:00.000Z" }], error: null }),
+            };
+          }
           if (table !== "hr_payroll_runs") throw new Error(`unexpected table ${table}`);
           return {
             select() {
@@ -285,6 +377,17 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
           getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
         },
         from(table: string) {
+          if (table === "house_roles") {
+            return {
+              select() {
+                return this;
+              },
+              eq() {
+                return this;
+              },
+              order: async () => ({ data: [{ house_id: HOUSE_ID, created_at: "2026-01-01T00:00:00.000Z" }], error: null }),
+            };
+          }
           if (table !== "hr_payroll_runs") throw new Error(`unexpected table ${table}`);
           return {
             select() {
@@ -311,7 +414,7 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
     );
 
     assert.equal(response.status, 403);
-    assert.equal(runLookupCalls, 1);
+    assert.equal(runLookupCalls > 0, true);
     const payload = await response.json();
     assert.equal(payload.error, "Not allowed");
     assert.equal(payload?.details?.houseId, undefined);
@@ -338,7 +441,7 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
               runLookupCalls += 1;
               return this;
             },
-            maybeSingle: async () => ({ data: { id: RUN_ID, house_id: "should-not-be-used" }, error: null }),
+            maybeSingle: async () => ({ data: { id: RUN_ID, house_id: HOUSE_ID }, error: null }),
           };
         },
       }) as never,
@@ -357,7 +460,7 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
 
     assert.equal(response.status, 200);
     assert.equal(resolvedHouseId, HOUSE_ID);
-    assert.equal(runLookupCalls, 0);
+    assert.equal(runLookupCalls > 0, true);
   });
 
   it("passes branch-limited scope into payslip compute options", async () => {
@@ -403,5 +506,47 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
       isBranchLimited: true,
       allowedBranchIds: [scopedBranchId],
     });
+  });
+
+  it("degrades safely when house_roles lookup fails and houseId is omitted", async () => {
+    const supabaseServer = await import("@/lib/supabase/server");
+    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
+      ({
+        auth: {
+          getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+        },
+        from(table: string) {
+          if (table !== "house_roles") throw new Error(`unexpected table ${table}`);
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            order: async () => ({ data: null, error: { message: "permission denied", code: "42501" } }),
+          };
+        },
+      }) as never,
+    );
+
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    let computeCalls = 0;
+    mock.method(payslipServer, "computePayslipsForPayrollRun", async () => {
+      computeCalls += 1;
+      return [];
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}/payslips`) as NextRequest,
+      { params: Promise.resolve({ id: RUN_ID }) },
+    );
+
+    assert.equal(response.status, 403);
+    assert.equal(computeCalls, 0);
+    const payload = await response.json();
+    assert.equal(payload.error, "Not allowed");
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.runId, undefined);
   });
 });

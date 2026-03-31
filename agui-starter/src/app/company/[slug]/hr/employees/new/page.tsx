@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { requireAuth } from "@/lib/auth/require-auth";
+import { requireHrAccess } from "@/lib/hr/access";
 import { listBranchesForHouse } from "@/lib/hr/employees-server";
 
 import { CreateEmployeeForm } from "./CreateEmployeeForm";
@@ -22,6 +23,7 @@ export default async function NewEmployeePage({ params }: Props) {
   if (!house) {
     notFound();
   }
+  await requireHrAccess(supabase, house.id);
 
   const branchResult = await listBranchesForHouse(supabase, house.id);
 

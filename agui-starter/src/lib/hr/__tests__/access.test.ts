@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
-import { describe, it } from "node:test";
+import { afterEach, describe, it, mock } from "node:test";
 
-import { evaluateHrAccess } from "../access";
+import { evaluateHrAccess, requireHrAccessWithBranch } from "../access";
+import * as policyServer from "@/lib/policy/server";
+
+afterEach(() => {
+  mock.restoreAll();
+});
 
 describe("evaluateHrAccess", () => {
   it("allows workspace owners to open HR", () => {
@@ -38,5 +43,37 @@ describe("evaluateHrAccess", () => {
     assert.equal(decision.allowedByPolicy, true);
     assert.equal(decision.hasWorkspaceAccess, false);
     assert.equal(decision.allowed, false);
+  });
+});
+
+describe("requireHrAccessWithBranch", () => {
+  it("denies zero-scope branch access for non-role actors", async () => {
+    mock.method(policyServer, "getCurrentEntityAndPolicies", async () => ({
+      entityId: "entity-1",
+      policyKeys: ["tiles.hr.read"],
+    }) as never);
+
+    const supabase = {
+      from() {
+        let eqCalls = 0;
+        return {
+          select() {
+            return this;
+          },
+          eq() {
+            eqCalls += 1;
+            if (eqCalls >= 2) {
+              return Promise.resolve({ data: [{ role: "house_staff" }], error: null });
+            }
+            return this;
+          },
+        };
+      },
+    };
+
+    const decision = await requireHrAccessWithBranch(supabase as never, { houseId: "house-1" });
+    assert.equal(decision.allowed, false);
+    assert.equal(decision.isBranchLimited, true);
+    assert.deepEqual(decision.allowedBranchIds, []);
   });
 });

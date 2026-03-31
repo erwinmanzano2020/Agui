@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/auth/require-auth";
+import { requireHrAccess } from "@/lib/hr/access";
 import { computePayslipForPayrollRunEmployee } from "@/lib/hr/payslip-server";
 
 const currencyFormatter = new Intl.NumberFormat("en-PH", {
@@ -34,6 +35,7 @@ export default async function PayrollRunPayslipDetailPage({ params }: Props) {
   if (!house) {
     notFound();
   }
+  await requireHrAccess(supabase, house.id);
 
   const { data: employee } = await supabase
     .from("employees")

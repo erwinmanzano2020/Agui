@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/auth/require-auth";
+import { requireHrAccess } from "@/lib/hr/access";
 import { getPayrollRunWithItems } from "@/lib/hr/payroll-runs-server";
 import CreateAdjustmentRunButton from "./CreateAdjustmentRunButton";
 import DownloadPayrollRunPdfButton from "./DownloadPayrollRunPdfButton";
@@ -48,6 +49,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
   if (!house) {
     notFound();
   }
+  await requireHrAccess(supabase, house.id);
 
   const result = await getPayrollRunWithItems(supabase, house.id, runId);
   if (!result) {
