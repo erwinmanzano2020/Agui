@@ -121,12 +121,23 @@ export async function requireHrAccessWithBranch(
   const allowedBranchIds = extractBranchScopesFromPolicyKeys(access.policyKeys);
   const isBranchLimited = !access.allowedByRole && allowedBranchIds.length > 0;
   const branchId = input.branchId?.trim().toLowerCase() || null;
+  const hasZeroScopeBranchAccess = !access.allowedByRole && access.allowed && allowedBranchIds.length === 0;
 
   if (!access.allowed) {
     return {
       ...access,
       branchId,
       isBranchLimited,
+      allowedBranchIds,
+      allowed: false,
+    };
+  }
+
+  if (hasZeroScopeBranchAccess) {
+    return {
+      ...access,
+      branchId,
+      isBranchLimited: true,
       allowedBranchIds,
       allowed: false,
     };

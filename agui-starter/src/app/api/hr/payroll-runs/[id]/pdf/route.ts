@@ -22,6 +22,7 @@ const ParamsSchema = z.object({
 
 const QuerySchema = z.object({
   format: z.enum(["a4", "letter"]).optional(),
+  houseId: z.string().trim().uuid().optional(),
 });
 
 const ALLOWED_STATUSES = new Set(["finalized", "posted", "paid"]);
@@ -36,6 +37,28 @@ function sanitizeFilename(value: string): string {
 
 function sortKey(value: string | null | undefined): string {
   return value?.trim().toLocaleLowerCase() ?? "";
+}
+
+async function listActorHouseIds(
+  supabase: Parameters<typeof requireHrAccessWithBranch>[0],
+  entityId: string,
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("house_roles")
+    .select("house_id, created_at")
+    .eq("entity_id", entityId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new PayslipFetchError(error.message);
+  }
+
+  const unique = new Set<string>();
+  for (const row of data ?? []) {
+    const houseId = (row as { house_id?: string | null }).house_id;
+    if (houseId) unique.add(houseId);
+  }
+  return Array.from(unique.values());
 }
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -58,6 +81,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const url = new URL(req.url);
   const parsedQuery = QuerySchema.safeParse({
     format: url.searchParams.get("format") ?? undefined,
+    houseId: url.searchParams.get("houseId") ?? undefined,
   });
 
   if (!parsedQuery.success) {
@@ -70,36 +94,73 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id: runId } = parsedParams.data;
 
   try {
-    const { data: run, error: runError } = await actor.supabase
-      .from("hr_payroll_runs")
-      .select(
-        "id, house_id, period_start, period_end, status, reference_code, finalized_at, posted_at, paid_at",
-      )
-      .eq("id", runId)
-      .maybeSingle();
+    const explicitHouseId = parsedQuery.data.houseId;
+    const houseIds = explicitHouseId
+      ? [explicitHouseId]
+      : await listActorHouseIds(actor.supabase, actor.entityId);
 
-    if (runError) {
-      throw new PayslipFetchError(runError.message);
+    let run: {
+      id: string;
+      house_id: string;
+      period_start: string;
+      period_end: string;
+      status: string;
+      reference_code: string | null;
+      finalized_at: string | null;
+      posted_at: string | null;
+      paid_at: string | null;
+    } | null = null;
+    let access: Awaited<ReturnType<typeof requireHrAccessWithBranch>> | null = null;
+    let allowedHouseChecked = false;
+
+    for (const houseId of houseIds) {
+      const resolvedAccess = await requireHrAccessWithBranch(actor.supabase, { houseId });
+      if (!resolvedAccess.allowed) {
+        continue;
+      }
+      allowedHouseChecked = true;
+
+      const { data, error } = await actor.supabase
+        .from("hr_payroll_runs")
+        .select(
+          "id, house_id, period_start, period_end, status, reference_code, finalized_at, posted_at, paid_at",
+        )
+        .eq("id", runId)
+        .eq("house_id", houseId)
+        .maybeSingle();
+
+      if (error) {
+        throw new PayslipFetchError(error.message);
+      }
+
+      if (!data) {
+        continue;
+      }
+
+      run = data;
+      access = resolvedAccess;
+      break;
     }
 
-    if (!run) {
+    if (!run || !access) {
+      if (explicitHouseId && !allowedHouseChecked) {
+        logApiWarning({
+          route: ROUTE_NAME,
+          action: "access_denied",
+          userId: actor.userId,
+          entityId: actor.entityId,
+          details: { runId },
+        });
+        return jsonError(403, "Not allowed");
+      }
+      if (!explicitHouseId && !allowedHouseChecked) {
+        return jsonError(403, "Not allowed");
+      }
       return jsonError(404, "Payroll run not found");
     }
 
     if (!ALLOWED_STATUSES.has(run.status)) {
       return jsonError(409, "Payroll run must be finalized before exporting.");
-    }
-
-    const access = await requireHrAccessWithBranch(actor.supabase, { houseId: run.house_id });
-    if (!access.allowed) {
-      logApiWarning({
-        route: ROUTE_NAME,
-        action: "access_denied",
-        userId: actor.userId,
-        entityId: actor.entityId,
-        details: { runId, houseId: run.house_id },
-      });
-      return jsonError(403, "Not allowed");
     }
 
     const { data: house, error: houseError } = await actor.supabase

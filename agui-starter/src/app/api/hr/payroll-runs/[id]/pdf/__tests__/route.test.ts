@@ -121,6 +121,16 @@ class PayrollRunPdfSupabaseMock {
   }
 
   from(table: string) {
+    if (table === "house_roles") {
+      return this.buildQuery([
+        {
+          entity_id: "entity-1",
+          house_id: this.houseId,
+          created_at: "2024-01-01T00:00:00.000Z",
+        },
+      ]);
+    }
+
     if (table === "dtr_segments") {
       return this.buildQuery(this.segments);
     }

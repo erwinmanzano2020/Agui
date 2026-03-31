@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { requireAuth } from "@/lib/auth/require-auth";
+import { requireHrAccess } from "@/lib/hr/access";
 import { listPayrollRunsForHouse } from "@/lib/hr/payroll-runs-server";
 import { PayrollRunCreateForm } from "./PayrollRunCreateForm";
 
@@ -28,6 +29,7 @@ export default async function PayrollRunsPage({ params }: Props) {
   if (!house) {
     notFound();
   }
+  await requireHrAccess(supabase, house.id);
 
   const today = new Date().toISOString().slice(0, 10);
   const runs = await listPayrollRunsForHouse(supabase, house.id);

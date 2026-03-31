@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { requireAuth } from "@/lib/auth/require-auth";
+import { requireHrAccess } from "@/lib/hr/access";
 import { getPayrollRunWithItems, listPayrollRunsForHouse } from "@/lib/hr/payroll-runs-server";
 import PayslipPreviewPanel from "@/app/company/[slug]/hr/payroll-runs/[runId]/PayslipPreviewPanel";
 
@@ -18,6 +19,7 @@ export default async function HrPayslipsPage({ params, searchParams }: Props) {
 
   const { data: house } = await supabase.from("houses").select("id, slug, name").eq("slug", slug).maybeSingle();
   if (!house) notFound();
+  await requireHrAccess(supabase, house.id);
 
   const runs = await listPayrollRunsForHouse(supabase, house.id);
   const selectedRunId = (typeof search.runId === "string" ? search.runId : "") || runs[0]?.id || "";
