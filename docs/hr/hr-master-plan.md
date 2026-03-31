@@ -22,3 +22,14 @@ This document anchors the HR milestones and keeps frozen contracts visible so do
 ## HR-2 (Next)
 
 Plan upcoming changes here but keep HR-1 contracts untouched. Proposed expansions should note compatibility with the frozen interfaces above.
+
+## Alignment Note
+
+For full HR architecture, phases, and UX flows, see:
+`docs/hr/hr-master-plan-expanded.md`
+
+This file remains the canonical source for:
+
+- frozen contracts
+- identity rules
+- RPC boundaries
