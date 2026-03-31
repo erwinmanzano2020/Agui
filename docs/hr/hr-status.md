@@ -10,6 +10,7 @@ Based on active-phase rules and current implementation, live HR focus remains:
 - DTR + schedules + overtime-derived payroll preview inputs
 - payroll run lifecycle + payslip review + PDF export operations
 - kiosk device administration, kiosk setup/onboarding, and employee ID issuance/output hardening
+- read-path parity hardening (ensuring metadata, filters, and row payloads remain scope-consistent under branch-limited access)
 
 **Overall:** HR now has broad implemented coverage across planned MVP surfaces, but delivery mode remains **hardening and consolidation**, not feature expansion.
 
@@ -17,7 +18,7 @@ Based on active-phase rules and current implementation, live HR focus remains:
 | Status | Snapshot |
 |---|---|
 | Completed (implemented baseline) | Core HR shell, access gates, employee management, DTR/schedules/overtime policy surfaces, payroll preview + run lifecycle, payslip review/PDF exports, kiosk devices admin, public kiosk setup/scan flow, and employee ID issuance/download are implemented and usable. |
-| In Progress | Consolidation hardening remains active across UX consistency, runtime confidence, and guardrail regression depth. |
+| In Progress | Consolidation hardening remains active across UX consistency, runtime confidence, guardrail regression depth, and read-path parity (metadata vs row scope consistency across routes, helpers, and page-level compositions). |
 | Partial | Some capabilities are intentionally limited by contract (no government deductions/payout rails; employee photo pipeline and ID output remain v1-constrained). |
 | Blocked / Dependency | Deferred contract items (government deductions, payout/payment integrations, broader accounting integration) remain out of scope. |
 | Not Started | No additional in-scope HR MVP surface is newly identified as completely unimplemented in this re-audit; remaining work is mostly hardening/consolidation or explicitly deferred scope. |
@@ -46,12 +47,14 @@ The following are clearly implemented in code and/or tests and usable for curren
 - Hardening continues on operator guidance consistency across payroll and payslip surfaces to prevent wording/behavior drift.
 - Employee detail still includes minor placeholder UX (“Shortcuts coming soon”), signaling ongoing UX consolidation.
 - Tenancy/auth guardrail regression depth should continue to expand around high-risk route combinations and runtime-sensitive behavior.
+- Read-path parity hardening is active across HR surfaces (routes, helpers, and pages) to eliminate scope drift between metadata and row payloads, especially under branch-limited access.
 
 ## 7. Partial / Needs Hardening
 - Payroll and payslip behavior is implemented and documented, but still requires ongoing contract-safe wording/lock semantics discipline. See [`payroll-lifecycle-explainer.md`](./payroll-lifecycle-explainer.md).
 - Kiosk setup flow now exists, but still belongs to hardening mode (operational guidance robustness, edge-case regression confidence, and deployment playbook maturity).
 - Employee photo + ID output remain under constrained v1 contract/hardening posture. See [`employee-photo-pipeline-hardening.md`](./employee-photo-pipeline-hardening.md).
 - Runtime guarantees that depend on deploy-state DB objects (RLS/grants/triggers/migrations applied consistently) still need environment-level validation beyond mocked/unit boundaries.
+- Some HR page-level surfaces combining metadata (e.g. branch lists, filters) with row payloads have required parity hardening to ensure metadata does not imply broader scope than returned rows. This is being actively audited and stabilized.
 
 ## 8. Blocked / Dependencies
 Intentionally deferred by approved HR boundaries:
@@ -76,6 +79,19 @@ Treat HR MVP as complete only when all are simultaneously true:
 - kiosk onboarding and daily kiosk operation are branch-usable with predictable recovery flows
 - employee ID and photo-output path are clear and operationally safe within approved contract limits
 - tenancy/auth boundaries (`house_id` + branch-scoped authorization) remain enforced end-to-end
+
+## 10A. Read-Path Parity Invariants (Enforced)
+All HR read paths must now follow these invariants:
+- Access decisions (`requireHrAccess`, `requireHrAccessWithBranch`) are the source of truth for scope.
+- Row-level data must always be constrained by access-derived scope.
+- Metadata (branches, filters, counts, summaries) must be derived from the same scoped data and must never widen scope.
+- Partial or failed metadata loading must not broaden row queries.
+- Branch-limited zero-scope states must not leak entity existence or metadata.
+
+These invariants are enforced via test-first hardening across:
+- API routes
+- server helpers
+- page-level compositions
 
 ## 11. Next Approved Tasks (Re-ranked)
 Ordered for post-hardening execution fit with current repo state:
