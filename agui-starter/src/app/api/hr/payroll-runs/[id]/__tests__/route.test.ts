@@ -165,6 +165,24 @@ describe("GET /api/hr/payroll-runs/[id]", () => {
     assert.equal(payload.error, "Not allowed");
     assert.equal(payload?.details?.houseId, undefined);
     assert.equal(payload?.details?.runId, undefined);
+    assert.equal(payload?.details?.message, undefined);
+  });
+
+  it("does not echo helper access-deny hints in forbidden payload", async () => {
+    const payrollServer = await import("@/lib/hr/payroll-runs-server");
+    mock.method(payrollServer, "getPayrollRunWithItems", async () => {
+      throw new payrollServer.PayrollRunAccessError("Payroll run does not belong to this house.");
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}?houseId=${HOUSE_ID}`) as NextRequest,
+      { params: Promise.resolve({ id: RUN_ID }) },
+    );
+
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload.error, "Not allowed");
+    assert.equal(payload?.details?.message, undefined);
   });
 
   it("short-circuits before run fetch when branch-scoped access denies", async () => {
@@ -200,6 +218,7 @@ describe("GET /api/hr/payroll-runs/[id]", () => {
     assert.equal(payload.error, "Not allowed");
     assert.equal(payload?.details?.houseId, undefined);
     assert.equal(payload?.details?.runId, undefined);
+    assert.equal(payload?.details?.message, undefined);
   });
 
   it("forwards branch-limited access scope into run read helper", async () => {
