@@ -1,7 +1,7 @@
 # Codex Task — HR Read/Helper Parity Audit for Mixed Metadata + Row Payloads (Non-Payroll)
 
 ## Status
-- active
+- closed (2026-03-31)
 
 ## Canonical context to use
 - Treat `docs/hr/hr-status.md` as the canonical HR execution snapshot for this task.
@@ -138,3 +138,17 @@ If environment issues block a command, report exact failure and keep conclusions
 
 ## Final instruction
 Stay strictly within hardening scope. Prove parity and safety for existing non-payroll HR mixed metadata+row read paths without contract expansion.
+
+## Closure evidence (2026-03-31 UTC)
+- **Surfaces audited**
+  - `src/app/company/[slug]/hr/employees/__tests__/page.test.ts`
+  - `src/app/company/[slug]/hr/kiosk-devices/__tests__/page.test.ts`
+  - `src/app/company/[slug]/hr/employee-ids/__tests__/page.test.ts`
+- **Regressions found**
+  - No mixed metadata + row parity regressions were reproduced in the audited non-payroll read paths.
+  - Existing tests already assert branch-limited parity behavior, including safe behavior when metadata loading is empty/failed.
+- **Fixes applied**
+  - None needed; no failing parity regression was proven.
+- **Why closure is justified**
+  - Audited non-payroll mixed payload surfaces are covered by passing parity-focused tests that preserve access-derived branch scope for both row payloads and metadata/filter surfaces.
+  - No contract widening, tenancy reinterpretation, or feature expansion was required.
