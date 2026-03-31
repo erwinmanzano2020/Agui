@@ -38,6 +38,8 @@ HR can be considered stable enough to move forward **only** when:
 - kiosk flows are operationally reliable
 - regression coverage exists for all high-risk boundaries
 
+Current conservative gate verdict (as of **2026-03-31 UTC**): **NOT YET STABLE** (POS remains locked).
+
 ## Next System (Locked Until HR Stability)
 - Next system: POS
 - Status: Not started (intentionally gated)
