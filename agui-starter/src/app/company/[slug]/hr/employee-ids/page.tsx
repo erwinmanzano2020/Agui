@@ -40,6 +40,11 @@ export default async function EmployeeIdsPage({
   const employees = await listEmployeeIdCards(supabase, house.id, {
     branchId: branchId || undefined,
     search: codeSearch,
+  }, {
+    readScope: {
+      isBranchLimited: access.isBranchLimited,
+      allowedBranchIds: access.allowedBranchIds,
+    },
   });
 
   return (

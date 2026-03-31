@@ -47,7 +47,7 @@ beforeEach(async () => {
   }));
 
   const hrAccess = await import("@/lib/hr/access");
-  mock.method(hrAccess, "requireHrAccess", async () => ({
+  mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
     allowed: true,
     allowedByRole: true,
     allowedByPolicy: false,
@@ -56,6 +56,9 @@ beforeEach(async () => {
     normalizedRoles: ["manager"],
     policyKeys: [],
     entityId: "entity-1",
+    branchId: null,
+    isBranchLimited: false,
+    allowedBranchIds: [],
   }) as never);
 
   const cards = await import("@/lib/hr/employee-id-cards-server");
@@ -164,5 +167,80 @@ describe("POST /api/hr/employee-ids/print", () => {
       featureGuardCalls: featureCalls,
       payloadParseCalls: payloadCalls,
     });
+  });
+
+  it("passes resolved branch scope into list helper", async () => {
+    const hrAccess = await import("@/lib/hr/access");
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
+      allowed: true,
+      allowedByRole: false,
+      allowedByPolicy: true,
+      hasWorkspaceAccess: true,
+      roles: ["house_staff"],
+      normalizedRoles: ["staff"],
+      policyKeys: ["tiles.hr.read", "tiles.hr.branch.44444444-4444-4444-8444-444444444444"],
+      entityId: "entity-1",
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: ["44444444-4444-4444-8444-444444444444"],
+    }) as never);
+
+    const cards = await import("@/lib/hr/employee-id-cards-server");
+    let seenScope: unknown = null;
+    mock.method(
+      cards,
+      "listEmployeeIdCards",
+      async (
+        _supabase: unknown,
+        _houseId: string,
+        _filters: { branchId?: string | null; search?: string },
+        options?: { readScope?: { isBranchLimited?: boolean; allowedBranchIds?: string[] } },
+      ) => {
+        seenScope = options?.readScope;
+        return [
+          {
+            id: EMPLOYEE_ID,
+            code: "EMP-001",
+            fullName: "A",
+            position: "Cashier",
+            branchName: "Main",
+            validUntil: null,
+            houseId: HOUSE_ID,
+            houseName: "Demo House",
+            houseBrandName: null,
+            houseLogoUrl: null,
+          },
+        ];
+      },
+    );
+
+    const response = await POST(buildRequest());
+    assert.equal(response.status, 200);
+    assert.deepEqual(seenScope, {
+      isBranchLimited: true,
+      allowedBranchIds: ["44444444-4444-4444-8444-444444444444"],
+    });
+  });
+
+  it("returns 403 when branch-limited scope resolves to zero allowed branches", async () => {
+    const hrAccess = await import("@/lib/hr/access");
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
+      allowed: false,
+      allowedByRole: false,
+      allowedByPolicy: true,
+      hasWorkspaceAccess: true,
+      roles: ["house_staff"],
+      normalizedRoles: ["staff"],
+      policyKeys: ["tiles.hr.read"],
+      entityId: "entity-1",
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: [],
+    }) as never);
+
+    const response = await POST(buildRequest());
+    assert.equal(response.status, 403);
+    const body = await response.json();
+    assert.deepEqual(body, { error: "Not allowed" });
   });
 });
