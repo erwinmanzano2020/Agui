@@ -148,11 +148,11 @@ Current HR work must continue to preserve:
 - Sections 1–6 implementation streams are materially complete at baseline level, but the repository still documents HR as **hardening-active** rather than fully stabilized.
 - Active hardening tasks remain explicitly open in canonical task docs (`Status: active`) for:
   - tenancy/auth regression consistency audit
+- The two mixed metadata + row parity streams are now closed with closure evidence in their task docs (2026-03-31 UTC):
   - non-payroll mixed metadata + row parity audit
   - payroll read/export sibling parity hardening
 - Canonical status still records in-progress hardening for:
   - tenancy/auth regression depth
-  - read-path metadata/row parity
   - payroll/payslip wording and lock-state consistency
   - kiosk operations hardening
 - High-severity risk classification remains unchanged for tenancy/access drift and auth/session/policy drift.
@@ -164,8 +164,7 @@ Current HR work must continue to preserve:
 
 ### Smallest remaining pre-unlock hardening slices (ordered)
 1. Close active tenancy/auth consistency audit with explicit pass evidence across high-risk HR route families.
-2. Close mixed metadata+row parity audits (non-payroll + payroll sibling export paths) with no known widening or leakage gaps.
-3. Record one consolidated “no known blocker regressions remain” checkpoint in HR status once the above are complete.
+2. Record one consolidated “no known blocker regressions remain” checkpoint in HR status once tenancy/auth consistency hardening is closed.
 
 ## 16. Last Updated
 Canonical re-audit refresh completed on **2026-03-31 (UTC)**, including final conservative stability-gate assessment.

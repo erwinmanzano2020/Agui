@@ -1,7 +1,7 @@
 # Codex Task — Payroll Read/Export Sibling Parity Under Branch-Limited Scope
 
 ## Status
-- active
+- closed (2026-03-31)
 
 ## Canonical context to use
 - Treat `docs/hr/hr-status.md` as the canonical HR execution snapshot for this task.
@@ -112,3 +112,18 @@ Must run and report:
 ## Final instruction
 Stay conservative.
 This is a payroll read/export sibling parity hardening pass only.
+
+## Closure evidence (2026-03-31 UTC)
+- **Surfaces audited**
+  - `src/app/api/hr/payroll-runs/[id]/__tests__/route.test.ts`
+  - `src/app/api/hr/payroll-runs/[id]/payslips/__tests__/route.test.ts`
+  - `src/app/api/hr/payroll-runs/[id]/pdf/__tests__/route.test.ts`
+  - `src/app/api/hr/payroll-runs/[id]/payslips/[employeeId]/pdf/__tests__/route.test.ts`
+- **Regressions found**
+  - No new branch-scope parity or sibling no-leak regressions were reproduced.
+  - Existing tests already cover branch-limited scope forwarding, resolver-first short-circuiting, deny-by-default behavior, and no-leak forbidden/not-found payload handling.
+- **Fixes applied**
+  - None needed; no failing payroll sibling parity regression was proven.
+- **Why closure is justified**
+  - All audited payroll read/export sibling hardening tests pass with current code and preserve current contracts.
+  - Parity invariants remain enforced across run read, payslip list, payroll PDF export, and employee payslip PDF export routes without scope widening.
