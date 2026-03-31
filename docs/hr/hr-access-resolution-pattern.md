@@ -82,7 +82,7 @@ This file is definition-only and does not change code, schema, contracts, or mid
 - **400 Bad Request:** invalid or missing required input.
 - **401 Unauthorized:** unauthenticated caller (API).
 - **403 Forbidden:** authenticated caller lacking required HR scope/capability (API).
-- **404 Not Found:** resource not visible in resolved scope, or canonical page-level unauthorized behavior where `notFound()` applies.
+- **404 Not Found:** true not-found outcome within already resolved and authorized scope. API authentication/authorization denials must remain `401`/`403`; page-level unauthorized behavior may still use `notFound()` only where that page contract explicitly defines it.
 
 No-leak discipline:
 - Do not include unauthorized IDs, house identifiers, branch identifiers, or existence hints in deny/not-found payloads.
