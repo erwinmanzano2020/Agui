@@ -73,21 +73,35 @@ export async function getEmployeeIdCardById(
   supabase: SupabaseClient<Database>,
   houseId: string,
   employeeId: string,
+  options: { readScope?: { isBranchLimited?: boolean; allowedBranchIds?: string[] } } = {},
 ): Promise<EmployeeIdCardRow | null> {
+  const readScope = options.readScope ?? {};
+  const isBranchLimited = readScope.isBranchLimited === true;
+  const allowedBranchIds = readScope.allowedBranchIds ?? [];
+  if (isBranchLimited && allowedBranchIds.length === 0) {
+    return null;
+  }
+
+  let employeeQuery = supabase
+    .from("employees")
+    .select("id, code, full_name, position_title, photo_url, house_id, branch_id")
+    .eq("id", employeeId)
+    .eq("house_id", houseId);
+  let branchQuery = supabase
+    .from("employees")
+    .select("branches(name)")
+    .eq("id", employeeId)
+    .eq("house_id", houseId);
+
+  if (isBranchLimited) {
+    employeeQuery = employeeQuery.in("branch_id", allowedBranchIds);
+    branchQuery = branchQuery.in("branch_id", allowedBranchIds);
+  }
+
   const [{ data: employee, error }, { data: house }, { data: branch }] = await Promise.all([
-    supabase
-      .from("employees")
-      .select("id, code, full_name, position_title, photo_url, house_id, branch_id")
-      .eq("id", employeeId)
-      .eq("house_id", houseId)
-      .maybeSingle(),
+    employeeQuery.maybeSingle(),
     supabase.from("houses").select("id, name, brand_name, logo_url").eq("id", houseId).maybeSingle(),
-    supabase
-      .from("employees")
-      .select("branches(name)")
-      .eq("id", employeeId)
-      .eq("house_id", houseId)
-      .maybeSingle<{ branches?: { name?: string | null } | null }>(),
+    branchQuery.maybeSingle<{ branches?: { name?: string | null } | null }>(),
   ]);
 
   if (error) {

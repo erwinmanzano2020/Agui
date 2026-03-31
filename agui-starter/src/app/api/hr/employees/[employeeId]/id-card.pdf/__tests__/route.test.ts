@@ -35,14 +35,19 @@ beforeEach(async () => {
       private readonly table: string,
       private readonly selected = "",
       private readonly filters: Record<string, string> = {},
+      private readonly inFilters: Record<string, string[]> = {},
     ) {}
 
     select(columns: string) {
-      return new QueryMock(this.table, columns, this.filters);
+      return new QueryMock(this.table, columns, this.filters, this.inFilters);
     }
 
     eq(column: string, value: string) {
-      return new QueryMock(this.table, this.selected, { ...this.filters, [column]: value });
+      return new QueryMock(this.table, this.selected, { ...this.filters, [column]: value }, this.inFilters);
+    }
+
+    in(column: string, values: string[]) {
+      return new QueryMock(this.table, this.selected, this.filters, { ...this.inFilters, [column]: values });
     }
 
     async maybeSingle<T>() {
@@ -65,7 +70,8 @@ beforeEach(async () => {
       }
 
       if (this.table === "employees") {
-        const employee = this.filters.id === EMPLOYEE_ID && this.filters.house_id === HOUSE_ID
+        const branchMatches = !this.inFilters.branch_id || this.inFilters.branch_id.includes("branch-1");
+        const employee = this.filters.id === EMPLOYEE_ID && this.filters.house_id === HOUSE_ID && branchMatches
           ? {
               id: EMPLOYEE_ID,
               code: "EMP-001",
@@ -101,6 +107,20 @@ beforeEach(async () => {
   mock.method(accessResolver, "resolveAccessContext", async () => baseContext as never);
 
   mock.method(accessCheck, "requireHrBusinessAccess", async () => baseContext as never);
+  const hrAccess = await import("@/lib/hr/access");
+  mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
+    allowed: true,
+    allowedByRole: true,
+    allowedByPolicy: false,
+    hasWorkspaceAccess: true,
+    roles: ["house_manager"],
+    normalizedRoles: ["manager"],
+    policyKeys: [],
+    entityId: "entity-1",
+    branchId: null,
+    isBranchLimited: false,
+    allowedBranchIds: [],
+  }) as never);
 
   const pdf = await import("@/lib/hr/employee-id-card-pdf");
   mock.method(pdf, "generateEmployeeIdCardPdf", async (_row: unknown, options: { frontLayout?: string } | undefined) => {
@@ -232,6 +252,32 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", { concurrency: false 
     );
 
     assert.equal(response.status, 403);
+  });
+
+  it("returns 404 when employee is outside allowed branch scope", async () => {
+    const hrAccess = await import("@/lib/hr/access");
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
+      allowed: true,
+      allowedByRole: false,
+      allowedByPolicy: true,
+      hasWorkspaceAccess: true,
+      roles: ["house_staff"],
+      normalizedRoles: ["staff"],
+      policyKeys: ["tiles.hr.read", "tiles.hr.branch.branch-2"],
+      entityId: "entity-1",
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: ["branch-2"],
+    }) as never);
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/employees/${EMPLOYEE_ID}/id-card.pdf?houseId=${HOUSE_ID}`) as NextRequest,
+      { params: Promise.resolve({ employeeId: EMPLOYEE_ID }) },
+    );
+
+    assert.equal(response.status, 404);
+    const body = await response.json();
+    assert.deepEqual(body, { error: "Employee not found" });
   });
 
   it("returns 403 when module access is denied", async () => {

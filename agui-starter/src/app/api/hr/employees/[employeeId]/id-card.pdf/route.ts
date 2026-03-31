@@ -14,6 +14,7 @@ import { AppFeature } from "@/lib/auth/permissions";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getEmployeeIdCardById } from "@/lib/hr/employee-id-cards-server";
 import { generateEmployeeIdCardPdf } from "@/lib/hr/employee-id-card-pdf";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { z } from "@/lib/z";
 
 const ParamsSchema = z.object({ employeeId: z.string().trim().uuid() });
@@ -104,7 +105,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
     resolvedFeatures: featureSnapshot.resolvedFeatures,
   });
 
-  const card = await getEmployeeIdCardById(supabase, houseId, parsed.data.employeeId);
+  const access = await requireHrAccessWithBranch(supabase, { houseId });
+  if (!access.allowed) {
+    return jsonError(403, "Not allowed");
+  }
+
+  const card = await getEmployeeIdCardById(supabase, houseId, parsed.data.employeeId, {
+    readScope: {
+      isBranchLimited: access.isBranchLimited,
+      allowedBranchIds: access.allowedBranchIds,
+    },
+  });
   if (!card) {
     return jsonError(404, "Employee not found");
   }
