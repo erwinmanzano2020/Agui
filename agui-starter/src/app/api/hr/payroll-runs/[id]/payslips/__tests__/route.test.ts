@@ -507,4 +507,46 @@ describe("GET /api/hr/payroll-runs/[id]/payslips", () => {
       allowedBranchIds: [scopedBranchId],
     });
   });
+
+  it("degrades safely when house_roles lookup fails and houseId is omitted", async () => {
+    const supabaseServer = await import("@/lib/supabase/server");
+    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
+      ({
+        auth: {
+          getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+        },
+        from(table: string) {
+          if (table !== "house_roles") throw new Error(`unexpected table ${table}`);
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            order: async () => ({ data: null, error: { message: "permission denied", code: "42501" } }),
+          };
+        },
+      }) as never,
+    );
+
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    let computeCalls = 0;
+    mock.method(payslipServer, "computePayslipsForPayrollRun", async () => {
+      computeCalls += 1;
+      return [];
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${RUN_ID}/payslips`) as NextRequest,
+      { params: Promise.resolve({ id: RUN_ID }) },
+    );
+
+    assert.equal(response.status, 403);
+    assert.equal(computeCalls, 0);
+    const payload = await response.json();
+    assert.equal(payload.error, "Not allowed");
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.runId, undefined);
+  });
 });

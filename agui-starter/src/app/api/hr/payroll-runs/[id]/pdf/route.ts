@@ -12,6 +12,7 @@ import {
   PayslipValidationError,
 } from "@/lib/hr/payslip-server";
 import { requireHrAccessWithBranch } from "@/lib/hr/access";
+import { isOptionalTableError } from "@/lib/supabase/errors";
 import { z } from "@/lib/z";
 
 const ROUTE_NAME = "api/hr/payroll-runs/:id/pdf";
@@ -50,7 +51,20 @@ async function listActorHouseIds(
     .order("created_at", { ascending: true });
 
   if (error) {
-    throw new PayslipFetchError(error.message);
+    const code = typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: string }).code ?? "")
+      : "";
+    const message = typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: string }).message ?? "")
+      : "";
+    const nonFatalLookupError =
+      isOptionalTableError(error) ||
+      code === "42501" ||
+      /permission denied/i.test(message);
+    if (nonFatalLookupError) {
+      return [];
+    }
+    throw new PayslipFetchError(message || "Failed to resolve actor houses.");
   }
 
   const unique = new Set<string>();
