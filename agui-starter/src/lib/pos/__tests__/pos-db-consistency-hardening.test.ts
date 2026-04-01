@@ -1,15 +1,23 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-const migrationPath = path.resolve(
-  process.cwd(),
-  "../supabase/migrations/20261018113000_pos_scope_consistency_hardening.sql",
-);
+const MIGRATION_FILE = "20261018113000_pos_scope_consistency_hardening.sql";
+
+function resolveMigrationPath(): string {
+  const candidates = [
+    path.resolve(process.cwd(), "../supabase/migrations", MIGRATION_FILE),
+    path.resolve(process.cwd(), "supabase/migrations", MIGRATION_FILE),
+  ];
+
+  const found = candidates.find((candidate) => existsSync(candidate));
+  assert.ok(found, `Could not locate migration file: ${MIGRATION_FILE}`);
+  return found;
+}
 
 function migrationSql(): string {
-  return readFileSync(migrationPath, "utf8");
+  return readFileSync(resolveMigrationPath(), "utf8");
 }
 
 test("migration enforces pos_devices house+branch consistency against branches", () => {
