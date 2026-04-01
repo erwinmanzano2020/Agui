@@ -7,14 +7,14 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 - Module: POS
 - Current phase: POS-F0 closure complete; entering POS-F1 implementation-planning posture
 - Foundation wave: complete (canonical POS foundation set present and aligned)
-- Implementation posture: not started
+- Implementation posture: first safe POS-F1 slice in progress (device/session + operator sign-in baseline)
 - Current work mode: implementation task derivation/readiness planning (documentation-only)
 
 ## 3. Status Summary
 | Status | Snapshot |
 |---|---|
 | Foundation | Canonical POS foundation set is complete (master/status/domain/access/identity/db/phase-1/guardrails). |
-| Implemented | POS implementation remains not started (no schema/API/UI/runtime execution baseline declared). |
+| Implemented | POS safe vertical slice baseline is now introduced for device/session + QR lookup + POS PIN + open/close lifecycle only. |
 | In Progress | First implementation-task derivation and readiness planning from `pos-phase-1-foundation.md`. |
 | Blocked / Dependency | No foundation blocker-class gaps identified; implementation remains gated on explicit first-task definition. |
 
@@ -63,5 +63,15 @@ The current POS foundation set is aligned on:
 ### Lower risk
 - terminology drift as implementation tasks are expanded beyond first slice
 
-## 9. Last Updated
+
+## Definition of Done (POS MVP checkpoint)
+POS MVP is only considered done when, at minimum, all are true:
+- device/session model is operationally reliable in normal use and safe-failure paths
+- operator accountability is enforced for terminal operations
+- QR identifier lookup + POS PIN sign-in is stable, with no QR-only bypass path
+- house/branch scope and no-leak behavior are enforced end-to-end (page/API/helper parity)
+- critical POS operational records follow approved ownership and auditability boundaries
+- blocker-class regressions are closed before any future module-unlock claim
+
+## 10. Last Updated
 2026-04-01 (UTC)
