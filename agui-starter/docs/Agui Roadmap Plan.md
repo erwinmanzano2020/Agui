@@ -38,13 +38,14 @@ HR can be considered stable enough to move forward **only** when:
 - kiosk flows are operationally reliable
 - regression coverage exists for all high-risk boundaries
 
-Current conservative gate verdict (as of **2026-03-31 UTC**): **NOT YET STABLE** (POS remains locked).
+Current conservative gate verdict (as of **2026-03-31 UTC**): **STABLE ENOUGH TO UNLOCK POS**.
+Checkpoint rationale: blocker-class HR streams for tenancy/access consistency, branch-scope parity, and no-leak parity are documented closed with no known blocker regressions remaining in repository evidence.
 
-## Next System (Locked Until HR Stability)
+## Next System (Unlocked by HR Stability Checkpoint)
 - Next system: POS
-- Status: Not started (intentionally gated)
-- Unlock condition: HR stability gate satisfied
-- No POS implementation should begin before this condition
+- Status: Eligible to start (conservatively unlocked by HR blocker-closeout checkpoint)
+- Unlock condition: HR stability gate satisfied (**met on 2026-03-31 UTC**)
+- HR remains hardening-active; POS start should not modify frozen HR contracts or weaken tenancy/identity boundaries
 
 ## Notes
 - This roadmap is alignment-only and does not introduce new scope.

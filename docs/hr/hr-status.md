@@ -94,11 +94,11 @@ These invariants are enforced via test-first hardening across:
 - page-level compositions
 
 ## 11. Next Approved Tasks (Re-ranked)
-Ordered for post-hardening execution fit with current repo state:
-1. **Tenancy/Auth regression expansion at high-risk boundaries** (route + service + runtime-sensitive paths) to preserve frozen house/branch guardrails as HR surfaces grow.
-2. **Kiosk setup/operations hardening slice** (wizard robustness, setup recovery clarity, and rollout checklist confidence) without changing approved kiosk contract scope.
-3. **Payroll/payslip UX wording and lock-state consistency hardening** to prevent contract drift across run-detail, payslips tab, and export messaging.
-4. **Employee photo/ID output clarity hardening** within existing HR-3.5.2 constraints (no contract expansion).
+Ordered for post-checkpoint execution fit with current repo state:
+1. **Kiosk setup/operations hardening slice** (wizard robustness, setup recovery clarity, and rollout checklist confidence) without changing approved kiosk contract scope.
+2. **Payroll/payslip UX wording and lock-state consistency hardening** to prevent contract drift across run-detail, payslips tab, and export messaging.
+3. **Employee photo/ID output clarity hardening** within existing HR-3.5.2 constraints (no contract expansion).
+4. **Environment-level runtime confidence validation** (deploy-state migrations/grants/RLS/trigger alignment checks) without changing runtime contracts.
 
 ## 12. Known Risks (Prioritized)
 ### High risk
@@ -139,32 +139,38 @@ Current HR work must continue to preserve:
 - No stealth contract changes to statuses, APIs, RPCs, or behavior semantics
 - Additive, contract-safe hardening over speculative expansion
 
-## 15. HR Stability Gate Assessment (Final Conservative Check — 2026-03-31 UTC)
+## 15. HR Stability Gate Assessment (Final Conservative Blocker Closeout Checkpoint — 2026-03-31 UTC)
 
 ### Decision
-**Recommended gate result: NOT YET STABLE.**
+**Recommended gate result: STABLE ENOUGH TO UNLOCK POS.**
 
 ### Why this is conservative and evidence-based
-- Sections 1–6 implementation streams are materially complete at baseline level, but the repository still documents HR as **hardening-active** rather than fully stabilized.
-- Active hardening tasks remain explicitly open in canonical task docs (`Status: active`) for:
+- This checkpoint re-read closure evidence for all three blocker-class hardening streams:
   - tenancy/auth regression consistency audit
-- The two mixed metadata + row parity streams are now closed with closure evidence in their task docs (2026-03-31 UTC):
   - non-payroll mixed metadata + row parity audit
   - payroll read/export sibling parity hardening
-- Canonical status still records in-progress hardening for:
-  - tenancy/auth regression depth
-  - payroll/payslip wording and lock-state consistency
-  - kiosk operations hardening
-- High-severity risk classification remains unchanged for tenancy/access drift and auth/session/policy drift.
+- All three streams are now documented as **closed** with explicit closure evidence and no unresolved blocker-class regressions recorded in those task files.
+- No remaining repo documentation in canonical HR task files currently supports an open blocker-class stream for:
+  - unresolved tenancy/access blocker
+  - unresolved branch-scope parity blocker
+  - unresolved no-leak blocker
+- HR remains **hardening-active** for non-blocker stabilization slices (kiosk operations, payroll/payslip wording consistency, and operational/runtime confidence).
+- This decision is conservative: it confirms only that **no known blocker regressions remain** in current repository evidence; it does not claim zero risk.
+
+### Consolidated checkpoint statement
+As of **2026-03-31 UTC**, repository evidence supports this conservative checkpoint:
+- **No known blocker regressions remain** in the blocker class (tenancy/access, branch-scope parity, no-leak boundaries).
+- HR is therefore **stable enough to unlock POS planning/start**, while HR hardening continues on non-blocker streams.
 
 ### Blocker interpretation for POS unlock
 - **Blocker:** Any unresolved tenancy/access drift risk, branch-scope parity gap, or unresolved no-leak inconsistency in HR read/write boundaries.
 - **Non-blocking hardening follow-up:** Lower-risk UX polish that does not alter authorization, tenancy, identity, or lock semantics.
 - **Documentation/operational note only:** rollout playbook clarifications that do not change runtime behavior.
 
-### Smallest remaining pre-unlock hardening slices (ordered)
-1. Close active tenancy/auth consistency audit with explicit pass evidence across high-risk HR route families.
-2. Record one consolidated “no known blocker regressions remain” checkpoint in HR status once tenancy/auth consistency hardening is closed.
+### Post-unlock hardening slices (ordered)
+1. Maintain tenancy/auth and parity regressions as locked guardrails (no contract widening).
+2. Continue kiosk setup/operations and payroll/payslip wording consistency hardening.
+3. Expand environment-level runtime confidence validation across deployment states.
 
 ## 16. Last Updated
-Canonical re-audit refresh completed on **2026-03-31 (UTC)**, including final conservative stability-gate assessment.
+Canonical re-audit refresh completed on **2026-03-31 (UTC)**, including final conservative blocker closeout checkpoint and gate reassessment.
