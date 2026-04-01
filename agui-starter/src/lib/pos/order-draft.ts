@@ -2,10 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-
-import type { Database, PosSessionRow } from "@/lib/db.types";
-import { createServiceSupabaseClient } from "@/lib/supabase/service";
+import type { PosSessionRow } from "@/lib/db.types";
 
 export type OrderDraft = {
   id: string;
@@ -36,44 +33,21 @@ type OrderDraftRepository = {
   insertOrderDraft(payload: OrderDraft): Promise<OrderDraft>;
 };
 
-export type RepositoryClient = OrderDraftRepository | SupabaseClient<Database> | null | undefined;
+export type RepositoryClient = OrderDraftRepository | null | undefined;
 
 function sessionInvalidOrClosedError() {
   return new PosOrderDraftError("Session invalid or closed", "SESSION_INVALID_OR_CLOSED", 403);
 }
 
+function repositoryRequiredError() {
+  return new PosOrderDraftError("Order draft repository is required", "ORDER_DRAFT_REPOSITORY_REQUIRED", 500);
+}
+
 function resolveRepository(client?: RepositoryClient): OrderDraftRepository {
-  if (client && "insertOrderDraft" in client) {
-    return client;
+  if (!client || !("insertOrderDraft" in client)) {
+    throw repositoryRequiredError();
   }
-
-  const supabase = (client as SupabaseClient<Database> | null | undefined) ?? createServiceSupabaseClient<Database>();
-
-  return {
-    async getSessionById({ houseId, branchId, sessionId }) {
-      const { data, error } = await supabase
-        .from("pos_sessions")
-        .select("*")
-        .eq("house_id", houseId)
-        .eq("branch_id", branchId)
-        .eq("id", sessionId)
-        .maybeSingle<PosSessionRow>();
-      if (error) {
-        throw new PosOrderDraftError(error.message, error.code ?? "SESSION_LOOKUP_FAILED", 500);
-      }
-      return data ?? null;
-    },
-    async insertOrderDraft(payload) {
-      const { data, error } = await supabase.from("pos_order_drafts").insert(payload).select("*").maybeSingle<OrderDraft>();
-      if (error) {
-        throw new PosOrderDraftError(error.message, error.code ?? "ORDER_DRAFT_CREATE_FAILED", 500);
-      }
-      if (!data) {
-        throw new PosOrderDraftError("Failed to create order draft", "ORDER_DRAFT_CREATE_FAILED", 500);
-      }
-      return data;
-    },
-  } satisfies OrderDraftRepository;
+  return client;
 }
 
 function makeDraftOrderId() {
