@@ -185,3 +185,42 @@ Before unlock is declared, at minimum all must be true:
 - any remaining hardening is explicitly non-blocking and does not alter frozen boundaries or critical safeguards
 
 This lifecycle remains conservative and reusable across modules: opening -> foundation -> implementation -> stabilization -> unlock checkpoint.
+
+
+## 16. Submodule Foundation Rules (Lightweight)
+### Definition
+- A submodule exists inside a parent module boundary.
+- A submodule does not own global architecture decisions.
+- A submodule operates under inherited system and module constraints.
+
+### Core rule
+> Submodules inherit system rules. They do not redefine them.
+
+Inherited without reinterpretation:
+- tenancy is inherited
+- identity is inherited
+- access model is inherited
+- no-leak behavior is inherited
+
+### Minimum definition required before submodule implementation
+- scope and responsibility (what it owns and what it does not own)
+- data ownership (tables it owns vs external reads it depends on)
+- access usage (how it uses existing access resolution; no new access model)
+- boundaries (what it must not bypass)
+- failure/deny behavior aligned with parent module rules
+
+### Non-negotiable constraints
+- must not define new tenancy rules
+- must not define new identity systems
+- must not bypass module-level access resolution
+- must not introduce global/shared tables without module-level alignment
+- must not create cross-module coupling without explicit approval
+
+### Relationship to this playbook
+- submodules do not require full master plans
+- submodules do not require full DB architecture docs
+- submodules must still respect module guardrails
+- submodules are implementation units, not governance units
+
+### Anti-drift intent
+These rules prevent silent architectural drift as modules expand. They keep tenancy, identity, access, and no-leak behavior consistent across implementation slices. They also prevent hidden redefinition of core rules at submodule level.
