@@ -3,6 +3,7 @@
 import { requireAuth } from "@/lib/auth/require-auth";
 import { requirePosAccess } from "@/lib/pos/access";
 import { closePosSession, openPosSessionWithQrAndPin, PosSessionAuthError } from "@/lib/pos/session-auth";
+import { mapPosSessionClientError } from "./error-messages";
 
 async function resolveHouseAndAccess(slug: string) {
   const nextPath = `/company/${slug}/pos/session`;
@@ -39,7 +40,8 @@ export async function openPosSessionAction(
     return { ok: true, sessionId: session.id } as const;
   } catch (error) {
     if (error instanceof PosSessionAuthError) {
-      return { ok: false, error: error.message } as const;
+      console.warn("[pos-session] open denied", { code: error.code, status: error.status, slug });
+      return { ok: false, error: mapPosSessionClientError(error) } as const;
     }
     throw error;
   }
@@ -63,7 +65,8 @@ export async function closePosSessionAction(
     return { ok: true, sessionId: session.id } as const;
   } catch (error) {
     if (error instanceof PosSessionAuthError) {
-      return { ok: false, error: error.message } as const;
+      console.warn("[pos-session] close denied", { code: error.code, status: error.status, slug });
+      return { ok: false, error: mapPosSessionClientError(error) } as const;
     }
     throw error;
   }

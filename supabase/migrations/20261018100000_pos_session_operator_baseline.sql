@@ -1,7 +1,7 @@
 create table if not exists public.pos_devices (
   id uuid primary key default gen_random_uuid(),
   house_id uuid not null references public.houses(id) on delete cascade,
-  branch_id uuid not null references public.houses(id) on delete cascade,
+  branch_id uuid not null references public.branches(id) on delete cascade,
   label text not null,
   device_code text not null,
   status text not null default 'ACTIVE' check (status in ('ACTIVE', 'DISABLED', 'RETIRED')),
@@ -31,7 +31,7 @@ create unique index if not exists pos_operator_credentials_house_entity_unique
 create table if not exists public.pos_sessions (
   id uuid primary key default gen_random_uuid(),
   house_id uuid not null references public.houses(id) on delete cascade,
-  branch_id uuid not null references public.houses(id) on delete cascade,
+  branch_id uuid not null references public.branches(id) on delete cascade,
   device_id uuid not null references public.pos_devices(id) on delete restrict,
   operator_entity_id uuid not null references public.entities(id) on delete restrict,
   opened_by_entity_id uuid not null references public.entities(id) on delete restrict,

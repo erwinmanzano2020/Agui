@@ -4,11 +4,15 @@ import { useState, useTransition } from "react";
 
 import { closePosSessionAction, openPosSessionAction } from "./actions";
 
-export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defaultBranchId: string }) {
+export function resolveInitialBranchId(defaultBranchId: string | null): string {
+  return defaultBranchId?.trim() ?? "";
+}
+
+export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defaultBranchId: string | null }) {
   const [deviceCode, setDeviceCode] = useState("");
   const [qrIdentifier, setQrIdentifier] = useState("");
   const [pin, setPin] = useState("");
-  const [branchId, setBranchId] = useState(defaultBranchId);
+  const [branchId, setBranchId] = useState(resolveInitialBranchId(defaultBranchId));
   const [openSessionId, setOpenSessionId] = useState("");
   const [closeReason, setCloseReason] = useState("");
   const [message, setMessage] = useState<string | null>(null);
@@ -21,7 +25,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
 
       <div className="space-y-2 rounded border p-4">
         <h2 className="font-medium">Open Session</h2>
-        <input className="w-full rounded border px-3 py-2 text-sm" placeholder="Branch ID" value={branchId} onChange={(e) => setBranchId(e.target.value)} />
+        <input className="w-full rounded border px-3 py-2 text-sm" placeholder="Branch ID (required)" value={branchId} onChange={(e) => setBranchId(e.target.value)} />
         <input className="w-full rounded border px-3 py-2 text-sm" placeholder="Device code" value={deviceCode} onChange={(e) => setDeviceCode(e.target.value)} />
         <input className="w-full rounded border px-3 py-2 text-sm" placeholder="Employee QR identifier" value={qrIdentifier} onChange={(e) => setQrIdentifier(e.target.value)} />
         <input className="w-full rounded border px-3 py-2 text-sm" placeholder="POS PIN" type="password" value={pin} onChange={(e) => setPin(e.target.value)} />

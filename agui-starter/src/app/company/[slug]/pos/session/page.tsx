@@ -17,6 +17,13 @@ export default async function PosSessionPage({ params }: { params: { slug: strin
   }
 
   await requirePosAccess(supabase, house.id, { dest });
+  const { data: defaultBranch } = await supabase
+    .from("branches")
+    .select("id")
+    .eq("house_id", house.id)
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle<{ id: string }>();
 
-  return <PosSessionClient slug={house.slug} defaultBranchId={house.id} />;
+  return <PosSessionClient slug={house.slug} defaultBranchId={defaultBranch?.id ?? null} />;
 }
