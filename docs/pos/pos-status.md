@@ -7,22 +7,23 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 - Module: POS
 - Current phase: POS-F1 first-slice implementation baseline landed; hardening-active
 - Foundation wave: complete (canonical POS foundation set present and aligned)
-- Implementation posture: first safe POS-F1 slice exists (device/session + operator sign-in baseline)
+- Implementation posture: first safe POS-F1 slice exists (device/session + operator sign-in baseline), including scope-consistency DB hardening and PIN lifecycle hardening
 - Current work mode: bounded hardening + parity alignment for first slice; no scope expansion
+- MVP posture: POS is still not MVP-complete
 
 ## 3. Status Summary
 | Status | Snapshot |
 |---|---|
 | Foundation | Canonical POS foundation set is complete (master/status/domain/access/identity/db/phase-1/guardrails). |
-| Implemented | POS safe vertical slice baseline is now introduced for device/session + QR lookup + POS PIN + open/close lifecycle only. |
+| Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. |
 | In Progress | First-slice hardening and parity checks are active (deny/no-leak/access consistency, branch-scope handling, operator credential flow stability). |
 | Blocked / Dependency | No new blocker-class gaps currently declared for first-slice continuation; next-slice planning remains gated on first-slice stability. |
 
 ## 4. Current Approved Next Tasks
 1. Complete first-slice hardening and parity checks across page/API/helper paths (house/branch scope + deny/no-leak consistency).
-2. Add bounded follow-up for POS PIN lifecycle operations (set/reset/rotate/rate-limit posture) without expanding into order/payment/inventory scope.
-3. Validate branch-scope handling consistency for current first-slice runtime paths before any expansion claims.
-4. Plan the next POS slice only after first-slice blocker-class regressions are closed and stability is recorded.
+2. Complete page/API/helper parity hardening for already-landed POS PIN lifecycle surfaces and no-leak behavior consistency.
+3. Add only bounded credential-management follow-up that is already permitted by current canonical POS docs; do not broaden POS scope.
+4. Run and record a regression/stability checkpoint for first-slice hardening before planning the next POS slice.
 
 ## 5. Foundation Checkpoint Note (Closure)
 POS foundation documentation is complete and internally aligned for startup governance.
@@ -37,7 +38,9 @@ The first implemented safe Phase-1 slice remains:
 1. Device/session baseline for a bound terminal context.
 2. Operator sign-in flow using employee QR identifier lookup + POS PIN verification.
 3. Session open/close (including auditable close/force-close discipline).
-4. First-slice access enforcement parity (house/branch scope + deny/no-leak across page/API/helper paths).
+4. First-slice access enforcement parity (house/branch scope + deny/no-leak across page/API/helper paths, including no-leak action mapping).
+5. DB scope-consistency hardening for first-slice device/session boundary safety.
+6. POS PIN lifecycle helpers (`set/reset/rotate`) with lightweight rate-limit posture.
 
 This baseline is intentionally narrow and does not authorize broader POS workflow expansion by itself.
 
@@ -67,9 +70,12 @@ The current POS foundation set is aligned on:
 - expansion pressure into inventory/settlement before first-slice stability checkpoint
 - parity gaps across page/API/helper enforcement for first-slice scope checks
 - branch default assumptions drifting into implicit authorization behavior
+- in-memory POS PIN rate limiting is process-local only (no shared-instance coordination)
+- no distributed/shared-instance POS PIN lockout coordination yet
 
 ### Lower risk
 - terminology drift as implementation tasks are expanded beyond first slice
+- over-reading current slice as authorization for broader POS expansion into orders/payments/inventory
 
 
 ## Definition of Done (POS MVP checkpoint)
