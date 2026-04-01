@@ -18,13 +18,13 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 | Foundation | Canonical POS foundation set is complete (master/status/domain/access/identity/db/phase-1/guardrails). |
 | Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. |
 | In Progress | First-slice hardening remains active through bounded parity follow-up and stability verification (deny/no-leak/access consistency, branch-scope handling, operator credential flow resilience). |
-| Blocked / Dependency | No new blocker-class gaps currently declared for first-slice continuation; next-slice planning remains gated on recorded first-slice stability. |
+| Blocked / Dependency | No new blocker-class gaps currently declared for first-slice continuation; next-slice planning is gated on formal acceptance of recorded first-slice stability. |
 
 ## 4. Current Approved Next Tasks
-1. Close only remaining first-slice hardening/parity follow-up that is still inside already-landed scope (page/API/helper consistency, deny/no-leak behavior, scope propagation edge coverage).
-2. Run and record a conservative first-slice stability checkpoint (including parity and no-leak/scope-propagation regression posture) before any next-slice planning.
-3. Perform blocker/dependency review after checkpoint recording; if blocker-class gaps remain, continue first-slice hardening only.
-4. Keep next-slice planning explicitly out of scope until first-slice stability is recorded and accepted.
+1. Perform final bounded review of first-slice hardening completeness (parity, no-leak behavior, scope propagation edge coverage).
+2. Identify and resolve any remaining non-blocker inconsistencies strictly within first-slice scope.
+3. Confirm first-slice stability acceptance (no blocker-class gaps) as a formal checkpoint outcome.
+4. Only after acceptance, allow controlled planning for the next POS slice under canonical roadmap gating.
 
 ## 5. Foundation Checkpoint Note (Closure)
 POS foundation documentation is complete and internally aligned for startup governance.
