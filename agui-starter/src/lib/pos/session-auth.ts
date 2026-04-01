@@ -27,14 +27,54 @@ type SessionAuthRepository = {
   getCredentialByEntity(params: { houseId: string; entityId: string }): Promise<PosOperatorCredentialRow | null>;
   insertSession(payload: PosSessionInsert): Promise<PosSessionRow>;
   closeSession(payload: { houseId: string; sessionId: string; closedByEntityId: string; closedReason?: string | null }): Promise<PosSessionRow>;
-  upsertDevice?(payload: PosDeviceInsert): Promise<PosDeviceRow>;
-  upsertCredential?(payload: PosOperatorCredentialInsert): Promise<PosOperatorCredentialRow>;
+  upsertDevice(payload: PosDeviceInsert): Promise<PosDeviceRow>;
+  upsertCredential(payload: PosOperatorCredentialInsert): Promise<PosOperatorCredentialRow>;
 };
 
 type RepositoryClient = SessionAuthRepository | SupabaseClient<Database> | null | undefined;
 
 function invalidCredentialsError() {
   return new PosSessionAuthError("Invalid operator credentials", "INVALID_OPERATOR_CREDENTIALS", 403);
+}
+
+const POS_PIN_ATTEMPT_WINDOW_MS = 60_000;
+const POS_PIN_MAX_ATTEMPTS = 5;
+const pinAttemptTracker = new Map<string, { count: number; resetAtMs: number }>();
+
+function pinAttemptKey(input: { houseId: string; entityId: string }) {
+  return `${input.houseId}:${input.entityId}`;
+}
+
+function assertPosPinAttemptAllowed(input: { houseId: string; entityId: string }) {
+  const now = Date.now();
+  const key = pinAttemptKey(input);
+  const tracked = pinAttemptTracker.get(key);
+  if (!tracked || tracked.resetAtMs <= now) {
+    pinAttemptTracker.set(key, { count: 0, resetAtMs: now + POS_PIN_ATTEMPT_WINDOW_MS });
+    return;
+  }
+  if (tracked.count >= POS_PIN_MAX_ATTEMPTS) {
+    throw invalidCredentialsError();
+  }
+}
+
+function registerPosPinAttemptFailure(input: { houseId: string; entityId: string }) {
+  const now = Date.now();
+  const key = pinAttemptKey(input);
+  const tracked = pinAttemptTracker.get(key);
+  if (!tracked || tracked.resetAtMs <= now) {
+    pinAttemptTracker.set(key, { count: 1, resetAtMs: now + POS_PIN_ATTEMPT_WINDOW_MS });
+    return;
+  }
+  tracked.count += 1;
+}
+
+function clearPosPinAttemptState(input: { houseId: string; entityId: string }) {
+  pinAttemptTracker.delete(pinAttemptKey(input));
+}
+
+export function resetPosPinAttemptTrackerForTests() {
+  pinAttemptTracker.clear();
 }
 
 function resolveRepository(client?: RepositoryClient): SessionAuthRepository {
@@ -126,6 +166,26 @@ function resolveRepository(client?: RepositoryClient): SessionAuthRepository {
       if (!data) throw new PosSessionAuthError("POS session not found", "SESSION_NOT_FOUND", 404);
       return data;
     },
+    async upsertDevice(payload) {
+      const { data, error } = await supabase
+        .from("pos_devices")
+        .upsert(payload, { onConflict: "house_id,device_code" })
+        .select("*")
+        .maybeSingle<PosDeviceRow>();
+      if (error) throw new PosSessionAuthError(error.message, error.code ?? "DEVICE_UPSERT_FAILED", 500);
+      if (!data) throw new PosSessionAuthError("Failed to upsert POS device", "DEVICE_UPSERT_FAILED", 500);
+      return data;
+    },
+    async upsertCredential(payload) {
+      const { data, error } = await supabase
+        .from("pos_operator_credentials")
+        .upsert(payload, { onConflict: "house_id,entity_id" })
+        .select("*")
+        .maybeSingle<PosOperatorCredentialRow>();
+      if (error) throw new PosSessionAuthError(error.message, error.code ?? "CREDENTIAL_UPSERT_FAILED", 500);
+      if (!data) throw new PosSessionAuthError("Failed to upsert POS credential", "CREDENTIAL_UPSERT_FAILED", 500);
+      return data;
+    },
   } satisfies SessionAuthRepository;
 }
 
@@ -147,6 +207,42 @@ export function verifyPosPin(input: { pin: string; salt: string; hash: string })
   const candidate = scryptSync(input.pin.trim(), input.salt, 64);
   const expected = Buffer.from(input.hash, "hex");
   return expected.length === candidate.length && timingSafeEqual(expected, candidate);
+}
+
+export async function setPosOperatorPin(input: { houseId: string; entityId: string; pin: string }, client?: RepositoryClient) {
+  const repo = resolveRepository(client);
+  const hashed = hashPosPin(input.pin);
+  return repo.upsertCredential({
+    house_id: input.houseId,
+    entity_id: input.entityId,
+    pin_hash: hashed.hash,
+    pin_salt: hashed.salt,
+    is_active: true,
+  });
+}
+
+export async function resetPosOperatorPin(input: { houseId: string; entityId: string; pin: string }, client?: RepositoryClient) {
+  return setPosOperatorPin(input, client);
+}
+
+export async function rotatePosOperatorPin(
+  input: { houseId: string; entityId: string; currentPin: string; newPin: string },
+  client?: RepositoryClient,
+) {
+  const repo = resolveRepository(client);
+  assertPosPinAttemptAllowed({ houseId: input.houseId, entityId: input.entityId });
+  const credential = await repo.getCredentialByEntity({ houseId: input.houseId, entityId: input.entityId });
+  const verified =
+    credential &&
+    credential.is_active &&
+    verifyPosPin({ pin: input.currentPin, salt: credential.pin_salt, hash: credential.pin_hash });
+  if (!verified) {
+    registerPosPinAttemptFailure({ houseId: input.houseId, entityId: input.entityId });
+    throw invalidCredentialsError();
+  }
+  const updated = await setPosOperatorPin({ houseId: input.houseId, entityId: input.entityId, pin: input.newPin }, repo);
+  clearPosPinAttemptState({ houseId: input.houseId, entityId: input.entityId });
+  return updated;
 }
 
 export async function openPosSessionWithQrAndPin(
@@ -183,9 +279,12 @@ export async function openPosSessionWithQrAndPin(
   }
 
   const credential = await repo.getCredentialByEntity({ houseId: input.houseId, entityId: employee.entity_id });
+  assertPosPinAttemptAllowed({ houseId: input.houseId, entityId: employee.entity_id });
   if (!credential || !verifyPosPin({ pin: input.pin, salt: credential.pin_salt, hash: credential.pin_hash })) {
+    registerPosPinAttemptFailure({ houseId: input.houseId, entityId: employee.entity_id });
     throw invalidCredentialsError();
   }
+  clearPosPinAttemptState({ houseId: input.houseId, entityId: employee.entity_id });
 
   const activeSession = await repo.getOpenSessionForDevice({ houseId: input.houseId, deviceId: device.id });
   if (activeSession) {
