@@ -25,6 +25,7 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 2. Identify and resolve any remaining non-blocker inconsistencies strictly within first-slice scope.
 3. Confirm first-slice stability acceptance (no blocker-class gaps) as a formal checkpoint outcome.
 4. Only after acceptance, allow controlled planning for the next POS slice under canonical roadmap gating.
+5. Next approved planning step: define POS-F2 slice boundaries canonically; POS-F2 implementation remains gated until that definition is explicitly accepted.
 
 ## 5. Foundation Checkpoint Note (Closure)
 POS foundation documentation is complete and internally aligned for startup governance.
