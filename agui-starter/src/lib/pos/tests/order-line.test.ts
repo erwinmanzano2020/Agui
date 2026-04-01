@@ -177,6 +177,48 @@ test("rejects invalid quantity values", async () => {
   );
 });
 
+test("rejects empty item code", async () => {
+  const repo = createInMemoryPosOrderLineRepository({ orders: [makeDraft()] });
+
+  await assert.rejects(
+    () =>
+      addOrderLine(
+        {
+          houseId: baseHouseId,
+          branchId: baseBranchId,
+          sessionId: baseSessionId,
+          orderId: baseOrderId,
+          operatorEntityId: "operator-1",
+          itemCode: "",
+          quantity: 1,
+        },
+        repo,
+      ),
+    (error: unknown) => error instanceof PosOrderLineError && error.code === "ITEM_CODE_REQUIRED",
+  );
+});
+
+test("rejects whitespace-only item code", async () => {
+  const repo = createInMemoryPosOrderLineRepository({ orders: [makeDraft()] });
+
+  await assert.rejects(
+    () =>
+      addOrderLine(
+        {
+          houseId: baseHouseId,
+          branchId: baseBranchId,
+          sessionId: baseSessionId,
+          orderId: baseOrderId,
+          operatorEntityId: "operator-1",
+          itemCode: "   ",
+          quantity: 1,
+        },
+        repo,
+      ),
+    (error: unknown) => error instanceof PosOrderLineError && error.code === "ITEM_CODE_REQUIRED",
+  );
+});
+
 test("rejects line insertion when operator attribution is missing", async () => {
   const repo = createInMemoryPosOrderLineRepository({ orders: [makeDraft()] });
 

@@ -98,6 +98,10 @@ export async function addOrderLine(
     throw new PosOrderLineError("Operator entity is required", "OPERATOR_REQUIRED", 400);
   }
 
+  if (!input.itemCode?.trim()) {
+    throw new PosOrderLineError("Item code is required", "ITEM_CODE_REQUIRED", 400);
+  }
+
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
     throw new PosOrderLineError("Quantity must be a positive integer", "INVALID_QUANTITY", 400);
   }
