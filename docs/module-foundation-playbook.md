@@ -166,8 +166,22 @@ Use this checklist at module kickoff:
 - [ ] Anti-patterns documented
 - [ ] Readiness checkpoint passed
 - [ ] Implementation tasks created only after all above are complete
+- [ ] Conservative module unlock checkpoint recorded in the module status doc and aligned with roadmap gate notes
 
 ## 14. Final rule: no implementation before foundation clarity
 No implementation work may begin for a new module until the required foundation artifacts are complete, aligned with governing authority, and explicitly checkpointed as ready.
 
 When uncertainty exists, pause implementation and resolve governance/foundation clarity first.
+
+
+## 15. Minimum closure checkpoint before declaring a module stable enough to unlock the next one
+A module is not considered done only because baseline features exist. Unlocking the next module requires a conservative checkpoint grounded in evidence, not optimism.
+
+Before unlock is declared, at minimum all must be true:
+- blocker-class risks are closed, or explicitly documented in the module status doc as non-blocking with clear rationale
+- high-risk guardrails have evidence of enforcement (tenancy, access, no-leak behavior, identity boundaries, scope parity, and equivalent module-critical invariants)
+- active blocker-class hardening streams are closed
+- the unlock checkpoint decision is recorded in the module’s canonical status doc and aligned with current roadmap gating
+- any remaining hardening is explicitly non-blocking and does not alter frozen boundaries or critical safeguards
+
+This lifecycle remains conservative and reusable across modules: opening -> foundation -> implementation -> stabilization -> unlock checkpoint.
