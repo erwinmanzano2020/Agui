@@ -117,3 +117,33 @@ test("rotatePosOperatorPin rate limits repeated failures per house/entity", asyn
     (error: unknown) => error instanceof PosSessionAuthError && error.code === "INVALID_OPERATOR_CREDENTIALS",
   );
 });
+
+test("rotatePosOperatorPin clears failure tracker after a successful rotate", async () => {
+  const repo = createInMemoryPosSessionRepository();
+  await setPosOperatorPin({ houseId: baseHouseId, entityId: baseEntityId, pin: "1234" }, repo);
+
+  for (let i = 0; i < 4; i += 1) {
+    await assert.rejects(
+      () =>
+        rotatePosOperatorPin({ houseId: baseHouseId, entityId: baseEntityId, currentPin: "0000", newPin: "9999" }, repo),
+      (error: unknown) => error instanceof PosSessionAuthError && error.code === "INVALID_OPERATOR_CREDENTIALS",
+    );
+  }
+
+  await rotatePosOperatorPin({ houseId: baseHouseId, entityId: baseEntityId, currentPin: "1234", newPin: "5678" }, repo);
+
+  for (let i = 0; i < 4; i += 1) {
+    await assert.rejects(
+      () =>
+        rotatePosOperatorPin({ houseId: baseHouseId, entityId: baseEntityId, currentPin: "0000", newPin: "9999" }, repo),
+      (error: unknown) => error instanceof PosSessionAuthError && error.code === "INVALID_OPERATOR_CREDENTIALS",
+    );
+  }
+
+  const secondRotate = await rotatePosOperatorPin(
+    { houseId: baseHouseId, entityId: baseEntityId, currentPin: "5678", newPin: "2468" },
+    repo,
+  );
+
+  assert.equal(verifyPosPin({ pin: "2468", salt: secondRotate.pin_salt, hash: secondRotate.pin_hash }), true);
+});
