@@ -5,10 +5,10 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 
 ## 2. Current Execution Snapshot
 - Module: POS
-- Current phase: POS-F1 first-slice implementation baseline landed; hardening-active
+- Current phase: POS-F1 first-slice implementation baseline landed; hardening-active; POS-F2 slice-definition accepted for bounded implementation planning/start
 - Foundation wave: complete (canonical POS foundation set present and aligned)
 - Implementation posture: first safe POS-F1 slice exists (device/session + operator sign-in baseline), including scope-consistency DB hardening, POS PIN lifecycle hardening, and strengthened first-slice parity/no-leak/scope-propagation regression coverage
-- Current work mode: bounded hardening + stability checkpointing for first slice; no scope expansion
+- Current work mode: bounded hardening continuity for first slice plus tightly bounded POS-F2 start (session-bound draft-order + first-line capture only); no broader scope expansion
 - First-slice stability checkpoint: completed on 2026-04-01 (UTC), with no blocker-class gaps identified
 - MVP posture: POS is still not MVP-complete
 
@@ -17,15 +17,15 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 |---|---|
 | Foundation | Canonical POS foundation set is complete (master/status/domain/access/identity/db/phase-1/guardrails). |
 | Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. |
-| In Progress | First-slice hardening remains active through bounded parity follow-up and stability verification (deny/no-leak/access consistency, branch-scope handling, operator credential flow resilience). |
-| Blocked / Dependency | No new blocker-class gaps currently declared for first-slice continuation; next-slice planning is gated on formal acceptance of recorded first-slice stability. |
+| In Progress | First-slice hardening continuity remains active through bounded parity follow-up and stability verification (deny/no-leak/access consistency, branch-scope handling, operator credential flow resilience) while POS-F2 implementation starts under strict slice constraints. |
+| Blocked / Dependency | No new blocker-class gaps currently declared for first-slice continuity; POS-F2 remains explicitly blocked from payment/inventory/reporting/cross-session or tenancy/auth redesign scope. |
 
 ## 4. Current Approved Next Tasks
 1. Perform final bounded review of first-slice hardening completeness (parity, no-leak behavior, scope propagation edge coverage).
 2. Identify and resolve any remaining non-blocker inconsistencies strictly within first-slice scope.
 3. Confirm first-slice stability acceptance (no blocker-class gaps) as a formal checkpoint outcome.
 4. Only after acceptance, allow controlled planning for the next POS slice under canonical roadmap gating.
-5. Next approved planning step: define POS-F2 slice boundaries canonically; POS-F2 implementation remains gated until that definition is explicitly accepted.
+5. POS-F2 slice definition is accepted as canonical; bounded POS-F2 implementation is now allowed for session-bound draft order + first-line capture only, with all declared out-of-scope exclusions retained.
 
 ## 5. Foundation Checkpoint Note (Closure)
 POS foundation documentation is complete and internally aligned for startup governance.
