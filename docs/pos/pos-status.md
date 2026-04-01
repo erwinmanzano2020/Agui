@@ -7,8 +7,8 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 - Module: POS
 - Current phase: POS-F1 first-slice implementation baseline landed; hardening-active
 - Foundation wave: complete (canonical POS foundation set present and aligned)
-- Implementation posture: first safe POS-F1 slice exists (device/session + operator sign-in baseline), including scope-consistency DB hardening and PIN lifecycle hardening
-- Current work mode: bounded hardening + parity alignment for first slice; no scope expansion
+- Implementation posture: first safe POS-F1 slice exists (device/session + operator sign-in baseline), including scope-consistency DB hardening, POS PIN lifecycle hardening, and strengthened first-slice parity/no-leak/scope-propagation regression coverage
+- Current work mode: bounded hardening + stability checkpointing for first slice; no scope expansion
 - MVP posture: POS is still not MVP-complete
 
 ## 3. Status Summary
@@ -16,14 +16,14 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 |---|---|
 | Foundation | Canonical POS foundation set is complete (master/status/domain/access/identity/db/phase-1/guardrails). |
 | Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. |
-| In Progress | First-slice hardening and parity checks are active (deny/no-leak/access consistency, branch-scope handling, operator credential flow stability). |
-| Blocked / Dependency | No new blocker-class gaps currently declared for first-slice continuation; next-slice planning remains gated on first-slice stability. |
+| In Progress | First-slice hardening remains active through bounded parity follow-up and stability verification (deny/no-leak/access consistency, branch-scope handling, operator credential flow resilience). |
+| Blocked / Dependency | No new blocker-class gaps currently declared for first-slice continuation; next-slice planning remains gated on recorded first-slice stability. |
 
 ## 4. Current Approved Next Tasks
-1. Complete first-slice hardening and parity checks across page/API/helper paths (house/branch scope + deny/no-leak consistency).
-2. Complete page/API/helper parity hardening for already-landed POS PIN lifecycle surfaces and no-leak behavior consistency.
-3. Add only bounded credential-management follow-up that is already permitted by current canonical POS docs; do not broaden POS scope.
-4. Run and record a regression/stability checkpoint for first-slice hardening before planning the next POS slice.
+1. Close only remaining first-slice hardening/parity follow-up that is still inside already-landed scope (page/API/helper consistency, deny/no-leak behavior, scope propagation edge coverage).
+2. Run and record a conservative first-slice stability checkpoint (including parity and no-leak/scope-propagation regression posture) before any next-slice planning.
+3. Perform blocker/dependency review after checkpoint recording; if blocker-class gaps remain, continue first-slice hardening only.
+4. Keep next-slice planning explicitly out of scope until first-slice stability is recorded and accepted.
 
 ## 5. Foundation Checkpoint Note (Closure)
 POS foundation documentation is complete and internally aligned for startup governance.
@@ -31,6 +31,7 @@ POS foundation documentation is complete and internally aligned for startup gove
 This checkpoint means:
 - POS progressed from planning to first-slice implementation baseline.
 - POS remains in conservative hardening mode for the first slice.
+- Strengthened helper/action parity and no-leak/scope-propagation regression coverage improves first-slice stability posture.
 - This is **not** a declaration that POS MVP exists or is complete.
 
 ## 6. First Approved Implementation Slice (Now Landed)
@@ -41,6 +42,7 @@ The first implemented safe Phase-1 slice remains:
 4. First-slice access enforcement parity (house/branch scope + deny/no-leak across page/API/helper paths, including no-leak action mapping).
 5. DB scope-consistency hardening for first-slice device/session boundary safety.
 6. POS PIN lifecycle helpers (`set/reset/rotate`) with lightweight rate-limit posture.
+7. Strengthened first-slice parity regression coverage, including helper/action parity and no-leak + scope-propagation checks.
 
 This baseline is intentionally narrow and does not authorize broader POS workflow expansion by itself.
 
