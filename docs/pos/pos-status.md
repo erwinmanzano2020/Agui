@@ -55,7 +55,7 @@ The current POS foundation set is aligned on:
   - use an actual house-scoped branch id when available;
   - otherwise require explicit branch input;
   - this is not yet the final long-term branch resolution UX/model.
-- House/branch cross-consistency for this first slice is currently enforced at app/path logic level; stronger DB-level enforcement may be added in later hardening if required.
+- House/branch/device cross-consistency is now enforced at DB level for the current first slice (composite FK hardening on POS device/session links), in addition to existing app/path checks.
 
 ## 9. Known Risks (First-Slice Hardening Stage)
 ### High risk
