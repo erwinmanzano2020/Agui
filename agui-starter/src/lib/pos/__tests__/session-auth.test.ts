@@ -9,10 +9,21 @@ import {
   createInMemoryPosSessionRepository,
   hashPosPin,
   openPosSessionWithQrAndPin,
+  resetPosPinAttemptTrackerForTests,
 } from "../session-auth";
 
 const baseHouseId = "house-1";
 const baseBranchId = "branch-1";
+
+async function capturePosAuthError(task: () => Promise<unknown>): Promise<PosSessionAuthError> {
+  try {
+    await task();
+  } catch (error) {
+    assert.ok(error instanceof PosSessionAuthError);
+    return error;
+  }
+  assert.fail("Expected PosSessionAuthError");
+}
 
 function makeDevice(overrides: Partial<PosDeviceRow> = {}): PosDeviceRow {
   const now = new Date().toISOString();
@@ -80,6 +91,10 @@ function makeSession(overrides: Partial<PosSessionRow> = {}): PosSessionRow {
     ...overrides,
   };
 }
+
+test.beforeEach(() => {
+  resetPosPinAttemptTrackerForTests();
+});
 
 test("opens session with valid house/device/QR/PIN context", async () => {
   const repo = createInMemoryPosSessionRepository({
@@ -176,6 +191,73 @@ test("denies session open when device branch is outside requested branch scope",
   );
 });
 
+test("denies session open when device is inactive", async () => {
+  const repo = createInMemoryPosSessionRepository({
+    devices: [makeDevice({ status: "DISABLED" })],
+    employees: [makeEmployee()],
+    credentials: [makeCredential()],
+  });
+
+  await assert.rejects(
+    () =>
+      openPosSessionWithQrAndPin(
+        {
+          houseId: baseHouseId,
+          branchId: baseBranchId,
+          deviceCode: "DEV-001",
+          qrIdentifier: "EMP-QR-001",
+          pin: "1234",
+          actorEntityId: "manager-1",
+        },
+        repo,
+      ),
+    (error: unknown) => error instanceof PosSessionAuthError && error.code === "DEVICE_UNAVAILABLE",
+  );
+});
+
+test("uses same no-leak credential error for missing operator and wrong PIN", async () => {
+  const missingOperatorRepo = createInMemoryPosSessionRepository({
+    devices: [makeDevice()],
+    credentials: [makeCredential()],
+  });
+  const wrongPinRepo = createInMemoryPosSessionRepository({
+    devices: [makeDevice()],
+    employees: [makeEmployee()],
+    credentials: [makeCredential()],
+  });
+
+  const missingError = await capturePosAuthError(() =>
+    openPosSessionWithQrAndPin(
+      {
+        houseId: baseHouseId,
+        branchId: baseBranchId,
+        deviceCode: "DEV-001",
+        qrIdentifier: "EMP-QR-001",
+        pin: "1234",
+        actorEntityId: "manager-1",
+      },
+      missingOperatorRepo,
+    ),
+  );
+  const wrongPinError = await capturePosAuthError(() =>
+    openPosSessionWithQrAndPin(
+      {
+        houseId: baseHouseId,
+        branchId: baseBranchId,
+        deviceCode: "DEV-001",
+        qrIdentifier: "EMP-QR-001",
+        pin: "0000",
+        actorEntityId: "manager-1",
+      },
+      wrongPinRepo,
+    ),
+  );
+
+  assert.equal(missingError.code, "INVALID_OPERATOR_CREDENTIALS");
+  assert.equal(wrongPinError.code, "INVALID_OPERATOR_CREDENTIALS");
+  assert.equal(missingError.message, wrongPinError.message);
+});
+
 test("denies opening a second active session for the same device", async () => {
   const repo = createInMemoryPosSessionRepository({
     devices: [makeDevice()],
@@ -199,6 +281,108 @@ test("denies opening a second active session for the same device", async () => {
       ),
     (error: unknown) => error instanceof PosSessionAuthError && error.code === "SESSION_ALREADY_OPEN",
   );
+});
+
+test("rate limits repeated open-session PIN failures per house/entity", async () => {
+  const repo = createInMemoryPosSessionRepository({
+    devices: [makeDevice()],
+    employees: [makeEmployee()],
+    credentials: [makeCredential()],
+  });
+
+  for (let i = 0; i < 5; i += 1) {
+    await assert.rejects(
+      () =>
+        openPosSessionWithQrAndPin(
+          {
+            houseId: baseHouseId,
+            branchId: baseBranchId,
+            deviceCode: "DEV-001",
+            qrIdentifier: "EMP-QR-001",
+            pin: "0000",
+            actorEntityId: "manager-1",
+          },
+          repo,
+        ),
+      (error: unknown) => error instanceof PosSessionAuthError && error.code === "INVALID_OPERATOR_CREDENTIALS",
+    );
+  }
+
+  await assert.rejects(
+    () =>
+      openPosSessionWithQrAndPin(
+        {
+          houseId: baseHouseId,
+          branchId: baseBranchId,
+          deviceCode: "DEV-001",
+          qrIdentifier: "EMP-QR-001",
+          pin: "1234",
+          actorEntityId: "manager-1",
+        },
+        repo,
+      ),
+    (error: unknown) => error instanceof PosSessionAuthError && error.code === "INVALID_OPERATOR_CREDENTIALS",
+  );
+});
+
+test("successful open-session auth clears prior PIN failures", async () => {
+  const repo = createInMemoryPosSessionRepository({
+    devices: [makeDevice()],
+    employees: [makeEmployee()],
+    credentials: [makeCredential()],
+  });
+
+  for (let i = 0; i < 4; i += 1) {
+    await assert.rejects(
+      () =>
+        openPosSessionWithQrAndPin(
+          {
+            houseId: baseHouseId,
+            branchId: baseBranchId,
+            deviceCode: "DEV-001",
+            qrIdentifier: "EMP-QR-001",
+            pin: "0000",
+            actorEntityId: "manager-1",
+          },
+          repo,
+        ),
+      (error: unknown) => error instanceof PosSessionAuthError && error.code === "INVALID_OPERATOR_CREDENTIALS",
+    );
+  }
+
+  const session = await openPosSessionWithQrAndPin(
+    {
+      houseId: baseHouseId,
+      branchId: baseBranchId,
+      deviceCode: "DEV-001",
+      qrIdentifier: "EMP-QR-001",
+      pin: "1234",
+      actorEntityId: "manager-1",
+    },
+    repo,
+  );
+
+  assert.equal(session.status, "OPEN");
+
+  repo.sessions.length = 0;
+
+  for (let i = 0; i < 5; i += 1) {
+    await assert.rejects(
+      () =>
+        openPosSessionWithQrAndPin(
+          {
+            houseId: baseHouseId,
+            branchId: baseBranchId,
+            deviceCode: "DEV-001",
+            qrIdentifier: "EMP-QR-001",
+            pin: "0000",
+            actorEntityId: "manager-1",
+          },
+          repo,
+        ),
+      (error: unknown) => error instanceof PosSessionAuthError && error.code === "INVALID_OPERATOR_CREDENTIALS",
+    );
+  }
 });
 
 test("closes active session with attributable actor and safe scope checks", async () => {
