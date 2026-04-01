@@ -101,6 +101,7 @@ export async function addOrderLine(
   if (!input.itemCode?.trim()) {
     throw new PosOrderLineError("Item code is required", "ITEM_CODE_REQUIRED", 400);
   }
+  const normalizedItemCode = input.itemCode.trim();
 
   if (!Number.isInteger(input.quantity) || input.quantity <= 0) {
     throw new PosOrderLineError("Quantity must be a positive integer", "INVALID_QUANTITY", 400);
@@ -126,7 +127,7 @@ export async function addOrderLine(
     branch_id: input.branchId,
     session_id: input.sessionId,
     operator_entity_id: input.operatorEntityId,
-    item_code: input.itemCode,
+    item_code: normalizedItemCode,
     quantity: input.quantity,
     status: "ACTIVE",
     created_at: now,

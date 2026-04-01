@@ -219,6 +219,25 @@ test("rejects whitespace-only item code", async () => {
   );
 });
 
+test("trims item code before storing order line", async () => {
+  const repo = createInMemoryPosOrderLineRepository({ orders: [makeDraft()] });
+
+  const line = await addOrderLine(
+    {
+      houseId: baseHouseId,
+      branchId: baseBranchId,
+      sessionId: baseSessionId,
+      orderId: baseOrderId,
+      operatorEntityId: "operator-1",
+      itemCode: "  ITEM-001  ",
+      quantity: 1,
+    },
+    repo,
+  );
+
+  assert.equal(line.item_code, "ITEM-001");
+});
+
 test("rejects line insertion when operator attribution is missing", async () => {
   const repo = createInMemoryPosOrderLineRepository({ orders: [makeDraft()] });
 
