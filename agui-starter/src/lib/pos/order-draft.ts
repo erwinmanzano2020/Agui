@@ -2,7 +2,9 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import type { PosSessionRow } from "@/lib/db.types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import type { Database, PosSessionRow } from "@/lib/db.types";
 
 export type OrderDraft = {
   id: string;
@@ -30,7 +32,7 @@ export class PosOrderDraftError extends Error {
 
 type OrderDraftRepository = {
   getSessionById(params: { houseId: string; branchId: string; sessionId: string }): Promise<PosSessionRow | null>;
-  insertOrderDraft(payload: OrderDraft): Promise<OrderDraft>;
+  insertOrderDraft(payload: Omit<OrderDraft, "id">): Promise<OrderDraft>;
 };
 
 export type RepositoryClient = OrderDraftRepository | null | undefined;
@@ -50,8 +52,36 @@ function resolveRepository(client?: RepositoryClient): OrderDraftRepository {
   return client;
 }
 
-function makeDraftOrderId() {
-  return `order-draft-${randomUUID()}`;
+export function createSupabasePosOrderDraftRepository(supabase: SupabaseClient<Database>): OrderDraftRepository {
+  return {
+    async getSessionById({ houseId, branchId, sessionId }) {
+      const { data, error } = await supabase
+        .from("pos_sessions")
+        .select("*")
+        .eq("house_id", houseId)
+        .eq("branch_id", branchId)
+        .eq("id", sessionId)
+        .maybeSingle<PosSessionRow>();
+      if (error) {
+        throw new PosOrderDraftError(error.message, error.code ?? "ORDER_DRAFT_SESSION_LOOKUP_FAILED", 500);
+      }
+      return data ?? null;
+    },
+    async insertOrderDraft(payload) {
+      const { data, error } = await supabase
+        .from("pos_order_drafts")
+        .insert(payload)
+        .select("*")
+        .maybeSingle<OrderDraft>();
+      if (error) {
+        throw new PosOrderDraftError(error.message, error.code ?? "ORDER_DRAFT_INSERT_FAILED", 500);
+      }
+      if (!data) {
+        throw new PosOrderDraftError("Failed to create order draft", "ORDER_DRAFT_INSERT_FAILED", 500);
+      }
+      return data;
+    },
+  } satisfies OrderDraftRepository;
 }
 
 export function createInMemoryPosOrderDraftRepository(initial?: Partial<{ sessions: PosSessionRow[]; drafts: OrderDraft[] }>) {
@@ -65,8 +95,9 @@ export function createInMemoryPosOrderDraftRepository(initial?: Partial<{ sessio
       return sessions.find((session) => session.house_id === houseId && session.branch_id === branchId && session.id === sessionId) ?? null;
     },
     async insertOrderDraft(payload) {
-      drafts.push(payload);
-      return payload;
+      const draft = { ...payload, id: randomUUID() };
+      drafts.push(draft);
+      return draft;
     },
   } satisfies OrderDraftRepository & { sessions: PosSessionRow[]; drafts: OrderDraft[] };
 }
@@ -97,8 +128,7 @@ export async function createDraftOrder(
   }
 
   const now = new Date().toISOString();
-  const payload: OrderDraft = {
-    id: makeDraftOrderId(),
+  const payload: Omit<OrderDraft, "id"> = {
     house_id: input.houseId,
     branch_id: input.branchId,
     device_id: input.deviceId,
