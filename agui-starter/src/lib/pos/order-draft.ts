@@ -32,6 +32,13 @@ export class PosOrderDraftError extends Error {
 
 type OrderDraftRepository = {
   getSessionById(params: { houseId: string; branchId: string; sessionId: string }): Promise<PosSessionRow | null>;
+  getDraftOrderById(params: {
+    houseId: string;
+    branchId: string;
+    sessionId: string;
+    deviceId: string;
+    orderId: string;
+  }): Promise<OrderDraft | null>;
   insertOrderDraft(payload: Omit<OrderDraft, "id">): Promise<OrderDraft>;
 };
 
@@ -39,6 +46,10 @@ export type RepositoryClient = OrderDraftRepository | null | undefined;
 
 function sessionInvalidOrClosedError() {
   return new PosOrderDraftError("Session invalid or closed", "SESSION_INVALID_OR_CLOSED", 403);
+}
+
+function orderInvalidOrClosedError() {
+  return new PosOrderDraftError("Order invalid or closed", "ORDER_INVALID_OR_CLOSED", 403);
 }
 
 function repositoryRequiredError() {
@@ -81,6 +92,22 @@ export function createSupabasePosOrderDraftRepository(supabase: SupabaseClient<D
       }
       return data;
     },
+    async getDraftOrderById({ houseId, branchId, sessionId, deviceId, orderId }) {
+      const { data, error } = await supabase
+        .from("pos_order_drafts")
+        .select("*")
+        .eq("house_id", houseId)
+        .eq("branch_id", branchId)
+        .eq("session_id", sessionId)
+        .eq("device_id", deviceId)
+        .eq("id", orderId)
+        .eq("status", "DRAFT")
+        .maybeSingle<OrderDraft>();
+      if (error) {
+        throw new PosOrderDraftError(error.message, error.code ?? "ORDER_DRAFT_LOOKUP_FAILED", 500);
+      }
+      return data ?? null;
+    },
   } satisfies OrderDraftRepository;
 }
 
@@ -98,6 +125,19 @@ export function createInMemoryPosOrderDraftRepository(initial?: Partial<{ sessio
       const draft = { ...payload, id: randomUUID() };
       drafts.push(draft);
       return draft;
+    },
+    async getDraftOrderById({ houseId, branchId, sessionId, deviceId, orderId }) {
+      return (
+        drafts.find(
+          (draft) =>
+            draft.house_id === houseId &&
+            draft.branch_id === branchId &&
+            draft.session_id === sessionId &&
+            draft.device_id === deviceId &&
+            draft.id === orderId &&
+            draft.status === "DRAFT",
+        ) ?? null
+      );
     },
   } satisfies OrderDraftRepository & { sessions: PosSessionRow[]; drafts: OrderDraft[] };
 }
@@ -140,4 +180,30 @@ export async function createDraftOrder(
   };
 
   return repository.insertOrderDraft(payload);
+}
+
+export async function getCurrentSessionDraftOrder(
+  input: {
+    houseId: string;
+    branchId: string;
+    sessionId: string;
+    deviceId: string;
+    orderId: string;
+  },
+  repo?: RepositoryClient,
+): Promise<OrderDraft> {
+  const repository = resolveRepository(repo);
+  const draft = await repository.getDraftOrderById({
+    houseId: input.houseId,
+    branchId: input.branchId,
+    sessionId: input.sessionId,
+    deviceId: input.deviceId,
+    orderId: input.orderId,
+  });
+
+  if (!draft) {
+    throw orderInvalidOrClosedError();
+  }
+
+  return draft;
 }
