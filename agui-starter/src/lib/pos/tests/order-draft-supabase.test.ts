@@ -219,6 +219,14 @@ test("supabase repository reads current-session draft order with full scope filt
     { column: "id", value: "order-1" },
     { column: "status", value: "DRAFT" },
   ]);
+
+  const sessionLookup = fake.calls.find((call) => call.table === "pos_sessions");
+  assert.ok(sessionLookup);
+  assert.deepEqual(sessionLookup.filters, [
+    { column: "house_id", value: "house-1" },
+    { column: "branch_id", value: "branch-1" },
+    { column: "id", value: "session-1" },
+  ]);
 });
 
 test("supabase current-session draft read preserves ORDER_INVALID_OR_CLOSED no-leak behavior", async () => {
@@ -290,6 +298,21 @@ test("supabase current-session draft read preserves ORDER_INVALID_OR_CLOSED no-l
       ],
     }).client as never,
   );
+  const closedSessionRepo = createSupabasePosOrderDraftRepository(
+    createFakeSupabase({
+      session: makeSession({ status: "CLOSED" }),
+      drafts: [
+        {
+          id: "order-1",
+          house_id: "house-1",
+          branch_id: "branch-1",
+          session_id: "session-1",
+          device_id: "device-1",
+          status: "DRAFT",
+        },
+      ],
+    }).client as never,
+  );
 
   const missingError = await captureOrderDraftError(() =>
     getCurrentSessionDraftOrder({ ...baseInput, orderId: "order-1" }, missingRepo),
@@ -306,10 +329,14 @@ test("supabase current-session draft read preserves ORDER_INVALID_OR_CLOSED no-l
   const nonDraftError = await captureOrderDraftError(() =>
     getCurrentSessionDraftOrder({ ...baseInput, orderId: "order-1" }, nonDraftRepo),
   );
+  const closedSessionError = await captureOrderDraftError(() =>
+    getCurrentSessionDraftOrder({ ...baseInput, orderId: "order-1" }, closedSessionRepo),
+  );
 
   assert.equal(missingError.code, "ORDER_INVALID_OR_CLOSED");
   assert.equal(wrongBranchError.code, "ORDER_INVALID_OR_CLOSED");
   assert.equal(wrongSessionError.code, "ORDER_INVALID_OR_CLOSED");
   assert.equal(wrongDeviceError.code, "ORDER_INVALID_OR_CLOSED");
   assert.equal(nonDraftError.code, "ORDER_INVALID_OR_CLOSED");
+  assert.equal(closedSessionError.code, "ORDER_INVALID_OR_CLOSED");
 });

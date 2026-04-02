@@ -174,6 +174,7 @@ test("preserves operator_entity_id attribution from input context", async () => 
 
 test("returns current-session draft only when scope and order id exactly match", async () => {
   const repo = createInMemoryPosOrderDraftRepository({
+    sessions: [makeSession()],
     drafts: [
       {
         id: "order-1",
@@ -207,6 +208,7 @@ test("returns current-session draft only when scope and order id exactly match",
 test("returns ORDER_INVALID_OR_CLOSED for missing or out-of-scope/non-draft draft reads", async () => {
   const now = new Date().toISOString();
   const repo = createInMemoryPosOrderDraftRepository({
+    sessions: [makeSession()],
     drafts: [
       {
         id: "order-wrong-branch",
@@ -285,4 +287,39 @@ test("returns ORDER_INVALID_OR_CLOSED for missing or out-of-scope/non-draft draf
   assert.equal(wrongSessionError.code, "ORDER_INVALID_OR_CLOSED");
   assert.equal(wrongDeviceError.code, "ORDER_INVALID_OR_CLOSED");
   assert.equal(nonDraftError.code, "ORDER_INVALID_OR_CLOSED");
+});
+
+test("returns ORDER_INVALID_OR_CLOSED when matching draft exists but session is closed", async () => {
+  const now = new Date().toISOString();
+  const repo = createInMemoryPosOrderDraftRepository({
+    sessions: [makeSession({ status: "CLOSED" })],
+    drafts: [
+      {
+        id: "order-1",
+        house_id: baseHouseId,
+        branch_id: baseBranchId,
+        session_id: baseSessionId,
+        device_id: baseDeviceId,
+        operator_entity_id: "operator-1",
+        status: "DRAFT",
+        created_at: now,
+        updated_at: now,
+      },
+    ],
+  });
+
+  const error = await captureOrderDraftError(() =>
+    getCurrentSessionDraftOrder(
+      {
+        houseId: baseHouseId,
+        branchId: baseBranchId,
+        sessionId: baseSessionId,
+        deviceId: baseDeviceId,
+        orderId: "order-1",
+      },
+      repo,
+    ),
+  );
+
+  assert.equal(error.code, "ORDER_INVALID_OR_CLOSED");
 });

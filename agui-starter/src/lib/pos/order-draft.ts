@@ -193,6 +193,16 @@ export async function getCurrentSessionDraftOrder(
   repo?: RepositoryClient,
 ): Promise<OrderDraft> {
   const repository = resolveRepository(repo);
+  const session = await repository.getSessionById({
+    houseId: input.houseId,
+    branchId: input.branchId,
+    sessionId: input.sessionId,
+  });
+
+  if (!session || session.status !== "OPEN" || session.device_id !== input.deviceId) {
+    throw orderInvalidOrClosedError();
+  }
+
   const draft = await repository.getDraftOrderById({
     houseId: input.houseId,
     branchId: input.branchId,
