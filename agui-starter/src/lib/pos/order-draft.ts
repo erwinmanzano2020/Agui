@@ -32,7 +32,7 @@ export class PosOrderDraftError extends Error {
 
 type OrderDraftRepository = {
   getSessionById(params: { houseId: string; branchId: string; sessionId: string }): Promise<PosSessionRow | null>;
-  insertOrderDraft(payload: OrderDraft): Promise<OrderDraft>;
+  insertOrderDraft(payload: Omit<OrderDraft, "id">): Promise<OrderDraft>;
 };
 
 export type RepositoryClient = OrderDraftRepository | null | undefined;
@@ -50,10 +50,6 @@ function resolveRepository(client?: RepositoryClient): OrderDraftRepository {
     throw repositoryRequiredError();
   }
   return client;
-}
-
-function makeDraftOrderId() {
-  return `order-draft-${randomUUID()}`;
 }
 
 export function createSupabasePosOrderDraftRepository(supabase: SupabaseClient<Database>): OrderDraftRepository {
@@ -99,8 +95,9 @@ export function createInMemoryPosOrderDraftRepository(initial?: Partial<{ sessio
       return sessions.find((session) => session.house_id === houseId && session.branch_id === branchId && session.id === sessionId) ?? null;
     },
     async insertOrderDraft(payload) {
-      drafts.push(payload);
-      return payload;
+      const draft = { ...payload, id: randomUUID() };
+      drafts.push(draft);
+      return draft;
     },
   } satisfies OrderDraftRepository & { sessions: PosSessionRow[]; drafts: OrderDraft[] };
 }
@@ -131,8 +128,7 @@ export async function createDraftOrder(
   }
 
   const now = new Date().toISOString();
-  const payload: OrderDraft = {
-    id: makeDraftOrderId(),
+  const payload: Omit<OrderDraft, "id"> = {
     house_id: input.houseId,
     branch_id: input.branchId,
     device_id: input.deviceId,

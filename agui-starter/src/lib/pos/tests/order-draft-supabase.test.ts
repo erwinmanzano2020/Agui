@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import test from "node:test";
 
 import type { PosSessionRow } from "@/lib/db.types";
@@ -58,7 +59,7 @@ function createFakeSupabase(params: { session: PosSessionRow | null; insertedDra
               return { data: params.session as T, error: null };
             }
             if (table === "pos_order_drafts") {
-              const fallback = (state.insertPayload ?? null) as T;
+              const fallback = (state.insertPayload ? { id: randomUUID(), ...(state.insertPayload as object) } : null) as T;
               return { data: (params.insertedDraft as T | null) ?? fallback, error: null };
             }
             return { data: null, error: null };
@@ -113,12 +114,14 @@ test("supabase repository inserts draft and scopes session lookup by house/branc
   const draftInsert = fake.calls.find((call) => call.table === "pos_order_drafts");
   assert.ok(draftInsert);
   const payload = draftInsert.insertPayload as Record<string, unknown>;
+  assert.equal(payload.id, undefined);
   assert.equal(payload.house_id, "house-1");
   assert.equal(payload.branch_id, "branch-1");
   assert.equal(payload.device_id, "device-1");
   assert.equal(payload.session_id, "session-1");
   assert.equal(payload.operator_entity_id, "operator-1");
   assert.equal(payload.status, "DRAFT");
+  assert.match(draft.id, /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
 });
 
 test("supabase repository preserves no-leak error for session mismatch and closed session", async () => {
