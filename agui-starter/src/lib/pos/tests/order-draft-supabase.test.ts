@@ -4,7 +4,12 @@ import test from "node:test";
 
 import type { PosSessionRow } from "@/lib/db.types";
 
-import { PosOrderDraftError, createDraftOrder, createSupabasePosOrderDraftRepository } from "../order-draft";
+import {
+  PosOrderDraftError,
+  createDraftOrder,
+  createSupabasePosOrderDraftRepository,
+  getCurrentSessionDraftOrder,
+} from "../order-draft";
 
 type QueryState = {
   table: string;
@@ -32,7 +37,11 @@ function makeSession(overrides: Partial<PosSessionRow> = {}): PosSessionRow {
   };
 }
 
-function createFakeSupabase(params: { session: PosSessionRow | null; insertedDraft?: Record<string, unknown> | null }) {
+function createFakeSupabase(params: {
+  session: PosSessionRow | null;
+  insertedDraft?: Record<string, unknown> | null;
+  selectedDraft?: Record<string, unknown> | null;
+}) {
   const calls: QueryState[] = [];
 
   return {
@@ -59,6 +68,14 @@ function createFakeSupabase(params: { session: PosSessionRow | null; insertedDra
               return { data: params.session as T, error: null };
             }
             if (table === "pos_order_drafts") {
+              if (!state.insertPayload) {
+                const selectedDraft = params.selectedDraft as Record<string, unknown> | null | undefined;
+                if (!selectedDraft) {
+                  return { data: null, error: null };
+                }
+                const matches = state.filters.every(({ column, value }) => selectedDraft[column] === value);
+                return { data: (matches ? (selectedDraft as T) : null), error: null };
+              }
               const fallback = (state.insertPayload ? { id: randomUUID(), ...(state.insertPayload as object) } : null) as T;
               return { data: (params.insertedDraft as T | null) ?? fallback, error: null };
             }
@@ -160,4 +177,108 @@ test("supabase repository preserves no-leak error for session mismatch and close
 
   assert.equal(mismatchError.code, "SESSION_INVALID_OR_CLOSED");
   assert.equal(closedError.code, "SESSION_INVALID_OR_CLOSED");
+});
+
+test("supabase repository reads current-session draft using full scope filters", async () => {
+  const now = new Date().toISOString();
+  const fake = createFakeSupabase({
+    session: null,
+    selectedDraft: {
+      id: "order-1",
+      house_id: "house-1",
+      branch_id: "branch-1",
+      device_id: "device-1",
+      session_id: "session-1",
+      operator_entity_id: "operator-1",
+      status: "DRAFT",
+      created_at: now,
+      updated_at: now,
+    },
+  });
+  const repo = createSupabasePosOrderDraftRepository(fake.client as never);
+
+  const draft = await getCurrentSessionDraftOrder(
+    {
+      houseId: "house-1",
+      branchId: "branch-1",
+      sessionId: "session-1",
+      deviceId: "device-1",
+      orderId: "order-1",
+    },
+    repo,
+  );
+
+  assert.equal(draft.id, "order-1");
+
+  const draftLookup = fake.calls.find((call) => call.table === "pos_order_drafts" && !call.insertPayload);
+  assert.ok(draftLookup);
+  assert.deepEqual(draftLookup.filters, [
+    { column: "house_id", value: "house-1" },
+    { column: "branch_id", value: "branch-1" },
+    { column: "session_id", value: "session-1" },
+    { column: "device_id", value: "device-1" },
+    { column: "id", value: "order-1" },
+    { column: "status", value: "DRAFT" },
+  ]);
+});
+
+test("supabase draft read preserves no-leak error for missing and scoped mismatch cases", async () => {
+  const captureReadError = async (selectedDraft: Record<string, unknown> | null) => {
+    const repo = createSupabasePosOrderDraftRepository(
+      createFakeSupabase({ session: null, selectedDraft }).client as never,
+    );
+
+    return captureOrderDraftError(() =>
+      getCurrentSessionDraftOrder(
+        {
+          houseId: "house-1",
+          branchId: "branch-1",
+          sessionId: "session-1",
+          deviceId: "device-1",
+          orderId: "order-1",
+        },
+        repo,
+      ),
+    );
+  };
+
+  const missingError = await captureReadError(null);
+  const wrongBranchError = await captureReadError({
+    id: "order-1",
+    house_id: "house-1",
+    branch_id: "branch-2",
+    session_id: "session-1",
+    device_id: "device-1",
+    status: "DRAFT",
+  });
+  const wrongSessionError = await captureReadError({
+    id: "order-1",
+    house_id: "house-1",
+    branch_id: "branch-1",
+    session_id: "session-2",
+    device_id: "device-1",
+    status: "DRAFT",
+  });
+  const wrongDeviceError = await captureReadError({
+    id: "order-1",
+    house_id: "house-1",
+    branch_id: "branch-1",
+    session_id: "session-1",
+    device_id: "device-2",
+    status: "DRAFT",
+  });
+  const nonDraftError = await captureReadError({
+    id: "order-1",
+    house_id: "house-1",
+    branch_id: "branch-1",
+    session_id: "session-1",
+    device_id: "device-1",
+    status: "CLOSED",
+  });
+
+  assert.equal(missingError.code, "ORDER_INVALID_OR_CLOSED");
+  assert.equal(wrongBranchError.code, "ORDER_INVALID_OR_CLOSED");
+  assert.equal(wrongSessionError.code, "ORDER_INVALID_OR_CLOSED");
+  assert.equal(wrongDeviceError.code, "ORDER_INVALID_OR_CLOSED");
+  assert.equal(nonDraftError.code, "ORDER_INVALID_OR_CLOSED");
 });

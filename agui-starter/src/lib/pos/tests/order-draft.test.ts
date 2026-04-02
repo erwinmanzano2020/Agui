@@ -3,7 +3,12 @@ import test from "node:test";
 
 import type { PosSessionRow } from "@/lib/db.types";
 
-import { PosOrderDraftError, createDraftOrder, createInMemoryPosOrderDraftRepository } from "../order-draft";
+import {
+  PosOrderDraftError,
+  createDraftOrder,
+  createInMemoryPosOrderDraftRepository,
+  getCurrentSessionDraftOrder,
+} from "../order-draft";
 
 const baseHouseId = "house-1";
 const baseBranchId = "branch-1";
@@ -165,4 +170,94 @@ test("preserves operator_entity_id attribution from input context", async () => 
   );
 
   assert.equal(draft.operator_entity_id, "operator-context-9");
+});
+
+test("returns current-session draft when house/branch/session/device/order all match", async () => {
+  const now = new Date().toISOString();
+  const repo = createInMemoryPosOrderDraftRepository({
+    drafts: [
+      {
+        id: "order-1",
+        house_id: baseHouseId,
+        branch_id: baseBranchId,
+        device_id: baseDeviceId,
+        session_id: baseSessionId,
+        operator_entity_id: "operator-1",
+        status: "DRAFT",
+        created_at: now,
+        updated_at: now,
+      },
+    ],
+  });
+
+  const draft = await getCurrentSessionDraftOrder(
+    {
+      houseId: baseHouseId,
+      branchId: baseBranchId,
+      sessionId: baseSessionId,
+      deviceId: baseDeviceId,
+      orderId: "order-1",
+    },
+    repo,
+  );
+
+  assert.equal(draft.id, "order-1");
+  assert.equal(draft.status, "DRAFT");
+});
+
+test("returns ORDER_INVALID_OR_CLOSED for missing, wrong-branch, wrong-session, wrong-device, and non-draft access", async () => {
+  const now = new Date().toISOString();
+  const makeScopedDraft = () => ({
+    id: "order-1",
+    house_id: baseHouseId,
+    branch_id: baseBranchId,
+    device_id: baseDeviceId,
+    session_id: baseSessionId,
+    operator_entity_id: "operator-1",
+    status: "DRAFT" as const,
+    created_at: now,
+    updated_at: now,
+  });
+
+  const missingRepo = createInMemoryPosOrderDraftRepository();
+  const wrongBranchRepo = createInMemoryPosOrderDraftRepository({
+    drafts: [{ ...makeScopedDraft(), branch_id: "branch-2" }],
+  });
+  const wrongSessionRepo = createInMemoryPosOrderDraftRepository({
+    drafts: [{ ...makeScopedDraft(), session_id: "session-2" }],
+  });
+  const wrongDeviceRepo = createInMemoryPosOrderDraftRepository({
+    drafts: [{ ...makeScopedDraft(), device_id: "device-2" }],
+  });
+  const nonDraftRepo = createInMemoryPosOrderDraftRepository({
+    drafts: [{ ...makeScopedDraft(), status: "CLOSED" as never }],
+  });
+
+  const captureReadError = (repo: ReturnType<typeof createInMemoryPosOrderDraftRepository>) =>
+    captureOrderDraftError(() =>
+      getCurrentSessionDraftOrder(
+        {
+          houseId: baseHouseId,
+          branchId: baseBranchId,
+          sessionId: baseSessionId,
+          deviceId: baseDeviceId,
+          orderId: "order-1",
+        },
+        repo,
+      ),
+    );
+
+  const [missingError, wrongBranchError, wrongSessionError, wrongDeviceError, nonDraftError] = await Promise.all([
+    captureReadError(missingRepo),
+    captureReadError(wrongBranchRepo),
+    captureReadError(wrongSessionRepo),
+    captureReadError(wrongDeviceRepo),
+    captureReadError(nonDraftRepo),
+  ]);
+
+  assert.equal(missingError.code, "ORDER_INVALID_OR_CLOSED");
+  assert.equal(wrongBranchError.code, "ORDER_INVALID_OR_CLOSED");
+  assert.equal(wrongSessionError.code, "ORDER_INVALID_OR_CLOSED");
+  assert.equal(wrongDeviceError.code, "ORDER_INVALID_OR_CLOSED");
+  assert.equal(nonDraftError.code, "ORDER_INVALID_OR_CLOSED");
 });
