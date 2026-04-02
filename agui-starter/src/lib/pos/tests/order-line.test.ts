@@ -88,13 +88,14 @@ async function captureOrderLineError(task: () => Promise<unknown>): Promise<PosO
 }
 
 test("adds a single active line to a valid draft order", async () => {
-  const repo = createInMemoryPosOrderLineRepository({ orders: [makeDraft()] });
+  const repo = createInMemoryPosOrderLineRepository({ sessions: [makeSession()], orders: [makeDraft()] });
 
   const line = await addOrderLine(
     {
       houseId: baseHouseId,
       branchId: baseBranchId,
       sessionId: baseSessionId,
+      deviceId: baseDeviceId,
       orderId: baseOrderId,
       operatorEntityId: "operator-1",
       itemCode: "ITEM-001",
@@ -111,63 +112,64 @@ test("adds a single active line to a valid draft order", async () => {
   assert.equal(repo.lines.length, 1);
 });
 
-test("returns same no-leak error for missing order, wrong session, and wrong branch", async () => {
-  const missingRepo = createInMemoryPosOrderLineRepository();
-  const wrongSessionRepo = createInMemoryPosOrderLineRepository({ orders: [makeDraft({ session_id: "session-2" })] });
-  const wrongBranchRepo = createInMemoryPosOrderLineRepository({ orders: [makeDraft({ branch_id: "branch-2" })] });
+test("add collapses invalid scoped context to ORDER_INVALID_OR_CLOSED", async () => {
+  const missingSessionRepo = createInMemoryPosOrderLineRepository({ orders: [makeDraft()] });
+  const closedSessionRepo = createInMemoryPosOrderLineRepository({
+    sessions: [makeSession({ status: "CLOSED" })],
+    orders: [makeDraft()],
+  });
+  const wrongDeviceRepo = createInMemoryPosOrderLineRepository({
+    sessions: [makeSession({ device_id: "device-2" })],
+    orders: [makeDraft()],
+  });
+  const wrongSessionRepo = createInMemoryPosOrderLineRepository({
+    sessions: [makeSession({ id: "session-2" })],
+    orders: [makeDraft()],
+  });
+  const wrongBranchRepo = createInMemoryPosOrderLineRepository({
+    sessions: [makeSession({ branch_id: "branch-2" })],
+    orders: [makeDraft()],
+  });
+  const missingOrderRepo = createInMemoryPosOrderLineRepository({
+    sessions: [makeSession()],
+    orders: [],
+  });
+  const nonDraftRepo = createInMemoryPosOrderLineRepository({
+    sessions: [makeSession()],
+    orders: [makeDraft({ status: "CLOSED" as unknown as "DRAFT" })],
+  });
 
-  const missingOrderError = await captureOrderLineError(() =>
+  for (const repo of [
+    missingSessionRepo,
+    closedSessionRepo,
+    wrongDeviceRepo,
+    wrongSessionRepo,
+    wrongBranchRepo,
+    missingOrderRepo,
+    nonDraftRepo,
+  ]) {
+    const error = await captureOrderLineError(() =>
     addOrderLine(
       {
         houseId: baseHouseId,
         branchId: baseBranchId,
         sessionId: baseSessionId,
+        deviceId: baseDeviceId,
         orderId: baseOrderId,
         operatorEntityId: "operator-1",
         itemCode: "ITEM-001",
         quantity: 1,
       },
-      missingRepo,
+      repo,
     ),
-  );
-
-  const wrongSessionError = await captureOrderLineError(() =>
-    addOrderLine(
-      {
-        houseId: baseHouseId,
-        branchId: baseBranchId,
-        sessionId: baseSessionId,
-        orderId: baseOrderId,
-        operatorEntityId: "operator-1",
-        itemCode: "ITEM-001",
-        quantity: 1,
-      },
-      wrongSessionRepo,
-    ),
-  );
-
-  const wrongBranchError = await captureOrderLineError(() =>
-    addOrderLine(
-      {
-        houseId: baseHouseId,
-        branchId: baseBranchId,
-        sessionId: baseSessionId,
-        orderId: baseOrderId,
-        operatorEntityId: "operator-1",
-        itemCode: "ITEM-001",
-        quantity: 1,
-      },
-      wrongBranchRepo,
-    ),
-  );
-
-  assert.equal(missingOrderError.code, "ORDER_INVALID_OR_CLOSED");
-  assert.equal(wrongSessionError.code, "ORDER_INVALID_OR_CLOSED");
-  assert.equal(wrongBranchError.code, "ORDER_INVALID_OR_CLOSED");
+    );
+    assert.equal(error.code, "ORDER_INVALID_OR_CLOSED");
+  }
 });
 
 test("rejects line insertion when order is not in DRAFT status", async () => {
   const repo = createInMemoryPosOrderLineRepository({
+    sessions: [makeSession()],
     orders: [{ ...makeDraft(), status: "CLOSED" as unknown as "DRAFT" }],
   });
 
@@ -178,6 +180,7 @@ test("rejects line insertion when order is not in DRAFT status", async () => {
           houseId: baseHouseId,
           branchId: baseBranchId,
           sessionId: baseSessionId,
+          deviceId: baseDeviceId,
           orderId: baseOrderId,
           operatorEntityId: "operator-1",
           itemCode: "ITEM-001",
@@ -190,7 +193,7 @@ test("rejects line insertion when order is not in DRAFT status", async () => {
 });
 
 test("rejects invalid quantity values", async () => {
-  const repo = createInMemoryPosOrderLineRepository({ orders: [makeDraft()] });
+  const repo = createInMemoryPosOrderLineRepository({ sessions: [makeSession()], orders: [makeDraft()] });
 
   await assert.rejects(
     () =>
@@ -199,6 +202,7 @@ test("rejects invalid quantity values", async () => {
           houseId: baseHouseId,
           branchId: baseBranchId,
           sessionId: baseSessionId,
+          deviceId: baseDeviceId,
           orderId: baseOrderId,
           operatorEntityId: "operator-1",
           itemCode: "ITEM-001",
@@ -216,6 +220,7 @@ test("rejects invalid quantity values", async () => {
           houseId: baseHouseId,
           branchId: baseBranchId,
           sessionId: baseSessionId,
+          deviceId: baseDeviceId,
           orderId: baseOrderId,
           operatorEntityId: "operator-1",
           itemCode: "ITEM-001",
@@ -228,7 +233,7 @@ test("rejects invalid quantity values", async () => {
 });
 
 test("rejects empty item code", async () => {
-  const repo = createInMemoryPosOrderLineRepository({ orders: [makeDraft()] });
+  const repo = createInMemoryPosOrderLineRepository({ sessions: [makeSession()], orders: [makeDraft()] });
 
   await assert.rejects(
     () =>
@@ -237,6 +242,7 @@ test("rejects empty item code", async () => {
           houseId: baseHouseId,
           branchId: baseBranchId,
           sessionId: baseSessionId,
+          deviceId: baseDeviceId,
           orderId: baseOrderId,
           operatorEntityId: "operator-1",
           itemCode: "",
@@ -249,7 +255,7 @@ test("rejects empty item code", async () => {
 });
 
 test("rejects whitespace-only item code", async () => {
-  const repo = createInMemoryPosOrderLineRepository({ orders: [makeDraft()] });
+  const repo = createInMemoryPosOrderLineRepository({ sessions: [makeSession()], orders: [makeDraft()] });
 
   await assert.rejects(
     () =>
@@ -258,6 +264,7 @@ test("rejects whitespace-only item code", async () => {
           houseId: baseHouseId,
           branchId: baseBranchId,
           sessionId: baseSessionId,
+          deviceId: baseDeviceId,
           orderId: baseOrderId,
           operatorEntityId: "operator-1",
           itemCode: "   ",
@@ -270,13 +277,14 @@ test("rejects whitespace-only item code", async () => {
 });
 
 test("trims item code before storing order line", async () => {
-  const repo = createInMemoryPosOrderLineRepository({ orders: [makeDraft()] });
+  const repo = createInMemoryPosOrderLineRepository({ sessions: [makeSession()], orders: [makeDraft()] });
 
   const line = await addOrderLine(
     {
       houseId: baseHouseId,
       branchId: baseBranchId,
       sessionId: baseSessionId,
+      deviceId: baseDeviceId,
       orderId: baseOrderId,
       operatorEntityId: "operator-1",
       itemCode: "  ITEM-001  ",
@@ -289,7 +297,7 @@ test("trims item code before storing order line", async () => {
 });
 
 test("rejects line insertion when operator attribution is missing", async () => {
-  const repo = createInMemoryPosOrderLineRepository({ orders: [makeDraft()] });
+  const repo = createInMemoryPosOrderLineRepository({ sessions: [makeSession()], orders: [makeDraft()] });
 
   await assert.rejects(
     () =>
@@ -298,6 +306,7 @@ test("rejects line insertion when operator attribution is missing", async () => 
           houseId: baseHouseId,
           branchId: baseBranchId,
           sessionId: baseSessionId,
+          deviceId: baseDeviceId,
           orderId: baseOrderId,
           operatorEntityId: "",
           itemCode: "ITEM-001",
@@ -310,13 +319,14 @@ test("rejects line insertion when operator attribution is missing", async () => 
 });
 
 test("preserves operator attribution in inserted line", async () => {
-  const repo = createInMemoryPosOrderLineRepository({ orders: [makeDraft()] });
+  const repo = createInMemoryPosOrderLineRepository({ sessions: [makeSession()], orders: [makeDraft()] });
 
   const line = await addOrderLine(
     {
       houseId: baseHouseId,
       branchId: baseBranchId,
       sessionId: baseSessionId,
+      deviceId: baseDeviceId,
       orderId: baseOrderId,
       operatorEntityId: "operator-context-9",
       itemCode: "ITEM-001",
@@ -471,6 +481,37 @@ test("line read/update/remove collapse invalid scope and missing cases to ORDER_
     assert.equal(updateError.code, "ORDER_INVALID_OR_CLOSED");
     assert.equal(removeError.code, "ORDER_INVALID_OR_CLOSED");
   }
+});
+
+test("add shares current-session device discipline with read/update/remove helpers", async () => {
+  const baseInput = {
+    houseId: baseHouseId,
+    branchId: baseBranchId,
+    sessionId: baseSessionId,
+    deviceId: baseDeviceId,
+    orderId: baseOrderId,
+  };
+  const repo = createInMemoryPosOrderLineRepository({
+    sessions: [makeSession({ device_id: "device-2" })],
+    orders: [makeDraft()],
+    lines: [makeLine()],
+  });
+
+  const addError = await captureOrderLineError(() =>
+    addOrderLine({ ...baseInput, operatorEntityId: "operator-1", itemCode: "ITEM-001", quantity: 1 }, repo),
+  );
+  const readError = await captureOrderLineError(() => getCurrentSessionOrderLines({ ...baseInput }, repo));
+  const updateError = await captureOrderLineError(() =>
+    updateOrderLine({ ...baseInput, lineId: baseLineId, operatorEntityId: "operator-1", quantity: 1 }, repo),
+  );
+  const removeError = await captureOrderLineError(() =>
+    removeOrderLine({ ...baseInput, lineId: baseLineId, operatorEntityId: "operator-1" }, repo),
+  );
+
+  assert.equal(addError.code, "ORDER_INVALID_OR_CLOSED");
+  assert.equal(readError.code, "ORDER_INVALID_OR_CLOSED");
+  assert.equal(updateError.code, "ORDER_INVALID_OR_CLOSED");
+  assert.equal(removeError.code, "ORDER_INVALID_OR_CLOSED");
 });
 
 test("update rejects invalid quantity and blank item code", async () => {
