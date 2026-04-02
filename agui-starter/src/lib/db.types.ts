@@ -1280,6 +1280,32 @@ export type PosSessionInsert = {
 
 export type PosSessionUpdate = Partial<PosSessionInsert>;
 
+export type PosOrderDraftRow = {
+  id: string;
+  house_id: string;
+  branch_id: string;
+  device_id: string;
+  session_id: string;
+  operator_entity_id: string;
+  status: "DRAFT";
+  created_at: string;
+  updated_at: string;
+};
+
+export type PosOrderDraftInsert = {
+  id?: string;
+  house_id: string;
+  branch_id: string;
+  device_id: string;
+  session_id: string;
+  operator_entity_id: string;
+  status?: PosOrderDraftRow["status"];
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type PosOrderDraftUpdate = Partial<PosOrderDraftInsert>;
+
 export type PosSaleRow = {
   id: string;
   house_id: string;
@@ -1636,6 +1662,7 @@ export interface Database {
       pos_devices: TableDefinition<PosDeviceRow, PosDeviceInsert, PosDeviceUpdate>;
       pos_operator_credentials: TableDefinition<PosOperatorCredentialRow, PosOperatorCredentialInsert, PosOperatorCredentialUpdate>;
       pos_sessions: TableDefinition<PosSessionRow, PosSessionInsert, PosSessionUpdate>;
+      pos_order_drafts: TableDefinition<PosOrderDraftRow, PosOrderDraftInsert, PosOrderDraftUpdate>;
       pos_shifts: TableDefinition<PosShiftRow, PosShiftInsert, PosShiftUpdate>;
       pos_sales: TableDefinition<PosSaleRow, PosSaleInsert, PosSaleUpdate>;
       pos_sale_lines: TableDefinition<PosSaleLineRow, PosSaleLineInsert, PosSaleLineUpdate>;

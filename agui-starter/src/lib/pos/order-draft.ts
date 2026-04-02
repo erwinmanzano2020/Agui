@@ -2,7 +2,9 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import type { PosSessionRow } from "@/lib/db.types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import type { Database, PosSessionRow } from "@/lib/db.types";
 
 export type OrderDraft = {
   id: string;
@@ -52,6 +54,38 @@ function resolveRepository(client?: RepositoryClient): OrderDraftRepository {
 
 function makeDraftOrderId() {
   return `order-draft-${randomUUID()}`;
+}
+
+export function createSupabasePosOrderDraftRepository(supabase: SupabaseClient<Database>): OrderDraftRepository {
+  return {
+    async getSessionById({ houseId, branchId, sessionId }) {
+      const { data, error } = await supabase
+        .from("pos_sessions")
+        .select("*")
+        .eq("house_id", houseId)
+        .eq("branch_id", branchId)
+        .eq("id", sessionId)
+        .maybeSingle<PosSessionRow>();
+      if (error) {
+        throw new PosOrderDraftError(error.message, error.code ?? "ORDER_DRAFT_SESSION_LOOKUP_FAILED", 500);
+      }
+      return data ?? null;
+    },
+    async insertOrderDraft(payload) {
+      const { data, error } = await supabase
+        .from("pos_order_drafts")
+        .insert(payload)
+        .select("*")
+        .maybeSingle<OrderDraft>();
+      if (error) {
+        throw new PosOrderDraftError(error.message, error.code ?? "ORDER_DRAFT_INSERT_FAILED", 500);
+      }
+      if (!data) {
+        throw new PosOrderDraftError("Failed to create order draft", "ORDER_DRAFT_INSERT_FAILED", 500);
+      }
+      return data;
+    },
+  } satisfies OrderDraftRepository;
 }
 
 export function createInMemoryPosOrderDraftRepository(initial?: Partial<{ sessions: PosSessionRow[]; drafts: OrderDraft[] }>) {
