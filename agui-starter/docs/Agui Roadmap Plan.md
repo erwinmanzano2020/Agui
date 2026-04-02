@@ -29,7 +29,7 @@
 - payroll/payslip wording and lock-state consistency
 - kiosk and employee ID operational hardening
 
-## HR Stability Gate (Before POS Unlock)
+## HR Stability Gate (Before POS Foundation Continuation)
 HR can be considered stable enough to move forward **only** when:
 - no known tenancy or cross-house leakage risks
 - branch-limited behavior is consistent across all read paths
@@ -38,16 +38,54 @@ HR can be considered stable enough to move forward **only** when:
 - kiosk flows are operationally reliable
 - regression coverage exists for all high-risk boundaries
 
-Current conservative gate verdict (as of **2026-03-31 UTC**): **STABLE ENOUGH TO UNLOCK POS**.
+Current conservative gate verdict (as of **2026-03-31 UTC**): **STABLE ENOUGH TO UNLOCK BOUNDED POS FOUNDATIONS**.
 Checkpoint rationale: blocker-class HR streams for tenancy/access consistency, branch-scope parity, and no-leak parity are documented closed with no known blocker regressions remaining in repository evidence.
 
 ## Next System (Unlocked by HR Stability Checkpoint)
 - Next system: POS
-- Status: Eligible to start (conservatively unlocked by HR blocker-closeout checkpoint)
+- Status: Eligible to start in bounded foundation scope (conservatively unlocked by HR blocker-closeout checkpoint)
 - Unlock condition: HR stability gate satisfied (**met on 2026-03-31 UTC**)
-- HR remains hardening-active; POS start should not modify frozen HR contracts or weaken tenancy/identity boundaries
+- Bounded POS foundations may proceed after the recorded HR stability checkpoint, within explicit POS scope limits
+- Inventory-coupled and finance-coupled POS behaviors remain separately gated
+- HR remains hardening-active; POS continuation must not modify frozen HR contracts or weaken tenancy/identity boundaries
+
+## POS Dependency Boundaries (Clarified)
+The canonical module order remains unchanged: **HR → POS → Operations → Finance → Growth/advanced systems**.
+
+POS continuation is split into explicit dependency-bounded layers:
+
+1. **POS Foundations / Early POS (allowed after HR stability checkpoint)**
+   - device/session/operator accountability
+   - scoped draft-order behavior
+   - bounded order-line foundations
+   - no-leak + scope-first operational rules
+
+2. **Inventory-Coupled POS (gated on Operations foundation)**
+   - stock deduction
+   - UOM inventory behavior
+   - bundles, repacking, or raw-material-linked selling
+   - supplier/inventory source-of-truth coupling
+
+3. **Finance-Coupled POS (gated on Finance foundation)**
+   - settlement/accounting entries
+   - credit or payroll-deduction integrations
+   - finance-ledger consequences
+
+Roadmap interpretation rule: bounded POS foundation continuation is authorized after HR stability; later POS expansion phases are **not** automatically authorized.
+
+## Operations and Finance Role Clarification
+- Operations owns inventory, purchasing, and stock-flow foundations.
+- Any deeper POS behavior that mutates, reconciles, or depends on stock state must wait for Operations foundation readiness.
+- Finance owns settlement, accounting, and ledger-facing foundations.
+- Any POS behavior with finance-ledger or settlement consequences must wait for Finance foundation readiness.
+
+## Tenancy and Identity Invariants Across Phases
+- House remains the tenant boundary.
+- Branch remains a location limiter, not a tenant replacement.
+- Identity remains shared platform infrastructure across modules.
+- Lookup-first behavior remains canonical across module boundaries.
 
 ## Notes
-- This roadmap is alignment-only and does not introduce new scope.
-- System priority remains unchanged: **HR → POS → Operations → Finance → Growth/advanced systems**.
-- Any work that changes frozen contracts, tenancy boundaries, or phase gates must be explicitly approved in governing docs.
+- This roadmap update is alignment-only and does not introduce new implementation scope.
+- No module reordering is authorized.
+- Any work that changes frozen contracts, tenancy boundaries, identity boundaries, or phase gates must be explicitly approved in governing docs.
