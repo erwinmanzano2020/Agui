@@ -2,9 +2,7 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import type { SupabaseClient } from "@supabase/supabase-js";
-
-import type { Database, PosSessionRow } from "@/lib/db.types";
+import type { PosSessionRow } from "@/lib/db.types";
 
 import type { OrderDraft } from "./order-draft";
 
@@ -183,119 +181,6 @@ export function createInMemoryPosOrderLineRepository(
       return line;
     },
   } satisfies OrderLineRepository & { sessions: PosSessionRow[]; orders: OrderDraft[]; lines: OrderLine[] };
-}
-
-export function createSupabasePosOrderLineRepository(supabase: SupabaseClient<Database>): OrderLineRepository {
-  return {
-    async getSessionById({ houseId, branchId, sessionId }) {
-      const { data, error } = await supabase
-        .from("pos_sessions")
-        .select("*")
-        .eq("house_id", houseId)
-        .eq("branch_id", branchId)
-        .eq("id", sessionId)
-        .maybeSingle<PosSessionRow>();
-      if (error) {
-        throw new PosOrderLineError(error.message, error.code ?? "ORDER_LINE_SESSION_LOOKUP_FAILED", 500);
-      }
-      return data ?? null;
-    },
-    async getOrderDraftById({ houseId, branchId, sessionId, deviceId, orderId }) {
-      let query = supabase
-        .from("pos_order_drafts")
-        .select("*")
-        .eq("house_id", houseId)
-        .eq("branch_id", branchId)
-        .eq("session_id", sessionId)
-        .eq("id", orderId);
-
-      if (deviceId !== undefined) {
-        query = query.eq("device_id", deviceId);
-      }
-
-      const { data, error } = await query.maybeSingle<OrderDraft>();
-      if (error) {
-        throw new PosOrderLineError(error.message, error.code ?? "ORDER_DRAFT_LOOKUP_FAILED", 500);
-      }
-      return data ?? null;
-    },
-    async getOrderLinesByDraft({ houseId, branchId, sessionId, deviceId, orderId }) {
-      const { data, error } = await supabase
-        .from("pos_order_lines")
-        .select("*")
-        .eq("house_id", houseId)
-        .eq("branch_id", branchId)
-        .eq("session_id", sessionId)
-        .eq("device_id", deviceId)
-        .eq("order_id", orderId)
-        .eq("status", "ACTIVE");
-      if (error) {
-        throw new PosOrderLineError(error.message, error.code ?? "ORDER_LINE_LOOKUP_FAILED", 500);
-      }
-      return (data as OrderLine[] | null) ?? [];
-    },
-    async insertOrderLine(payload) {
-      const { data, error } = await supabase.from("pos_order_lines").insert(payload).select("*").maybeSingle<OrderLine>();
-      if (error) {
-        throw new PosOrderLineError(error.message, error.code ?? "ORDER_LINE_INSERT_FAILED", 500);
-      }
-      if (!data) {
-        throw new PosOrderLineError("Failed to add order line", "ORDER_LINE_INSERT_FAILED", 500);
-      }
-      return data;
-    },
-    async updateOrderLine({ houseId, branchId, sessionId, deviceId, orderId, lineId, operatorEntityId, itemCode, quantity }) {
-      const payload: Partial<OrderLine> = {
-        operator_entity_id: operatorEntityId,
-        updated_at: new Date().toISOString(),
-      };
-      if (itemCode !== undefined) {
-        payload.item_code = itemCode;
-      }
-      if (quantity !== undefined) {
-        payload.quantity = quantity;
-      }
-
-      const { data, error } = await supabase
-        .from("pos_order_lines")
-        .update(payload)
-        .eq("house_id", houseId)
-        .eq("branch_id", branchId)
-        .eq("session_id", sessionId)
-        .eq("device_id", deviceId)
-        .eq("order_id", orderId)
-        .eq("id", lineId)
-        .eq("status", "ACTIVE")
-        .select("*")
-        .maybeSingle<OrderLine>();
-      if (error) {
-        throw new PosOrderLineError(error.message, error.code ?? "ORDER_LINE_UPDATE_FAILED", 500);
-      }
-      return data ?? null;
-    },
-    async removeOrderLine({ houseId, branchId, sessionId, deviceId, orderId, lineId, operatorEntityId }) {
-      const { data, error } = await supabase
-        .from("pos_order_lines")
-        .update({
-          status: "REMOVED",
-          operator_entity_id: operatorEntityId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("house_id", houseId)
-        .eq("branch_id", branchId)
-        .eq("session_id", sessionId)
-        .eq("device_id", deviceId)
-        .eq("order_id", orderId)
-        .eq("id", lineId)
-        .eq("status", "ACTIVE")
-        .select("*")
-        .maybeSingle<OrderLine>();
-      if (error) {
-        throw new PosOrderLineError(error.message, error.code ?? "ORDER_LINE_REMOVE_FAILED", 500);
-      }
-      return data ?? null;
-    },
-  } satisfies OrderLineRepository;
 }
 
 function validateOperator(operatorEntityId: string) {
