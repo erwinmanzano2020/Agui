@@ -234,6 +234,7 @@ export async function addOrderLine(
     houseId: string;
     branchId: string;
     sessionId: string;
+    deviceId: string;
     orderId: string;
     operatorEntityId: string;
     itemCode: string;
@@ -246,16 +247,7 @@ export async function addOrderLine(
   validateQuantity(input.quantity);
 
   const repository = resolveRepository(repo);
-  const order = await repository.getOrderDraftById({
-    houseId: input.houseId,
-    branchId: input.branchId,
-    sessionId: input.sessionId,
-    orderId: input.orderId,
-  });
-
-  if (!order || order.status !== "DRAFT") {
-    throw orderInvalidOrClosedError();
-  }
+  await ensureScopedDraft(repository, input);
 
   const now = new Date().toISOString();
   const payload: OrderLine = {
