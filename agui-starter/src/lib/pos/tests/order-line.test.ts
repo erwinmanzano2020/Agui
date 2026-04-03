@@ -110,6 +110,8 @@ test("adds a single active line to a valid draft order", async () => {
   assert.equal(line.branch_id, baseBranchId);
   assert.equal(line.session_id, baseSessionId);
   assert.equal(line.status, "ACTIVE");
+  assert.match(line.id, /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  assert.equal(line.id.startsWith("order-line-"), false);
   assert.equal(repo.lines.length, 1);
 });
 

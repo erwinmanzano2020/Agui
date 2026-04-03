@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import test from "node:test";
 
 import type { PosSessionRow } from "@/lib/db.types";
@@ -167,7 +168,7 @@ async function captureOrderLineError(task: () => Promise<unknown>) {
 }
 
 test("supabase repository persists and reads current-session lines with full scope filters", async () => {
-  const line = makeLine();
+  const line = makeLine({ id: randomUUID() });
   const fake = createFakeSupabase({
     session: makeSession(),
     draft: makeDraft(),
@@ -190,18 +191,20 @@ test("supabase repository persists and reads current-session lines with full sco
 
   const lines = await getCurrentSessionOrderLines(baseScope, repo);
   assert.equal(lines.length, 1);
-  assert.equal(lines[0]?.id, "line-1");
+  assert.equal(lines[0]?.id, line.id);
 
   const lineInsert = fake.calls.find((call) => call.table === "pos_order_lines" && call.insertPayload);
   assert.ok(lineInsert);
   assert.deepEqual(lineInsert.filters, []);
   const insertedPayload = lineInsert.insertPayload as Record<string, unknown>;
+  assert.equal(Object.prototype.hasOwnProperty.call(insertedPayload, "id"), false);
   assert.equal(insertedPayload.house_id, baseScope.houseId);
   assert.equal(insertedPayload.branch_id, baseScope.branchId);
   assert.equal(insertedPayload.session_id, baseScope.sessionId);
   assert.equal(insertedPayload.device_id, baseScope.deviceId);
   assert.equal(insertedPayload.order_id, baseScope.orderId);
   assert.equal(insertedPayload.operator_entity_id, "operator-1");
+  assert.match(inserted.id, /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
 
   const lineRead = fake.calls.find((call) => call.table === "pos_order_lines" && !call.insertPayload && !call.updatePayload);
   assert.ok(lineRead);

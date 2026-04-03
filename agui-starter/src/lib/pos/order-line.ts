@@ -23,6 +23,8 @@ export type OrderLine = {
   updated_at: string;
 };
 
+type OrderLineInsert = Omit<OrderLine, "id"> & { id?: string };
+
 export class PosOrderLineError extends Error {
   code: string;
   status: number;
@@ -51,7 +53,7 @@ type OrderLineRepository = {
     deviceId: string;
     orderId: string;
   }): Promise<OrderLine[]>;
-  insertOrderLine(payload: OrderLine): Promise<OrderLine>;
+  insertOrderLine(payload: OrderLineInsert): Promise<OrderLine>;
   updateOrderLine(params: {
     houseId: string;
     branchId: string;
@@ -207,10 +209,6 @@ export function createSupabasePosOrderLineRepository(supabase: SupabaseClient<Da
   } satisfies OrderLineRepository;
 }
 
-function makeOrderLineId() {
-  return `order-line-${randomUUID()}`;
-}
-
 export function createInMemoryPosOrderLineRepository(
   initial?: Partial<{ sessions: PosSessionRow[]; orders: OrderDraft[]; lines: OrderLine[] }>,
 ) {
@@ -251,8 +249,9 @@ export function createInMemoryPosOrderLineRepository(
       );
     },
     async insertOrderLine(payload) {
-      lines.push(payload);
-      return payload;
+      const line = { id: payload.id ?? randomUUID(), ...payload };
+      lines.push(line);
+      return line;
     },
     async updateOrderLine({ houseId, branchId, sessionId, deviceId, orderId, lineId, operatorEntityId, itemCode, quantity }) {
       const line =
@@ -371,8 +370,7 @@ export async function addOrderLine(
   await ensureScopedDraft(repository, input);
 
   const now = new Date().toISOString();
-  const payload: OrderLine = {
-    id: makeOrderLineId(),
+  const payload: OrderLineInsert = {
     order_id: input.orderId,
     house_id: input.houseId,
     branch_id: input.branchId,
