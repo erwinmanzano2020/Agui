@@ -41,10 +41,10 @@ export async function createDraftOrderAction(
   slug: string,
   payload: { branchId: string; sessionId: string; deviceId: string },
 ) {
-  try {
-    const { supabase, house, actorEntityId } = await resolveHouseAndAccess(slug);
-    const draftRepository = createSupabasePosOrderDraftRepository(supabase);
+  const { supabase, house, actorEntityId } = await resolveHouseAndAccess(slug);
+  const draftRepository = createSupabasePosOrderDraftRepository(supabase);
 
+  try {
     const draft = await createDraftOrder(
       {
         houseId: house.id,
@@ -58,9 +58,11 @@ export async function createDraftOrderAction(
 
     return { ok: true, orderId: draft.id } as const;
   } catch (error) {
-    if (error instanceof PosOrderDraftError) {
-      console.warn("[pos-order] create draft denied", { code: error.code, status: error.status, slug });
+    if (!(error instanceof PosOrderDraftError)) {
+      throw error;
     }
+
+    console.warn("[pos-order] create draft denied", { code: error.code, status: error.status, slug });
     return { ok: false, error: CLIENT_SAFE_POS_DRAFT_ERROR } as const;
   }
 }
@@ -69,10 +71,10 @@ export async function getCurrentSessionDraftOrderAction(
   slug: string,
   payload: { branchId: string; sessionId: string; deviceId: string; orderId: string },
 ) {
-  try {
-    const { supabase, house } = await resolveHouseAndAccess(slug);
-    const draftRepository = createSupabasePosOrderDraftRepository(supabase);
+  const { supabase, house } = await resolveHouseAndAccess(slug);
+  const draftRepository = createSupabasePosOrderDraftRepository(supabase);
 
+  try {
     const draft = await getCurrentSessionDraftOrder(
       {
         houseId: house.id,
@@ -97,9 +99,11 @@ export async function getCurrentSessionDraftOrderAction(
       },
     } as const;
   } catch (error) {
-    if (error instanceof PosOrderDraftError) {
-      console.warn("[pos-order] get draft denied", { code: error.code, status: error.status, slug });
+    if (!(error instanceof PosOrderDraftError)) {
+      throw error;
     }
+
+    console.warn("[pos-order] get draft denied", { code: error.code, status: error.status, slug });
     return { ok: false, error: CLIENT_SAFE_POS_DRAFT_ERROR } as const;
   }
 }
@@ -115,10 +119,10 @@ export async function addOrderLineAction(
     quantity: number;
   },
 ) {
-  try {
-    const { supabase, house, actorEntityId } = await resolveHouseAndAccess(slug);
-    const lineRepository = createSupabasePosOrderLineRepository(supabase);
+  const { supabase, house, actorEntityId } = await resolveHouseAndAccess(slug);
+  const lineRepository = createSupabasePosOrderLineRepository(supabase);
 
+  try {
     const line = await addOrderLine(
       {
         houseId: house.id,
@@ -135,9 +139,11 @@ export async function addOrderLineAction(
 
     return { ok: true, lineId: line.id } as const;
   } catch (error) {
-    if (error instanceof PosOrderLineError) {
-      console.warn("[pos-order] add line denied", { code: error.code, status: error.status, slug });
+    if (!(error instanceof PosOrderLineError)) {
+      throw error;
     }
+
+    console.warn("[pos-order] add line denied", { code: error.code, status: error.status, slug });
     return { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR } as const;
   }
 }
@@ -146,10 +152,10 @@ export async function getCurrentSessionOrderLinesAction(
   slug: string,
   payload: { branchId: string; sessionId: string; deviceId: string; orderId: string },
 ) {
-  try {
-    const { supabase, house } = await resolveHouseAndAccess(slug);
-    const lineRepository = createSupabasePosOrderLineRepository(supabase);
+  const { supabase, house } = await resolveHouseAndAccess(slug);
+  const lineRepository = createSupabasePosOrderLineRepository(supabase);
 
+  try {
     const lines = await getCurrentSessionOrderLines(
       {
         houseId: house.id,
@@ -171,9 +177,11 @@ export async function getCurrentSessionOrderLinesAction(
       })),
     } as const;
   } catch (error) {
-    if (error instanceof PosOrderLineError) {
-      console.warn("[pos-order] list lines denied", { code: error.code, status: error.status, slug });
+    if (!(error instanceof PosOrderLineError)) {
+      throw error;
     }
+
+    console.warn("[pos-order] list lines denied", { code: error.code, status: error.status, slug });
     return { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR } as const;
   }
 }
@@ -190,10 +198,10 @@ export async function updateOrderLineAction(
     quantity?: number;
   },
 ) {
-  try {
-    const { supabase, house, actorEntityId } = await resolveHouseAndAccess(slug);
-    const lineRepository = createSupabasePosOrderLineRepository(supabase);
+  const { supabase, house, actorEntityId } = await resolveHouseAndAccess(slug);
+  const lineRepository = createSupabasePosOrderLineRepository(supabase);
 
+  try {
     const line = await updateOrderLine(
       {
         houseId: house.id,
@@ -211,9 +219,11 @@ export async function updateOrderLineAction(
 
     return { ok: true, lineId: line.id } as const;
   } catch (error) {
-    if (error instanceof PosOrderLineError) {
-      console.warn("[pos-order] update line denied", { code: error.code, status: error.status, slug });
+    if (!(error instanceof PosOrderLineError)) {
+      throw error;
     }
+
+    console.warn("[pos-order] update line denied", { code: error.code, status: error.status, slug });
     return { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR } as const;
   }
 }
@@ -222,10 +232,10 @@ export async function removeOrderLineAction(
   slug: string,
   payload: { branchId: string; sessionId: string; deviceId: string; orderId: string; lineId: string },
 ) {
-  try {
-    const { supabase, house, actorEntityId } = await resolveHouseAndAccess(slug);
-    const lineRepository = createSupabasePosOrderLineRepository(supabase);
+  const { supabase, house, actorEntityId } = await resolveHouseAndAccess(slug);
+  const lineRepository = createSupabasePosOrderLineRepository(supabase);
 
+  try {
     const line = await removeOrderLine(
       {
         houseId: house.id,
@@ -241,9 +251,11 @@ export async function removeOrderLineAction(
 
     return { ok: true, lineId: line.id } as const;
   } catch (error) {
-    if (error instanceof PosOrderLineError) {
-      console.warn("[pos-order] remove line denied", { code: error.code, status: error.status, slug });
+    if (!(error instanceof PosOrderLineError)) {
+      throw error;
     }
+
+    console.warn("[pos-order] remove line denied", { code: error.code, status: error.status, slug });
     return { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR } as const;
   }
 }

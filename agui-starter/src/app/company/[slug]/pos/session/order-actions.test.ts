@@ -370,3 +370,80 @@ test("all order-line helper failures map to one client-safe no-leak response", a
     mock.method(orderLineModule, "createSupabasePosOrderLineRepository", () => ({}) as never);
   }
 });
+
+test("unexpected helper failures are rethrown instead of converted to client-safe deny output", async () => {
+  mockAuthAndAccess();
+  mock.method(orderDraftModule, "createSupabasePosOrderDraftRepository", () => ({}) as never);
+  mock.method(orderLineModule, "createSupabasePosOrderLineRepository", () => ({}) as never);
+
+  mock.method(orderDraftModule, "createDraftOrder", async () => {
+    throw new Error("unexpected draft infra failure");
+  });
+  await assert.rejects(
+    () =>
+      createDraftOrderAction(SLUG, {
+        branchId: "branch-1",
+        sessionId: "session-1",
+        deviceId: "device-1",
+      }),
+    /unexpected draft infra failure/,
+  );
+
+  mock.method(orderLineModule, "addOrderLine", async () => {
+    throw new Error("unexpected line infra failure");
+  });
+  await assert.rejects(
+    () =>
+      addOrderLineAction(SLUG, {
+        branchId: "branch-1",
+        sessionId: "session-1",
+        deviceId: "device-1",
+        orderId: "order-1",
+        itemCode: "ITEM",
+        quantity: 1,
+      }),
+    /unexpected line infra failure/,
+  );
+});
+
+test("auth/access control-flow failures are preserved and not swallowed", async () => {
+  mock.method(authModule, "requireAuth", async () => {
+    throw new Error("NEXT_REDIRECT");
+  });
+
+  await assert.rejects(
+    () =>
+      createDraftOrderAction(SLUG, {
+        branchId: "branch-1",
+        sessionId: "session-1",
+        deviceId: "device-1",
+      }),
+    /NEXT_REDIRECT/,
+  );
+
+  const supabase = {
+    from: () => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: async () => ({ data: { id: HOUSE_ID, slug: SLUG } }),
+        }),
+      }),
+    }),
+  };
+  mock.restoreAll();
+  mock.method(authModule, "requireAuth", async () => ({ supabase } as never));
+  mock.method(posAccessModule, "requirePosAccess", async () => {
+    throw new Error("POS_ACCESS_REDIRECT");
+  });
+
+  await assert.rejects(
+    () =>
+      getCurrentSessionOrderLinesAction(SLUG, {
+        branchId: "branch-1",
+        sessionId: "session-1",
+        deviceId: "device-1",
+        orderId: "order-1",
+      }),
+    /POS_ACCESS_REDIRECT/,
+  );
+});
