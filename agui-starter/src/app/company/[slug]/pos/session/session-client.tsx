@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
 import { closePosSessionAction, openPosSessionAction } from "./actions";
 import {
@@ -24,6 +24,8 @@ type CurrentOrderScope = {
   deviceId: string;
   orderId: string;
 };
+
+type LineEditState = Record<string, { itemCode: string; quantity: string }>;
 
 export function resolveInitialBranchId(defaultBranchId: string | null): string {
   return defaultBranchId?.trim() ?? "";
@@ -61,6 +63,31 @@ export function parseQuantityInput(value: string): number | null {
   return parsed;
 }
 
+export function serializeCurrentOrderScope(scope: CurrentOrderScope | null): string {
+  if (!scope) {
+    return "";
+  }
+
+  return `${scope.branchId}::${scope.sessionId}::${scope.deviceId}::${scope.orderId}`;
+}
+
+export function shouldApplyLineRefreshResult(input: {
+  requestedScopeKey: string;
+  activeScopeKey: string;
+  requestId: number;
+  latestRequestId: number;
+}): boolean {
+  if (!input.requestedScopeKey) {
+    return false;
+  }
+
+  return input.requestId === input.latestRequestId && input.requestedScopeKey === input.activeScopeKey;
+}
+
+export function clearLineSurfaceState(): { lines: PosOrderLineView[]; lineEdits: LineEditState } {
+  return { lines: [], lineEdits: {} };
+}
+
 export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defaultBranchId: string | null }) {
   const [deviceCode, setDeviceCode] = useState("");
   const [qrIdentifier, setQrIdentifier] = useState("");
@@ -75,10 +102,12 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
   const [lines, setLines] = useState<PosOrderLineView[]>([]);
   const [newItemCode, setNewItemCode] = useState("");
   const [newQuantity, setNewQuantity] = useState("1");
-  const [lineEdits, setLineEdits] = useState<Record<string, { itemCode: string; quantity: string }>>({});
+  const [lineEdits, setLineEdits] = useState<LineEditState>({});
 
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const activeScopeKeyRef = useRef("");
+  const latestLinesRequestIdRef = useRef(0);
 
   const currentScope = useMemo(
     () =>
@@ -90,16 +119,31 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
       }),
     [activeOrderId, branchId, openDeviceId, openSessionId],
   );
+  const currentScopeKey = useMemo(() => serializeCurrentOrderScope(currentScope), [currentScope]);
+
+  useEffect(() => {
+    activeScopeKeyRef.current = currentScopeKey;
+    if (!currentScopeKey) {
+      latestLinesRequestIdRef.current += 1;
+    }
+  }, [currentScopeKey]);
 
   function clearOrderSurface() {
+    latestLinesRequestIdRef.current += 1;
+    activeScopeKeyRef.current = "";
+    const cleared = clearLineSurfaceState();
     setActiveOrderId("");
-    setLines([]);
-    setLineEdits({});
+    setLines(cleared.lines);
+    setLineEdits(cleared.lineEdits);
     setNewItemCode("");
     setNewQuantity("1");
   }
 
   const refreshLines = useCallback(async (scope: CurrentOrderScope) => {
+    const requestId = latestLinesRequestIdRef.current + 1;
+    latestLinesRequestIdRef.current = requestId;
+    const requestedScopeKey = serializeCurrentOrderScope(scope);
+
     const response = await getCurrentSessionOrderLinesAction(slug, {
       branchId: scope.branchId,
       sessionId: scope.sessionId,
@@ -107,8 +151,22 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
       orderId: scope.orderId,
     });
 
+    if (
+      !shouldApplyLineRefreshResult({
+        requestedScopeKey,
+        activeScopeKey: activeScopeKeyRef.current,
+        requestId,
+        latestRequestId: latestLinesRequestIdRef.current,
+      })
+    ) {
+      return;
+    }
+
     if (!response.ok) {
       setMessage(response.error);
+      const cleared = clearLineSurfaceState();
+      setLines(cleared.lines);
+      setLineEdits(cleared.lineEdits);
       return;
     }
 

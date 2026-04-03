@@ -2,7 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { mapPosSessionClientError } from "./error-messages";
-import { parseQuantityInput, resolveCurrentOrderScope, resolveInitialBranchId } from "./session-client";
+import {
+  clearLineSurfaceState,
+  parseQuantityInput,
+  resolveCurrentOrderScope,
+  resolveInitialBranchId,
+  serializeCurrentOrderScope,
+  shouldApplyLineRefreshResult,
+} from "./session-client";
 import { PosSessionAuthError } from "@/lib/pos/session-auth";
 
 const INTERNAL_CODES = [
@@ -52,6 +59,65 @@ test("parseQuantityInput keeps page quantity parsing conservative", () => {
   assert.equal(parseQuantityInput("not-a-number"), null);
   assert.equal(parseQuantityInput("2"), 2);
   assert.equal(parseQuantityInput(" 3.5 "), 3.5);
+});
+
+test("stale refresh guard rejects out-of-order and stale-scope responses", () => {
+  const oldScopeKey = serializeCurrentOrderScope({
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+  const newScopeKey = serializeCurrentOrderScope({
+    branchId: "branch-1",
+    sessionId: "session-2",
+    deviceId: "device-2",
+    orderId: "order-2",
+  });
+
+  assert.equal(
+    shouldApplyLineRefreshResult({
+      requestedScopeKey: oldScopeKey,
+      activeScopeKey: newScopeKey,
+      requestId: 1,
+      latestRequestId: 2,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldApplyLineRefreshResult({
+      requestedScopeKey: oldScopeKey,
+      activeScopeKey: newScopeKey,
+      requestId: 2,
+      latestRequestId: 2,
+    }),
+    false,
+  );
+
+  assert.equal(
+    shouldApplyLineRefreshResult({
+      requestedScopeKey: newScopeKey,
+      activeScopeKey: newScopeKey,
+      requestId: 3,
+      latestRequestId: 3,
+    }),
+    true,
+  );
+});
+
+test("failed scoped line fetch path remains conservative and clears stale dependent state inputs", () => {
+  assert.equal(
+    shouldApplyLineRefreshResult({
+      requestedScopeKey: "",
+      activeScopeKey: "branch-1::session-1::device-1::order-1",
+      requestId: 4,
+      latestRequestId: 4,
+    }),
+    false,
+  );
+
+  assert.deepEqual(clearLineSurfaceState(), { lines: [], lineEdits: {} });
 });
 
 test("open/close deny codes map to one client-safe no-leak message", () => {
