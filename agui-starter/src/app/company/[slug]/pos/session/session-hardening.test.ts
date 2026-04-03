@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { mapPosSessionClientError } from "./error-messages";
-import { resolveInitialBranchId } from "./session-client";
+import { parseQuantityInput, resolveCurrentOrderScope, resolveInitialBranchId } from "./session-client";
 import { PosSessionAuthError } from "@/lib/pos/session-auth";
 
 const INTERNAL_CODES = [
@@ -18,6 +18,40 @@ test("resolveInitialBranchId does not invent a house-id fallback", () => {
   assert.equal(resolveInitialBranchId(null), "");
   assert.equal(resolveInitialBranchId(""), "");
   assert.equal(resolveInitialBranchId("branch-1"), "branch-1");
+});
+
+test("resolveCurrentOrderScope only returns a session-bound scope when all ids are present", () => {
+  assert.equal(
+    resolveCurrentOrderScope({
+      branchId: "branch-1",
+      sessionId: "",
+      deviceId: "device-1",
+      orderId: "order-1",
+    }),
+    null,
+  );
+
+  assert.deepEqual(
+    resolveCurrentOrderScope({
+      branchId: " branch-1 ",
+      sessionId: " session-1 ",
+      deviceId: " device-1 ",
+      orderId: " order-1 ",
+    }),
+    {
+      branchId: "branch-1",
+      sessionId: "session-1",
+      deviceId: "device-1",
+      orderId: "order-1",
+    },
+  );
+});
+
+test("parseQuantityInput keeps page quantity parsing conservative", () => {
+  assert.equal(parseQuantityInput(""), null);
+  assert.equal(parseQuantityInput("not-a-number"), null);
+  assert.equal(parseQuantityInput("2"), 2);
+  assert.equal(parseQuantityInput(" 3.5 "), 3.5);
 });
 
 test("open/close deny codes map to one client-safe no-leak message", () => {

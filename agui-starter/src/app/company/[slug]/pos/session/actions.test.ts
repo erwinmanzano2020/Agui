@@ -35,7 +35,7 @@ test("openPosSessionAction preserves helper scope inputs", async () => {
   let received: Parameters<typeof sessionAuthModule.openPosSessionWithQrAndPin>[0] | null = null;
   mock.method(sessionAuthModule, "openPosSessionWithQrAndPin", async (input: Parameters<typeof sessionAuthModule.openPosSessionWithQrAndPin>[0]) => {
     received = input;
-    return { id: "session-1" } as never;
+    return { id: "session-1", device_id: "device-1" } as never;
   });
 
   const result = await openPosSessionAction("demo", {
@@ -45,7 +45,7 @@ test("openPosSessionAction preserves helper scope inputs", async () => {
     pin: "1234",
   });
 
-  assert.deepEqual(result, { ok: true, sessionId: "session-1" });
+  assert.deepEqual(result, { ok: true, sessionId: "session-1", deviceId: "device-1" });
   assert.deepEqual(received, {
     houseId: HOUSE_ID,
     branchId: "branch-1",

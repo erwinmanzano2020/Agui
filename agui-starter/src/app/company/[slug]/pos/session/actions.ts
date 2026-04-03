@@ -37,7 +37,7 @@ export async function openPosSessionAction(
       actorEntityId,
     });
 
-    return { ok: true, sessionId: session.id } as const;
+    return { ok: true, sessionId: session.id, deviceId: session.device_id } as const;
   } catch (error) {
     if (error instanceof PosSessionAuthError) {
       console.warn("[pos-session] open denied", { code: error.code, status: error.status, slug });
