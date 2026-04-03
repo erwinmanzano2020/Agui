@@ -66,6 +66,7 @@ function makeLine(overrides: Partial<OrderLine> = {}): OrderLine {
     house_id: baseHouseId,
     branch_id: baseBranchId,
     session_id: baseSessionId,
+    device_id: baseDeviceId,
     operator_entity_id: "operator-1",
     item_code: "ITEM-001",
     quantity: 2,
@@ -346,7 +347,8 @@ test("reads current-session draft lines only for exact scoped order", async () =
       makeLine({ id: "line-1", order_id: baseOrderId }),
       makeLine({ id: "line-2", order_id: "order-2" }),
       makeLine({ id: "line-3", branch_id: "branch-2" }),
-      makeLine({ id: "line-4", status: "REMOVED" }),
+      makeLine({ id: "line-4", device_id: "device-2" }),
+      makeLine({ id: "line-5", status: "REMOVED" }),
     ],
   });
 
