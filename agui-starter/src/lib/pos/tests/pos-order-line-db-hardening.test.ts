@@ -33,6 +33,8 @@ test("migration creates pos_order_lines with bounded f2 status restriction", () 
 test("migration adds order and session scoped integrity constraints for pos_order_lines", () => {
   const sql = normalizedSql();
 
+  assert.doesNotMatch(sql, /order_id uuid not null references public\.pos_order_drafts\(id\) on delete cascade/);
+
   assert.match(sql, /pos_order_lines_house_branch_fkey/);
   assert.match(sql, /foreign key \(house_id, branch_id\).*references public\.branches\(house_id, id\)/);
 

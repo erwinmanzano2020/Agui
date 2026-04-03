@@ -1,6 +1,6 @@
 create table if not exists public.pos_order_lines (
   id uuid primary key default gen_random_uuid(),
-  order_id uuid not null references public.pos_order_drafts(id) on delete cascade,
+  order_id uuid not null,
   house_id uuid not null references public.houses(id) on delete cascade,
   branch_id uuid not null references public.branches(id) on delete cascade,
   session_id uuid not null references public.pos_sessions(id) on delete restrict,
