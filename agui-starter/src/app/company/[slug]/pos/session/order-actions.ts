@@ -16,9 +16,7 @@ import {
   removeOrderLine,
   updateOrderLine,
 } from "@/lib/pos/order-line";
-
-export const CLIENT_SAFE_POS_DRAFT_ERROR = "Unable to complete POS draft request.";
-export const CLIENT_SAFE_POS_ORDER_ERROR = "Unable to complete POS order request.";
+import { CLIENT_SAFE_POS_DRAFT_ERROR, CLIENT_SAFE_POS_ORDER_ERROR } from "./order-action-errors";
 
 async function resolveHouseAndAccess(slug: string) {
   const nextPath = `/company/${slug}/pos/session`;

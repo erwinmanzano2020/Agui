@@ -6,9 +6,8 @@ import * as posAccessModule from "@/lib/pos/access";
 import * as orderDraftModule from "@/lib/pos/order-draft";
 import * as orderLineModule from "@/lib/pos/order-line";
 
+import { CLIENT_SAFE_POS_DRAFT_ERROR, CLIENT_SAFE_POS_ORDER_ERROR } from "./order-action-errors";
 import {
-  CLIENT_SAFE_POS_DRAFT_ERROR,
-  CLIENT_SAFE_POS_ORDER_ERROR,
   addOrderLineAction,
   createDraftOrderAction,
   getCurrentSessionDraftOrderAction,
