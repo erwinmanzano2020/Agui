@@ -2,7 +2,9 @@ import "server-only";
 
 import { randomUUID } from "node:crypto";
 
-import type { PosSessionRow } from "@/lib/db.types";
+import type { SupabaseClient } from "@supabase/supabase-js";
+
+import type { Database, PosSessionRow } from "@/lib/db.types";
 
 import type { OrderDraft } from "./order-draft";
 
@@ -12,6 +14,7 @@ export type OrderLine = {
   house_id: string;
   branch_id: string;
   session_id: string;
+  device_id: string;
   operator_entity_id: string;
   item_code: string;
   quantity: number;
@@ -19,6 +22,8 @@ export type OrderLine = {
   created_at: string;
   updated_at: string;
 };
+
+type OrderLineInsert = Omit<OrderLine, "id"> & { id?: string };
 
 export class PosOrderLineError extends Error {
   code: string;
@@ -48,7 +53,7 @@ type OrderLineRepository = {
     deviceId: string;
     orderId: string;
   }): Promise<OrderLine[]>;
-  insertOrderLine(payload: OrderLine): Promise<OrderLine>;
+  insertOrderLine(payload: OrderLineInsert): Promise<OrderLine>;
   updateOrderLine(params: {
     houseId: string;
     branchId: string;
@@ -89,8 +94,119 @@ function resolveRepository(client?: RepositoryClient): OrderLineRepository {
   return client;
 }
 
-function makeOrderLineId() {
-  return `order-line-${randomUUID()}`;
+export function createSupabasePosOrderLineRepository(supabase: SupabaseClient<Database>): OrderLineRepository {
+  return {
+    async getSessionById({ houseId, branchId, sessionId }) {
+      const { data, error } = await supabase
+        .from("pos_sessions")
+        .select("*")
+        .eq("house_id", houseId)
+        .eq("branch_id", branchId)
+        .eq("id", sessionId)
+        .maybeSingle<PosSessionRow>();
+      if (error) {
+        throw new PosOrderLineError(error.message, error.code ?? "ORDER_LINE_SESSION_LOOKUP_FAILED", 500);
+      }
+      return data ?? null;
+    },
+    async getOrderDraftById({ houseId, branchId, sessionId, deviceId, orderId }) {
+      const query = supabase
+        .from("pos_order_drafts")
+        .select("*")
+        .eq("house_id", houseId)
+        .eq("branch_id", branchId)
+        .eq("session_id", sessionId)
+        .eq("id", orderId)
+        .eq("status", "DRAFT");
+      if (deviceId) {
+        query.eq("device_id", deviceId);
+      }
+      const { data, error } = await query.maybeSingle<OrderDraft>();
+      if (error) {
+        throw new PosOrderLineError(error.message, error.code ?? "ORDER_LINE_DRAFT_LOOKUP_FAILED", 500);
+      }
+      return data ?? null;
+    },
+    async getOrderLinesByDraft({ houseId, branchId, sessionId, deviceId, orderId }) {
+      const { data, error } = await supabase
+        .from("pos_order_lines")
+        .select("*")
+        .eq("house_id", houseId)
+        .eq("branch_id", branchId)
+        .eq("session_id", sessionId)
+        .eq("device_id", deviceId)
+        .eq("order_id", orderId)
+        .eq("status", "ACTIVE")
+        .returns<OrderLine[]>();
+      if (error) {
+        throw new PosOrderLineError(error.message, error.code ?? "ORDER_LINE_LOOKUP_FAILED", 500);
+      }
+      return data ?? [];
+    },
+    async insertOrderLine(payload) {
+      const { data, error } = await supabase
+        .from("pos_order_lines")
+        .insert(payload)
+        .select("*")
+        .maybeSingle<OrderLine>();
+      if (error) {
+        throw new PosOrderLineError(error.message, error.code ?? "ORDER_LINE_INSERT_FAILED", 500);
+      }
+      if (!data) {
+        throw new PosOrderLineError("Failed to create order line", "ORDER_LINE_INSERT_FAILED", 500);
+      }
+      return data;
+    },
+    async updateOrderLine({ houseId, branchId, sessionId, deviceId, orderId, lineId, operatorEntityId, itemCode, quantity }) {
+      const payload: Pick<OrderLine, "operator_entity_id"> & Partial<Pick<OrderLine, "item_code" | "quantity">> = {
+        operator_entity_id: operatorEntityId,
+      };
+      if (itemCode !== undefined) {
+        payload.item_code = itemCode;
+      }
+      if (quantity !== undefined) {
+        payload.quantity = quantity;
+      }
+
+      const { data, error } = await supabase
+        .from("pos_order_lines")
+        .update(payload)
+        .eq("house_id", houseId)
+        .eq("branch_id", branchId)
+        .eq("session_id", sessionId)
+        .eq("device_id", deviceId)
+        .eq("order_id", orderId)
+        .eq("id", lineId)
+        .eq("status", "ACTIVE")
+        .select("*")
+        .maybeSingle<OrderLine>();
+      if (error) {
+        throw new PosOrderLineError(error.message, error.code ?? "ORDER_LINE_UPDATE_FAILED", 500);
+      }
+      return data ?? null;
+    },
+    async removeOrderLine({ houseId, branchId, sessionId, deviceId, orderId, lineId, operatorEntityId }) {
+      const { data, error } = await supabase
+        .from("pos_order_lines")
+        .update({
+          status: "REMOVED",
+          operator_entity_id: operatorEntityId,
+        } satisfies Pick<OrderLine, "status" | "operator_entity_id">)
+        .eq("house_id", houseId)
+        .eq("branch_id", branchId)
+        .eq("session_id", sessionId)
+        .eq("device_id", deviceId)
+        .eq("order_id", orderId)
+        .eq("id", lineId)
+        .eq("status", "ACTIVE")
+        .select("*")
+        .maybeSingle<OrderLine>();
+      if (error) {
+        throw new PosOrderLineError(error.message, error.code ?? "ORDER_LINE_REMOVE_FAILED", 500);
+      }
+      return data ?? null;
+    },
+  } satisfies OrderLineRepository;
 }
 
 export function createInMemoryPosOrderLineRepository(
@@ -121,21 +237,23 @@ export function createInMemoryPosOrderLineRepository(
         ) ?? null
       );
     },
-    async getOrderLinesByDraft({ houseId, branchId, sessionId, orderId }) {
+    async getOrderLinesByDraft({ houseId, branchId, sessionId, deviceId, orderId }) {
       return lines.filter(
         (line) =>
           line.house_id === houseId &&
           line.branch_id === branchId &&
           line.session_id === sessionId &&
+          line.device_id === deviceId &&
           line.order_id === orderId &&
           line.status === "ACTIVE",
       );
     },
     async insertOrderLine(payload) {
-      lines.push(payload);
-      return payload;
+      const line = { id: payload.id ?? randomUUID(), ...payload };
+      lines.push(line);
+      return line;
     },
-    async updateOrderLine({ houseId, branchId, sessionId, orderId, lineId, operatorEntityId, itemCode, quantity }) {
+    async updateOrderLine({ houseId, branchId, sessionId, deviceId, orderId, lineId, operatorEntityId, itemCode, quantity }) {
       const line =
         lines.find(
           (entry) =>
@@ -143,6 +261,7 @@ export function createInMemoryPosOrderLineRepository(
             entry.house_id === houseId &&
             entry.branch_id === branchId &&
             entry.session_id === sessionId &&
+            entry.device_id === deviceId &&
             entry.order_id === orderId &&
             entry.status === "ACTIVE",
         ) ?? null;
@@ -160,7 +279,7 @@ export function createInMemoryPosOrderLineRepository(
       line.updated_at = new Date().toISOString();
       return line;
     },
-    async removeOrderLine({ houseId, branchId, sessionId, orderId, lineId, operatorEntityId }) {
+    async removeOrderLine({ houseId, branchId, sessionId, deviceId, orderId, lineId, operatorEntityId }) {
       const line =
         lines.find(
           (entry) =>
@@ -168,6 +287,7 @@ export function createInMemoryPosOrderLineRepository(
             entry.house_id === houseId &&
             entry.branch_id === branchId &&
             entry.session_id === sessionId &&
+            entry.device_id === deviceId &&
             entry.order_id === orderId &&
             entry.status === "ACTIVE",
         ) ?? null;
@@ -250,12 +370,12 @@ export async function addOrderLine(
   await ensureScopedDraft(repository, input);
 
   const now = new Date().toISOString();
-  const payload: OrderLine = {
-    id: makeOrderLineId(),
+  const payload: OrderLineInsert = {
     order_id: input.orderId,
     house_id: input.houseId,
     branch_id: input.branchId,
     session_id: input.sessionId,
+    device_id: input.deviceId,
     operator_entity_id: input.operatorEntityId,
     item_code: normalizedItemCode,
     quantity: input.quantity,

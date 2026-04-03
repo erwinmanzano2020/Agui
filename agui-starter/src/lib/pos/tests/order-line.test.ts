@@ -66,6 +66,7 @@ function makeLine(overrides: Partial<OrderLine> = {}): OrderLine {
     house_id: baseHouseId,
     branch_id: baseBranchId,
     session_id: baseSessionId,
+    device_id: baseDeviceId,
     operator_entity_id: "operator-1",
     item_code: "ITEM-001",
     quantity: 2,
@@ -109,6 +110,8 @@ test("adds a single active line to a valid draft order", async () => {
   assert.equal(line.branch_id, baseBranchId);
   assert.equal(line.session_id, baseSessionId);
   assert.equal(line.status, "ACTIVE");
+  assert.match(line.id, /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  assert.equal(line.id.startsWith("order-line-"), false);
   assert.equal(repo.lines.length, 1);
 });
 
@@ -346,7 +349,8 @@ test("reads current-session draft lines only for exact scoped order", async () =
       makeLine({ id: "line-1", order_id: baseOrderId }),
       makeLine({ id: "line-2", order_id: "order-2" }),
       makeLine({ id: "line-3", branch_id: "branch-2" }),
-      makeLine({ id: "line-4", status: "REMOVED" }),
+      makeLine({ id: "line-4", device_id: "device-2" }),
+      makeLine({ id: "line-5", status: "REMOVED" }),
     ],
   });
 
