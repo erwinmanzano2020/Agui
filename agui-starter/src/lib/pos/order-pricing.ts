@@ -4,7 +4,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Database } from "@/lib/db.types";
 
-import { PosOrderLineError, createSupabasePosOrderLineRepository } from "./order-line";
+import {
+  PosOrderLineError,
+  type RepositoryClient as OrderLineRepositoryClient,
+  createSupabasePosOrderLineRepository,
+  getCurrentSessionOrderLines,
+} from "./order-line";
 
 const FIXED_TAX_RATE = 0.12;
 const DEFAULT_CURRENCY = "USD";
@@ -24,7 +29,7 @@ type ComputeOrderPricingInput = {
 };
 
 type OrderPricingRepository = {
-  getCurrentSessionOrderLines(input: ComputeOrderPricingInput): Promise<Array<{ item_code: string; quantity: number }>>;
+  lineRepository: Exclude<OrderLineRepositoryClient, null | undefined>;
   getPriceForItem(itemCode: string): Promise<number | null> | number | null;
 };
 
@@ -51,9 +56,7 @@ function resolveBoundedItemPrice(itemCode: string): number | null {
 function createBoundedOrderPricingRepository(supabase: SupabaseClient<Database>): OrderPricingRepository {
   const lineRepository = createSupabasePosOrderLineRepository(supabase);
   return {
-    async getCurrentSessionOrderLines(input) {
-      return lineRepository.getOrderLinesByDraft(input);
-    },
+    lineRepository,
     getPriceForItem(itemCode) {
       return resolveBoundedItemPrice(itemCode);
     },
@@ -80,7 +83,7 @@ export async function computeOrderPricing(
   const pricingRepository = resolveRepository(repository);
 
   try {
-    const lines = await pricingRepository.getCurrentSessionOrderLines(input);
+    const lines = await getCurrentSessionOrderLines(input, pricingRepository.lineRepository);
     let subtotal = 0;
 
     for (const line of lines) {
