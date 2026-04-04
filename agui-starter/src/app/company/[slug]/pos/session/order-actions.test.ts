@@ -5,6 +5,7 @@ import * as authModule from "@/lib/auth/require-auth";
 import * as posAccessModule from "@/lib/pos/access";
 import * as orderDraftModule from "@/lib/pos/order-draft";
 import * as orderLineModule from "@/lib/pos/order-line";
+import * as orderPricingModule from "@/lib/pos/order-pricing";
 
 import { CLIENT_SAFE_POS_DRAFT_ERROR, CLIENT_SAFE_POS_ORDER_ERROR } from "./order-action-errors";
 import {
@@ -12,6 +13,7 @@ import {
   createDraftOrderAction,
   getCurrentSessionDraftOrderAction,
   getCurrentSessionOrderLinesAction,
+  getCurrentSessionOrderPricingAction,
   removeOrderLineAction,
   updateOrderLineAction,
 } from "./order-actions";
@@ -268,6 +270,81 @@ test("order-line actions forward exact scope and operator attribution", async ()
     lineId: "line-1",
     operatorEntityId: ACTOR_ENTITY_ID,
   });
+});
+
+test("getCurrentSessionOrderPricingAction forwards exact current-session scope", async () => {
+  const supabase = mockAuthAndAccess();
+  const repo = { repo: "pricing" };
+  let received: Parameters<typeof orderPricingModule.computeOrderPricing>[0] | null = null;
+
+  mock.method(orderPricingModule, "createSupabasePosOrderPricingRepository", (arg: Parameters<typeof orderPricingModule.createSupabasePosOrderPricingRepository>[0]) => {
+    assert.equal(arg, supabase as never);
+    return repo as never;
+  });
+  mock.method(
+    orderPricingModule,
+    "computeOrderPricing",
+    async (input: Parameters<typeof orderPricingModule.computeOrderPricing>[0], repository: Parameters<typeof orderPricingModule.computeOrderPricing>[1]) => {
+      received = input;
+      assert.equal(repository, repo as never);
+      return { subtotal: 100, tax: 12, total: 112, currency: "USD" };
+    },
+  );
+
+  const result = await getCurrentSessionOrderPricingAction(SLUG, {
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    pricing: { subtotal: 100, tax: 12, total: 112, currency: "USD" },
+  });
+  assert.deepEqual(received, {
+    houseId: HOUSE_ID,
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+});
+
+test("getCurrentSessionOrderPricingAction maps expected pricing errors to no-leak safe message", async () => {
+  mockAuthAndAccess();
+  mock.method(orderPricingModule, "createSupabasePosOrderPricingRepository", () => ({}) as never);
+  mock.method(orderPricingModule, "computeOrderPricing", async () => {
+    throw new orderPricingModule.PosOrderPricingError("missing", "ITEM_PRICE_MISSING", 400);
+  });
+
+  const result = await getCurrentSessionOrderPricingAction(SLUG, {
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+
+  assert.deepEqual(result, { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR });
+});
+
+test("getCurrentSessionOrderPricingAction rethrows unexpected pricing failures", async () => {
+  mockAuthAndAccess();
+  mock.method(orderPricingModule, "createSupabasePosOrderPricingRepository", () => ({}) as never);
+  mock.method(orderPricingModule, "computeOrderPricing", async () => {
+    throw new Error("db offline");
+  });
+
+  await assert.rejects(
+    () =>
+      getCurrentSessionOrderPricingAction(SLUG, {
+        branchId: "branch-1",
+        sessionId: "session-1",
+        deviceId: "device-1",
+        orderId: "order-1",
+      }),
+    /db offline/,
+  );
 });
 
 test("all draft helper failures map to one client-safe no-leak response", async () => {
