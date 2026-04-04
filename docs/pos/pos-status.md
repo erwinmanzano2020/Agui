@@ -5,10 +5,10 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 
 ## 2. Current Execution Snapshot
 - Module: POS
-- Current phase: POS-F1 first-slice implementation baseline landed; hardening-active; POS-F2 slice-definition accepted with constraints for controlled implementation (not yet started)
+- Current phase: POS-F2 bounded closure completed; ready-for-F3 handoff documented (no F3 implementation started)
 - Foundation wave: complete (canonical POS foundation set present and aligned)
-- Implementation posture: first safe POS-F1 slice exists (device/session + operator sign-in baseline), including scope-consistency DB hardening, POS PIN lifecycle hardening, and strengthened first-slice parity/no-leak/scope-propagation regression coverage
-- Current work mode: bounded hardening continuity for first slice; POS-F2 accepted with constraints and pending controlled implementation start (session-bound draft-order + first-line capture only); no broader scope expansion
+- Implementation posture: POS-F1 stable baseline remains intact and POS-F2 bounded draft-order + line-mutation foundations are now recorded as complete within strict scope-first/no-leak constraints
+- Current work mode: documentation-first closure and boundary alignment; no stealth scope expansion; F3 remains gated to explicit next-slice initiation
 - First-slice stability checkpoint: completed on 2026-04-01 (UTC), with no blocker-class gaps identified
 - MVP posture: POS is still not MVP-complete
 
@@ -16,16 +16,105 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 | Status | Snapshot |
 |---|---|
 | Foundation | Canonical POS foundation set is complete (master/status/domain/access/identity/db/phase-1/guardrails). |
-| Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. |
-| In Progress | First-slice hardening continuity remains active through bounded parity follow-up and stability verification (deny/no-leak/access consistency, branch-scope handling, operator credential flow resilience); POS-F2 is approved for controlled implementation under strict slice constraints (not yet initiated). |
-| Blocked / Dependency | No new blocker-class gaps currently declared for first-slice continuity; POS-F2 remains explicitly blocked from payment/inventory/reporting/cross-session or tenancy/auth redesign scope. |
+| Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. POS-F2 bounded continuity is now complete for current-session draft-order create/reopen + current-session line add/read/update/remove + bounded persistence + thin action boundary integration + stale refresh hardening posture. |
+| In Progress | No POS-F2 implementation work remains open in this closure record. Any F3 work stays planning-gated until explicitly initiated under roadmap/module sequencing controls. |
+| Blocked / Dependency | POS remains blocked from payment/inventory/reporting/cross-session browsing/multi-order management/finance effects until their own approved slices; no tenancy/auth boundary redesign is authorized by F2 closure. |
 
 ## 4. Current Approved Next Tasks
-1. Perform final bounded review of first-slice hardening completeness (parity, no-leak behavior, scope propagation edge coverage).
-2. Identify and resolve any remaining non-blocker inconsistencies strictly within first-slice scope.
-3. Confirm first-slice stability acceptance (no blocker-class gaps) as a formal checkpoint outcome.
-4. Only after acceptance, allow controlled planning for the next POS slice under canonical roadmap gating.
-5. POS-F2 slice definition is accepted as canonical; POS-F2 implementation is conditionally allowed under strict constraints and must not begin until explicitly initiated under those constraints for session-bound draft order + first-line capture only, with all declared out-of-scope exclusions retained.
+1. Preserve POS-F1 + POS-F2 bounded guarantees without contract reinterpretation.
+2. Use the POS-F2 completion record in this document as the required upstream boundary for any F3 planning artifact.
+3. Keep F3 scoped to approved next-slice intent only; reject stealth expansion into payment/inventory/reporting/finance consequences.
+4. Continue phase-gated sequencing from roadmap posture: explicit initiation is required before any F3 implementation work.
+5. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
+
+## 5A. POS-F2 Completion Record (Bounded Closure)
+POS-F2 is closed as a bounded slice and is now documented as complete in this status record.
+
+POS-F2 is completed as:
+- current-session scoped,
+- draft-order based,
+- line-mutation capable,
+- scope-first,
+- no-leak,
+- still pre-pricing / pre-inventory / pre-payment.
+
+POS-F2 must **not** be read as a full POS ordering system. It is a bounded continuation layer on top of POS-F1, not checkout/reporting/inventory coupling.
+
+### Canonical guarantees now established
+#### Session / draft guarantees
+- A draft order can only be created inside a valid scoped session context.
+- Session checks are scope-bound and preserve house -> branch -> session -> device discipline.
+- Missing, invalid, mismatched, or closed scoped contexts collapse to no-leak deny outcomes.
+
+#### Draft read guarantees
+- Current-session draft read/reopen is exact-scope only.
+- No cross-session, cross-branch, or cross-device reopen behavior exists in F2.
+- Non-draft and invalid draft reads collapse to the same client-safe no-leak denial posture.
+
+#### Order-line guarantees
+- Order lines are bounded to the exact current-session draft scope.
+- Add/read/update/remove all follow the same session + device + draft discipline.
+- Operator attribution is required on mutations.
+- Item code is required and normalized for bounded line identity.
+- Quantity validation is enforced.
+- Removed lines are conservatively deactivated in the bounded persistence path rather than hard-deleted.
+
+#### Integration guarantees
+- Server actions are thin orchestration boundaries only.
+- Business rules remain in helper/domain logic below the action boundary.
+- Expected bounded denials map to client-safe messages (no-leak outward behavior).
+- Redirect/auth/access-control flow remains preserved.
+- Client refresh logic is hardened against stale active-scope overwrite.
+
+### Canonical implementation patterns established in F2
+- **Scope-first access chain is mandatory:** house -> branch -> session -> device -> order -> line.
+- **No-leak deny posture is mandatory:** invalid/missing/mismatched scoped state collapses to the same external denial shape.
+- **Thin action boundary is canonical:** auth/access/context resolution in actions; business rules remain below.
+- **Operator-attributed mutation is canonical:** write paths require explicit operator identity.
+- **Schema honesty is canonical:** helper contracts must not silently invent persistence assumptions.
+- **Client stale refresh hardening is canonical:** only the latest active-scope refresh result may update UI state.
+
+### Explicit F2 non-goals / limitations
+POS-F2 does **not** include:
+- pricing,
+- subtotal / discount / tax / totals,
+- tenders / payments,
+- receipt generation,
+- checkout / finalization,
+- inventory deduction,
+- stock reservation,
+- bundle / BOM / raw-material-linked behavior,
+- reporting,
+- cross-session order browsing,
+- multi-order management surfaces,
+- finance/ledger consequences.
+
+Additional boundary notes:
+- Item codes are handled as bounded line identifiers only in this slice.
+- No product-catalog semantics are claimed yet beyond this bounded usage.
+- No concurrency/locking guarantees beyond the currently evidenced bounded scope are implied by this closure record.
+
+### Ready-for-F3 handoff boundary
+F3 may safely assume:
+- stable current-session draft lineage exists,
+- stable current-session line lifecycle exists,
+- order lines can be safely mutated within scoped draft context,
+- action boundary and UI refresh posture are established,
+- bounded persistence foundation for draft + order line exists.
+
+F3 must **not** assume:
+- pricing already exists,
+- inventory coupling exists,
+- payment orchestration exists,
+- broader order browsing exists,
+- finalized sale semantics exist.
+
+Governance alignment reminder:
+- clarity beats speed,
+- stability beats cleverness,
+- documentation is part of the feature,
+- no stealth scope expansion,
+- phase-based execution remains in force.
 
 ## 5. Foundation Checkpoint Note (Closure)
 POS foundation documentation is complete and internally aligned for startup governance.
@@ -92,4 +181,4 @@ POS MVP is only considered done when, at minimum, all are true:
 - blocker-class regressions are closed before any future module-unlock claim
 
 ## 10. Last Updated
-2026-04-01 (UTC)
+2026-04-04 (UTC)
