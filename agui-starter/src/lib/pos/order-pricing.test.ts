@@ -286,6 +286,31 @@ test("computeOrderPricing rejects invalid override values (NaN, Infinity, negati
   }
 });
 
+test("computeOrderPricing rejects malformed override entries (null, primitive, array) with bounded error", async () => {
+  for (const malformedEntry of [null, 123, ["bad"]]) {
+    await assert.rejects(
+      () =>
+        computeOrderPricing(
+          {
+            ...SCOPE,
+            pricingInput: {
+              lineUnitPriceOverrides: {
+                "line-1": malformedEntry as unknown as { unitPrice: number },
+              },
+            },
+          },
+          createScopedPricingRepository({
+            lines: [makeLine({ id: "line-1", item_code: "ITEM-1", quantity: 1 })],
+          }),
+        ),
+      (error: unknown) =>
+        error instanceof PosOrderPricingError &&
+        error.code === "INVALID_OVERRIDE_UNIT_PRICE" &&
+        error.status === 400,
+    );
+  }
+});
+
 test("computeOrderPricing rejects invalid override source values", async () => {
   await assert.rejects(
     () =>

@@ -58,7 +58,11 @@ function roundCurrency(value: number) {
   return Math.round(value * 100) / 100;
 }
 
-function validateOverrideUnitPrice(input: number): number {
+function validateOverrideUnitPrice(input: unknown): number {
+  if (typeof input !== "number") {
+    throw new PosOrderPricingError("Invalid override unit price", "INVALID_OVERRIDE_UNIT_PRICE", 400);
+  }
+
   if (!Number.isFinite(input)) {
     throw new PosOrderPricingError("Invalid override unit price", "INVALID_OVERRIDE_UNIT_PRICE", 400);
   }
@@ -68,6 +72,24 @@ function validateOverrideUnitPrice(input: number): number {
   }
 
   return input;
+}
+
+type OverrideEntryCandidate = {
+  unitPrice?: unknown;
+  source?: unknown;
+};
+
+function validateOverrideEntryShape(input: unknown): OverrideEntryCandidate {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    throw new PosOrderPricingError("Invalid override unit price", "INVALID_OVERRIDE_UNIT_PRICE", 400);
+  }
+
+  const prototype = Object.getPrototypeOf(input);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new PosOrderPricingError("Invalid override unit price", "INVALID_OVERRIDE_UNIT_PRICE", 400);
+  }
+
+  return input as OverrideEntryCandidate;
 }
 
 function validatePricingInputSource(source: unknown): "manual" | "default" {
@@ -126,7 +148,7 @@ export async function computeOrderPricing(
   try {
     const lines = await getCurrentSessionOrderLines(input, pricingRepository.lineRepository);
     let subtotal = 0;
-    const lineUnitPriceOverrides = input.pricingInput?.lineUnitPriceOverrides ?? {};
+    const lineUnitPriceOverrides = (input.pricingInput?.lineUnitPriceOverrides ?? {}) as Record<string, unknown>;
     const pricedLines: Array<{
       lineId: string;
       itemCode: string;
@@ -143,7 +165,7 @@ export async function computeOrderPricing(
       let pricingInputSource: "manual" | "default" = "default";
 
       if (isOwnKey(lineUnitPriceOverrides, line.id)) {
-        const override = lineUnitPriceOverrides[line.id];
+        const override = validateOverrideEntryShape(lineUnitPriceOverrides[line.id]);
         unitPrice = validateOverrideUnitPrice(override.unitPrice);
         pricingSource = "override";
         pricingInputSource = validatePricingInputSource(override.source);
