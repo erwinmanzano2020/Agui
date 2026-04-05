@@ -156,6 +156,10 @@ export function shouldRefreshReviewAfterAddLineSuccess(input: { addLineSucceeded
   return input.addLineSucceeded && input.hasScopedOrder;
 }
 
+export function shouldClearReviewForEmptyScope(currentScopeKey: string): boolean {
+  return currentScopeKey === "";
+}
+
 export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defaultBranchId: string | null }) {
   const [deviceCode, setDeviceCode] = useState("");
   const [qrIdentifier, setQrIdentifier] = useState("");
@@ -199,6 +203,9 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
       latestLinesRequestIdRef.current += 1;
       latestPricingRequestIdRef.current += 1;
       latestReviewRequestIdRef.current += 1;
+      if (shouldClearReviewForEmptyScope(currentScopeKey)) {
+        setReview(createEmptyOrderReview());
+      }
     }
   }, [currentScopeKey]);
 

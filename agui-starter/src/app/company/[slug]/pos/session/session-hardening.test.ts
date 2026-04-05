@@ -13,6 +13,7 @@ import {
   shouldApplyLineRefreshResult,
   shouldApplyPricingRefreshResult,
   shouldApplyReviewRefreshResult,
+  shouldClearReviewForEmptyScope,
   shouldRefreshReviewAfterAddLineSuccess,
   shouldRefreshPricingAfterLineRefresh,
 } from "./session-client";
@@ -182,6 +183,20 @@ test("empty/no-scope review state remains conservative", () => {
     }),
     false,
   );
+});
+
+test("empty scoped order key always clears review to canonical empty state", () => {
+  assert.equal(shouldClearReviewForEmptyScope(""), true);
+  assert.equal(shouldClearReviewForEmptyScope("branch-1::session-1::device-1::order-1"), false);
+});
+
+test("no-scope branch cannot retain previous review payload shape", () => {
+  const previousReviewLikePayload = {
+    reviewStatus: "READY",
+    draft: { id: "order-1" },
+  };
+  assert.notDeepEqual(previousReviewLikePayload, createEmptyOrderReview());
+  assert.equal(shouldClearReviewForEmptyScope(""), true);
 });
 
 test("review layer does not introduce any client-side pricing recomputation helper", () => {
