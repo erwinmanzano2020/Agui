@@ -296,6 +296,11 @@ test("getCurrentSessionOrderPricingAction forwards exact current-session scope",
     sessionId: "session-1",
     deviceId: "device-1",
     orderId: "order-1",
+    pricingInput: {
+      lineUnitPriceOverrides: {
+        "line-1": { unitPrice: 6, source: "manual" },
+      },
+    },
   });
 
   assert.deepEqual(result, {
@@ -308,6 +313,11 @@ test("getCurrentSessionOrderPricingAction forwards exact current-session scope",
     sessionId: "session-1",
     deviceId: "device-1",
     orderId: "order-1",
+    pricingInput: {
+      lineUnitPriceOverrides: {
+        "line-1": { unitPrice: 6, source: "manual" },
+      },
+    },
   });
 });
 
@@ -323,6 +333,28 @@ test("getCurrentSessionOrderPricingAction maps expected pricing errors to no-lea
     sessionId: "session-1",
     deviceId: "device-1",
     orderId: "order-1",
+  });
+
+  assert.deepEqual(result, { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR });
+});
+
+test("getCurrentSessionOrderPricingAction maps malformed override payload failures to no-leak safe message", async () => {
+  mockAuthAndAccess();
+  mock.method(orderPricingModule, "createSupabasePosOrderPricingRepository", () => ({}) as never);
+  mock.method(orderPricingModule, "computeOrderPricing", async () => {
+    throw new orderPricingModule.PosOrderPricingError("invalid override", "INVALID_OVERRIDE_UNIT_PRICE", 400);
+  });
+
+  const result = await getCurrentSessionOrderPricingAction(SLUG, {
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+    pricingInput: {
+      lineUnitPriceOverrides: {
+        "line-1": null as unknown as { unitPrice: number },
+      },
+    },
   });
 
   assert.deepEqual(result, { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR });

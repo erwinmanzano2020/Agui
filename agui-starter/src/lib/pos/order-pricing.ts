@@ -26,6 +26,15 @@ type ComputeOrderPricingInput = {
   sessionId: string;
   deviceId: string;
   orderId: string;
+  pricingInput?: {
+    lineUnitPriceOverrides?: Record<
+      string,
+      {
+        unitPrice: number;
+        source?: "manual" | "default";
+      }
+    >;
+  };
 };
 
 type OrderPricingRepository = {
@@ -47,6 +56,56 @@ export class PosOrderPricingError extends Error {
 
 function roundCurrency(value: number) {
   return Math.round(value * 100) / 100;
+}
+
+function validateOverrideUnitPrice(input: unknown): number {
+  if (typeof input !== "number") {
+    throw new PosOrderPricingError("Invalid override unit price", "INVALID_OVERRIDE_UNIT_PRICE", 400);
+  }
+
+  if (!Number.isFinite(input)) {
+    throw new PosOrderPricingError("Invalid override unit price", "INVALID_OVERRIDE_UNIT_PRICE", 400);
+  }
+
+  if (input < 0) {
+    throw new PosOrderPricingError("Invalid override unit price", "INVALID_OVERRIDE_UNIT_PRICE", 400);
+  }
+
+  return input;
+}
+
+type OverrideEntryCandidate = {
+  unitPrice?: unknown;
+  source?: unknown;
+};
+
+function validateOverrideEntryShape(input: unknown): OverrideEntryCandidate {
+  if (typeof input !== "object" || input === null || Array.isArray(input)) {
+    throw new PosOrderPricingError("Invalid override unit price", "INVALID_OVERRIDE_UNIT_PRICE", 400);
+  }
+
+  const prototype = Object.getPrototypeOf(input);
+  if (prototype !== Object.prototype && prototype !== null) {
+    throw new PosOrderPricingError("Invalid override unit price", "INVALID_OVERRIDE_UNIT_PRICE", 400);
+  }
+
+  return input as OverrideEntryCandidate;
+}
+
+function validatePricingInputSource(source: unknown): "manual" | "default" {
+  if (source === undefined) {
+    return "manual";
+  }
+
+  if (source === "manual" || source === "default") {
+    return source;
+  }
+
+  throw new PosOrderPricingError("Invalid pricing input source", "INVALID_PRICING_INPUT_SOURCE", 400);
+}
+
+function isOwnKey<T extends object>(value: T, key: PropertyKey): key is keyof T {
+  return Object.prototype.hasOwnProperty.call(value, key);
 }
 
 function resolveBoundedItemPrice(itemCode: string): number | null {
@@ -89,13 +148,45 @@ export async function computeOrderPricing(
   try {
     const lines = await getCurrentSessionOrderLines(input, pricingRepository.lineRepository);
     let subtotal = 0;
+    const lineUnitPriceOverrides = (input.pricingInput?.lineUnitPriceOverrides ?? {}) as Record<string, unknown>;
+    const pricedLines: Array<{
+      lineId: string;
+      itemCode: string;
+      quantity: number;
+      unitPrice: number;
+      lineTotal: number;
+      pricingSource: "bounded_default" | "override";
+      pricingInputSource: "manual" | "default";
+    }> = [];
 
     for (const line of lines) {
-      const unitPrice = await pricingRepository.getPriceForItem(line.item_code);
-      if (unitPrice === null || unitPrice === undefined || !Number.isFinite(unitPrice)) {
-        throw new PosOrderPricingError("Missing item price", "ITEM_PRICE_MISSING", 400);
+      let unitPrice: number | null | undefined = null;
+      let pricingSource: "bounded_default" | "override" = "bounded_default";
+      let pricingInputSource: "manual" | "default" = "default";
+
+      if (isOwnKey(lineUnitPriceOverrides, line.id)) {
+        const override = validateOverrideEntryShape(lineUnitPriceOverrides[line.id]);
+        unitPrice = validateOverrideUnitPrice(override.unitPrice);
+        pricingSource = "override";
+        pricingInputSource = validatePricingInputSource(override.source);
+      } else {
+        unitPrice = await pricingRepository.getPriceForItem(line.item_code);
+        if (unitPrice === null || unitPrice === undefined || !Number.isFinite(unitPrice)) {
+          throw new PosOrderPricingError("Missing item price", "ITEM_PRICE_MISSING", 400);
+        }
       }
-      subtotal += line.quantity * unitPrice;
+
+      const lineTotal = roundCurrency(line.quantity * unitPrice);
+      subtotal += lineTotal;
+      pricedLines.push({
+        lineId: line.id,
+        itemCode: line.item_code,
+        quantity: line.quantity,
+        unitPrice,
+        lineTotal,
+        pricingSource,
+        pricingInputSource,
+      });
     }
 
     const roundedSubtotal = roundCurrency(subtotal);
@@ -106,6 +197,7 @@ export async function computeOrderPricing(
       tax,
       total: roundCurrency(roundedSubtotal + tax),
       currency: DEFAULT_CURRENCY,
+      lines: pricedLines,
     };
   } catch (error) {
     if (error instanceof PosOrderPricingError) {

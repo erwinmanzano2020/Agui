@@ -100,12 +100,37 @@ test("computeOrderPricing succeeds for exact valid current-session scope", async
     }),
   );
 
-  assert.deepEqual(result, { subtotal: 35, tax: 4.2, total: 39.2, currency: "USD" });
+  assert.deepEqual(result, {
+    subtotal: 35,
+    tax: 4.2,
+    total: 39.2,
+    currency: "USD",
+    lines: [
+      {
+        lineId: "line-1",
+        itemCode: "ITEM-1",
+        quantity: 2,
+        unitPrice: 10,
+        lineTotal: 20,
+        pricingSource: "bounded_default",
+        pricingInputSource: "default",
+      },
+      {
+        lineId: "line-2",
+        itemCode: "ITEM-2",
+        quantity: 1,
+        unitPrice: 15,
+        lineTotal: 15,
+        pricingSource: "bounded_default",
+        pricingInputSource: "default",
+      },
+    ],
+  });
 });
 
 test("computeOrderPricing returns zero totals only for valid scoped draft context with zero lines", async () => {
   const result = await computeOrderPricing(SCOPE, createScopedPricingRepository({ lines: [] }));
-  assert.deepEqual(result, { subtotal: 0, tax: 0, total: 0, currency: "USD" });
+  assert.deepEqual(result, { subtotal: 0, tax: 0, total: 0, currency: "USD", lines: [] });
 });
 
 test("computeOrderPricing fails when the session is closed", async () => {
@@ -200,4 +225,181 @@ test("computeOrderPricing rejects non-finite unit prices instead of returning Na
       error.code === "ITEM_PRICE_MISSING" &&
       error.status === 400,
   );
+});
+
+test("computeOrderPricing applies bounded line override and marks pricing source", async () => {
+  const result = await computeOrderPricing(
+    {
+      ...SCOPE,
+      pricingInput: {
+        lineUnitPriceOverrides: {
+          "line-override": { unitPrice: 7.25, source: "manual" },
+        },
+      },
+    },
+    createScopedPricingRepository({
+      lines: [makeLine({ id: "line-override", item_code: "ITEM-1", quantity: 2 })],
+    }),
+  );
+
+  assert.deepEqual(result, {
+    subtotal: 14.5,
+    tax: 1.74,
+    total: 16.24,
+    currency: "USD",
+    lines: [
+      {
+        lineId: "line-override",
+        itemCode: "ITEM-1",
+        quantity: 2,
+        unitPrice: 7.25,
+        lineTotal: 14.5,
+        pricingSource: "override",
+        pricingInputSource: "manual",
+      },
+    ],
+  });
+});
+
+test("computeOrderPricing rejects invalid override values (NaN, Infinity, negative)", async () => {
+  for (const invalidPrice of [Number.NaN, Number.POSITIVE_INFINITY, -1]) {
+    await assert.rejects(
+      () =>
+        computeOrderPricing(
+          {
+            ...SCOPE,
+            pricingInput: {
+              lineUnitPriceOverrides: {
+                "line-1": { unitPrice: invalidPrice },
+              },
+            },
+          },
+          createScopedPricingRepository({
+            lines: [makeLine({ id: "line-1", item_code: "ITEM-1", quantity: 1 })],
+          }),
+        ),
+      (error: unknown) =>
+        error instanceof PosOrderPricingError &&
+        error.code === "INVALID_OVERRIDE_UNIT_PRICE" &&
+        error.status === 400,
+    );
+  }
+});
+
+test("computeOrderPricing rejects malformed override entries (null, primitive, array) with bounded error", async () => {
+  for (const malformedEntry of [null, 123, ["bad"]]) {
+    await assert.rejects(
+      () =>
+        computeOrderPricing(
+          {
+            ...SCOPE,
+            pricingInput: {
+              lineUnitPriceOverrides: {
+                "line-1": malformedEntry as unknown as { unitPrice: number },
+              },
+            },
+          },
+          createScopedPricingRepository({
+            lines: [makeLine({ id: "line-1", item_code: "ITEM-1", quantity: 1 })],
+          }),
+        ),
+      (error: unknown) =>
+        error instanceof PosOrderPricingError &&
+        error.code === "INVALID_OVERRIDE_UNIT_PRICE" &&
+        error.status === 400,
+    );
+  }
+});
+
+test("computeOrderPricing rejects invalid override source values", async () => {
+  await assert.rejects(
+    () =>
+      computeOrderPricing(
+        {
+          ...SCOPE,
+          pricingInput: {
+            lineUnitPriceOverrides: {
+              "line-1": { unitPrice: 2, source: "AUTO" as "manual" },
+            },
+          },
+        },
+        createScopedPricingRepository({
+          lines: [makeLine({ id: "line-1", item_code: "ITEM-1", quantity: 1 })],
+        }),
+      ),
+    (error: unknown) =>
+      error instanceof PosOrderPricingError &&
+      error.code === "INVALID_PRICING_INPUT_SOURCE" &&
+      error.status === 400,
+  );
+});
+
+test("computeOrderPricing override cannot bypass scope checks", async () => {
+  await assert.rejects(
+    () =>
+      computeOrderPricing(
+        {
+          ...SCOPE,
+          deviceId: "wrong-device",
+          pricingInput: {
+            lineUnitPriceOverrides: {
+              "line-1": { unitPrice: 1 },
+            },
+          },
+        },
+        createScopedPricingRepository({
+          lines: [makeLine({ id: "line-1", item_code: "ITEM-1", quantity: 2 })],
+        }),
+      ),
+    (error: unknown) =>
+      error instanceof PosOrderPricingError &&
+      error.code === "ORDER_INVALID_OR_CLOSED" &&
+      error.status === 403,
+  );
+});
+
+test("computeOrderPricing supports mixed default and override lines with stable rounding", async () => {
+  const result = await computeOrderPricing(
+    {
+      ...SCOPE,
+      pricingInput: {
+        lineUnitPriceOverrides: {
+          "line-2": { unitPrice: 2.335 },
+        },
+      },
+    },
+    createScopedPricingRepository({
+      lines: [
+        makeLine({ id: "line-1", item_code: "ITEM-1", quantity: 2 }),
+        makeLine({ id: "line-2", item_code: "ITEM-2", quantity: 3 }),
+      ],
+    }),
+  );
+
+  assert.deepEqual(result, {
+    subtotal: 27.01,
+    tax: 3.24,
+    total: 30.25,
+    currency: "USD",
+    lines: [
+      {
+        lineId: "line-1",
+        itemCode: "ITEM-1",
+        quantity: 2,
+        unitPrice: 10,
+        lineTotal: 20,
+        pricingSource: "bounded_default",
+        pricingInputSource: "default",
+      },
+      {
+        lineId: "line-2",
+        itemCode: "ITEM-2",
+        quantity: 3,
+        unitPrice: 2.335,
+        lineTotal: 7.01,
+        pricingSource: "override",
+        pricingInputSource: "manual",
+      },
+    ],
+  });
 });
