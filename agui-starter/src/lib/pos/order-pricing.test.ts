@@ -163,3 +163,41 @@ test("computeOrderPricing rejects missing bounded prices after scoped validation
       error.status === 400,
   );
 });
+
+test("computeOrderPricing rejects prototype-chain-like item codes as missing prices", async () => {
+  for (const key of ["toString", "constructor", "__proto__"]) {
+    await assert.rejects(
+      () =>
+        computeOrderPricing(
+          SCOPE,
+          createScopedPricingRepository({
+            lines: [makeLine({ id: `line-${key}`, item_code: key, quantity: 1 })],
+          }),
+        ),
+      (error: unknown) =>
+        error instanceof PosOrderPricingError &&
+        error.code === "ITEM_PRICE_MISSING" &&
+        error.status === 400,
+    );
+  }
+});
+
+test("computeOrderPricing rejects non-finite unit prices instead of returning NaN totals", async () => {
+  await assert.rejects(
+    () =>
+      computeOrderPricing(SCOPE, {
+        lineRepository: createInMemoryPosOrderLineRepository({
+          sessions: [makeSession()],
+          orders: [makeDraft()],
+          lines: [makeLine({ item_code: "ITEM-1", quantity: 1 })],
+        }),
+        getPriceForItem() {
+          return Number.NaN;
+        },
+      }),
+    (error: unknown) =>
+      error instanceof PosOrderPricingError &&
+      error.code === "ITEM_PRICE_MISSING" &&
+      error.status === 400,
+  );
+});

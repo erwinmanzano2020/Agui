@@ -50,6 +50,10 @@ function roundCurrency(value: number) {
 }
 
 function resolveBoundedItemPrice(itemCode: string): number | null {
+  if (!Object.prototype.hasOwnProperty.call(BOUNDED_ITEM_PRICES, itemCode)) {
+    return null;
+  }
+
   return BOUNDED_ITEM_PRICES[itemCode] ?? null;
 }
 
@@ -88,7 +92,7 @@ export async function computeOrderPricing(
 
     for (const line of lines) {
       const unitPrice = await pricingRepository.getPriceForItem(line.item_code);
-      if (unitPrice === null || unitPrice === undefined) {
+      if (unitPrice === null || unitPrice === undefined || !Number.isFinite(unitPrice)) {
         throw new PosOrderPricingError("Missing item price", "ITEM_PRICE_MISSING", 400);
       }
       subtotal += line.quantity * unitPrice;
