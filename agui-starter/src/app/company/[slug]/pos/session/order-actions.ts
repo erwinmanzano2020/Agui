@@ -26,6 +26,11 @@ import {
   createSupabasePosOrderReviewRepository,
   getCurrentSessionOrderReview,
 } from "@/lib/pos/order-review";
+import {
+  PosOrderReviewValidationError,
+  createSupabasePosOrderReviewValidationRepository,
+  getCurrentSessionOrderReviewValidation,
+} from "@/lib/pos/order-review-validation";
 import { CLIENT_SAFE_POS_DRAFT_ERROR, CLIENT_SAFE_POS_ORDER_ERROR } from "./order-action-errors";
 
 async function resolveHouseAndAccess(slug: string) {
@@ -339,6 +344,36 @@ export async function getCurrentSessionOrderReviewAction(
     }
 
     console.warn("[pos-order] review denied", { code: error.code, status: error.status, slug });
+    return { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR } as const;
+  }
+}
+
+export async function getCurrentSessionOrderReviewValidationAction(
+  slug: string,
+  payload: { branchId: string; sessionId: string; deviceId: string; orderId: string },
+) {
+  const { supabase, house } = await resolveHouseAndAccess(slug);
+  const reviewValidationRepository = createSupabasePosOrderReviewValidationRepository(supabase);
+
+  try {
+    const reviewValidation = await getCurrentSessionOrderReviewValidation(
+      {
+        houseId: house.id,
+        branchId: payload.branchId,
+        sessionId: payload.sessionId,
+        deviceId: payload.deviceId,
+        orderId: payload.orderId,
+      },
+      reviewValidationRepository,
+    );
+
+    return { ok: true, reviewValidation } as const;
+  } catch (error) {
+    if (!(error instanceof PosOrderReviewValidationError)) {
+      throw error;
+    }
+
+    console.warn("[pos-order] review validation denied", { code: error.code, status: error.status, slug });
     return { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR } as const;
   }
 }

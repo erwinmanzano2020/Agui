@@ -4,6 +4,7 @@ import test from "node:test";
 import { mapPosSessionClientError } from "./error-messages";
 import {
   createEmptyOrderReview,
+  createEmptyOrderReviewValidation,
   createEmptyOrderPricing,
   clearLineSurfaceState,
   parseQuantityInput,
@@ -13,7 +14,9 @@ import {
   shouldApplyLineRefreshResult,
   shouldApplyPricingRefreshResult,
   shouldApplyReviewRefreshResult,
+  shouldApplyReviewValidationRefreshResult,
   shouldClearReviewForEmptyScope,
+  shouldClearValidationForEmptyScope,
   shouldRefreshReviewAfterAddLineSuccess,
   shouldRefreshPricingAfterLineRefresh,
 } from "./session-client";
@@ -190,6 +193,11 @@ test("empty scoped order key always clears review to canonical empty state", () 
   assert.equal(shouldClearReviewForEmptyScope("branch-1::session-1::device-1::order-1"), false);
 });
 
+test("empty scoped order key always clears validation to canonical empty state", () => {
+  assert.equal(shouldClearValidationForEmptyScope(""), true);
+  assert.equal(shouldClearValidationForEmptyScope("branch-1::session-1::device-1::order-1"), false);
+});
+
 test("no-scope branch cannot retain previous review payload shape", () => {
   const previousReviewLikePayload = {
     reviewStatus: "READY",
@@ -201,9 +209,25 @@ test("no-scope branch cannot retain previous review payload shape", () => {
 
 test("review layer does not introduce any client-side pricing recomputation helper", () => {
   const reviewState = createEmptyOrderReview();
+  const validationState = createEmptyOrderReviewValidation();
   const pricingState = createEmptyOrderPricing();
   assert.equal(reviewState, null);
+  assert.equal(validationState, null);
   assert.deepEqual(pricingState, { subtotal: 0, tax: 0, total: 0, currency: "USD" });
+});
+
+test("validation refresh remains scoped and conservative under stale scope guard", () => {
+  const staleScopeKey = "branch-1::session-1::device-1::order-1";
+  const activeScopeKey = "branch-1::session-2::device-2::order-2";
+  assert.equal(
+    shouldApplyReviewValidationRefreshResult({
+      requestedScopeKey: staleScopeKey,
+      activeScopeKey,
+      requestId: 4,
+      latestRequestId: 5,
+    }),
+    false,
+  );
 });
 
 test("add-line success path requires scoped review refresh", () => {
