@@ -21,6 +21,11 @@ import {
   computeOrderPricing,
   createSupabasePosOrderPricingRepository,
 } from "@/lib/pos/order-pricing";
+import {
+  PosOrderReviewError,
+  createSupabasePosOrderReviewRepository,
+  getCurrentSessionOrderReview,
+} from "@/lib/pos/order-review";
 import { CLIENT_SAFE_POS_DRAFT_ERROR, CLIENT_SAFE_POS_ORDER_ERROR } from "./order-action-errors";
 
 async function resolveHouseAndAccess(slug: string) {
@@ -304,6 +309,36 @@ export async function getCurrentSessionOrderPricingAction(
     }
 
     console.warn("[pos-order] pricing denied", { code: error.code, status: error.status, slug });
+    return { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR } as const;
+  }
+}
+
+export async function getCurrentSessionOrderReviewAction(
+  slug: string,
+  payload: { branchId: string; sessionId: string; deviceId: string; orderId: string },
+) {
+  const { supabase, house } = await resolveHouseAndAccess(slug);
+  const reviewRepository = createSupabasePosOrderReviewRepository(supabase);
+
+  try {
+    const review = await getCurrentSessionOrderReview(
+      {
+        houseId: house.id,
+        branchId: payload.branchId,
+        sessionId: payload.sessionId,
+        deviceId: payload.deviceId,
+        orderId: payload.orderId,
+      },
+      reviewRepository,
+    );
+
+    return { ok: true, review } as const;
+  } catch (error) {
+    if (!(error instanceof PosOrderReviewError)) {
+      throw error;
+    }
+
+    console.warn("[pos-order] review denied", { code: error.code, status: error.status, slug });
     return { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR } as const;
   }
 }

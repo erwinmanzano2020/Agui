@@ -9,6 +9,7 @@ import {
   getCurrentSessionDraftOrderAction,
   getCurrentSessionOrderLinesAction,
   getCurrentSessionOrderPricingAction,
+  getCurrentSessionOrderReviewAction,
   removeOrderLineAction,
   updateOrderLineAction,
 } from "./order-actions";
@@ -28,6 +29,29 @@ type CurrentOrderScope = {
 
 type LineEditState = Record<string, { itemCode: string; quantity: string }>;
 type OrderPricingView = { subtotal: number; tax: number; total: number; currency: string };
+type OrderReviewView = {
+  reviewStatus: "READY";
+  draft: {
+    id: string;
+    houseId: string;
+    branchId: string;
+    sessionId: string;
+    deviceId: string;
+    operatorEntityId: string;
+    status: "DRAFT";
+  };
+  activeLines: Array<{ id: string; orderId: string; itemCode: string; quantity: number }>;
+  pricingSummary: { subtotal: number; tax: number; total: number; currency: string };
+  pricingTraceLines: Array<{
+    lineId: string;
+    itemCode: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    pricingSource: "bounded_default" | "override";
+    pricingInputSource: "manual" | "default";
+  }>;
+} | null;
 
 export function resolveInitialBranchId(defaultBranchId: string | null): string {
   return defaultBranchId?.trim() ?? "";
@@ -95,6 +119,15 @@ export function shouldApplyPricingRefreshResult(input: {
   return shouldApplyLineRefreshResult(input);
 }
 
+export function shouldApplyReviewRefreshResult(input: {
+  requestedScopeKey: string;
+  activeScopeKey: string;
+  requestId: number;
+  latestRequestId: number;
+}): boolean {
+  return shouldApplyLineRefreshResult(input);
+}
+
 export function shouldRefreshPricingAfterLineRefresh(input: {
   cancelled: boolean;
   requestedScopeKey: string;
@@ -115,6 +148,18 @@ export function createEmptyOrderPricing(): OrderPricingView {
   return { subtotal: 0, tax: 0, total: 0, currency: "USD" };
 }
 
+export function createEmptyOrderReview(): OrderReviewView {
+  return null;
+}
+
+export function shouldRefreshReviewAfterAddLineSuccess(input: { addLineSucceeded: boolean; hasScopedOrder: boolean }): boolean {
+  return input.addLineSucceeded && input.hasScopedOrder;
+}
+
+export function shouldClearReviewForEmptyScope(currentScopeKey: string): boolean {
+  return currentScopeKey === "";
+}
+
 export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defaultBranchId: string | null }) {
   const [deviceCode, setDeviceCode] = useState("");
   const [qrIdentifier, setQrIdentifier] = useState("");
@@ -131,12 +176,14 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
   const [newQuantity, setNewQuantity] = useState("1");
   const [lineEdits, setLineEdits] = useState<LineEditState>({});
   const [pricing, setPricing] = useState<OrderPricingView>(createEmptyOrderPricing());
+  const [review, setReview] = useState<OrderReviewView>(createEmptyOrderReview());
 
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const activeScopeKeyRef = useRef("");
   const latestLinesRequestIdRef = useRef(0);
   const latestPricingRequestIdRef = useRef(0);
+  const latestReviewRequestIdRef = useRef(0);
 
   const currentScope = useMemo(
     () =>
@@ -155,6 +202,10 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
     if (!currentScopeKey) {
       latestLinesRequestIdRef.current += 1;
       latestPricingRequestIdRef.current += 1;
+      latestReviewRequestIdRef.current += 1;
+      if (shouldClearReviewForEmptyScope(currentScopeKey)) {
+        setReview(createEmptyOrderReview());
+      }
     }
   }, [currentScopeKey]);
 
@@ -166,6 +217,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
     setLines(cleared.lines);
     setLineEdits(cleared.lineEdits);
     setPricing(createEmptyOrderPricing());
+    setReview(createEmptyOrderReview());
     setNewItemCode("");
     setNewQuantity("1");
   }
@@ -247,6 +299,38 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
     setPricing(response.pricing);
   }, [slug]);
 
+  const refreshReview = useCallback(async (scope: CurrentOrderScope) => {
+    const requestId = latestReviewRequestIdRef.current + 1;
+    latestReviewRequestIdRef.current = requestId;
+    const requestedScopeKey = serializeCurrentOrderScope(scope);
+
+    const response = await getCurrentSessionOrderReviewAction(slug, {
+      branchId: scope.branchId,
+      sessionId: scope.sessionId,
+      deviceId: scope.deviceId,
+      orderId: scope.orderId,
+    });
+
+    if (
+      !shouldApplyReviewRefreshResult({
+        requestedScopeKey,
+        activeScopeKey: activeScopeKeyRef.current,
+        requestId,
+        latestRequestId: latestReviewRequestIdRef.current,
+      })
+    ) {
+      return;
+    }
+
+    if (!response.ok) {
+      setMessage(response.error);
+      setReview(createEmptyOrderReview());
+      return;
+    }
+
+    setReview(response.review);
+  }, [slug]);
+
   useEffect(() => {
     if (!currentScope) {
       return;
@@ -272,6 +356,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
         setLines([]);
         setLineEdits({});
         setPricing(createEmptyOrderPricing());
+        setReview(createEmptyOrderReview());
         return;
       }
 
@@ -287,12 +372,13 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
       }
 
       await refreshPricing(currentScope);
+      await refreshReview(currentScope);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [currentScope, refreshLines, refreshPricing, slug]);
+  }, [currentScope, refreshLines, refreshPricing, refreshReview, slug]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
@@ -395,6 +481,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
               startTransition(async () => {
                 await refreshLines(currentScope);
                 await refreshPricing(currentScope);
+                await refreshReview(currentScope);
               });
             }}
           >
@@ -439,6 +526,14 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
                 setNewQuantity("1");
                 await refreshLines(currentScope);
                 await refreshPricing(currentScope);
+                if (
+                  shouldRefreshReviewAfterAddLineSuccess({
+                    addLineSucceeded: result.ok,
+                    hasScopedOrder: currentScope !== null,
+                  })
+                ) {
+                  await refreshReview(currentScope);
+                }
               });
             }}
           >
@@ -506,6 +601,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
                         setMessage(`Line updated: ${result.lineId}`);
                         await refreshLines(currentScope);
                         await refreshPricing(currentScope);
+                        await refreshReview(currentScope);
                       });
                     }}
                   >
@@ -536,6 +632,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
                         setMessage(`Line removed: ${result.lineId}`);
                         await refreshLines(currentScope);
                         await refreshPricing(currentScope);
+                        await refreshReview(currentScope);
                       });
                     }}
                   >
@@ -552,6 +649,37 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
           <p>Subtotal: {pricing.currency} {pricing.subtotal.toFixed(2)}</p>
           <p>Tax: {pricing.currency} {pricing.tax.toFixed(2)}</p>
           <p>Total: {pricing.currency} {pricing.total.toFixed(2)}</p>
+        </div>
+
+        <div className="space-y-2 rounded border p-3 text-sm">
+          <h3 className="font-medium">Pre-Checkout Review (Read-Only)</h3>
+          {review ? (
+            <>
+              <p>Review status: {review.reviewStatus}</p>
+              <p>Order ID: {review.draft.id}</p>
+              <p>Active lines: {review.activeLines.length}</p>
+              <ul className="space-y-1">
+                {review.activeLines.map((line) => (
+                  <li key={`review-line-${line.id}`}>
+                    {line.itemCode} × {line.quantity} (line {line.id})
+                  </li>
+                ))}
+              </ul>
+              <p>Subtotal: {review.pricingSummary.currency} {review.pricingSummary.subtotal.toFixed(2)}</p>
+              <p>Tax: {review.pricingSummary.currency} {review.pricingSummary.tax.toFixed(2)}</p>
+              <p>Total: {review.pricingSummary.currency} {review.pricingSummary.total.toFixed(2)}</p>
+              <ul className="space-y-1">
+                {review.pricingTraceLines.map((traceLine) => (
+                  <li key={`review-trace-${traceLine.lineId}`}>
+                    {traceLine.lineId}: {traceLine.quantity} × {traceLine.unitPrice.toFixed(2)} = {traceLine.lineTotal.toFixed(2)} (
+                    {traceLine.pricingSource}, {traceLine.pricingInputSource})
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <p>Review unavailable for the current scope.</p>
+          )}
         </div>
       </div>
 

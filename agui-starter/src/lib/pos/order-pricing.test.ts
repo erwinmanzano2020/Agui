@@ -5,7 +5,7 @@ import type { PosSessionRow } from "@/lib/db.types";
 
 import type { OrderDraft } from "./order-draft";
 import { type OrderLine, createInMemoryPosOrderLineRepository } from "./order-line";
-import { PosOrderPricingError, computeOrderPricing } from "./order-pricing";
+import { PosOrderPricingError, computeOrderPricing, computeOrderPricingFromScopedLines } from "./order-pricing";
 
 const HOUSE_ID = "house-1";
 const BRANCH_ID = "branch-1";
@@ -256,6 +256,46 @@ test("computeOrderPricing applies bounded line override and marks pricing source
         lineTotal: 14.5,
         pricingSource: "override",
         pricingInputSource: "manual",
+      },
+    ],
+  });
+});
+
+test("computeOrderPricingFromScopedLines computes deterministic totals from provided scoped snapshot", async () => {
+  const result = await computeOrderPricingFromScopedLines(
+    {
+      lines: [makeLine({ id: "line-1", item_code: "ITEM-1", quantity: 1 }), makeLine({ id: "line-2", item_code: "ITEM-2", quantity: 2 })],
+    },
+    (itemCode: string) => {
+      if (itemCode === "ITEM-1") return 10;
+      if (itemCode === "ITEM-2") return 15;
+      return null;
+    },
+  );
+
+  assert.deepEqual(result, {
+    subtotal: 40,
+    tax: 4.8,
+    total: 44.8,
+    currency: "USD",
+    lines: [
+      {
+        lineId: "line-1",
+        itemCode: "ITEM-1",
+        quantity: 1,
+        unitPrice: 10,
+        lineTotal: 10,
+        pricingSource: "bounded_default",
+        pricingInputSource: "default",
+      },
+      {
+        lineId: "line-2",
+        itemCode: "ITEM-2",
+        quantity: 2,
+        unitPrice: 15,
+        lineTotal: 30,
+        pricingSource: "bounded_default",
+        pricingInputSource: "default",
       },
     ],
   });

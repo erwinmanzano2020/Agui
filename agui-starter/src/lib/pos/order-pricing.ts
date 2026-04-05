@@ -6,6 +6,7 @@ import type { Database } from "@/lib/db.types";
 
 import {
   PosOrderLineError,
+  type OrderLine,
   type RepositoryClient as OrderLineRepositoryClient,
   createSupabasePosOrderLineRepository,
   getCurrentSessionOrderLines,
@@ -53,6 +54,19 @@ export class PosOrderPricingError extends Error {
     this.status = status;
   }
 }
+
+type OrderPricingComputationInput = {
+  lines: OrderLine[];
+  pricingInput?: {
+    lineUnitPriceOverrides?: Record<
+      string,
+      {
+        unitPrice: number;
+        source?: "manual" | "default";
+      }
+    >;
+  };
+};
 
 function roundCurrency(value: number) {
   return Math.round(value * 100) / 100;
@@ -147,58 +161,13 @@ export async function computeOrderPricing(
 
   try {
     const lines = await getCurrentSessionOrderLines(input, pricingRepository.lineRepository);
-    let subtotal = 0;
-    const lineUnitPriceOverrides = (input.pricingInput?.lineUnitPriceOverrides ?? {}) as Record<string, unknown>;
-    const pricedLines: Array<{
-      lineId: string;
-      itemCode: string;
-      quantity: number;
-      unitPrice: number;
-      lineTotal: number;
-      pricingSource: "bounded_default" | "override";
-      pricingInputSource: "manual" | "default";
-    }> = [];
-
-    for (const line of lines) {
-      let unitPrice: number | null | undefined = null;
-      let pricingSource: "bounded_default" | "override" = "bounded_default";
-      let pricingInputSource: "manual" | "default" = "default";
-
-      if (isOwnKey(lineUnitPriceOverrides, line.id)) {
-        const override = validateOverrideEntryShape(lineUnitPriceOverrides[line.id]);
-        unitPrice = validateOverrideUnitPrice(override.unitPrice);
-        pricingSource = "override";
-        pricingInputSource = validatePricingInputSource(override.source);
-      } else {
-        unitPrice = await pricingRepository.getPriceForItem(line.item_code);
-        if (unitPrice === null || unitPrice === undefined || !Number.isFinite(unitPrice)) {
-          throw new PosOrderPricingError("Missing item price", "ITEM_PRICE_MISSING", 400);
-        }
-      }
-
-      const lineTotal = roundCurrency(line.quantity * unitPrice);
-      subtotal += lineTotal;
-      pricedLines.push({
-        lineId: line.id,
-        itemCode: line.item_code,
-        quantity: line.quantity,
-        unitPrice,
-        lineTotal,
-        pricingSource,
-        pricingInputSource,
-      });
-    }
-
-    const roundedSubtotal = roundCurrency(subtotal);
-    const tax = roundCurrency(roundedSubtotal * FIXED_TAX_RATE);
-
-    return {
-      subtotal: roundedSubtotal,
-      tax,
-      total: roundCurrency(roundedSubtotal + tax),
-      currency: DEFAULT_CURRENCY,
-      lines: pricedLines,
-    };
+    return computeOrderPricingFromScopedLines(
+      {
+        lines,
+        pricingInput: input.pricingInput,
+      },
+      pricingRepository.getPriceForItem,
+    );
   } catch (error) {
     if (error instanceof PosOrderPricingError) {
       throw error;
@@ -208,4 +177,62 @@ export async function computeOrderPricing(
     }
     throw error;
   }
+}
+
+export async function computeOrderPricingFromScopedLines(
+  input: OrderPricingComputationInput,
+  getPriceForItem: OrderPricingRepository["getPriceForItem"],
+) {
+  let subtotal = 0;
+  const lineUnitPriceOverrides = (input.pricingInput?.lineUnitPriceOverrides ?? {}) as Record<string, unknown>;
+  const pricedLines: Array<{
+    lineId: string;
+    itemCode: string;
+    quantity: number;
+    unitPrice: number;
+    lineTotal: number;
+    pricingSource: "bounded_default" | "override";
+    pricingInputSource: "manual" | "default";
+  }> = [];
+
+  for (const line of input.lines) {
+    let unitPrice: number | null | undefined = null;
+    let pricingSource: "bounded_default" | "override" = "bounded_default";
+    let pricingInputSource: "manual" | "default" = "default";
+
+    if (isOwnKey(lineUnitPriceOverrides, line.id)) {
+      const override = validateOverrideEntryShape(lineUnitPriceOverrides[line.id]);
+      unitPrice = validateOverrideUnitPrice(override.unitPrice);
+      pricingSource = "override";
+      pricingInputSource = validatePricingInputSource(override.source);
+    } else {
+      unitPrice = await getPriceForItem(line.item_code);
+      if (unitPrice === null || unitPrice === undefined || !Number.isFinite(unitPrice)) {
+        throw new PosOrderPricingError("Missing item price", "ITEM_PRICE_MISSING", 400);
+      }
+    }
+
+    const lineTotal = roundCurrency(line.quantity * unitPrice);
+    subtotal += lineTotal;
+    pricedLines.push({
+      lineId: line.id,
+      itemCode: line.item_code,
+      quantity: line.quantity,
+      unitPrice,
+      lineTotal,
+      pricingSource,
+      pricingInputSource,
+    });
+  }
+
+  const roundedSubtotal = roundCurrency(subtotal);
+  const tax = roundCurrency(roundedSubtotal * FIXED_TAX_RATE);
+
+  return {
+    subtotal: roundedSubtotal,
+    tax,
+    total: roundCurrency(roundedSubtotal + tax),
+    currency: DEFAULT_CURRENCY,
+    lines: pricedLines,
+  };
 }

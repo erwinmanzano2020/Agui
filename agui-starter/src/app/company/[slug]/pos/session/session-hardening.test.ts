@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { mapPosSessionClientError } from "./error-messages";
 import {
+  createEmptyOrderReview,
   createEmptyOrderPricing,
   clearLineSurfaceState,
   parseQuantityInput,
@@ -11,6 +12,9 @@ import {
   serializeCurrentOrderScope,
   shouldApplyLineRefreshResult,
   shouldApplyPricingRefreshResult,
+  shouldApplyReviewRefreshResult,
+  shouldClearReviewForEmptyScope,
+  shouldRefreshReviewAfterAddLineSuccess,
   shouldRefreshPricingAfterLineRefresh,
 } from "./session-client";
 import { PosSessionAuthError } from "@/lib/pos/session-auth";
@@ -141,6 +145,86 @@ test("pricing refresh follows the same stale scope guard and does not compute to
       activeScopeKey: "",
       requestId: 2,
       latestRequestId: 2,
+    }),
+    false,
+  );
+});
+
+test("stale review refresh results are dropped unless request and scope still match", () => {
+  const scopeKey = "branch-1::session-1::device-1::order-1";
+  assert.equal(
+    shouldApplyReviewRefreshResult({
+      requestedScopeKey: scopeKey,
+      activeScopeKey: scopeKey,
+      requestId: 9,
+      latestRequestId: 9,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldApplyReviewRefreshResult({
+      requestedScopeKey: scopeKey,
+      activeScopeKey: "branch-1::session-2::device-2::order-2",
+      requestId: 9,
+      latestRequestId: 10,
+    }),
+    false,
+  );
+});
+
+test("empty/no-scope review state remains conservative", () => {
+  assert.deepEqual(createEmptyOrderReview(), null);
+  assert.equal(
+    shouldApplyReviewRefreshResult({
+      requestedScopeKey: "",
+      activeScopeKey: "branch-1::session-1::device-1::order-1",
+      requestId: 1,
+      latestRequestId: 1,
+    }),
+    false,
+  );
+});
+
+test("empty scoped order key always clears review to canonical empty state", () => {
+  assert.equal(shouldClearReviewForEmptyScope(""), true);
+  assert.equal(shouldClearReviewForEmptyScope("branch-1::session-1::device-1::order-1"), false);
+});
+
+test("no-scope branch cannot retain previous review payload shape", () => {
+  const previousReviewLikePayload = {
+    reviewStatus: "READY",
+    draft: { id: "order-1" },
+  };
+  assert.notDeepEqual(previousReviewLikePayload, createEmptyOrderReview());
+  assert.equal(shouldClearReviewForEmptyScope(""), true);
+});
+
+test("review layer does not introduce any client-side pricing recomputation helper", () => {
+  const reviewState = createEmptyOrderReview();
+  const pricingState = createEmptyOrderPricing();
+  assert.equal(reviewState, null);
+  assert.deepEqual(pricingState, { subtotal: 0, tax: 0, total: 0, currency: "USD" });
+});
+
+test("add-line success path requires scoped review refresh", () => {
+  assert.equal(
+    shouldRefreshReviewAfterAddLineSuccess({
+      addLineSucceeded: true,
+      hasScopedOrder: true,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldRefreshReviewAfterAddLineSuccess({
+      addLineSucceeded: true,
+      hasScopedOrder: false,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldRefreshReviewAfterAddLineSuccess({
+      addLineSucceeded: false,
+      hasScopedOrder: true,
     }),
     false,
   );
