@@ -5,10 +5,11 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 
 ## 2. Current Execution Snapshot
 - Module: POS
-- Current phase: POS-F2 bounded closure completed; POS-F3 Slice 1 (pricing/totals) is now in progress within current-session draft boundaries
+- Current phase: POS-F2 bounded closure completed; POS-F3 Slice 1 (pricing/totals) is completed as a bounded closure within current-session draft boundaries
+- Phase control note: HR stability checkpoint completed; POS is now the active development phase under roadmap sequencing.
 - Foundation wave: complete (canonical POS foundation set present and aligned)
 - Implementation posture: POS-F1 stable baseline remains intact and POS-F2 bounded draft-order + line-mutation foundations are now recorded as complete within strict scope-first/no-leak constraints
-- Current work mode: bounded POS-F3 Slice 1 execution (deterministic pricing computation + safe exposure only); no stealth scope expansion into checkout/payments/inventory
+- Current work mode: POS-F3 Slice 1 is closed and locked; next work is gated to explicit POS-F3 Slice 2 initiation only, with no stealth scope expansion into checkout/payments/inventory
 - First-slice stability checkpoint: completed on 2026-04-01 (UTC), with no blocker-class gaps identified
 - MVP posture: POS is still not MVP-complete
 
@@ -17,7 +18,8 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 |---|---|
 | Foundation | Canonical POS foundation set is complete (master/status/domain/access/identity/db/phase-1/guardrails). |
 | Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. POS-F2 bounded continuity is now complete for current-session draft-order create/reopen + current-session line add/read/update/remove + bounded persistence + thin action boundary integration + stale refresh hardening posture. |
-| In Progress | F3 Slice 1 — Pricing & Totals (current-session draft only): deterministic subtotal/tax/total computation from current scoped order lines, thin action exposure, and read-only UI summary panel with no financial side effects. |
+| Completed (Bounded) | F3 Slice 1 — Pricing & Totals (current-session draft only): deterministic subtotal/tax/total computation from current scoped order lines, thin action exposure, and read-only UI summary panel with no financial side effects. |
+| Next (Gated) | F3 Slice 2 — Not started. Explicit initiation is required after Slice 1 closure constraints are preserved. |
 | Blocked / Dependency | POS remains blocked from payment/inventory/reporting/cross-session browsing/multi-order management/finance effects until their own approved slices; no tenancy/auth boundary redesign is authorized by F2 closure. |
 
 ## 4. Current Approved Next Tasks
@@ -181,9 +183,9 @@ POS MVP is only considered done when, at minimum, all are true:
 - blocker-class regressions are closed before any future module-unlock claim
 
 ## 10. Last Updated
-2026-04-04 (UTC)
+2026-04-05 (UTC)
 
-## 11. POS-F3 Slice 1 — Pricing & Totals (In Progress)
+## 11. POS-F3 Slice 1 — Pricing & Totals (Completed, Bounded)
 ### Now supported
 - Deterministic, stateless pricing totals are computed from **current-session order lines only** (line total = quantity × bounded unit price source).
 - Totals include subtotal, fixed-rate tax, and grand total for the active scoped order.
@@ -198,3 +200,48 @@ POS MVP is only considered done when, at minimum, all are true:
 - Receipt generation.
 - Totals persistence to storage.
 - Cross-session pricing reads, multi-order management, or catalog expansion.
+
+## 11A. POS-F3 Slice 1 — Closure Record (Pricing & Totals)
+POS-F3 Slice 1 is closed as a bounded slice.
+
+### What is guaranteed
+- Pricing is computed **server-side only** (no client-side math).
+- Pricing is **deterministic and stateless**, derived from:
+  - current-session
+  - current draft order
+  - active order lines only
+- Scope enforcement is strict:
+  - house / branch / session / device / order must match
+- Pricing cannot be computed for:
+  - closed sessions
+  - non-draft orders
+  - mismatched scope
+
+### Computation model
+- Subtotal = Σ(quantity × bounded unit price)
+- Tax = fixed-rate (current: 12%)
+- Total = subtotal + tax
+- Currency is fixed (current: USD)
+
+### Safety guarantees
+- No prototype-chain key resolution (own-key lookup only)
+- Non-finite values (NaN/Infinity) are rejected
+- Missing prices fail with ITEM_PRICE_MISSING
+- No stale pricing application (scope + request guards enforced)
+- No client-side fallback or optimistic totals
+
+### UI guarantees
+- Pricing is read-only
+- Values are refreshed via server actions only
+- No persistence of totals
+- No side effects (financial or inventory)
+
+### Explicitly not supported
+- Discounts / promotions
+- Dynamic pricing rules
+- Inventory-aware pricing
+- Checkout / finalization
+- Payments / tendering
+- Receipt generation
+- Cross-session reads
+- Multi-order aggregation
