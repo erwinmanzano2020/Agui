@@ -95,6 +95,18 @@ export function shouldApplyPricingRefreshResult(input: {
   return shouldApplyLineRefreshResult(input);
 }
 
+export function shouldRefreshPricingAfterLineRefresh(input: {
+  cancelled: boolean;
+  requestedScopeKey: string;
+  activeScopeKey: string;
+}): boolean {
+  if (input.cancelled) {
+    return false;
+  }
+
+  return input.requestedScopeKey !== "" && input.requestedScopeKey === input.activeScopeKey;
+}
+
 export function clearLineSurfaceState(): { lines: PosOrderLineView[]; lineEdits: LineEditState } {
   return { lines: [], lineEdits: {} };
 }
@@ -243,6 +255,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
     let cancelled = false;
 
     startTransition(async () => {
+      const requestedScopeKey = serializeCurrentOrderScope(currentScope);
       const draftResult = await getCurrentSessionDraftOrderAction(slug, {
         branchId: currentScope.branchId,
         sessionId: currentScope.sessionId,
@@ -263,6 +276,16 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
       }
 
       await refreshLines(currentScope);
+      if (
+        !shouldRefreshPricingAfterLineRefresh({
+          cancelled,
+          requestedScopeKey,
+          activeScopeKey: activeScopeKeyRef.current,
+        })
+      ) {
+        return;
+      }
+
       await refreshPricing(currentScope);
     });
 

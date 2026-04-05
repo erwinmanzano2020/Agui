@@ -11,6 +11,7 @@ import {
   serializeCurrentOrderScope,
   shouldApplyLineRefreshResult,
   shouldApplyPricingRefreshResult,
+  shouldRefreshPricingAfterLineRefresh,
 } from "./session-client";
 import { PosSessionAuthError } from "@/lib/pos/session-auth";
 
@@ -140,6 +141,36 @@ test("pricing refresh follows the same stale scope guard and does not compute to
       activeScopeKey: "",
       requestId: 2,
       latestRequestId: 2,
+    }),
+    false,
+  );
+});
+
+test("stale initial-load flow does not issue pricing refresh after line refresh when scope moved", () => {
+  assert.equal(
+    shouldRefreshPricingAfterLineRefresh({
+      cancelled: false,
+      requestedScopeKey: "branch-1::session-1::device-1::order-1",
+      activeScopeKey: "branch-1::session-2::device-2::order-2",
+    }),
+    false,
+  );
+});
+
+test("newer valid pricing refresh is not invalidated by stale load path follow-up", () => {
+  assert.equal(
+    shouldRefreshPricingAfterLineRefresh({
+      cancelled: false,
+      requestedScopeKey: "branch-1::session-1::device-1::order-1",
+      activeScopeKey: "branch-1::session-1::device-1::order-1",
+    }),
+    true,
+  );
+  assert.equal(
+    shouldRefreshPricingAfterLineRefresh({
+      cancelled: true,
+      requestedScopeKey: "branch-1::session-1::device-1::order-1",
+      activeScopeKey: "branch-1::session-1::device-1::order-1",
     }),
     false,
   );
