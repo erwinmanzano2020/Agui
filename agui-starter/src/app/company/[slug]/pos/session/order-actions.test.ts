@@ -296,6 +296,11 @@ test("getCurrentSessionOrderPricingAction forwards exact current-session scope",
     sessionId: "session-1",
     deviceId: "device-1",
     orderId: "order-1",
+    pricingInput: {
+      lineUnitPriceOverrides: {
+        "line-1": { unitPrice: 6, source: "manual" },
+      },
+    },
   });
 
   assert.deepEqual(result, {
@@ -308,6 +313,11 @@ test("getCurrentSessionOrderPricingAction forwards exact current-session scope",
     sessionId: "session-1",
     deviceId: "device-1",
     orderId: "order-1",
+    pricingInput: {
+      lineUnitPriceOverrides: {
+        "line-1": { unitPrice: 6, source: "manual" },
+      },
+    },
   });
 });
 

@@ -265,7 +265,21 @@ export async function removeOrderLineAction(
 
 export async function getCurrentSessionOrderPricingAction(
   slug: string,
-  payload: { branchId: string; sessionId: string; deviceId: string; orderId: string },
+  payload: {
+    branchId: string;
+    sessionId: string;
+    deviceId: string;
+    orderId: string;
+    pricingInput?: {
+      lineUnitPriceOverrides?: Record<
+        string,
+        {
+          unitPrice: number;
+          source?: "manual" | "default";
+        }
+      >;
+    };
+  },
 ) {
   const { supabase, house } = await resolveHouseAndAccess(slug);
   const pricingRepository = createSupabasePosOrderPricingRepository(supabase);
@@ -278,6 +292,7 @@ export async function getCurrentSessionOrderPricingAction(
         sessionId: payload.sessionId,
         deviceId: payload.deviceId,
         orderId: payload.orderId,
+        pricingInput: payload.pricingInput,
       },
       pricingRepository,
     );
