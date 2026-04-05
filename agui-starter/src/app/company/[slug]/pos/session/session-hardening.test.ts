@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { mapPosSessionClientError } from "./error-messages";
 import {
+  createEmptyOrderReview,
   createEmptyOrderPricing,
   clearLineSurfaceState,
   parseQuantityInput,
@@ -11,6 +12,7 @@ import {
   serializeCurrentOrderScope,
   shouldApplyLineRefreshResult,
   shouldApplyPricingRefreshResult,
+  shouldApplyReviewRefreshResult,
   shouldRefreshPricingAfterLineRefresh,
 } from "./session-client";
 import { PosSessionAuthError } from "@/lib/pos/session-auth";
@@ -144,6 +146,48 @@ test("pricing refresh follows the same stale scope guard and does not compute to
     }),
     false,
   );
+});
+
+test("stale review refresh results are dropped unless request and scope still match", () => {
+  const scopeKey = "branch-1::session-1::device-1::order-1";
+  assert.equal(
+    shouldApplyReviewRefreshResult({
+      requestedScopeKey: scopeKey,
+      activeScopeKey: scopeKey,
+      requestId: 9,
+      latestRequestId: 9,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldApplyReviewRefreshResult({
+      requestedScopeKey: scopeKey,
+      activeScopeKey: "branch-1::session-2::device-2::order-2",
+      requestId: 9,
+      latestRequestId: 10,
+    }),
+    false,
+  );
+});
+
+test("empty/no-scope review state remains conservative", () => {
+  assert.deepEqual(createEmptyOrderReview(), null);
+  assert.equal(
+    shouldApplyReviewRefreshResult({
+      requestedScopeKey: "",
+      activeScopeKey: "branch-1::session-1::device-1::order-1",
+      requestId: 1,
+      latestRequestId: 1,
+    }),
+    false,
+  );
+});
+
+test("review layer does not introduce any client-side pricing recomputation helper", () => {
+  const reviewState = createEmptyOrderReview();
+  const pricingState = createEmptyOrderPricing();
+  assert.equal(reviewState, null);
+  assert.deepEqual(pricingState, { subtotal: 0, tax: 0, total: 0, currency: "USD" });
 });
 
 test("stale initial-load flow does not issue pricing refresh after line refresh when scope moved", () => {

@@ -6,6 +6,7 @@ import * as posAccessModule from "@/lib/pos/access";
 import * as orderDraftModule from "@/lib/pos/order-draft";
 import * as orderLineModule from "@/lib/pos/order-line";
 import * as orderPricingModule from "@/lib/pos/order-pricing";
+import * as orderReviewModule from "@/lib/pos/order-review";
 
 import { CLIENT_SAFE_POS_DRAFT_ERROR, CLIENT_SAFE_POS_ORDER_ERROR } from "./order-action-errors";
 import {
@@ -14,6 +15,7 @@ import {
   getCurrentSessionDraftOrderAction,
   getCurrentSessionOrderLinesAction,
   getCurrentSessionOrderPricingAction,
+  getCurrentSessionOrderReviewAction,
   removeOrderLineAction,
   updateOrderLineAction,
 } from "./order-actions";
@@ -321,6 +323,57 @@ test("getCurrentSessionOrderPricingAction forwards exact current-session scope",
   });
 });
 
+test("getCurrentSessionOrderReviewAction forwards exact current-session scope", async () => {
+  const supabase = mockAuthAndAccess();
+  const repo = { repo: "review" };
+  let received: Parameters<typeof orderReviewModule.getCurrentSessionOrderReview>[0] | null = null;
+
+  mock.method(orderReviewModule, "createSupabasePosOrderReviewRepository", (arg: Parameters<typeof orderReviewModule.createSupabasePosOrderReviewRepository>[0]) => {
+    assert.equal(arg, supabase as never);
+    return repo as never;
+  });
+  mock.method(
+    orderReviewModule,
+    "getCurrentSessionOrderReview",
+    async (input: Parameters<typeof orderReviewModule.getCurrentSessionOrderReview>[0], repository: Parameters<typeof orderReviewModule.getCurrentSessionOrderReview>[1]) => {
+      received = input;
+      assert.equal(repository, repo as never);
+      return {
+        reviewStatus: "READY",
+        draft: { id: "order-1" },
+        activeLines: [],
+        pricingSummary: { subtotal: 0, tax: 0, total: 0, currency: "USD" },
+        pricingTraceLines: [],
+      } as never;
+    },
+  );
+
+  const result = await getCurrentSessionOrderReviewAction(SLUG, {
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    review: {
+      reviewStatus: "READY",
+      draft: { id: "order-1" },
+      activeLines: [],
+      pricingSummary: { subtotal: 0, tax: 0, total: 0, currency: "USD" },
+      pricingTraceLines: [],
+    },
+  });
+  assert.deepEqual(received, {
+    houseId: HOUSE_ID,
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+});
+
 test("getCurrentSessionOrderPricingAction maps expected pricing errors to no-leak safe message", async () => {
   mockAuthAndAccess();
   mock.method(orderPricingModule, "createSupabasePosOrderPricingRepository", () => ({}) as never);
@@ -376,6 +429,41 @@ test("getCurrentSessionOrderPricingAction rethrows unexpected pricing failures",
         orderId: "order-1",
       }),
     /db offline/,
+  );
+});
+
+test("getCurrentSessionOrderReviewAction maps expected review failures to no-leak safe message", async () => {
+  mockAuthAndAccess();
+  mock.method(orderReviewModule, "createSupabasePosOrderReviewRepository", () => ({}) as never);
+  mock.method(orderReviewModule, "getCurrentSessionOrderReview", async () => {
+    throw new orderReviewModule.PosOrderReviewError("scope mismatch", "ORDER_INVALID_OR_CLOSED", 403);
+  });
+
+  const result = await getCurrentSessionOrderReviewAction(SLUG, {
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+  assert.deepEqual(result, { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR });
+});
+
+test("getCurrentSessionOrderReviewAction rethrows unexpected review failures", async () => {
+  mockAuthAndAccess();
+  mock.method(orderReviewModule, "createSupabasePosOrderReviewRepository", () => ({}) as never);
+  mock.method(orderReviewModule, "getCurrentSessionOrderReview", async () => {
+    throw new Error("review infra offline");
+  });
+
+  await assert.rejects(
+    () =>
+      getCurrentSessionOrderReviewAction(SLUG, {
+        branchId: "branch-1",
+        sessionId: "session-1",
+        deviceId: "device-1",
+        orderId: "order-1",
+      }),
+    /review infra offline/,
   );
 });
 
