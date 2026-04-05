@@ -1,56 +1,40 @@
-# POS-F3 Slice 2 — Pricing Extension (Bounded, Post-Totals)
+# POS-F3 Slice 2 — Pricing Extension (Completed, Bounded)
 
 ## Summary
-POS-F3 Slice 2 extends pricing capability by adding a strictly bounded, explicit pricing input layer for current-session draft order pricing.
+POS-F3 Slice 2 is closed as bounded pricing-extension work only. The slice adds explicit pricing input handling for current-session draft pricing while preserving deterministic server-side totals and no-leak scope-first behavior.
 
-This slice remains pre-checkout, pre-payment, and pre-inventory. It does not introduce persistence, transaction side effects, or cross-session behavior.
+This closure does not expand POS into checkout, payment, inventory, or any persistence-oriented pricing workflow.
 
-## What was implemented
-- Added optional `pricingInput.lineUnitPriceOverrides` to `computeOrderPricing` input.
-- Added server-side validation for line unit price overrides:
-  - finite numbers only
-  - non-negative values only
-  - explicit source metadata restricted to `manual` or `default`
-- Preserved scope-first computation flow by resolving scoped current-session lines before applying pricing overrides.
-- Added per-line pricing source trace data in pricing output (`bounded_default` vs `override`) for bounded clarity/debuggability.
-- Kept pricing deterministic and stateless with fixed currency and fixed tax-rate flow.
+## Key decisions
+1. **Bounded explicit input model**
+   - Pricing overrides are only applied when explicitly supplied per line.
+   - No implicit auto-pricing, rules engine, or heuristic fallback behavior was introduced.
 
-## Decisions
-1. **Explicit input over implicit behavior**
-   - Overrides are only applied when explicitly provided per line id.
-   - No hidden heuristics or fallback inference were introduced.
+2. **Server-only override application**
+   - Override application remains inside server action/domain flow.
+   - No client-side pricing authority was added.
 
-2. **No pricing rules engine in this slice**
-   - Overrides are direct values only.
-   - No percentage/conditional/tier/promo orchestration was added.
+3. **Source trace without storage expansion**
+   - Per-line pricing source trace is returned for bounded clarity (`bounded_default` / `override`).
+   - No persistence, audit-storage expansion, or contract widening was introduced.
 
-3. **Traceability without persistence**
-   - Line-level pricing source is returned in response for bounded transparency.
-   - No storage, audit log, or post-checkout record changes were introduced.
+4. **Scope-first continuity**
+   - Existing scoped session/draft/order validation remains mandatory upstream.
+   - Override payloads cannot bypass scoped validation or no-leak denial posture.
 
-4. **Scope-first remains mandatory**
-   - Scoped line retrieval and session/order validation remain upstream of pricing application.
-   - Overrides cannot bypass session/order/device/branch/house constraints.
+## Hardening / corrections applied
+- Added bounded validation posture for malformed override payloads before override field access.
+- Enforced finite, non-negative override unit price constraints.
+- Rejected invalid override source values outside the approved bounded set (`manual`, `default`).
+- Preserved action-layer no-leak response posture while extending pricing input handling.
 
-## Constraints preserved
-- Server-only pricing computation.
-- Deterministic + reproducible totals.
-- Stateless computation per request.
-- No side effects in payments, inventory, checkout, finance, or ledgers.
-- No totals persistence.
-- No client-side pricing math.
+## Known limitations
+- No checkout/finalization behavior.
+- No payments/tenders.
+- No discounts/promotions/rules engine.
+- No inventory-aware pricing.
+- No persistence of override input or computed pricing results.
+- No cross-session or multi-order pricing behavior.
 
-## Rejected ideas (deferred)
-- Discount/promotions/coupon mechanics.
-- Percentage-based or rule-based pricing.
-- Inventory-aware dynamic pricing.
-- Pricing persistence/audit trail storage.
-- Cross-session pricing reuse.
-- Checkout/payment coupling.
-
-These remain future-slice candidates and are intentionally excluded from POS-F3 Slice 2.
-
-## Risks reviewed
-- **Tenancy/scope bypass risk:** mitigated by preserving current scoped line retrieval path and no-leak error mapping.
-- **Non-finite math risk:** mitigated with explicit override validation and existing bounded-price finite checks.
-- **Contract creep risk:** mitigated by additive-only extension, no contract repurposing, and explicit out-of-scope exclusions.
+## Outcome
+POS-F3 Slice 2 is now documented as **Completed (Bounded)**. Pricing input extensibility is improved with validation hardening and line-level source trace while phase discipline and gating remain unchanged for subsequent slices.

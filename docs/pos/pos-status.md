@@ -9,7 +9,7 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 - Phase control note: HR stability checkpoint completed; POS is now the active development phase under roadmap sequencing.
 - Foundation wave: complete (canonical POS foundation set present and aligned)
 - Implementation posture: POS-F1 stable baseline remains intact and POS-F2 bounded draft-order + line-mutation foundations are now recorded as complete within strict scope-first/no-leak constraints
-- Current work mode: POS-F3 Slice 1 is closed and locked; POS-F3 Slice 2 (bounded pricing extension) is now in progress under the same no-checkout/no-payment/no-inventory constraints
+- Current work mode: POS-F3 Slice 1 is closed and locked; POS-F3 Slice 2 (bounded pricing extension) is completed as bounded work, while the next slice remains gated and checkout/payment/inventory stay out of scope
 - First-slice stability checkpoint: completed on 2026-04-01 (UTC), with no blocker-class gaps identified
 - MVP posture: POS is still not MVP-complete
 
@@ -18,8 +18,8 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 |---|---|
 | Foundation | Canonical POS foundation set is complete (master/status/domain/access/identity/db/phase-1/guardrails). |
 | Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. POS-F2 bounded continuity is now complete for current-session draft-order create/reopen + current-session line add/read/update/remove + bounded persistence + thin action boundary integration + stale refresh hardening posture. |
-| Completed (Bounded) | F3 Slice 1 — Pricing & Totals (current-session draft only): deterministic subtotal/tax/total computation from current scoped order lines, thin action exposure, and read-only UI summary panel with no financial side effects. |
-| Next (Gated) | F3 Slice 2 — In progress as a bounded pricing-input extension only (unit-price override + source clarity), with checkout/payment/inventory still gated out. |
+| Completed (Bounded) | F3 Slice 1 — Pricing & Totals (current-session draft only): deterministic subtotal/tax/total computation from current scoped order lines, thin action exposure, and read-only UI summary panel with no financial side effects. F3 Slice 2 — Pricing Extension: completed as bounded pricing-input work (explicit input layer + bounded per-line override + line-level pricing source trace), with no checkout/payment/inventory coupling. |
+| Next (Gated) | F3 Slice 3 — Next gated follow-up slice only; checkout/finalization, payments/tendering, and inventory-aware behavior remain out of scope until explicitly approved. |
 | Blocked / Dependency | POS remains blocked from payment/inventory/reporting/cross-session browsing/multi-order management/finance effects until their own approved slices; no tenancy/auth boundary redesign is authorized by F2 closure. |
 
 ## 4. Current Approved Next Tasks
@@ -246,7 +246,7 @@ POS-F3 Slice 1 is closed as a bounded slice.
 - Cross-session reads
 - Multi-order aggregation
 
-## 11B. POS-F3 Slice 2 — Pricing Extension (In Progress)
+## 11B. POS-F3 Slice 2 — Pricing Extension (Completed, Bounded)
 ### What changed from Slice 1
 - Added an explicit **pricing input layer** for current-session pricing computation (no dynamic pricing engine).
 - Added bounded **per-line unit price override** support when explicitly supplied in action input.
@@ -271,3 +271,30 @@ POS-F3 Slice 1 is closed as a bounded slice.
 - Scope-first validation still precedes all pricing computation.
 - No-leak denial posture remains intact for invalid/mismatched scope.
 - No side effects are introduced in financial, payment, or inventory domains.
+
+
+## 11C. POS-F3 Slice 2 — Closure Record (Pricing Extension)
+POS-F3 Slice 2 is closed as a bounded slice.
+
+### What Slice 2 established
+- An explicit pricing input layer now exists for bounded current-session pricing requests.
+- Bounded per-line unit price override support now exists when explicit override input is supplied.
+- Override application remains server-only through the pricing action flow.
+- Line-level pricing source trace is now returned (`bounded_default` vs `override`).
+- Deterministic subtotal/tax/total computation remains intact under the same stateless model.
+
+### Safety / validation guarantees
+- Override entries must pass bounded validation before field access or application.
+- Malformed override payloads are rejected through bounded validation posture.
+- Override unit prices must be finite and non-negative.
+- Invalid pricing input source values are rejected (`manual` or `default` only).
+- Override input cannot bypass scoped session/draft/order validation.
+- No-leak response posture remains intact through the action layer.
+
+### What Slice 2 does not do
+- No checkout/finalization.
+- No payments/tenders.
+- No discounts/promotions/rules engine behavior.
+- No inventory-aware pricing behavior.
+- No persistence of override input or computed pricing results.
+- No cross-session or multi-order pricing behavior.
