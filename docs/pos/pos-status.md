@@ -5,11 +5,11 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 
 ## 2. Current Execution Snapshot
 - Module: POS
-- Current phase: POS-F2 bounded closure completed; POS-F3 Slice 1 and Slice 2 are completed bounded pricing layers, and POS-F3 Slice 3 is the active in-progress bounded pre-checkout order review slice
+- Current phase: POS-F2 bounded closure completed; POS-F3 Slice 1 and Slice 2 remain completed bounded pricing layers, and POS-F3 Slice 3 is now completed as bounded pre-checkout order review work
 - Phase control note: HR stability checkpoint completed; POS is now the active development phase under roadmap sequencing.
 - Foundation wave: complete (canonical POS foundation set present and aligned)
 - Implementation posture: POS-F1 stable baseline remains intact and POS-F2 bounded draft-order + line-mutation foundations are now recorded as complete within strict scope-first/no-leak constraints
-- Current work mode: POS-F3 Slice 1 and Slice 2 are closed and locked; POS-F3 Slice 3 (bounded current-session order review) is now in progress as read-only orchestration with checkout/payment/inventory still out of scope
+- Current work mode: POS-F3 Slice 1, Slice 2, and Slice 3 are closed and locked as bounded records; the next step is gated to explicit POS-F3 Slice 4 initiation only, with checkout/payment/inventory still out of scope
 - First-slice stability checkpoint: completed on 2026-04-01 (UTC), with no blocker-class gaps identified
 - MVP posture: POS is still not MVP-complete
 
@@ -18,15 +18,15 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 |---|---|
 | Foundation | Canonical POS foundation set is complete (master/status/domain/access/identity/db/phase-1/guardrails). |
 | Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. POS-F2 bounded continuity is now complete for current-session draft-order create/reopen + current-session line add/read/update/remove + bounded persistence + thin action boundary integration + stale refresh hardening posture. |
-| Completed (Bounded) | F3 Slice 1 — Pricing & Totals (current-session draft only): deterministic subtotal/tax/total computation from current scoped order lines, thin action exposure, and read-only UI summary panel with no financial side effects. F3 Slice 2 — Pricing Extension: completed as bounded pricing-input work (explicit input layer + bounded per-line override + line-level pricing source trace), with no checkout/payment/inventory coupling. |
-| Next (Gated) | F3 Slice 3 is now active as bounded review-only work; checkout/finalization, payments/tendering, inventory-aware behavior, cross-session browsing, and persistence side-effects remain out of scope until explicitly approved. |
+| Completed (Bounded) | F3 Slice 1 — Pricing & Totals (current-session draft only): deterministic subtotal/tax/total computation from current scoped order lines, thin action exposure, and read-only UI summary panel with no financial side effects. F3 Slice 2 — Pricing Extension: completed as bounded pricing-input work (explicit input layer + bounded per-line override + line-level pricing source trace), with no checkout/payment/inventory coupling. F3 Slice 3 — Order Review: completed as bounded read-only current-session orchestration (scoped draft identity + active lines + server pricing summary + pricing source trace) with no checkout/finalization/payment/inventory/persistence side effects. |
+| Next (Gated) | POS-F3 Slice 4 — Review Validation / Checkout Readiness (Gated, not started). This remains strictly pre-payment, pre-inventory, and pre-finalization; checkout execution, tenders/payments, inventory-aware behavior, cross-session browsing, multi-order orchestration, and persistence side-effects remain out of scope unless explicitly approved. |
 | Blocked / Dependency | POS remains blocked from payment/inventory/reporting/cross-session browsing/multi-order management/finance effects until their own approved slices; no tenancy/auth boundary redesign is authorized by F2 closure. |
 
 ## 4. Current Approved Next Tasks
 1. Preserve POS-F1 + POS-F2 bounded guarantees without contract reinterpretation.
 2. Use the POS-F2 completion record in this document as the required upstream boundary for any F3 planning artifact.
 3. Keep F3 scoped to approved next-slice intent only; reject stealth expansion into payment/inventory/reporting/finance consequences.
-4. Continue phase-gated sequencing from roadmap posture: explicit initiation is required before any F3 implementation work.
+4. Continue phase-gated sequencing from roadmap posture: explicit initiation is required before any Slice 4 implementation work.
 5. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
 
 ## 5A. POS-F2 Completion Record (Bounded Closure)
@@ -299,8 +299,8 @@ POS-F3 Slice 2 is closed as a bounded slice.
 - No persistence of override input or computed pricing results.
 - No cross-session or multi-order pricing behavior.
 
-## 11D. POS-F3 Slice 3 — Order Review (In Progress)
-### What this slice adds
+## 11D. POS-F3 Slice 3 — Order Review (Completed, Bounded)
+### What this slice established
 - A bounded **current-session draft order review** layer that consolidates:
   - scoped draft identity,
   - active order lines,
@@ -326,3 +326,41 @@ POS-F3 Slice 2 is closed as a bounded slice.
 - Cross-session or historical order browsing.
 - Multi-order queue management.
 - Finance/ledger side effects.
+
+## 11E. POS-F3 Slice 3 — Closure Record (Order Review)
+POS-F3 Slice 3 is closed as a bounded slice.
+
+### What Slice 3 established
+- A read-only orchestration layer now exists for **current-session draft order review** only.
+- Review composition now consistently combines scoped draft identity, active lines, server-computed pricing summary, and existing pricing source trace.
+- The review response remains deterministic and derived from existing Slice 1/2 pricing and F2 draft/line foundations.
+
+### What is guaranteed
+- Scope discipline remains strict and exact: **house -> branch -> session -> device -> order**.
+- Review output is generated server-side through scoped orchestration boundaries only.
+- Existing no-leak denial posture remains intact for invalid, missing, or mismatched scoped context.
+- Existing draft/line/pricing contracts remain the source of truth; Slice 3 does not reinterpret or repurpose frozen behavior.
+
+### Orchestration / read-only behavior
+- Slice 3 composes existing bounded helpers/repositories rather than introducing new checkout or sale orchestration.
+- Action exposure remains thin: auth/access/context resolution + scoped forwarding + safe response mapping.
+- Review is strictly read-only and pre-checkout, with no order-finalization transition semantics.
+
+### Scope boundaries (preserved)
+- No checkout execution or finalization workflow.
+- No payment/tender orchestration.
+- No inventory deduction, reservation, or stock-aware coupling.
+- No persistence of review snapshots/results.
+- No cross-session browsing, historical review browsing, or multi-order queue orchestration.
+
+### Safety / no-leak guarantees
+- Invalid or out-of-scope review attempts collapse to bounded no-leak denial posture.
+- Review does not widen tenant/branch/session/device visibility boundaries.
+- No new finance/ledger/reporting side effects are introduced by review orchestration.
+
+### What Slice 3 does not do
+- It does not create checkout capability.
+- It does not create payment capability.
+- It does not create inventory-coupled behavior.
+- It does not persist review snapshots.
+- It does not authorize broader POS MVP completion claims.
