@@ -5,10 +5,10 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 
 ## 2. Current Execution Snapshot
 - Module: POS
-- Current phase: POS-F2 bounded closure completed; ready-for-F3 handoff documented (no F3 implementation started)
+- Current phase: POS-F2 bounded closure completed; POS-F3 Slice 1 (pricing/totals) is now in progress within current-session draft boundaries
 - Foundation wave: complete (canonical POS foundation set present and aligned)
 - Implementation posture: POS-F1 stable baseline remains intact and POS-F2 bounded draft-order + line-mutation foundations are now recorded as complete within strict scope-first/no-leak constraints
-- Current work mode: documentation-first closure and boundary alignment; no stealth scope expansion; F3 remains gated to explicit next-slice initiation
+- Current work mode: bounded POS-F3 Slice 1 execution (deterministic pricing computation + safe exposure only); no stealth scope expansion into checkout/payments/inventory
 - First-slice stability checkpoint: completed on 2026-04-01 (UTC), with no blocker-class gaps identified
 - MVP posture: POS is still not MVP-complete
 
@@ -17,7 +17,7 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 |---|---|
 | Foundation | Canonical POS foundation set is complete (master/status/domain/access/identity/db/phase-1/guardrails). |
 | Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. POS-F2 bounded continuity is now complete for current-session draft-order create/reopen + current-session line add/read/update/remove + bounded persistence + thin action boundary integration + stale refresh hardening posture. |
-| In Progress | No POS-F2 implementation work remains open in this closure record. Any F3 work stays planning-gated until explicitly initiated under roadmap/module sequencing controls. |
+| In Progress | F3 Slice 1 — Pricing & Totals (current-session draft only): deterministic subtotal/tax/total computation from current scoped order lines, thin action exposure, and read-only UI summary panel with no financial side effects. |
 | Blocked / Dependency | POS remains blocked from payment/inventory/reporting/cross-session browsing/multi-order management/finance effects until their own approved slices; no tenancy/auth boundary redesign is authorized by F2 closure. |
 
 ## 4. Current Approved Next Tasks
@@ -182,3 +182,19 @@ POS MVP is only considered done when, at minimum, all are true:
 
 ## 10. Last Updated
 2026-04-04 (UTC)
+
+## 11. POS-F3 Slice 1 — Pricing & Totals (In Progress)
+### Now supported
+- Deterministic, stateless pricing totals are computed from **current-session order lines only** (line total = quantity × bounded unit price source).
+- Totals include subtotal, fixed-rate tax, and grand total for the active scoped order.
+- Pricing exposure is read-only and action-mediated with no-leak error mapping.
+- Session client includes a read-only “Order Summary” surface refreshed from server results (no optimistic client-side math).
+
+### Explicitly not supported (still out of scope)
+- Checkout/finalization.
+- Payments/tendering.
+- Discounts/promotions/special pricing orchestration.
+- Inventory deduction/reservation/stock validation.
+- Receipt generation.
+- Totals persistence to storage.
+- Cross-session pricing reads, multi-order management, or catalog expansion.

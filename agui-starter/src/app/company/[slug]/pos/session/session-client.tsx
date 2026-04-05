@@ -8,6 +8,7 @@ import {
   createDraftOrderAction,
   getCurrentSessionDraftOrderAction,
   getCurrentSessionOrderLinesAction,
+  getCurrentSessionOrderPricingAction,
   removeOrderLineAction,
   updateOrderLineAction,
 } from "./order-actions";
@@ -26,6 +27,7 @@ type CurrentOrderScope = {
 };
 
 type LineEditState = Record<string, { itemCode: string; quantity: string }>;
+type OrderPricingView = { subtotal: number; tax: number; total: number; currency: string };
 
 export function resolveInitialBranchId(defaultBranchId: string | null): string {
   return defaultBranchId?.trim() ?? "";
@@ -84,8 +86,33 @@ export function shouldApplyLineRefreshResult(input: {
   return input.requestId === input.latestRequestId && input.requestedScopeKey === input.activeScopeKey;
 }
 
+export function shouldApplyPricingRefreshResult(input: {
+  requestedScopeKey: string;
+  activeScopeKey: string;
+  requestId: number;
+  latestRequestId: number;
+}): boolean {
+  return shouldApplyLineRefreshResult(input);
+}
+
+export function shouldRefreshPricingAfterLineRefresh(input: {
+  cancelled: boolean;
+  requestedScopeKey: string;
+  activeScopeKey: string;
+}): boolean {
+  if (input.cancelled) {
+    return false;
+  }
+
+  return input.requestedScopeKey !== "" && input.requestedScopeKey === input.activeScopeKey;
+}
+
 export function clearLineSurfaceState(): { lines: PosOrderLineView[]; lineEdits: LineEditState } {
   return { lines: [], lineEdits: {} };
+}
+
+export function createEmptyOrderPricing(): OrderPricingView {
+  return { subtotal: 0, tax: 0, total: 0, currency: "USD" };
 }
 
 export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defaultBranchId: string | null }) {
@@ -103,11 +130,13 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
   const [newItemCode, setNewItemCode] = useState("");
   const [newQuantity, setNewQuantity] = useState("1");
   const [lineEdits, setLineEdits] = useState<LineEditState>({});
+  const [pricing, setPricing] = useState<OrderPricingView>(createEmptyOrderPricing());
 
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const activeScopeKeyRef = useRef("");
   const latestLinesRequestIdRef = useRef(0);
+  const latestPricingRequestIdRef = useRef(0);
 
   const currentScope = useMemo(
     () =>
@@ -125,6 +154,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
     activeScopeKeyRef.current = currentScopeKey;
     if (!currentScopeKey) {
       latestLinesRequestIdRef.current += 1;
+      latestPricingRequestIdRef.current += 1;
     }
   }, [currentScopeKey]);
 
@@ -135,6 +165,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
     setActiveOrderId("");
     setLines(cleared.lines);
     setLineEdits(cleared.lineEdits);
+    setPricing(createEmptyOrderPricing());
     setNewItemCode("");
     setNewQuantity("1");
   }
@@ -184,6 +215,38 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
     });
   }, [slug]);
 
+  const refreshPricing = useCallback(async (scope: CurrentOrderScope) => {
+    const requestId = latestPricingRequestIdRef.current + 1;
+    latestPricingRequestIdRef.current = requestId;
+    const requestedScopeKey = serializeCurrentOrderScope(scope);
+
+    const response = await getCurrentSessionOrderPricingAction(slug, {
+      branchId: scope.branchId,
+      sessionId: scope.sessionId,
+      deviceId: scope.deviceId,
+      orderId: scope.orderId,
+    });
+
+    if (
+      !shouldApplyPricingRefreshResult({
+        requestedScopeKey,
+        activeScopeKey: activeScopeKeyRef.current,
+        requestId,
+        latestRequestId: latestPricingRequestIdRef.current,
+      })
+    ) {
+      return;
+    }
+
+    if (!response.ok) {
+      setMessage(response.error);
+      setPricing(createEmptyOrderPricing());
+      return;
+    }
+
+    setPricing(response.pricing);
+  }, [slug]);
+
   useEffect(() => {
     if (!currentScope) {
       return;
@@ -192,6 +255,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
     let cancelled = false;
 
     startTransition(async () => {
+      const requestedScopeKey = serializeCurrentOrderScope(currentScope);
       const draftResult = await getCurrentSessionDraftOrderAction(slug, {
         branchId: currentScope.branchId,
         sessionId: currentScope.sessionId,
@@ -207,16 +271,28 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
         setMessage(draftResult.error);
         setLines([]);
         setLineEdits({});
+        setPricing(createEmptyOrderPricing());
         return;
       }
 
       await refreshLines(currentScope);
+      if (
+        !shouldRefreshPricingAfterLineRefresh({
+          cancelled,
+          requestedScopeKey,
+          activeScopeKey: activeScopeKeyRef.current,
+        })
+      ) {
+        return;
+      }
+
+      await refreshPricing(currentScope);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [currentScope, refreshLines, slug]);
+  }, [currentScope, refreshLines, refreshPricing, slug]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
@@ -318,6 +394,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
 
               startTransition(async () => {
                 await refreshLines(currentScope);
+                await refreshPricing(currentScope);
               });
             }}
           >
@@ -361,6 +438,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
                 setNewItemCode("");
                 setNewQuantity("1");
                 await refreshLines(currentScope);
+                await refreshPricing(currentScope);
               });
             }}
           >
@@ -427,6 +505,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
 
                         setMessage(`Line updated: ${result.lineId}`);
                         await refreshLines(currentScope);
+                        await refreshPricing(currentScope);
                       });
                     }}
                   >
@@ -456,6 +535,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
 
                         setMessage(`Line removed: ${result.lineId}`);
                         await refreshLines(currentScope);
+                        await refreshPricing(currentScope);
                       });
                     }}
                   >
@@ -466,6 +546,13 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
             );
           })}
         </ul>
+
+        <div className="space-y-1 rounded border p-3 text-sm">
+          <h3 className="font-medium">Order Summary</h3>
+          <p>Subtotal: {pricing.currency} {pricing.subtotal.toFixed(2)}</p>
+          <p>Tax: {pricing.currency} {pricing.tax.toFixed(2)}</p>
+          <p>Total: {pricing.currency} {pricing.total.toFixed(2)}</p>
+        </div>
       </div>
 
       {message ? <p className="rounded bg-muted p-3 text-sm">{message}</p> : null}

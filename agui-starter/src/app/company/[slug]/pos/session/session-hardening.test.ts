@@ -3,12 +3,15 @@ import test from "node:test";
 
 import { mapPosSessionClientError } from "./error-messages";
 import {
+  createEmptyOrderPricing,
   clearLineSurfaceState,
   parseQuantityInput,
   resolveCurrentOrderScope,
   resolveInitialBranchId,
   serializeCurrentOrderScope,
   shouldApplyLineRefreshResult,
+  shouldApplyPricingRefreshResult,
+  shouldRefreshPricingAfterLineRefresh,
 } from "./session-client";
 import { PosSessionAuthError } from "@/lib/pos/session-auth";
 
@@ -118,6 +121,59 @@ test("failed scoped line fetch path remains conservative and clears stale depend
   );
 
   assert.deepEqual(clearLineSurfaceState(), { lines: [], lineEdits: {} });
+  assert.deepEqual(createEmptyOrderPricing(), { subtotal: 0, tax: 0, total: 0, currency: "USD" });
+});
+
+test("pricing refresh follows the same stale scope guard and does not compute totals client-side", () => {
+  const scopeKey = "branch-1::session-1::device-1::order-1";
+  assert.equal(
+    shouldApplyPricingRefreshResult({
+      requestedScopeKey: scopeKey,
+      activeScopeKey: scopeKey,
+      requestId: 2,
+      latestRequestId: 2,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldApplyPricingRefreshResult({
+      requestedScopeKey: scopeKey,
+      activeScopeKey: "",
+      requestId: 2,
+      latestRequestId: 2,
+    }),
+    false,
+  );
+});
+
+test("stale initial-load flow does not issue pricing refresh after line refresh when scope moved", () => {
+  assert.equal(
+    shouldRefreshPricingAfterLineRefresh({
+      cancelled: false,
+      requestedScopeKey: "branch-1::session-1::device-1::order-1",
+      activeScopeKey: "branch-1::session-2::device-2::order-2",
+    }),
+    false,
+  );
+});
+
+test("newer valid pricing refresh is not invalidated by stale load path follow-up", () => {
+  assert.equal(
+    shouldRefreshPricingAfterLineRefresh({
+      cancelled: false,
+      requestedScopeKey: "branch-1::session-1::device-1::order-1",
+      activeScopeKey: "branch-1::session-1::device-1::order-1",
+    }),
+    true,
+  );
+  assert.equal(
+    shouldRefreshPricingAfterLineRefresh({
+      cancelled: true,
+      requestedScopeKey: "branch-1::session-1::device-1::order-1",
+      activeScopeKey: "branch-1::session-1::device-1::order-1",
+    }),
+    false,
+  );
 });
 
 test("open/close deny codes map to one client-safe no-leak message", () => {
