@@ -21,14 +21,20 @@ If a lower layer conflicts with a higher layer, stop and surface the conflict in
 ---
 
 ## Active Delivery Rule
-Agui is phase-based.
+Agui is phase-based, and only one active phase may be worked on at a time.
 
-Current active priority:
-1. HR System (end-to-end MVP)
-2. POS
+Current priority order (sequence unchanged):
+1. HR System (initial active phase)
+2. POS (current active phase)
 3. Operations
 4. Finance
 5. Growth and advanced systems
+
+Phase transition note:
+- HR was the initial active phase.
+- HR reached the required stability checkpoint (recorded on 2026-03-31 UTC).
+- POS is now the active development phase under roadmap sequencing.
+- HR remains stable but is not the currently active phase.
 
 ### Hard rules
 - Only the active phase may be worked on.
@@ -36,7 +42,7 @@ Current active priority:
 - No future-scope implementation unless the task explicitly authorizes shared foundation work.
 - No partial implementation “just to test” unless explicitly requested.
 
-POS and later systems are gated until HR reaches stability milestones.
+Operations, Finance, and later systems remain gated until POS progression authorizes their own start.
 
 ---
 
