@@ -1,29 +1,31 @@
 # POS F3 Slice 3 — Bounded Current-Session Order Review
 
 ## Summary
-POS-F3 Slice 3 begins a bounded, read-only pre-checkout review layer for the **current-session draft order only**.  
-This slice composes existing draft read, active-line read, and pricing computation foundations into a single consolidated review response and a thin client review panel.
+POS-F3 Slice 3 is now closed as **Completed (Bounded)** for current-session order review.
+The slice establishes a read-only, pre-checkout review composition layer for the **current-session draft order only**, using existing draft/line/pricing foundations without expanding into checkout, payments, inventory, or persistence side effects.
 
-## Decisions
-- Implemented `getCurrentSessionOrderReview` as orchestration-first helper composition.
-- Reused existing scoped repositories/helpers (`order-draft`, `order-line`, `order-pricing`) instead of duplicating business rules.
-- Kept server action integration thin and consistent with existing no-leak client-safe deny mapping.
-- Added conservative stale-response guards for review refresh flow in the session client, aligned with existing line/pricing guards.
+## Key Decisions
+- Kept review orchestration composition-first and read-only, anchored to existing scoped draft/line/pricing capabilities.
+- Preserved thin action boundary posture (auth/access/context resolution + scoped forwarding + safe mapping).
+- Preserved strict current-session scope chain with no cross-session or multi-order expansion.
+- Preserved explicit pre-checkout boundary and non-goals as first-class governance constraints.
 
-## Constraints Preserved
-- Current-session scope only (`house_id`, `branch_id`, `session_id`, `device_id`, `order_id`).
-- Read-only review orchestration only.
-- No checkout, payment, inventory, receipt, sale finalization, or finance side effects.
-- No persistence of review snapshots.
-- No schema expansion and no migration work.
-- No cross-session or historical order browsing introduced.
+## Hardening / Corrections Applied
+- Confirmed Slice 3 behavior remains orchestration/read-only only and does not introduce order-finalization semantics.
+- Confirmed no-leak denial posture continuity for invalid or mismatched scoped context.
+- Confirmed stale-response guard posture remains aligned with prior bounded pricing/session refresh safety patterns.
+- Confirmed no persistence layer expansion was introduced for review snapshots or review history.
 
 ## Known Limitations
-- Review panel only reflects currently active scoped draft context and requires valid scope ids.
-- Review data is fetched server-side and refreshed explicitly; no offline/client-local review model exists.
-- No review history or multi-order queue context is provided in this slice.
+- Review is limited to the currently active scoped draft context and requires valid scoped identifiers.
+- Review remains explicitly pre-checkout and cannot execute checkout/finalization transitions.
+- No payment/tender behavior is available.
+- No inventory-aware coupling is available.
+- No persistence of review snapshots/history is provided.
+- No cross-session browsing or multi-order orchestration is provided.
 
-## Outcome / Current Posture
+## Outcome
 - Slice 1 and Slice 2 remain closed and unchanged.
-- Slice 3 is now the active bounded POS-F3 increment with helper/action/client hardening coverage in place.
-- Checkout/payment/inventory remains explicitly blocked for future approved slices only.
+- Slice 3 is closed and locked as a bounded pre-checkout order review slice.
+- The next increment is gated to explicit Slice 4 initiation only and remains planning-gated.
+- Checkout/payment/inventory/finalization behavior remains out of scope unless explicitly approved in a later slice.
