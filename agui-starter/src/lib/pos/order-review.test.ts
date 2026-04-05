@@ -221,3 +221,58 @@ test("getCurrentSessionOrderReview never leaks cross-session or cross-device lin
   assert.deepEqual(result.activeLines, [{ id: "line-valid", orderId: ORDER_ID, itemCode: "ITEM-1", quantity: 1 }]);
   assert.deepEqual(result.pricingTraceLines.map((line) => line.lineId), ["line-valid"]);
 });
+
+test("getCurrentSessionOrderReview reuses one scoped line snapshot for active lines and pricing trace", async () => {
+  const session = makeSession();
+  const draft = makeDraft();
+  let readCount = 0;
+  const firstSnapshot = [makeLine({ id: "line-snapshot-1", item_code: "ITEM-1", quantity: 2 })];
+  const secondSnapshot = [makeLine({ id: "line-snapshot-2", item_code: "ITEM-2", quantity: 3 })];
+
+  const result = await getCurrentSessionOrderReview(SCOPE, {
+    draftRepository: {
+      async getSessionById() {
+        return session;
+      },
+      async getDraftOrderById() {
+        return draft;
+      },
+      async insertOrderDraft() {
+        throw new Error("not used");
+      },
+    },
+    lineRepository: {
+      async getSessionById() {
+        return session;
+      },
+      async getOrderDraftById() {
+        return draft;
+      },
+      async getOrderLinesByDraft() {
+        readCount += 1;
+        return readCount === 1 ? firstSnapshot : secondSnapshot;
+      },
+      async insertOrderLine() {
+        throw new Error("not used");
+      },
+      async updateOrderLine() {
+        throw new Error("not used");
+      },
+      async removeOrderLine() {
+        throw new Error("not used");
+      },
+    },
+    pricingRepository: {
+      getPriceForItem(itemCode: string) {
+        if (itemCode === "ITEM-1") return 10;
+        if (itemCode === "ITEM-2") return 15;
+        return null;
+      },
+    },
+  });
+
+  assert.equal(readCount, 1);
+  assert.deepEqual(result.activeLines.map((line) => line.id), ["line-snapshot-1"]);
+  assert.deepEqual(result.pricingTraceLines.map((line) => line.lineId), ["line-snapshot-1"]);
+  assert.deepEqual(result.pricingSummary, { subtotal: 20, tax: 2.4, total: 22.4, currency: "USD" });
+});

@@ -19,7 +19,7 @@ import {
 } from "./order-line";
 import {
   PosOrderPricingError,
-  computeOrderPricing,
+  computeOrderPricingFromScopedLines,
   createSupabasePosOrderPricingRepository,
 } from "./order-pricing";
 
@@ -34,7 +34,9 @@ type ReviewScopeInput = {
 type OrderReviewRepository = {
   draftRepository: Exclude<OrderDraftRepositoryClient, null | undefined>;
   lineRepository: Exclude<OrderLineRepositoryClient, null | undefined>;
-  pricingRepository: NonNullable<Parameters<typeof computeOrderPricing>[1]>;
+  pricingRepository: {
+    getPriceForItem(itemCode: string): Promise<number | null> | number | null;
+  };
 };
 
 export class PosOrderReviewError extends Error {
@@ -105,11 +107,16 @@ export async function getCurrentSessionOrderReview(
   const resolvedRepository = resolveRepository(repository);
 
   try {
-    const [draft, activeLines, pricing] = await Promise.all([
+    const [draft, activeLines] = await Promise.all([
       getCurrentSessionDraftOrder(input, resolvedRepository.draftRepository),
       getCurrentSessionOrderLines(input, resolvedRepository.lineRepository),
-      computeOrderPricing(input, resolvedRepository.pricingRepository),
     ]);
+    const pricing = await computeOrderPricingFromScopedLines(
+      {
+        lines: activeLines,
+      },
+      resolvedRepository.pricingRepository.getPriceForItem,
+    );
 
     return {
       reviewStatus: "READY",

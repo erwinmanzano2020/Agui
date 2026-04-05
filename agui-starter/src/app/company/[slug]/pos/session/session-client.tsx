@@ -152,6 +152,10 @@ export function createEmptyOrderReview(): OrderReviewView {
   return null;
 }
 
+export function shouldRefreshReviewAfterAddLineSuccess(input: { addLineSucceeded: boolean; hasScopedOrder: boolean }): boolean {
+  return input.addLineSucceeded && input.hasScopedOrder;
+}
+
 export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defaultBranchId: string | null }) {
   const [deviceCode, setDeviceCode] = useState("");
   const [qrIdentifier, setQrIdentifier] = useState("");
@@ -515,6 +519,14 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
                 setNewQuantity("1");
                 await refreshLines(currentScope);
                 await refreshPricing(currentScope);
+                if (
+                  shouldRefreshReviewAfterAddLineSuccess({
+                    addLineSucceeded: result.ok,
+                    hasScopedOrder: currentScope !== null,
+                  })
+                ) {
+                  await refreshReview(currentScope);
+                }
               });
             }}
           >

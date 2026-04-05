@@ -13,6 +13,7 @@ import {
   shouldApplyLineRefreshResult,
   shouldApplyPricingRefreshResult,
   shouldApplyReviewRefreshResult,
+  shouldRefreshReviewAfterAddLineSuccess,
   shouldRefreshPricingAfterLineRefresh,
 } from "./session-client";
 import { PosSessionAuthError } from "@/lib/pos/session-auth";
@@ -188,6 +189,30 @@ test("review layer does not introduce any client-side pricing recomputation help
   const pricingState = createEmptyOrderPricing();
   assert.equal(reviewState, null);
   assert.deepEqual(pricingState, { subtotal: 0, tax: 0, total: 0, currency: "USD" });
+});
+
+test("add-line success path requires scoped review refresh", () => {
+  assert.equal(
+    shouldRefreshReviewAfterAddLineSuccess({
+      addLineSucceeded: true,
+      hasScopedOrder: true,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldRefreshReviewAfterAddLineSuccess({
+      addLineSucceeded: true,
+      hasScopedOrder: false,
+    }),
+    false,
+  );
+  assert.equal(
+    shouldRefreshReviewAfterAddLineSuccess({
+      addLineSucceeded: false,
+      hasScopedOrder: true,
+    }),
+    false,
+  );
 });
 
 test("stale initial-load flow does not issue pricing refresh after line refresh when scope moved", () => {
