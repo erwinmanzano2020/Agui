@@ -9,7 +9,7 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 - Phase control note: HR stability checkpoint completed; POS is now the active development phase under roadmap sequencing.
 - Foundation wave: complete (canonical POS foundation set present and aligned)
 - Implementation posture: POS-F1 stable baseline remains intact and POS-F2 bounded draft-order + line-mutation foundations are now recorded as complete within strict scope-first/no-leak constraints
-- Current work mode: POS-F3 Slice 1, Slice 2, and Slice 3 are closed and locked as bounded records; the next step is gated to explicit POS-F3 Slice 4 initiation only, with checkout/payment/inventory still out of scope
+- Current work mode: POS-F3 Slice 1, Slice 2, and Slice 3 are closed and locked as bounded records; POS-F3 Slice 4 is the next gated planning-only target and remains not started until explicit initiation, with checkout/payment/inventory still out of scope
 - First-slice stability checkpoint: completed on 2026-04-01 (UTC), with no blocker-class gaps identified
 - MVP posture: POS is still not MVP-complete
 
@@ -19,7 +19,7 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 | Foundation | Canonical POS foundation set is complete (master/status/domain/access/identity/db/phase-1/guardrails). |
 | Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. POS-F2 bounded continuity is now complete for current-session draft-order create/reopen + current-session line add/read/update/remove + bounded persistence + thin action boundary integration + stale refresh hardening posture. |
 | Completed (Bounded) | F3 Slice 1 — Pricing & Totals (current-session draft only): deterministic subtotal/tax/total computation from current scoped order lines, thin action exposure, and read-only UI summary panel with no financial side effects. F3 Slice 2 — Pricing Extension: completed as bounded pricing-input work (explicit input layer + bounded per-line override + line-level pricing source trace), with no checkout/payment/inventory coupling. F3 Slice 3 — Order Review: completed as bounded read-only current-session orchestration (scoped draft identity + active lines + server pricing summary + pricing source trace) with no checkout/finalization/payment/inventory/persistence side effects. |
-| Next (Gated) | POS-F3 Slice 4 — Review Validation / Checkout Readiness (Gated, not started). This remains strictly pre-payment, pre-inventory, and pre-finalization; checkout execution, tenders/payments, inventory-aware behavior, cross-session browsing, multi-order orchestration, and persistence side-effects remain out of scope unless explicitly approved. |
+| Next (Gated) | POS-F3 Slice 4 — Review Validation / Checkout Readiness (Gated, Planning Only, Not Started). This remains strictly pre-payment, pre-inventory, and pre-finalization; checkout execution, tenders/payments, inventory-aware behavior, cross-session browsing, multi-order orchestration, and persistence side-effects remain out of scope unless explicitly approved. |
 | Blocked / Dependency | POS remains blocked from payment/inventory/reporting/cross-session browsing/multi-order management/finance effects until their own approved slices; no tenancy/auth boundary redesign is authorized by F2 closure. |
 
 ## 4. Current Approved Next Tasks
@@ -364,3 +364,68 @@ POS-F3 Slice 3 is closed as a bounded slice.
 - It does not create inventory-coupled behavior.
 - It does not persist review snapshots.
 - It does not authorize broader POS MVP completion claims.
+
+## 11F. POS-F3 Slice 4 — Review Validation / Checkout Readiness (Gated, Planning Only, Not Started)
+### Planning-only definition
+POS-F3 Slice 4 is a **planning-only**, **gated**, **not started** slice definition for bounded **pre-checkout read-only validation**.
+
+Slice 4 is defined as:
+- current-session only,
+- draft-order only,
+- read-only validation only,
+- pre-checkout only,
+- no side effects,
+- no payment behavior,
+- no inventory behavior,
+- no finalization behavior.
+
+Explicit initiation is required before any implementation work.
+
+### Validation purpose (bounded)
+Slice 4 answers only this bounded question:
+
+**“Is this exact current-session draft order ready to proceed to a future checkout slice?”**
+
+Slice 4 does **not** perform checkout and must not be interpreted as checkout availability.
+
+### What Slice 4 will validate (bounded readiness inputs)
+Readiness inputs are bounded to existing POS constraints and exact scoped context:
+- scoped order exists,
+- order state is still `DRAFT`,
+- session state is still `OPEN`,
+- scoped lineage is exact and valid: **house -> branch -> session -> device -> order**,
+- order has at least one active line,
+- active lines are valid for bounded review purposes under existing draft-line rules,
+- pricing is resolvable under existing server pricing rules,
+- no missing price state exists,
+- no invalid scoped context exists.
+
+No speculative future checkout/payment/inventory rules are added in this slice definition.
+
+### Conceptual output shape (planning only)
+Slice 4 readiness output is defined conceptually as read-only validation output containing:
+- readiness status,
+- blocking issues list,
+- machine-safe issue codes,
+- read-only validation summary.
+
+This section defines intent only and does not introduce runtime types/contracts in this status document.
+
+### Explicit non-goals (must remain out of scope)
+Slice 4 explicitly does **not** include:
+- checkout execution,
+- sale finalization,
+- payment/tender capture,
+- inventory reservation/deduction,
+- receipt generation,
+- persistence of readiness snapshots,
+- cross-session browsing,
+- multi-order queue orchestration,
+- finance/ledger effects.
+
+### Governance posture for this slice
+- Planning only.
+- Gated and not started.
+- No stealth expansion.
+- No future-scope implementation implied by this document section.
+- Any wording that could imply checkout/payment/inventory enablement must be interpreted as out of scope unless explicitly approved in a later implementation task.
