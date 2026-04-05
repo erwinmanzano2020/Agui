@@ -7,10 +7,12 @@
 - HR execution-aligned plan: [`docs/hr/hr-master-plan-expanded.md`](../../docs/hr/hr-master-plan-expanded.md)
 
 ## Current System Phase (Canonical)
-- Active system: HR
-- Execution mode: Hardening & Consolidation
-- HR is **not** in feature expansion mode
-- POS and all later systems remain gated until HR stability criteria are met
+- Active system: POS
+- Execution mode: Bounded POS slice progression under explicit slice initiation and no-stealth-expansion rules
+- Phase activation note: HR reached the required stability checkpoint for sequencing unlock; POS is now the active development phase
+- HR remains stable but is not the currently active phase
+- Future systems remain gated behind POS progression
+- Phase-based execution discipline remains in force (one active phase at a time)
 
 ## HR Track Status
 - HR-0 to HR-3.5: **implemented baseline, hardening-active**
@@ -23,13 +25,13 @@
 - **HR is not awaiting feature completion; it is undergoing stabilization**
 
 ## Current Execution Focus
-- tenancy/auth guardrail enforcement
-- read-path parity across pages, APIs, and helpers
-- no-leak and deny-by-default behavior consistency
-- payroll/payslip wording and lock-state consistency
-- kiosk and employee ID operational hardening
+- POS bounded-slice continuation under approved roadmap sequencing
+- preserve scope-first/no-leak and tenancy/identity guardrails during POS progression
+- maintain explicit slice gating (POS-F3 Slice 2 requires explicit initiation)
+- retain HR as stable-maintained (non-active) with no frozen-contract regressions
+- keep Operations/Finance/Growth gated until POS progression checkpoints authorize their own starts
 
-## HR Stability Gate (Before POS Foundation Continuation)
+## HR Stability Gate (Satisfied; POS Unlock Recorded)
 HR can be considered stable enough to move forward **only** when:
 - no known tenancy or cross-house leakage risks
 - branch-limited behavior is consistent across all read paths
@@ -38,8 +40,9 @@ HR can be considered stable enough to move forward **only** when:
 - kiosk flows are operationally reliable
 - regression coverage exists for all high-risk boundaries
 
-Current conservative gate verdict (as of **2026-03-31 UTC**): **STABLE ENOUGH TO UNLOCK BOUNDED POS FOUNDATIONS**.
+Gate verdict (as of **2026-03-31 UTC**): **STABLE ENOUGH TO UNLOCK BOUNDED POS FOUNDATIONS**.
 Checkpoint rationale: blocker-class HR streams for tenancy/access consistency, branch-scope parity, and no-leak parity are documented closed with no known blocker regressions remaining in repository evidence.
+Transition record: this checkpoint is the sequencing unlock condition that moved active-phase focus from HR to POS; it is not a relaxation of phase controls.
 
 ## Next System (Unlocked by HR Stability Checkpoint)
 - Next system: POS
