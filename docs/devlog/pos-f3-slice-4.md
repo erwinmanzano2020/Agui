@@ -1,34 +1,28 @@
-# POS F3 Slice 4 — Review Validation / Checkout Readiness (Bounded, In Progress)
+# POS F3 Slice 4 — Review Validation / Checkout Readiness (Completed, Bounded)
 
 ## Summary
-POS-F3 Slice 4 is in progress as a bounded, read-only validation layer for the exact current-session draft order scope. This slice answers only whether the currently scoped draft order is ready to proceed to a future checkout slice; it does not execute checkout.
+POS-F3 Slice 4 is completed as a bounded, current-session, draft-order, read-only **pre-checkout validation** slice. The closed scope answers readiness for a future approved checkout slice and does not execute checkout.
 
 ## Key Decisions
-- Introduce a server-only validation helper that composes existing draft/line/pricing foundations.
-- Keep the action boundary thin and reuse existing auth/access resolution + no-leak client-safe error mapping.
-- Keep the session client panel server-driven and read-only with scoped stale-response guards.
-- Keep issue output machine-safe and bounded to readiness concerns only.
-- Add a bounded validation detail layer so blocking issues return structured entries: `{ code, severity: "BLOCKER", message }`.
+- Kept validation server-only and composition-based by reusing existing scoped draft/line/pricing foundations.
+- Kept action boundaries thin with existing auth/access resolution and conservative no-leak response mapping.
+- Standardized shared validation contract typing across server/helper, action, and client integration boundaries.
+- Kept output machine-safe and operator-safe with structured blocker entries and bounded severity.
+- Preserved strict pre-checkout posture with no runtime side effects.
 
-## Constraints Preserved
-- Current-session scope only: house -> branch -> session -> device -> order.
-- Draft-order only; non-draft/closed/invalid contexts deny safely.
-- No checkout execution, no sale creation, no payment/tender behavior.
-- No inventory reservation/deduction behavior.
-- No receipt generation.
-- No persistence side effects for readiness state.
-- No cross-session/historical browsing.
+## Hardening / Corrections Applied
+- Added bounded structured blocker details in validation output: `{ code, severity: "BLOCKER", message }`.
+- Enforced deterministic blocker ordering for stable, repeatable readiness output.
+- Hardened summary consistency so readiness and blocker summary remain aligned under the same bounded validation pass.
+- Preserved conservative no-leak behavior for invalid/missing/mismatched scoped states.
+- Preserved strict scope chain posture: house -> branch -> session -> device -> order.
 
 ## Known Limitations
-- Validation is limited to bounded readiness inputs already approved for this slice.
-- Validation output is intentionally conservative and does not include speculative future checkout requirements.
-- Severity remains bounded to `BLOCKER` only in this slice; warning/info levels are intentionally out of scope.
-- Validation does not grant checkout capability; it is a pre-checkout signal only.
-- Validation details are read-only output only and introduce no persistence side effects.
+- Validation remains bounded to current-session, draft-order readiness checks only.
+- Severity remains bounded to `BLOCKER` only; warning/info tiers are not introduced in this slice.
+- Validation output is read-only and introduces no persistence side effects.
+- No checkout execution, no payment/tender behavior, no inventory-aware behavior, and no finalization/sale creation are included.
+- No cross-session browsing or multi-order orchestration is introduced.
 
-## Current Outcome / Posture
-- Slice 4 is active and bounded.
-- Review validation/readiness is read-only and scoped to the exact current-session draft order.
-- Blocking issue output now includes deterministic, operator-safe detail fields (`code`, `severity`, `message`) while remaining validation-only.
-- Existing Slice 1/2/3 behavior remains intact.
-- Checkout/payment/inventory/finalization remain out of scope for this slice.
+## Outcome
+Slice 4 is now recorded as completed bounded validation work. This closure does **not** expand runtime behavior into checkout, payment, inventory, or finalization beyond the approved pre-checkout validation slice.
