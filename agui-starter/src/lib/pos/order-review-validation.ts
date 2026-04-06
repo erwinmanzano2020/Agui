@@ -63,12 +63,34 @@ export type OrderReviewValidationResult = {
   };
 };
 
+const ORDERED_ISSUE_CODES: PosOrderReviewValidationIssueCode[] = [
+  "INVALID_SCOPED_CONTEXT",
+  "ORDER_INVALID_OR_CLOSED",
+  "EMPTY_ORDER",
+  "ITEM_PRICE_MISSING",
+];
+
 const ISSUE_MESSAGE_BY_CODE: Record<PosOrderReviewValidationIssueCode, string> = {
   EMPTY_ORDER: "Order must contain at least one active line",
   ITEM_PRICE_MISSING: "One or more active lines cannot be priced",
   ORDER_INVALID_OR_CLOSED: "Order is invalid or no longer available for review",
   INVALID_SCOPED_CONTEXT: "Current scoped order context is invalid",
 };
+
+function sortIssueCodes(issueCodes: PosOrderReviewValidationIssueCode[]): PosOrderReviewValidationIssueCode[] {
+  const uniqueIssueCodes = [...new Set(issueCodes)];
+  return uniqueIssueCodes.sort((a, b) => ORDERED_ISSUE_CODES.indexOf(a) - ORDERED_ISSUE_CODES.indexOf(b));
+}
+
+export function toDeterministicBlockingIssues(
+  issueCodes: PosOrderReviewValidationIssueCode[],
+): PosOrderReviewValidationIssue[] {
+  return sortIssueCodes(issueCodes).map((code) => ({
+    code,
+    severity: "BLOCKER" as const,
+    message: ISSUE_MESSAGE_BY_CODE[code],
+  }));
+}
 
 export class PosOrderReviewValidationError extends Error {
   code: string;
@@ -116,12 +138,7 @@ function createValidationResult(input: {
   pricingStatus: "RESOLVED" | "UNRESOLVED";
   scopedContextStatus?: "VALID" | "INVALID";
 }): OrderReviewValidationResult {
-  const uniqueIssueCodes = [...new Set(input.issueCodes)];
-  const blockingIssues = uniqueIssueCodes.map((code) => ({
-    code,
-    severity: "BLOCKER" as const,
-    message: ISSUE_MESSAGE_BY_CODE[code],
-  }));
+  const blockingIssues = toDeterministicBlockingIssues(input.issueCodes);
   const isReady = blockingIssues.length === 0;
 
   return {
@@ -158,32 +175,28 @@ export async function getCurrentSessionOrderReviewValidation(
   try {
     await getCurrentSessionDraftOrder(input, resolvedRepository.draftRepository);
     const lines = await getCurrentSessionOrderLines(input, resolvedRepository.lineRepository);
+    const issueCodes: PosOrderReviewValidationIssueCode[] = [];
 
     if (lines.length === 0) {
-      return createValidationResult({
-        issueCodes: ["EMPTY_ORDER"],
-        activeLineCount: 0,
-        pricingStatus: "UNRESOLVED",
-      });
+      issueCodes.push("EMPTY_ORDER");
     }
 
-    try {
-      await computeOrderPricingFromScopedLines({ lines }, resolvedRepository.pricingRepository.getPriceForItem);
-    } catch (error) {
-      if (error instanceof PosOrderPricingError && error.code === "ITEM_PRICE_MISSING") {
-        return createValidationResult({
-          issueCodes: ["ITEM_PRICE_MISSING"],
-          activeLineCount: lines.length,
-          pricingStatus: "UNRESOLVED",
-        });
+    if (lines.length > 0) {
+      try {
+        await computeOrderPricingFromScopedLines({ lines }, resolvedRepository.pricingRepository.getPriceForItem);
+      } catch (error) {
+        if (error instanceof PosOrderPricingError && error.code === "ITEM_PRICE_MISSING") {
+          issueCodes.push("ITEM_PRICE_MISSING");
+        } else {
+          throw error;
+        }
       }
-      throw error;
     }
 
     return createValidationResult({
-      issueCodes: [],
+      issueCodes,
       activeLineCount: lines.length,
-      pricingStatus: "RESOLVED",
+      pricingStatus: issueCodes.includes("ITEM_PRICE_MISSING") ? "UNRESOLVED" : lines.length === 0 ? "UNRESOLVED" : "RESOLVED",
     });
   } catch (error) {
     if (error instanceof PosOrderReviewValidationError) {

@@ -9,6 +9,7 @@ import { type OrderLine, createInMemoryPosOrderLineRepository } from "./order-li
 import {
   PosOrderReviewValidationError,
   getCurrentSessionOrderReviewValidation,
+  toDeterministicBlockingIssues,
 } from "./order-review-validation";
 
 const HOUSE_ID = "house-1";
@@ -147,6 +148,39 @@ test("getCurrentSessionOrderReviewValidation returns not-ready for empty active 
   });
 });
 
+test("toDeterministicBlockingIssues preserves bounded blocker shape with deterministic ordering", () => {
+  const issues = toDeterministicBlockingIssues([
+    "ITEM_PRICE_MISSING",
+    "EMPTY_ORDER",
+    "ORDER_INVALID_OR_CLOSED",
+    "EMPTY_ORDER",
+    "INVALID_SCOPED_CONTEXT",
+  ]);
+
+  assert.deepEqual(issues, [
+    {
+      code: "INVALID_SCOPED_CONTEXT",
+      severity: "BLOCKER",
+      message: "Current scoped order context is invalid",
+    },
+    {
+      code: "ORDER_INVALID_OR_CLOSED",
+      severity: "BLOCKER",
+      message: "Order is invalid or no longer available for review",
+    },
+    {
+      code: "EMPTY_ORDER",
+      severity: "BLOCKER",
+      message: "Order must contain at least one active line",
+    },
+    {
+      code: "ITEM_PRICE_MISSING",
+      severity: "BLOCKER",
+      message: "One or more active lines cannot be priced",
+    },
+  ]);
+});
+
 test("getCurrentSessionOrderReviewValidation fails safely when session is closed", async () => {
   await assert.rejects(
     () =>
@@ -215,6 +249,29 @@ test("getCurrentSessionOrderReviewValidation returns not-ready when pricing is m
       blockingIssueCount: 1,
     },
   });
+});
+
+test("getCurrentSessionOrderReviewValidation stays conservative by skipping pricing pass for empty scoped lines", async () => {
+  let pricingInvocationCount = 0;
+
+  const result = await getCurrentSessionOrderReviewValidation(SCOPE, {
+    ...createOrderReviewValidationRepository({ lines: [] }),
+    pricingRepository: {
+      getPriceForItem() {
+        pricingInvocationCount += 1;
+        return 10;
+      },
+    },
+  });
+
+  assert.equal(pricingInvocationCount, 0);
+  assert.deepEqual(result.blockingIssues, [
+    {
+      code: "EMPTY_ORDER",
+      severity: "BLOCKER",
+      message: "Order must contain at least one active line",
+    },
+  ]);
 });
 
 test("getCurrentSessionOrderReviewValidation never leaks cross-session or cross-device lines", async () => {
