@@ -9,6 +9,7 @@ import * as orderPricingModule from "@/lib/pos/order-pricing";
 import * as orderReviewModule from "@/lib/pos/order-review";
 import * as orderReviewValidationModule from "@/lib/pos/order-review-validation";
 import * as orderCheckoutTransitionModule from "@/lib/pos/order-checkout-transition";
+import * as orderCheckoutEntryModule from "@/lib/pos/order-checkout-entry";
 
 import { CLIENT_SAFE_POS_DRAFT_ERROR, CLIENT_SAFE_POS_ORDER_ERROR } from "./order-action-errors";
 import {
@@ -20,6 +21,7 @@ import {
   getCurrentSessionOrderReviewAction,
   getCurrentSessionOrderReviewValidationAction,
   getCurrentSessionOrderCheckoutTransitionAction,
+  getCurrentSessionOrderCheckoutEntryAction,
   removeOrderLineAction,
   updateOrderLineAction,
 } from "./order-actions";
@@ -583,6 +585,106 @@ test("getCurrentSessionOrderCheckoutTransitionAction rethrows unexpected failure
         orderId: "order-1",
       }),
     /unexpected checkout transition failure/,
+  );
+});
+
+test("getCurrentSessionOrderCheckoutEntryAction forwards exact current-session scope", async () => {
+  const supabase = mockAuthAndAccess();
+  const repo = { repo: "checkout-entry" };
+  let received: Parameters<typeof orderCheckoutEntryModule.getCurrentSessionOrderCheckoutEntry>[0] | null = null;
+  const canonicalPayload: orderCheckoutEntryModule.OrderCheckoutEntryResult = {
+    checkoutEntryStatus: "BLOCKED",
+    canEnterCheckoutBoundary: false,
+    blockingIssues: [
+      {
+        code: "EMPTY_ORDER",
+        severity: "BLOCKER",
+        message: "Order must contain at least one active line",
+      },
+    ],
+    entrySummary: {
+      scopedContextStatus: "VALID",
+      reviewValidationStatus: "BLOCKED",
+      checkoutTransitionStatus: "BLOCKED",
+      activeLineCount: 0,
+      blockingIssueCount: 1,
+    },
+  };
+
+  mock.method(
+    orderCheckoutEntryModule,
+    "createSupabasePosOrderCheckoutEntryRepository",
+    (arg: Parameters<typeof orderCheckoutEntryModule.createSupabasePosOrderCheckoutEntryRepository>[0]) => {
+      assert.equal(arg, supabase as never);
+      return repo as never;
+    },
+  );
+  mock.method(
+    orderCheckoutEntryModule,
+    "getCurrentSessionOrderCheckoutEntry",
+    async (
+      input: Parameters<typeof orderCheckoutEntryModule.getCurrentSessionOrderCheckoutEntry>[0],
+      repository: Parameters<typeof orderCheckoutEntryModule.getCurrentSessionOrderCheckoutEntry>[1],
+    ) => {
+      received = input;
+      assert.equal(repository, repo as never);
+      return canonicalPayload as never;
+    },
+  );
+
+  const result = await getCurrentSessionOrderCheckoutEntryAction(SLUG, {
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    checkoutEntry: canonicalPayload,
+  });
+  assert.deepEqual(received, {
+    houseId: HOUSE_ID,
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+});
+
+test("getCurrentSessionOrderCheckoutEntryAction maps expected denial to client-safe error", async () => {
+  mockAuthAndAccess();
+  mock.method(orderCheckoutEntryModule, "createSupabasePosOrderCheckoutEntryRepository", () => ({}) as never);
+  mock.method(orderCheckoutEntryModule, "getCurrentSessionOrderCheckoutEntry", async () => {
+    throw new orderCheckoutEntryModule.PosOrderCheckoutEntryError("scoped detail", "ORDER_INVALID_OR_CLOSED", 403);
+  });
+
+  const result = await getCurrentSessionOrderCheckoutEntryAction(SLUG, {
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+
+  assert.deepEqual(result, { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR });
+});
+
+test("getCurrentSessionOrderCheckoutEntryAction rethrows unexpected failures", async () => {
+  mockAuthAndAccess();
+  mock.method(orderCheckoutEntryModule, "createSupabasePosOrderCheckoutEntryRepository", () => ({}) as never);
+  mock.method(orderCheckoutEntryModule, "getCurrentSessionOrderCheckoutEntry", async () => {
+    throw new Error("unexpected checkout entry failure");
+  });
+
+  await assert.rejects(
+    () =>
+      getCurrentSessionOrderCheckoutEntryAction(SLUG, {
+        branchId: "branch-1",
+        sessionId: "session-1",
+        deviceId: "device-1",
+        orderId: "order-1",
+      }),
+    /unexpected checkout entry failure/,
   );
 });
 

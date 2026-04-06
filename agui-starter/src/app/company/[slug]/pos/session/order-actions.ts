@@ -38,6 +38,12 @@ import {
   createSupabasePosOrderCheckoutTransitionRepository,
   getCurrentSessionOrderCheckoutTransition,
 } from "@/lib/pos/order-checkout-transition";
+import {
+  type OrderCheckoutEntryResult,
+  PosOrderCheckoutEntryError,
+  createSupabasePosOrderCheckoutEntryRepository,
+  getCurrentSessionOrderCheckoutEntry,
+} from "@/lib/pos/order-checkout-entry";
 import { CLIENT_SAFE_POS_DRAFT_ERROR, CLIENT_SAFE_POS_ORDER_ERROR } from "./order-action-errors";
 
 async function resolveHouseAndAccess(slug: string) {
@@ -418,6 +424,39 @@ export async function getCurrentSessionOrderCheckoutTransitionAction(
     }
 
     console.warn("[pos-order] checkout transition denied", { code: error.code, status: error.status, slug });
+    return { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR } as const;
+  }
+}
+
+export async function getCurrentSessionOrderCheckoutEntryAction(
+  slug: string,
+  payload: { branchId: string; sessionId: string; deviceId: string; orderId: string },
+): Promise<
+  | { ok: true; checkoutEntry: OrderCheckoutEntryResult }
+  | { ok: false; error: typeof CLIENT_SAFE_POS_ORDER_ERROR }
+> {
+  const { supabase, house } = await resolveHouseAndAccess(slug);
+  const checkoutEntryRepository = createSupabasePosOrderCheckoutEntryRepository(supabase);
+
+  try {
+    const checkoutEntry = await getCurrentSessionOrderCheckoutEntry(
+      {
+        houseId: house.id,
+        branchId: payload.branchId,
+        sessionId: payload.sessionId,
+        deviceId: payload.deviceId,
+        orderId: payload.orderId,
+      },
+      checkoutEntryRepository,
+    );
+
+    return { ok: true, checkoutEntry } as const;
+  } catch (error) {
+    if (!(error instanceof PosOrderCheckoutEntryError)) {
+      throw error;
+    }
+
+    console.warn("[pos-order] checkout entry denied", { code: error.code, status: error.status, slug });
     return { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR } as const;
   }
 }
