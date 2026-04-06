@@ -1,19 +1,23 @@
-# POS-F3 Slice 5 — Bounded Checkout Transition Intent (In Progress)
+# POS-F3 Slice 5 — Bounded Checkout Transition Intent (Completed)
 
 ## Summary
-This devlog records implementation start for **POS-F3 Slice 5** as a narrowly bounded, read-only transition intent layer.
+POS-F3 Slice 5 is completed as **bounded checkout transition-intent work only**.
 
-Slice 5 in this change is **not checkout execution**. It only answers whether the exact current-session draft order can cross the boundary into a future checkout slice.
+This slice is read-only, current-session scoped, and exact-scope constrained. It records transition intent posture between Slice 4 readiness validation and any future gated checkout slice. It does **not** implement checkout.
 
-## What This Slice Adds
-- A server-only bounded helper for current-session transition intent (`house -> branch -> session -> device -> order`).
-- Canonical machine-safe transition result shape (`ALLOWED | BLOCKED`) with deterministic blocker posture.
-- Thin server action exposure for the transition payload.
-- Read-only session panel that displays transition status, blockers, and summary from server results.
-- Targeted unit/action/client-hardening tests for allow/deny/stale/consistency behavior.
+## Key Decisions
+- Keep Slice 5 strictly bounded to transition intent (`ALLOWED | BLOCKED`) for the exact scoped current-session draft context.
+- Preserve thin action exposure and server-derived transition output; the client only renders server payload.
+- Preserve deterministic and no-leak posture across invalid/missing/mismatched scoped states.
+- Treat Slice 1 through Slice 5 as closed bounded records with no reinterpretation into checkout capability.
 
-## What This Slice Explicitly Does Not Add
-This slice does **not** implement:
+## Hardening / Corrections Applied
+- Mixed-snapshot posture corrected: canonical status wording now records Slice 5 as completed/closed (not planning-only or in-progress).
+- Closure contract language hardened to prevent over-reading transition intent as checkout implementation.
+- Deterministic/read-only/no-leak posture explicitly reaffirmed in canonical docs.
+
+## Known Limitations
+Slice 5 does **not** implement:
 - checkout execution,
 - payment/tender behavior,
 - inventory behavior,
@@ -23,11 +27,5 @@ This slice does **not** implement:
 - cross-session behavior,
 - multi-order behavior.
 
-## Scope Boundaries Preserved
-- Exact-scope only and no-leak deny posture are preserved.
-- Invalid or closed scoped contexts deny safely.
-- Transition output remains conservative and read-only.
-- Client does not infer transition permission locally; it only renders server payload.
-
 ## Outcome
-POS-F3 Slice 5 is now **in progress** as bounded checkout transition intent only, with checkout capability still out of scope and not implemented.
+Slice 5 is closed as a bounded transition-intent layer only. Checkout capability remains out of scope and unimplemented pending a separately approved future gated slice.
