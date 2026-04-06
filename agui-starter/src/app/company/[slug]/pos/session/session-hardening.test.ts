@@ -320,6 +320,26 @@ test("validation issue display keeps multiple bounded blocker entries in determi
   );
 });
 
+test("validation display helper remains read-only and never infers readiness from blocker length", () => {
+  const serverValidationPayload = {
+    reviewValidationStatus: "BLOCKED" as const,
+    isReadyForFutureCheckout: false,
+    blockingIssues: [],
+    validationSummary: {
+      scopedContextStatus: "VALID" as const,
+      activeLineCount: 1,
+      pricingStatus: "RESOLVED" as const,
+      blockingIssueCount: 0,
+    },
+  };
+
+  const displayIssues = getConservativeValidationBlockingIssues(serverValidationPayload);
+
+  assert.deepEqual(displayIssues, []);
+  assert.equal(serverValidationPayload.isReadyForFutureCheckout, false);
+  assert.equal(serverValidationPayload.reviewValidationStatus, "BLOCKED");
+});
+
 test("add-line success path requires scoped review refresh", () => {
   assert.equal(
     shouldRefreshReviewAfterAddLineSuccess({
