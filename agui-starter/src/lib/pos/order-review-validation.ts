@@ -27,6 +27,13 @@ export type PosOrderReviewValidationIssueCode =
   | "ORDER_INVALID_OR_CLOSED"
   | "ITEM_PRICE_MISSING"
   | "INVALID_SCOPED_CONTEXT";
+export type PosOrderReviewValidationIssueSeverity = "BLOCKER";
+
+export type PosOrderReviewValidationIssue = {
+  code: PosOrderReviewValidationIssueCode;
+  severity: PosOrderReviewValidationIssueSeverity;
+  message: string;
+};
 
 type ReviewValidationScopeInput = {
   houseId: string;
@@ -47,13 +54,20 @@ type OrderReviewValidationRepository = {
 export type OrderReviewValidationResult = {
   reviewValidationStatus: "READY" | "BLOCKED";
   isReadyForFutureCheckout: boolean;
-  blockingIssues: Array<{ code: PosOrderReviewValidationIssueCode }>;
+  blockingIssues: PosOrderReviewValidationIssue[];
   validationSummary: {
     scopedContextStatus: "VALID" | "INVALID";
     activeLineCount: number;
     pricingStatus: "RESOLVED" | "UNRESOLVED";
     blockingIssueCount: number;
   };
+};
+
+const ISSUE_MESSAGE_BY_CODE: Record<PosOrderReviewValidationIssueCode, string> = {
+  EMPTY_ORDER: "Order must contain at least one active line",
+  ITEM_PRICE_MISSING: "One or more active lines cannot be priced",
+  ORDER_INVALID_OR_CLOSED: "Order is invalid or no longer available for review",
+  INVALID_SCOPED_CONTEXT: "Current scoped order context is invalid",
 };
 
 export class PosOrderReviewValidationError extends Error {
@@ -103,7 +117,11 @@ function createValidationResult(input: {
   scopedContextStatus?: "VALID" | "INVALID";
 }): OrderReviewValidationResult {
   const uniqueIssueCodes = [...new Set(input.issueCodes)];
-  const blockingIssues = uniqueIssueCodes.map((code) => ({ code }));
+  const blockingIssues = uniqueIssueCodes.map((code) => ({
+    code,
+    severity: "BLOCKER" as const,
+    message: ISSUE_MESSAGE_BY_CODE[code],
+  }));
   const isReady = blockingIssues.length === 0;
 
   return {

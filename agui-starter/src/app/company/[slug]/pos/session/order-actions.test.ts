@@ -399,14 +399,20 @@ test("getCurrentSessionOrderReviewValidationAction forwards exact current-sessio
       received = input;
       assert.equal(repository, repo as never);
       return {
-        reviewValidationStatus: "READY",
-        isReadyForFutureCheckout: true,
-        blockingIssues: [],
+        reviewValidationStatus: "BLOCKED",
+        isReadyForFutureCheckout: false,
+        blockingIssues: [
+          {
+            code: "EMPTY_ORDER",
+            severity: "BLOCKER",
+            message: "Order must contain at least one active line",
+          },
+        ],
         validationSummary: {
           scopedContextStatus: "VALID",
-          activeLineCount: 1,
-          pricingStatus: "RESOLVED",
-          blockingIssueCount: 0,
+          activeLineCount: 0,
+          pricingStatus: "UNRESOLVED",
+          blockingIssueCount: 1,
         },
       } as never;
     },
@@ -422,14 +428,20 @@ test("getCurrentSessionOrderReviewValidationAction forwards exact current-sessio
   assert.deepEqual(result, {
     ok: true,
     reviewValidation: {
-      reviewValidationStatus: "READY",
-      isReadyForFutureCheckout: true,
-      blockingIssues: [],
+      reviewValidationStatus: "BLOCKED",
+      isReadyForFutureCheckout: false,
+      blockingIssues: [
+        {
+          code: "EMPTY_ORDER",
+          severity: "BLOCKER",
+          message: "Order must contain at least one active line",
+        },
+      ],
       validationSummary: {
         scopedContextStatus: "VALID",
-        activeLineCount: 1,
-        pricingStatus: "RESOLVED",
-        blockingIssueCount: 0,
+        activeLineCount: 0,
+        pricingStatus: "UNRESOLVED",
+        blockingIssueCount: 1,
       },
     },
   });

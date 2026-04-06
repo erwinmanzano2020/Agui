@@ -131,7 +131,13 @@ test("getCurrentSessionOrderReviewValidation returns not-ready for empty active 
   assert.deepEqual(result, {
     reviewValidationStatus: "BLOCKED",
     isReadyForFutureCheckout: false,
-    blockingIssues: [{ code: "EMPTY_ORDER" }],
+    blockingIssues: [
+      {
+        code: "EMPTY_ORDER",
+        severity: "BLOCKER",
+        message: "Order must contain at least one active line",
+      },
+    ],
     validationSummary: {
       scopedContextStatus: "VALID",
       activeLineCount: 0,
@@ -195,7 +201,13 @@ test("getCurrentSessionOrderReviewValidation returns not-ready when pricing is m
   assert.deepEqual(result, {
     reviewValidationStatus: "BLOCKED",
     isReadyForFutureCheckout: false,
-    blockingIssues: [{ code: "ITEM_PRICE_MISSING" }],
+    blockingIssues: [
+      {
+        code: "ITEM_PRICE_MISSING",
+        severity: "BLOCKER",
+        message: "One or more active lines cannot be priced",
+      },
+    ],
     validationSummary: {
       scopedContextStatus: "VALID",
       activeLineCount: 1,
@@ -230,4 +242,23 @@ test("getCurrentSessionOrderReviewValidation is deterministic for the same scope
   const second = await getCurrentSessionOrderReviewValidation(SCOPE, repository);
 
   assert.deepEqual(first, second);
+});
+
+test("getCurrentSessionOrderReviewValidation issue entries are bounded to BLOCKER severity and deterministic messages", async () => {
+  const emptyOrder = await getCurrentSessionOrderReviewValidation(SCOPE, createOrderReviewValidationRepository());
+  assert.deepEqual(emptyOrder.blockingIssues, [
+    {
+      code: "EMPTY_ORDER",
+      severity: "BLOCKER",
+      message: "Order must contain at least one active line",
+    },
+  ]);
+
+  await assert.rejects(
+    () => getCurrentSessionOrderReviewValidation({ ...SCOPE, sessionId: "session-2" }, createOrderReviewValidationRepository()),
+    (error: unknown) =>
+      error instanceof PosOrderReviewValidationError &&
+      error.code === "ORDER_INVALID_OR_CLOSED" &&
+      error.status === 403,
+  );
 });
