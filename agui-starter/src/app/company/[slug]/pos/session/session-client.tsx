@@ -10,6 +10,7 @@ import {
   getCurrentSessionOrderLinesAction,
   getCurrentSessionOrderPricingAction,
   getCurrentSessionOrderReviewAction,
+  getCurrentSessionOrderReviewValidationAction,
   removeOrderLineAction,
   updateOrderLineAction,
 } from "./order-actions";
@@ -51,6 +52,17 @@ type OrderReviewView = {
     pricingSource: "bounded_default" | "override";
     pricingInputSource: "manual" | "default";
   }>;
+} | null;
+type OrderReviewValidationView = {
+  reviewValidationStatus: "READY" | "BLOCKED";
+  isReadyForFutureCheckout: boolean;
+  blockingIssues: Array<{ code: "EMPTY_ORDER" | "ORDER_INVALID_OR_CLOSED" | "ITEM_PRICE_MISSING" | "INVALID_SCOPED_CONTEXT" }>;
+  validationSummary: {
+    scopedContextStatus: "VALID" | "INVALID";
+    activeLineCount: number;
+    pricingStatus: "RESOLVED" | "UNRESOLVED";
+    blockingIssueCount: number;
+  };
 } | null;
 
 export function resolveInitialBranchId(defaultBranchId: string | null): string {
@@ -127,6 +139,14 @@ export function shouldApplyReviewRefreshResult(input: {
 }): boolean {
   return shouldApplyLineRefreshResult(input);
 }
+export function shouldApplyReviewValidationRefreshResult(input: {
+  requestedScopeKey: string;
+  activeScopeKey: string;
+  requestId: number;
+  latestRequestId: number;
+}): boolean {
+  return shouldApplyLineRefreshResult(input);
+}
 
 export function shouldRefreshPricingAfterLineRefresh(input: {
   cancelled: boolean;
@@ -151,12 +171,18 @@ export function createEmptyOrderPricing(): OrderPricingView {
 export function createEmptyOrderReview(): OrderReviewView {
   return null;
 }
+export function createEmptyOrderReviewValidation(): OrderReviewValidationView {
+  return null;
+}
 
 export function shouldRefreshReviewAfterAddLineSuccess(input: { addLineSucceeded: boolean; hasScopedOrder: boolean }): boolean {
   return input.addLineSucceeded && input.hasScopedOrder;
 }
 
 export function shouldClearReviewForEmptyScope(currentScopeKey: string): boolean {
+  return currentScopeKey === "";
+}
+export function shouldClearValidationForEmptyScope(currentScopeKey: string): boolean {
   return currentScopeKey === "";
 }
 
@@ -177,6 +203,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
   const [lineEdits, setLineEdits] = useState<LineEditState>({});
   const [pricing, setPricing] = useState<OrderPricingView>(createEmptyOrderPricing());
   const [review, setReview] = useState<OrderReviewView>(createEmptyOrderReview());
+  const [reviewValidation, setReviewValidation] = useState<OrderReviewValidationView>(createEmptyOrderReviewValidation());
 
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -184,6 +211,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
   const latestLinesRequestIdRef = useRef(0);
   const latestPricingRequestIdRef = useRef(0);
   const latestReviewRequestIdRef = useRef(0);
+  const latestReviewValidationRequestIdRef = useRef(0);
 
   const currentScope = useMemo(
     () =>
@@ -203,8 +231,12 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
       latestLinesRequestIdRef.current += 1;
       latestPricingRequestIdRef.current += 1;
       latestReviewRequestIdRef.current += 1;
+      latestReviewValidationRequestIdRef.current += 1;
       if (shouldClearReviewForEmptyScope(currentScopeKey)) {
         setReview(createEmptyOrderReview());
+      }
+      if (shouldClearValidationForEmptyScope(currentScopeKey)) {
+        setReviewValidation(createEmptyOrderReviewValidation());
       }
     }
   }, [currentScopeKey]);
@@ -218,6 +250,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
     setLineEdits(cleared.lineEdits);
     setPricing(createEmptyOrderPricing());
     setReview(createEmptyOrderReview());
+    setReviewValidation(createEmptyOrderReviewValidation());
     setNewItemCode("");
     setNewQuantity("1");
   }
@@ -331,6 +364,38 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
     setReview(response.review);
   }, [slug]);
 
+  const refreshReviewValidation = useCallback(async (scope: CurrentOrderScope) => {
+    const requestId = latestReviewValidationRequestIdRef.current + 1;
+    latestReviewValidationRequestIdRef.current = requestId;
+    const requestedScopeKey = serializeCurrentOrderScope(scope);
+
+    const response = await getCurrentSessionOrderReviewValidationAction(slug, {
+      branchId: scope.branchId,
+      sessionId: scope.sessionId,
+      deviceId: scope.deviceId,
+      orderId: scope.orderId,
+    });
+
+    if (
+      !shouldApplyReviewValidationRefreshResult({
+        requestedScopeKey,
+        activeScopeKey: activeScopeKeyRef.current,
+        requestId,
+        latestRequestId: latestReviewValidationRequestIdRef.current,
+      })
+    ) {
+      return;
+    }
+
+    if (!response.ok) {
+      setMessage(response.error);
+      setReviewValidation(createEmptyOrderReviewValidation());
+      return;
+    }
+
+    setReviewValidation(response.reviewValidation);
+  }, [slug]);
+
   useEffect(() => {
     if (!currentScope) {
       return;
@@ -357,6 +422,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
         setLineEdits({});
         setPricing(createEmptyOrderPricing());
         setReview(createEmptyOrderReview());
+        setReviewValidation(createEmptyOrderReviewValidation());
         return;
       }
 
@@ -373,12 +439,13 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
 
       await refreshPricing(currentScope);
       await refreshReview(currentScope);
+      await refreshReviewValidation(currentScope);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [currentScope, refreshLines, refreshPricing, refreshReview, slug]);
+  }, [currentScope, refreshLines, refreshPricing, refreshReview, refreshReviewValidation, slug]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
@@ -482,6 +549,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
                 await refreshLines(currentScope);
                 await refreshPricing(currentScope);
                 await refreshReview(currentScope);
+                await refreshReviewValidation(currentScope);
               });
             }}
           >
@@ -534,6 +602,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
                 ) {
                   await refreshReview(currentScope);
                 }
+                await refreshReviewValidation(currentScope);
               });
             }}
           >
@@ -602,6 +671,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
                         await refreshLines(currentScope);
                         await refreshPricing(currentScope);
                         await refreshReview(currentScope);
+                        await refreshReviewValidation(currentScope);
                       });
                     }}
                   >
@@ -633,6 +703,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
                         await refreshLines(currentScope);
                         await refreshPricing(currentScope);
                         await refreshReview(currentScope);
+                        await refreshReviewValidation(currentScope);
                       });
                     }}
                   >
@@ -679,6 +750,30 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
             </>
           ) : (
             <p>Review unavailable for the current scope.</p>
+          )}
+        </div>
+
+        <div className="space-y-2 rounded border p-3 text-sm">
+          <h3 className="font-medium">Review Validation / Checkout Readiness (Read-Only)</h3>
+          {reviewValidation ? (
+            <>
+              <p>Validation status: {reviewValidation.reviewValidationStatus}</p>
+              <p>Ready for a future checkout slice: {reviewValidation.isReadyForFutureCheckout ? "Yes" : "No"}</p>
+              <p>Scoped context: {reviewValidation.validationSummary.scopedContextStatus}</p>
+              <p>Active lines counted: {reviewValidation.validationSummary.activeLineCount}</p>
+              <p>Pricing resolvable: {reviewValidation.validationSummary.pricingStatus}</p>
+              {reviewValidation.blockingIssues.length > 0 ? (
+                <ul className="space-y-1">
+                  {reviewValidation.blockingIssues.map((issue, index) => (
+                    <li key={`validation-issue-${issue.code}-${index}`}>{issue.code}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No blocking issues.</p>
+              )}
+            </>
+          ) : (
+            <p>Validation unavailable for the current scope.</p>
           )}
         </div>
       </div>

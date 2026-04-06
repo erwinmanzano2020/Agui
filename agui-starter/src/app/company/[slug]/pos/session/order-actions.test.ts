@@ -7,6 +7,7 @@ import * as orderDraftModule from "@/lib/pos/order-draft";
 import * as orderLineModule from "@/lib/pos/order-line";
 import * as orderPricingModule from "@/lib/pos/order-pricing";
 import * as orderReviewModule from "@/lib/pos/order-review";
+import * as orderReviewValidationModule from "@/lib/pos/order-review-validation";
 
 import { CLIENT_SAFE_POS_DRAFT_ERROR, CLIENT_SAFE_POS_ORDER_ERROR } from "./order-action-errors";
 import {
@@ -16,6 +17,7 @@ import {
   getCurrentSessionOrderLinesAction,
   getCurrentSessionOrderPricingAction,
   getCurrentSessionOrderReviewAction,
+  getCurrentSessionOrderReviewValidationAction,
   removeOrderLineAction,
   updateOrderLineAction,
 } from "./order-actions";
@@ -372,6 +374,112 @@ test("getCurrentSessionOrderReviewAction forwards exact current-session scope", 
     deviceId: "device-1",
     orderId: "order-1",
   });
+});
+
+test("getCurrentSessionOrderReviewValidationAction forwards exact current-session scope", async () => {
+  const supabase = mockAuthAndAccess();
+  const repo = { repo: "review-validation" };
+  let received: Parameters<typeof orderReviewValidationModule.getCurrentSessionOrderReviewValidation>[0] | null = null;
+
+  mock.method(
+    orderReviewValidationModule,
+    "createSupabasePosOrderReviewValidationRepository",
+    (arg: Parameters<typeof orderReviewValidationModule.createSupabasePosOrderReviewValidationRepository>[0]) => {
+      assert.equal(arg, supabase as never);
+      return repo as never;
+    },
+  );
+  mock.method(
+    orderReviewValidationModule,
+    "getCurrentSessionOrderReviewValidation",
+    async (
+      input: Parameters<typeof orderReviewValidationModule.getCurrentSessionOrderReviewValidation>[0],
+      repository: Parameters<typeof orderReviewValidationModule.getCurrentSessionOrderReviewValidation>[1],
+    ) => {
+      received = input;
+      assert.equal(repository, repo as never);
+      return {
+        reviewValidationStatus: "READY",
+        isReadyForFutureCheckout: true,
+        blockingIssues: [],
+        validationSummary: {
+          scopedContextStatus: "VALID",
+          activeLineCount: 1,
+          pricingStatus: "RESOLVED",
+          blockingIssueCount: 0,
+        },
+      } as never;
+    },
+  );
+
+  const result = await getCurrentSessionOrderReviewValidationAction(SLUG, {
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    reviewValidation: {
+      reviewValidationStatus: "READY",
+      isReadyForFutureCheckout: true,
+      blockingIssues: [],
+      validationSummary: {
+        scopedContextStatus: "VALID",
+        activeLineCount: 1,
+        pricingStatus: "RESOLVED",
+        blockingIssueCount: 0,
+      },
+    },
+  });
+  assert.deepEqual(received, {
+    houseId: HOUSE_ID,
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+});
+
+test("getCurrentSessionOrderReviewValidationAction maps expected denial to client-safe error", async () => {
+  mockAuthAndAccess();
+  mock.method(orderReviewValidationModule, "createSupabasePosOrderReviewValidationRepository", () => ({}) as never);
+  mock.method(orderReviewValidationModule, "getCurrentSessionOrderReviewValidation", async () => {
+    throw new orderReviewValidationModule.PosOrderReviewValidationError(
+      "scoped detail",
+      "ORDER_INVALID_OR_CLOSED",
+      403,
+    );
+  });
+
+  const result = await getCurrentSessionOrderReviewValidationAction(SLUG, {
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+
+  assert.deepEqual(result, { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR });
+});
+
+test("getCurrentSessionOrderReviewValidationAction rethrows unexpected failures", async () => {
+  mockAuthAndAccess();
+  mock.method(orderReviewValidationModule, "createSupabasePosOrderReviewValidationRepository", () => ({}) as never);
+  mock.method(orderReviewValidationModule, "getCurrentSessionOrderReviewValidation", async () => {
+    throw new Error("unexpected");
+  });
+
+  await assert.rejects(
+    () =>
+      getCurrentSessionOrderReviewValidationAction(SLUG, {
+        branchId: "branch-1",
+        sessionId: "session-1",
+        deviceId: "device-1",
+        orderId: "order-1",
+      }),
+    /unexpected/,
+  );
 });
 
 test("getCurrentSessionOrderPricingAction maps expected pricing errors to no-leak safe message", async () => {
