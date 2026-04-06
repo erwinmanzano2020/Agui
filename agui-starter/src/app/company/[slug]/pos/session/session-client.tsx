@@ -56,7 +56,11 @@ type OrderReviewView = {
 type OrderReviewValidationView = {
   reviewValidationStatus: "READY" | "BLOCKED";
   isReadyForFutureCheckout: boolean;
-  blockingIssues: Array<{ code: "EMPTY_ORDER" | "ORDER_INVALID_OR_CLOSED" | "ITEM_PRICE_MISSING" | "INVALID_SCOPED_CONTEXT" }>;
+  blockingIssues: Array<{
+    code: "EMPTY_ORDER" | "ORDER_INVALID_OR_CLOSED" | "ITEM_PRICE_MISSING" | "INVALID_SCOPED_CONTEXT";
+    severity: "BLOCKER";
+    message: string;
+  }>;
   validationSummary: {
     scopedContextStatus: "VALID" | "INVALID";
     activeLineCount: number;
@@ -174,6 +178,24 @@ export function createEmptyOrderReview(): OrderReviewView {
 export function createEmptyOrderReviewValidation(): OrderReviewValidationView {
   return null;
 }
+export function getConservativeValidationBlockingIssues(
+  reviewValidation: OrderReviewValidationView,
+): NonNullable<OrderReviewValidationView>["blockingIssues"] {
+  if (!reviewValidation) {
+    return [];
+  }
+
+  return reviewValidation.blockingIssues.filter(
+    (issue): issue is NonNullable<OrderReviewValidationView>["blockingIssues"][number] =>
+      (issue.code === "EMPTY_ORDER" ||
+        issue.code === "ORDER_INVALID_OR_CLOSED" ||
+        issue.code === "ITEM_PRICE_MISSING" ||
+        issue.code === "INVALID_SCOPED_CONTEXT") &&
+      issue.severity === "BLOCKER" &&
+      typeof issue.message === "string" &&
+      issue.message.trim() !== "",
+  );
+}
 
 export function shouldRefreshReviewAfterAddLineSuccess(input: { addLineSucceeded: boolean; hasScopedOrder: boolean }): boolean {
   return input.addLineSucceeded && input.hasScopedOrder;
@@ -224,6 +246,10 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
     [activeOrderId, branchId, openDeviceId, openSessionId],
   );
   const currentScopeKey = useMemo(() => serializeCurrentOrderScope(currentScope), [currentScope]);
+  const displayBlockingIssues = useMemo(
+    () => getConservativeValidationBlockingIssues(reviewValidation),
+    [reviewValidation],
+  );
 
   useEffect(() => {
     activeScopeKeyRef.current = currentScopeKey;
@@ -762,10 +788,12 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
               <p>Scoped context: {reviewValidation.validationSummary.scopedContextStatus}</p>
               <p>Active lines counted: {reviewValidation.validationSummary.activeLineCount}</p>
               <p>Pricing resolvable: {reviewValidation.validationSummary.pricingStatus}</p>
-              {reviewValidation.blockingIssues.length > 0 ? (
+              {displayBlockingIssues.length > 0 ? (
                 <ul className="space-y-1">
-                  {reviewValidation.blockingIssues.map((issue, index) => (
-                    <li key={`validation-issue-${issue.code}-${index}`}>{issue.code}</li>
+                  {displayBlockingIssues.map((issue, index) => (
+                    <li key={`validation-issue-${issue.code}-${index}`}>
+                      {issue.code} [{issue.severity}] — {issue.message}
+                    </li>
                   ))}
                 </ul>
               ) : (

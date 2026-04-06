@@ -407,6 +407,8 @@ Slice 4 readiness output is bounded to read-only validation output containing:
 - readiness status,
 - blocking issues list,
 - machine-safe issue codes,
+- bounded issue severity (`BLOCKER` only in this slice),
+- deterministic operator-safe issue messages (non-sensitive),
 - read-only validation summary.
 
 Output language in this status document remains conservative and must not be interpreted as checkout capability.

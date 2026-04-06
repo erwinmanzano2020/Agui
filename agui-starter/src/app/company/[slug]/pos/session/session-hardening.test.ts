@@ -6,6 +6,7 @@ import {
   createEmptyOrderReview,
   createEmptyOrderReviewValidation,
   createEmptyOrderPricing,
+  getConservativeValidationBlockingIssues,
   clearLineSurfaceState,
   parseQuantityInput,
   resolveCurrentOrderScope,
@@ -227,6 +228,41 @@ test("validation refresh remains scoped and conservative under stale scope guard
       latestRequestId: 5,
     }),
     false,
+  );
+});
+
+test("validation issue display only accepts bounded structured blocker entries", () => {
+  assert.deepEqual(getConservativeValidationBlockingIssues(null), []);
+  assert.deepEqual(
+    getConservativeValidationBlockingIssues({
+      reviewValidationStatus: "BLOCKED",
+      isReadyForFutureCheckout: false,
+      blockingIssues: [
+        {
+          code: "EMPTY_ORDER",
+          severity: "BLOCKER",
+          message: "Order must contain at least one active line",
+        },
+        {
+          code: "ITEM_PRICE_MISSING",
+          severity: "BLOCKER",
+          message: " ",
+        },
+      ],
+      validationSummary: {
+        scopedContextStatus: "VALID",
+        activeLineCount: 0,
+        pricingStatus: "UNRESOLVED",
+        blockingIssueCount: 2,
+      },
+    }),
+    [
+      {
+        code: "EMPTY_ORDER",
+        severity: "BLOCKER",
+        message: "Order must contain at least one active line",
+      },
+    ],
   );
 });
 
