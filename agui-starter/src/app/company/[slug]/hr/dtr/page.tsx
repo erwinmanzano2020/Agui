@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { CreateDtrSegmentForm, UpdateDtrSegmentForm } from "./DtrSegmentForms";
 import { requireAuth } from "@/lib/auth/require-auth";
 import type { DtrSegmentRow } from "@/lib/db.types";
+import { requireHrAccess } from "@/lib/hr/access";
 import { listDtrByHouseAndDate } from "@/lib/hr/dtr-segments-server";
 import { listEmployeesByHouse } from "@/lib/hr/employees-server";
 import { computeOvertimeForHouseDate, getScheduleForEmployeeOnDate } from "@/lib/hr/overtime-engine";
@@ -58,6 +59,7 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
   if (!house) {
     notFound();
   }
+  await requireHrAccess(supabase, house.id);
 
   const today = new Date().toISOString().slice(0, 10);
   const dateParam = typeof rawSearch.date === "string" ? rawSearch.date : undefined;

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { requireAuth } from "@/lib/auth/require-auth";
+import { requireHrAccess } from "@/lib/hr/access";
 import { getPayrollRunWithItems, listPayrollRunsForHouse } from "@/lib/hr/payroll-runs-server";
 import PayslipPreviewPanel from "@/app/company/[slug]/hr/payroll-runs/[runId]/PayslipPreviewPanel";
 
@@ -18,6 +19,7 @@ export default async function HrPayslipsPage({ params, searchParams }: Props) {
 
   const { data: house } = await supabase.from("houses").select("id, slug, name").eq("slug", slug).maybeSingle();
   if (!house) notFound();
+  await requireHrAccess(supabase, house.id);
 
   const runs = await listPayrollRunsForHouse(supabase, house.id);
   const selectedRunId = (typeof search.runId === "string" ? search.runId : "") || runs[0]?.id || "";
@@ -35,7 +37,10 @@ export default async function HrPayslipsPage({ params, searchParams }: Props) {
         <div className="space-y-2">
           <h2 className="text-xl font-semibold text-foreground">Payslips</h2>
           <p className="text-sm text-muted-foreground">
-            Review computed payslips by payroll run, using the same computation and deductions used in payroll run detail.
+            Review computed payslips by payroll run using the same snapshot-based computation and manual deductions shown in payroll run detail.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Finalize locks snapshot rows only. Posting locks deductions and payslip outputs. Government deductions and payout integrations remain intentionally deferred.
           </p>
         </div>
         {runs.length > 0 ? (
@@ -71,7 +76,7 @@ export default async function HrPayslipsPage({ params, searchParams }: Props) {
 
       {selectedRun && employees.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-white/60 p-6 text-sm text-muted-foreground">
-          No payslip rows are available for this run.
+          This run has no snapshot rows yet, so there are no computed payslips to show.
         </div>
       ) : null}
     </div>

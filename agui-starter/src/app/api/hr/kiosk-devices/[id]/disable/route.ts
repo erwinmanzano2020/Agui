@@ -14,12 +14,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) return jsonError(401, "Not authenticated");
 
-  const entityId = await resolveEntityIdForUser(userData.user, supabase);
   const parsedParams = ParamsSchema.safeParse(await params);
   if (!parsedParams.success) return jsonError(400, "Invalid device id");
 
   const parsed = BodySchema.safeParse(await req.json().catch(() => ({})));
   if (!parsed.success) return jsonError(400, "Invalid payload", { issues: parsed.error.issues });
+
+  const entityId = await resolveEntityIdForUser(userData.user, supabase);
 
   try {
     await setKioskDeviceEnabled(supabase, {

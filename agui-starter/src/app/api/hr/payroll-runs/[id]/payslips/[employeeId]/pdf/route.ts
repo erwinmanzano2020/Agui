@@ -11,7 +11,7 @@ import {
   PayslipValidationError,
 } from "@/lib/hr/payslip-server";
 import { generatePayslipPdf, type PayslipPdfFormat } from "@/lib/hr/payslip-pdf";
-import { requireHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { z } from "@/lib/z";
 
 const ROUTE_NAME = "api/hr/payroll-runs/:id/payslips/:employeeId/pdf";
@@ -90,7 +90,7 @@ export async function GET(
       return jsonError(409, "Payroll run must be finalized before exporting.");
     }
 
-    const access = await requireHrAccess(actor.supabase, run.house_id);
+    const access = await requireHrAccessWithBranch(actor.supabase, { houseId: run.house_id });
     if (!access.allowed) {
       logApiWarning({
         route: ROUTE_NAME,
@@ -105,7 +105,13 @@ export async function GET(
     const rows = await computePayslipsForPayrollRun(
       actor.supabase,
       { houseId: run.house_id, runId, employeeId },
-      { access },
+      {
+        access,
+        branchScope: {
+          isBranchLimited: access.isBranchLimited,
+          allowedBranchIds: access.allowedBranchIds,
+        },
+      },
     );
 
     const row = rows[0];

@@ -14,6 +14,7 @@ import { AppFeature } from "@/lib/auth/permissions";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getEmployeeIdCardById } from "@/lib/hr/employee-id-cards-server";
 import { generateEmployeeIdCardPdf } from "@/lib/hr/employee-id-card-pdf";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { z } from "@/lib/z";
 
 const ParamsSchema = z.object({ employeeId: z.string().trim().uuid() });
@@ -58,6 +59,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
   if (!houseId) {
     return jsonError(400, "houseId is required");
   }
+  const disposition = new URL(req.url).searchParams.get("disposition")?.trim();
+  const contentDispositionType = disposition === "inline" ? "inline" : "attachment";
 
   const supabase = await createServerSupabaseClient();
   const {
@@ -102,7 +105,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
     resolvedFeatures: featureSnapshot.resolvedFeatures,
   });
 
-  const card = await getEmployeeIdCardById(supabase, houseId, parsed.data.employeeId);
+  const access = await requireHrAccessWithBranch(supabase, { houseId });
+  if (!access.allowed) {
+    return jsonError(403, "Not allowed");
+  }
+
+  const card = await getEmployeeIdCardById(supabase, houseId, parsed.data.employeeId, {
+    readScope: {
+      isBranchLimited: access.isBranchLimited,
+      allowedBranchIds: access.allowedBranchIds,
+    },
+  });
   if (!card) {
     return jsonError(404, "Employee not found");
   }
@@ -117,7 +130,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Content-Disposition": `${contentDispositionType}; filename="${filename}"`,
         "Cache-Control": "no-store",
       },
     });

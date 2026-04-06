@@ -121,6 +121,16 @@ class PayrollRunPdfSupabaseMock {
   }
 
   from(table: string) {
+    if (table === "house_roles") {
+      return this.buildQuery([
+        {
+          entity_id: "entity-1",
+          house_id: this.houseId,
+          created_at: "2024-01-01T00:00:00.000Z",
+        },
+      ]);
+    }
+
     if (table === "dtr_segments") {
       return this.buildQuery(this.segments);
     }
@@ -240,6 +250,7 @@ const allowedAccess: HrAccessDecision = {
 };
 
 beforeEach(async () => {
+  mock.restoreAll();
   supabase = new PayrollRunPdfSupabaseMock();
 
   const featureGuard = await import("@/lib/auth/feature-guard");
@@ -255,7 +266,12 @@ beforeEach(async () => {
   mock.method(entityServer, "resolveEntityIdForUser", async () => "entity-1");
 
   const accessModule = await import("@/lib/hr/access");
-  mock.method(accessModule, "requireHrAccess", async () => allowedAccess);
+  mock.method(accessModule, "requireHrAccessWithBranch", async () => ({
+    ...allowedAccess,
+    branchId: null,
+    isBranchLimited: false,
+    allowedBranchIds: [],
+  }));
 
   ({ GET } = await import("../route"));
 });
@@ -276,8 +292,20 @@ describe("GET /api/hr/payroll-runs/[id]/pdf", () => {
   });
 
   it("denies access when HR scope is missing", async () => {
+    let computeCalls = 0;
     const accessModule = await import("@/lib/hr/access");
-    mock.method(accessModule, "requireHrAccess", async () => ({ ...allowedAccess, allowed: false }));
+    mock.method(accessModule, "requireHrAccessWithBranch", async () => ({
+      ...allowedAccess,
+      allowed: false,
+      branchId: null,
+      isBranchLimited: false,
+      allowedBranchIds: [],
+    }));
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    mock.method(payslipServer, "computePayslipsForPayrollRun", async () => {
+      computeCalls += 1;
+      return [];
+    });
 
     const response = await GET(
       new Request(`http://localhost/api/hr/payroll-runs/${supabase.runId}/pdf`) as NextRequest,
@@ -285,6 +313,179 @@ describe("GET /api/hr/payroll-runs/[id]/pdf", () => {
     );
 
     assert.equal(response.status, 403);
+    assert.equal(computeCalls, 0);
+    const payload = await response.json();
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.runId, undefined);
+  });
+
+  it("passes branch-limited scope into payslip compute options", async () => {
+    let capturedBranchScope: { isBranchLimited: boolean; allowedBranchIds: string[] } | null = null;
+    const accessModule = await import("@/lib/hr/access");
+    mock.method(accessModule, "requireHrAccessWithBranch", async () => ({
+      ...allowedAccess,
+      allowedByRole: false,
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: [supabase.branchId],
+    }));
+
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    mock.method(
+      payslipServer,
+      "computePayslipsForPayrollRun",
+      async (
+        _supabase: unknown,
+        _input: { houseId: string; runId: string },
+        options?: { branchScope?: { isBranchLimited: boolean; allowedBranchIds: string[] } },
+      ) => {
+        capturedBranchScope = options?.branchScope ?? null;
+        return [];
+      },
+    );
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${supabase.runId}/pdf`) as NextRequest,
+      { params: Promise.resolve({ id: supabase.runId }) },
+    );
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(capturedBranchScope, {
+      isBranchLimited: true,
+      allowedBranchIds: [supabase.branchId],
+    });
+  });
+
+  it("keeps diagnostics branch-scoped under branch-limited access", async () => {
+    const outOfScopeBranchId = "00000000-0000-0000-0000-000000009999";
+    const inScopeEmployeeId = supabase.employees[0]?.id ?? "";
+    const outOfScopeEmployeeId = supabase.employees[1]?.id ?? "";
+    let capturedSummary:
+      | { missingScheduleDays: number; correctedSegments: number; openSegments: number }
+      | null = null;
+
+    const originalFrom = supabase.from.bind(supabase);
+    supabase.from = ((table: string) => {
+      if (table === "hr_payroll_run_items") {
+        return supabase.buildQuery([
+          {
+            id: "run-item-in-scope",
+            run_id: supabase.runId,
+            house_id: supabase.houseId,
+            employee_id: inScopeEmployeeId,
+            work_minutes: 480,
+            overtime_minutes_raw: 0,
+            overtime_minutes_rounded: 0,
+            missing_schedule_days: 1,
+            open_segment_days: 2,
+            corrected_segment_days: 3,
+            notes: {},
+            created_at: "2024-01-16T00:00:00.000Z",
+          },
+          {
+            id: "run-item-out-of-scope",
+            run_id: supabase.runId,
+            house_id: supabase.houseId,
+            employee_id: outOfScopeEmployeeId,
+            work_minutes: 480,
+            overtime_minutes_raw: 0,
+            overtime_minutes_rounded: 0,
+            missing_schedule_days: 700,
+            open_segment_days: 800,
+            corrected_segment_days: 900,
+            notes: {},
+            created_at: "2024-01-16T00:00:00.000Z",
+          },
+        ]);
+      }
+      return originalFrom(table);
+    }) as typeof supabase.from;
+
+    supabase.employees = supabase.employees.map((employee, index) =>
+      index === 1 ? { ...employee, branch_id: outOfScopeBranchId } : employee,
+    );
+
+    const accessModule = await import("@/lib/hr/access");
+    mock.method(accessModule, "requireHrAccessWithBranch", async () => ({
+      ...allowedAccess,
+      allowedByRole: false,
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: [supabase.branchId],
+    }));
+
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    mock.method(payslipServer, "computePayslipsForPayrollRun", async () => [
+      {
+        employeeId: inScopeEmployeeId,
+        employeeName: "Edward Cruz",
+        employeeCode: "EMP-003",
+        periodStart: "2024-01-01",
+        periodEnd: "2024-01-15",
+        ratePerDay: 1000,
+        scheduledMinutes: 480,
+        workMinutes: 480,
+        regularMinutes: 480,
+        overtimeMinutes: 0,
+        undertimeMinutes: 0,
+        perMinuteRate: 2.0833,
+        regularPay: 1000,
+        overtimePay: 0,
+        undertimeDeduction: 0,
+        otherDeductions: [],
+        deductionsTotal: 0,
+        grossPay: 1000,
+        netPay: 1000,
+        flags: {
+          missingScheduleDays: 1,
+          openSegment: false,
+          absentDays: 0,
+          timezoneMismatchDays: 0,
+        },
+      },
+    ]);
+
+    const payrollRunPdf = await import("@/lib/hr/payroll-run-pdf");
+    mock.method(payrollRunPdf, "generatePayrollRunPdf", (input: {
+      summary: { missingScheduleDays: number; correctedSegments: number; openSegments: number };
+    }) => {
+      capturedSummary = {
+        missingScheduleDays: input.summary.missingScheduleDays,
+        correctedSegments: input.summary.correctedSegments,
+        openSegments: input.summary.openSegments,
+      };
+      return new Uint8Array([37, 80, 68, 70]);
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${supabase.runId}/pdf`) as NextRequest,
+      { params: Promise.resolve({ id: supabase.runId }) },
+    );
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(capturedSummary, {
+      missingScheduleDays: 1,
+      correctedSegments: 3,
+      openSegments: 2,
+    });
+  });
+
+  it("keeps no-leak payload when payslip computation denies cross-house scope", async () => {
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    mock.method(payslipServer, "computePayslipsForPayrollRun", async () => {
+      throw new payslipServer.PayslipAccessError("Not allowed");
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${supabase.runId}/pdf`) as NextRequest,
+      { params: Promise.resolve({ id: supabase.runId }) },
+    );
+
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload.error, "Not allowed");
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.runId, undefined);
   });
 
   it("returns a PDF payload for finalized/posted/paid runs", async () => {
@@ -410,5 +611,128 @@ describe("GET /api/hr/payroll-runs/[id]/pdf", () => {
       expectedError: "Not authenticated",
       featureGuardCalls: featureCalls,
     });
+  });
+
+  it("returns unauthenticated response before param/query validation", async () => {
+    let featureCalls = 0;
+    let runLookupCalls = 0;
+
+    const featureGuard = await import("@/lib/auth/feature-guard");
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+      featureCalls += 1;
+      return null;
+    });
+
+    supabase.auth.getUser = async () => ({ data: { user: null }, error: null });
+
+    const originalFrom = supabase.from.bind(supabase);
+    supabase.from = ((table: string) => {
+      if (table === "hr_payroll_runs") {
+        runLookupCalls += 1;
+      }
+      return originalFrom(table);
+    }) as typeof supabase.from;
+
+    const response = await GET(
+      new Request("http://localhost/api/hr/payroll-runs/not-a-uuid/pdf?format=bad") as NextRequest,
+      { params: Promise.resolve({ id: "not-a-uuid" }) },
+    );
+
+    await assertUnauthenticatedSafeHrRouteDrift({
+      response,
+      expectedStatus: 401,
+      expectedError: "Not authenticated",
+      featureGuardCalls: featureCalls,
+      payloadParseCalls: 0,
+    });
+    assert.equal(runLookupCalls, 0);
+  });
+
+  it("returns 404 and short-circuits access/compute when payroll run is unresolved", async () => {
+    let accessCalls = 0;
+    let computeCalls = 0;
+
+    const originalFrom = supabase.from.bind(supabase);
+    supabase.from = ((table: string) => {
+      if (table === "hr_payroll_runs") {
+        return {
+          select() {
+            return this;
+          },
+          eq() {
+            return this;
+          },
+          maybeSingle: async () => ({ data: null, error: null }),
+        };
+      }
+      return originalFrom(table);
+    }) as typeof supabase.from;
+
+    const accessModule = await import("@/lib/hr/access");
+    mock.method(accessModule, "requireHrAccess", async () => {
+      accessCalls += 1;
+      return allowedAccess;
+    });
+
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    mock.method(payslipServer, "computePayslipsForPayrollRun", async () => {
+      computeCalls += 1;
+      return [];
+    });
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${supabase.runId}/pdf`) as NextRequest,
+      { params: Promise.resolve({ id: supabase.runId }) },
+    );
+
+    assert.equal(response.status, 404);
+    assert.equal(accessCalls, 0);
+    assert.equal(computeCalls, 0);
+    const payload = await response.json();
+    assert.equal(payload.error, "Payroll run not found");
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.runId, undefined);
+  });
+
+  it("degrades safely when house_roles lookup fails and houseId is omitted", async () => {
+    let computeCalls = 0;
+    const payslipServer = await import("@/lib/hr/payslip-server");
+    mock.method(payslipServer, "computePayslipsForPayrollRun", async () => {
+      computeCalls += 1;
+      return [];
+    });
+
+    const localSupabase = {
+      auth: {
+        getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+      },
+      from(table: string) {
+        if (table !== "house_roles") throw new Error(`Unexpected table: ${table}`);
+        return {
+          select() {
+            return this;
+          },
+          eq() {
+            return this;
+          },
+          order: async () => ({ data: null, error: { message: "permission denied", code: "42501" } }),
+        };
+      },
+    };
+
+    const supabaseModule = await import("@/lib/supabase/server");
+    mock.method(supabaseModule, "createServerSupabaseClient", async () => localSupabase as never);
+
+    const response = await GET(
+      new Request(`http://localhost/api/hr/payroll-runs/${supabase.runId}/pdf`) as NextRequest,
+      { params: Promise.resolve({ id: supabase.runId }) },
+    );
+
+    assert.equal(response.status, 403);
+    assert.equal(computeCalls, 0);
+    const payload = await response.json();
+    assert.equal(payload.error, "Not allowed");
+    assert.equal(payload?.details?.houseId, undefined);
+    assert.equal(payload?.details?.runId, undefined);
   });
 });

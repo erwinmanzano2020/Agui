@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { requireAuth } from "@/lib/auth/require-auth";
+import { requireHrAccess } from "@/lib/hr/access";
 import { listBranchesForHouse, listEmployeesByHouse } from "@/lib/hr/employees-server";
 import { computePayrollPreviewForHousePeriod } from "@/lib/hr/payroll-preview-server";
 
@@ -40,6 +41,7 @@ export default async function PayrollPreviewPage({ params, searchParams }: Props
   if (!house) {
     notFound();
   }
+  await requireHrAccess(supabase, house.id);
 
   const today = new Date().toISOString().slice(0, 10);
   const startParam = typeof rawSearch.startDate === "string" ? rawSearch.startDate : undefined;

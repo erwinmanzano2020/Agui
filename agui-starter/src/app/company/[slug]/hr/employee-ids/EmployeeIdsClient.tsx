@@ -4,6 +4,7 @@ import * as React from "react";
 
 import type { BranchListItem } from "@/lib/hr/employees-server";
 import type { EmployeeIdCardRow } from "@/lib/hr/employee-id-cards";
+import { getEmployeeIdPhotoStatus } from "@/lib/hr/employee-id-cards";
 
 type Props = {
   houseId: string;
@@ -23,6 +24,7 @@ export function EmployeeIdsClient({
   initialSearch,
 }: Props) {
   const [selected, setSelected] = React.useState<Record<string, boolean>>({});
+  const [brokenThumbs, setBrokenThumbs] = React.useState<Record<string, boolean>>({});
 
   const toggle = (id: string) => setSelected((prev) => ({ ...prev, [id]: !prev[id] }));
 
@@ -44,6 +46,15 @@ export function EmployeeIdsClient({
     const url = URL.createObjectURL(blob);
     window.open(url, "_blank", "noopener,noreferrer");
   };
+
+  const photoStatusLabel = React.useCallback((employee: EmployeeIdCardRow): string => {
+    if (brokenThumbs[employee.id]) return "Photo unavailable";
+
+    const status = getEmployeeIdPhotoStatus(employee.photoUrl);
+    if (status === "ready") return "Photo ready";
+    if (status === "invalid_url") return "Photo unavailable";
+    return "No photo";
+  }, [brokenThumbs]);
 
   return (
     <div className="space-y-4 rounded-xl border bg-white p-4">
@@ -84,6 +95,18 @@ export function EmployeeIdsClient({
             <th>Code</th>
             <th>Position</th>
             <th>Branch</th>
+            <th>
+              <span className="inline-flex items-center gap-1">
+                Output status
+                <span
+                  className="cursor-help text-xs text-muted-foreground"
+                  title="Photo unavailable means the saved photo URL is invalid, broken, or unreachable at print/preview time."
+                  aria-label="Output status help"
+                >
+                  ⓘ
+                </span>
+              </span>
+            </th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -94,19 +117,34 @@ export function EmployeeIdsClient({
                 <input type="checkbox" checked={Boolean(selected[employee.id])} onChange={() => toggle(employee.id)} />
               </td>
               <td className="py-2">
-                {employee.photoUrl ? (
-                  <img src={employee.photoUrl} alt={`${employee.fullName ?? employee.code} photo`} className="h-10 w-8 rounded object-cover" />
+                {employee.photoUrl && !brokenThumbs[employee.id] ? (
+                  <img
+                    src={employee.photoUrl}
+                    alt={`${employee.fullName ?? employee.code} photo`}
+                    className="h-10 w-8 rounded object-cover"
+                    onError={() => setBrokenThumbs((prev) => ({ ...prev, [employee.id]: true }))}
+                  />
                 ) : (
-                  <span className="text-xs text-muted-foreground">No photo</span>
+                  <span className="text-xs text-muted-foreground">
+                    {photoStatusLabel(employee) === "No photo" ? "No photo" : "Unavailable"}
+                  </span>
                 )}
               </td>
               <td>{employee.fullName ?? employee.code}</td>
               <td>{employee.code}</td>
               <td>{employee.position ?? "—"}</td>
               <td>{employee.branchName ?? "—"}</td>
+              <td
+                className="text-xs text-muted-foreground"
+                title={photoStatusLabel(employee) === "Photo unavailable"
+                  ? "Photo unavailable can mean the stored URL is invalid, broken, or unreachable."
+                  : undefined}
+              >
+                {photoStatusLabel(employee)}
+              </td>
               <td className="space-x-2 py-2">
                 <a
-                  href={`/api/hr/employees/${employee.id}/id-card.pdf?houseId=${houseId}&format=cr80`}
+                  href={`/api/hr/employees/${employee.id}/id-card.pdf?houseId=${houseId}&format=cr80&disposition=inline`}
                   className="rounded border px-2 py-1"
                 >
                   Preview ID

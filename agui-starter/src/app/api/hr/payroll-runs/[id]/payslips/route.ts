@@ -10,6 +10,8 @@ import {
   PayslipFetchError,
   PayslipValidationError,
 } from "@/lib/hr/payslip-server";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
+import { isOptionalTableError } from "@/lib/supabase/errors";
 import { z } from "@/lib/z";
 
 const ROUTE_NAME = "api/hr/payroll-runs/:id/payslips";
@@ -22,6 +24,41 @@ const QuerySchema = z.object({
   employeeId: z.string().trim().uuid().optional(),
   houseId: z.string().trim().uuid().optional(),
 });
+
+async function listActorHouseIds(
+  supabase: Parameters<typeof requireHrAccessWithBranch>[0],
+  entityId: string,
+): Promise<string[]> {
+  const { data, error } = await supabase
+    .from("house_roles")
+    .select("house_id, created_at")
+    .eq("entity_id", entityId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    const code = typeof error === "object" && error !== null && "code" in error
+      ? String((error as { code?: string }).code ?? "")
+      : "";
+    const message = typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: string }).message ?? "")
+      : "";
+    const nonFatalLookupError =
+      isOptionalTableError(error) ||
+      code === "42501" ||
+      /permission denied/i.test(message);
+    if (nonFatalLookupError) {
+      return [];
+    }
+    throw new PayslipFetchError(message || "Failed to resolve actor houses.");
+  }
+
+  const unique = new Set<string>();
+  for (const row of data ?? []) {
+    const houseId = (row as { house_id?: string | null }).house_id;
+    if (houseId) unique.add(houseId);
+  }
+  return Array.from(unique.values());
+}
 
 export async function GET(
   req: NextRequest,
@@ -58,12 +95,22 @@ export async function GET(
   }
 
   try {
-    const { employeeId, houseId } = parsedQuery.data;
-    if (!houseId) {
+    const { employeeId, houseId: explicitHouseId } = parsedQuery.data;
+    const houseIds = explicitHouseId ? [explicitHouseId] : await listActorHouseIds(supabase, entityId);
+    let attemptedAllowedHouse = false;
+
+    for (const houseId of houseIds) {
+      const access = await requireHrAccessWithBranch(supabase, { houseId });
+      if (!access.allowed) {
+        continue;
+      }
+      attemptedAllowedHouse = true;
+
       const { data: run, error: runError } = await supabase
         .from("hr_payroll_runs")
         .select("id, house_id")
         .eq("id", parsedParams.data.id)
+        .eq("house_id", houseId)
         .maybeSingle<{ id: string; house_id: string }>();
 
       if (runError) {
@@ -71,14 +118,24 @@ export async function GET(
       }
 
       if (!run) {
-        return jsonError(404, "Payroll run not found");
+        continue;
       }
 
-      const rows = await computePayslipsForPayrollRun(supabase, {
-        houseId: run.house_id,
-        runId: parsedParams.data.id,
-        employeeId,
-      });
+      const rows = await computePayslipsForPayrollRun(
+        supabase,
+        {
+          houseId: run.house_id,
+          runId: parsedParams.data.id,
+          employeeId,
+        },
+        {
+          access,
+          branchScope: {
+            isBranchLimited: access.isBranchLimited,
+            allowedBranchIds: access.allowedBranchIds,
+          },
+        },
+      );
 
       if (employeeId) {
         return jsonOk(rows[0] ?? null);
@@ -87,17 +144,28 @@ export async function GET(
       return jsonOk(rows);
     }
 
-    const rows = await computePayslipsForPayrollRun(supabase, {
-      houseId,
-      runId: parsedParams.data.id,
-      employeeId,
-    });
-
-    if (employeeId) {
-      return jsonOk(rows[0] ?? null);
+    if (!attemptedAllowedHouse) {
+      logApiWarning({
+        route: ROUTE_NAME,
+        action: "access_denied",
+        userId,
+        entityId,
+        details: { runId: parsedParams.data.id },
+      });
+      return jsonError(403, "Not allowed");
     }
 
-    return jsonOk(rows);
+    if (explicitHouseId) {
+      logApiWarning({
+        route: ROUTE_NAME,
+        action: "run_not_found",
+        userId,
+        entityId,
+        details: { runId: parsedParams.data.id },
+      });
+    }
+
+    return jsonError(404, "Payroll run not found");
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     if (error instanceof PayslipAccessError) {

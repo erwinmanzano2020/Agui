@@ -49,7 +49,9 @@ export default async function HrEmployeesPage({ params, searchParams }: Props) {
   const accessibleBranches = access.isBranchLimited
     ? branchResult.branches.filter((branch) => access.allowedBranchIds.includes(branch.id))
     : branchResult.branches;
-  const allowedBranchIds = accessibleBranches.map((branch) => branch.id);
+  const allowedBranchIds = access.isBranchLimited
+    ? access.allowedBranchIds
+    : accessibleBranches.map((branch) => branch.id);
   const filters = normalizeFilters(rawSearch, allowedBranchIds);
   const branchNames = Object.fromEntries(accessibleBranches.map((branch) => [branch.id, branch.name]));
 

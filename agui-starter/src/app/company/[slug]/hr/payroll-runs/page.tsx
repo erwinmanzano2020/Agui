@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { requireAuth } from "@/lib/auth/require-auth";
+import { requireHrAccess } from "@/lib/hr/access";
 import { listPayrollRunsForHouse } from "@/lib/hr/payroll-runs-server";
 import { PayrollRunCreateForm } from "./PayrollRunCreateForm";
 
@@ -28,6 +29,7 @@ export default async function PayrollRunsPage({ params }: Props) {
   if (!house) {
     notFound();
   }
+  await requireHrAccess(supabase, house.id);
 
   const today = new Date().toISOString().slice(0, 10);
   const runs = await listPayrollRunsForHouse(supabase, house.id);
@@ -38,7 +40,10 @@ export default async function PayrollRunsPage({ params }: Props) {
         <div className="space-y-2">
           <h2 className="text-xl font-semibold text-foreground">Payroll Runs</h2>
           <p className="text-sm text-muted-foreground">
-            Draft runs preserve snapshot minutes and now support computed payslip preview + deductions from run detail and the Payslips tab.
+            Draft runs snapshot payroll preview rows. Run detail and the Payslips tab compute payslip pay and manual deductions from that snapshot.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Finalize locks snapshot rows. Posting locks deductions and payslip outputs. Government deductions and payout integrations remain deferred in the current HR phase.
           </p>
         </div>
         <PayrollRunCreateForm
@@ -51,12 +56,12 @@ export default async function PayrollRunsPage({ params }: Props) {
 
       {runs.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-white/60 p-6 text-sm text-muted-foreground">
-          No payroll runs yet. Create a draft run to snapshot the current preview.
+          No payroll runs yet. Create a draft run to capture a snapshot, then review computed payslips from run detail or the Payslips tab.
         </div>
       ) : (
         <section className="overflow-hidden rounded-2xl border border-border bg-white/70 shadow-sm">
           <div className="border-b border-border/70 px-6 py-4">
-            <h3 className="text-lg font-semibold text-foreground">Draft runs</h3>
+            <h3 className="text-lg font-semibold text-foreground">Payroll runs</h3>
           </div>
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">

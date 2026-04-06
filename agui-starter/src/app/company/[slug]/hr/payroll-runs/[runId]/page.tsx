@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { requireAuth } from "@/lib/auth/require-auth";
+import { requireHrAccess } from "@/lib/hr/access";
 import { getPayrollRunWithItems } from "@/lib/hr/payroll-runs-server";
 import CreateAdjustmentRunButton from "./CreateAdjustmentRunButton";
 import DownloadPayrollRunPdfButton from "./DownloadPayrollRunPdfButton";
@@ -48,6 +49,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
   if (!house) {
     notFound();
   }
+  await requireHrAccess(supabase, house.id);
 
   const result = await getPayrollRunWithItems(supabase, house.id, runId);
   if (!result) {
@@ -95,7 +97,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
           </div>
           <div className="flex flex-col items-end gap-3 text-xs text-muted-foreground">
             <div className="rounded-lg border border-dashed border-border bg-white/60 px-4 py-2">
-              Snapshot rows are locked at finalize; payslip computation and deductions are available below.
+              Finalize locks snapshot rows only. Payslip computation stays available below, and posting locks deductions and payslip outputs.
             </div>
             <DownloadPayrollRunPdfButton runId={run.id} runStatus={run.status} />
             {canFinalize ? <FinalizePayrollRunButton runId={run.id} houseId={house.id} /> : null}
@@ -134,7 +136,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
 
       {items.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-border bg-white/60 p-6 text-sm text-muted-foreground">
-          No payroll preview rows were captured for this period.
+          No payroll preview rows were captured for this period, so there are no computed payslips for this run.
         </div>
       ) : (
         <section className="overflow-hidden rounded-2xl border border-border bg-white/70 shadow-sm">

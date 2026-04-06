@@ -8,6 +8,7 @@ type EmployeeRowLite = {
   code: string;
   full_name: string;
   position_title: string | null;
+  photo_url?: string | null;
   house_id: string;
   branch_id: string | null;
   status: "active" | "inactive";
@@ -33,9 +34,20 @@ class QueryMock {
     return this;
   }
 
+  in(column: string, values: string[]) {
+    return new QueryMock(this.table, this.db, this.selected, { ...this.filters, [`in:${column}`]: values.join(",") });
+  }
+
   order() {
     if (this.table === "employees") {
-      return Promise.resolve({ data: this.db.employees.filter((row) => row.house_id === this.filters.house_id), error: null } as const);
+      const scopedBranches = this.filters["in:branch_id"]?.split(",").filter(Boolean) ?? null;
+      return Promise.resolve({
+        data: this.db.employees.filter((row) =>
+          row.house_id === this.filters.house_id
+          && (!scopedBranches || (row.branch_id ? scopedBranches.includes(row.branch_id) : false))
+        ),
+        error: null,
+      } as const);
     }
     if (this.table === "branches") {
       return Promise.resolve({ data: this.db.branches.filter((row) => row.house_id === this.filters.house_id), error: null } as const);
@@ -81,7 +93,7 @@ class SupabaseMock {
   }
 }
 
-describe("employee-id-cards-server", () => {
+describe("employee-id-cards-server", { concurrency: false }, () => {
   it("uses employees.position_title when entity_id is null", async () => {
     const supabase = new SupabaseMock({
       employees: [
@@ -90,6 +102,7 @@ describe("employee-id-cards-server", () => {
           code: "EI-001",
           full_name: "Ada Lovelace",
           position_title: "Store Supervisor",
+          photo_url: " https://cdn.example.com/photo.jpg ",
           house_id: "house-1",
           branch_id: "branch-1",
           status: "active",
@@ -105,6 +118,7 @@ describe("employee-id-cards-server", () => {
     assert.equal(card?.position, "Store Supervisor");
     assert.equal(card?.fullName, "Ada Lovelace");
     assert.equal(card?.houseBrandName, "Demo Brand");
+    assert.equal(card?.photoUrl, "https://cdn.example.com/photo.jpg");
   });
 
   it("lists cards without querying employments", async () => {
@@ -115,6 +129,7 @@ describe("employee-id-cards-server", () => {
           code: "EI-001",
           full_name: "Ada Lovelace",
           position_title: "Cashier",
+          photo_url: "not-a-valid-url",
           house_id: "house-1",
           branch_id: null,
           status: "active",
@@ -127,6 +142,107 @@ describe("employee-id-cards-server", () => {
     const cards = await listEmployeeIdCards(supabase as never, "house-1");
     assert.equal(cards.length, 1);
     assert.equal(cards[0]?.position, "Cashier");
+    assert.equal(cards[0]?.houseBrandName, null);
+    assert.equal(cards[0]?.photoUrl, null);
+  });
+
+  it("keeps branch-limited id card reads scoped to allowed branch ids", async () => {
+    const supabase = new SupabaseMock({
+      employees: [
+        {
+          id: "emp-1",
+          code: "EI-001",
+          full_name: "Ada Lovelace",
+          position_title: "Cashier",
+          house_id: "house-1",
+          branch_id: "branch-1",
+          status: "active",
+        },
+        {
+          id: "emp-2",
+          code: "EI-002",
+          full_name: "Grace Hopper",
+          position_title: "Cashier",
+          house_id: "house-1",
+          branch_id: "branch-2",
+          status: "active",
+        },
+      ],
+      house: { id: "house-1", name: "Demo House", brand_name: null, logo_url: null },
+      branches: [
+        { id: "branch-1", house_id: "house-1", name: "Main" },
+        { id: "branch-2", house_id: "house-1", name: "Annex" },
+      ],
+    });
+
+    const cards = await listEmployeeIdCards(
+      supabase as never,
+      "house-1",
+      {},
+      { readScope: { isBranchLimited: true, allowedBranchIds: ["branch-1"] } },
+    );
+
+    assert.deepEqual(cards.map((card) => card.id), ["emp-1"]);
+  });
+
+  it("degrades safely when optional metadata loaders fail at runtime", async () => {
+    const supabase = {
+      from(table: string) {
+        if (table === "employees") {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            ilike() {
+              return this;
+            },
+            order: async () => ({
+              data: [
+                {
+                  id: "emp-1",
+                  code: "EI-001",
+                  full_name: "Ada Lovelace",
+                  position_title: "Cashier",
+                  photo_url: null,
+                  house_id: "house-1",
+                  branch_id: "branch-1",
+                  status: "active",
+                },
+              ],
+              error: null,
+            }),
+          };
+        }
+
+        if (table === "houses" || table === "branches") {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            maybeSingle: async () => ({
+              data: null,
+              error: { code: "42P01", message: `relation ${table} missing` },
+            }),
+            then: (resolve: (value: { data: null; error: { code: string; message: string } }) => unknown) =>
+              Promise.resolve(resolve({ data: null, error: { code: "42P01", message: `relation ${table} missing` } })),
+          };
+        }
+
+        throw new Error(`Unexpected table ${table}`);
+      },
+    };
+
+    const cards = await listEmployeeIdCards(supabase as never, "house-1");
+    assert.equal(cards.length, 1);
+    assert.equal(cards[0]?.id, "emp-1");
+    assert.equal(cards[0]?.branchName, null);
+    assert.equal(cards[0]?.houseName, "");
     assert.equal(cards[0]?.houseBrandName, null);
   });
 });

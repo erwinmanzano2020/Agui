@@ -227,16 +227,35 @@ describe("kiosk admin", () => {
   });
 
   it("prevents cross-house rotate/disable", async () => {
-    const { supabase } = createSupabaseStub();
+    const { supabase, state } = createSupabaseStub();
     await assert.rejects(
       () => rotateKioskDeviceToken(supabase as never, { houseId: "house-2", deviceId: "device-1" }),
       (error: unknown) => error instanceof KioskAdminError && error.status === 404,
     );
+    assert.equal(state.lastUpdate, null);
 
     await assert.rejects(
       () => setKioskDeviceEnabled(supabase as never, { houseId: "house-2", deviceId: "device-1", enabled: false }),
       (error: unknown) => error instanceof KioskAdminError && error.status === 404,
     );
+    assert.equal(state.lastUpdate, null);
+  });
+
+  it("short-circuits rotate/disable when target device cannot be resolved", async () => {
+    const { supabase, state } = createSupabaseStub();
+    state.deviceExists = false;
+
+    await assert.rejects(
+      () => rotateKioskDeviceToken(supabase as never, { houseId: "house-1", deviceId: "device-1" }),
+      (error: unknown) => error instanceof KioskAdminError && error.status === 404,
+    );
+    assert.equal(state.lastUpdate, null);
+
+    await assert.rejects(
+      () => setKioskDeviceEnabled(supabase as never, { houseId: "house-1", deviceId: "device-1", enabled: false }),
+      (error: unknown) => error instanceof KioskAdminError && error.status === 404,
+    );
+    assert.equal(state.lastUpdate, null);
   });
 
   it("returns branch relation as an object for UI branch name display", async () => {
@@ -266,6 +285,28 @@ describe("kiosk admin", () => {
     const rows = await listKioskDevicesForHouse(supabase as never, "house-1");
     assert.equal(rows.length, 1);
     assert.equal(rows[0]?.branch_id, "branch-1");
+  });
+
+  it("denies-by-default list scope when branch-limited actor has no allowed branches", async () => {
+    mock.restoreAll();
+    mock.method(access, "requireHrAccessWithBranch", async () => ({
+      allowed: true,
+      allowedByPolicy: true,
+      allowedByRole: false,
+      hasWorkspaceAccess: true,
+      roles: ["house_staff"],
+      normalizedRoles: ["staff"],
+      policyKeys: ["tiles.hr.read"],
+      entityId: "entity-2",
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: [],
+    }));
+
+    const { supabase, state } = createSupabaseStub();
+    const rows = await listKioskDevicesForHouse(supabase as never, "house-1");
+    assert.equal(rows.length, 0);
+    assert.deepEqual(state.branchInFilter, []);
   });
 
   it("denies cross-branch mutation for branch-limited actors", async () => {

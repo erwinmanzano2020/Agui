@@ -1197,6 +1197,147 @@ export type BrandOwnerViewRow = {
   brand_name: string;
 };
 
+
+export type PosDeviceRow = {
+  id: string;
+  house_id: string;
+  branch_id: string;
+  label: string;
+  device_code: string;
+  status: "ACTIVE" | "DISABLED" | "RETIRED";
+  created_at: string;
+  updated_at: string;
+};
+
+export type PosDeviceInsert = {
+  id?: string;
+  house_id: string;
+  branch_id: string;
+  label: string;
+  device_code: string;
+  status?: PosDeviceRow["status"];
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type PosDeviceUpdate = Partial<PosDeviceInsert>;
+
+export type PosOperatorCredentialRow = {
+  id: string;
+  house_id: string;
+  entity_id: string;
+  pin_hash: string;
+  pin_salt: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PosOperatorCredentialInsert = {
+  id?: string;
+  house_id: string;
+  entity_id: string;
+  pin_hash: string;
+  pin_salt: string;
+  is_active?: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type PosOperatorCredentialUpdate = Partial<PosOperatorCredentialInsert>;
+
+export type PosSessionRow = {
+  id: string;
+  house_id: string;
+  branch_id: string;
+  device_id: string;
+  operator_entity_id: string;
+  opened_by_entity_id: string;
+  closed_by_entity_id: string | null;
+  status: "OPEN" | "CLOSED";
+  opened_at: string;
+  closed_at: string | null;
+  close_reason: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PosSessionInsert = {
+  id?: string;
+  house_id: string;
+  branch_id: string;
+  device_id: string;
+  operator_entity_id: string;
+  opened_by_entity_id: string;
+  closed_by_entity_id?: string | null;
+  status?: PosSessionRow["status"];
+  opened_at?: string;
+  closed_at?: string | null;
+  close_reason?: string | null;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type PosSessionUpdate = Partial<PosSessionInsert>;
+
+export type PosOrderDraftRow = {
+  id: string;
+  house_id: string;
+  branch_id: string;
+  device_id: string;
+  session_id: string;
+  operator_entity_id: string;
+  status: "DRAFT";
+  created_at: string;
+  updated_at: string;
+};
+
+export type PosOrderDraftInsert = {
+  id?: string;
+  house_id: string;
+  branch_id: string;
+  device_id: string;
+  session_id: string;
+  operator_entity_id: string;
+  status?: PosOrderDraftRow["status"];
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type PosOrderDraftUpdate = Partial<PosOrderDraftInsert>;
+
+export type PosOrderLineRow = {
+  id: string;
+  order_id: string;
+  house_id: string;
+  branch_id: string;
+  session_id: string;
+  device_id: string;
+  operator_entity_id: string;
+  item_code: string;
+  quantity: number;
+  status: "ACTIVE" | "REMOVED";
+  created_at: string;
+  updated_at: string;
+};
+
+export type PosOrderLineInsert = {
+  id?: string;
+  order_id: string;
+  house_id: string;
+  branch_id: string;
+  session_id: string;
+  device_id: string;
+  operator_entity_id: string;
+  item_code: string;
+  quantity: number;
+  status?: PosOrderLineRow["status"];
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type PosOrderLineUpdate = Partial<PosOrderLineInsert>;
+
 export type PosSaleRow = {
   id: string;
   house_id: string;
@@ -1550,6 +1691,11 @@ export interface Database {
         SettingsAuditInsert,
         SettingsAuditUpdate
       >;
+      pos_devices: TableDefinition<PosDeviceRow, PosDeviceInsert, PosDeviceUpdate>;
+      pos_operator_credentials: TableDefinition<PosOperatorCredentialRow, PosOperatorCredentialInsert, PosOperatorCredentialUpdate>;
+      pos_sessions: TableDefinition<PosSessionRow, PosSessionInsert, PosSessionUpdate>;
+      pos_order_drafts: TableDefinition<PosOrderDraftRow, PosOrderDraftInsert, PosOrderDraftUpdate>;
+      pos_order_lines: TableDefinition<PosOrderLineRow, PosOrderLineInsert, PosOrderLineUpdate>;
       pos_shifts: TableDefinition<PosShiftRow, PosShiftInsert, PosShiftUpdate>;
       pos_sales: TableDefinition<PosSaleRow, PosSaleInsert, PosSaleUpdate>;
       pos_sale_lines: TableDefinition<PosSaleLineRow, PosSaleLineInsert, PosSaleLineUpdate>;

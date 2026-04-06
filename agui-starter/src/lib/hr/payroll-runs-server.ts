@@ -291,7 +291,10 @@ export async function getPayrollRunWithItems(
   supabase: SupabaseClient<Database>,
   houseId: string,
   runId: string,
-  options: { access?: HrAccessDecision } = {},
+  options: {
+    access?: HrAccessDecision;
+    branchScope?: { isBranchLimited: boolean; allowedBranchIds: string[] };
+  } = {},
 ): Promise<PayrollRunDetails | null> {
   const access = await resolveAccess(supabase, houseId, options.access);
   if (!access.allowed) {
@@ -322,10 +325,11 @@ export async function getPayrollRunWithItems(
   const employeeIds = Array.from(new Set(items.map((item) => item.employee_id)));
 
   const employeeLookup = new Map<string, { name: string; code: string }>();
+  const branchLookup = new Map<string, string | null>();
   if (employeeIds.length > 0) {
     const { data: employeesData, error: employeeError } = await supabase
       .from("employees")
-      .select("id, code, full_name, house_id")
+      .select("id, code, full_name, house_id, branch_id")
       .eq("house_id", houseId)
       .in("id", employeeIds);
 
@@ -334,17 +338,35 @@ export async function getPayrollRunWithItems(
     }
 
     (employeesData ?? []).forEach((row) => {
-      const employee = row as { id?: string | null; code?: string | null; full_name?: string | null };
+      const employee = row as {
+        id?: string | null;
+        code?: string | null;
+        full_name?: string | null;
+        branch_id?: string | null;
+      };
       if (!employee.id) return;
       employeeLookup.set(employee.id, {
         name: employee.full_name ?? "Unknown",
         code: employee.code ?? "",
       });
+      branchLookup.set(employee.id, employee.branch_id ?? null);
     });
   }
 
-  const run = mapRun(data, items.length);
-  const mappedItems = items.map((item) => mapItem(item, employeeLookup));
+  const scopedItems =
+    options.branchScope?.isBranchLimited
+      ? items.filter((item) => {
+          const branchId = branchLookup.get(item.employee_id) ?? null;
+          return Boolean(branchId && options.branchScope?.allowedBranchIds.includes(branchId));
+        })
+      : items;
+
+  if (options.branchScope?.isBranchLimited && scopedItems.length === 0) {
+    return null;
+  }
+
+  const run = mapRun(data, scopedItems.length);
+  const mappedItems = scopedItems.map((item) => mapItem(item, employeeLookup));
 
   return { run, items: mappedItems } satisfies PayrollRunDetails;
 }

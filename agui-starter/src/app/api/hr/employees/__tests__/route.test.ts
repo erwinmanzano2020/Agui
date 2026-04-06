@@ -17,7 +17,8 @@ import {
   assertCanonicalSafeHrRouteEntryOrder,
   assertUnauthenticatedSafeHrRouteDrift,
 } from "@/app/api/hr/_shared/__tests__/safe-route-drift";
-import { POST } from "../route";
+import * as routeGuardOrder from "@/app/api/hr/_shared/route-guard-order";
+import { GET, POST } from "../route";
 
 const HOUSE_ID = "33333333-3333-4333-8333-333333333333";
 const BRANCH_ID = "11111111-1111-4111-8111-111111111111";
@@ -466,5 +467,278 @@ describe("POST /api/hr/employees boundary error mapping", () => {
 
     assert.equal(response.status, 400);
     assertCanonicalSafeHrRouteEntryOrder(order);
+  });
+});
+
+
+describe("GET /api/hr/employees tenancy boundaries", () => {
+  afterEach(() => mock.restoreAll());
+
+  it("rejects missing house membership", async () => {
+    mock.method(routeGuardOrder, "resolveHrRouteActorContext", async () => ({
+      supabase: {
+        from() {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            maybeSingle() {
+              return Promise.resolve({ data: null, error: null });
+            },
+            order() {
+              return this;
+            },
+            limit() {
+              return Promise.resolve({ data: [], error: null });
+            },
+          };
+        },
+      } as never,
+      entityId: "entity-1",
+      userId: "user-1",
+    } as never));
+    mock.method(employeesServer, "listEmployeesByHouse", async () => ({ employees: [], error: null }));
+
+    const response = await GET(new Request("http://localhost/api/hr/employees") as never);
+
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload?.error, "No accessible house");
+  });
+
+  it("rejects mismatched houseId requested by the caller", async () => {
+    const fromCalls: Array<{ table: string; houseId: string }> = [];
+
+    mock.method(routeGuardOrder, "resolveHrRouteActorContext", async () => ({
+      supabase: {
+        from(table: string) {
+          return {
+            select() {
+              return this;
+            },
+            eq(column: string, value: string) {
+              if (column === "house_id") {
+                fromCalls.push({ table, houseId: value });
+              }
+              return this;
+            },
+            maybeSingle() {
+              return Promise.resolve({ data: null, error: null });
+            },
+            order() {
+              return this;
+            },
+            limit() {
+              return Promise.resolve({ data: [], error: null });
+            },
+          };
+        },
+      } as never,
+      entityId: "entity-1",
+      userId: "user-1",
+    }));
+
+    const response = await GET(
+      new Request("http://localhost/api/hr/employees?houseId=99999999-9999-4999-8999-999999999999") as never,
+    );
+
+    assert.equal(response.status, 403);
+    const payload = await response.json();
+    assert.equal(payload?.error, "No accessible house");
+    assert.equal(fromCalls[0]?.houseId, "99999999-9999-4999-8999-999999999999");
+  });
+
+  it("returns house-wide scoped employees when houseId is omitted", async () => {
+    mock.method(routeGuardOrder, "resolveHrRouteActorContext", async () => ({
+      supabase: {
+        from() {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            order() {
+              return this;
+            },
+            limit() {
+              return Promise.resolve({
+                data: [{ house_id: HOUSE_ID }],
+                error: null,
+              });
+            },
+            maybeSingle() {
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
+        },
+      } as never,
+      entityId: "entity-1",
+      userId: "user-1",
+    }));
+
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
+      allowed: true,
+      hasWorkspaceAccess: true,
+      allowedByRole: true,
+      allowedByPolicy: false,
+      roles: ["house_owner"],
+      normalizedRoles: ["owner"],
+      policyKeys: [],
+      entityId: "entity-1",
+      branchId: null,
+      isBranchLimited: false,
+      allowedBranchIds: [],
+    }) as never);
+
+    mock.method(employeesServer, "listEmployeesByHouse", async (_supabase: unknown, houseId: string) => ({
+      employees: [
+        {
+          id: "emp-house-a",
+          house_id: houseId,
+          full_name: "Scoped Employee",
+        },
+      ],
+      error: null,
+    }) as never);
+
+    const response = await GET(new Request("http://localhost/api/hr/employees") as never);
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload?.employees?.length, 1);
+    assert.equal(payload?.employees?.[0]?.house_id, HOUSE_ID);
+  });
+
+  it("passes branch-limited read scope to employee listing when houseId is omitted", async () => {
+    mock.method(routeGuardOrder, "resolveHrRouteActorContext", async () => ({
+      supabase: {
+        from() {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            order() {
+              return this;
+            },
+            limit() {
+              return Promise.resolve({
+                data: [{ house_id: HOUSE_ID }],
+                error: null,
+              });
+            },
+            maybeSingle() {
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
+        },
+      } as never,
+      entityId: "entity-branch-limited",
+      userId: "user-branch-limited",
+    }));
+
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
+      allowed: true,
+      hasWorkspaceAccess: true,
+      allowedByRole: false,
+      allowedByPolicy: true,
+      roles: ["house_staff"],
+      normalizedRoles: ["staff"],
+      policyKeys: ["tiles.hr.read", "tiles.hr.branch.branch-1"],
+      entityId: "entity-branch-limited",
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: ["branch-1"],
+    }) as never);
+
+    let capturedReadScope: { isBranchLimited: boolean; allowedBranchIds: string[] } | null = null;
+    mock.method(employeesServer, "listEmployeesByHouse", async (_supabase: unknown, houseId: string, _filters: unknown, options: unknown) => {
+      capturedReadScope = (options as { readScope: { isBranchLimited: boolean; allowedBranchIds: string[] } }).readScope;
+      return {
+        employees: [
+          {
+            id: "emp-branch-1",
+            house_id: houseId,
+            branch_id: "branch-1",
+            full_name: "Scoped Employee",
+          },
+        ],
+        error: null,
+      };
+    });
+
+    const response = await GET(new Request("http://localhost/api/hr/employees") as never);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(capturedReadScope, {
+      isBranchLimited: true,
+      allowedBranchIds: ["branch-1"],
+    });
+  });
+
+  it("preserves deny-by-default empty branch scope for branch-limited actors", async () => {
+    mock.method(routeGuardOrder, "resolveHrRouteActorContext", async () => ({
+      supabase: {
+        from() {
+          return {
+            select() {
+              return this;
+            },
+            eq() {
+              return this;
+            },
+            order() {
+              return this;
+            },
+            limit() {
+              return Promise.resolve({
+                data: [{ house_id: HOUSE_ID }],
+                error: null,
+              });
+            },
+            maybeSingle() {
+              return Promise.resolve({ data: null, error: null });
+            },
+          };
+        },
+      } as never,
+      entityId: "entity-empty-branches",
+      userId: "user-empty-branches",
+    }));
+
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
+      allowed: true,
+      hasWorkspaceAccess: true,
+      allowedByRole: false,
+      allowedByPolicy: true,
+      roles: ["house_staff"],
+      normalizedRoles: ["staff"],
+      policyKeys: ["tiles.hr.read"],
+      entityId: "entity-empty-branches",
+      branchId: null,
+      isBranchLimited: true,
+      allowedBranchIds: [],
+    }) as never);
+
+    let capturedReadScope: { isBranchLimited: boolean; allowedBranchIds: string[] } | null = null;
+    mock.method(employeesServer, "listEmployeesByHouse", async (_supabase: unknown, _houseId: string, _filters: unknown, options: unknown) => {
+      capturedReadScope = (options as { readScope: { isBranchLimited: boolean; allowedBranchIds: string[] } }).readScope;
+      return { employees: [], error: null };
+    });
+
+    const response = await GET(new Request("http://localhost/api/hr/employees") as never);
+
+    assert.equal(response.status, 200);
+    assert.deepEqual(capturedReadScope, {
+      isBranchLimited: true,
+      allowedBranchIds: [],
+    });
   });
 });
