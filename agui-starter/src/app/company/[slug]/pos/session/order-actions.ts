@@ -32,6 +32,12 @@ import {
   createSupabasePosOrderReviewValidationRepository,
   getCurrentSessionOrderReviewValidation,
 } from "@/lib/pos/order-review-validation";
+import {
+  type OrderCheckoutTransitionResult,
+  PosOrderCheckoutTransitionError,
+  createSupabasePosOrderCheckoutTransitionRepository,
+  getCurrentSessionOrderCheckoutTransition,
+} from "@/lib/pos/order-checkout-transition";
 import { CLIENT_SAFE_POS_DRAFT_ERROR, CLIENT_SAFE_POS_ORDER_ERROR } from "./order-action-errors";
 
 async function resolveHouseAndAccess(slug: string) {
@@ -378,6 +384,40 @@ export async function getCurrentSessionOrderReviewValidationAction(
     }
 
     console.warn("[pos-order] review validation denied", { code: error.code, status: error.status, slug });
+    return { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR } as const;
+  }
+}
+
+
+export async function getCurrentSessionOrderCheckoutTransitionAction(
+  slug: string,
+  payload: { branchId: string; sessionId: string; deviceId: string; orderId: string },
+): Promise<
+  | { ok: true; checkoutTransition: OrderCheckoutTransitionResult }
+  | { ok: false; error: typeof CLIENT_SAFE_POS_ORDER_ERROR }
+> {
+  const { supabase, house } = await resolveHouseAndAccess(slug);
+  const checkoutTransitionRepository = createSupabasePosOrderCheckoutTransitionRepository(supabase);
+
+  try {
+    const checkoutTransition = await getCurrentSessionOrderCheckoutTransition(
+      {
+        houseId: house.id,
+        branchId: payload.branchId,
+        sessionId: payload.sessionId,
+        deviceId: payload.deviceId,
+        orderId: payload.orderId,
+      },
+      checkoutTransitionRepository,
+    );
+
+    return { ok: true, checkoutTransition } as const;
+  } catch (error) {
+    if (!(error instanceof PosOrderCheckoutTransitionError)) {
+      throw error;
+    }
+
+    console.warn("[pos-order] checkout transition denied", { code: error.code, status: error.status, slug });
     return { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR } as const;
   }
 }

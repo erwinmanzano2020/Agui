@@ -8,6 +8,7 @@ import * as orderLineModule from "@/lib/pos/order-line";
 import * as orderPricingModule from "@/lib/pos/order-pricing";
 import * as orderReviewModule from "@/lib/pos/order-review";
 import * as orderReviewValidationModule from "@/lib/pos/order-review-validation";
+import * as orderCheckoutTransitionModule from "@/lib/pos/order-checkout-transition";
 
 import { CLIENT_SAFE_POS_DRAFT_ERROR, CLIENT_SAFE_POS_ORDER_ERROR } from "./order-action-errors";
 import {
@@ -18,6 +19,7 @@ import {
   getCurrentSessionOrderPricingAction,
   getCurrentSessionOrderReviewAction,
   getCurrentSessionOrderReviewValidationAction,
+  getCurrentSessionOrderCheckoutTransitionAction,
   removeOrderLineAction,
   updateOrderLineAction,
 } from "./order-actions";
@@ -476,6 +478,111 @@ test("getCurrentSessionOrderReviewValidationAction rethrows unexpected failures"
         orderId: "order-1",
       }),
     /unexpected/,
+  );
+});
+
+
+test("getCurrentSessionOrderCheckoutTransitionAction forwards exact current-session scope", async () => {
+  const supabase = mockAuthAndAccess();
+  const repo = { repo: "checkout-transition" };
+  let received: Parameters<typeof orderCheckoutTransitionModule.getCurrentSessionOrderCheckoutTransition>[0] | null = null;
+  const canonicalPayload: orderCheckoutTransitionModule.OrderCheckoutTransitionResult = {
+    checkoutTransitionStatus: "BLOCKED",
+    canEnterFutureCheckout: false,
+    blockingIssues: [
+      {
+        code: "EMPTY_ORDER",
+        severity: "BLOCKER",
+        message: "Order must contain at least one active line",
+      },
+    ],
+    transitionSummary: {
+      scopedContextStatus: "VALID",
+      reviewStatus: "READY",
+      reviewValidationStatus: "BLOCKED",
+      activeLineCount: 0,
+      blockingIssueCount: 1,
+    },
+  };
+
+  mock.method(
+    orderCheckoutTransitionModule,
+    "createSupabasePosOrderCheckoutTransitionRepository",
+    (arg: Parameters<typeof orderCheckoutTransitionModule.createSupabasePosOrderCheckoutTransitionRepository>[0]) => {
+      assert.equal(arg, supabase as never);
+      return repo as never;
+    },
+  );
+  mock.method(
+    orderCheckoutTransitionModule,
+    "getCurrentSessionOrderCheckoutTransition",
+    async (
+      input: Parameters<typeof orderCheckoutTransitionModule.getCurrentSessionOrderCheckoutTransition>[0],
+      repository: Parameters<typeof orderCheckoutTransitionModule.getCurrentSessionOrderCheckoutTransition>[1],
+    ) => {
+      received = input;
+      assert.equal(repository, repo as never);
+      return canonicalPayload as never;
+    },
+  );
+
+  const result = await getCurrentSessionOrderCheckoutTransitionAction(SLUG, {
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+
+  assert.deepEqual(result, {
+    ok: true,
+    checkoutTransition: canonicalPayload,
+  });
+  assert.deepEqual(received, {
+    houseId: HOUSE_ID,
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+});
+
+test("getCurrentSessionOrderCheckoutTransitionAction maps expected denial to client-safe error", async () => {
+  mockAuthAndAccess();
+  mock.method(orderCheckoutTransitionModule, "createSupabasePosOrderCheckoutTransitionRepository", () => ({}) as never);
+  mock.method(orderCheckoutTransitionModule, "getCurrentSessionOrderCheckoutTransition", async () => {
+    throw new orderCheckoutTransitionModule.PosOrderCheckoutTransitionError(
+      "scoped detail",
+      "ORDER_INVALID_OR_CLOSED",
+      403,
+    );
+  });
+
+  const result = await getCurrentSessionOrderCheckoutTransitionAction(SLUG, {
+    branchId: "branch-1",
+    sessionId: "session-1",
+    deviceId: "device-1",
+    orderId: "order-1",
+  });
+
+  assert.deepEqual(result, { ok: false, error: CLIENT_SAFE_POS_ORDER_ERROR });
+});
+
+test("getCurrentSessionOrderCheckoutTransitionAction rethrows unexpected failures", async () => {
+  mockAuthAndAccess();
+  mock.method(orderCheckoutTransitionModule, "createSupabasePosOrderCheckoutTransitionRepository", () => ({}) as never);
+  mock.method(orderCheckoutTransitionModule, "getCurrentSessionOrderCheckoutTransition", async () => {
+    throw new Error("unexpected checkout transition failure");
+  });
+
+  await assert.rejects(
+    () =>
+      getCurrentSessionOrderCheckoutTransitionAction(SLUG, {
+        branchId: "branch-1",
+        sessionId: "session-1",
+        deviceId: "device-1",
+        orderId: "order-1",
+      }),
+    /unexpected checkout transition failure/,
   );
 });
 

@@ -50,6 +50,7 @@ type OrderReviewValidationRepository = {
     getPriceForItem(itemCode: string): Promise<number | null> | number | null;
   };
 };
+export type RepositoryClient = OrderReviewValidationRepository | null | undefined;
 
 export type OrderReviewValidationResult = {
   reviewValidationStatus: "READY" | "BLOCKED";
@@ -113,7 +114,7 @@ function validationRepositoryRequiredError() {
 }
 
 function resolveRepository(
-  repository: OrderReviewValidationRepository | null | undefined,
+  repository: RepositoryClient,
 ): OrderReviewValidationRepository {
   if (!repository) {
     throw validationRepositoryRequiredError();
@@ -188,7 +189,7 @@ function toScopedValidationFailure(error: PosOrderDraftError | PosOrderLineError
 
 export async function getCurrentSessionOrderReviewValidation(
   input: ReviewValidationScopeInput,
-  repository?: OrderReviewValidationRepository | null,
+  repository?: RepositoryClient,
 ): Promise<OrderReviewValidationResult> {
   const resolvedRepository = resolveRepository(repository);
 

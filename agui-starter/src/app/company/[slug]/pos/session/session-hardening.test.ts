@@ -1,13 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import type { OrderCheckoutTransitionResult } from "@/lib/pos/order-checkout-transition";
 import type { OrderReviewValidationResult } from "@/lib/pos/order-review-validation";
 
 import { mapPosSessionClientError } from "./error-messages";
 import {
   createEmptyOrderReview,
   createEmptyOrderReviewValidation,
+  createEmptyOrderCheckoutTransition,
   createEmptyOrderPricing,
+  getConservativeCheckoutTransitionBlockingIssues,
   getConservativeValidationBlockingIssues,
   clearLineSurfaceState,
   parseQuantityInput,
@@ -18,7 +21,9 @@ import {
   shouldApplyPricingRefreshResult,
   shouldApplyReviewRefreshResult,
   shouldApplyReviewValidationRefreshResult,
+  shouldApplyCheckoutTransitionRefreshResult,
   shouldClearReviewForEmptyScope,
+  shouldClearCheckoutTransitionForEmptyScope,
   shouldClearValidationForEmptyScope,
   shouldRefreshReviewAfterAddLineSuccess,
   shouldRefreshPricingAfterLineRefresh,
@@ -340,6 +345,83 @@ test("validation display helper remains read-only and never infers readiness fro
   assert.deepEqual(displayIssues, []);
   assert.equal(serverValidationPayload.isReadyForFutureCheckout, false);
   assert.equal(serverValidationPayload.reviewValidationStatus, "BLOCKED");
+});
+
+test("empty scoped order key always clears checkout transition to canonical empty state", () => {
+  assert.equal(shouldClearCheckoutTransitionForEmptyScope(""), true);
+  assert.equal(shouldClearCheckoutTransitionForEmptyScope("branch-1::session-1::device-1::order-1"), false);
+  assert.deepEqual(createEmptyOrderCheckoutTransition(), null);
+});
+
+test("stale checkout transition refresh remains scoped and conservative", () => {
+  const staleScopeKey = "branch-1::session-1::device-1::order-1";
+  const activeScopeKey = "branch-1::session-2::device-2::order-2";
+  assert.equal(
+    shouldApplyCheckoutTransitionRefreshResult({
+      requestedScopeKey: staleScopeKey,
+      activeScopeKey,
+      requestId: 11,
+      latestRequestId: 12,
+    }),
+    false,
+  );
+});
+
+test("checkout transition blocker display only accepts structured bounded blocker entries", () => {
+  assert.deepEqual(getConservativeCheckoutTransitionBlockingIssues(null), []);
+  assert.deepEqual(
+    getConservativeCheckoutTransitionBlockingIssues({
+      checkoutTransitionStatus: "BLOCKED",
+      canEnterFutureCheckout: false,
+      blockingIssues: [
+        {
+          code: "EMPTY_ORDER",
+          severity: "BLOCKER",
+          message: "Order must contain at least one active line",
+        },
+        {
+          code: "ITEM_PRICE_MISSING",
+          severity: "BLOCKER",
+          message: " ",
+        },
+      ],
+      transitionSummary: {
+        scopedContextStatus: "VALID",
+        reviewStatus: "READY",
+        reviewValidationStatus: "BLOCKED",
+        activeLineCount: 0,
+        blockingIssueCount: 2,
+      },
+    }),
+    [
+      {
+        code: "EMPTY_ORDER",
+        severity: "BLOCKER",
+        message: "Order must contain at least one active line",
+      },
+    ],
+  );
+});
+
+test("checkout transition display helper remains read-only and never infers transition permission locally", () => {
+  const serverTransitionPayload: OrderCheckoutTransitionResult = {
+    checkoutTransitionStatus: "BLOCKED",
+    canEnterFutureCheckout: false,
+    blockingIssues: [],
+    transitionSummary: {
+      scopedContextStatus: "VALID",
+      reviewStatus: "READY",
+      reviewValidationStatus: "BLOCKED",
+      activeLineCount: 2,
+      blockingIssueCount: 0,
+    },
+  };
+
+  const displayIssues = getConservativeCheckoutTransitionBlockingIssues(serverTransitionPayload);
+
+  assert.deepEqual(displayIssues, []);
+  assert.equal(serverTransitionPayload.checkoutTransitionStatus, "BLOCKED");
+  assert.equal(serverTransitionPayload.canEnterFutureCheckout, false);
 });
 
 test("add-line success path requires scoped review refresh", () => {

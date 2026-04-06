@@ -38,6 +38,7 @@ type OrderReviewRepository = {
     getPriceForItem(itemCode: string): Promise<number | null> | number | null;
   };
 };
+export type RepositoryClient = OrderReviewRepository | null | undefined;
 
 export class PosOrderReviewError extends Error {
   code: string;
@@ -51,7 +52,7 @@ export class PosOrderReviewError extends Error {
   }
 }
 
-function resolveRepository(repository: OrderReviewRepository | null | undefined): OrderReviewRepository {
+function resolveRepository(repository: RepositoryClient): OrderReviewRepository {
   if (!repository) {
     throw new PosOrderReviewError("Order review repository is required", "ORDER_REVIEW_REPOSITORY_REQUIRED", 500);
   }
@@ -75,7 +76,7 @@ type OrderReviewLine = {
 
 export async function getCurrentSessionOrderReview(
   input: ReviewScopeInput,
-  repository?: OrderReviewRepository | null,
+  repository?: RepositoryClient,
 ): Promise<{
   reviewStatus: "READY";
   draft: {
