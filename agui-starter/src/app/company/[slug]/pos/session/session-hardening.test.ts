@@ -266,6 +266,60 @@ test("validation issue display only accepts bounded structured blocker entries",
   );
 });
 
+test("validation issue display keeps multiple bounded blocker entries in deterministic server order", () => {
+  assert.deepEqual(
+    getConservativeValidationBlockingIssues({
+      reviewValidationStatus: "BLOCKED",
+      isReadyForFutureCheckout: false,
+      blockingIssues: [
+        {
+          code: "INVALID_SCOPED_CONTEXT",
+          severity: "BLOCKER",
+          message: "Current scoped order context is invalid",
+        },
+        {
+          code: "ORDER_INVALID_OR_CLOSED",
+          severity: "BLOCKER",
+          message: "Order is invalid or no longer available for review",
+        },
+        {
+          code: "EMPTY_ORDER",
+          severity: "BLOCKER",
+          message: "Order must contain at least one active line",
+        },
+        {
+          code: "ITEM_PRICE_MISSING",
+          severity: "INFO" as unknown as "BLOCKER",
+          message: "One or more active lines cannot be priced",
+        },
+      ],
+      validationSummary: {
+        scopedContextStatus: "INVALID",
+        activeLineCount: 0,
+        pricingStatus: "UNRESOLVED",
+        blockingIssueCount: 4,
+      },
+    }),
+    [
+      {
+        code: "INVALID_SCOPED_CONTEXT",
+        severity: "BLOCKER",
+        message: "Current scoped order context is invalid",
+      },
+      {
+        code: "ORDER_INVALID_OR_CLOSED",
+        severity: "BLOCKER",
+        message: "Order is invalid or no longer available for review",
+      },
+      {
+        code: "EMPTY_ORDER",
+        severity: "BLOCKER",
+        message: "Order must contain at least one active line",
+      },
+    ],
+  );
+});
+
 test("add-line success path requires scoped review refresh", () => {
   assert.equal(
     shouldRefreshReviewAfterAddLineSuccess({
