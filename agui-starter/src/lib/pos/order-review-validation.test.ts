@@ -8,6 +8,7 @@ import { createInMemoryPosOrderDraftRepository } from "./order-draft";
 import { type OrderLine, createInMemoryPosOrderLineRepository } from "./order-line";
 import {
   PosOrderReviewValidationError,
+  createValidationResult,
   getCurrentSessionOrderReviewValidation,
   toDeterministicBlockingIssues,
 } from "./order-review-validation";
@@ -179,6 +180,53 @@ test("toDeterministicBlockingIssues preserves bounded blocker shape with determi
       message: "One or more active lines cannot be priced",
     },
   ]);
+});
+
+test("createValidationResult keeps summary and readiness aligned with zero blockers", () => {
+  const result = createValidationResult({
+    issueCodes: [],
+    activeLineCount: 2,
+    pricingResolved: true,
+  });
+
+  assert.equal(result.blockingIssues.length, 0);
+  assert.equal(result.validationSummary.blockingIssueCount, result.blockingIssues.length);
+  assert.equal(result.validationSummary.pricingStatus, "RESOLVED");
+  assert.equal(result.isReadyForFutureCheckout, true);
+  assert.equal(result.reviewValidationStatus, "READY");
+});
+
+test("createValidationResult keeps summary and readiness aligned with one blocker", () => {
+  const result = createValidationResult({
+    issueCodes: ["EMPTY_ORDER"],
+    activeLineCount: 0,
+    pricingResolved: false,
+  });
+
+  assert.equal(result.blockingIssues.length, 1);
+  assert.equal(result.validationSummary.blockingIssueCount, result.blockingIssues.length);
+  assert.equal(result.validationSummary.pricingStatus, "UNRESOLVED");
+  assert.equal(result.isReadyForFutureCheckout, false);
+  assert.equal(result.reviewValidationStatus, "BLOCKED");
+});
+
+test("createValidationResult keeps summary and readiness aligned with multiple blockers", () => {
+  const result = createValidationResult({
+    issueCodes: ["ITEM_PRICE_MISSING", "EMPTY_ORDER", "INVALID_SCOPED_CONTEXT"],
+    activeLineCount: 0,
+    pricingResolved: false,
+    scopedContextStatus: "INVALID",
+  });
+
+  assert.deepEqual(
+    result.blockingIssues.map((issue) => issue.code),
+    ["INVALID_SCOPED_CONTEXT", "EMPTY_ORDER", "ITEM_PRICE_MISSING"],
+  );
+  assert.equal(result.validationSummary.blockingIssueCount, result.blockingIssues.length);
+  assert.equal(result.validationSummary.scopedContextStatus, "INVALID");
+  assert.equal(result.validationSummary.pricingStatus, "UNRESOLVED");
+  assert.equal(result.isReadyForFutureCheckout, false);
+  assert.equal(result.reviewValidationStatus, "BLOCKED");
 });
 
 test("getCurrentSessionOrderReviewValidation fails safely when session is closed", async () => {

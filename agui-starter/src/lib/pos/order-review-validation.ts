@@ -132,25 +132,45 @@ export function createSupabasePosOrderReviewValidationRepository(
   };
 }
 
-function createValidationResult(input: {
+function deriveValidationSummary(input: {
+  blockingIssues: PosOrderReviewValidationIssue[];
+  scopedContextStatus: "VALID" | "INVALID";
+  activeLineCount: number;
+  pricingResolved: boolean;
+}): OrderReviewValidationResult["validationSummary"] {
+  const hasMissingPrice = input.blockingIssues.some((issue) => issue.code === "ITEM_PRICE_MISSING");
+  const pricingStatus =
+    input.activeLineCount === 0 || hasMissingPrice || !input.pricingResolved ? "UNRESOLVED" : "RESOLVED";
+
+  return {
+    scopedContextStatus: input.scopedContextStatus,
+    activeLineCount: input.activeLineCount,
+    pricingStatus,
+    blockingIssueCount: input.blockingIssues.length,
+  };
+}
+
+export function createValidationResult(input: {
   issueCodes: PosOrderReviewValidationIssueCode[];
   activeLineCount: number;
-  pricingStatus: "RESOLVED" | "UNRESOLVED";
+  pricingResolved: boolean;
   scopedContextStatus?: "VALID" | "INVALID";
 }): OrderReviewValidationResult {
   const blockingIssues = toDeterministicBlockingIssues(input.issueCodes);
-  const isReady = blockingIssues.length === 0;
+  const validationSummary = deriveValidationSummary({
+    blockingIssues,
+    scopedContextStatus: input.scopedContextStatus ?? "VALID",
+    activeLineCount: input.activeLineCount,
+    pricingResolved: input.pricingResolved,
+  });
+  const isReadyForFutureCheckout = blockingIssues.length === 0;
+  const reviewValidationStatus = isReadyForFutureCheckout ? "READY" : "BLOCKED";
 
   return {
-    reviewValidationStatus: isReady ? "READY" : "BLOCKED",
-    isReadyForFutureCheckout: isReady,
+    reviewValidationStatus,
+    isReadyForFutureCheckout,
     blockingIssues,
-    validationSummary: {
-      scopedContextStatus: input.scopedContextStatus ?? "VALID",
-      activeLineCount: input.activeLineCount,
-      pricingStatus: input.pricingStatus,
-      blockingIssueCount: blockingIssues.length,
-    },
+    validationSummary,
   };
 }
 
@@ -176,6 +196,7 @@ export async function getCurrentSessionOrderReviewValidation(
     await getCurrentSessionDraftOrder(input, resolvedRepository.draftRepository);
     const lines = await getCurrentSessionOrderLines(input, resolvedRepository.lineRepository);
     const issueCodes: PosOrderReviewValidationIssueCode[] = [];
+    let pricingResolved = false;
 
     if (lines.length === 0) {
       issueCodes.push("EMPTY_ORDER");
@@ -184,6 +205,7 @@ export async function getCurrentSessionOrderReviewValidation(
     if (lines.length > 0) {
       try {
         await computeOrderPricingFromScopedLines({ lines }, resolvedRepository.pricingRepository.getPriceForItem);
+        pricingResolved = true;
       } catch (error) {
         if (error instanceof PosOrderPricingError && error.code === "ITEM_PRICE_MISSING") {
           issueCodes.push("ITEM_PRICE_MISSING");
@@ -196,7 +218,7 @@ export async function getCurrentSessionOrderReviewValidation(
     return createValidationResult({
       issueCodes,
       activeLineCount: lines.length,
-      pricingStatus: issueCodes.includes("ITEM_PRICE_MISSING") ? "UNRESOLVED" : lines.length === 0 ? "UNRESOLVED" : "RESOLVED",
+      pricingResolved,
     });
   } catch (error) {
     if (error instanceof PosOrderReviewValidationError) {
