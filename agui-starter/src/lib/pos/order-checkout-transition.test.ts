@@ -93,17 +93,6 @@ function createOrderCheckoutTransitionRepository(input?: {
   const lineRepository = createInMemoryPosOrderLineRepository({ sessions, orders: drafts, lines });
 
   return {
-    reviewRepository: {
-      draftRepository,
-      lineRepository,
-      pricingRepository: {
-        getPriceForItem(itemCode: string) {
-          if (itemCode === "ITEM-1") return 10;
-          if (itemCode === "ITEM-2") return 15;
-          return null;
-        },
-      },
-    },
     reviewValidationRepository: {
       draftRepository,
       lineRepository,
@@ -258,6 +247,61 @@ test("getCurrentSessionOrderCheckoutTransition is deterministic for the same sco
   const second = await getCurrentSessionOrderCheckoutTransition(SCOPE, repository);
 
   assert.deepEqual(second, first);
+});
+
+test("getCurrentSessionOrderCheckoutTransition regression: transition payload never mixes sequential scoped reads", async () => {
+  const session = makeSession();
+  const draft = makeDraft();
+  let scopedLineReadCount = 0;
+  const firstSnapshot = [makeLine({ id: "line-first", quantity: 1 })];
+  const secondSnapshot = [makeLine({ id: "line-second", quantity: 9 })];
+
+  const result = await getCurrentSessionOrderCheckoutTransition(SCOPE, {
+    reviewValidationRepository: {
+      draftRepository: {
+        async getSessionById() {
+          return session;
+        },
+        async getDraftOrderById() {
+          return draft;
+        },
+        async insertOrderDraft() {
+          throw new Error("not used");
+        },
+      },
+      lineRepository: {
+        async getSessionById() {
+          return session;
+        },
+        async getOrderDraftById() {
+          return draft;
+        },
+        async getOrderLinesByDraft() {
+          scopedLineReadCount += 1;
+          return scopedLineReadCount === 1 ? firstSnapshot : secondSnapshot;
+        },
+        async insertOrderLine() {
+          throw new Error("not used");
+        },
+        async updateOrderLine() {
+          throw new Error("not used");
+        },
+        async removeOrderLine() {
+          throw new Error("not used");
+        },
+      },
+      pricingRepository: {
+        getPriceForItem() {
+          return 10;
+        },
+      },
+    },
+  });
+
+  assert.equal(scopedLineReadCount, 1);
+  assert.equal(result.transitionSummary.activeLineCount, 1);
+  assert.equal(result.checkoutTransitionStatus, "ALLOWED");
+  assert.deepEqual(result.blockingIssues, []);
 });
 
 test("getCurrentSessionOrderCheckoutTransition summary consistency aligns with bounded blocker/result set", async () => {

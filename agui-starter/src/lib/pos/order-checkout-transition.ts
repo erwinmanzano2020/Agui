@@ -5,12 +5,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/db.types";
 
 import {
-  PosOrderReviewError,
-  createSupabasePosOrderReviewRepository,
-  getCurrentSessionOrderReview,
-  type RepositoryClient as OrderReviewRepositoryClient,
-} from "./order-review";
-import {
   type OrderReviewValidationResult,
   type PosOrderReviewValidationIssue,
   PosOrderReviewValidationError,
@@ -28,7 +22,6 @@ type CheckoutTransitionScopeInput = {
 };
 
 type OrderCheckoutTransitionRepository = {
-  reviewRepository: Exclude<OrderReviewRepositoryClient, null | undefined>;
   reviewValidationRepository: Exclude<OrderReviewValidationRepositoryClient, null | undefined>;
 };
 
@@ -75,18 +68,15 @@ export function createSupabasePosOrderCheckoutTransitionRepository(
   supabase: SupabaseClient<Database>,
 ): OrderCheckoutTransitionRepository {
   return {
-    reviewRepository: createSupabasePosOrderReviewRepository(supabase),
     reviewValidationRepository: createSupabasePosOrderReviewValidationRepository(supabase),
   };
 }
 
-function mapUpstreamTransitionFailure(error: PosOrderReviewError | PosOrderReviewValidationError) {
+function mapUpstreamTransitionFailure(error: PosOrderReviewValidationError) {
   return new PosOrderCheckoutTransitionError(error.message, error.code, error.status);
 }
 
 function createTransitionResult(input: {
-  reviewStatus: "READY";
-  activeLineCount: number;
   reviewValidation: OrderReviewValidationResult;
 }): OrderCheckoutTransitionResult {
   const blockingIssues = input.reviewValidation.blockingIssues;
@@ -101,9 +91,9 @@ function createTransitionResult(input: {
     blockingIssues,
     transitionSummary: {
       scopedContextStatus: input.reviewValidation.validationSummary.scopedContextStatus,
-      reviewStatus: input.reviewStatus,
+      reviewStatus: "READY",
       reviewValidationStatus: input.reviewValidation.reviewValidationStatus,
-      activeLineCount: input.activeLineCount,
+      activeLineCount: input.reviewValidation.validationSummary.activeLineCount,
       blockingIssueCount: blockingIssues.length,
     },
   };
@@ -117,36 +107,13 @@ export async function getCurrentSessionOrderCheckoutTransition(
 
   try {
     const reviewValidation = await getCurrentSessionOrderReviewValidation(input, resolvedRepository.reviewValidationRepository);
-    let reviewActiveLineCount = reviewValidation.validationSummary.activeLineCount;
-
-    try {
-      const review = await getCurrentSessionOrderReview(input, resolvedRepository.reviewRepository);
-      reviewActiveLineCount = review.activeLines.length;
-    } catch (error) {
-      if (!(error instanceof PosOrderReviewError)) {
-        throw error;
-      }
-
-      if (
-        error.code !== "ITEM_PRICE_MISSING" ||
-        reviewValidation.reviewValidationStatus !== "BLOCKED" ||
-        !reviewValidation.blockingIssues.some((issue) => issue.code === "ITEM_PRICE_MISSING")
-      ) {
-        throw error;
-      }
-    }
-
-    return createTransitionResult({
-      reviewStatus: "READY",
-      activeLineCount: reviewActiveLineCount,
-      reviewValidation,
-    });
+    return createTransitionResult({ reviewValidation });
   } catch (error) {
     if (error instanceof PosOrderCheckoutTransitionError) {
       throw error;
     }
 
-    if (error instanceof PosOrderReviewError || error instanceof PosOrderReviewValidationError) {
+    if (error instanceof PosOrderReviewValidationError) {
       throw mapUpstreamTransitionFailure(error);
     }
 
