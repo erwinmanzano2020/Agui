@@ -24,8 +24,8 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 
 ## 4. Current Approved Next Tasks
 1. Preserve POS-F1 + POS-F2 bounded guarantees without contract reinterpretation.
-2. Use the POS-F2 completion record in this document as the required upstream boundary for any F3 planning artifact.
-3. Keep F3 scoped to approved next-slice intent only; reject stealth expansion into payment/inventory/reporting/finance consequences.
+2. Use the POS-F2 completion record in this document as the required upstream boundary for any active Slice 4 implementation/documentation artifact.
+3. Keep F3 scoped to approved active Slice 4 intent only; reject stealth expansion into payment/inventory/reporting/finance consequences.
 4. Continue phase-gated sequencing from roadmap posture: Slice 4 implementation is underway and must remain tightly bounded to pre-checkout, read-only validation only.
 5. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
 
