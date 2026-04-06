@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
+import type { OrderCheckoutTransitionResult } from "@/lib/pos/order-checkout-transition";
 import type { OrderReviewValidationResult } from "@/lib/pos/order-review-validation";
 
 import { closePosSessionAction, openPosSessionAction } from "./actions";
@@ -13,6 +14,7 @@ import {
   getCurrentSessionOrderPricingAction,
   getCurrentSessionOrderReviewAction,
   getCurrentSessionOrderReviewValidationAction,
+  getCurrentSessionOrderCheckoutTransitionAction,
   removeOrderLineAction,
   updateOrderLineAction,
 } from "./order-actions";
@@ -56,6 +58,7 @@ type OrderReviewView = {
   }>;
 } | null;
 type OrderReviewValidationView = OrderReviewValidationResult | null;
+type OrderCheckoutTransitionView = OrderCheckoutTransitionResult | null;
 
 export function resolveInitialBranchId(defaultBranchId: string | null): string {
   return defaultBranchId?.trim() ?? "";
@@ -139,6 +142,14 @@ export function shouldApplyReviewValidationRefreshResult(input: {
 }): boolean {
   return shouldApplyLineRefreshResult(input);
 }
+export function shouldApplyCheckoutTransitionRefreshResult(input: {
+  requestedScopeKey: string;
+  activeScopeKey: string;
+  requestId: number;
+  latestRequestId: number;
+}): boolean {
+  return shouldApplyLineRefreshResult(input);
+}
 
 export function shouldRefreshPricingAfterLineRefresh(input: {
   cancelled: boolean;
@@ -166,6 +177,9 @@ export function createEmptyOrderReview(): OrderReviewView {
 export function createEmptyOrderReviewValidation(): OrderReviewValidationView {
   return null;
 }
+export function createEmptyOrderCheckoutTransition(): OrderCheckoutTransitionView {
+  return null;
+}
 export function getConservativeValidationBlockingIssues(
   reviewValidation: OrderReviewValidationView,
 ): NonNullable<OrderReviewValidationView>["blockingIssues"] {
@@ -184,6 +198,24 @@ export function getConservativeValidationBlockingIssues(
       issue.message.trim() !== "",
   );
 }
+export function getConservativeCheckoutTransitionBlockingIssues(
+  checkoutTransition: OrderCheckoutTransitionView,
+): NonNullable<OrderCheckoutTransitionView>["blockingIssues"] {
+  if (!checkoutTransition) {
+    return [];
+  }
+
+  return checkoutTransition.blockingIssues.filter(
+    (issue): issue is NonNullable<OrderCheckoutTransitionView>["blockingIssues"][number] =>
+      (issue.code === "EMPTY_ORDER" ||
+        issue.code === "ORDER_INVALID_OR_CLOSED" ||
+        issue.code === "ITEM_PRICE_MISSING" ||
+        issue.code === "INVALID_SCOPED_CONTEXT") &&
+      issue.severity === "BLOCKER" &&
+      typeof issue.message === "string" &&
+      issue.message.trim() !== "",
+  );
+}
 
 export function shouldRefreshReviewAfterAddLineSuccess(input: { addLineSucceeded: boolean; hasScopedOrder: boolean }): boolean {
   return input.addLineSucceeded && input.hasScopedOrder;
@@ -193,6 +225,9 @@ export function shouldClearReviewForEmptyScope(currentScopeKey: string): boolean
   return currentScopeKey === "";
 }
 export function shouldClearValidationForEmptyScope(currentScopeKey: string): boolean {
+  return currentScopeKey === "";
+}
+export function shouldClearCheckoutTransitionForEmptyScope(currentScopeKey: string): boolean {
   return currentScopeKey === "";
 }
 
@@ -214,6 +249,9 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
   const [pricing, setPricing] = useState<OrderPricingView>(createEmptyOrderPricing());
   const [review, setReview] = useState<OrderReviewView>(createEmptyOrderReview());
   const [reviewValidation, setReviewValidation] = useState<OrderReviewValidationView>(createEmptyOrderReviewValidation());
+  const [checkoutTransition, setCheckoutTransition] = useState<OrderCheckoutTransitionView>(
+    createEmptyOrderCheckoutTransition(),
+  );
 
   const [message, setMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -222,6 +260,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
   const latestPricingRequestIdRef = useRef(0);
   const latestReviewRequestIdRef = useRef(0);
   const latestReviewValidationRequestIdRef = useRef(0);
+  const latestCheckoutTransitionRequestIdRef = useRef(0);
 
   const currentScope = useMemo(
     () =>
@@ -238,6 +277,10 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
     () => getConservativeValidationBlockingIssues(reviewValidation),
     [reviewValidation],
   );
+  const displayCheckoutTransitionBlockingIssues = useMemo(
+    () => getConservativeCheckoutTransitionBlockingIssues(checkoutTransition),
+    [checkoutTransition],
+  );
 
   useEffect(() => {
     activeScopeKeyRef.current = currentScopeKey;
@@ -246,11 +289,15 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
       latestPricingRequestIdRef.current += 1;
       latestReviewRequestIdRef.current += 1;
       latestReviewValidationRequestIdRef.current += 1;
+      latestCheckoutTransitionRequestIdRef.current += 1;
       if (shouldClearReviewForEmptyScope(currentScopeKey)) {
         setReview(createEmptyOrderReview());
       }
       if (shouldClearValidationForEmptyScope(currentScopeKey)) {
         setReviewValidation(createEmptyOrderReviewValidation());
+      }
+      if (shouldClearCheckoutTransitionForEmptyScope(currentScopeKey)) {
+        setCheckoutTransition(createEmptyOrderCheckoutTransition());
       }
     }
   }, [currentScopeKey]);
@@ -265,6 +312,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
     setPricing(createEmptyOrderPricing());
     setReview(createEmptyOrderReview());
     setReviewValidation(createEmptyOrderReviewValidation());
+    setCheckoutTransition(createEmptyOrderCheckoutTransition());
     setNewItemCode("");
     setNewQuantity("1");
   }
@@ -410,6 +458,38 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
     setReviewValidation(response.reviewValidation);
   }, [slug]);
 
+  const refreshCheckoutTransition = useCallback(async (scope: CurrentOrderScope) => {
+    const requestId = latestCheckoutTransitionRequestIdRef.current + 1;
+    latestCheckoutTransitionRequestIdRef.current = requestId;
+    const requestedScopeKey = serializeCurrentOrderScope(scope);
+
+    const response = await getCurrentSessionOrderCheckoutTransitionAction(slug, {
+      branchId: scope.branchId,
+      sessionId: scope.sessionId,
+      deviceId: scope.deviceId,
+      orderId: scope.orderId,
+    });
+
+    if (
+      !shouldApplyCheckoutTransitionRefreshResult({
+        requestedScopeKey,
+        activeScopeKey: activeScopeKeyRef.current,
+        requestId,
+        latestRequestId: latestCheckoutTransitionRequestIdRef.current,
+      })
+    ) {
+      return;
+    }
+
+    if (!response.ok) {
+      setMessage(response.error);
+      setCheckoutTransition(createEmptyOrderCheckoutTransition());
+      return;
+    }
+
+    setCheckoutTransition(response.checkoutTransition);
+  }, [slug]);
+
   useEffect(() => {
     if (!currentScope) {
       return;
@@ -437,6 +517,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
         setPricing(createEmptyOrderPricing());
         setReview(createEmptyOrderReview());
         setReviewValidation(createEmptyOrderReviewValidation());
+        setCheckoutTransition(createEmptyOrderCheckoutTransition());
         return;
       }
 
@@ -454,12 +535,13 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
       await refreshPricing(currentScope);
       await refreshReview(currentScope);
       await refreshReviewValidation(currentScope);
+      await refreshCheckoutTransition(currentScope);
     });
 
     return () => {
       cancelled = true;
     };
-  }, [currentScope, refreshLines, refreshPricing, refreshReview, refreshReviewValidation, slug]);
+  }, [currentScope, refreshCheckoutTransition, refreshLines, refreshPricing, refreshReview, refreshReviewValidation, slug]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-6 px-4 py-8">
@@ -564,6 +646,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
                 await refreshPricing(currentScope);
                 await refreshReview(currentScope);
                 await refreshReviewValidation(currentScope);
+                await refreshCheckoutTransition(currentScope);
               });
             }}
           >
@@ -617,6 +700,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
                   await refreshReview(currentScope);
                 }
                 await refreshReviewValidation(currentScope);
+                await refreshCheckoutTransition(currentScope);
               });
             }}
           >
@@ -686,6 +770,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
                         await refreshPricing(currentScope);
                         await refreshReview(currentScope);
                         await refreshReviewValidation(currentScope);
+                        await refreshCheckoutTransition(currentScope);
                       });
                     }}
                   >
@@ -718,6 +803,7 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
                         await refreshPricing(currentScope);
                         await refreshReview(currentScope);
                         await refreshReviewValidation(currentScope);
+                        await refreshCheckoutTransition(currentScope);
                       });
                     }}
                   >
@@ -790,6 +876,34 @@ export function PosSessionClient({ slug, defaultBranchId }: { slug: string; defa
             </>
           ) : (
             <p>Validation unavailable for the current scope.</p>
+          )}
+        </div>
+
+        <div className="space-y-2 rounded border p-3 text-sm">
+          <h3 className="font-medium">Checkout Transition Boundary (Read-Only)</h3>
+          {checkoutTransition ? (
+            <>
+              <p>Transition status: {checkoutTransition.checkoutTransitionStatus}</p>
+              <p>Can enter future checkout slice: {checkoutTransition.canEnterFutureCheckout ? "Yes" : "No"}</p>
+              <p>Scoped context: {checkoutTransition.transitionSummary.scopedContextStatus}</p>
+              <p>Review status: {checkoutTransition.transitionSummary.reviewStatus}</p>
+              <p>Review validation status: {checkoutTransition.transitionSummary.reviewValidationStatus}</p>
+              <p>Active lines counted: {checkoutTransition.transitionSummary.activeLineCount}</p>
+              <p>Blocking issues counted: {checkoutTransition.transitionSummary.blockingIssueCount}</p>
+              {displayCheckoutTransitionBlockingIssues.length > 0 ? (
+                <ul className="space-y-1">
+                  {displayCheckoutTransitionBlockingIssues.map((issue, index) => (
+                    <li key={`checkout-transition-issue-${issue.code}-${index}`}>
+                      {issue.code} [{issue.severity}] — {issue.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p>No blocking issues.</p>
+              )}
+            </>
+          ) : (
+            <p>Checkout transition unavailable for the current scope.</p>
           )}
         </div>
       </div>

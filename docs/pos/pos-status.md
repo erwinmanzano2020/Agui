@@ -5,11 +5,11 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 
 ## 2. Current Execution Snapshot
 - Module: POS
-- Current phase: POS-F2 bounded closure completed; POS-F3 Slice 1 through Slice 4 are closed and locked as bounded pre-checkout pricing/review/validation layers; next gated step is POS-F3 Slice 5 planning boundary only (not started)
+- Current phase: POS-F2 bounded closure completed; POS-F3 Slice 1 through Slice 4 are closed and locked as bounded pre-checkout pricing/review/validation layers; next gated step is POS-F3 Slice 5 bounded checkout transition intent (in progress, read-only)
 - Phase control note: HR stability checkpoint completed; POS is now the active development phase under roadmap sequencing.
 - Foundation wave: complete (canonical POS foundation set present and aligned)
 - Implementation posture: POS-F1 stable baseline remains intact and POS-F2 bounded draft-order + line-mutation foundations are now recorded as complete within strict scope-first/no-leak constraints
-- Current work mode: POS-F3 Slice 1, Slice 2, Slice 3, and Slice 4 are closed and locked as bounded records; POS-F3 Slice 5 is planning-only and not started; checkout/payment/inventory/finalization remain explicitly out of scope under current phase discipline.
+- Current work mode: POS-F3 Slice 1, Slice 2, Slice 3, and Slice 4 are closed and locked as bounded records; POS-F3 Slice 5 is in progress as bounded checkout transition intent only; checkout/payment/inventory/finalization remain explicitly out of scope under current phase discipline.
 - First-slice stability checkpoint: completed on 2026-04-01 (UTC), with no blocker-class gaps identified
 - MVP posture: POS is still not MVP-complete
 
@@ -19,7 +19,7 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 | Foundation | Canonical POS foundation set is complete (master/status/domain/access/identity/db/phase-1/guardrails). |
 | Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. POS-F2 bounded continuity is now complete for current-session draft-order create/reopen + current-session line add/read/update/remove + bounded persistence + thin action boundary integration + stale refresh hardening posture. |
 | Completed (Bounded) | F3 Slice 1 — Pricing & Totals (current-session draft only): deterministic subtotal/tax/total computation from current scoped order lines, thin action exposure, and read-only UI summary panel with no financial side effects. F3 Slice 2 — Pricing Extension: completed as bounded pricing-input work (explicit input layer + bounded per-line override + line-level pricing source trace), with no checkout/payment/inventory coupling. F3 Slice 3 — Order Review: completed as bounded read-only current-session orchestration (scoped draft identity + active lines + server pricing summary + pricing source trace) with no checkout/finalization/payment/inventory/persistence side effects. F3 Slice 4 — Review Validation / Checkout Readiness: completed as bounded current-session draft-order read-only pre-checkout validation with structured blocker output, deterministic ordering, summary consistency hardening, and no checkout/payment/inventory/finalization/persistence behavior. |
-| Active (In Progress) | No active implementation slice is open in this status record. Next gated step is **POS-F3 Slice 5 — Checkout Transition Boundary (Gated, Planning Only, Not Started)**. This is planning-only documentation with no runtime behavior change and no implementation start; checkout execution, tenders/payments, inventory-aware behavior, cross-session browsing, multi-order orchestration, finalization/sale creation, and persistence side-effects remain out of scope unless explicitly approved. |
+| Active (In Progress) | **POS-F3 Slice 5 — Checkout Transition Boundary (In Progress, Bounded Transition Intent Only)** is now active. It provides read-only transition-status intent between Slice 4 validation and a future checkout slice. It does not execute checkout and does not add tenders/payments, inventory-aware behavior, receipt behavior, sale finalization/creation, persistence side effects, cross-session browsing, or multi-order orchestration. |
 | Blocked / Dependency | POS remains blocked from payment/inventory/reporting/cross-session browsing/multi-order management/finance effects until their own approved slices; no tenancy/auth boundary redesign is authorized by F2 closure. |
 
 ## 4. Current Approved Next Tasks
@@ -28,7 +28,7 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 3. Keep future POS work phase-gated and explicitly approved; reject stealth expansion into checkout/payment/inventory/reporting/finance consequences.
 4. Preserve the Slice 4 closure boundary as read-only pre-checkout validation only; do not reinterpret it as checkout capability.
 5. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
-6. Treat POS-F3 Slice 5 as planning-only transition-boundary definition work (gated, not started, implementation not authorized).
+6. Treat POS-F3 Slice 5 as bounded transition-intent work only (read-only, no checkout execution).
 
 ## 5A. POS-F2 Completion Record (Bounded Closure)
 POS-F2 is closed as a bounded slice and is now documented as complete in this status record.
