@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 
+import type { OrderReviewValidationResult } from "@/lib/pos/order-review-validation";
+
 import { closePosSessionAction, openPosSessionAction } from "./actions";
 import {
   addOrderLineAction,
@@ -53,21 +55,7 @@ type OrderReviewView = {
     pricingInputSource: "manual" | "default";
   }>;
 } | null;
-type OrderReviewValidationView = {
-  reviewValidationStatus: "READY" | "BLOCKED";
-  isReadyForFutureCheckout: boolean;
-  blockingIssues: Array<{
-    code: "EMPTY_ORDER" | "ORDER_INVALID_OR_CLOSED" | "ITEM_PRICE_MISSING" | "INVALID_SCOPED_CONTEXT";
-    severity: "BLOCKER";
-    message: string;
-  }>;
-  validationSummary: {
-    scopedContextStatus: "VALID" | "INVALID";
-    activeLineCount: number;
-    pricingStatus: "RESOLVED" | "UNRESOLVED";
-    blockingIssueCount: number;
-  };
-} | null;
+type OrderReviewValidationView = OrderReviewValidationResult | null;
 
 export function resolveInitialBranchId(defaultBranchId: string | null): string {
   return defaultBranchId?.trim() ?? "";

@@ -27,6 +27,7 @@ import {
   getCurrentSessionOrderReview,
 } from "@/lib/pos/order-review";
 import {
+  type OrderReviewValidationResult,
   PosOrderReviewValidationError,
   createSupabasePosOrderReviewValidationRepository,
   getCurrentSessionOrderReviewValidation,
@@ -351,7 +352,10 @@ export async function getCurrentSessionOrderReviewAction(
 export async function getCurrentSessionOrderReviewValidationAction(
   slug: string,
   payload: { branchId: string; sessionId: string; deviceId: string; orderId: string },
-) {
+): Promise<
+  | { ok: true; reviewValidation: OrderReviewValidationResult }
+  | { ok: false; error: typeof CLIENT_SAFE_POS_ORDER_ERROR }
+> {
   const { supabase, house } = await resolveHouseAndAccess(slug);
   const reviewValidationRepository = createSupabasePosOrderReviewValidationRepository(supabase);
 

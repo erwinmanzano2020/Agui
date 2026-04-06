@@ -380,6 +380,23 @@ test("getCurrentSessionOrderReviewValidationAction forwards exact current-sessio
   const supabase = mockAuthAndAccess();
   const repo = { repo: "review-validation" };
   let received: Parameters<typeof orderReviewValidationModule.getCurrentSessionOrderReviewValidation>[0] | null = null;
+  const canonicalPayload: orderReviewValidationModule.OrderReviewValidationResult = {
+    reviewValidationStatus: "BLOCKED",
+    isReadyForFutureCheckout: false,
+    blockingIssues: [
+      {
+        code: "EMPTY_ORDER",
+        severity: "BLOCKER",
+        message: "Order must contain at least one active line",
+      },
+    ],
+    validationSummary: {
+      scopedContextStatus: "VALID",
+      activeLineCount: 0,
+      pricingStatus: "UNRESOLVED",
+      blockingIssueCount: 1,
+    },
+  };
 
   mock.method(
     orderReviewValidationModule,
@@ -398,23 +415,7 @@ test("getCurrentSessionOrderReviewValidationAction forwards exact current-sessio
     ) => {
       received = input;
       assert.equal(repository, repo as never);
-      return {
-        reviewValidationStatus: "BLOCKED",
-        isReadyForFutureCheckout: false,
-        blockingIssues: [
-          {
-            code: "EMPTY_ORDER",
-            severity: "BLOCKER",
-            message: "Order must contain at least one active line",
-          },
-        ],
-        validationSummary: {
-          scopedContextStatus: "VALID",
-          activeLineCount: 0,
-          pricingStatus: "UNRESOLVED",
-          blockingIssueCount: 1,
-        },
-      } as never;
+      return canonicalPayload as never;
     },
   );
 
@@ -427,23 +428,7 @@ test("getCurrentSessionOrderReviewValidationAction forwards exact current-sessio
 
   assert.deepEqual(result, {
     ok: true,
-    reviewValidation: {
-      reviewValidationStatus: "BLOCKED",
-      isReadyForFutureCheckout: false,
-      blockingIssues: [
-        {
-          code: "EMPTY_ORDER",
-          severity: "BLOCKER",
-          message: "Order must contain at least one active line",
-        },
-      ],
-      validationSummary: {
-        scopedContextStatus: "VALID",
-        activeLineCount: 0,
-        pricingStatus: "UNRESOLVED",
-        blockingIssueCount: 1,
-      },
-    },
+    reviewValidation: canonicalPayload,
   });
   assert.deepEqual(received, {
     houseId: HOUSE_ID,
