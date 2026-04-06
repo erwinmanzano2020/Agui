@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import type { OrderReviewValidationResult } from "@/lib/pos/order-review-validation";
+
 import { mapPosSessionClientError } from "./error-messages";
 import {
   createEmptyOrderReview,
@@ -321,7 +323,7 @@ test("validation issue display keeps multiple bounded blocker entries in determi
 });
 
 test("validation display helper remains read-only and never infers readiness from blocker length", () => {
-  const serverValidationPayload = {
+  const serverValidationPayload: OrderReviewValidationResult = {
     reviewValidationStatus: "BLOCKED" as const,
     isReadyForFutureCheckout: false,
     blockingIssues: [],
