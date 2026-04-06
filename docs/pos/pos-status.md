@@ -5,11 +5,11 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 
 ## 2. Current Execution Snapshot
 - Module: POS
-- Current phase: POS-F2 bounded closure completed; POS-F3 Slice 1 and Slice 2 remain completed bounded pricing layers, and POS-F3 Slice 3 is now completed as bounded pre-checkout order review work
+- Current phase: POS-F2 bounded closure completed; POS-F3 Slice 1 through Slice 4 are now completed as bounded pre-checkout pricing/review/validation layers
 - Phase control note: HR stability checkpoint completed; POS is now the active development phase under roadmap sequencing.
 - Foundation wave: complete (canonical POS foundation set present and aligned)
 - Implementation posture: POS-F1 stable baseline remains intact and POS-F2 bounded draft-order + line-mutation foundations are now recorded as complete within strict scope-first/no-leak constraints
-- Current work mode: POS-F3 Slice 1, Slice 2, and Slice 3 are closed and locked as bounded records; POS-F3 Slice 4 is now in progress as bounded pre-checkout review validation/readiness work only, with checkout/payment/inventory still out of scope
+- Current work mode: POS-F3 Slice 1, Slice 2, Slice 3, and Slice 4 are closed and locked as bounded records; checkout/payment/inventory/finalization remain explicitly out of scope under current phase discipline.
 - First-slice stability checkpoint: completed on 2026-04-01 (UTC), with no blocker-class gaps identified
 - MVP posture: POS is still not MVP-complete
 
@@ -18,15 +18,15 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 |---|---|
 | Foundation | Canonical POS foundation set is complete (master/status/domain/access/identity/db/phase-1/guardrails). |
 | Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. POS-F2 bounded continuity is now complete for current-session draft-order create/reopen + current-session line add/read/update/remove + bounded persistence + thin action boundary integration + stale refresh hardening posture. |
-| Completed (Bounded) | F3 Slice 1 — Pricing & Totals (current-session draft only): deterministic subtotal/tax/total computation from current scoped order lines, thin action exposure, and read-only UI summary panel with no financial side effects. F3 Slice 2 — Pricing Extension: completed as bounded pricing-input work (explicit input layer + bounded per-line override + line-level pricing source trace), with no checkout/payment/inventory coupling. F3 Slice 3 — Order Review: completed as bounded read-only current-session orchestration (scoped draft identity + active lines + server pricing summary + pricing source trace) with no checkout/finalization/payment/inventory/persistence side effects. |
-| Active (In Progress) | POS-F3 Slice 4 — Review Validation / Checkout Readiness (In Progress, Bounded, Pre-Checkout Only). This remains strictly pre-payment, pre-inventory, and pre-finalization; checkout execution, tenders/payments, inventory-aware behavior, cross-session browsing, multi-order orchestration, and persistence side-effects remain out of scope unless explicitly approved. |
+| Completed (Bounded) | F3 Slice 1 — Pricing & Totals (current-session draft only): deterministic subtotal/tax/total computation from current scoped order lines, thin action exposure, and read-only UI summary panel with no financial side effects. F3 Slice 2 — Pricing Extension: completed as bounded pricing-input work (explicit input layer + bounded per-line override + line-level pricing source trace), with no checkout/payment/inventory coupling. F3 Slice 3 — Order Review: completed as bounded read-only current-session orchestration (scoped draft identity + active lines + server pricing summary + pricing source trace) with no checkout/finalization/payment/inventory/persistence side effects. F3 Slice 4 — Review Validation / Checkout Readiness: completed as bounded current-session draft-order read-only pre-checkout validation with structured blocker output, deterministic ordering, summary consistency hardening, and no checkout/payment/inventory/finalization/persistence behavior. |
+| Active (In Progress) | No active implementation slice is open in this status record. Next gated step remains pending explicit approval; checkout execution, tenders/payments, inventory-aware behavior, cross-session browsing, multi-order orchestration, finalization/sale creation, and persistence side-effects remain out of scope unless explicitly approved. |
 | Blocked / Dependency | POS remains blocked from payment/inventory/reporting/cross-session browsing/multi-order management/finance effects until their own approved slices; no tenancy/auth boundary redesign is authorized by F2 closure. |
 
 ## 4. Current Approved Next Tasks
 1. Preserve POS-F1 + POS-F2 bounded guarantees without contract reinterpretation.
-2. Use the POS-F2 completion record in this document as the required upstream boundary for any active Slice 4 implementation/documentation artifact.
-3. Keep F3 scoped to approved active Slice 4 intent only; reject stealth expansion into payment/inventory/reporting/finance consequences.
-4. Continue phase-gated sequencing from roadmap posture: Slice 4 implementation is underway and must remain tightly bounded to pre-checkout, read-only validation only.
+2. Use the POS-F2 through POS-F3 Slice 4 completion records in this document as required upstream boundaries for any future gated POS slice artifact.
+3. Keep future POS work phase-gated and explicitly approved; reject stealth expansion into checkout/payment/inventory/reporting/finance consequences.
+4. Preserve the Slice 4 closure boundary as read-only pre-checkout validation only; do not reinterpret it as checkout capability.
 5. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
 
 ## 5A. POS-F2 Completion Record (Bounded Closure)
@@ -183,7 +183,7 @@ POS MVP is only considered done when, at minimum, all are true:
 - blocker-class regressions are closed before any future module-unlock claim
 
 ## 10. Last Updated
-2026-04-05 (UTC)
+2026-04-06 (UTC)
 
 ## 11. POS-F3 Slice 1 — Pricing & Totals (Completed, Bounded)
 ### Now supported
@@ -365,11 +365,11 @@ POS-F3 Slice 3 is closed as a bounded slice.
 - It does not persist review snapshots.
 - It does not authorize broader POS MVP completion claims.
 
-## 11F. POS-F3 Slice 4 — Review Validation / Checkout Readiness (In Progress)
-### In-progress bounded definition
-POS-F3 Slice 4 is currently **in progress** as bounded **pre-checkout read-only validation**.
+## 11F. POS-F3 Slice 4 — Review Validation / Checkout Readiness (Completed, Bounded)
+### Closure definition
+POS-F3 Slice 4 is **completed** as bounded **pre-checkout read-only validation**.
 
-Slice 4 is defined as:
+Slice 4 is closed as:
 - current-session only,
 - draft-order only,
 - read-only validation only,
@@ -379,33 +379,37 @@ Slice 4 is defined as:
 - no inventory behavior,
 - no finalization behavior.
 
-Current implementation posture remains constrained to validation only; this is not checkout implementation.
+This closure record is validation-only and must not be interpreted as checkout implementation.
 
-### Validation purpose (bounded)
-Slice 4 answers only this bounded question:
+### What Slice 4 established
+Slice 4 established a bounded server-side validation composition that answers only this question:
 
 **“Is this exact current-session draft order ready to proceed to a future checkout slice?”**
 
-Slice 4 does **not** perform checkout and must not be interpreted as checkout availability.
+Established posture includes:
+- server-only validation helper composition across existing draft/line/pricing foundations,
+- shared validation contract typing across server/action/client boundaries,
+- structured blocker details with machine-safe issue codes,
+- deterministic blocker ordering for stable operator-facing output,
+- summary consistency hardening for stable readiness interpretation.
 
-### What Slice 4 will validate (bounded readiness inputs)
-Readiness inputs are bounded to existing POS constraints and exact scoped context:
+### Validation guarantees (bounded)
+Readiness guarantees remain bounded to existing POS constraints and exact scoped context:
 - scoped order exists,
-- order state is still `DRAFT`,
-- session state is still `OPEN`,
+- order state is `DRAFT`,
+- session state is `OPEN`,
 - scoped lineage is exact and valid: **house -> branch -> session -> device -> order**,
 - order has at least one active line,
 - active lines are valid for bounded review purposes under existing draft-line rules,
 - pricing is resolvable under existing server pricing rules,
-- no missing price state exists,
-- no invalid scoped context exists.
+- missing-price/invalid-scope states are surfaced as blocker outcomes.
 
-No speculative future checkout/payment/inventory rules are added in this slice definition.
+No speculative future checkout/payment/inventory rules are added by this closure.
 
-### Output shape (bounded, read-only)
+### Structured blocker output posture
 Slice 4 readiness output is bounded to read-only validation output containing:
 - readiness status,
-- blocking issues list,
+- blocker list,
 - machine-safe issue codes,
 - bounded issue severity (`BLOCKER` only in this slice),
 - deterministic operator-safe issue messages (non-sensitive),
@@ -413,21 +417,26 @@ Slice 4 readiness output is bounded to read-only validation output containing:
 
 Output language in this status document remains conservative and must not be interpreted as checkout capability.
 
-### Explicit non-goals (must remain out of scope)
-Slice 4 explicitly does **not** include:
+### No-leak / scoped-boundary posture
+- Scope discipline remains strict: **house -> branch -> session -> device -> order**.
+- Invalid, missing, mismatched, or closed scoped states collapse to conservative no-leak deny posture.
+- Slice 4 does not widen visibility across sessions, orders, branches, or houses.
+- Validation output remains bounded and non-sensitive.
+
+### Explicit non-goals (still out of scope)
+Slice 4 does **not** include:
 - checkout execution,
-- sale finalization,
+- sale finalization/sale creation,
 - payment/tender capture,
-- inventory reservation/deduction,
+- inventory reservation/deduction/stock-aware behavior,
 - receipt generation,
-- persistence of readiness snapshots,
+- persistence of readiness snapshots or side effects,
 - cross-session browsing,
 - multi-order queue orchestration,
 - finance/ledger effects.
 
-### Governance posture for this slice
-- In progress (bounded implementation only).
+### Closure posture
+- Completed (bounded current-session pre-checkout validation only).
 - Pre-checkout and read-only only.
 - No stealth expansion.
-- No future-scope implementation implied by this document section.
-- Any wording that could imply checkout/payment/inventory enablement must be interpreted as out of scope unless explicitly approved in a later implementation task.
+- Any wording that could imply checkout/payment/inventory/finalization enablement remains out of scope unless explicitly approved in a later gated slice.
