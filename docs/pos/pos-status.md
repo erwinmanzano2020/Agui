@@ -563,13 +563,13 @@ Slice 7 exists only to define the checkout session/container boundary language f
 It preserves Slice 6 as entry-decision-only and must not reinterpret Slice 6 as checkout execution.
 
 ### A. Canonical boundary decision options (planning vocabulary only)
-Future approval may choose one conservative container framing model:
+Slice 7 planning evaluated the conservative container framing models:
 - **order-tied**: checkout container identity is bounded to exactly one eligible current-session draft order context.
 - **session-tied**: checkout container identity is bounded primarily to the active POS session context, with order linkage constrained within that session boundary.
 - **device-tied**: checkout container identity is bounded primarily to the active device context, with order/session linkage constrained under exact scope.
 - **bounded hybrid**: an explicitly declared combined model (e.g., order + session or session + device) with conservative priority/ownership language and no implicit scope broadening.
 
-These options are conceptual framing choices only. Slice 7 does not select runtime behavior.
+These options are governance framing choices only. Slice 7 does not authorize runtime behavior.
 
 ### B. Decision criteria for future approval (bounded)
 Model selection must be evaluated using explicit bounded criteria:
@@ -582,7 +582,26 @@ Model selection must be evaluated using explicit bounded criteria:
 - **auditability posture**: can boundary transitions be named and reviewed without implying executable financial side effects?
 - **avoidance of stealth persistence scope**: does the model avoid accidentally authorizing writes, durable state assumptions, or contract rollout?
 
-### C. Entry invariants (conceptual only; derived from Slice 6 ENTERABLE posture)
+### C. Canonical decision note (planning-only lock)
+Slice 7 canonically locks **order-tied** as the checkout session boundary model for the current POS architecture stage.
+
+Decision posture:
+- This is a governance definition only and remains planning-only / not started.
+- This does not authorize implementation work.
+- Slice 6 remains unchanged as the only active bounded implementation slice (entry decisioning only).
+
+Ownership and guards:
+- **Primary container owner:** eligible **current-session draft order** (order identity is the single ownership anchor).
+- **Bounded guards/constraints only:** exact scope lineage (house -> branch -> session -> device), operator accountability, and Slice 6 entry posture (`ENTERABLE | BLOCKED`) remain mandatory guard conditions.
+- **Not ownership:** session, device, operator, and scope lineage are required constraints and safety guards, but are not checkout container owners.
+
+Rationale summary:
+- **Why selected now:** order-tied framing gives the clearest single-owner boundary, strongest accountability linkage, clean no-leak deny posture under scope mismatch, conservative cancellation language, lower concurrency ambiguity, strong audit traceability, and the least stealth-persistence pressure.
+- **Why not selected now:** session-tied and device-tied introduce wider ownership surfaces than needed for current bounded architecture; bounded hybrid is not selected because, at this stage, it adds avoidable ownership interpretation risk even when a primary anchor is declared.
+- **Risk avoided:** ambiguous multi-owner interpretation and stealth expansion into broader continuity semantics.
+- **Tradeoff accepted:** reduced flexibility for future resumability framing until a separately approved slice explicitly broadens constraints.
+
+### D. Entry invariants (conceptual only; derived from Slice 6 ENTERABLE posture)
 Any future checkout container definition must assume entry only when all conceptual invariants remain true:
 - **exact-scope posture intact** (house/branch/session/device/order lineage is consistent and exact),
 - **validation posture stable** (upstream blocker posture remains non-regressed),
@@ -592,7 +611,7 @@ Any future checkout container definition must assume entry only when all concept
 
 These are planning invariants only and do not authorize runtime checks in this slice.
 
-### D. Exit / termination boundary language (conceptual only)
+### E. Exit / termination boundary language (conceptual only)
 Slice 7 may define only conceptual boundary endings:
 - **completion boundary**: conceptual point where a future checkout container would be considered complete.
 - **cancel boundary**: conceptual point where a future checkout container would be considered intentionally canceled.
@@ -601,7 +620,7 @@ Slice 7 may define only conceptual boundary endings:
 
 No executable transition logic, side effects, persistence writes, or contract changes are authorized.
 
-### E. Explicit sequencing note
+### F. Explicit sequencing note
 Slice 7 is the **required container-definition step** before any future checkout execution internals can be safely scoped.
 
 Until this boundary is explicitly approved, checkout execution internals (including payment, inventory, receipt, persistence, and finalization behavior) remain blocked.
