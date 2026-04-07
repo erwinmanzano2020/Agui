@@ -625,6 +625,27 @@ Slice 7 is the **required container-definition step** before any future checkout
 
 Until this boundary is explicitly approved, checkout execution internals (including payment, inventory, receipt, persistence, and finalization behavior) remain blocked.
 
+### Canonical Checkout Container Structure (Planning Only)
+This subsection is a governance-only structure definition. It is planning-only, not started, and introduces no implementation behavior.
+
+Canonical structure anchor:
+- Checkout container identity is **order-tied** and anchored to exactly one eligible current-session draft order under exact scope.
+- Session and device are mandatory scope guards but are **not** identity owners.
+- Operator attribution, validation posture, and pricing posture are mandatory structural dimensions but are **not** identity owners.
+
+Structural boundaries (conceptual only):
+- **entry boundary:** defined by Slice 6 `ENTERABLE` posture for the same exact-scope order context.
+- **active container state:** conceptual bounded state where the container remains defined only while canonical scope and guard constraints remain intact.
+- **termination boundary:** conceptual boundary set includes completion, cancel, and invalidation; no transition logic is defined here.
+
+Integrity posture:
+- No cross-session ownership transfer.
+- No cross-device ownership transfer unless a future approved slice explicitly authorizes it.
+- No implicit resumability.
+- No container identity mutation once bound.
+
+This structure definition is canonical language only and does not authorize lifecycle handlers, runtime checks, persistence design, or execution behavior.
+
 ### Explicit non-goals (still out of scope)
 Slice 7 does **not** authorize or implement:
 - checkout execution implementation,
