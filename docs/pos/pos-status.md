@@ -553,7 +553,7 @@ Slice 6 does **not** include:
 
 ## 11I. POS-F3 Slice 7 — Checkout Session Boundary (Gated, Planning Only, Not Started)
 ### Planning-only definition
-Slice 7 is **planning-only** and **not started**. This record is governance language only and introduces no implementation work.
+Slice 7 is **planning-only** and **not started**. This section is governance + boundary-definition language only and introduces no implementation work.
 
 Slice 7 introduces no runtime behavior, no API/handler behavior, no UI behavior, and no schema or persistence changes.
 
@@ -562,33 +562,65 @@ Slice 7 exists only to define the checkout session/container boundary language f
 
 It preserves Slice 6 as entry-decision-only and must not reinterpret Slice 6 as checkout execution.
 
-### Proposed bounded scope (planning only)
-Planning language may conservatively define:
-- whether checkout boundary framing is order-tied, session-tied, device-tied, or a bounded combination,
-- whether checkout session posture is ephemeral, resumable, or strictly single-flow,
-- conceptual entry invariants aligned to Slice 6 `ENTERABLE` posture,
-- conceptual exit conditions and boundary termination language.
+### A. Canonical boundary decision options (planning vocabulary only)
+Future approval may choose one conservative container framing model:
+- **order-tied**: checkout container identity is bounded to exactly one eligible current-session draft order context.
+- **session-tied**: checkout container identity is bounded primarily to the active POS session context, with order linkage constrained within that session boundary.
+- **device-tied**: checkout container identity is bounded primarily to the active device context, with order/session linkage constrained under exact scope.
+- **bounded hybrid**: an explicitly declared combined model (e.g., order + session or session + device) with conservative priority/ownership language and no implicit scope broadening.
 
-All scope remains planning-only with no runtime authorization and no implied implementation.
+These options are conceptual framing choices only. Slice 7 does not select runtime behavior.
 
-### Conceptual output / behavior shape (planning only)
-Any output in Slice 7 is conceptual documentation shape only (e.g., vocabulary, state labels, boundary-language definitions).
+### B. Decision criteria for future approval (bounded)
+Model selection must be evaluated using explicit bounded criteria:
+- **scope clarity**: does the model keep house -> branch -> session -> device -> order lineage explicit and non-ambiguous?
+- **operator accountability**: does the model preserve attributable operator responsibility at each boundary-sensitive point?
+- **no-leak safety**: does invalid/mismatched state still collapse to conservative no-leak deny posture?
+- **cancellation behavior**: can cancellation language be defined without silently introducing persistence/finalization behavior?
+- **resumability pressure**: if resumability is needed, can it be expressed without authorizing cross-session browsing or stealth state carryover?
+- **concurrency risk**: does the model minimize ambiguous concurrent ownership claims for the same checkout container?
+- **auditability posture**: can boundary transitions be named and reviewed without implying executable financial side effects?
+- **avoidance of stealth persistence scope**: does the model avoid accidentally authorizing writes, durable state assumptions, or contract rollout?
 
-Slice 7 does not introduce executable behavior, side-effect paths, persistence writes, or contract rollout.
+### C. Entry invariants (conceptual only; derived from Slice 6 ENTERABLE posture)
+Any future checkout container definition must assume entry only when all conceptual invariants remain true:
+- **exact-scope posture intact** (house/branch/session/device/order lineage is consistent and exact),
+- **validation posture stable** (upstream blocker posture remains non-regressed),
+- **pricing posture stable** (bounded pricing summary posture remains coherent for the same exact scope),
+- **draft posture still valid** (eligible draft-state assumptions remain intact),
+- **no blocker state present** (entry remains `ENTERABLE`, not degraded to `BLOCKED`).
+
+These are planning invariants only and do not authorize runtime checks in this slice.
+
+### D. Exit / termination boundary language (conceptual only)
+Slice 7 may define only conceptual boundary endings:
+- **completion boundary**: conceptual point where a future checkout container would be considered complete.
+- **cancel boundary**: conceptual point where a future checkout container would be considered intentionally canceled.
+- **invalidation boundary**: conceptual point where upstream validity loss conceptually voids continuation.
+- **scope-loss boundary**: conceptual point where exact-scope lineage is no longer intact and continuation must be treated as non-enterable.
+
+No executable transition logic, side effects, persistence writes, or contract changes are authorized.
+
+### E. Explicit sequencing note
+Slice 7 is the **required container-definition step** before any future checkout execution internals can be safely scoped.
+
+Until this boundary is explicitly approved, checkout execution internals (including payment, inventory, receipt, persistence, and finalization behavior) remain blocked.
 
 ### Explicit non-goals (still out of scope)
 Slice 7 does **not** authorize or implement:
+- checkout execution implementation,
 - payment/tender behavior,
 - inventory reservation/deduction/stock-aware behavior,
 - receipt generation,
 - sale finalization/completion,
 - persistence side effects,
-- checkout execution implementation.
+- cross-session browsing,
+- multi-order orchestration.
 
 Slice 7 exists specifically to prevent the misreading: **“entry exists, so payment can be added now.”**
 
 ### Governance posture
 - Slice 1 through Slice 5 remain closed and locked.
 - Slice 6 remains the only active bounded implementation slice.
-- Slice 7 remains gated and planning-only until separately approved for implementation.
+- Slice 7 remains gated, planning-only, and not started until separately approved for implementation.
 - No stealth expansion is authorized by this planning record.
