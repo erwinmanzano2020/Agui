@@ -9,7 +9,7 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 - Phase control note: HR stability checkpoint completed; POS is now the active development phase under roadmap sequencing.
 - Foundation wave: complete (canonical POS foundation set present and aligned)
 - Implementation posture: POS-F1 stable baseline remains intact and POS-F2 bounded draft-order + line-mutation foundations are now recorded as complete within strict scope-first/no-leak constraints
-- Current work mode: POS-F3 Slice 1 through Slice 5 remain closed and locked as bounded records; Slice 6 is in progress as checkout execution boundary entry decisioning only (read-only, exact scope, no side effects beyond entry decision output).
+- Current work mode: POS-F3 Slice 1 through Slice 5 remain closed and locked as bounded records; Slice 6 is in progress as checkout execution boundary entry decisioning only (read-only, exact scope, no side effects beyond entry decision output). Next gated step after Slice 6 is POS-F3 Slice 7 — Checkout Session Boundary (Planning Only, Not Started).
 - First-slice stability checkpoint: completed on 2026-04-01 (UTC), with no blocker-class gaps identified
 - MVP posture: POS is still not MVP-complete
 
@@ -28,7 +28,8 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 3. Keep future POS work phase-gated and explicitly approved; reject stealth expansion into checkout/payment/inventory/reporting/finance consequences.
 4. Preserve Slice 4 and Slice 5 as read-only bounded pre-checkout layers only; do not reinterpret Slice 5 as checkout capability.
 5. Deliver POS-F3 Slice 6 as bounded checkout execution-entry decisioning only, with strict no-leak/exact-scope/read-only posture and no expansion into payment/inventory/receipt/finalization/persistence side effects.
-6. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
+6. Keep POS-F3 Slice 7 explicitly gated as the next step after Slice 6: Checkout Session Boundary (Planning Only, Not Started), with no runtime/API/UI/schema authorization.
+7. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
 
 ## 5A. POS-F2 Completion Record (Bounded Closure)
 POS-F2 is closed as a bounded slice and is now documented as complete in this status record.
@@ -548,3 +549,46 @@ Slice 6 does **not** include:
 - Slice 5 must not be reinterpreted as checkout capability.
 - Slice 6 remains tightly bounded to entry decision boundary only.
 - No stealth expansion is authorized.
+
+
+## 11I. POS-F3 Slice 7 — Checkout Session Boundary (Gated, Planning Only, Not Started)
+### Planning-only definition
+Slice 7 is **planning-only** and **not started**. This record is governance language only and introduces no implementation work.
+
+Slice 7 introduces no runtime behavior, no API/handler behavior, no UI behavior, and no schema or persistence changes.
+
+### Bounded purpose
+Slice 7 exists only to define the checkout session/container boundary language for a future gated checkout path.
+
+It preserves Slice 6 as entry-decision-only and must not reinterpret Slice 6 as checkout execution.
+
+### Proposed bounded scope (planning only)
+Planning language may conservatively define:
+- whether checkout boundary framing is order-tied, session-tied, device-tied, or a bounded combination,
+- whether checkout session posture is ephemeral, resumable, or strictly single-flow,
+- conceptual entry invariants aligned to Slice 6 `ENTERABLE` posture,
+- conceptual exit conditions and boundary termination language.
+
+All scope remains planning-only with no runtime authorization and no implied implementation.
+
+### Conceptual output / behavior shape (planning only)
+Any output in Slice 7 is conceptual documentation shape only (e.g., vocabulary, state labels, boundary-language definitions).
+
+Slice 7 does not introduce executable behavior, side-effect paths, persistence writes, or contract rollout.
+
+### Explicit non-goals (still out of scope)
+Slice 7 does **not** authorize or implement:
+- payment/tender behavior,
+- inventory reservation/deduction/stock-aware behavior,
+- receipt generation,
+- sale finalization/completion,
+- persistence side effects,
+- checkout execution implementation.
+
+Slice 7 exists specifically to prevent the misreading: **“entry exists, so payment can be added now.”**
+
+### Governance posture
+- Slice 1 through Slice 5 remain closed and locked.
+- Slice 6 remains the only active bounded implementation slice.
+- Slice 7 remains gated and planning-only until separately approved for implementation.
+- No stealth expansion is authorized by this planning record.
