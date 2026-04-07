@@ -646,6 +646,49 @@ Integrity posture:
 
 This structure definition is canonical language only and does not authorize lifecycle handlers, runtime checks, persistence design, or execution behavior.
 
+### Canonical Checkout Container Continuity Semantics (Planning Only)
+This subsection is governance-only language. It remains planning-only, not started, and does not authorize implementation.
+
+The continuity semantics below are canonical vocabulary for the **order-tied** checkout container model only. They define interpretation boundaries, not executable behavior.
+
+Canonical vocabulary:
+- **continuation**: conceptual posture where the same order-owned container remains interpretable as still in the same bounded continuity context.
+- **invalid continuation**: conceptual posture where continuation language is no longer valid because required continuity conditions are no longer true.
+- **canceled continuation**: conceptual posture where continuation language ends due to an intentional cancel outcome boundary.
+- **terminated completion boundary**: conceptual endpoint where continuation language stops because the container is treated as complete.
+- **terminated invalidation boundary**: conceptual endpoint where continuation language stops because the container is treated as invalidated.
+- **terminated cancel boundary**: conceptual endpoint where continuation language stops because the container is treated as canceled.
+- **scope-loss continuation failure**: conceptual failure class where continuity cannot be maintained because exact scope lineage is no longer intact.
+
+Canonical semantic constraints:
+- These terms define governance interpretation only.
+- These terms do **not** define runtime handlers, APIs, control flow, or execution sequencing.
+- These terms do **not** define persistence semantics, storage contracts, or write-side behavior.
+- These terms do **not** define payment, receipt, sale-finalization, or inventory behavior.
+
+Conceptual continuity conditions (non-executable):
+- Continuation is conceptually valid only while order ownership remains singular and exact-scope lineage (house -> branch -> session -> device -> order) remains intact.
+- Continuation is conceptually valid only while the bounded guard posture remains non-contradictory with Slice 6 entry-decision framing.
+- Continuity becomes invalid continuation when required scope/ownership/guard coherence is no longer true.
+- Scope-loss continuation failure is the explicit continuity-failure class for lineage break, mismatch, or ambiguity.
+
+Conceptual termination semantics:
+- Continuation language terminates at the completion boundary, invalidation boundary, or cancel boundary.
+- After any terminated boundary, the prior container continuity language is closed and not interpreted as still continuing.
+
+Continuity-safe interpretation rules:
+- No implicit resumability is authorized.
+- No cross-session continuity assumption is authorized.
+- No cross-device continuity assumption is authorized.
+- No silent ownership transfer is authorized.
+- Continuity terminology must not be reinterpreted as executable authority.
+
+Record posture:
+- This continuity definition is canonical governance language only.
+- Slice 7 remains planning-only and not started.
+- Slice 6 remains the only active bounded implementation slice and remains entry-decision-only.
+- No implementation authorization is granted by this subsection.
+
 ### Explicit non-goals (still out of scope)
 Slice 7 does **not** authorize or implement:
 - checkout execution implementation,
