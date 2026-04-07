@@ -184,7 +184,7 @@ POS MVP is only considered done when, at minimum, all are true:
 - blocker-class regressions are closed before any future module-unlock claim
 
 ## 10. Last Updated
-2026-04-06 (UTC)
+2026-04-07 (UTC)
 
 ## 11. POS-F3 Slice 1 — Pricing & Totals (Completed, Bounded)
 ### Now supported
@@ -548,3 +548,47 @@ Slice 6 does **not** include:
 - Slice 5 must not be reinterpreted as checkout capability.
 - Slice 6 remains tightly bounded to entry decision boundary only.
 - No stealth expansion is authorized.
+
+## 11I. POS-F3 Slice 7 — Checkout Session Boundary (Gated, Planning Only, Not Started)
+### Planning-only definition
+Slice 7 is documented as **planning-only and gated**. It is **not started** and introduces:
+- no runtime behavior,
+- no API or handler behavior,
+- no UI behavior,
+- no schema or persistence changes.
+
+### Bounded purpose
+Slice 7 answers only this bounded planning question:
+
+**“What is the checkout session container boundary that future execution slices must honor?”**
+
+### Proposed bounded scope (planning only)
+Slice 7 planning scope is intentionally narrow:
+- define the checkout session concept boundary (order-tied vs session-tied vs device-tied posture) as governance language only;
+- define whether the checkout session model is ephemeral, resumable, or strictly single-flow;
+- define entry invariants from Slice 6 `ENTERABLE` posture as conceptual guarantees only (for example: stable pricing posture, `READY` validation posture, intact scope posture);
+- define conceptual exit conditions only (what ends checkout and what cancels checkout) without execution semantics.
+
+### Conceptual output / behavior shape (planning only)
+If recorded, output language is conceptual only and non-runtime:
+- container-state vocabulary for checkout session boundary interpretation,
+- conceptual entry invariants checklist for `ENTERABLE` handoff,
+- conceptual terminal outcomes for completion/cancel boundary language.
+
+This section defines the **container**, not the internal checkout actions.
+
+### Explicit non-goals (still out of scope)
+Slice 7 does **not** include:
+- checkout implementation,
+- payment logic,
+- persistence introduction,
+- API/handler additions,
+- UI implementation,
+- schema changes,
+- reinterpretation of Slice 6 as execution.
+
+### Governance posture
+- Slice 7 remains planning-only, gated, and not started.
+- Slice 6 entry decision boundary remains frozen as execution-entry language only.
+- Slice 7 exists to prevent “entry exists, so implement payment now” misreading.
+- No stealth expansion is authorized; system design boundary clarity is mandatory before future execution slices.
