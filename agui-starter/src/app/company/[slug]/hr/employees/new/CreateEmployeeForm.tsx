@@ -13,6 +13,7 @@ import type { BranchListItem } from "@/lib/hr/employees-server";
 import { EmployeePhotoField } from "../_components/EmployeePhotoField";
 import { createEmployeeAction } from "./actions";
 import { createEmployeeInitialState, type CreateEmployeeState } from "./action-types";
+import { resolveLookupErrorMessage } from "./lookup-error";
 
 type Props = {
   houseId: string;
@@ -133,7 +134,7 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
         const payload = await response.json();
 
         if (!response.ok) {
-          setLookupError(payload?.message ?? "Unable to look up identities right now.");
+          setLookupError(resolveLookupErrorMessage(payload));
           setLookupMatches([]);
           return;
         }
