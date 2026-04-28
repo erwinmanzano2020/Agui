@@ -5,6 +5,7 @@ import * as featureGuard from "@/lib/auth/feature-guard";
 import * as identityServer from "@/lib/identity/entity-server";
 import * as supabaseServer from "@/lib/supabase/server";
 import * as supabaseService from "@/lib/supabase-service";
+import { AppFeature } from "@/lib/auth/permissions";
 import {
   assertCanonicalSafeHrRouteEntryOrder,
   assertUnauthenticatedSafeHrRouteDrift,
@@ -52,7 +53,7 @@ describe("POST /api/hr/employees/lookup route-entry drift guard", () => {
       order.push("entity");
       return "entity-1";
     });
-    mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
+    const featureMock = mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => {
       order.push("feature");
       return null;
     });
@@ -66,5 +67,10 @@ describe("POST /api/hr/employees/lookup route-entry drift guard", () => {
 
     assert.equal(response.status, 400);
     assertCanonicalSafeHrRouteEntryOrder(order);
+    assert.deepEqual(featureMock.mock.calls[0]?.arguments[0], [
+      AppFeature.PAYROLL,
+      AppFeature.TEAM,
+      AppFeature.DTR_BULK,
+    ]);
   });
 });
