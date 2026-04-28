@@ -19,7 +19,7 @@ const LookupSchema = z.object({
 export async function POST(req: NextRequest) {
   const actor = await resolveHrRouteActorContext({
     routeName: ROUTE_NAME,
-    features: [AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK],
+    features: [AppFeature.HR],
     onUnauthenticated: () => jsonError(401, "Not authenticated"),
     onEntityNotLinked: () => jsonError(403, "Account not linked"),
   });

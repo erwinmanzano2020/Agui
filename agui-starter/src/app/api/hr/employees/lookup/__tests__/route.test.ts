@@ -68,9 +68,7 @@ describe("POST /api/hr/employees/lookup route-entry drift guard", () => {
     assert.equal(response.status, 400);
     assertCanonicalSafeHrRouteEntryOrder(order);
     assert.deepEqual(featureMock.mock.calls[0]?.arguments[0], [
-      AppFeature.PAYROLL,
-      AppFeature.TEAM,
-      AppFeature.DTR_BULK,
+      AppFeature.HR,
     ]);
   });
 });
