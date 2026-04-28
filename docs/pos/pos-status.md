@@ -5,11 +5,11 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 
 ## 2. Current Execution Snapshot
 - Module: POS
-- Current phase: POS-F2 bounded closure completed; POS-F3 Slice 1 through Slice 4 are closed and locked as bounded pre-checkout pricing/review/validation layers; next gated step is POS-F3 Slice 5 bounded checkout transition intent (in progress, read-only)
+- Current phase: POS-F2 bounded closure completed; POS-F3 Slice 1 through Slice 5 are closed and locked as bounded pre-checkout pricing/review/validation/transition-intent layers; POS-F3 Slice 6 is now active as a tightly bounded checkout execution-entry decision slice only.
 - Phase control note: HR stability checkpoint completed; POS is now the active development phase under roadmap sequencing.
 - Foundation wave: complete (canonical POS foundation set present and aligned)
 - Implementation posture: POS-F1 stable baseline remains intact and POS-F2 bounded draft-order + line-mutation foundations are now recorded as complete within strict scope-first/no-leak constraints
-- Current work mode: POS-F3 Slice 1, Slice 2, Slice 3, and Slice 4 are closed and locked as bounded records; POS-F3 Slice 5 is in progress as bounded checkout transition intent only; checkout/payment/inventory/finalization remain explicitly out of scope under current phase discipline.
+- Current work mode: POS-F3 Slice 1 through Slice 5 remain closed and locked as bounded records; Slice 6 is in progress as checkout execution boundary entry decisioning only (read-only, exact scope, no side effects beyond entry decision output). Next gated step after Slice 6 is POS-F3 Slice 7 — Checkout Session Boundary (Planning Only, Not Started).
 - First-slice stability checkpoint: completed on 2026-04-01 (UTC), with no blocker-class gaps identified
 - MVP posture: POS is still not MVP-complete
 
@@ -18,17 +18,18 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 |---|---|
 | Foundation | Canonical POS foundation set is complete (master/status/domain/access/identity/db/phase-1/guardrails). |
 | Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. POS-F2 bounded continuity is now complete for current-session draft-order create/reopen + current-session line add/read/update/remove + bounded persistence + thin action boundary integration + stale refresh hardening posture. |
-| Completed (Bounded) | F3 Slice 1 — Pricing & Totals (current-session draft only): deterministic subtotal/tax/total computation from current scoped order lines, thin action exposure, and read-only UI summary panel with no financial side effects. F3 Slice 2 — Pricing Extension: completed as bounded pricing-input work (explicit input layer + bounded per-line override + line-level pricing source trace), with no checkout/payment/inventory coupling. F3 Slice 3 — Order Review: completed as bounded read-only current-session orchestration (scoped draft identity + active lines + server pricing summary + pricing source trace) with no checkout/finalization/payment/inventory/persistence side effects. F3 Slice 4 — Review Validation / Checkout Readiness: completed as bounded current-session draft-order read-only pre-checkout validation with structured blocker output, deterministic ordering, summary consistency hardening, and no checkout/payment/inventory/finalization/persistence behavior. |
-| Active (In Progress) | **POS-F3 Slice 5 — Checkout Transition Boundary (In Progress, Bounded Transition Intent Only)** is now active. It provides read-only transition-status intent between Slice 4 validation and a future checkout slice. It does not execute checkout and does not add tenders/payments, inventory-aware behavior, receipt behavior, sale finalization/creation, persistence side effects, cross-session browsing, or multi-order orchestration. |
+| Completed (Bounded) | F3 Slice 1 — Pricing & Totals (current-session draft only): deterministic subtotal/tax/total computation from current scoped order lines, thin action exposure, and read-only UI summary panel with no financial side effects. F3 Slice 2 — Pricing Extension: completed as bounded pricing-input work (explicit input layer + bounded per-line override + line-level pricing source trace), with no checkout/payment/inventory coupling. F3 Slice 3 — Order Review: completed as bounded read-only current-session orchestration (scoped draft identity + active lines + server pricing summary + pricing source trace) with no checkout/finalization/payment/inventory/persistence side effects. F3 Slice 4 — Review Validation / Checkout Readiness: completed as bounded current-session draft-order read-only pre-checkout validation with structured blocker output, deterministic ordering, summary consistency hardening, and no checkout/payment/inventory/finalization/persistence behavior. F3 Slice 5 — Checkout Transition Intent: completed as bounded current-session read-only transition-intent posture between Slice 4 validation and a future gated checkout slice, with no checkout execution/payment/inventory/receipt/finalization/persistence/cross-session/multi-order behavior. |
+| Active (In Progress) | POS-F3 Slice 6 — Checkout Execution Boundary (bounded entry decision only) is in progress. Slice 5 closure remains locked and must not be reinterpreted as checkout capability. |
 | Blocked / Dependency | POS remains blocked from payment/inventory/reporting/cross-session browsing/multi-order management/finance effects until their own approved slices; no tenancy/auth boundary redesign is authorized by F2 closure. |
 
 ## 4. Current Approved Next Tasks
-1. Preserve POS-F1 + POS-F2 bounded guarantees without contract reinterpretation.
-2. Use the POS-F2 through POS-F3 Slice 4 completion records in this document as required upstream boundaries for any future gated POS slice artifact.
+1. Preserve POS-F1 + POS-F2 bounded guarantees with phase discipline and no contract reinterpretation.
+2. Preserve POS-F3 Slice 1 through Slice 5 closure records as locked bounded upstream layers; do not weaken Slice 4 closure boundary or Slice 5 closure boundary.
 3. Keep future POS work phase-gated and explicitly approved; reject stealth expansion into checkout/payment/inventory/reporting/finance consequences.
-4. Preserve the Slice 4 closure boundary as read-only pre-checkout validation only; do not reinterpret it as checkout capability.
-5. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
-6. Treat POS-F3 Slice 5 as bounded transition-intent work only (read-only, no checkout execution).
+4. Preserve Slice 4 and Slice 5 as read-only bounded pre-checkout layers only; do not reinterpret Slice 5 as checkout capability.
+5. Deliver POS-F3 Slice 6 as bounded checkout execution-entry decisioning only, with strict no-leak/exact-scope/read-only posture and no expansion into payment/inventory/receipt/finalization/persistence side effects.
+6. Keep POS-F3 Slice 7 explicitly gated as the next step after Slice 6: Checkout Session Boundary (Planning Only, Not Started), with no runtime/API/UI/schema authorization.
+7. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
 
 ## 5A. POS-F2 Completion Record (Bounded Closure)
 POS-F2 is closed as a bounded slice and is now documented as complete in this status record.
@@ -442,66 +443,267 @@ Slice 4 does **not** include:
 - No stealth expansion.
 - Any wording that could imply checkout/payment/inventory/finalization enablement remains out of scope unless explicitly approved in a later gated slice.
 
-## 11G. POS-F3 Slice 5 — Checkout Transition Boundary (Gated, Planning Only, Not Started)
-### Planning-only definition
-POS-F3 Slice 5 is the next gated POS step and is **planning-only**.
+## 11G. POS-F3 Slice 5 — Checkout Transition Intent (Completed, Bounded)
+### Closure definition
+POS-F3 Slice 5 is **completed** as bounded **checkout transition intent only**.
 
-It is explicitly:
-- not implemented,
-- not started,
-- not runtime-enabled,
-- not a checkout feature release.
+Slice 5 is closed as:
+- read-only only,
+- current-session only,
+- exact-scope only,
+- deterministic transition-intent output only,
+- no checkout execution,
+- no payment/tender behavior,
+- no inventory behavior,
+- no receipt behavior,
+- no sale creation/finalization,
+- no persistence side effects,
+- no cross-session browsing,
+- no multi-order orchestration.
 
-This section defines a conservative planning boundary only and does not authorize implementation work.
+This closure record is transition-intent only and must not be interpreted as checkout capability.
 
-### Validation/transition purpose (bounded)
-Slice 5 planning answers one bounded question only:
+### What Slice 5 established
+Slice 5 established a bounded server-side transition-intent layer that answers only this question:
 
-**“What is the smallest approved bounded transition layer between read-only readiness validation and a future checkout/finalization flow?”**
+**“Given this exact current-session draft order in scoped context, is transition intent ALLOWED or BLOCKED for a future gated checkout slice?”**
 
-This purpose remains transitional and conceptual. It does not claim checkout already exists.
+Established posture includes:
+- server-only transition-intent helper composition over existing Slice 4 readiness posture,
+- canonical machine-safe transition result shape (`ALLOWED | BLOCKED`) for bounded transition language,
+- thin action boundary exposure and read-only client rendering of transition status,
+- deterministic blocker/summary posture derived from scoped current-session state,
+- no reinterpretation of Slice 1–4 frozen contracts.
 
-### Proposed bounded scope
-Within planning-only posture, Slice 5 may define:
-- a minimal transition intent from Slice 4 readiness output toward a future gated checkout slice,
-- bounded terminology for transition state/decision language,
-- conservative contract-shape candidates for future approval (without enabling runtime behavior),
-- explicit dependency on upstream frozen layers:
-  - Slice 1 (pricing/totals),
-  - Slice 2 (pricing extension),
-  - Slice 3 (order review),
-  - Slice 4 (review validation / checkout readiness).
+### Canonical transition contract posture
+Slice 5 transition output is bounded to a read-only transition contract posture containing:
+- transition status,
+- bounded blocker details,
+- machine-safe issue codes,
+- deterministic ordering,
+- operator-safe non-sensitive transition summary.
 
-Slice 5 planning treats Slices 1–4 as closed frozen bounded layers and does not reinterpret their contracts.
+Contract posture remains conservative and additive-only to pre-checkout interpretation language. It does not execute checkout or introduce runtime side effects.
 
-### Conceptual output/transition shape (planning only)
-Any Slice 5 output is documentation-only and conceptual, such as:
-- a bounded transition decision shape from readiness result to a future checkout entry boundary,
-- conservative transition statuses/messages intended for future gated implementation review,
-- approval-gated placeholders for what future runtime contracts might require.
+### Deterministic / read-only / no-leak posture
+- Scope discipline remains strict: **house -> branch -> session -> device -> order**.
+- Invalid, missing, mismatched, or closed scoped states collapse to conservative no-leak denial posture.
+- Transition intent is derived server-side only from exact scoped context.
+- Client does not infer transition permission locally and does not mutate checkout state.
+- Transition output remains deterministic and read-only.
 
-No runtime output, persistence behavior, API behavior, UI behavior, or action behavior is changed by this planning boundary.
-
-### Explicit non-goals
-Slice 5 planning does **not** authorize or include:
+### Strict non-goals (still out of scope)
+Slice 5 does **not** include:
+- checkout execution,
 - payment/tender capture,
-- inventory deduction or reservation,
-- sale finalization/completion behavior beyond bounded transition planning language,
+- inventory reservation/deduction/stock-aware behavior,
 - receipt generation,
-- persistence side effects unless explicitly defined and approved in a later implementation slice,
+- sale creation/finalization,
+- persistence of transition snapshots or other side effects,
 - cross-session browsing,
 - multi-order orchestration,
-- finance/ledger behavior.
+- finance/ledger effects.
 
-Slice 5 planning also does not declare checkout capability as present.
+### Closure posture
+- Completed (bounded current-session transition-intent only).
+- Read-only only, deterministic only, exact-scope only.
+- No stealth expansion.
+- Any wording that implies checkout/payment/inventory/finalization capability remains out of scope unless explicitly approved in a later gated slice.
+
+
+## 11H. POS-F3 Slice 6 — Checkout Execution Boundary (In Progress, Bounded)
+### Implementation posture
+Slice 6 is in progress as **bounded checkout execution-entry decisioning only**.
+
+Slice 6 is:
+- current-session only,
+- exact-scope only (house -> branch -> session -> device -> order),
+- server-side only,
+- read-only decisioning only,
+- derived from upstream frozen bounded layers (especially Slice 5 transition intent).
+
+### Bounded purpose
+Slice 6 answers only this bounded question:
+
+**“Can this exact current-session scoped draft order enter the checkout execution boundary?”**
+
+### Approved bounded behavior
+Slice 6 may expose only:
+- machine-safe entry status (`ENTERABLE | BLOCKED`),
+- bounded boolean entry decision,
+- structured blocker issues from upstream canonical shapes,
+- compact read-only entry summary fields for future slices.
+
+### Explicit non-goals (still out of scope)
+Slice 6 does **not** include:
+- payment/tender behavior,
+- inventory behavior,
+- receipt generation,
+- sale finalization/completion,
+- persistence side effects,
+- cross-session behavior,
+- multi-order orchestration.
 
 ### Governance posture
-- Gated: yes.
-- Planning-only: yes.
-- Implementation started: no.
-- Runtime behavior changed: no.
+- Slice 4 closure and Slice 5 closure remain locked and unchanged.
+- Slice 5 must not be reinterpreted as checkout capability.
+- Slice 6 remains tightly bounded to entry decision boundary only.
+- No stealth expansion is authorized.
 
-Phase discipline remains conservative:
-- POS is the active phase, but Slice 5 remains pre-implementation planning only.
-- No stealth expansion into payment, inventory, finalization, or finance behavior is permitted.
-- Any implementation must be separately approved in a later gated slice.
+
+## 11I. POS-F3 Slice 7 — Checkout Session Boundary (Gated, Planning Only, Not Started)
+### Planning-only definition
+Slice 7 is **planning-only** and **not started**. This section is governance + boundary-definition language only and introduces no implementation work.
+
+Slice 7 introduces no runtime behavior, no API/handler behavior, no UI behavior, and no schema or persistence changes.
+
+### Bounded purpose
+Slice 7 exists only to define the checkout session/container boundary language for a future gated checkout path.
+
+It preserves Slice 6 as entry-decision-only and must not reinterpret Slice 6 as checkout execution.
+
+### A. Canonical boundary decision options (planning vocabulary only)
+Slice 7 planning evaluated the conservative container framing models:
+- **order-tied**: checkout container identity is bounded to exactly one eligible current-session draft order context.
+- **session-tied**: checkout container identity is bounded primarily to the active POS session context, with order linkage constrained within that session boundary.
+- **device-tied**: checkout container identity is bounded primarily to the active device context, with order/session linkage constrained under exact scope.
+- **bounded hybrid**: an explicitly declared combined model (e.g., order + session or session + device) with conservative priority/ownership language and no implicit scope broadening.
+
+These options are governance framing choices only. Slice 7 does not authorize runtime behavior.
+
+### B. Decision criteria for future approval (bounded)
+Model selection must be evaluated using explicit bounded criteria:
+- **scope clarity**: does the model keep house -> branch -> session -> device -> order lineage explicit and non-ambiguous?
+- **operator accountability**: does the model preserve attributable operator responsibility at each boundary-sensitive point?
+- **no-leak safety**: does invalid/mismatched state still collapse to conservative no-leak deny posture?
+- **cancellation behavior**: can cancellation language be defined without silently introducing persistence/finalization behavior?
+- **resumability pressure**: if resumability is needed, can it be expressed without authorizing cross-session browsing or stealth state carryover?
+- **concurrency risk**: does the model minimize ambiguous concurrent ownership claims for the same checkout container?
+- **auditability posture**: can boundary transitions be named and reviewed without implying executable financial side effects?
+- **avoidance of stealth persistence scope**: does the model avoid accidentally authorizing writes, durable state assumptions, or contract rollout?
+
+### C. Canonical decision note (planning-only lock)
+Slice 7 canonically locks **order-tied** as the checkout session boundary model for the current POS architecture stage.
+
+Decision posture:
+- This is a governance definition only and remains planning-only / not started.
+- This does not authorize implementation work.
+- Slice 6 remains unchanged as the only active bounded implementation slice (entry decisioning only).
+
+Ownership and guards:
+- **Primary container owner:** eligible **current-session draft order** (order identity is the single ownership anchor).
+- **Bounded guards/constraints only:** exact scope lineage (house -> branch -> session -> device), operator accountability, and Slice 6 entry posture (`ENTERABLE | BLOCKED`) remain mandatory guard conditions.
+- **Not ownership:** session, device, operator, and scope lineage are required constraints and safety guards, but are not checkout container owners.
+
+Rationale summary:
+- **Why selected now:** order-tied framing gives the clearest single-owner boundary, strongest accountability linkage, clean no-leak deny posture under scope mismatch, conservative cancellation language, lower concurrency ambiguity, strong audit traceability, and the least stealth-persistence pressure.
+- **Why not selected now:** session-tied and device-tied introduce wider ownership surfaces than needed for current bounded architecture; bounded hybrid is not selected because, at this stage, it adds avoidable ownership interpretation risk even when a primary anchor is declared.
+- **Risk avoided:** ambiguous multi-owner interpretation and stealth expansion into broader continuity semantics.
+- **Tradeoff accepted:** reduced flexibility for future resumability framing until a separately approved slice explicitly broadens constraints.
+
+### D. Entry invariants (conceptual only; derived from Slice 6 ENTERABLE posture)
+Any future checkout container definition must assume entry only when all conceptual invariants remain true:
+- **exact-scope posture intact** (house/branch/session/device/order lineage is consistent and exact),
+- **validation posture stable** (upstream blocker posture remains non-regressed),
+- **pricing posture stable** (bounded pricing summary posture remains coherent for the same exact scope),
+- **draft posture still valid** (eligible draft-state assumptions remain intact),
+- **no blocker state present** (entry remains `ENTERABLE`, not degraded to `BLOCKED`).
+
+These are planning invariants only and do not authorize runtime checks in this slice.
+
+### E. Exit / termination boundary language (conceptual only)
+Slice 7 may define only conceptual boundary endings:
+- **completion boundary**: conceptual point where a future checkout container would be considered complete.
+- **cancel boundary**: conceptual point where a future checkout container would be considered intentionally canceled.
+- **invalidation boundary**: conceptual point where upstream validity loss conceptually voids continuation.
+- **scope-loss boundary**: conceptual point where exact-scope lineage is no longer intact and continuation must be treated as non-enterable.
+
+No executable transition logic, side effects, persistence writes, or contract changes are authorized.
+
+### F. Explicit sequencing note
+Slice 7 is the **required container-definition step** before any future checkout execution internals can be safely scoped.
+
+Until this boundary is explicitly approved, checkout execution internals (including payment, inventory, receipt, persistence, and finalization behavior) remain blocked.
+
+### Canonical Checkout Container Structure (Planning Only)
+This subsection is a governance-only structure definition. It is planning-only, not started, and introduces no implementation behavior.
+
+Canonical structure anchor:
+- Checkout container identity is **order-tied** and anchored to exactly one eligible current-session draft order under exact scope.
+- Session and device are mandatory scope guards but are **not** identity owners.
+- Operator attribution, validation posture, and pricing posture are mandatory structural dimensions but are **not** identity owners.
+
+Structural boundaries (conceptual only):
+- **entry boundary:** defined by Slice 6 `ENTERABLE` posture for the same exact-scope order context.
+- **active container state:** conceptual bounded state where the container remains defined only while canonical scope and guard constraints remain intact.
+- **termination boundary:** conceptual boundary set includes completion, cancel, and invalidation; no transition logic is defined here.
+
+Integrity posture:
+- No cross-session ownership transfer.
+- No cross-device ownership transfer unless a future approved slice explicitly authorizes it.
+- No implicit resumability.
+- No container identity mutation once bound.
+
+This structure definition is canonical language only and does not authorize lifecycle handlers, runtime checks, persistence design, or execution behavior.
+
+### Canonical Checkout Container Continuity Semantics (Planning Only)
+This subsection is governance-only language. It remains planning-only, not started, and does not authorize implementation.
+
+The continuity semantics below are canonical vocabulary for the **order-tied** checkout container model only. They define interpretation boundaries, not executable behavior.
+
+Canonical vocabulary:
+- **continuation**: conceptual posture where the same order-owned container remains interpretable as still in the same bounded continuity context.
+- **invalid continuation**: conceptual posture where continuation language is no longer valid because required continuity conditions are no longer true.
+- **canceled continuation**: conceptual posture where continuation language ends due to an intentional cancel outcome boundary.
+- **terminated completion boundary**: conceptual endpoint where continuation language stops because the container is treated as complete.
+- **terminated invalidation boundary**: conceptual endpoint where continuation language stops because the container is treated as invalidated.
+- **terminated cancel boundary**: conceptual endpoint where continuation language stops because the container is treated as canceled.
+- **scope-loss continuation failure**: conceptual failure class where continuity cannot be maintained because exact scope lineage is no longer intact.
+
+Canonical semantic constraints:
+- These terms define governance interpretation only.
+- These terms do **not** define runtime handlers, APIs, control flow, or execution sequencing.
+- These terms do **not** define persistence semantics, storage contracts, or write-side behavior.
+- These terms do **not** define payment, receipt, sale-finalization, or inventory behavior.
+
+Conceptual continuity conditions (non-executable):
+- Continuation is conceptually valid only while order ownership remains singular and exact-scope lineage (house -> branch -> session -> device -> order) remains intact.
+- Continuation is conceptually valid only while the bounded guard posture remains non-contradictory with Slice 6 entry-decision framing.
+- Continuity becomes invalid continuation when required scope/ownership/guard coherence is no longer true.
+- Scope-loss continuation failure is the explicit continuity-failure class for lineage break, mismatch, or ambiguity.
+
+Conceptual termination semantics:
+- Continuation language terminates at the completion boundary, invalidation boundary, or cancel boundary.
+- After any terminated boundary, the prior container continuity language is closed and not interpreted as still continuing.
+
+Continuity-safe interpretation rules:
+- No implicit resumability is authorized.
+- No cross-session continuity assumption is authorized.
+- No cross-device continuity assumption is authorized.
+- No silent ownership transfer is authorized.
+- Continuity terminology must not be reinterpreted as executable authority.
+
+Record posture:
+- This continuity definition is canonical governance language only.
+- Slice 7 remains planning-only and not started.
+- Slice 6 remains the only active bounded implementation slice and remains entry-decision-only.
+- No implementation authorization is granted by this subsection.
+
+### Explicit non-goals (still out of scope)
+Slice 7 does **not** authorize or implement:
+- checkout execution implementation,
+- payment/tender behavior,
+- inventory reservation/deduction/stock-aware behavior,
+- receipt generation,
+- sale finalization/completion,
+- persistence side effects,
+- cross-session browsing,
+- multi-order orchestration.
+
+Slice 7 exists specifically to prevent the misreading: **“entry exists, so payment can be added now.”**
+
+### Governance posture
+- Slice 1 through Slice 5 remain closed and locked.
+- Slice 6 remains the only active bounded implementation slice.
+- Slice 7 remains gated, planning-only, and not started until separately approved for implementation.
+- No stealth expansion is authorized by this planning record.

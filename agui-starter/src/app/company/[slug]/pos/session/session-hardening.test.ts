@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { OrderCheckoutTransitionResult } from "@/lib/pos/order-checkout-transition";
+import type { OrderCheckoutEntryResult } from "@/lib/pos/order-checkout-entry";
 import type { OrderReviewValidationResult } from "@/lib/pos/order-review-validation";
 
 import { mapPosSessionClientError } from "./error-messages";
@@ -9,7 +10,9 @@ import {
   createEmptyOrderReview,
   createEmptyOrderReviewValidation,
   createEmptyOrderCheckoutTransition,
+  createEmptyOrderCheckoutEntry,
   createEmptyOrderPricing,
+  getConservativeCheckoutEntryBlockingIssues,
   getConservativeCheckoutTransitionBlockingIssues,
   getConservativeValidationBlockingIssues,
   clearLineSurfaceState,
@@ -21,8 +24,10 @@ import {
   shouldApplyPricingRefreshResult,
   shouldApplyReviewRefreshResult,
   shouldApplyReviewValidationRefreshResult,
+  shouldApplyCheckoutEntryRefreshResult,
   shouldApplyCheckoutTransitionRefreshResult,
   shouldClearReviewForEmptyScope,
+  shouldClearCheckoutEntryForEmptyScope,
   shouldClearCheckoutTransitionForEmptyScope,
   shouldClearValidationForEmptyScope,
   shouldRefreshReviewAfterAddLineSuccess,
@@ -422,6 +427,83 @@ test("checkout transition display helper remains read-only and never infers tran
   assert.deepEqual(displayIssues, []);
   assert.equal(serverTransitionPayload.checkoutTransitionStatus, "BLOCKED");
   assert.equal(serverTransitionPayload.canEnterFutureCheckout, false);
+});
+
+test("stale checkout entry refresh remains scoped and conservative", () => {
+  const staleScopeKey = "branch-1::session-1::device-1::order-1";
+  const activeScopeKey = "branch-1::session-2::device-2::order-2";
+  assert.equal(
+    shouldApplyCheckoutEntryRefreshResult({
+      requestedScopeKey: staleScopeKey,
+      activeScopeKey,
+      requestId: 21,
+      latestRequestId: 22,
+    }),
+    false,
+  );
+});
+
+test("empty scoped order key always clears checkout entry to canonical empty state", () => {
+  assert.equal(shouldClearCheckoutEntryForEmptyScope(""), true);
+  assert.equal(shouldClearCheckoutEntryForEmptyScope("branch-1::session-1::device-1::order-1"), false);
+  assert.deepEqual(createEmptyOrderCheckoutEntry(), null);
+});
+
+test("checkout entry blocker display only accepts structured bounded blocker entries", () => {
+  assert.deepEqual(getConservativeCheckoutEntryBlockingIssues(null), []);
+  assert.deepEqual(
+    getConservativeCheckoutEntryBlockingIssues({
+      checkoutEntryStatus: "BLOCKED",
+      canEnterCheckoutBoundary: false,
+      blockingIssues: [
+        {
+          code: "EMPTY_ORDER",
+          severity: "BLOCKER",
+          message: "Order must contain at least one active line",
+        },
+        {
+          code: "ITEM_PRICE_MISSING",
+          severity: "BLOCKER",
+          message: " ",
+        },
+      ],
+      entrySummary: {
+        scopedContextStatus: "VALID",
+        reviewValidationStatus: "BLOCKED",
+        checkoutTransitionStatus: "BLOCKED",
+        activeLineCount: 0,
+        blockingIssueCount: 2,
+      },
+    }),
+    [
+      {
+        code: "EMPTY_ORDER",
+        severity: "BLOCKER",
+        message: "Order must contain at least one active line",
+      },
+    ],
+  );
+});
+
+test("checkout entry display helper remains read-only and never infers execution permission locally", () => {
+  const serverEntryPayload: OrderCheckoutEntryResult = {
+    checkoutEntryStatus: "BLOCKED",
+    canEnterCheckoutBoundary: false,
+    blockingIssues: [],
+    entrySummary: {
+      scopedContextStatus: "VALID",
+      reviewValidationStatus: "BLOCKED",
+      checkoutTransitionStatus: "BLOCKED",
+      activeLineCount: 2,
+      blockingIssueCount: 0,
+    },
+  };
+
+  const displayIssues = getConservativeCheckoutEntryBlockingIssues(serverEntryPayload);
+
+  assert.deepEqual(displayIssues, []);
+  assert.equal(serverEntryPayload.checkoutEntryStatus, "BLOCKED");
+  assert.equal(serverEntryPayload.canEnterCheckoutBoundary, false);
 });
 
 test("add-line success path requires scoped review refresh", () => {
