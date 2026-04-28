@@ -133,7 +133,9 @@ export function CreateEmployeeForm({ houseId, houseSlug, branches, branchLoadErr
         const payload = await response.json();
 
         if (!response.ok) {
-          setLookupError(payload?.message ?? "Unable to look up identities right now.");
+          const detailMessage =
+            typeof payload?.details?.message === "string" ? payload.details.message : null;
+          setLookupError(payload?.error ?? detailMessage ?? "Unable to look up identities right now.");
           setLookupMatches([]);
           return;
         }

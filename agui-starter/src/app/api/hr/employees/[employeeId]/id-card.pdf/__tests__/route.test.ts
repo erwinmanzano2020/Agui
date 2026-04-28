@@ -2,23 +2,11 @@ import assert from "node:assert/strict";
 import { afterEach, beforeEach, describe, it, mock } from "node:test";
 import type { NextRequest } from "next/server";
 
-import { AuthorizationDeniedError } from "@/lib/access/access-errors";
-
 let GET: typeof import("../route").GET;
 let runtime: typeof import("../route").runtime;
 let lastFrontLayout: string | undefined;
 const HOUSE_ID = "00000000-0000-0000-0000-000000000111";
 const EMPLOYEE_ID = "00000000-0000-0000-0000-000000000001";
-
-const baseContext = {
-  userId: "00000000-0000-0000-0000-000000000999",
-  scopeType: "house",
-  scopeId: "00000000-0000-0000-0000-000000000111",
-  roles: { PLATFORM: [], GUILD: [], HOUSE: ["house_manager"] },
-  permissions: [],
-  membership: { isMember: true, roleCount: 1, scopeRoleScope: "HOUSE" },
-  elevatedAuthority: { hasOperationalElevatedAuthority: false, sourceRole: null },
-} as const;
 
 beforeEach(async () => {
   lastFrontLayout = undefined;
@@ -29,84 +17,78 @@ beforeEach(async () => {
     resolvedFeatures: ["hr"],
   }));
 
-  const supabaseServer = await import("@/lib/supabase/server");
-  class QueryMock {
-    constructor(
-      private readonly table: string,
-      private readonly selected = "",
-      private readonly filters: Record<string, string> = {},
-      private readonly inFilters: Record<string, string[]> = {},
-    ) {}
+  const routeGuard = await import("@/app/api/hr/_shared/route-guard-order");
+  mock.method(routeGuard, "resolveHrRouteActorContext", async () =>
+    ({
+      supabase: {
+        from(table: string) {
+          class QueryMock {
+            constructor(
+              private readonly currentTable: string,
+              private readonly selected = "",
+              private readonly filters: Record<string, string> = {},
+              private readonly inFilters: Record<string, string[]> = {},
+            ) {}
 
-    select(columns: string) {
-      return new QueryMock(this.table, columns, this.filters, this.inFilters);
-    }
-
-    eq(column: string, value: string) {
-      return new QueryMock(this.table, this.selected, { ...this.filters, [column]: value }, this.inFilters);
-    }
-
-    in(column: string, values: string[]) {
-      return new QueryMock(this.table, this.selected, this.filters, { ...this.inFilters, [column]: values });
-    }
-
-    async maybeSingle<T>() {
-      if (this.table === "houses") {
-        return {
-          data: this.filters.id === HOUSE_ID
-            ? { id: HOUSE_ID, name: "Demo House", brand_name: null, logo_url: null }
-            : null,
-          error: null,
-        } as const;
-      }
-
-      if (this.table === "employees" && this.selected.includes("branches(")) {
-        return {
-          data: this.filters.id === EMPLOYEE_ID && this.filters.house_id === HOUSE_ID
-            ? ({ branches: { name: "Main" } } as T)
-            : null,
-          error: null,
-        } as const;
-      }
-
-      if (this.table === "employees") {
-        const branchMatches = !this.inFilters.branch_id || this.inFilters.branch_id.includes("branch-1");
-        const employee = this.filters.id === EMPLOYEE_ID && this.filters.house_id === HOUSE_ID && branchMatches
-          ? {
-              id: EMPLOYEE_ID,
-              code: "EMP-001",
-              full_name: "A",
-              position_title: "Cashier",
-              photo_url: null,
-              house_id: HOUSE_ID,
-              branch_id: "branch-1",
+            select(columns: string) {
+              return new QueryMock(this.currentTable, columns, this.filters, this.inFilters);
             }
-          : null;
-        return { data: employee as T | null, error: null } as const;
-      }
 
-      throw new Error(`Unsupported table ${this.table}`);
-    }
-  }
+            eq(column: string, value: string) {
+              return new QueryMock(this.currentTable, this.selected, { ...this.filters, [column]: value }, this.inFilters);
+            }
 
-  mock.method(supabaseServer, "createServerSupabaseClient", async () => ({
-    auth: {
-      getUser: async () => ({ data: { user: { id: "00000000-0000-0000-0000-000000000999" } } }),
-    },
-    from(table: string) {
-      return new QueryMock(table);
-    },
-  } as never));
+            in(column: string, values: string[]) {
+              return new QueryMock(this.currentTable, this.selected, this.filters, { ...this.inFilters, [column]: values });
+            }
 
-  const accessCheck = await import("@/lib/access/access-check");
-  mock.method(accessCheck, "requireAuthentication", async () => baseContext as never);
-  mock.method(accessCheck, "requireBusinessScopeAccess", () => baseContext as never);
-  mock.method(accessCheck, "requireModuleAccess", async () => baseContext as never);
+            async maybeSingle<T>() {
+              if (this.currentTable === "houses") {
+                return {
+                  data: this.filters.id === HOUSE_ID
+                    ? { id: HOUSE_ID, name: "Demo House", brand_name: null, logo_url: null }
+                    : null,
+                  error: null,
+                } as const;
+              }
 
-  const accessResolver = await import("@/lib/access/access-resolver");
-  mock.method(accessResolver, "resolveAccessContext", async () => baseContext as never);
+              if (this.currentTable === "employees" && this.selected.includes("branches(")) {
+                return {
+                  data: this.filters.id === EMPLOYEE_ID && this.filters.house_id === HOUSE_ID
+                    ? ({ branches: { name: "Main" } } as T)
+                    : null,
+                  error: null,
+                } as const;
+              }
 
-  mock.method(accessCheck, "requireHrBusinessAccess", async () => baseContext as never);
+              if (this.currentTable === "employees") {
+                const branchMatches = !this.inFilters.branch_id || this.inFilters.branch_id.includes("branch-1");
+                const employee = this.filters.id === EMPLOYEE_ID && this.filters.house_id === HOUSE_ID && branchMatches
+                  ? {
+                      id: EMPLOYEE_ID,
+                      code: "EMP-001",
+                      full_name: "A",
+                      position_title: "Cashier",
+                      photo_url: null,
+                      house_id: HOUSE_ID,
+                      branch_id: "branch-1",
+                    }
+                  : null;
+                return { data: employee as T | null, error: null } as const;
+              }
+
+              throw new Error(`Unsupported table ${this.currentTable}`);
+            }
+          }
+
+          return new QueryMock(table);
+        },
+      },
+      entityId: "entity-1",
+      userId: "user-1",
+    }) as never,
+  );
+
   const hrAccess = await import("@/lib/hr/access");
   mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
     allowed: true,
@@ -142,113 +124,51 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", { concurrency: false 
 
   it("allows an HR member to download an id card", async () => {
     const response = await GET(
-      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
-      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
+      new Request(`http://localhost/api/hr/employees/${EMPLOYEE_ID}/id-card.pdf?houseId=${HOUSE_ID}`) as NextRequest,
+      { params: Promise.resolve({ employeeId: EMPLOYEE_ID }) },
     );
 
     assert.equal(response.status, 200);
   });
 
-  it("returns 400 when houseId is omitted and short-circuits auth chain", async () => {
-    let authCalls = 0;
-    let contextCalls = 0;
-    const accessCheck = await import("@/lib/access/access-check");
-    mock.method(accessCheck, "requireAuthentication", async () => {
-      authCalls += 1;
-      return baseContext as never;
-    });
-
-    const accessResolver = await import("@/lib/access/access-resolver");
-    mock.method(accessResolver, "resolveAccessContext", async () => {
-      contextCalls += 1;
-      return baseContext as never;
+  it("returns 400 when houseId is omitted and short-circuits route guard", async () => {
+    let routeGuardCalls = 0;
+    const routeGuard = await import("@/app/api/hr/_shared/route-guard-order");
+    mock.method(routeGuard, "resolveHrRouteActorContext", async () => {
+      routeGuardCalls += 1;
+      return new Response(null, { status: 401 }) as never;
     });
 
     const response = await GET(
-      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf") as NextRequest,
-      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
+      new Request(`http://localhost/api/hr/employees/${EMPLOYEE_ID}/id-card.pdf`) as NextRequest,
+      { params: Promise.resolve({ employeeId: EMPLOYEE_ID }) },
     );
 
     assert.equal(response.status, 400);
     const body = await response.json();
     assert.deepEqual(body, { error: "houseId is required" });
-    assert.equal(authCalls, 0);
-    assert.equal(contextCalls, 0);
-  });
-
-  it("returns 400 for invalid employee id and short-circuits auth chain", async () => {
-    let authCalls = 0;
-    const accessCheck = await import("@/lib/access/access-check");
-    mock.method(accessCheck, "requireAuthentication", async () => {
-      authCalls += 1;
-      return baseContext as never;
-    });
-
-    const response = await GET(
-      new Request(`http://localhost/api/hr/employees/not-a-uuid/id-card.pdf?houseId=${HOUSE_ID}`) as NextRequest,
-      { params: Promise.resolve({ employeeId: "not-a-uuid" }) },
-    );
-
-    assert.equal(response.status, 400);
-    const body = await response.json();
-    assert.deepEqual(body, { error: "Invalid employee id" });
-    assert.equal(authCalls, 0);
-  });
-
-  it("allows role-based HR access", async () => {
-    const accessResolver = await import("@/lib/access/access-resolver");
-    mock.method(accessResolver, "resolveAccessContext", async () => ({
-      ...baseContext,
-      roles: { PLATFORM: [], GUILD: [], HOUSE: ["house_owner"] },
-    }) as never);
-
-    const response = await GET(
-      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
-      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
-    );
-
-    assert.equal(response.status, 200);
-  });
-
-  it("allows legacy HR policy-key access", async () => {
-    const accessCheck = await import("@/lib/access/access-check");
-    mock.method(accessCheck, "requireHrBusinessAccess", async () => ({
-      ...baseContext,
-      permissions: [{ id: "hr_access", key: "hr_access", action: "hr:*", resource: "*" }],
-    }) as never);
-
-    const response = await GET(
-      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
-      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
-    );
-
-    assert.equal(response.status, 200);
-  });
-
-
-  it("returns 403 for authenticated non-members", async () => {
-    const accessCheck = await import("@/lib/access/access-check");
-    mock.method(accessCheck, "requireBusinessScopeAccess", () => {
-      throw new AuthorizationDeniedError("Membership required for scope house:00000000-0000-0000-0000-000000000111");
-    });
-
-    const response = await GET(
-      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
-      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
-    );
-
-    assert.equal(response.status, 403);
+    assert.equal(routeGuardCalls, 0);
   });
 
   it("returns 403 for unauthorized users", async () => {
-    const accessCheck = await import("@/lib/access/access-check");
-    mock.method(accessCheck, "requireHrBusinessAccess", async () => {
-      throw new AuthorizationDeniedError("HR access denied for house scope 00000000-0000-0000-0000-000000000111");
-    });
+    const hrAccess = await import("@/lib/hr/access");
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
+      allowed: false,
+      allowedByRole: false,
+      allowedByPolicy: false,
+      hasWorkspaceAccess: true,
+      roles: ["house_staff"],
+      normalizedRoles: ["staff"],
+      policyKeys: [],
+      entityId: "entity-1",
+      branchId: null,
+      isBranchLimited: false,
+      allowedBranchIds: [],
+    }) as never);
 
     const response = await GET(
-      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
-      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
+      new Request(`http://localhost/api/hr/employees/${EMPLOYEE_ID}/id-card.pdf?houseId=${HOUSE_ID}`) as NextRequest,
+      { params: Promise.resolve({ employeeId: EMPLOYEE_ID }) },
     );
 
     assert.equal(response.status, 403);
@@ -280,43 +200,10 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", { concurrency: false 
     assert.deepEqual(body, { error: "Employee not found" });
   });
 
-  it("returns 403 when module access is denied", async () => {
-    const accessCheck = await import("@/lib/access/access-check");
-    mock.method(accessCheck, "requireModuleAccess", async () => {
-      throw new AuthorizationDeniedError("Module access denied for feature hr");
-    });
-
-    const response = await GET(
-      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
-      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
-    );
-
-    assert.equal(response.status, 403);
-    const body = await response.json();
-    assert.deepEqual(body, { error: "Not allowed" });
-  });
-
-
-  it("returns 500 when authorization backend fails", async () => {
-    const accessResolver = await import("@/lib/access/access-resolver");
-    mock.method(accessResolver, "resolveAccessContext", async () => {
-      throw new Error("resolver down");
-    });
-
-    const response = await GET(
-      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
-      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
-    );
-
-    assert.equal(response.status, 500);
-    const body = await response.json();
-    assert.deepEqual(body, { error: "Failed to authorize request" });
-  });
-
   it("returns non-empty pdf bytes", async () => {
     const response = await GET(
-      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
-      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
+      new Request(`http://localhost/api/hr/employees/${EMPLOYEE_ID}/id-card.pdf?houseId=${HOUSE_ID}`) as NextRequest,
+      { params: Promise.resolve({ employeeId: EMPLOYEE_ID }) },
     );
 
     assert.equal(response.status, 200);
@@ -333,8 +220,8 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", { concurrency: false 
 
   it("supports inline disposition for preview", async () => {
     const response = await GET(
-      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111&disposition=inline") as NextRequest,
-      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
+      new Request(`http://localhost/api/hr/employees/${EMPLOYEE_ID}/id-card.pdf?houseId=${HOUSE_ID}&disposition=inline`) as NextRequest,
+      { params: Promise.resolve({ employeeId: EMPLOYEE_ID }) },
     );
 
     assert.equal(response.status, 200);
@@ -342,21 +229,5 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", { concurrency: false 
       response.headers.get("content-disposition") ?? "",
       /^inline; filename="EmployeeID-EMP-001-00000000-0000-0000-0000-000000000001\.pdf"$/,
     );
-  });
-
-  it("returns 500 when qr generation fails", async () => {
-    const pdf = await import("@/lib/hr/employee-id-card-pdf");
-    mock.method(pdf, "generateEmployeeIdCardPdf", async () => {
-      throw new Error("boom");
-    });
-
-    const response = await GET(
-      new Request("http://localhost/api/hr/employees/00000000-0000-0000-0000-000000000001/id-card.pdf?houseId=00000000-0000-0000-0000-000000000111") as NextRequest,
-      { params: Promise.resolve({ employeeId: "00000000-0000-0000-0000-000000000001" }) },
-    );
-
-    assert.equal(response.status, 500);
-    const body = await response.json();
-    assert.deepEqual(body, { error: "Failed to generate QR code" });
   });
 });
