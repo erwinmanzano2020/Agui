@@ -70,6 +70,7 @@ describe("POST /api/hr/employees/lookup route-entry drift guard", () => {
     assert.equal(response.status, 400);
     assertCanonicalSafeHrRouteEntryOrder(order);
     assert.deepEqual(featureMock.mock.calls[0]?.arguments[0], [
+      AppFeature.HR,
       AppFeature.PAYROLL,
       AppFeature.TEAM,
       AppFeature.DTR_BULK,
@@ -87,7 +88,7 @@ describe("POST /api/hr/employees/lookup route-entry drift guard", () => {
     mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
     mock.method(identityServer, "resolveEntityIdForUser", async () => "entity-1");
     mock.method(featureGuard, "requireAnyFeatureAccessApi", async (features: AppFeature[]) => {
-      assert.deepEqual(features, [AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK]);
+      assert.deepEqual(features, [AppFeature.HR, AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK]);
       return null;
     });
     mock.method(hrAccess, "resolveHrAccess", async () => ({ allowed: true }) as never);
