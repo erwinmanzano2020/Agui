@@ -179,3 +179,9 @@ Canonical re-audit refresh completed on **2026-03-31 (UTC)**, including final co
 - Feature-gate drift across related endpoints can break end-to-end HR flows even when page access appears healthy.
 - HR access resolution is not identical to feature entitlement checks; both must stay aligned for entry paths and dependent APIs.
 - Identity lookup is a blocking dependency for Add Employee lookup-first creation, so lookup authorization must align with Add Employee entry access while preserving house-scoped deny/no-leak boundaries.
+
+
+## 18. HR Devlog Note (2026-04-29 UTC)
+- Employee ID-card PDF generation (`GET /api/hr/employees/[employeeId]/id-card.pdf`) is a dependent HR route and must follow canonical HR route-guard order.
+- Feature entitlement checks must not deny this route before house-scoped HR authorization evaluates access.
+- Final allow/deny authority remains `requireHrAccessWithBranch`, including branch-limited visibility and tenant-safe no-leak behavior.
