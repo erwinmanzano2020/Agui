@@ -11,14 +11,8 @@ const EMPLOYEE_ID = "00000000-0000-0000-0000-000000000001";
 beforeEach(async () => {
   lastFrontLayout = undefined;
 
-  const featureGuard = await import("@/lib/auth/feature-guard");
-  mock.method(featureGuard, "getFeatureAccessDebugSnapshot", async (features: Iterable<string>) => ({
-    requiredFeatures: Array.from(features),
-    resolvedFeatures: ["hr"],
-  }));
-
   const routeGuard = await import("@/app/api/hr/_shared/route-guard-order");
-  mock.method(routeGuard, "resolveHrRouteActorContext", async () =>
+  mock.method(routeGuard, "resolveHrRouteActorContextWithoutFeatureGate", async () =>
     ({
       supabase: {
         from(table: string) {
@@ -134,7 +128,7 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", { concurrency: false 
   it("returns 400 when houseId is omitted and short-circuits route guard", async () => {
     let routeGuardCalls = 0;
     const routeGuard = await import("@/app/api/hr/_shared/route-guard-order");
-    mock.method(routeGuard, "resolveHrRouteActorContext", async () => {
+    mock.method(routeGuard, "resolveHrRouteActorContextWithoutFeatureGate", async () => {
       routeGuardCalls += 1;
       return new Response(null, { status: 401 }) as never;
     });
@@ -230,4 +224,58 @@ describe("GET /api/hr/employees/[employeeId]/id-card.pdf", { concurrency: false 
       /^inline; filename="EmployeeID-EMP-001-00000000-0000-0000-0000-000000000001\.pdf"$/,
     );
   });
+});
+
+
+it("authorizes without feature-entitlement route gate dependency", async () => {
+  const routeGuard = await import("@/app/api/hr/_shared/route-guard-order");
+  let calls = 0;
+  mock.method(routeGuard, "resolveHrRouteActorContextWithoutFeatureGate", async () => {
+    calls += 1;
+    return ({
+      supabase: {
+        from(table: string) {
+          class QueryMock {
+            constructor(
+              private readonly currentTable: string,
+              private readonly selected = "",
+              private readonly filters: Record<string, string> = {},
+              private readonly inFilters: Record<string, string[]> = {},
+            ) {}
+
+            select(columns: string) {
+              return new QueryMock(this.currentTable, columns, this.filters, this.inFilters);
+            }
+
+            eq(column: string, value: string) {
+              return new QueryMock(this.currentTable, this.selected, { ...this.filters, [column]: value }, this.inFilters);
+            }
+
+            in(column: string, values: string[]) {
+              return new QueryMock(this.currentTable, this.selected, this.filters, { ...this.inFilters, [column]: values });
+            }
+
+            async maybeSingle<T>() {
+              if (this.currentTable === "houses") return { data: { id: HOUSE_ID, name: "Demo House", brand_name: null, logo_url: null }, error: null } as const;
+              if (this.currentTable === "employees" && this.selected.includes("branches(")) return { data: ({ branches: { name: "Main" } } as T), error: null } as const;
+              if (this.currentTable === "employees") return { data: ({ id: EMPLOYEE_ID, code: "EMP-001", full_name: "A", position_title: "Cashier", photo_url: null, house_id: HOUSE_ID, branch_id: "branch-1" } as T), error: null } as const;
+              throw new Error(`Unsupported table ${this.currentTable}`);
+            }
+          }
+          return new QueryMock(table);
+        },
+      },
+      entityId: "entity-1",
+      userId: "user-1",
+    }) as never;
+  });
+
+  const response = await GET(
+    new Request(`http://localhost/api/hr/employees/${EMPLOYEE_ID}/id-card.pdf?houseId=${HOUSE_ID}`) as NextRequest,
+    { params: Promise.resolve({ employeeId: EMPLOYEE_ID }) },
+  );
+
+  assert.equal(calls, 1);
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("content-type"), "application/pdf");
 });

@@ -2,12 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { jsonError } from "@/lib/api/http";
 import { logApiError, logApiWarning } from "@/lib/api/logging";
-import { getFeatureAccessDebugSnapshot } from "@/lib/auth/feature-guard";
-import { AppFeature } from "@/lib/auth/permissions";
 import { getEmployeeIdCardById } from "@/lib/hr/employee-id-cards-server";
 import { generateEmployeeIdCardPdf } from "@/lib/hr/employee-id-card-pdf";
 import { requireHrAccessWithBranch } from "@/lib/hr/access";
-import { resolveHrRouteActorContext } from "@/app/api/hr/_shared/route-guard-order";
+import { resolveHrRouteActorContextWithoutFeatureGate } from "@/app/api/hr/_shared/route-guard-order";
 import { z } from "@/lib/z";
 
 const ParamsSchema = z.object({ employeeId: z.string().trim().uuid() });
@@ -32,10 +30,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
   const disposition = new URL(req.url).searchParams.get("disposition")?.trim();
   const contentDispositionType = disposition === "inline" ? "inline" : "attachment";
 
-  const featureSnapshot = await getFeatureAccessDebugSnapshot([AppFeature.HR]);
-  const actor = await resolveHrRouteActorContext({
+  const actor = await resolveHrRouteActorContextWithoutFeatureGate({
     routeName: ROUTE_NAME,
-    features: [AppFeature.HR],
     onUnauthenticated: () => jsonError(401, "Not authenticated"),
     onEntityNotLinked: () => jsonError(403, "Account not linked"),
   });
@@ -54,8 +50,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
       houseId,
       details: {
         employeeId: parsed.data.employeeId,
-        requiredFeatures: featureSnapshot.requiredFeatures,
-        resolvedFeatures: featureSnapshot.resolvedFeatures,
       },
     });
     return jsonError(403, "Not allowed");
@@ -66,8 +60,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ empl
     userId,
     houseId,
     employeeId: parsed.data.employeeId,
-    requiredFeatures: featureSnapshot.requiredFeatures,
-    resolvedFeatures: featureSnapshot.resolvedFeatures,
   });
 
   const card = await getEmployeeIdCardById(supabase, houseId, parsed.data.employeeId, {
