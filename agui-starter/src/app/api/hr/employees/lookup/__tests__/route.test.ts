@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { afterEach, describe, it, mock } from "node:test";
 
 import * as featureGuard from "@/lib/auth/feature-guard";
+import * as hrAccess from "@/lib/hr/access";
+import * as employeeIdentity from "@/lib/hr/employee-identity";
 import * as identityServer from "@/lib/identity/entity-server";
 import * as supabaseServer from "@/lib/supabase/server";
 import * as supabaseService from "@/lib/supabase-service";
@@ -72,5 +74,35 @@ describe("POST /api/hr/employees/lookup route-entry drift guard", () => {
       AppFeature.TEAM,
       AppFeature.DTR_BULK,
     ]);
+  });
+
+  it("allows payroll-compatible feature users to reach lookup when house access allows", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
+      ({
+        auth: {
+          getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
+        },
+      }) as never,
+    );
+    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
+    mock.method(identityServer, "resolveEntityIdForUser", async () => "entity-1");
+    mock.method(featureGuard, "requireAnyFeatureAccessApi", async (features: AppFeature[]) => {
+      assert.deepEqual(features, [AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK]);
+      return null;
+    });
+    mock.method(hrAccess, "resolveHrAccess", async () => ({ allowed: true }) as never);
+    mock.method(employeeIdentity, "lookupEntitiesForEmployee", async () => []);
+
+    const response = await POST(
+      new Request("http://localhost/api/hr/employees/lookup", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ houseId: "33333333-3333-4333-8333-333333333333", email: "none@example.com" }),
+      }) as never,
+    );
+
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.deepEqual(payload, { matches: [] });
   });
 });
