@@ -174,3 +174,8 @@ As of **2026-03-31 UTC**, repository evidence supports this conservative checkpo
 
 ## 16. Last Updated
 Canonical re-audit refresh completed on **2026-03-31 (UTC)**, including final conservative blocker closeout checkpoint and gate reassessment.
+
+## 17. HR Devlog Note (2026-04-29 UTC)
+- Feature-gate drift across related endpoints can break end-to-end HR flows even when page access appears healthy.
+- HR access resolution is not identical to feature entitlement checks; both must stay aligned for entry paths and dependent APIs.
+- Identity lookup is a blocking dependency for Add Employee lookup-first creation, so lookup authorization must align with Add Employee entry access while preserving house-scoped deny/no-leak boundaries.
