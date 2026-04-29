@@ -32,7 +32,25 @@ type HrRouteActorContext = {
 export async function resolveHrRouteActorContext(
   options: ResolveHrRouteActorContextOptions,
 ): Promise<HrRouteActorContext | NextResponse> {
-  const { routeName, features, onUnauthenticated, onEntityNotLinked } = options;
+  const { features } = options;
+  const actor = await resolveHrRouteActorContextWithoutFeatureGate(options);
+  if (actor instanceof NextResponse) {
+    return actor;
+  }
+
+  const guard = await requireAnyFeatureAccessApi(features);
+  if (guard) {
+    return guard;
+  }
+
+  return actor;
+}
+
+
+export async function resolveHrRouteActorContextWithoutFeatureGate(
+  options: Omit<ResolveHrRouteActorContextOptions, "features">,
+): Promise<HrRouteActorContext | NextResponse> {
+  const { routeName, onUnauthenticated, onEntityNotLinked } = options;
 
   let supabase: SupabaseClient<Database>;
   try {
@@ -65,11 +83,6 @@ export async function resolveHrRouteActorContext(
   if (!entityId) {
     logApiWarning({ route: routeName, action: "entity_not_linked", userId: userResult.user.id });
     return onEntityNotLinked();
-  }
-
-  const guard = await requireAnyFeatureAccessApi(features);
-  if (guard) {
-    return guard;
   }
 
   return {

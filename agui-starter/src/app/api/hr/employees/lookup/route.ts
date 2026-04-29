@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { jsonError, jsonOk } from "@/lib/api/http";
 import { logApiError, logApiWarning } from "@/lib/api/logging";
-import { AppFeature } from "@/lib/auth/permissions";
 import { lookupEntitiesForEmployee, normalizeEmployeeEmail, normalizeEmployeePhoneDetails } from "@/lib/hr/employee-identity";
 import { resolveHrAccess } from "@/lib/hr/access";
-import { resolveHrRouteActorContext } from "@/app/api/hr/_shared/route-guard-order";
+import { resolveHrRouteActorContextWithoutFeatureGate } from "@/app/api/hr/_shared/route-guard-order";
 import { z } from "@/lib/z";
 
 const ROUTE_NAME = "api/hr/employees/lookup";
@@ -17,9 +16,8 @@ const LookupSchema = z.object({
 });
 
 export async function POST(req: NextRequest) {
-  const actor = await resolveHrRouteActorContext({
+  const actor = await resolveHrRouteActorContextWithoutFeatureGate({
     routeName: ROUTE_NAME,
-    features: [AppFeature.HR, AppFeature.PAYROLL, AppFeature.TEAM, AppFeature.DTR_BULK],
     onUnauthenticated: () => jsonError(401, "Not authenticated"),
     onEntityNotLinked: () => jsonError(403, "Account not linked"),
   });
