@@ -246,8 +246,14 @@ Canonical alignment reminder for `POST /api/hr/employees/lookup`:
 - Identity lookup is a blocking dependency for Add Employee (lookup-first flow).
 - Therefore, the lookup feature-gate set must stay compatible with all legitimate Add Employee entry paths.
 
-Current compatibility contract for the lookup route-entry gate includes:
+Production drift finding (2026-04-29 UTC):
+- Add Employee page entry currently relies on auth + house-scoped `requireHrAccess`, while lookup route entry previously required any of `[HR, PAYROLL, TEAM, DTR_BULK]`.
+- In production, some actors pass Add Employee page entry + house-scoped HR access but do not resolve any of those four feature entitlements, causing pre-house-check 403 on lookup.
+
+Final correction (smallest safe alignment):
+- Keep route-entry feature gate (capability layer) in place, but narrow lookup route dependency to `AppFeature.HR` only.
+- Keep `resolveHrAccess` house-scoped authorization unchanged as final allow/deny.
+- This preserves deny-by-default + no-leak posture while preventing dependent API drift against Add Employee entry expectations.
+
+Current compatibility contract for `POST /api/hr/employees/lookup` route-entry gate:
 - `AppFeature.HR`
-- `AppFeature.PAYROLL`
-- `AppFeature.TEAM`
-- `AppFeature.DTR_BULK`
