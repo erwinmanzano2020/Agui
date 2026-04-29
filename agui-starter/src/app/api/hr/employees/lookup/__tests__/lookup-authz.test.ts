@@ -11,7 +11,7 @@ describe("POST /api/hr/employees/lookup authz + response behavior", () => {
     const hrAccess = await import("@/lib/hr/access");
     const identity = await import("@/lib/hr/employee-identity");
 
-    mock.method(routeGuard, "resolveHrRouteActorContext", async () =>
+    mock.method(routeGuard, "resolveHrRouteActorContextWithoutFeatureGate", async () =>
       ({ supabase: {} as never, userId: "user-1", entityId: "entity-1" }) as never,
     );
     mock.method(hrAccess, "resolveHrAccess", async () => ({ allowed: true }) as never);
@@ -35,7 +35,7 @@ describe("POST /api/hr/employees/lookup authz + response behavior", () => {
     const hrAccess = await import("@/lib/hr/access");
     const identity = await import("@/lib/hr/employee-identity");
 
-    mock.method(routeGuard, "resolveHrRouteActorContext", async () =>
+    mock.method(routeGuard, "resolveHrRouteActorContextWithoutFeatureGate", async () =>
       ({ supabase: {} as never, userId: "user-1", entityId: "entity-1" }) as never,
     );
     mock.method(hrAccess, "resolveHrAccess", async () => ({ allowed: true }) as never);
@@ -67,7 +67,7 @@ describe("POST /api/hr/employees/lookup authz + response behavior", () => {
     const hrAccess = await import("@/lib/hr/access");
     const identity = await import("@/lib/hr/employee-identity");
 
-    mock.method(routeGuard, "resolveHrRouteActorContext", async () =>
+    mock.method(routeGuard, "resolveHrRouteActorContextWithoutFeatureGate", async () =>
       ({ supabase: {} as never, userId: "user-1", entityId: "entity-1" }) as never,
     );
     mock.method(hrAccess, "resolveHrAccess", async () => ({ allowed: false }) as never);

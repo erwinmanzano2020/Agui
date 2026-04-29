@@ -251,9 +251,10 @@ Production drift finding (2026-04-29 UTC):
 - In production, some actors pass Add Employee page entry + house-scoped HR access but do not resolve any of those four feature entitlements, causing pre-house-check 403 on lookup.
 
 Final correction (smallest safe alignment):
-- Keep route-entry feature gate (capability layer) in place, but narrow lookup route dependency to `AppFeature.HR` only.
-- Keep `resolveHrAccess` house-scoped authorization unchanged as final allow/deny.
+- Remove feature-entitlement gating from Add Employee lookup route entry; feature entitlements must not be treated as final HR authority for this dependency path.
+- Keep authenticated session + linked entity checks at entry, then run house-scoped `resolveHrAccess` as final allow/deny authority.
 - This preserves deny-by-default + no-leak posture while preventing dependent API drift against Add Employee entry expectations.
 
-Current compatibility contract for `POST /api/hr/employees/lookup` route-entry gate:
-- `AppFeature.HR`
+Current compatibility contract for `POST /api/hr/employees/lookup`:
+- Entry: auth + linked entity (no feature-entitlement deny before house authorization).
+- Final authority: house-scoped `resolveHrAccess`.

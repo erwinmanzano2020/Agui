@@ -8,7 +8,7 @@ import * as featureGuard from "@/lib/auth/feature-guard";
 import * as identityServer from "@/lib/identity/entity-server";
 import * as supabaseServer from "@/lib/supabase/server";
 import * as supabaseService from "@/lib/supabase-service";
-import { resolveHrRouteActorContext } from "../route-guard-order";
+import { resolveHrRouteActorContext, resolveHrRouteActorContextWithoutFeatureGate } from "../route-guard-order";
 
 describe("resolveHrRouteActorContext", () => {
   afterEach(() => mock.restoreAll());
@@ -124,5 +124,41 @@ describe("resolveHrRouteActorContext", () => {
     assert.equal((result as { entityId: string }).entityId, "entity-1");
     assert.equal((result as { supabase: unknown }).supabase, supabaseStub);
     assert.deepEqual(order, ["auth", "entity", "feature"]);
+  });
+});
+
+
+describe("resolveHrRouteActorContextWithoutFeatureGate", () => {
+  afterEach(() => mock.restoreAll());
+
+  it("returns success context and keeps auth -> entity order without feature guard", async () => {
+    const order: string[] = [];
+    const supabaseStub = {
+      auth: {
+        getUser: async () => {
+          order.push("auth");
+          return { data: { user: { id: "user-1" } }, error: null };
+        },
+      },
+    } as never;
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => supabaseStub);
+    mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
+    mock.method(identityServer, "resolveEntityIdForUser", async () => {
+      order.push("entity");
+      return "entity-1";
+    });
+    const featureMock = mock.method(featureGuard, "requireAnyFeatureAccessApi", async () => null);
+
+    const result = await resolveHrRouteActorContextWithoutFeatureGate({
+      routeName: "api/hr/test",
+      onUnauthenticated: () => NextResponse.json({ error: "Not authenticated" }, { status: 401 }),
+      onEntityNotLinked: () => NextResponse.json({ error: "Account not linked" }, { status: 403 }),
+    });
+
+    assert.equal((result as { userId: string }).userId, "user-1");
+    assert.equal((result as { entityId: string }).entityId, "entity-1");
+    assert.equal((result as { supabase: unknown }).supabase, supabaseStub);
+    assert.deepEqual(order, ["auth", "entity"]);
+    assert.equal(featureMock.mock.callCount(), 0);
   });
 });
