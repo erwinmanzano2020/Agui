@@ -235,3 +235,19 @@ If any answer is "no", the change is non-canonical to this model.
 Version: v1  
 Type: Canonical definition-only role-system model  
 Scope: HR authority foundation prior to domain enforcement
+
+---
+
+## 13. Route Contract Note: Add Employee Identity Lookup (2026-04-29 UTC)
+
+Canonical alignment reminder for `POST /api/hr/employees/lookup`:
+- Feature gates are an entry capability check, not the final HR authorization authority.
+- Final allow/deny remains the house-scoped HR access resolution layer.
+- Identity lookup is a blocking dependency for Add Employee (lookup-first flow).
+- Therefore, the lookup feature-gate set must stay compatible with all legitimate Add Employee entry paths.
+
+Current compatibility contract for the lookup route-entry gate includes:
+- `AppFeature.HR`
+- `AppFeature.PAYROLL`
+- `AppFeature.TEAM`
+- `AppFeature.DTR_BULK`
