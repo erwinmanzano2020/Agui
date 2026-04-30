@@ -19,6 +19,7 @@ Slice 6 remains the active bounded implementation slice and remains entry-decisi
 
 ### `ENTERABLE`
 - valid: `CONTAINER_ACTIVATED`, `ENTRY_REVOKED`
+- conceptual target posture: `ENTRY_REVOKED` returns `ENTERABLE` to `NOT_ENTERED` before activation
 - invalid: `CANCEL_REQUESTED`, `COMPLETION_REACHED`
 
 ### `ACTIVE`
@@ -43,6 +44,8 @@ The planning model explicitly rejects:
 - `CANCEL_REQUESTED` before `ACTIVE`
 - `CONTAINER_ACTIVATED` without `ENTERABLE`
 - `ENTRY_GRANTED` while already `ACTIVE`
+- `ENTRY_REVOKED` from `ENTERABLE` means entry posture was removed before activation and conceptually returns to `NOT_ENTERED`.
+- `ENTRY_REVOKED` is not `INVALIDATION_DETECTED`; invalidation remains for broken invariants, scope drift, ownership conflict, or active-container invalidation.
 - any event after terminal states
 - any event that implies cross-session/cross-device continuation
 

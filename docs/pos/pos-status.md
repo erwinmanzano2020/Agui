@@ -847,5 +847,7 @@ This subsection:
 - Event vocabulary authority sources are now defined conceptually for Slice 7 language only.
 - Authority is not execution: defining who/what may conceptually originate an event does not authorize runtime behavior.
 - `ENTRY_GRANTED` remains controlled by Slice 6 entry decision outcomes only.
+- `ENTRY_REVOKED` from `ENTERABLE` conceptually returns the container posture to `NOT_ENTERED` before activation; this is vocabulary-only and not runtime transition logic.
+- `ENTRY_REVOKED` is distinct from `INVALIDATION_DETECTED`: revocation removes pre-activation entry posture, while invalidation remains tied to broken invariants, scope drift, ownership conflict, or active-container invalidation.
 - Operator-triggered, system-triggered, and derived events remain explicitly separated governance categories.
 - This subsection introduces no runtime authorization, no behavior, and no API/UI/schema changes.
