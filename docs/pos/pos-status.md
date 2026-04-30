@@ -707,3 +707,50 @@ Slice 7 exists specifically to prevent the misreading: **“entry exists, so pay
 - Slice 6 remains the only active bounded implementation slice.
 - Slice 7 remains gated, planning-only, and not started until separately approved for implementation.
 - No stealth expansion is authorized by this planning record.
+
+### POS-F3 Slice 7 — Checkout Container State Vocabulary (Planning Only, Not Started)
+This subsection defines canonical governance vocabulary only for checkout container lifecycle language under the already-approved **order-tied** container model.
+
+Scope posture:
+- Planning-only language.
+- Not started for implementation.
+- Slice 6 remains the only active bounded implementation slice and remains entry-decision-only.
+
+Canonical state vocabulary (conceptual only):
+- `NOT_ENTERED`
+- `ENTERABLE`
+- `ACTIVE`
+- `CANCELED`
+- `INVALIDATED`
+- `COMPLETED`
+
+State intent boundaries:
+- `NOT_ENTERED`: conceptual pre-entry state for an eligible order context where checkout container execution state has not been entered.
+- `ENTERABLE`: conceptual entry-ready state aligned to Slice 6 entry-decision posture only; this is not execution authorization.
+- `ACTIVE`: conceptual in-progress container state within intact exact scope and order ownership.
+- `CANCELED`: conceptual intentional stop state where container continuity is ended by cancel posture.
+- `INVALIDATED`: conceptual non-viable state where scope/guard/ownership coherence is broken and continuation is not canonical.
+- `COMPLETED`: conceptual terminal completion state in vocabulary only; no sale finalization behavior is authorized.
+
+Allowed conceptual transitions (non-executable semantics):
+- `NOT_ENTERED` -> `ENTERABLE`
+- `ENTERABLE` -> `ACTIVE`
+- `ACTIVE` -> `CANCELED`
+- `ACTIVE` -> `INVALIDATED`
+- `ACTIVE` -> `COMPLETED`
+
+Transition constraints:
+- No direct `NOT_ENTERED` -> `ACTIVE` shortcut is canonical.
+- Terminal states (`CANCELED`, `INVALIDATED`, `COMPLETED`) are conceptually end states in this vocabulary model.
+- No reopen/resume/back-transition semantics are authorized.
+
+Invalid / non-canonical states and patterns:
+- Any hybrid or overlapping terminal state (for example, “completed-and-canceled”).
+- Any state implying cross-session continuation.
+- Any state implying cross-device continuation.
+- Any state implying ownership transfer to another order.
+- Any state that reinterprets Slice 6 entry decisioning as checkout execution authority.
+
+Non-authorization reminder:
+- This vocabulary does not authorize checkout execution, payment/tender, inventory effects, receipt, finalization, persistence contracts, cross-session behavior, or multi-order orchestration.
+- Vocabulary definition is governance language only and must not be implemented from this section alone.
