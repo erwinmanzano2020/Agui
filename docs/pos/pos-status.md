@@ -9,7 +9,7 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 - Phase control note: HR stability checkpoint completed; POS is now the active development phase under roadmap sequencing.
 - Foundation wave: complete (canonical POS foundation set present and aligned)
 - Implementation posture: POS-F1 stable baseline remains intact and POS-F2 bounded draft-order + line-mutation foundations are now recorded as complete within strict scope-first/no-leak constraints
-- Current work mode: POS-F3 Slice 1 through Slice 5 remain closed and locked as bounded records; Slice 6 is in progress as checkout execution boundary entry decisioning only (read-only, exact scope, no side effects beyond entry decision output). Next gated step after Slice 6 is POS-F3 Slice 7 — Checkout Session Boundary (Planning Only, Not Started). Slice 7 state-event consistency rules are now documented as governance-only vocabulary constraints (no implementation authorization).
+- Current work mode: POS-F3 Slice 1 through Slice 5 remain closed and locked as bounded records; Slice 6 is in progress as checkout execution boundary entry decisioning only (read-only, exact scope, no side effects beyond entry decision output). Next gated step after Slice 6 is POS-F3 Slice 7 — Checkout Session Boundary (Planning Only, Not Started). Slice 7 state-event consistency rules are now documented as governance-only vocabulary constraints (no implementation authorization). Slice 7 checkout container boundary model is now additionally documented as conceptual boundary governance (order-owned, session/device/operator anchored, invalidation-defined; planning-only).
 - First-slice stability checkpoint: completed on 2026-04-01 (UTC), with no blocker-class gaps identified
 - MVP posture: POS is still not MVP-complete
 
@@ -29,7 +29,7 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 4. Preserve Slice 4 and Slice 5 as read-only bounded pre-checkout layers only; do not reinterpret Slice 5 as checkout capability.
 5. Deliver POS-F3 Slice 6 as bounded checkout execution-entry decisioning only, with strict no-leak/exact-scope/read-only posture and no expansion into payment/inventory/receipt/finalization/persistence side effects.
 6. Keep POS-F3 Slice 7 explicitly gated as the next step after Slice 6: Checkout Session Boundary (Planning Only, Not Started), with no runtime/API/UI/schema authorization.
-7. Treat Slice 7 checkout container event vocabulary and state-event consistency rules as governance-only boundary language (conceptual events + trigger terminology), not runtime authorization.
+7. Treat Slice 7 checkout container event vocabulary, state-event consistency rules, and checkout container boundary model as governance-only boundary language (conceptual events + integrity anchors + invalidation terminology), not runtime authorization.
 8. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
 
 ## 5A. POS-F2 Completion Record (Bounded Closure)
