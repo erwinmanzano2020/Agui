@@ -754,3 +754,82 @@ Invalid / non-canonical states and patterns:
 Non-authorization reminder:
 - This vocabulary does not authorize checkout execution, payment/tender, inventory effects, receipt, finalization, persistence contracts, cross-session behavior, or multi-order orchestration.
 - Vocabulary definition is governance language only and must not be implemented from this section alone.
+
+
+### POS-F3 Slice 7 — State Invariants and Invalidation Rules (Planning Only)
+This subsection defines canonical governance language for checkout container state invariants and invalidation semantics under the existing Slice 7 order-tied model.
+
+Scope posture:
+- Planning-only language.
+- Slice 7 remains not started.
+- Slice 6 remains the only active bounded implementation slice and remains entry-decision-only.
+
+#### 1. Purpose
+State invariants define what must remain true for a checkout container to remain valid within a given conceptual state. If required invariants fail, continuity language is no longer valid and the container must be treated accordingly.
+
+#### 2. State Invariants (per state)
+- `NOT_ENTERED`
+  - No checkout container lifecycle has been entered.
+  - No active container ownership is assumed.
+  - No partial execution assumptions are allowed.
+
+- `ENTERABLE`
+  - Entry conditions are satisfied per Slice 6 entry-decision posture.
+  - Order context remains valid and coherent under exact scope.
+  - No active conflicting checkout container exists for the same order context.
+
+- `ACTIVE`
+  - Order ownership remains intact and singular.
+  - Scope lineage (house/branch/device/session) remains coherent with the anchored order context.
+  - No conflicting container exists for the same order.
+  - Required context dependencies remain valid and non-contradictory.
+
+- `CANCELED`
+  - Container is intentionally terminated by cancel posture.
+  - No further progression is allowed.
+  - No implicit recovery or resume semantics are assumed.
+
+- `INVALIDATED`
+  - One or more required invariants are broken.
+  - Container is non-usable and must not be used further.
+  - No recovery path is assumed.
+
+- `COMPLETED`
+  - Container reached conceptual end state.
+  - No further mutation is allowed.
+  - No implicit side-effects are assumed (including sale finalization).
+
+#### 3. Invalidation Triggers (Canonical)
+A checkout container is conceptually `INVALIDATED` when any canonical trigger applies:
+- Order ownership is lost, contradicted, or reassigned.
+- Scope mismatch occurs (branch/house/device/session drift against anchored order context).
+- Context corruption occurs or required dependencies become missing/non-coherent.
+- Concurrent conflicting container is detected for the same order.
+- Guard or entry conditions are no longer satisfied.
+- Any `ACTIVE` state invariant is violated.
+
+#### 4. Invalidation Behavior Rules
+- `INVALIDATED` is terminal.
+- No resume or reopen semantics are allowed.
+- No transfer to another order is allowed.
+- No cross-session continuation is allowed.
+- Invalidated containers must be treated as non-usable.
+
+#### 5. Non-Canonical Patterns (Must Avoid)
+- Implicit recovery from invalid state.
+- Silent fallback to `ACTIVE`.
+- Cross-device continuation assumptions.
+- Multi-owner container models.
+- Treating invalidation as a soft warning instead of a hard stop.
+
+#### 6. Boundary Clarification
+This subsection:
+- does **not** define execution logic,
+- does **not** define persistence,
+- does **not** define event handling,
+- does **not** define UI behavior,
+- does **not** define API contracts.
+
+#### 7. Outcome
+- State invariants and invalidation rules are now defined as governance language for Slice 7.
+- No runtime behavior is authorized.
