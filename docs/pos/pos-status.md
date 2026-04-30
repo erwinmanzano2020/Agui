@@ -29,7 +29,8 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 4. Preserve Slice 4 and Slice 5 as read-only bounded pre-checkout layers only; do not reinterpret Slice 5 as checkout capability.
 5. Deliver POS-F3 Slice 6 as bounded checkout execution-entry decisioning only, with strict no-leak/exact-scope/read-only posture and no expansion into payment/inventory/receipt/finalization/persistence side effects.
 6. Keep POS-F3 Slice 7 explicitly gated as the next step after Slice 6: Checkout Session Boundary (Planning Only, Not Started), with no runtime/API/UI/schema authorization.
-7. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
+7. Treat Slice 7 checkout container event vocabulary as governance-only boundary language (conceptual events + trigger terminology), not runtime authorization.
+8. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
 
 ## 5A. POS-F2 Completion Record (Bounded Closure)
 POS-F2 is closed as a bounded slice and is now documented as complete in this status record.
@@ -185,7 +186,7 @@ POS MVP is only considered done when, at minimum, all are true:
 - blocker-class regressions are closed before any future module-unlock claim
 
 ## 10. Last Updated
-2026-04-06 (UTC)
+2026-04-30 (UTC)
 
 ## 11. POS-F3 Slice 1 — Pricing & Totals (Completed, Bounded)
 ### Now supported
@@ -833,3 +834,11 @@ This subsection:
 #### 7. Outcome
 - State invariants and invalidation rules are now defined as governance language for Slice 7.
 - No runtime behavior is authorized.
+
+
+## 12. POS-F3 Slice 7 — Checkout Container Event Vocabulary (Planning-Only, Not Started)
+- Canonical conceptual event vocabulary is defined for order-tied checkout container boundary language only: `ENTRY_GRANTED`, `ENTRY_REVOKED`, `CONTAINER_ACTIVATED`, `CANCEL_REQUESTED`, `INVALIDATION_DETECTED`, `COMPLETION_REACHED`.
+- Event relationships to conceptual states are vocabulary-only and are not executable transitions.
+- Boundary triggers are naming semantics only and do not authorize handlers, persistence, queues/retries/webhooks/jobs, async orchestration, payment, inventory, receipt, finalization, or any runtime behavior.
+- Slice 7 remains planning-only and not started; no runtime/API/UI/schema changes are authorized by this record.
+- Slice 6 remains unchanged as the only active bounded implementation slice and remains checkout execution entry-decision-only.
