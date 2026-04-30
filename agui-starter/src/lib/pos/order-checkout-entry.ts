@@ -29,7 +29,11 @@ type OrderCheckoutEntryRepository = {
 export type OrderCheckoutEntryResult = {
   checkoutEntryStatus: "ENTERABLE" | "BLOCKED";
   canEnterCheckoutBoundary: boolean;
-  blockingIssues: OrderCheckoutTransitionResult["blockingIssues"];
+  blockingIssues: Array<{
+    code: OrderCheckoutTransitionResult["blockingIssues"][number]["code"] | "CHECKOUT_ENTRY_BLOCKED";
+    severity: "BLOCKER";
+    message: string;
+  }>;
   entrySummary: {
     scopedContextStatus: OrderCheckoutTransitionResult["transitionSummary"]["scopedContextStatus"];
     reviewValidationStatus: OrderCheckoutTransitionResult["transitionSummary"]["reviewValidationStatus"];
@@ -80,27 +84,34 @@ function createEntryResult(input: { checkoutTransition: OrderCheckoutTransitionR
   const canEnterCheckoutBoundary =
     input.checkoutTransition.checkoutTransitionStatus === "ALLOWED" && blockingIssues.length === 0;
 
-  if (!canEnterCheckoutBoundary && blockingIssues.length === 0) {
-    throw new PosOrderCheckoutEntryError(
-      "Checkout entry contract invariant violated: blocked entry must include at least one blocking issue",
-      "ORDER_CHECKOUT_ENTRY_INVARIANT_VIOLATION",
-      500,
-    );
-  }
+  const resolvedBlockingIssues =
+    !canEnterCheckoutBoundary && blockingIssues.length === 0
+      ? [
+          {
+            code: "CHECKOUT_ENTRY_BLOCKED" as const,
+            severity: "BLOCKER" as const,
+            message: "Checkout entry is not available for this order.",
+          },
+        ]
+      : blockingIssues;
 
   return {
     checkoutEntryStatus: canEnterCheckoutBoundary ? "ENTERABLE" : "BLOCKED",
     canEnterCheckoutBoundary,
-    blockingIssues,
+    blockingIssues: resolvedBlockingIssues,
     entrySummary: {
       scopedContextStatus: input.checkoutTransition.transitionSummary.scopedContextStatus,
       reviewValidationStatus: input.checkoutTransition.transitionSummary.reviewValidationStatus,
       checkoutTransitionStatus: input.checkoutTransition.checkoutTransitionStatus,
       activeLineCount: input.checkoutTransition.transitionSummary.activeLineCount,
-      blockingIssueCount: blockingIssues.length,
+      blockingIssueCount: resolvedBlockingIssues.length,
     },
   };
 }
+
+export const __internal = {
+  createEntryResult,
+};
 
 export async function getCurrentSessionOrderCheckoutEntry(
   input: CheckoutEntryScopeInput,
