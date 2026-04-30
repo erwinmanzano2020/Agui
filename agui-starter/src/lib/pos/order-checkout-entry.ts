@@ -77,7 +77,16 @@ function mapUpstreamEntryFailure(error: PosOrderCheckoutTransitionError) {
 
 function createEntryResult(input: { checkoutTransition: OrderCheckoutTransitionResult }): OrderCheckoutEntryResult {
   const blockingIssues = input.checkoutTransition.blockingIssues.map((issue) => ({ ...issue }));
-  const canEnterCheckoutBoundary = input.checkoutTransition.checkoutTransitionStatus === "ALLOWED";
+  const canEnterCheckoutBoundary =
+    input.checkoutTransition.checkoutTransitionStatus === "ALLOWED" && blockingIssues.length === 0;
+
+  if (!canEnterCheckoutBoundary && blockingIssues.length === 0) {
+    throw new PosOrderCheckoutEntryError(
+      "Checkout entry contract invariant violated: blocked entry must include at least one blocking issue",
+      "ORDER_CHECKOUT_ENTRY_INVARIANT_VIOLATION",
+      500,
+    );
+  }
 
   return {
     checkoutEntryStatus: canEnterCheckoutBoundary ? "ENTERABLE" : "BLOCKED",

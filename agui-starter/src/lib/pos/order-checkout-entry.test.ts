@@ -261,6 +261,36 @@ test("getCurrentSessionOrderCheckoutEntry summary consistency aligns with blocke
   assert.equal(result.entrySummary.blockingIssueCount, result.blockingIssues.length);
 });
 
+test("getCurrentSessionOrderCheckoutEntry always returns complete contract fields", async () => {
+  const result = await getCurrentSessionOrderCheckoutEntry(SCOPE, createOrderCheckoutEntryRepository());
+
+  assert.ok("checkoutEntryStatus" in result);
+  assert.ok("canEnterCheckoutBoundary" in result);
+  assert.ok("blockingIssues" in result);
+  assert.ok("entrySummary" in result);
+  assert.ok(Array.isArray(result.blockingIssues));
+  assert.equal(typeof result.entrySummary.scopedContextStatus, "string");
+  assert.equal(typeof result.entrySummary.reviewValidationStatus, "string");
+  assert.equal(typeof result.entrySummary.checkoutTransitionStatus, "string");
+  assert.equal(typeof result.entrySummary.activeLineCount, "number");
+  assert.equal(typeof result.entrySummary.blockingIssueCount, "number");
+});
+
+test("getCurrentSessionOrderCheckoutEntry enforces symmetry between entry status and blocker list", async () => {
+  const enterable = await getCurrentSessionOrderCheckoutEntry(
+    SCOPE,
+    createOrderCheckoutEntryRepository({ lines: [makeLine()] }),
+  );
+  assert.equal(enterable.checkoutEntryStatus, "ENTERABLE");
+  assert.equal(enterable.blockingIssues.length, 0);
+  assert.equal(enterable.entrySummary.blockingIssueCount, enterable.blockingIssues.length);
+
+  const blocked = await getCurrentSessionOrderCheckoutEntry(SCOPE, createOrderCheckoutEntryRepository());
+  assert.equal(blocked.checkoutEntryStatus, "BLOCKED");
+  assert.ok(blocked.blockingIssues.length > 0);
+  assert.equal(blocked.entrySummary.blockingIssueCount, blocked.blockingIssues.length);
+});
+
 test("getCurrentSessionOrderCheckoutEntry never mixes snapshots when upstream state mutates between reads", async () => {
   const session = makeSession();
   const draft = makeDraft();
