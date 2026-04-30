@@ -317,3 +317,65 @@ test("getCurrentSessionOrderCheckoutEntry never mixes snapshots when upstream st
   assert.equal(result.checkoutEntryStatus, "ENTERABLE");
   assert.deepEqual(result.blockingIssues, []);
 });
+
+test("getCurrentSessionOrderCheckoutEntry treats ALLOWED transition as canonical ENTERABLE contract", async () => {
+  const result = await getCurrentSessionOrderCheckoutEntry(SCOPE, {
+    checkoutTransitionRepository: {
+      reviewValidationRepository: {
+        draftRepository: {
+          async getSessionById() {
+            return makeSession();
+          },
+          async getDraftOrderById() {
+            return makeDraft();
+          },
+          async insertOrderDraft() {
+            throw new Error("not used");
+          },
+        },
+        lineRepository: {
+          async getSessionById() {
+            return makeSession();
+          },
+          async getOrderDraftById() {
+            return makeDraft();
+          },
+          async getOrderLinesByDraft() {
+            return [makeLine()];
+          },
+          async insertOrderLine() {
+            throw new Error("not used");
+          },
+          async updateOrderLine() {
+            throw new Error("not used");
+          },
+          async removeOrderLine() {
+            throw new Error("not used");
+          },
+        },
+        pricingRepository: {
+          getPriceForItem() {
+            return 10;
+          },
+        },
+      },
+    },
+  });
+
+  assert.equal(result.checkoutEntryStatus, "ENTERABLE");
+  assert.equal(result.canEnterCheckoutBoundary, true);
+  assert.equal(result.entrySummary.checkoutTransitionStatus, "ALLOWED");
+});
+
+test("getCurrentSessionOrderCheckoutEntry copies blocker output to prevent mutation leakage", async () => {
+  const repository = createOrderCheckoutEntryRepository();
+  const first = await getCurrentSessionOrderCheckoutEntry(SCOPE, repository);
+  assert.equal(first.checkoutEntryStatus, "BLOCKED");
+  assert.equal(first.blockingIssues.length, 1);
+
+  first.blockingIssues[0]!.message = "mutated";
+
+  const second = await getCurrentSessionOrderCheckoutEntry(SCOPE, repository);
+  assert.equal(second.blockingIssues[0]!.message, "Order must contain at least one active line");
+  assert.equal(second.entrySummary.blockingIssueCount, second.blockingIssues.length);
+});
