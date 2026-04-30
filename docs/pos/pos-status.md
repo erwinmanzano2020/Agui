@@ -185,6 +185,11 @@ POS MVP is only considered done when, at minimum, all are true:
 - critical POS operational records follow approved ownership and auditability boundaries
 - blocker-class regressions are closed before any future module-unlock claim
 
+## Slice 7 Implementation Readiness Posture
+- Slice 7 is planning-complete (state vocabulary, invalidation semantics, event vocabulary/authority, state-event consistency, and container boundary model are documented as governance language).
+- Slice 7 is NOT implementation-started.
+- Slice 7 requires a canonical implementation-readiness gate before any execution work begins.
+
 ## 10. Last Updated
 2026-04-30 (UTC)
 
