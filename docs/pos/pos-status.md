@@ -842,3 +842,10 @@ This subsection:
 - Boundary triggers are naming semantics only and do not authorize handlers, persistence, queues/retries/webhooks/jobs, async orchestration, payment, inventory, receipt, finalization, or any runtime behavior.
 - Slice 7 remains planning-only and not started; no runtime/API/UI/schema changes are authorized by this record.
 - Slice 6 remains unchanged as the only active bounded implementation slice and remains checkout execution entry-decision-only.
+
+### POS-F3 Slice 7 — Event Authority & Trigger Ownership (Planning Only)
+- Event vocabulary authority sources are now defined conceptually for Slice 7 language only.
+- Authority is not execution: defining who/what may conceptually originate an event does not authorize runtime behavior.
+- `ENTRY_GRANTED` remains controlled by Slice 6 entry decision outcomes only.
+- Operator-triggered, system-triggered, and derived events remain explicitly separated governance categories.
+- This subsection introduces no runtime authorization, no behavior, and no API/UI/schema changes.
