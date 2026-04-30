@@ -836,7 +836,7 @@ This subsection:
 - No runtime behavior is authorized.
 
 
-## 12. POS-F3 Slice 7 — Checkout Container Event Vocabulary (Planning-Only, Not Started)
+### POS-F3 Slice 7 — Checkout Container Event Vocabulary (Planning-Only, Not Started)
 - Canonical conceptual event vocabulary is defined for order-tied checkout container boundary language only: `ENTRY_GRANTED`, `ENTRY_REVOKED`, `CONTAINER_ACTIVATED`, `CANCEL_REQUESTED`, `INVALIDATION_DETECTED`, `COMPLETION_REACHED`.
 - Event relationships to conceptual states are vocabulary-only and are not executable transitions.
 - Boundary triggers are naming semantics only and do not authorize handlers, persistence, queues/retries/webhooks/jobs, async orchestration, payment, inventory, receipt, finalization, or any runtime behavior.
