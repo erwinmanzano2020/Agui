@@ -76,11 +76,8 @@ function mapUpstreamEntryFailure(error: PosOrderCheckoutTransitionError) {
 }
 
 function createEntryResult(input: { checkoutTransition: OrderCheckoutTransitionResult }): OrderCheckoutEntryResult {
-  const blockingIssues = input.checkoutTransition.blockingIssues;
-  const canEnterCheckoutBoundary =
-    input.checkoutTransition.checkoutTransitionStatus === "ALLOWED" &&
-    input.checkoutTransition.canEnterFutureCheckout &&
-    blockingIssues.length === 0;
+  const blockingIssues = input.checkoutTransition.blockingIssues.map((issue) => ({ ...issue }));
+  const canEnterCheckoutBoundary = input.checkoutTransition.checkoutTransitionStatus === "ALLOWED";
 
   return {
     checkoutEntryStatus: canEnterCheckoutBoundary ? "ENTERABLE" : "BLOCKED",
