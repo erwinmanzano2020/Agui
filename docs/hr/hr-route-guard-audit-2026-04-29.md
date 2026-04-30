@@ -32,9 +32,6 @@ These routes support core HR flows where HR access resolution is the final autho
 - `api/hr/employees/[employeeId]/id-card.pdf/route.ts`
 - `api/hr/employees/[employeeId]/photo/route.ts`
 - `api/hr/employees/[employeeId]/photo/upload/route.ts`
-- `api/hr/employee-ids/print/route.ts`
-- `api/hr/payroll-runs/[id]/pdf/route.ts`
-- `api/hr/payroll-runs/[id]/payslips/[employeeId]/pdf/route.ts`
 
 ## Feature-Module Routes
 
@@ -64,10 +61,15 @@ These routes were intentionally left as follow-up items because their guard cont
 - `api/hr/kiosk/scan/route.ts`
 - `api/hr/kiosk/sync/route.ts`
 - `api/hr/kiosk/verify/route.ts`
+- `api/hr/employee-ids/print/route.ts`
+- `api/hr/payroll-runs/[id]/pdf/route.ts`
+- `api/hr/payroll-runs/[id]/payslips/[employeeId]/pdf/route.ts`
 
 ## Findings
 
 - The two known dependent-route drifts now align with canonical ordering by avoiding feature-entitlement preemption at route entry.
+- Audit classification must describe current guard behavior, not desired future behavior.
+- Any route currently using `resolveHrRouteActorContext(...)` with feature requirements must not be classified as a dependent no-feature-gate route unless code is changed in the same task and tested.
 - Most payroll and employee collection routes remain feature-module surfaces using shared feature-gated actor resolution and then resource/branch checks.
 - Kiosk machine-facing endpoints require separate explicit contract review if route-guard standardization is expanded beyond HR staff flow dependencies.
 
