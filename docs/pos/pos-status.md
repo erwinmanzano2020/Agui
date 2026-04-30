@@ -250,7 +250,7 @@ POS-F3 Slice 1 is closed as a bounded slice.
 - Multi-order aggregation
 
 
-## 11F. POS-F3 Slice 6 — Closure Audit Note (Checkout Execution Boundary Entry Decision)
+## 11J. POS-F3 Slice 6 — Closure Audit Note (Checkout Execution Boundary Entry Decision)
 - POS-F3 Slice 6 has passed closure audit for its bounded scope question: whether an exact current-session scoped draft order may enter the checkout execution boundary.
 - Slice 6 is **closure-ready pending explicit approval**.
 - This closure audit does not authorize checkout execution, payment/tender, inventory behavior, receipt behavior, sale finalization/completion, or persistence side effects.
