@@ -1,0 +1,163 @@
+import "server-only";
+
+import type { OrderCheckoutEntryResult } from "./order-checkout-entry";
+import { getCurrentSessionOrderCheckoutEntry } from "./order-checkout-entry";
+
+type CheckoutContainerFoundationScopeInput = {
+  houseId: string;
+  branchId: string;
+  sessionId: string;
+  deviceId: string;
+  orderId: string;
+};
+
+type OrderCheckoutContainerFoundationRepository = {
+  getCheckoutEntry: (input: CheckoutContainerFoundationScopeInput) => Promise<OrderCheckoutEntryResult>;
+};
+
+export type OrderCheckoutContainerFoundationResult = {
+  containerFoundationStatus: "FOUNDATIONAL" | "BLOCKED";
+  canDefineCheckoutContainer: boolean;
+  containerAnchorSummary: {
+    orderId: string;
+    sessionId: string;
+    deviceId: string;
+    branchId: string;
+    houseId: string;
+  };
+  blockingIssues: Array<{
+    code:
+      | "CHECKOUT_CONTAINER_FOUNDATION_BLOCKED"
+      | "CHECKOUT_CONTAINER_ANCHOR_ORDER_MISMATCH"
+      | "CHECKOUT_CONTAINER_ANCHOR_SESSION_MISMATCH"
+      | "CHECKOUT_CONTAINER_ANCHOR_DEVICE_MISMATCH"
+      | "CHECKOUT_CONTAINER_ANCHOR_BRANCH_MISMATCH"
+      | "CHECKOUT_CONTAINER_ANCHOR_HOUSE_MISMATCH";
+    severity: "BLOCKER";
+    message: string;
+  }>;
+};
+
+function resolveRepository(
+  repository: OrderCheckoutContainerFoundationRepository | null | undefined,
+): OrderCheckoutContainerFoundationRepository {
+  if (!repository) {
+    throw new Error("Order checkout container foundation repository is required");
+  }
+
+  return repository;
+}
+
+function createAnchorBlockers(input: {
+  requestedScope: CheckoutContainerFoundationScopeInput;
+  entryScope: CheckoutContainerFoundationScopeInput;
+}) {
+  const issues: OrderCheckoutContainerFoundationResult["blockingIssues"] = [];
+
+  if (input.requestedScope.orderId !== input.entryScope.orderId) {
+    issues.push({
+      code: "CHECKOUT_CONTAINER_ANCHOR_ORDER_MISMATCH",
+      severity: "BLOCKER",
+      message: "Checkout container anchor order is out of scope.",
+    });
+  }
+
+  if (input.requestedScope.sessionId !== input.entryScope.sessionId) {
+    issues.push({
+      code: "CHECKOUT_CONTAINER_ANCHOR_SESSION_MISMATCH",
+      severity: "BLOCKER",
+      message: "Checkout container anchor session is out of scope.",
+    });
+  }
+
+  if (input.requestedScope.deviceId !== input.entryScope.deviceId) {
+    issues.push({
+      code: "CHECKOUT_CONTAINER_ANCHOR_DEVICE_MISMATCH",
+      severity: "BLOCKER",
+      message: "Checkout container anchor device is out of scope.",
+    });
+  }
+
+  if (input.requestedScope.branchId !== input.entryScope.branchId) {
+    issues.push({
+      code: "CHECKOUT_CONTAINER_ANCHOR_BRANCH_MISMATCH",
+      severity: "BLOCKER",
+      message: "Checkout container anchor branch is out of scope.",
+    });
+  }
+
+  if (input.requestedScope.houseId !== input.entryScope.houseId) {
+    issues.push({
+      code: "CHECKOUT_CONTAINER_ANCHOR_HOUSE_MISMATCH",
+      severity: "BLOCKER",
+      message: "Checkout container anchor house is out of scope.",
+    });
+  }
+
+  return issues;
+}
+
+function createContainerFoundationResult(input: {
+  requestedScope: CheckoutContainerFoundationScopeInput;
+  entryScope: CheckoutContainerFoundationScopeInput;
+  checkoutEntry: OrderCheckoutEntryResult;
+}): OrderCheckoutContainerFoundationResult {
+  const anchorIssues = createAnchorBlockers(input);
+  const entryBlocked = input.checkoutEntry.checkoutEntryStatus === "BLOCKED";
+
+  const blockingIssues = [
+    ...(entryBlocked
+      ? [
+          {
+            code: "CHECKOUT_CONTAINER_FOUNDATION_BLOCKED" as const,
+            severity: "BLOCKER" as const,
+            message: "Checkout container foundation is blocked by checkout entry decision.",
+          },
+        ]
+      : []),
+    ...anchorIssues,
+  ];
+
+  const canDefineCheckoutContainer = !entryBlocked && blockingIssues.length === 0;
+
+  return {
+    containerFoundationStatus: canDefineCheckoutContainer ? "FOUNDATIONAL" : "BLOCKED",
+    canDefineCheckoutContainer,
+    containerAnchorSummary: {
+      orderId: input.entryScope.orderId,
+      sessionId: input.entryScope.sessionId,
+      deviceId: input.entryScope.deviceId,
+      branchId: input.entryScope.branchId,
+      houseId: input.entryScope.houseId,
+    },
+    blockingIssues,
+  };
+}
+
+
+export function createOrderCheckoutContainerFoundationRepository(
+  checkoutEntryRepository: Parameters<typeof getCurrentSessionOrderCheckoutEntry>[1],
+): OrderCheckoutContainerFoundationRepository {
+  return {
+    getCheckoutEntry(input) {
+      return getCurrentSessionOrderCheckoutEntry(input, checkoutEntryRepository);
+    },
+  };
+}
+export const __internal = {
+  createContainerFoundationResult,
+};
+
+export async function getCurrentSessionOrderCheckoutContainerFoundation(
+  input: CheckoutContainerFoundationScopeInput,
+  repository?: OrderCheckoutContainerFoundationRepository | null,
+): Promise<OrderCheckoutContainerFoundationResult> {
+  const resolvedRepository = resolveRepository(repository);
+  const checkoutEntry = await resolvedRepository.getCheckoutEntry(input);
+
+  return createContainerFoundationResult({
+    requestedScope: input,
+    entryScope: input,
+    checkoutEntry,
+  });
+}
