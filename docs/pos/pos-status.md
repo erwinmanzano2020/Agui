@@ -187,15 +187,14 @@ POS MVP is only considered done when, at minimum, all are true:
 
 ## Slice 7 Implementation Readiness Posture
 - Slice 7 is planning-complete (state vocabulary, invalidation semantics, event vocabulary/authority, state-event consistency, and container boundary model are documented as governance language).
-- Slice 7A is now the active bounded implementation slice.
-- Slice 7A scope is Checkout Container Foundation only.
-- Slice 7A authorizes container existence decisioning, exact-scope anchor validation, and safe blocked output only.
-- Slice 7A does not authorize lifecycle/events/activation/payment/inventory/receipt/finalization/persistence.
+- Slice 7A is closed and locked as Checkout Container Foundation only.
+- Slice 7A contract is frozen to bounded container-foundation decisioning (FOUNDATIONAL/BLOCKED), exact-scope anchor validation, and safe blocked output only.
+- Slice 7A preserves non-goals: no lifecycle/events/activation/payment/inventory/receipt/finalization/persistence and no UI/API expansion.
 - Slice 6 remains closed and locked as checkout entry-decision authority.
-- Slice 7 beyond 7A remains not started.
+- Next gated step is Slice 7B planning/definition only (not started).
 
 ## 10. Last Updated
-2026-04-30 (UTC)
+2026-05-01 (UTC)
 
 ## 11. POS-F3 Slice 1 — Pricing & Totals (Completed, Bounded)
 ### Now supported
