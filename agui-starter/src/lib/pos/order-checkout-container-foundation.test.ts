@@ -166,6 +166,98 @@ test("default repository maps upstream scope denial to BLOCKED without leakage",
 });
 
 
+
+test("ORDER_INVALID_OR_CLOSED maps to BLOCKED", async () => {
+  const repository = {
+    async getCheckoutEntrySnapshot() {
+      throw new PosOrderCheckoutEntryError("denied", "ORDER_INVALID_OR_CLOSED", 403);
+    },
+  };
+
+  const result = await getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, repository);
+  assert.equal(result.containerFoundationStatus, "BLOCKED");
+  assert.deepEqual(result.blockingIssues, [
+    {
+      code: "CHECKOUT_CONTAINER_FOUNDATION_BLOCKED",
+      severity: "BLOCKER",
+      message: "Checkout container foundation is blocked by checkout entry decision.",
+    },
+  ]);
+});
+
+test("ORDER_CHECKOUT_ENTRY_ERROR with status 400 is rethrown", async () => {
+  const repository = {
+    async getCheckoutEntrySnapshot() {
+      throw new PosOrderCheckoutEntryError("bad request", "ORDER_CHECKOUT_ENTRY_ERROR", 400);
+    },
+  };
+
+  await assert.rejects(
+    () => getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, repository),
+    (error: unknown) =>
+      error instanceof PosOrderCheckoutEntryError &&
+      error.status === 400 &&
+      error.code === "ORDER_CHECKOUT_ENTRY_ERROR",
+  );
+});
+
+test("ORDER_CHECKOUT_ENTRY_REPOSITORY_REQUIRED with status 500 is rethrown", async () => {
+  const repository = {
+    async getCheckoutEntrySnapshot() {
+      throw new PosOrderCheckoutEntryError(
+        "repo missing",
+        "ORDER_CHECKOUT_ENTRY_REPOSITORY_REQUIRED",
+        500,
+      );
+    },
+  };
+
+  await assert.rejects(
+    () => getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, repository),
+    (error: unknown) =>
+      error instanceof PosOrderCheckoutEntryError &&
+      error.status === 500 &&
+      error.code === "ORDER_CHECKOUT_ENTRY_REPOSITORY_REQUIRED",
+  );
+});
+
+test("unknown 400 PosOrderCheckoutEntryError is rethrown", async () => {
+  const repository = {
+    async getCheckoutEntrySnapshot() {
+      throw new PosOrderCheckoutEntryError("unknown 400", "ORDER_SCOPE_UNKNOWN", 400);
+    },
+  };
+
+  await assert.rejects(
+    () => getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, repository),
+    (error: unknown) =>
+      error instanceof PosOrderCheckoutEntryError && error.status === 400 && error.code === "ORDER_SCOPE_UNKNOWN",
+  );
+});
+
+test("403 maps only with explicit safe code; otherwise rethrows", async () => {
+  const safeRepository = {
+    async getCheckoutEntrySnapshot() {
+      throw new PosOrderCheckoutEntryError("denied", "ORDER_INVALID_OR_CLOSED", 403);
+    },
+  };
+
+  const safeResult = await getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, safeRepository);
+  assert.equal(safeResult.containerFoundationStatus, "BLOCKED");
+
+  const unsafeRepository = {
+    async getCheckoutEntrySnapshot() {
+      throw new PosOrderCheckoutEntryError("denied", "ORDER_SCOPE_403_UNKNOWN", 403);
+    },
+  };
+
+  await assert.rejects(
+    () => getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, unsafeRepository),
+    (error: unknown) =>
+      error instanceof PosOrderCheckoutEntryError && error.status === 403 && error.code === "ORDER_SCOPE_403_UNKNOWN",
+  );
+});
+
 test("Slice 6 operational 500 entry error is rethrown", async () => {
   const repository = {
     async getCheckoutEntrySnapshot() {

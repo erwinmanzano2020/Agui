@@ -131,18 +131,8 @@ export const __internal = {
 
 
 function shouldMapEntryErrorToBlocked(error: PosOrderCheckoutEntryError): boolean {
-  const safeStatuses = new Set([400, 403]);
-  if (!safeStatuses.has(error.status)) {
-    return false;
-  }
-
-  const safeCodes = new Set([
-    "ORDER_INVALID_OR_CLOSED",
-    "ORDER_CHECKOUT_ENTRY_ERROR",
-    "ORDER_CHECKOUT_ENTRY_REPOSITORY_REQUIRED",
-  ]);
-
-  return safeCodes.has(error.code) || error.status === 403;
+  const safeCodes = new Set(["ORDER_INVALID_OR_CLOSED"]);
+  return safeCodes.has(error.code);
 }
 
 function createEntryDeniedResult(input: {
