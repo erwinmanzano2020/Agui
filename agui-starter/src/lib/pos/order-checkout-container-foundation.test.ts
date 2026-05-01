@@ -11,7 +11,7 @@ import {
   createOrderCheckoutContainerFoundationRepository,
   getCurrentSessionOrderCheckoutContainerFoundation,
 } from "./order-checkout-container-foundation";
-import type { OrderCheckoutEntryResult } from "./order-checkout-entry";
+import { PosOrderCheckoutEntryError, type OrderCheckoutEntryResult } from "./order-checkout-entry";
 
 type FoundationScope = {
   houseId: string;
@@ -163,6 +163,36 @@ test("default repository maps upstream scope denial to BLOCKED without leakage",
   ]);
   assert.equal(result.blockingIssues[0]?.message.includes("ORDER_INVALID_OR_CLOSED"), false);
   assert.equal(result.blockingIssues[0]?.message.includes("invalid"), false);
+});
+
+
+test("Slice 6 operational 500 entry error is rethrown", async () => {
+  const repository = {
+    async getCheckoutEntrySnapshot() {
+      throw new PosOrderCheckoutEntryError("repository unavailable", "ORDER_CHECKOUT_ENTRY_ERROR", 500);
+    },
+  };
+
+  await assert.rejects(
+    () => getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, repository),
+    (error: unknown) =>
+      error instanceof PosOrderCheckoutEntryError &&
+      error.status === 500 &&
+      error.code === "ORDER_CHECKOUT_ENTRY_ERROR",
+  );
+});
+
+test("unknown non-domain error is rethrown", async () => {
+  const repository = {
+    async getCheckoutEntrySnapshot() {
+      throw new Error("unexpected boom");
+    },
+  };
+
+  await assert.rejects(
+    () => getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, repository),
+    (error: unknown) => error instanceof Error && error.message === "unexpected boom",
+  );
 });
 
 test("FOUNDATIONAL when Slice 6 is ENTERABLE and scope is coherent", async () => {
