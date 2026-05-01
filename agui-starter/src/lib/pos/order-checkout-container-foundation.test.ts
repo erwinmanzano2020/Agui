@@ -1,8 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import type { PosSessionRow } from "@/lib/db.types";
+
+import type { OrderDraft } from "./order-draft";
+import { createInMemoryPosOrderDraftRepository } from "./order-draft";
+import type { OrderLine } from "./order-line";
+import { createInMemoryPosOrderLineRepository } from "./order-line";
+import {
+  createOrderCheckoutContainerFoundationRepository,
+  getCurrentSessionOrderCheckoutContainerFoundation,
+} from "./order-checkout-container-foundation";
 import type { OrderCheckoutEntryResult } from "./order-checkout-entry";
-import { getCurrentSessionOrderCheckoutContainerFoundation } from "./order-checkout-container-foundation";
 
 type FoundationScope = {
   houseId: string;
@@ -47,6 +56,93 @@ function createRepository(input?: { checkoutEntry?: OrderCheckoutEntryResult; en
   };
 }
 
+function makeSession(overrides: Partial<PosSessionRow> = {}): PosSessionRow {
+  const now = new Date().toISOString();
+  return {
+    id: SCOPE.sessionId,
+    house_id: SCOPE.houseId,
+    branch_id: SCOPE.branchId,
+    device_id: SCOPE.deviceId,
+    operator_entity_id: "entity-1",
+    opened_by_entity_id: "entity-1",
+    closed_by_entity_id: null,
+    status: "OPEN",
+    opened_at: now,
+    closed_at: null,
+    close_reason: null,
+    created_at: now,
+    updated_at: now,
+    ...overrides,
+  };
+}
+
+function makeDraft(overrides: Partial<OrderDraft> = {}): OrderDraft {
+  const now = new Date().toISOString();
+  return {
+    id: SCOPE.orderId,
+    house_id: SCOPE.houseId,
+    branch_id: SCOPE.branchId,
+    session_id: SCOPE.sessionId,
+    device_id: SCOPE.deviceId,
+    operator_entity_id: "entity-1",
+    status: "DRAFT",
+    created_at: now,
+    updated_at: now,
+    ...overrides,
+  };
+}
+
+function makeLine(overrides: Partial<OrderLine> = {}): OrderLine {
+  const now = new Date().toISOString();
+  return {
+    id: "line-1",
+    order_id: SCOPE.orderId,
+    house_id: SCOPE.houseId,
+    branch_id: SCOPE.branchId,
+    session_id: SCOPE.sessionId,
+    device_id: SCOPE.deviceId,
+    operator_entity_id: "entity-1",
+    item_code: "ITEM-1",
+    quantity: 1,
+    status: "ACTIVE",
+    created_at: now,
+    updated_at: now,
+    ...overrides,
+  };
+}
+
+function createCheckoutEntryRepository() {
+  const sessions = [makeSession()];
+  const drafts = [makeDraft()];
+  const lines = [makeLine({ quantity: 2 })];
+  const draftRepository = createInMemoryPosOrderDraftRepository({ sessions, drafts });
+  const lineRepository = createInMemoryPosOrderLineRepository({ sessions, orders: drafts, lines });
+
+  return {
+    checkoutTransitionRepository: {
+      reviewValidationRepository: {
+        draftRepository,
+        lineRepository,
+        pricingRepository: {
+          getPriceForItem(itemCode: string) {
+            if (itemCode === "ITEM-1") return 10;
+            return null;
+          },
+        },
+      },
+    },
+  };
+}
+
+test("default repository happy path remains FOUNDATIONAL when Slice 6 is ENTERABLE", async () => {
+  const repository = createOrderCheckoutContainerFoundationRepository(createCheckoutEntryRepository());
+  const result = await getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, repository);
+
+  assert.equal(result.containerFoundationStatus, "FOUNDATIONAL");
+  assert.equal(result.canDefineCheckoutContainer, true);
+  assert.deepEqual(result.containerAnchorSummary, SCOPE);
+});
+
 test("FOUNDATIONAL when Slice 6 is ENTERABLE and scope is coherent", async () => {
   const result = await getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, createRepository());
 
@@ -88,6 +184,8 @@ test("BLOCKED on order mismatch via exported foundation path", async () => {
   );
   assert.equal(result.containerFoundationStatus, "BLOCKED");
   assert.equal(result.blockingIssues[0]?.code, "CHECKOUT_CONTAINER_ANCHOR_ORDER_MISMATCH");
+  assert.deepEqual(result.containerAnchorSummary, SCOPE);
+  assert.equal(result.containerAnchorSummary.orderId, SCOPE.orderId);
 });
 
 test("BLOCKED on session mismatch via exported foundation path", async () => {
@@ -124,6 +222,8 @@ test("BLOCKED on house mismatch via exported foundation path", async () => {
   );
   assert.equal(result.containerFoundationStatus, "BLOCKED");
   assert.equal(result.blockingIssues[0]?.code, "CHECKOUT_CONTAINER_ANCHOR_HOUSE_MISMATCH");
+  assert.deepEqual(result.containerAnchorSummary, SCOPE);
+  assert.equal(result.containerAnchorSummary.houseId, SCOPE.houseId);
 });
 
 test("deterministic repeated output", async () => {
@@ -141,6 +241,7 @@ test("safe blocker output does not leak repository details", async () => {
 
   assert.deepEqual(Object.keys(result.blockingIssues[0] ?? {}).sort(), ["code", "message", "severity"]);
   assert.equal(result.blockingIssues[0]?.message.includes("repository"), false);
+  assert.equal(result.blockingIssues[0]?.message.includes("order-other"), false);
 });
 
 test("no mutation leakage in blocker output", async () => {

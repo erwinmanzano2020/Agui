@@ -99,11 +99,11 @@ function createContainerFoundationResult(input: {
     containerFoundationStatus: canDefineCheckoutContainer ? "FOUNDATIONAL" : "BLOCKED",
     canDefineCheckoutContainer,
     containerAnchorSummary: {
-      orderId: input.entryScope.orderId,
-      sessionId: input.entryScope.sessionId,
-      deviceId: input.entryScope.deviceId,
-      branchId: input.entryScope.branchId,
-      houseId: input.entryScope.houseId,
+      orderId: input.requestedScope.orderId,
+      sessionId: input.requestedScope.sessionId,
+      deviceId: input.requestedScope.deviceId,
+      branchId: input.requestedScope.branchId,
+      houseId: input.requestedScope.houseId,
     },
     blockingIssues,
   };
@@ -114,6 +114,9 @@ export function createOrderCheckoutContainerFoundationRepository(
 ): OrderCheckoutContainerFoundationRepository {
   return {
     async getCheckoutEntrySnapshot(input) {
+      // Default repository has no independent upstream anchor source beyond the scoped query input.
+      // It returns trusted requested scope anchors only; independent drift validation requires a custom
+      // repository that supplies entryScope from an actual upstream anchor snapshot.
       return {
         checkoutEntry: await getCurrentSessionOrderCheckoutEntry(input, checkoutEntryRepository),
         entryScope: { ...input },
