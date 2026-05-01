@@ -111,10 +111,10 @@ function makeLine(overrides: Partial<OrderLine> = {}): OrderLine {
   };
 }
 
-function createCheckoutEntryRepository() {
-  const sessions = [makeSession()];
-  const drafts = [makeDraft()];
-  const lines = [makeLine({ quantity: 2 })];
+function createCheckoutEntryRepository(input?: { sessions?: PosSessionRow[]; drafts?: OrderDraft[]; lines?: OrderLine[] }) {
+  const sessions = input?.sessions ?? [makeSession()];
+  const drafts = input?.drafts ?? [makeDraft()];
+  const lines = input?.lines ?? [makeLine({ quantity: 2 })];
   const draftRepository = createInMemoryPosOrderDraftRepository({ sessions, drafts });
   const lineRepository = createInMemoryPosOrderLineRepository({ sessions, orders: drafts, lines });
 
@@ -141,6 +141,28 @@ test("default repository happy path remains FOUNDATIONAL when Slice 6 is ENTERAB
   assert.equal(result.containerFoundationStatus, "FOUNDATIONAL");
   assert.equal(result.canDefineCheckoutContainer, true);
   assert.deepEqual(result.containerAnchorSummary, SCOPE);
+});
+
+
+test("default repository maps upstream scope denial to BLOCKED without leakage", async () => {
+  const repository = createOrderCheckoutContainerFoundationRepository(
+    createCheckoutEntryRepository({ sessions: [makeSession()], drafts: [makeDraft()] }),
+  );
+
+  const result = await getCurrentSessionOrderCheckoutContainerFoundation({ ...SCOPE, sessionId: "session-foreign" }, repository);
+
+  assert.equal(result.containerFoundationStatus, "BLOCKED");
+  assert.equal(result.canDefineCheckoutContainer, false);
+  assert.deepEqual(result.containerAnchorSummary, { ...SCOPE, sessionId: "session-foreign" });
+  assert.deepEqual(result.blockingIssues, [
+    {
+      code: "CHECKOUT_CONTAINER_FOUNDATION_BLOCKED",
+      severity: "BLOCKER",
+      message: "Checkout container foundation is blocked by checkout entry decision.",
+    },
+  ]);
+  assert.equal(result.blockingIssues[0]?.message.includes("ORDER_INVALID_OR_CLOSED"), false);
+  assert.equal(result.blockingIssues[0]?.message.includes("invalid"), false);
 });
 
 test("FOUNDATIONAL when Slice 6 is ENTERABLE and scope is coherent", async () => {

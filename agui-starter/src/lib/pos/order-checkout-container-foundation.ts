@@ -1,7 +1,7 @@
 import "server-only";
 
 import type { OrderCheckoutEntryResult } from "./order-checkout-entry";
-import { getCurrentSessionOrderCheckoutEntry } from "./order-checkout-entry";
+import { PosOrderCheckoutEntryError, getCurrentSessionOrderCheckoutEntry } from "./order-checkout-entry";
 
 type CheckoutContainerFoundationScopeInput = {
   houseId: string;
@@ -129,16 +129,43 @@ export const __internal = {
   createContainerFoundationResult,
 };
 
+
+function createEntryDeniedResult(input: {
+  requestedScope: CheckoutContainerFoundationScopeInput;
+}): OrderCheckoutContainerFoundationResult {
+  return {
+    containerFoundationStatus: "BLOCKED",
+    canDefineCheckoutContainer: false,
+    containerAnchorSummary: { ...input.requestedScope },
+    blockingIssues: [
+      {
+        code: "CHECKOUT_CONTAINER_FOUNDATION_BLOCKED",
+        severity: "BLOCKER",
+        message: "Checkout container foundation is blocked by checkout entry decision.",
+      },
+    ],
+  };
+}
+
 export async function getCurrentSessionOrderCheckoutContainerFoundation(
   input: CheckoutContainerFoundationScopeInput,
   repository?: OrderCheckoutContainerFoundationRepository | null,
 ): Promise<OrderCheckoutContainerFoundationResult> {
   const resolvedRepository = resolveRepository(repository);
-  const snapshot = await resolvedRepository.getCheckoutEntrySnapshot(input);
 
-  return createContainerFoundationResult({
-    requestedScope: input,
-    entryScope: snapshot.entryScope,
-    checkoutEntry: snapshot.checkoutEntry,
-  });
+  try {
+    const snapshot = await resolvedRepository.getCheckoutEntrySnapshot(input);
+
+    return createContainerFoundationResult({
+      requestedScope: input,
+      entryScope: snapshot.entryScope,
+      checkoutEntry: snapshot.checkoutEntry,
+    });
+  } catch (error) {
+    if (error instanceof PosOrderCheckoutEntryError) {
+      return createEntryDeniedResult({ requestedScope: input });
+    }
+
+    throw error;
+  }
 }
