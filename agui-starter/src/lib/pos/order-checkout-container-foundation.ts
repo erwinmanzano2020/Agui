@@ -11,8 +11,15 @@ type CheckoutContainerFoundationScopeInput = {
   orderId: string;
 };
 
+type CheckoutContainerFoundationEntrySnapshot = {
+  checkoutEntry: OrderCheckoutEntryResult;
+  entryScope: CheckoutContainerFoundationScopeInput;
+};
+
 type OrderCheckoutContainerFoundationRepository = {
-  getCheckoutEntry: (input: CheckoutContainerFoundationScopeInput) => Promise<OrderCheckoutEntryResult>;
+  getCheckoutEntrySnapshot: (
+    input: CheckoutContainerFoundationScopeInput,
+  ) => Promise<CheckoutContainerFoundationEntrySnapshot>;
 };
 
 export type OrderCheckoutContainerFoundationResult = {
@@ -55,43 +62,19 @@ function createAnchorBlockers(input: {
   const issues: OrderCheckoutContainerFoundationResult["blockingIssues"] = [];
 
   if (input.requestedScope.orderId !== input.entryScope.orderId) {
-    issues.push({
-      code: "CHECKOUT_CONTAINER_ANCHOR_ORDER_MISMATCH",
-      severity: "BLOCKER",
-      message: "Checkout container anchor order is out of scope.",
-    });
+    issues.push({ code: "CHECKOUT_CONTAINER_ANCHOR_ORDER_MISMATCH", severity: "BLOCKER", message: "Checkout container anchor order is out of scope." });
   }
-
   if (input.requestedScope.sessionId !== input.entryScope.sessionId) {
-    issues.push({
-      code: "CHECKOUT_CONTAINER_ANCHOR_SESSION_MISMATCH",
-      severity: "BLOCKER",
-      message: "Checkout container anchor session is out of scope.",
-    });
+    issues.push({ code: "CHECKOUT_CONTAINER_ANCHOR_SESSION_MISMATCH", severity: "BLOCKER", message: "Checkout container anchor session is out of scope." });
   }
-
   if (input.requestedScope.deviceId !== input.entryScope.deviceId) {
-    issues.push({
-      code: "CHECKOUT_CONTAINER_ANCHOR_DEVICE_MISMATCH",
-      severity: "BLOCKER",
-      message: "Checkout container anchor device is out of scope.",
-    });
+    issues.push({ code: "CHECKOUT_CONTAINER_ANCHOR_DEVICE_MISMATCH", severity: "BLOCKER", message: "Checkout container anchor device is out of scope." });
   }
-
   if (input.requestedScope.branchId !== input.entryScope.branchId) {
-    issues.push({
-      code: "CHECKOUT_CONTAINER_ANCHOR_BRANCH_MISMATCH",
-      severity: "BLOCKER",
-      message: "Checkout container anchor branch is out of scope.",
-    });
+    issues.push({ code: "CHECKOUT_CONTAINER_ANCHOR_BRANCH_MISMATCH", severity: "BLOCKER", message: "Checkout container anchor branch is out of scope." });
   }
-
   if (input.requestedScope.houseId !== input.entryScope.houseId) {
-    issues.push({
-      code: "CHECKOUT_CONTAINER_ANCHOR_HOUSE_MISMATCH",
-      severity: "BLOCKER",
-      message: "Checkout container anchor house is out of scope.",
-    });
+    issues.push({ code: "CHECKOUT_CONTAINER_ANCHOR_HOUSE_MISMATCH", severity: "BLOCKER", message: "Checkout container anchor house is out of scope." });
   }
 
   return issues;
@@ -104,20 +87,12 @@ function createContainerFoundationResult(input: {
 }): OrderCheckoutContainerFoundationResult {
   const anchorIssues = createAnchorBlockers(input);
   const entryBlocked = input.checkoutEntry.checkoutEntryStatus === "BLOCKED";
-
   const blockingIssues = [
     ...(entryBlocked
-      ? [
-          {
-            code: "CHECKOUT_CONTAINER_FOUNDATION_BLOCKED" as const,
-            severity: "BLOCKER" as const,
-            message: "Checkout container foundation is blocked by checkout entry decision.",
-          },
-        ]
+      ? [{ code: "CHECKOUT_CONTAINER_FOUNDATION_BLOCKED" as const, severity: "BLOCKER" as const, message: "Checkout container foundation is blocked by checkout entry decision." }]
       : []),
     ...anchorIssues,
   ];
-
   const canDefineCheckoutContainer = !entryBlocked && blockingIssues.length === 0;
 
   return {
@@ -134,16 +109,19 @@ function createContainerFoundationResult(input: {
   };
 }
 
-
 export function createOrderCheckoutContainerFoundationRepository(
   checkoutEntryRepository: Parameters<typeof getCurrentSessionOrderCheckoutEntry>[1],
 ): OrderCheckoutContainerFoundationRepository {
   return {
-    getCheckoutEntry(input) {
-      return getCurrentSessionOrderCheckoutEntry(input, checkoutEntryRepository);
+    async getCheckoutEntrySnapshot(input) {
+      return {
+        checkoutEntry: await getCurrentSessionOrderCheckoutEntry(input, checkoutEntryRepository),
+        entryScope: { ...input },
+      };
     },
   };
 }
+
 export const __internal = {
   createContainerFoundationResult,
 };
@@ -153,11 +131,11 @@ export async function getCurrentSessionOrderCheckoutContainerFoundation(
   repository?: OrderCheckoutContainerFoundationRepository | null,
 ): Promise<OrderCheckoutContainerFoundationResult> {
   const resolvedRepository = resolveRepository(repository);
-  const checkoutEntry = await resolvedRepository.getCheckoutEntry(input);
+  const snapshot = await resolvedRepository.getCheckoutEntrySnapshot(input);
 
   return createContainerFoundationResult({
     requestedScope: input,
-    entryScope: input,
-    checkoutEntry,
+    entryScope: snapshot.entryScope,
+    checkoutEntry: snapshot.checkoutEntry,
   });
 }

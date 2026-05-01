@@ -2,9 +2,17 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { OrderCheckoutEntryResult } from "./order-checkout-entry";
-import { __internal, getCurrentSessionOrderCheckoutContainerFoundation } from "./order-checkout-container-foundation";
+import { getCurrentSessionOrderCheckoutContainerFoundation } from "./order-checkout-container-foundation";
 
-const SCOPE = {
+type FoundationScope = {
+  houseId: string;
+  branchId: string;
+  sessionId: string;
+  deviceId: string;
+  orderId: string;
+};
+
+const SCOPE: FoundationScope = {
   houseId: "house-1",
   branchId: "branch-1",
   sessionId: "session-1",
@@ -28,16 +36,19 @@ function makeEntryResult(overrides: Partial<OrderCheckoutEntryResult> = {}): Ord
   };
 }
 
-function createRepository(checkoutEntry: OrderCheckoutEntryResult) {
+function createRepository(input?: { checkoutEntry?: OrderCheckoutEntryResult; entryScope?: FoundationScope }) {
+  const checkoutEntry = input?.checkoutEntry ?? makeEntryResult();
+  const entryScope = input?.entryScope ?? SCOPE;
+
   return {
-    async getCheckoutEntry() {
-      return checkoutEntry;
+    async getCheckoutEntrySnapshot() {
+      return { checkoutEntry, entryScope: { ...entryScope } };
     },
   };
 }
 
 test("FOUNDATIONAL when Slice 6 is ENTERABLE and scope is coherent", async () => {
-  const result = await getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, createRepository(makeEntryResult()));
+  const result = await getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, createRepository());
 
   assert.deepEqual(result, {
     containerFoundationStatus: "FOUNDATIONAL",
@@ -50,13 +61,13 @@ test("FOUNDATIONAL when Slice 6 is ENTERABLE and scope is coherent", async () =>
 test("BLOCKED when Slice 6 is BLOCKED", async () => {
   const result = await getCurrentSessionOrderCheckoutContainerFoundation(
     SCOPE,
-    createRepository(
-      makeEntryResult({
+    createRepository({
+      checkoutEntry: makeEntryResult({
         checkoutEntryStatus: "BLOCKED",
         canEnterCheckoutBoundary: false,
         blockingIssues: [{ code: "EMPTY_ORDER", severity: "BLOCKER", message: "x" }],
       }),
-    ),
+    }),
   );
 
   assert.equal(result.containerFoundationStatus, "BLOCKED");
@@ -70,87 +81,74 @@ test("BLOCKED when Slice 6 is BLOCKED", async () => {
   ]);
 });
 
-test("BLOCKED on order mismatch", () => {
-  const result = __internal.createContainerFoundationResult({
-    requestedScope: SCOPE,
-    entryScope: { ...SCOPE, orderId: "order-2" },
-    checkoutEntry: makeEntryResult(),
-  });
-
+test("BLOCKED on order mismatch via exported foundation path", async () => {
+  const result = await getCurrentSessionOrderCheckoutContainerFoundation(
+    SCOPE,
+    createRepository({ entryScope: { ...SCOPE, orderId: "order-2" } }),
+  );
   assert.equal(result.containerFoundationStatus, "BLOCKED");
   assert.equal(result.blockingIssues[0]?.code, "CHECKOUT_CONTAINER_ANCHOR_ORDER_MISMATCH");
 });
 
-test("BLOCKED on session mismatch", () => {
-  const result = __internal.createContainerFoundationResult({
-    requestedScope: SCOPE,
-    entryScope: { ...SCOPE, sessionId: "session-2" },
-    checkoutEntry: makeEntryResult(),
-  });
-
+test("BLOCKED on session mismatch via exported foundation path", async () => {
+  const result = await getCurrentSessionOrderCheckoutContainerFoundation(
+    SCOPE,
+    createRepository({ entryScope: { ...SCOPE, sessionId: "session-2" } }),
+  );
   assert.equal(result.containerFoundationStatus, "BLOCKED");
   assert.equal(result.blockingIssues[0]?.code, "CHECKOUT_CONTAINER_ANCHOR_SESSION_MISMATCH");
 });
 
-test("BLOCKED on device mismatch", () => {
-  const result = __internal.createContainerFoundationResult({
-    requestedScope: SCOPE,
-    entryScope: { ...SCOPE, deviceId: "device-2" },
-    checkoutEntry: makeEntryResult(),
-  });
-
+test("BLOCKED on device mismatch via exported foundation path", async () => {
+  const result = await getCurrentSessionOrderCheckoutContainerFoundation(
+    SCOPE,
+    createRepository({ entryScope: { ...SCOPE, deviceId: "device-2" } }),
+  );
   assert.equal(result.containerFoundationStatus, "BLOCKED");
   assert.equal(result.blockingIssues[0]?.code, "CHECKOUT_CONTAINER_ANCHOR_DEVICE_MISMATCH");
 });
 
-test("BLOCKED on branch and house mismatch", () => {
-  const result = __internal.createContainerFoundationResult({
-    requestedScope: SCOPE,
-    entryScope: { ...SCOPE, branchId: "branch-2", houseId: "house-2" },
-    checkoutEntry: makeEntryResult(),
-  });
-
+test("BLOCKED on branch mismatch via exported foundation path", async () => {
+  const result = await getCurrentSessionOrderCheckoutContainerFoundation(
+    SCOPE,
+    createRepository({ entryScope: { ...SCOPE, branchId: "branch-2" } }),
+  );
   assert.equal(result.containerFoundationStatus, "BLOCKED");
-  assert.deepEqual(result.blockingIssues.map((issue) => issue.code), [
-    "CHECKOUT_CONTAINER_ANCHOR_BRANCH_MISMATCH",
-    "CHECKOUT_CONTAINER_ANCHOR_HOUSE_MISMATCH",
-  ]);
+  assert.equal(result.blockingIssues[0]?.code, "CHECKOUT_CONTAINER_ANCHOR_BRANCH_MISMATCH");
+});
+
+test("BLOCKED on house mismatch via exported foundation path", async () => {
+  const result = await getCurrentSessionOrderCheckoutContainerFoundation(
+    SCOPE,
+    createRepository({ entryScope: { ...SCOPE, houseId: "house-2" } }),
+  );
+  assert.equal(result.containerFoundationStatus, "BLOCKED");
+  assert.equal(result.blockingIssues[0]?.code, "CHECKOUT_CONTAINER_ANCHOR_HOUSE_MISMATCH");
 });
 
 test("deterministic repeated output", async () => {
-  const repository = createRepository(makeEntryResult());
-
+  const repository = createRepository();
   const first = await getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, repository);
   const second = await getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, repository);
-
   assert.deepEqual(first, second);
 });
 
-test("safe blocker output does not leak repository details", () => {
-  const result = __internal.createContainerFoundationResult({
-    requestedScope: SCOPE,
-    entryScope: { ...SCOPE, orderId: "order-other" },
-    checkoutEntry: makeEntryResult(),
-  });
+test("safe blocker output does not leak repository details", async () => {
+  const result = await getCurrentSessionOrderCheckoutContainerFoundation(
+    SCOPE,
+    createRepository({ entryScope: { ...SCOPE, orderId: "order-other" } }),
+  );
 
   assert.deepEqual(Object.keys(result.blockingIssues[0] ?? {}).sort(), ["code", "message", "severity"]);
   assert.equal(result.blockingIssues[0]?.message.includes("repository"), false);
 });
 
-test("no mutation leakage in blocker output", () => {
-  const first = __internal.createContainerFoundationResult({
-    requestedScope: SCOPE,
-    entryScope: { ...SCOPE, sessionId: "session-other" },
-    checkoutEntry: makeEntryResult(),
-  });
+test("no mutation leakage in blocker output", async () => {
+  const repository = createRepository({ entryScope: { ...SCOPE, sessionId: "session-other" } });
 
+  const first = await getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, repository);
   first.blockingIssues[0]!.message = "mutated";
 
-  const second = __internal.createContainerFoundationResult({
-    requestedScope: SCOPE,
-    entryScope: { ...SCOPE, sessionId: "session-other" },
-    checkoutEntry: makeEntryResult(),
-  });
-
+  const second = await getCurrentSessionOrderCheckoutContainerFoundation(SCOPE, repository);
   assert.equal(second.blockingIssues[0]?.message, "Checkout container anchor session is out of scope.");
 });
