@@ -33,21 +33,21 @@ WITHOUT:
 
 ---
 
-## Lifecycle Vocabulary (Canonical)
+## Lifecycle State Interpretation (Aligned to Canonical Slice 7 Vocabulary)
 
 A checkout container may exist in the following states:
 
-- `NON_EXISTENT`
-- `DEFINED` (foundation valid, not active)
+- `NOT_ENTERED`
+- `ENTERABLE` (derived condition when Slice 7A is `FOUNDATIONAL`, not a persisted state)
 - `ACTIVE`
 - `INVALIDATED`
-- `EXPIRED` (future consideration, not required in MVP)
 
 ### Definitions
 
-- **DEFINED**
-  - Slice 7A = `FOUNDATIONAL`
-  - Container may be constructed but not yet active
+- **ENTERABLE**
+  - Derived condition: Slice 7A = `FOUNDATIONAL`
+  - Indicates the container may be activated but is not yet `ACTIVE`
+  - Not a persisted lifecycle state
 
 - **ACTIVE**
   - Container is currently usable for checkout progression
@@ -63,10 +63,16 @@ A checkout container may exist in the following states:
 
 A container may transition:
 
-### `DEFINED` → `ACTIVE`
+### `NOT_ENTERED` → `ENTERABLE`
 Only if:
 - Slice 7A returns `FOUNDATIONAL`
 - No invalidation conditions are present
+
+### `ENTERABLE` → `ACTIVE`
+Only if:
+- Slice 7A remains `FOUNDATIONAL`
+- No invalidation conditions are present
+- Activation is explicitly attempted (no silent transition)
 
 ### `ACTIVE` → `INVALIDATED`
 Triggered by:
@@ -100,9 +106,9 @@ Slice 7B does NOT:
 
 Events are defined but NOT implemented:
 
-- `CONTAINER_DEFINED`
+- `ENTRY_GRANTED`
 - `CONTAINER_ACTIVATED`
-- `CONTAINER_INVALIDATED`
+- `INVALIDATION_DETECTED`
 
 Rules:
 - events are descriptive, not authoritative
@@ -186,3 +192,5 @@ Slice 7B does NOT:
 ## Outcome
 
 Slice 7B defines the lifecycle model for checkout containers, strictly building on Slice 7A's frozen contract without expanding into execution, persistence, or event-driven behavior.
+
+Vocabulary aligned with canonical Slice 7 state and event definitions to prevent governance drift.
