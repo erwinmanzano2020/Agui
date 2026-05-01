@@ -8,6 +8,7 @@ import { createInMemoryPosOrderDraftRepository } from "./order-draft";
 import type { OrderLine } from "./order-line";
 import { createInMemoryPosOrderLineRepository } from "./order-line";
 import {
+  PosOrderCheckoutContainerFoundationError,
   createOrderCheckoutContainerFoundationRepository,
   getCurrentSessionOrderCheckoutContainerFoundation,
 } from "./order-checkout-container-foundation";
@@ -133,6 +134,17 @@ function createCheckoutEntryRepository(input?: { sessions?: PosSessionRow[]; dra
     },
   };
 }
+
+
+test("missing repository throws structured Slice 7A foundation error", async () => {
+  await assert.rejects(
+    () => getCurrentSessionOrderCheckoutContainerFoundation(SCOPE),
+    (error: unknown) =>
+      error instanceof PosOrderCheckoutContainerFoundationError &&
+      error.code === "ORDER_CHECKOUT_CONTAINER_FOUNDATION_REPOSITORY_REQUIRED" &&
+      error.status === 500,
+  );
+});
 
 test("default repository happy path remains FOUNDATIONAL when Slice 6 is ENTERABLE", async () => {
   const repository = createOrderCheckoutContainerFoundationRepository(createCheckoutEntryRepository());

@@ -45,11 +45,28 @@ export type OrderCheckoutContainerFoundationResult = {
   }>;
 };
 
+
+export class PosOrderCheckoutContainerFoundationError extends Error {
+  code: string;
+  status: number;
+
+  constructor(message: string, code = "ORDER_CHECKOUT_CONTAINER_FOUNDATION_ERROR", status = 400) {
+    super(message);
+    this.name = "PosOrderCheckoutContainerFoundationError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
 function resolveRepository(
   repository: OrderCheckoutContainerFoundationRepository | null | undefined,
 ): OrderCheckoutContainerFoundationRepository {
   if (!repository) {
-    throw new Error("Order checkout container foundation repository is required");
+    throw new PosOrderCheckoutContainerFoundationError(
+      "Order checkout container foundation repository is required",
+      "ORDER_CHECKOUT_CONTAINER_FOUNDATION_REPOSITORY_REQUIRED",
+      500,
+    );
   }
 
   return repository;
