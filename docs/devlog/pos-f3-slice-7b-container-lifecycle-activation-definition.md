@@ -35,6 +35,8 @@ Boundary clarification:
 - Slice 7B must consume Slice 7A status only (`FOUNDATIONAL` | `BLOCKED`).
 - Slice 7B must not directly reinterpret Slice 6 output.
 - Slice 6 remains upstream authority only through the locked Slice 7A contract.
+- Slice 7B must not directly observe or react to Slice 6 state changes.
+- All upstream validity changes must be consumed through the Slice 7A contract boundary.
 
 ---
 
@@ -120,7 +122,7 @@ Triggered by:
 Invalidation may be triggered by:
 
 - scope mismatch
-- Slice 6 status change
+- Slice 7A foundation status change from `FOUNDATIONAL` to `BLOCKED`
 - upstream domain change (order/session/device)
 
 Slice 7B does NOT:
