@@ -2,7 +2,7 @@
 
 ## 1) Purpose
 
-Translate the approved Slice 7B lifecycle definition into an delivery-ready planning artifact for runtime evaluation behavior.
+Translate the approved Slice 7B lifecycle definition into an approval-ready planning artifact for lifecycle evaluation behavior.
 
 This planning document defines how lifecycle evaluation is computed from explicit inputs, with read-only and stateless behavior.
 
@@ -65,7 +65,7 @@ Boundary statement:
 
 ## 5) Lifecycle Evaluation Model
 
-Planned runtime lifecycle states in scope:
+Planned lifecycle evaluation states in scope:
 
 - `NOT_ENTERED`
 - `ENTERABLE` (derived only)
