@@ -122,12 +122,19 @@ Slice 7B does NOT:
 Events are defined but NOT implemented:
 
 - `ENTRY_GRANTED`
+- `ENTRY_REVOKED`
 - `CONTAINER_ACTIVATED`
+- `CANCEL_REQUESTED`
 - `INVALIDATION_DETECTED`
+- `COMPLETION_REACHED`
 
 Rules:
+- all events listed above are canonical vocabulary only
 - events are descriptive, not authoritative
 - events must never override validation rules
+- Slice 7B does not implement events
+- `ENTRY_REVOKED`, `CANCEL_REQUESTED`, and `COMPLETION_REACHED` are included for vocabulary completeness and consistency with canonical state-event rules
+- Runtime handling for cancel/completion remains future-slice scope and requires separate approval
 
 ---
 
