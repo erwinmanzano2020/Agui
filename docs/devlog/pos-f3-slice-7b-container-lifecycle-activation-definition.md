@@ -31,6 +31,11 @@ WITHOUT:
 
 > Slice 7B MUST NOT re-evaluate or reinterpret Slice 7A.
 
+Boundary clarification:
+- Slice 7B must consume Slice 7A status only (`FOUNDATIONAL` | `BLOCKED`).
+- Slice 7B must not directly reinterpret Slice 6 output.
+- Slice 6 remains upstream authority only through the locked Slice 7A contract.
+
 ---
 
 ## Lifecycle State Interpretation (Aligned to Canonical Slice 7 Vocabulary)
@@ -89,8 +94,16 @@ Only if:
 ### `ACTIVE` → `INVALIDATED`
 Triggered by:
 - scope drift (order/session/device/branch/house mismatch)
-- upstream Slice 6 changes to `BLOCKED`
+- Slice 7A foundation status changes from `FOUNDATIONAL` to `BLOCKED`
 - order mutation that breaks checkout readiness (future linkage)
+
+### `ACTIVE` → `CANCELED`
+- Canonical terminal path.
+- Runtime cancel handling is future-slice scope and not implemented/authorized by this definition.
+
+### `ACTIVE` → `COMPLETED`
+- Canonical terminal path.
+- Runtime completion/finalization handling is future-slice scope and not implemented/authorized by this definition.
 
 ### `INVALIDATED` (Terminal State)
 - `INVALIDATED` is terminal.
