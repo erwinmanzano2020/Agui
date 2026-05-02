@@ -40,7 +40,9 @@ A checkout container may exist in the following states:
 - `NOT_ENTERED`
 - `ENTERABLE` (derived condition when Slice 7A is `FOUNDATIONAL`, not a persisted state)
 - `ACTIVE`
+- `CANCELED`
 - `INVALIDATED`
+- `COMPLETED`
 
 ### Definitions
 
@@ -56,6 +58,16 @@ A checkout container may exist in the following states:
 - **INVALIDATED**
   - Container was valid but is no longer valid due to state drift
   - Must not be used for checkout progression
+
+- **CANCELED**
+  - Part of canonical Slice 7 vocabulary
+  - Terminal state
+  - Runtime behavior is future-slice scope and not authorized by this Slice 7B definition
+
+- **COMPLETED**
+  - Part of canonical Slice 7 vocabulary
+  - Terminal state
+  - Runtime behavior is future-slice scope and not authorized by this Slice 7B definition
 
 ---
 
@@ -80,10 +92,13 @@ Triggered by:
 - upstream Slice 6 changes to `BLOCKED`
 - order mutation that breaks checkout readiness (future linkage)
 
-### `INVALIDATED` → `ACTIVE`
-Not automatic.
-Requires:
-- full re-validation via Slice 7A + lifecycle checks
+### `INVALIDATED` (Terminal State)
+- `INVALIDATED` is terminal.
+- A container in `INVALIDATED` state MUST NOT transition back to `ACTIVE`.
+- No reopen, resume, recovery, or reactivation semantics are authorized.
+- To proceed after invalidation, a new container evaluation must begin from `NOT_ENTERED` through Slice 7A.
+- Prior invalidated container state must not be reused.
+
 
 ---
 
