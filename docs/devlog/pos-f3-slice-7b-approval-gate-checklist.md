@@ -8,63 +8,57 @@ This checklist determines whether Slice 7B may move from planned to implementati
 - Implementation remains blocked until this checklist is explicitly passed.
 
 ## 3. Contract Readiness
-Verify:
-- planned output shape is stable:
+- [ ] planned output shape is stable:
   - `containerLifecycleState`
   - `canActivateContainer`
   - `invalidationReasons[]`
-- output is deterministic
-- output is read-only
-- no side effects
+- [ ] output is deterministic
+- [ ] output is read-only
+- [ ] no side effects
 
 ## 4. Input Readiness
-Verify:
-- full scope input is defined:
+- [ ] full scope input is defined:
   - `houseId`
   - `branchId`
   - `sessionId`
   - `deviceId`
   - `orderId`
-- Slice 7A result is required input
-- no implicit/global state is allowed
+- [ ] Slice 7A result is required input
+- [ ] no implicit/global state is allowed
 
 ## 5. Repository Boundary Readiness
-Verify:
-- repository is read-model provider only
-- repository does not manage lifecycle state
-- no writes
-- no persistence assumptions
-- no hidden caching assumptions
+- [ ] repository is read-model provider only
+- [ ] repository does not manage lifecycle state
+- [ ] no writes
+- [ ] no persistence assumptions
+- [ ] no hidden caching assumptions
 
 ## 6. Lifecycle Rule Readiness
-Verify:
-- ENTERABLE is derived only
-- ACTIVE requires Slice 7A FOUNDATIONAL
-- INVALIDATED is terminal
-- no silent transitions
-- no automatic activation
+- [ ] ENTERABLE is derived only
+- [ ] ENTERABLE requires Slice 7A = FOUNDATIONAL
+- [ ] ACTIVE requires Slice 7A FOUNDATIONAL
+- [ ] INVALIDATED is terminal
+- [ ] no silent transitions
+- [ ] no automatic activation
 
 ## 7. Invalidation Readiness
-Verify:
-- invalidation reasons are bounded and non-sensitive
-- scope drift is covered
-- Slice 7A BLOCKED transition is covered
-- no direct Slice 6 dependency exists
+- [ ] invalidation reasons are bounded and non-sensitive
+- [ ] scope drift is covered
+- [ ] Slice 7A BLOCKED transition is covered
+- [ ] no direct Slice 6 dependency exists
 
 ## 8. Error Handling Readiness
-Verify:
-- operational errors are thrown
-- lifecycle invalidation maps to INVALIDATED
-- sensitive details are not leaked
+- [ ] operational errors are thrown
+- [ ] lifecycle invalidation maps to INVALIDATED
+- [ ] sensitive details are not leaked
 
 ## 9. Boundary Readiness
-Verify:
-- no execution behavior
-- no payment behavior
-- no inventory behavior
-- no receipt behavior
-- no finalization behavior
-- no UI/API expansion
+- [ ] no execution behavior
+- [ ] no payment behavior
+- [ ] no inventory behavior
+- [ ] no receipt behavior
+- [ ] no finalization behavior
+- [ ] no UI/API expansion
 
 ## 10. Test Planning Readiness
 Required future implementation test cases:
