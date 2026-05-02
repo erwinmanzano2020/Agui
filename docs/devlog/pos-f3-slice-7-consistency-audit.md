@@ -71,8 +71,9 @@ PASS — canonical event set is consistently used.
 PASS — mappings are coherent with no orphan events or unreachable canonical transitions.
 
 ### Cross-checked Relationships
-- `ENTERABLE` ↔ `ENTRY_GRANTED` / `ENTRY_REVOKED`
-- `ACTIVE` ↔ `CONTAINER_ACTIVATED`
+- `NOT_ENTERED` → `ENTERABLE` ↔ `ENTRY_GRANTED`
+- `ENTERABLE` → `NOT_ENTERED` ↔ `ENTRY_REVOKED`
+- `ENTERABLE` → `ACTIVE` ↔ `CONTAINER_ACTIVATED`
 - `ACTIVE` → `CANCELED` ↔ `CANCEL_REQUESTED`
 - `ACTIVE` → `INVALIDATED` ↔ `INVALIDATION_DETECTED`
 - `ACTIVE` → `COMPLETED` ↔ `COMPLETION_REACHED`
