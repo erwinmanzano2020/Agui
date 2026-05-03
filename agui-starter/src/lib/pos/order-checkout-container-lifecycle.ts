@@ -146,10 +146,12 @@ function createLifecycleResult(input: {
     };
   }
 
+  const isFoundational = input.foundation.containerFoundationStatus === "FOUNDATIONAL";
+
   if (!contextState) {
     return {
-      containerLifecycleState: "NOT_ENTERED",
-      canActivateContainer: false,
+      containerLifecycleState: isFoundational ? "ENTERABLE" : "NOT_ENTERED",
+      canActivateContainer: isFoundational,
       invalidationReasons: [],
       lifecycleSummary: {
         ...input.requestedScope,
@@ -158,12 +160,18 @@ function createLifecycleResult(input: {
     };
   }
 
-  const isExplicitlyEnterable = input.foundation.containerFoundationStatus === "FOUNDATIONAL" && contextState === "ENTERABLE";
-  const isExplicitlyActive = input.foundation.containerFoundationStatus === "FOUNDATIONAL" && contextState === "ACTIVE";
+  const isExplicitlyEnterable = isFoundational && contextState === "ENTERABLE";
+  const isExplicitlyActive = isFoundational && contextState === "ACTIVE";
 
   return {
-    containerLifecycleState: isExplicitlyActive ? "ACTIVE" : isExplicitlyEnterable ? "ENTERABLE" : "NOT_ENTERED",
-    canActivateContainer: isExplicitlyEnterable,
+    containerLifecycleState: isExplicitlyActive
+      ? "ACTIVE"
+      : isExplicitlyEnterable
+        ? "ENTERABLE"
+        : isFoundational
+          ? "ENTERABLE"
+          : "NOT_ENTERED",
+    canActivateContainer: isExplicitlyEnterable || (!contextState && isFoundational),
     invalidationReasons,
     lifecycleSummary: {
       ...input.requestedScope,

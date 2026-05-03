@@ -87,11 +87,11 @@ test("missing repository throws structured Slice 7B lifecycle error", async () =
   );
 });
 
-test("FOUNDATIONAL + null lifecycle context => NOT_ENTERED and non-activatable", async () => {
+test("FOUNDATIONAL + null lifecycle context => ENTERABLE and activatable", async () => {
   const result = await getCurrentSessionOrderCheckoutContainerLifecycle(SCOPE, createRepository());
 
-  assert.equal(result.containerLifecycleState, "NOT_ENTERED");
-  assert.equal(result.canActivateContainer, false);
+  assert.equal(result.containerLifecycleState, "ENTERABLE");
+  assert.equal(result.canActivateContainer, true);
   assert.deepEqual(result.invalidationReasons, []);
   assert.equal(result.lifecycleSummary.foundationStatus, "FOUNDATIONAL");
 });
