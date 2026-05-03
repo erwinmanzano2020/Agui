@@ -58,7 +58,7 @@ async function resolveLifecycleSourcePath() {
 function createRepository(input?: {
   foundation?: OrderCheckoutContainerFoundationResult;
   foundationScope?: Scope;
-  lifecycleState?: "ACTIVE" | "INVALIDATED" | null;
+  lifecycleState?: "ENTERABLE" | "ACTIVE" | "INVALIDATED" | null;
 }) {
   const foundation = input?.foundation ?? makeFoundation();
   const foundationScope = input?.foundationScope ?? SCOPE;
@@ -87,13 +87,25 @@ test("missing repository throws structured Slice 7B lifecycle error", async () =
   );
 });
 
-test("FOUNDATIONAL + clean snapshot => ENTERABLE and activatable", async () => {
+test("FOUNDATIONAL + null lifecycle context => NOT_ENTERED and non-activatable", async () => {
   const result = await getCurrentSessionOrderCheckoutContainerLifecycle(SCOPE, createRepository());
+
+  assert.equal(result.containerLifecycleState, "NOT_ENTERED");
+  assert.equal(result.canActivateContainer, false);
+  assert.deepEqual(result.invalidationReasons, []);
+  assert.equal(result.lifecycleSummary.foundationStatus, "FOUNDATIONAL");
+});
+
+
+test("lifecycleContext ENTERABLE + FOUNDATIONAL clean scope => ENTERABLE and activatable", async () => {
+  const result = await getCurrentSessionOrderCheckoutContainerLifecycle(
+    SCOPE,
+    createRepository({ lifecycleState: "ENTERABLE" }),
+  );
 
   assert.equal(result.containerLifecycleState, "ENTERABLE");
   assert.equal(result.canActivateContainer, true);
   assert.deepEqual(result.invalidationReasons, []);
-  assert.equal(result.lifecycleSummary.foundationStatus, "FOUNDATIONAL");
 });
 
 test("Slice 7A BLOCKED => INVALIDATED and non-activatable", async () => {

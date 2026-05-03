@@ -15,7 +15,7 @@ type CheckoutContainerLifecycleScopeInput = {
 };
 
 type CheckoutContainerLifecycleContextSnapshot = {
-  containerLifecycleState: "ACTIVE" | "INVALIDATED";
+  containerLifecycleState: "ENTERABLE" | "ACTIVE" | "INVALIDATED";
 };
 
 type CheckoutContainerLifecycleSnapshot = {
@@ -133,11 +133,37 @@ function createLifecycleResult(input: {
   }
 
   const hasInvalidation = invalidationReasons.length > 0;
-  const isExplicitlyActive = !hasInvalidation && input.foundation.containerFoundationStatus === "FOUNDATIONAL" && contextState === "ACTIVE";
+
+  if (hasInvalidation) {
+    return {
+      containerLifecycleState: "INVALIDATED",
+      canActivateContainer: false,
+      invalidationReasons,
+      lifecycleSummary: {
+        ...input.requestedScope,
+        foundationStatus: input.foundation.containerFoundationStatus,
+      },
+    };
+  }
+
+  if (!contextState) {
+    return {
+      containerLifecycleState: "NOT_ENTERED",
+      canActivateContainer: false,
+      invalidationReasons: [],
+      lifecycleSummary: {
+        ...input.requestedScope,
+        foundationStatus: input.foundation.containerFoundationStatus,
+      },
+    };
+  }
+
+  const isExplicitlyEnterable = input.foundation.containerFoundationStatus === "FOUNDATIONAL" && contextState === "ENTERABLE";
+  const isExplicitlyActive = input.foundation.containerFoundationStatus === "FOUNDATIONAL" && contextState === "ACTIVE";
 
   return {
-    containerLifecycleState: hasInvalidation ? "INVALIDATED" : isExplicitlyActive ? "ACTIVE" : "ENTERABLE",
-    canActivateContainer: !hasInvalidation && !isExplicitlyActive,
+    containerLifecycleState: isExplicitlyActive ? "ACTIVE" : isExplicitlyEnterable ? "ENTERABLE" : "NOT_ENTERED",
+    canActivateContainer: isExplicitlyEnterable,
     invalidationReasons,
     lifecycleSummary: {
       ...input.requestedScope,
