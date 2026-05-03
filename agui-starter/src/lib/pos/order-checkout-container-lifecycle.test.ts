@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import path from "node:path";
 
 import {
@@ -33,6 +33,26 @@ function makeFoundation(overrides: Partial<OrderCheckoutContainerFoundationResul
     blockingIssues: [],
     ...overrides,
   };
+}
+
+
+async function resolveLifecycleSourcePath() {
+  const candidates = [
+    path.join(process.cwd(), "src/lib/pos/order-checkout-container-lifecycle.ts"),
+    path.join(process.cwd(), "agui-starter/src/lib/pos/order-checkout-container-lifecycle.ts"),
+    path.resolve(process.cwd(), "../src/lib/pos/order-checkout-container-lifecycle.ts"),
+    path.resolve(process.cwd(), "../../src/lib/pos/order-checkout-container-lifecycle.ts"),
+    path.resolve(process.cwd(), "../agui-starter/src/lib/pos/order-checkout-container-lifecycle.ts"),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {}
+  }
+
+  throw new Error("Unable to locate order-checkout-container-lifecycle.ts from cwd.");
 }
 
 function createRepository(input?: {
@@ -174,14 +194,14 @@ test("operational error rethrows", async () => {
 });
 
 test("no direct Slice 6 dependency", async () => {
-  const source = await readFile(path.join(process.cwd(), "src/lib/pos/order-checkout-container-lifecycle.ts"), "utf8");
+  const source = await readFile(await resolveLifecycleSourcePath(), "utf8");
 
   assert.equal(source.includes("./order-checkout-transition"), false);
   assert.equal(source.includes("./order-checkout-entry"), false);
 });
 
 test("no payment, execution, or finalization behavior introduced", async () => {
-  const source = await readFile(path.join(process.cwd(), "src/lib/pos/order-checkout-container-lifecycle.ts"), "utf8");
+  const source = await readFile(await resolveLifecycleSourcePath(), "utf8");
 
   assert.equal(/payment|finalization|finalize|execute|receipt|inventory/i.test(source), false);
 });
