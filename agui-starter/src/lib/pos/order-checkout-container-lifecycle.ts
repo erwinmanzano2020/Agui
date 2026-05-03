@@ -40,7 +40,8 @@ export type OrderCheckoutContainerLifecycleResult = {
       | "CHECKOUT_CONTAINER_LIFECYCLE_ANCHOR_SESSION_MISMATCH"
       | "CHECKOUT_CONTAINER_LIFECYCLE_ANCHOR_DEVICE_MISMATCH"
       | "CHECKOUT_CONTAINER_LIFECYCLE_ANCHOR_BRANCH_MISMATCH"
-      | "CHECKOUT_CONTAINER_LIFECYCLE_ANCHOR_HOUSE_MISMATCH";
+      | "CHECKOUT_CONTAINER_LIFECYCLE_ANCHOR_HOUSE_MISMATCH"
+      | "CHECKOUT_CONTAINER_LIFECYCLE_CONTEXT_INVALIDATED";
     severity: "BLOCKER";
     message: string;
   }>;
@@ -120,8 +121,18 @@ function createLifecycleResult(input: {
     ...scopeInvalidations,
   ];
 
-  const hasInvalidation = invalidationReasons.length > 0;
   const contextState = input.lifecycleContext?.containerLifecycleState;
+  const contextInvalidated = contextState === "INVALIDATED";
+
+  if (contextInvalidated && invalidationReasons.length === 0) {
+    invalidationReasons.push({
+      code: "CHECKOUT_CONTAINER_LIFECYCLE_CONTEXT_INVALIDATED",
+      severity: "BLOCKER",
+      message: "Checkout container lifecycle context is invalidated.",
+    });
+  }
+
+  const hasInvalidation = invalidationReasons.length > 0;
   const isExplicitlyActive = !hasInvalidation && input.foundation.containerFoundationStatus === "FOUNDATIONAL" && contextState === "ACTIVE";
 
   return {

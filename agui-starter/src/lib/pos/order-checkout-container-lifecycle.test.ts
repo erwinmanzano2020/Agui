@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 import {
   PosOrderCheckoutContainerLifecycleError,
@@ -121,14 +122,24 @@ test("anchor mismatch => INVALIDATED with safe bounded reason", async () => {
   assert.equal(result.invalidationReasons[0]?.message.includes("session-foreign"), false);
 });
 
-test("INVALIDATED remains non-activatable", async () => {
+test("lifecycleContext INVALIDATED + FOUNDATIONAL clean scope => INVALIDATED and non-activatable", async () => {
   const result = await getCurrentSessionOrderCheckoutContainerLifecycle(
     SCOPE,
-    createRepository({ foundationScope: { ...SCOPE, branchId: "branch-foreign" } }),
+    createRepository({ lifecycleState: "INVALIDATED" }),
   );
 
   assert.equal(result.containerLifecycleState, "INVALIDATED");
   assert.equal(result.canActivateContainer, false);
+});
+
+test("invalidated context includes safe bounded reason", async () => {
+  const result = await getCurrentSessionOrderCheckoutContainerLifecycle(
+    SCOPE,
+    createRepository({ lifecycleState: "INVALIDATED" }),
+  );
+
+  assert.equal(result.invalidationReasons[0]?.code, "CHECKOUT_CONTAINER_LIFECYCLE_CONTEXT_INVALIDATED");
+  assert.equal(result.invalidationReasons[0]?.message, "Checkout container lifecycle context is invalidated.");
 });
 
 test("repeated evaluation is deterministic", async () => {
@@ -163,14 +174,14 @@ test("operational error rethrows", async () => {
 });
 
 test("no direct Slice 6 dependency", async () => {
-  const source = await readFile("src/lib/pos/order-checkout-container-lifecycle.ts", "utf8");
+  const source = await readFile(path.join(process.cwd(), "src/lib/pos/order-checkout-container-lifecycle.ts"), "utf8");
 
   assert.equal(source.includes("./order-checkout-transition"), false);
   assert.equal(source.includes("./order-checkout-entry"), false);
 });
 
 test("no payment, execution, or finalization behavior introduced", async () => {
-  const source = await readFile("src/lib/pos/order-checkout-container-lifecycle.ts", "utf8");
+  const source = await readFile(path.join(process.cwd(), "src/lib/pos/order-checkout-container-lifecycle.ts"), "utf8");
 
   assert.equal(/payment|finalization|finalize|execute|receipt|inventory/i.test(source), false);
 });
