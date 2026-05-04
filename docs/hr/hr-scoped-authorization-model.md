@@ -230,6 +230,32 @@ The following are intentionally deferred and are **not** implemented by this doc
 
 ---
 
+## 10. Route Guard Rule for Dependent HR Routes (Canonical)
+
+This section defines route-guard ordering for dependent HR routes that are part of an already-authorized HR workflow.
+
+Canonical rule:
+- Feature gates are entry capability checks, not final HR authority.
+- Final allow/deny authority must come from house/branch-scoped HR access resolution (`resolveHrAccess`, `requireHrAccess`, `requireHrAccessWithBranch`).
+
+Required order for dependent routes:
+1. authenticated session
+2. linked entity/context construction
+3. final HR authority resolution at house or house+branch scope
+
+Dependency-route protection rule:
+- A dependent route required to complete a valid HR flow must not fail before HR authority evaluation due to unrelated feature entitlement drift.
+
+Known examples:
+- Add Employee identity lookup (`POST /api/hr/employees/lookup`)
+- Employee ID-card PDF generation (`GET /api/hr/employees/[employeeId]/id-card.pdf`)
+
+Boundary:
+- Feature-entitlement-first deny is still valid for true feature-module surfaces.
+- This rule only prevents feature-gate preemption on dependency routes whose canonical authority is HR access itself.
+
+---
+
 ## Canonical Review Checklist
 
 Use this checklist when reviewing HR authorization behavior:

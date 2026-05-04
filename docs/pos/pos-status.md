@@ -5,11 +5,11 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 
 ## 2. Current Execution Snapshot
 - Module: POS
-- Current phase: POS-F2 bounded closure completed; POS-F3 Slice 1 through Slice 5 are closed and locked as bounded pre-checkout pricing/review/validation/transition-intent layers; POS-F3 Slice 6 is now active as a tightly bounded checkout execution-entry decision slice only.
+- Current phase: POS-F2 bounded closure completed; POS-F3 Slice 1 through Slice 5 are closed and locked as bounded pre-checkout pricing/review/validation/transition-intent layers; POS-F3 Slice 6 is closed and locked as a tightly bounded checkout execution-entry decision contract layer only.
 - Phase control note: HR stability checkpoint completed; POS is now the active development phase under roadmap sequencing.
 - Foundation wave: complete (canonical POS foundation set present and aligned)
 - Implementation posture: POS-F1 stable baseline remains intact and POS-F2 bounded draft-order + line-mutation foundations are now recorded as complete within strict scope-first/no-leak constraints
-- Current work mode: POS-F3 Slice 1 through Slice 5 remain closed and locked as bounded records; Slice 6 is in progress as checkout execution boundary entry decisioning only (read-only, exact scope, no side effects beyond entry decision output). Next gated step after Slice 6 is POS-F3 Slice 7 — Checkout Session Boundary (Planning Only, Not Started).
+- Current work mode: POS-F3 Slice 1 through Slice 5 remain closed and locked as bounded records; Slice 6 is closed (locked) as checkout execution boundary entry decisioning only (read-only, exact scope, no side effects beyond entry decision output). Next gated step after Slice 6 is POS-F3 Slice 7 — Checkout Session Boundary (Planning Only, Not Started). Slice 7 state-event consistency rules are now documented as governance-only vocabulary constraints (no implementation authorization). Slice 7 checkout container boundary model is now additionally documented as conceptual boundary governance (order-owned, session/device/operator anchored, invalidation-defined; planning-only).
 - First-slice stability checkpoint: completed on 2026-04-01 (UTC), with no blocker-class gaps identified
 - MVP posture: POS is still not MVP-complete
 
@@ -19,7 +19,7 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 | Foundation | Canonical POS foundation set is complete (master/status/domain/access/identity/db/phase-1/guardrails). |
 | Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. POS-F2 bounded continuity is now complete for current-session draft-order create/reopen + current-session line add/read/update/remove + bounded persistence + thin action boundary integration + stale refresh hardening posture. |
 | Completed (Bounded) | F3 Slice 1 — Pricing & Totals (current-session draft only): deterministic subtotal/tax/total computation from current scoped order lines, thin action exposure, and read-only UI summary panel with no financial side effects. F3 Slice 2 — Pricing Extension: completed as bounded pricing-input work (explicit input layer + bounded per-line override + line-level pricing source trace), with no checkout/payment/inventory coupling. F3 Slice 3 — Order Review: completed as bounded read-only current-session orchestration (scoped draft identity + active lines + server pricing summary + pricing source trace) with no checkout/finalization/payment/inventory/persistence side effects. F3 Slice 4 — Review Validation / Checkout Readiness: completed as bounded current-session draft-order read-only pre-checkout validation with structured blocker output, deterministic ordering, summary consistency hardening, and no checkout/payment/inventory/finalization/persistence behavior. F3 Slice 5 — Checkout Transition Intent: completed as bounded current-session read-only transition-intent posture between Slice 4 validation and a future gated checkout slice, with no checkout execution/payment/inventory/receipt/finalization/persistence/cross-session/multi-order behavior. |
-| Active (In Progress) | POS-F3 Slice 6 — Checkout Execution Boundary (bounded entry decision only) is in progress. Slice 5 closure remains locked and must not be reinterpreted as checkout capability. |
+| Closed (Locked) | POS-F3 Slice 6 — Checkout Execution Boundary (bounded entry decision only) is closed and locked. Slice 6 contract is frozen; no reinterpretation allowed; all further checkout behavior must go through future approved slices. |
 | Blocked / Dependency | POS remains blocked from payment/inventory/reporting/cross-session browsing/multi-order management/finance effects until their own approved slices; no tenancy/auth boundary redesign is authorized by F2 closure. |
 
 ## 4. Current Approved Next Tasks
@@ -27,9 +27,10 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 2. Preserve POS-F3 Slice 1 through Slice 5 closure records as locked bounded upstream layers; do not weaken Slice 4 closure boundary or Slice 5 closure boundary.
 3. Keep future POS work phase-gated and explicitly approved; reject stealth expansion into checkout/payment/inventory/reporting/finance consequences.
 4. Preserve Slice 4 and Slice 5 as read-only bounded pre-checkout layers only; do not reinterpret Slice 5 as checkout capability.
-5. Deliver POS-F3 Slice 6 as bounded checkout execution-entry decisioning only, with strict no-leak/exact-scope/read-only posture and no expansion into payment/inventory/receipt/finalization/persistence side effects.
+5. Preserve POS-F3 Slice 6 as a closed (locked) bounded checkout execution-entry decision contract only, with strict no-leak/exact-scope/read-only posture and no expansion into payment/inventory/receipt/finalization/persistence side effects.
 6. Keep POS-F3 Slice 7 explicitly gated as the next step after Slice 6: Checkout Session Boundary (Planning Only, Not Started), with no runtime/API/UI/schema authorization.
-7. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
+7. Treat Slice 7 checkout container event vocabulary, state-event consistency rules, and checkout container boundary model as governance-only boundary language (conceptual events + integrity anchors + invalidation terminology), not runtime authorization.
+8. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
 
 ## 5A. POS-F2 Completion Record (Bounded Closure)
 POS-F2 is closed as a bounded slice and is now documented as complete in this status record.
@@ -184,8 +185,16 @@ POS MVP is only considered done when, at minimum, all are true:
 - critical POS operational records follow approved ownership and auditability boundaries
 - blocker-class regressions are closed before any future module-unlock claim
 
+## Slice 7 Implementation Readiness Posture
+- Slice 7 is planning-complete (state vocabulary, invalidation semantics, event vocabulary/authority, state-event consistency, and container boundary model are documented as governance language).
+- Slice 7A is closed and locked as Checkout Container Foundation only.
+- Slice 7A contract is frozen to bounded container-foundation decisioning (FOUNDATIONAL/BLOCKED), exact-scope anchor validation, and safe blocked output only.
+- Slice 7A preserves non-goals: no lifecycle/events/activation/payment/inventory/receipt/finalization/persistence and no UI/API expansion.
+- Slice 6 remains closed and locked as checkout entry-decision authority.
+- Next gated step is Slice 7B planning/definition only (not started).
+
 ## 10. Last Updated
-2026-04-06 (UTC)
+2026-05-01 (UTC)
 
 ## 11. POS-F3 Slice 1 — Pricing & Totals (Completed, Bounded)
 ### Now supported
@@ -247,6 +256,12 @@ POS-F3 Slice 1 is closed as a bounded slice.
 - Receipt generation
 - Cross-session reads
 - Multi-order aggregation
+
+
+## 11J. POS-F3 Slice 6 — Closure Audit Note (Checkout Execution Boundary Entry Decision)
+- POS-F3 Slice 6 has passed closure audit for its bounded scope question: whether an exact current-session scoped draft order may enter the checkout execution boundary.
+- Slice 6 is **closure-ready pending explicit approval**.
+- This closure audit does not authorize checkout execution, payment/tender, inventory behavior, receipt behavior, sale finalization/completion, or persistence side effects.
 
 ## 11B. POS-F3 Slice 2 — Pricing Extension (Completed, Bounded)
 ### What changed from Slice 1
@@ -707,3 +722,146 @@ Slice 7 exists specifically to prevent the misreading: **“entry exists, so pay
 - Slice 6 remains the only active bounded implementation slice.
 - Slice 7 remains gated, planning-only, and not started until separately approved for implementation.
 - No stealth expansion is authorized by this planning record.
+
+### POS-F3 Slice 7 — Checkout Container State Vocabulary (Planning Only, Not Started)
+This subsection defines canonical governance vocabulary only for checkout container lifecycle language under the already-approved **order-tied** container model.
+
+Scope posture:
+- Planning-only language.
+- Not started for implementation.
+- Slice 6 remains the only active bounded implementation slice and remains entry-decision-only.
+
+Canonical state vocabulary (conceptual only):
+- `NOT_ENTERED`
+- `ENTERABLE`
+- `ACTIVE`
+- `CANCELED`
+- `INVALIDATED`
+- `COMPLETED`
+
+State intent boundaries:
+- `NOT_ENTERED`: conceptual pre-entry state for an eligible order context where checkout container execution state has not been entered.
+- `ENTERABLE`: conceptual entry-ready state aligned to Slice 6 entry-decision posture only; this is not execution authorization.
+- `ACTIVE`: conceptual in-progress container state within intact exact scope and order ownership.
+- `CANCELED`: conceptual intentional stop state where container continuity is ended by cancel posture.
+- `INVALIDATED`: conceptual non-viable state where scope/guard/ownership coherence is broken and continuation is not canonical.
+- `COMPLETED`: conceptual terminal completion state in vocabulary only; no sale finalization behavior is authorized.
+
+Allowed conceptual transitions (non-executable semantics):
+- `NOT_ENTERED` -> `ENTERABLE`
+- `ENTERABLE` -> `ACTIVE`
+- `ACTIVE` -> `CANCELED`
+- `ACTIVE` -> `INVALIDATED`
+- `ACTIVE` -> `COMPLETED`
+
+Transition constraints:
+- No direct `NOT_ENTERED` -> `ACTIVE` shortcut is canonical.
+- Terminal states (`CANCELED`, `INVALIDATED`, `COMPLETED`) are conceptually end states in this vocabulary model.
+- No reopen/resume/back-transition semantics are authorized.
+
+Invalid / non-canonical states and patterns:
+- Any hybrid or overlapping terminal state (for example, “completed-and-canceled”).
+- Any state implying cross-session continuation.
+- Any state implying cross-device continuation.
+- Any state implying ownership transfer to another order.
+- Any state that reinterprets Slice 6 entry decisioning as checkout execution authority.
+
+Non-authorization reminder:
+- This vocabulary does not authorize checkout execution, payment/tender, inventory effects, receipt, finalization, persistence contracts, cross-session behavior, or multi-order orchestration.
+- Vocabulary definition is governance language only and must not be implemented from this section alone.
+
+
+### POS-F3 Slice 7 — State Invariants and Invalidation Rules (Planning Only)
+This subsection defines canonical governance language for checkout container state invariants and invalidation semantics under the existing Slice 7 order-tied model.
+
+Scope posture:
+- Planning-only language.
+- Slice 7 remains not started.
+- Slice 6 remains the only active bounded implementation slice and remains entry-decision-only.
+
+#### 1. Purpose
+State invariants define what must remain true for a checkout container to remain valid within a given conceptual state. If required invariants fail, continuity language is no longer valid and the container must be treated accordingly.
+
+#### 2. State Invariants (per state)
+- `NOT_ENTERED`
+  - No checkout container lifecycle has been entered.
+  - No active container ownership is assumed.
+  - No partial execution assumptions are allowed.
+
+- `ENTERABLE`
+  - Entry conditions are satisfied per Slice 6 entry-decision posture.
+  - Order context remains valid and coherent under exact scope.
+  - No active conflicting checkout container exists for the same order context.
+
+- `ACTIVE`
+  - Order ownership remains intact and singular.
+  - Scope lineage (house/branch/device/session) remains coherent with the anchored order context.
+  - No conflicting container exists for the same order.
+  - Required context dependencies remain valid and non-contradictory.
+
+- `CANCELED`
+  - Container is intentionally terminated by cancel posture.
+  - No further progression is allowed.
+  - No implicit recovery or resume semantics are assumed.
+
+- `INVALIDATED`
+  - One or more required invariants are broken.
+  - Container is non-usable and must not be used further.
+  - No recovery path is assumed.
+
+- `COMPLETED`
+  - Container reached conceptual end state.
+  - No further mutation is allowed.
+  - No implicit side-effects are assumed (including sale finalization).
+
+#### 3. Invalidation Triggers (Canonical)
+A checkout container is conceptually `INVALIDATED` when any canonical trigger applies:
+- Order ownership is lost, contradicted, or reassigned.
+- Scope mismatch occurs (branch/house/device/session drift against anchored order context).
+- Context corruption occurs or required dependencies become missing/non-coherent.
+- Concurrent conflicting container is detected for the same order.
+- Guard or entry conditions are no longer satisfied.
+- Any `ACTIVE` state invariant is violated.
+
+#### 4. Invalidation Behavior Rules
+- `INVALIDATED` is terminal.
+- No resume or reopen semantics are allowed.
+- No transfer to another order is allowed.
+- No cross-session continuation is allowed.
+- Invalidated containers must be treated as non-usable.
+
+#### 5. Non-Canonical Patterns (Must Avoid)
+- Implicit recovery from invalid state.
+- Silent fallback to `ACTIVE`.
+- Cross-device continuation assumptions.
+- Multi-owner container models.
+- Treating invalidation as a soft warning instead of a hard stop.
+
+#### 6. Boundary Clarification
+This subsection:
+- does **not** define execution logic,
+- does **not** define persistence,
+- does **not** define event handling,
+- does **not** define UI behavior,
+- does **not** define API contracts.
+
+#### 7. Outcome
+- State invariants and invalidation rules are now defined as governance language for Slice 7.
+- No runtime behavior is authorized.
+
+
+### POS-F3 Slice 7 — Checkout Container Event Vocabulary (Planning-Only, Not Started)
+- Canonical conceptual event vocabulary is defined for order-tied checkout container boundary language only: `ENTRY_GRANTED`, `ENTRY_REVOKED`, `CONTAINER_ACTIVATED`, `CANCEL_REQUESTED`, `INVALIDATION_DETECTED`, `COMPLETION_REACHED`.
+- Event relationships to conceptual states are vocabulary-only and are not executable transitions.
+- Boundary triggers are naming semantics only and do not authorize handlers, persistence, queues/retries/webhooks/jobs, async orchestration, payment, inventory, receipt, finalization, or any runtime behavior.
+- Slice 7 remains planning-only and not started; no runtime/API/UI/schema changes are authorized by this record.
+- Slice 6 remains unchanged as the only active bounded implementation slice and remains checkout execution entry-decision-only.
+
+### POS-F3 Slice 7 — Event Authority & Trigger Ownership (Planning Only)
+- Event vocabulary authority sources are now defined conceptually for Slice 7 language only.
+- Authority is not execution: defining who/what may conceptually originate an event does not authorize runtime behavior.
+- `ENTRY_GRANTED` remains controlled by Slice 6 entry decision outcomes only.
+- `ENTRY_REVOKED` from `ENTERABLE` conceptually returns the container posture to `NOT_ENTERED` before activation; this is vocabulary-only and not runtime transition logic.
+- `ENTRY_REVOKED` is distinct from `INVALIDATION_DETECTED`: revocation removes pre-activation entry posture, while invalidation remains tied to broken invariants, scope drift, ownership conflict, or active-container invalidation.
+- Operator-triggered, system-triggered, and derived events remain explicitly separated governance categories.
+- This subsection introduces no runtime authorization, no behavior, and no API/UI/schema changes.

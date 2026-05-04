@@ -129,6 +129,28 @@ test("getCurrentSessionOrderCheckoutTransition returns ALLOWED for valid exact-s
   });
 });
 
+
+
+test("getCurrentSessionOrderCheckoutTransition enforces ALLOWED invariant contract", async () => {
+  const allowed = await getCurrentSessionOrderCheckoutTransition(
+    SCOPE,
+    createOrderCheckoutTransitionRepository({
+      lines: [makeLine({ quantity: 1 })],
+    }),
+  );
+
+  assert.equal(allowed.checkoutTransitionStatus, "ALLOWED");
+  assert.equal(allowed.canEnterFutureCheckout, true);
+  assert.equal(allowed.blockingIssues.length, 0);
+  assert.equal(allowed.transitionSummary.blockingIssueCount, allowed.blockingIssues.length);
+
+  const blocked = await getCurrentSessionOrderCheckoutTransition(SCOPE, createOrderCheckoutTransitionRepository());
+
+  assert.equal(blocked.checkoutTransitionStatus, "BLOCKED");
+  assert.equal(blocked.canEnterFutureCheckout, false);
+  assert.ok(blocked.blockingIssues.length > 0);
+  assert.equal(blocked.transitionSummary.blockingIssueCount, blocked.blockingIssues.length);
+});
 test("getCurrentSessionOrderCheckoutTransition returns BLOCKED for empty order validation blockers", async () => {
   const result = await getCurrentSessionOrderCheckoutTransition(SCOPE, createOrderCheckoutTransitionRepository());
 
