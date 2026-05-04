@@ -148,10 +148,12 @@ function createLifecycleResult(input: {
 
   const isFoundational = input.foundation.containerFoundationStatus === "FOUNDATIONAL";
 
+  // Default repository has no persisted lifecycle context; per approved Slice 7B gate,
+  // clean FOUNDATIONAL snapshots derive ENTERABLE.
   if (!contextState) {
     return {
-      containerLifecycleState: "NOT_ENTERED",
-      canActivateContainer: false,
+      containerLifecycleState: isFoundational ? "ENTERABLE" : "NOT_ENTERED",
+      canActivateContainer: isFoundational,
       invalidationReasons: [],
       lifecycleSummary: {
         ...input.requestedScope,
