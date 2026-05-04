@@ -12,7 +12,15 @@ Based on active-phase rules and current implementation, live HR focus remains:
 - kiosk device administration, kiosk setup/onboarding, and employee ID issuance/output hardening
 - read-path parity hardening (ensuring metadata, filters, and row payloads remain scope-consistent under branch-limited access)
 
-**Overall:** HR now has broad implemented coverage across planned MVP surfaces, but delivery mode remains **hardening and consolidation**, not feature expansion.
+**Overall:** HR now has broad baseline implementation coverage across planned MVP surfaces, but contract audit outcomes identify planning gaps that require renewed planning passes before any approved expansion.
+
+
+## 2A. HR Gap Audit Status Note
+- HR gap audit is completed.
+- Audit file: [`docs/devlog/hr-system-gap-audit.md`](../devlog/hr-system-gap-audit.md).
+- HR has implemented baseline coverage across major surfaces, but contract and planning gaps remain (especially DTR, schedules/shifts, approvals, and payroll dependency boundaries).
+- This status refresh is documentation-only and does **not** authorize implementation changes.
+- Future HR implementation work requires explicit phase authorization plus approved planning/approval documents.
 
 ## 3. Status Summary
 | Status | Snapshot |
@@ -24,6 +32,7 @@ Based on active-phase rules and current implementation, live HR focus remains:
 | Not Started | No additional in-scope HR MVP surface is newly identified as completely unimplemented in this re-audit; remaining work is mostly hardening/consolidation or explicitly deferred scope. |
 
 ## 4. HR Phase Mapping (Conservative Audit View)
+- Phase mapping remains historical/closure-aware: baseline is implemented in multiple streams, but post-audit contract clarification is required before additional implementation slices are authorized.
 - **HR-1:** implemented and frozen-contract sensitive; identity and tenancy boundaries must remain strict.
 - **HR-2:** implemented baseline (DTR/schedules/overtime/preview paths), with continued hardening expected.
 - **HR-3:** implemented baseline (run lifecycle + payslip + export surfaces), still treated as hardening-active rather than “fully stable.”
@@ -172,8 +181,63 @@ As of **2026-03-31 UTC**, repository evidence supports this conservative checkpo
 2. Continue kiosk setup/operations and payroll/payslip wording consistency hardening.
 3. Expand environment-level runtime confidence validation across deployment states.
 
+## 15A. Current HR Planning Gaps
+
+### DTR / Attendance
+- per-employee month/date-range view
+- show all days in selected period, including missing/no-DTR days
+- DTR correction/edit flow
+- correction reason
+- correction approval
+- correction audit trail
+- payroll-ready attendance summary boundary
+
+### Schedules / Shifts
+- edit existing schedules
+- schedule templates
+- multiple schedule types
+- recurring schedules
+- one/many employee assignment modes
+- branch/date-range assignment
+- conflict detection
+- schedule history/audit trail
+
+### Approvals
+- DTR correction approval
+- OT approval
+- leave approval
+- schedule edit/override approval
+- approval roles
+- rejection reasons
+- approval history/audit trail
+
+### Payroll dependency boundary
+- payroll depends on clean DTR/schedule/approval data
+- payroll computation is not expanded by this refresh
+- payroll dependency contract requires planning
+
+## 15B. Current HR Work Posture
+- HR follow-up work remains documentation/planning only unless explicitly authorized.
+- No implementation is authorized by the gap audit or this status refresh.
+- Next HR actions should be planning/status/master-plan updates, not code.
+- Active delivery phase is not changed by this document (POS remains active; HR remains stable/hardening historical context).
+
+## 15C. Recommended Next HR Documentation Tasks
+1. HR Master Plan gap update
+2. HR-2 DTR detailed planning
+3. HR-4 schedules/shifts detailed planning
+4. HR approvals planning
+5. HR payroll dependency/readiness boundary
+6. implementation approval gates per approved slice
+
+## 15D. Governance Boundary Confirmation
+- House remains the tenant boundary for all HR reads/writes; cross-house leaks are prohibited.
+- Branch remains location scope only and does not replace tenant boundary.
+- Identity handling must not assume phone/email uniqueness and must not auto-merge identities.
+- Implementation changes must follow approved planning documents and explicit Codex tasks before any runtime, API, or schema work begins.
+
 ## 16. Last Updated
-Canonical re-audit refresh completed on **2026-03-31 (UTC)**, including final conservative blocker closeout checkpoint and gate reassessment.
+Canonical status refresh updated on **2026-05-04 (UTC)** to incorporate HR gap-audit posture while preserving historical checkpoint records.
 
 ## 17. HR Devlog Note (2026-04-29 UTC)
 - Feature-gate drift across related endpoints can break end-to-end HR flows even when page access appears healthy.
