@@ -3,8 +3,9 @@
 ## 1. Summary
 This is a **documentation-only audit** completed before any further HR implementation work continues.
 
-- POS is currently paused for this review cycle.
-- HR is being re-centered because HR remains the higher roadmap priority sequence anchor and may contain planning/coverage inconsistencies compared with newer POS planning discipline.
+- This audit records HR planning and coverage gaps discovered during review.
+- This audit does not change the active delivery phase.
+- Any future HR work requires explicit phase authorization and updated planning/status documents.
 - This audit does **not** authorize implementation.
 
 ## 2. Audit Purpose
@@ -220,6 +221,7 @@ Outcome:
 - HR requires a renewed planning/documentation pass before more implementation.
 - **No implementation is authorized by this audit.**
 - Next action is documentation correction/planning, not code.
+- HR follow-up work remains documentation/planning only unless explicitly authorized.
 
 Status-doc handling note:
 - `docs/hr/hr-status.md` already exists and should be refreshed in the next dedicated documentation task; this audit intentionally does not rewrite the full canonical status snapshot.
