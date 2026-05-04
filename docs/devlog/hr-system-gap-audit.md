@@ -22,9 +22,10 @@ This audit follows Agui hierarchy:
 2. Roadmap
 3. HR Master Plan
 4. HR status/foundation docs
-5. implementation files
+5. Codex Tasks
+6. implementation files
 
-If implementation behavior conflicts with higher-order planning/governance docs, documentation and plan alignment must be corrected first before additional implementation proceeds.
+If implementation behavior conflicts with higher-order planning/governance docs or approved Codex task directives, documentation and plan alignment must be corrected first before additional implementation proceeds.
 
 ## 4. Current HR Phase Alignment
 Current available docs show mixed posture:
