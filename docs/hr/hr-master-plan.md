@@ -158,7 +158,7 @@ Ordered next planning tasks:
 - No identity auto-merge.
 - No cross-house leaks.
 - Implementation must follow approved planning docs and Codex tasks.
-- Active delivery phase is unchanged by this document (POS remains active implementation phase; HR remains stable planning/reference scope only).
+- This document does not change the active delivery phase. Any HR implementation work requires explicit phase authorization and approved planning/Codex task authorization.
 
 ## Alignment Note
 
