@@ -246,8 +246,10 @@ This planning contract is intended to prevent:
 ## 16. Status
 HR-2 DTR planning is defined by this record.
 
-Implementation is NOT started.
+Existing HR-2 baseline implementation remains historical/current repo context.
 
-No implementation is authorized.
+New or expanded DTR contract changes defined by this planning record are NOT implementation-started.
+
+No new implementation is authorized by this planning record.
 
 Next step is HR-2 DTR approval gate or further planning refinement if required.
