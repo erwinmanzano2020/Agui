@@ -30,9 +30,21 @@ Clarifications:
 
 ## 4. Schedule Core Model
 A schedule unit is defined by:
-- employee
 - house
 - date or date-range
+- assignment target
+
+Assignment target may be:
+- one employee
+- multiple employees
+- branch
+- group/cohort if later approved
+
+Clarifications:
+- Employee-specific schedules are one allowed assignment mode, not the only schedule unit shape.
+- Every schedule remains house-scoped.
+- Branch assignment is location-scoped and must not replace the tenant boundary.
+- Conflict detection must resolve final affected employees before payroll/DTR dependency use.
 
 Supported schedule patterns:
 - single-day schedule
