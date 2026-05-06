@@ -4,6 +4,7 @@
 This document is the canonical execution snapshot for POS status, sequencing, and implementation-readiness posture. It does not replace the roadmap, POS master plan, or POS foundation documents.
 
 ## 2. Current Execution Snapshot
+- Current-state audit: see `docs/devlog/pos-current-state-audit.md` for the repo-based POS documentation review before the next POS task.
 - Module: POS
 - Current phase: POS-F2 bounded closure completed; POS-F3 Slice 1 through Slice 5 are closed and locked as bounded pre-checkout pricing/review/validation/transition-intent layers; POS-F3 Slice 6 is closed and locked as a tightly bounded checkout execution-entry decision contract layer only.
 - Phase control note: HR stability checkpoint completed; POS is now the active development phase under roadmap sequencing.
@@ -194,7 +195,7 @@ POS MVP is only considered done when, at minimum, all are true:
 - Next gated step is Slice 7B planning/definition only (not started).
 
 ## 10. Last Updated
-2026-05-01 (UTC)
+2026-05-06 (UTC)
 
 ## 11. POS-F3 Slice 1 — Pricing & Totals (Completed, Bounded)
 ### Now supported
