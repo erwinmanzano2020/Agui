@@ -109,7 +109,7 @@ Input rules:
 - Inputs must not include unresolved, rejected, ambiguous, or cross-house data.
 
 ## 6. Readiness Conditions (CRITICAL)
-Payroll can only consume HR data when all of the following are true for the relevant house, employee set, and payroll period:
+Under a future readiness-enforced payroll consumption contract, payroll may only consume HR data when all of the following are true for the relevant house, employee set, and payroll period:
 
 - no `BLOCKED` DTR states exist;
 - no `INCOMPLETE` records exist;
