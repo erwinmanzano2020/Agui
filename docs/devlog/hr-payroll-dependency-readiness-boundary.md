@@ -116,6 +116,9 @@ Payroll can only consume HR data when all of the following are true for the rele
 - no `CORRECTED_PENDING_APPROVAL` records exist;
 - all payroll-impacting corrections are `APPROVED`;
 - all required approvals are resolved;
+- each payroll-consumed DTR contribution is `PAYROLL_READY` or explicitly classified under an approved no-record/non-payable policy;
+- no `NO_RECORD` day is treated as payable by inference;
+- diagnostic preview may report non-ready states, but final consumption must not consume them as ready inputs;
 - no unresolved schedule conflicts affect evaluation;
 - no cross-house or scope violations exist.
 
@@ -123,7 +126,7 @@ If any condition fails:
 
 → payroll must not proceed.
 
-This blocking rule applies to payroll execution, payroll preview, payroll export, and any future payroll-facing dependency surface unless a later approved contract defines a narrower non-execution diagnostic mode.
+This blocking rule applies to final payroll consumption, payroll finalization, and readiness-enforced payroll outputs. Existing diagnostic preview behavior may surface unresolved inputs as warnings/flags instead of failing the request, provided it does not treat unresolved data as final payroll-ready input.
 
 ## 7. DTR Readiness Rules
 DTR readiness is required before final payroll consumption.
