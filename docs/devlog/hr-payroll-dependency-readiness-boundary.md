@@ -24,6 +24,14 @@ This boundary contract preserves the governing HR foundation and phase rules.
 - No implementation is authorized.
 - This record is a planning constraint for future dependency design only.
 
+## 2A. Phase Boundary / Deferred Planning Status
+- This record is a deferred HR planning artifact created to capture known HR/payroll dependency gaps.
+- This document does not change the active delivery phase.
+- This document does not authorize HR implementation, payroll implementation, or runtime behavior changes.
+- This document does not supersede active POS phase work.
+- Any future HR/payroll implementation based on this record requires explicit phase authorization and an approved Codex task.
+- This record exists only to preserve discovered gaps and future contract intent under Agui documentation discipline.
+
 ## 3. Purpose
 This document defines:
 
