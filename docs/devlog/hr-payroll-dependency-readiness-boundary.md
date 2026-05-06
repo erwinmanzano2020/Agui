@@ -215,7 +215,7 @@ Ownership remains separated between HR production and payroll consumption.
 - Payroll must not mutate HR data.
 - Payroll must not approve, reject, correct, or infer HR source records.
 - HR must not depend on payroll execution.
-- HR must not compute salary, deductions, payouts, ledger entries, or accounting effects.
+- Upstream HR readiness/source-data layers (DTR, schedules, approvals, leave, OT) must not compute salary, deductions, payouts, ledger entries, or accounting effects. Existing approved HR payroll and payslip computation surfaces remain governed by their frozen payroll contracts.
 
 ## 14. Non-Goals
 This contract explicitly excludes:
