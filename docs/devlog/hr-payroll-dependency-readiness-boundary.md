@@ -122,11 +122,13 @@ Payroll can only consume HR data when all of the following are true for the rele
 - no unresolved schedule conflicts affect evaluation;
 - no cross-house or scope violations exist.
 
-If any condition fails:
+If any condition fails in a future readiness-enforced payroll flow:
 
-→ payroll must not proceed.
+→ final payroll consumption/finalization must not proceed under that future approved contract.
 
 This blocking rule applies to final payroll consumption, payroll finalization, and readiness-enforced payroll outputs. Existing diagnostic preview behavior may surface unresolved inputs as warnings/flags instead of failing the request, provided it does not treat unresolved data as final payroll-ready input.
+
+Current baseline payroll preview/run/export behavior is not changed by this document. Existing diagnostic behavior may continue to surface missing schedules, corrections, or unresolved inputs as flags where current frozen contracts allow it. This document defines a future approval-gated readiness boundary unless separately reconciled with frozen payroll lifecycle docs.
 
 ## 7. DTR Readiness Rules
 DTR readiness is required before final payroll consumption.
