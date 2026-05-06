@@ -122,7 +122,9 @@ Under a future readiness-enforced payroll consumption contract, payroll may only
 - no `BLOCKED` DTR states exist;
 - no `INCOMPLETE` records exist;
 - no `CORRECTED_PENDING_APPROVAL` records exist;
-- all payroll-impacting corrections are `APPROVED`;
+- all payroll-impacting corrections are resolved as either `APPROVED` or `REJECTED`;
+- approved corrections may affect normalized payroll inputs;
+- rejected corrections must not affect payable inputs and remain audit history only;
 - all required approvals are resolved;
 - each payroll-consumed DTR contribution is `PAYROLL_READY` or explicitly classified under an approved no-record/non-payable policy;
 - no `NO_RECORD` day is treated as payable by inference;
@@ -151,6 +153,7 @@ DTR readiness is required before final payroll consumption.
   - Pending payroll-impacting corrections block payroll.
   - Approved payroll-impacting corrections may be reflected in normalized inputs.
   - Rejected corrections must not affect payable inputs.
+  - The base attendance record may still be evaluated separately when a rejected correction remains audit history only.
 - `PAYROLL_READY` is required for final consumption.
 
 `PAYROLL_READY` means the DTR contribution is complete, normalized, approval-resolved, audit-traceable, tenant-safe, and free of conflicting states for the relevant employee and period.
