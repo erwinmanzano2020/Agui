@@ -36,7 +36,7 @@ Clarifications:
 - HR prepares attendance, schedule, approval, leave, and overtime data.
 - Payroll consumes approved, normalized, payroll-ready HR data only.
 - Payroll does not correct HR data.
-- HR does not compute payroll.
+- Upstream HR readiness data does not compute payroll amounts. Existing approved HR payroll/payslip computation surfaces remain governed by their frozen payroll contracts.
 - HR data readiness is a prerequisite signal, not payroll execution itself.
 
 ## 4. Upstream Data Sources
@@ -181,7 +181,7 @@ All payroll inputs must be:
 Normalization must produce one consistent payroll-facing interpretation for each employee and period. It must not hide unresolved source conflicts, silently choose between competing records, infer missing schedules, or convert pending/rejected items into payable facts.
 
 ## 11. Blocking Conditions
-Payroll must not run if any of the following exist for the target house, employee set, or period:
+Under a future readiness-enforced final-consumption contract, payroll finalization/final payroll consumption must not proceed if any of the following exist for the target house, employee set, or period:
 
 - incomplete DTR exists;
 - pending approvals exist;
@@ -191,7 +191,7 @@ Payroll must not run if any of the following exist for the target house, employe
 - missing audit traceability;
 - inconsistent data across sources.
 
-Blocking is mandatory. A blocked dependency state must be surfaced as a readiness failure, not corrected by payroll and not bypassed by payroll execution.
+For that future readiness-enforced contract, blocking is mandatory. A blocked dependency state must be surfaced as a readiness failure, not corrected by payroll and not bypassed by final payroll consumption. Current frozen payroll preview/run/export behavior is not changed by this document.
 
 ## 12. Audit Requirements
 Payroll dependency data must include traceability to the HR records that produced the normalized input.
