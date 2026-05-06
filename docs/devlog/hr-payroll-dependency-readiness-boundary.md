@@ -79,8 +79,10 @@ Approval source data includes approval status for:
 - DTR corrections;
 - overtime;
 - leave;
-- schedule creation, edits, cancellations, or overrides when payroll-impacting;
+- schedule edits or overrides when payroll-impacting;
 - any other payroll-impacting HR change that future approved planning explicitly brings into scope.
+
+Schedule creation may require audit/history, but approval gating for creation is not authorized by this boundary unless a future approved HR-4 contract adds it.
 
 ### Leave / OT
 Leave and overtime provide payroll-relevant HR facts only after approval requirements are satisfied.
