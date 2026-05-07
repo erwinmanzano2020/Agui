@@ -76,7 +76,7 @@ Current POS authority should be read in this order:
 ## 5. Active / Next POS Work
 Current POS docs indicate the next gated POS work should be **Slice 7B closure/status reconciliation**, not new runtime behavior.
 
-- `docs/pos/pos-status.md` still names Slice 7B planning/definition as the next gated step after Slice 7A closure.
+- `docs/pos/pos-status.md` has been reconciled to name Slice 7B closure/status reconciliation as the next gated step after the current-state audit correction.
 - Slice 7B currently has lifecycle/activation definition and implementation-planning artifacts, and runtime lifecycle evaluation is present in the repo.
 - The Slice 7B approval gate checklist is still marked **NOT APPROVED YET** and **PENDING**, creating a status-approval mismatch that needs reconciliation.
 - Slice 7C is only definition/governance language. It is **DEFINED** and **NOT started**.
@@ -159,7 +159,7 @@ Current POS docs indicate the next gated POS work should be **Slice 7B closure/s
 
 ## 8. Inconsistencies or Ambiguities
 - **Slice 7B implementation-vs-approval mismatch:** runtime exists for Slice 7B lifecycle evaluation, but docs still describe approval as pending/not implemented.
-- **Status wording drift for Slice 7B:** `docs/pos/pos-status.md` names Slice 7B planning/definition as the next gated step, while separate 7B docs already include a definition and implementation-planning artifact. The approval checklist clarifies that implementation remains blocked, but the status snapshot should be read carefully.
+- **Status wording drift for Slice 7B:** prior status wording named Slice 7B planning/definition as the next gated step, while separate 7B docs and runtime artifacts already exist. The remaining mismatch is between existing runtime and approval/closure records.
 - **Checkout container vs transaction/order:** Slice 7 locks an order-tied checkout container as a conceptual boundary, while the transaction/order model remains only partly implemented as current-session draft order behavior. The docs do not yet define how a completed checkout container becomes a durable transaction/sale/order-finalization record.
 - **Lifecycle vs execution:** Slice 7B defines lifecycle/activation semantics and Slice 7C defines execution/finalization boundaries. The separation is explicit, but future tasks must preserve the dependency chain: existence/foundation (7A) → lifecycle/state (7B) → execution/action (7C).
 - **Slice 7C dependency on transaction model:** Slice 7C defines completion and finalization concepts, but the durable transaction/order finalization model is not yet defined. Implementation would be risky without a prior contract for what persists, what becomes immutable, and what downstream receipt/payment/accounting records reference.
