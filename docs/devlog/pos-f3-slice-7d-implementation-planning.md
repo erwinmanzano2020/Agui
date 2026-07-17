@@ -84,16 +84,18 @@ Future implementation must:
 
 ## 7. Dependency Matrix
 
-The following conceptual dependencies describe planning order only:
+The following conceptual dependencies describe planning order only. Local sequence dependency does not override Roadmap phase gates.
 
-| Future Capability | Depends On |
-| --- | --- |
-| Payment | Slice 7C |
-| Inventory | Payment |
-| Receipt | Inventory |
-| Accounting | Receipt |
+| Future Capability | Local Sequence Dependency | Required Module/Phase Gate |
+| --- | --- | --- |
+| Payment | Slice 7C execution boundary | Separate approved POS payment slice |
+| Inventory | Payment | Operations phase authority and approved inventory integration contract |
+| Receipt | Inventory | Separate approved POS receipt slice; inventory dependency must already be legitimately satisfied |
+| Accounting | Receipt | Finance phase authority and approved accounting/settlement integration contract |
 
-This dependency order mirrors the current Slice 7C planning authority and must not reinterpret it. This is planning only. It does not authorize implementation of any listed capability.
+This dependency order mirrors the current Slice 7C planning authority and must not reinterpret it. Inventory-coupled implementation remains gated until the Operations phase establishes and approves the required inventory authority and integration contract. Accounting or settlement implementation remains gated until the Finance phase establishes and approves the required accounting authority and integration contract. This is planning only. It does not authorize implementation of any listed capability.
+
+POS may consume approved Operations inventory contracts, but must not invent or own Operations inventory architecture. POS may consume approved Finance settlement/accounting contracts, but must not invent or own Finance architecture.
 
 ## 8. Deferred Questions
 
