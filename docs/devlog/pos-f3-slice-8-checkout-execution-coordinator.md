@@ -22,7 +22,7 @@ Slice 8 does not directly re-evaluate or reinterpret Slice 6, Slice 7A, or Slice
 - otherwise `BLOCKED`, with deterministic, bounded, non-sensitive blocker codes; and
 - a scope summary containing only the requested anchors and received upstream statuses.
 
-The coordinator is stateless, read-only, deterministic, and has no time, random, persistence, or downstream integration dependency. It does not activate or mutate the container lifecycle. A repository operational error is rethrown rather than represented as a domain blocker.
+The coordinator is stateless, read-only, deterministic, and has no time, random, persistence, or downstream integration dependency. Its repository factory consumes an already-established Slice 7B lifecycle repository directly, preserving its legitimate lifecycle context (including `ACTIVE`) rather than rebuilding or degrading it. It does not activate or mutate the container lifecycle. A repository operational error is rethrown rather than represented as a domain blocker.
 
 ## Explicit exclusions
 
@@ -32,4 +32,4 @@ No database query, mutation, route, API, schema, migration, authorization contra
 
 ## Verification
 
-Unit coverage verifies the READY path, foundation and lifecycle rejection, each repository boundary class, deterministic evaluation, no mutation leakage, and safe anchor mismatch handling. The full lint, typecheck, build, and test suite are required before this slice is considered stable.
+Unit coverage verifies direct and factory-created READY paths, factory preservation of inactive lifecycle context, foundation and lifecycle rejection, each repository boundary class, deterministic evaluation, no mutation leakage, and safe anchor mismatch handling. The full lint, typecheck, build, and test suite are required before this slice is considered stable.

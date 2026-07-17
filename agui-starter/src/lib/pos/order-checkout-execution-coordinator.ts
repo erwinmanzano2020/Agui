@@ -2,7 +2,6 @@ import "server-only";
 
 import {
   type OrderCheckoutContainerLifecycleResult,
-  createOrderCheckoutContainerLifecycleRepository,
   getCurrentSessionOrderCheckoutContainerLifecycle,
 } from "./order-checkout-container-lifecycle";
 
@@ -141,14 +140,15 @@ function createCheckoutExecutionCoordinatorResult(input: {
 }
 
 export function createOrderCheckoutExecutionCoordinatorRepository(
-  lifecycleRepository: Parameters<typeof createOrderCheckoutContainerLifecycleRepository>[0],
+  lifecycleRepository: Exclude<
+    Parameters<typeof getCurrentSessionOrderCheckoutContainerLifecycle>[1],
+    null | undefined
+  >,
 ): OrderCheckoutExecutionCoordinatorRepository {
-  const repository = createOrderCheckoutContainerLifecycleRepository(lifecycleRepository);
-
   return {
     async getCheckoutExecutionCoordinatorSnapshot(input) {
       return {
-        lifecycle: await getCurrentSessionOrderCheckoutContainerLifecycle(input, repository),
+        lifecycle: await getCurrentSessionOrderCheckoutContainerLifecycle(input, lifecycleRepository),
         lifecycleScope: { ...input },
       };
     },

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   PosOrderCheckoutExecutionCoordinatorError,
+  createOrderCheckoutExecutionCoordinatorRepository,
   getCurrentSessionOrderCheckoutExecutionCoordinator,
 } from "./order-checkout-execution-coordinator";
 import type { OrderCheckoutContainerLifecycleResult } from "./order-checkout-container-lifecycle";
@@ -63,6 +64,52 @@ test("FOUNDATIONAL + ACTIVE produces the sole READY coordinator result", async (
     executionScopeSummary: { ...SCOPE, foundationStatus: "FOUNDATIONAL", containerLifecycleState: "ACTIVE" },
     blockingIssues: [],
   });
+});
+
+test("factory preserves an ACTIVE lifecycle context and produces READY", async () => {
+  const lifecycleRepository = {
+    async getCheckoutContainerLifecycleSnapshot() {
+      return {
+        foundation: {
+          containerFoundationStatus: "FOUNDATIONAL" as const,
+          canDefineCheckoutContainer: true,
+          containerAnchorSummary: { ...SCOPE },
+          blockingIssues: [],
+        },
+        foundationScope: { ...SCOPE },
+        lifecycleContext: { containerLifecycleState: "ACTIVE" as const },
+      };
+    },
+  };
+  const repository = createOrderCheckoutExecutionCoordinatorRepository(lifecycleRepository);
+
+  const result = await getCurrentSessionOrderCheckoutExecutionCoordinator(SCOPE, repository);
+
+  assert.equal(result.checkoutExecutionStatus, "READY");
+  assert.equal(result.canContinueCheckoutExecution, true);
+});
+
+test("factory preserves an inactive lifecycle context and returns BLOCKED", async () => {
+  const lifecycleRepository = {
+    async getCheckoutContainerLifecycleSnapshot() {
+      return {
+        foundation: {
+          containerFoundationStatus: "FOUNDATIONAL" as const,
+          canDefineCheckoutContainer: true,
+          containerAnchorSummary: { ...SCOPE },
+          blockingIssues: [],
+        },
+        foundationScope: { ...SCOPE },
+        lifecycleContext: { containerLifecycleState: "ENTERABLE" as const },
+      };
+    },
+  };
+  const repository = createOrderCheckoutExecutionCoordinatorRepository(lifecycleRepository);
+
+  const result = await getCurrentSessionOrderCheckoutExecutionCoordinator(SCOPE, repository);
+
+  assert.equal(result.checkoutExecutionStatus, "BLOCKED");
+  assert.deepEqual(result.blockingIssues.map((issue) => issue.code), ["CHECKOUT_EXECUTION_LIFECYCLE_NOT_ACTIVE"]);
 });
 
 test("non-ACTIVE lifecycle blocks without changing lifecycle semantics", async () => {
