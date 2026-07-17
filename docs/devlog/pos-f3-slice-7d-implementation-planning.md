@@ -2,7 +2,7 @@
 
 ## 1. Purpose
 
-POS-F3 Slice 7D establishes the implementation planning model that follows the locked Slice 7C planning authority. It documents how future checkout-execution implementation may be organized without implementing it.
+POS-F3 Slice 7D establishes the implementation planning model that follows the current Slice 7C planning authority. It documents how future checkout-execution implementation may be organized without implementing it.
 
 This slice does **not** authorize implementation.
 
@@ -20,7 +20,7 @@ Slice 7D must not reinterpret:
 - Slice 7B; or
 - Slice 7C.
 
-The authority chain remains one-directional. Slice 7D plans downstream sequencing from the locked Slice 7C execution boundary; it does not alter or replace any upstream authority.
+The authority chain remains one-directional. Slice 7D plans downstream sequencing from the current Slice 7C execution-boundary planning authority; it does not alter or replace any upstream authority.
 
 ## 3. Implementation Philosophy
 
@@ -93,7 +93,7 @@ The following conceptual dependencies describe planning order only:
 | Receipt | Inventory |
 | Accounting | Receipt |
 
-This dependency order mirrors the locked Slice 7C planning authority and must not be reinterpreted by Slice 7D. This is planning only. It does not authorize implementation of any listed capability.
+This dependency order mirrors the current Slice 7C planning authority and must not reinterpret it. This is planning only. It does not authorize implementation of any listed capability.
 
 ## 8. Deferred Questions
 
