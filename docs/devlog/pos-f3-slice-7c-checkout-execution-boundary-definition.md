@@ -8,21 +8,33 @@ This definition does **not** implement checkout. It grants no runtime, behaviora
 
 ## 2. Authority
 
-Slice 7C depends on the following locked or governing upstream slices:
+Slice 7C consumes only the locked outputs of:
 
-- **Slice 6** — entry decision: `ENTERABLE`;
 - **Slice 7A** — container foundation: `FOUNDATIONAL`; and
 - **Slice 7B** — container lifecycle: `ACTIVE`.
 
-Slice 7C must consume these authorities as defined and must not reinterpret them.
+Slice 7C must consume these authorities as defined and must not reinterpret them. Slice 7C must not directly evaluate or reinterpret Slice 6; Slice 6 influences Slice 7C only through the locked Slice 7A contract.
+
+The authority chain remains single-directional:
+
+```text
+Slice 6
+↓
+Slice 7A
+↓
+Slice 7B
+↓
+Slice 7C
+```
 
 ## 3. Execution Boundary
 
 Execution begins only after all of the following conditions hold:
 
-- Slice 6 = `ENTERABLE`;
 - Slice 7A = `FOUNDATIONAL`; and
 - Slice 7B = `ACTIVE`.
+
+Slice 7C does not directly evaluate Slice 6. Entry eligibility has already been resolved by the upstream authority chain.
 
 The execution boundary is conceptual. It identifies the governed point after the required upstream outputs are present; it is not payment, receipt, or inventory behavior.
 
