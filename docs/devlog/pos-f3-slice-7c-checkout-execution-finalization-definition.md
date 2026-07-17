@@ -1,36 +1,40 @@
 # POS-F3 Slice 7C — Checkout Execution & Finalization Boundary Definition (Definition-Only)
 
+> **Historical planning artifact.** This document is superseded for Slice 7C execution-boundary authority by [`docs/devlog/pos-f3-slice-7c-checkout-execution-boundary-definition.md`](./pos-f3-slice-7c-checkout-execution-boundary-definition.md).
+>
+> Execution-boundary authority moved to that document. This record retains planning rationale only, is not the current execution authority, and does not authorize runtime behavior.
+
 ## Summary
-This devlog defines the canonical boundaries for POS-F3 Slice 7C as definition-only governance language.
+At planning time, this devlog explored potential execution and finalization boundary rationale for POS-F3 Slice 7C. Its definition-only planning language is retained for historical context.
 
-Slice 7C answers one bounded question: what happens when checkout execution is attempted. It is strictly separated from Slice 7A (foundation validity) and Slice 7B (lifecycle state semantics), and it does not authorize implementation.
+This planning record originally addressed what happens when checkout execution is attempted. It is strictly separated from Slice 7A (foundation validity) and Slice 7B (lifecycle state semantics), and it does not authorize implementation.
 
-Status posture in this document:
-- Slice 7A remains CLOSED and LOCKED.
-- Slice 7B remains DEFINED and lifecycle-governing.
-- Slice 7C is now DEFINED only and NOT started.
+Historical status posture recorded in this document:
+- Slice 7A was recorded as CLOSED and LOCKED.
+- Slice 7B was recorded as DEFINED and lifecycle-governing.
+- Slice 7C was recorded as DEFINED only and NOT started.
 
 ## 1. Execution Scope Definition
-For Slice 7C, checkout execution is defined as a decision and orchestration boundary that includes:
+At planning time, this record described checkout execution as a decision and orchestration boundary that included:
 - validation confirmation as a final pre-execution check
 - lifecycle-compliant intent to transition from `ACTIVE` to `COMPLETED`
 - payment orchestration boundary participation (without payment implementation)
 - finalization intent declaration (without persistence)
 
-Execution in Slice 7C is not storage, not side-effect persistence, and not subsystem implementation. It is a constrained decision + orchestration layer.
+This historical planning model was not storage, side-effect persistence, or subsystem implementation. It was a constrained decision + orchestration rationale, not current authority.
 
 ## 2. Preconditions for Execution
-Execution may only be attempted when all of the following are true:
+This planning record originally proposed that execution could be attempted only when all of the following were true:
 - Slice 7B lifecycle state is `ACTIVE`
 - Slice 7A foundation posture is `FOUNDATIONAL`
 - no invalidation conditions are present
 
-Hard rule:
-- execution MUST NOT bypass lifecycle or foundation checks
-- execution is invalid if either Slice 7A or Slice 7B preconditions are not satisfied at decision time
+Historical rule proposed by this record:
+- execution would not bypass lifecycle or foundation checks
+- execution would be invalid if either Slice 7A or Slice 7B preconditions were not satisfied at decision time
 
 ## 3. Execution Outcomes (Canonical)
-Slice 7C defines exactly three canonical execution outcomes:
+This planning record described three proposed execution outcomes:
 - `COMPLETED` (success path)
 - `FAILED` (non-terminal, retryable; definition-only)
 - `ABORTED` (execution interrupted/canceled path; definition-only)
@@ -41,29 +45,28 @@ Boundary clarifications:
 - non-success outcomes require re-evaluation against Slice 7A and Slice 7B before any future execution attempt
 
 ## 4. Payment Boundary (Critical)
-Payment posture for Slice 7C is orchestration-only:
-- Slice 7C orchestrates payment progression as a boundary concern
-- Slice 7C does not implement payment logic, tender internals, or provider behavior
-- payment systems remain external modules/contracts
+At planning time, the record explored payment orchestration as a boundary concern only:
+- it did not implement payment logic, tender internals, or provider behavior
+- payment systems remained external modules/contracts
 
-Rules:
-- payment success is required for completion eligibility
-- payment failure must not silently produce checkout completion
-- no coupling to specific tender types is introduced in Slice 7C
+Historical planning constraints:
+- payment success would be required for completion eligibility
+- payment failure would not silently produce checkout completion
+- no coupling to specific tender types was introduced by this planning record
 
 ## 5. Finalization Semantics
-In Slice 7C, finalization is conceptually defined as:
+At planning time, this record conceptually described finalization as:
 - order reaches immutable post-checkout posture
 - line-level mutation is no longer permitted
 - receipt eligibility begins as a downstream concern
 
-Constraints:
+Historical constraints:
 - no persistence is performed by this slice definition
 - no storage schema, write path, or commit behavior is defined here
 - this is conceptual finalization language only
 
 ## 6. Event Vocabulary (Extension Only)
-Slice 7C uses existing canonical event vocabulary and extends meaning only for execution-phase interpretation:
+This historical planning record used existing canonical event vocabulary and explored execution-phase interpretation:
 - `COMPLETION_REACHED` expresses successful execution reaching `ACTIVE` → `COMPLETED`
 - `CANCEL_REQUESTED` remains valid during `ACTIVE`, including execution-time cancellation intent
 
@@ -73,15 +76,15 @@ Rules:
 - events do not override Slice 7A validation or Slice 7B lifecycle rules
 
 ## 7. Failure & Retry Model (Definition Only)
-Failure behavior is definition-only and constrained:
+This historical planning model described failure behavior as definition-only and constrained:
 - failure must not auto-transition to `COMPLETED`
 - retry is never implicit
 - retry requires fresh re-validation through Slice 7A and Slice 7B gates
 
-No automatic retry loop, hidden fallback completion, or bypass behavior is allowed by this definition.
+This planning record did not authorize an automatic retry loop, hidden fallback completion, or bypass behavior.
 
 ## 8. Strict Non-Goals
-Slice 7C explicitly does not:
+This historical planning record did not define or authorize:
 - persist orders
 - store payment records
 - manage inventory movement or deduction
@@ -90,34 +93,34 @@ Slice 7C explicitly does not:
 - expose or define UI/API runtime behavior
 
 ## 9. Relationship to Future Slices
-Slice 7D (future, not authorized by this document) is the first allowed target for implementation details related to:
+This record identified a future slice as the first possible target for implementation details related to:
 - persistence layer behavior
 - receipt generation behavior
 - inventory deduction behavior
 - financial recording behavior
 
-Slice 7C remains definition-only and does not pre-implement or imply 7D contracts.
+This historical record does not pre-implement or imply future-slice contracts.
 
 ## 10. Risks & Constraints
-Key risks managed by this boundary definition:
+Key risks noted by this historical planning record:
 - execution bypassing lifecycle governance from Slice 7B
 - premature payment coupling that locks implementation design too early
 - hidden persistence assumptions leaking into execution semantics
 
 Constraints:
 - execution behavior must remain deterministic when later implemented
-- no hidden side effects are authorized by this definition
+- no hidden side effects were authorized by this planning record
 - no cross-slice leakage is allowed between 7A/7B/7C responsibilities
 
 ## 11. Status
-- Slice 7C is **DEFINED**.
-- Slice 7C is **NOT started**.
-- Implementation requires explicit future approval.
+- Historical planning status: Slice 7C was recorded as **DEFINED** and **NOT started**.
+- Current execution-boundary authority: [`pos-f3-slice-7c-checkout-execution-boundary-definition.md`](./pos-f3-slice-7c-checkout-execution-boundary-definition.md).
+- This historical record does not authorize runtime behavior or implementation; future implementation requires a separate approved task.
 
 ## Validation Alignment
-This definition is aligned to:
+This historical planning record was aligned to:
 - Slice 7A closure and lock posture (foundation validity remains separate)
 - Slice 7B lifecycle definition posture (lifecycle semantics remain separate)
 - canonical state and event vocabulary constraints
 
-This document does not reinterpret Slice 7A and does not redefine lifecycle rules from Slice 7B.
+This document does not reinterpret Slice 7A or redefine lifecycle rules from Slice 7B. It is retained as historical planning rationale, not current Slice 7C execution-boundary authority.
