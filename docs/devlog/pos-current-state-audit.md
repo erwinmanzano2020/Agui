@@ -47,6 +47,7 @@
 - `docs/devlog/pos-f3-slice-7b-implementation-planning.md`
 - `docs/devlog/pos-f3-slice-7b-approval-gate-checklist.md`
 - `docs/devlog/pos-f3-slice-7c-checkout-execution-boundary-definition.md` (current Slice 7C planning authority)
+- `docs/devlog/pos-f3-slice-7d-implementation-planning.md`
 - `docs/devlog/pos-f3-slice-7c-checkout-execution-finalization-definition.md` (historical planning artifact)
 - `docs/devlog/pos-f3-slice-7-consistency-audit.md`
 
