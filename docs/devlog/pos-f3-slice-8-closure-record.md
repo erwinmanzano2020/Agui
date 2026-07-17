@@ -36,7 +36,7 @@ Slice 7B — Lifecycle
         ↓
 Slice 8 — Execution Coordinator (Closed & Locked)
         ↓
-POS-F3 Slice 9 — Payment Foundation (next approved work)
+Prospective POS-F3 Slice 9 — Payment Foundation (separate authority required)
 ```
 
 Slice 8 consumes the locked lifecycle output from Slice 7B, which carries the
@@ -99,12 +99,16 @@ remain outside this locked slice and require their own approved authority.
 
 ## 6. Downstream dependency guidance
 
-Slice 9 — Payment Foundation is the next approved downstream work in the
-checkout authority sequence. It must consume Slice 8's deterministic,
-read-only `READY`/`BLOCKED` result as supplied, without reopening Slice 8 or
-adding execution semantics to it. Payment Foundation authority begins only
-after the locked Slice 8 result; Slice 8 itself remains non-payment and
-non-executing.
+Future payment-related work, including any prospective Slice 9 — Payment
+Foundation, is outside the scope of this closure record and requires its own
+separately approved planning and implementation authority under the Agui
+Development Operating Principles, Roadmap, and POS governance documents. This
+record grants no payment implementation authorization.
+
+Any future approved downstream slice shall consume Slice 8's deterministic,
+read-only `READY`/`BLOCKED` result as supplied, without reopening Slice 8,
+reinterpreting its result, or adding execution semantics to it. Slice 8 itself
+remains non-payment and non-executing.
 
 ## 7. Closure validation
 
