@@ -44,9 +44,9 @@ Execution Coordinator
         ↓
 Future Payment
         ↓
-Future Receipt
-        ↓
 Future Inventory
+        ↓
+Future Receipt
         ↓
 Future Accounting
 ```
@@ -89,11 +89,11 @@ The following conceptual dependencies describe planning order only:
 | Future Capability | Depends On |
 | --- | --- |
 | Payment | Slice 7C |
-| Receipt | Payment |
-| Inventory | Receipt |
-| Accounting | Inventory |
+| Inventory | Payment |
+| Receipt | Inventory |
+| Accounting | Receipt |
 
-This is planning only. It does not authorize implementation of any listed capability.
+This dependency order mirrors the locked Slice 7C planning authority and must not be reinterpreted by Slice 7D. This is planning only. It does not authorize implementation of any listed capability.
 
 ## 8. Deferred Questions
 
