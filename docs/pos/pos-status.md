@@ -10,7 +10,10 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 - Phase control note: HR stability checkpoint completed; POS is now the active development phase under roadmap sequencing.
 - Foundation wave: complete (canonical POS foundation set present and aligned)
 - Implementation posture: POS-F1 stable baseline remains intact and POS-F2 bounded draft-order + line-mutation foundations are now recorded as complete within strict scope-first/no-leak constraints
-- Current work mode: POS-F3 Slice 1 through Slice 5 remain closed and locked as bounded records; Slice 6 is closed (locked) as checkout execution boundary entry decisioning only (read-only, exact scope, no side effects beyond entry decision output). Slice 7A is closed/locked as checkout container foundation, and Slice 7B is closed/locked as lifecycle evaluation only. Slice 7C is the next gated planning slice; no Slice 7C implementation is authorized.
+- Current work mode: POS-F3 Slice 1 through Slice 5 remain closed and locked as bounded records; Slice 6 is closed (locked) as checkout execution boundary entry decisioning only (read-only, exact scope, no side effects beyond entry decision output). Slice 7A is closed/locked as checkout container foundation, and Slice 7B is closed/locked as lifecycle evaluation only. Slice 7C is the execution-boundary planning authority, Slice 7D implementation planning is complete, and Slice 8 is the bounded Checkout Execution Coordinator implementation authorized by [`pos-f3-slice-8-implementation-approval.md`](../devlog/pos-f3-slice-8-implementation-approval.md).
+- Slice 7C planning definition exists. `docs/devlog/pos-f3-slice-7c-checkout-execution-boundary-definition.md` is the current Slice 7C planning authority; older Slice 7C planning records remain historical. Slice 7C remains planning-only with no runtime or implementation approval.
+- Slice 7D implementation planning is complete. It follows the current Slice 7C planning authority and remains planning-only with no runtime or implementation approval.
+- Inventory-coupled POS work remains gated by Operations authority, and settlement/accounting work remains gated by Finance authority, in accordance with the Roadmap.
 - First-slice stability checkpoint: completed on 2026-04-01 (UTC), with no blocker-class gaps identified
 - MVP posture: POS is still not MVP-complete
 
@@ -21,6 +24,7 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 | Implemented | POS safe vertical slice baseline is landed for device/session + QR lookup + POS PIN + open/close lifecycle + no-leak action mapping + DB scope consistency hardening + POS PIN lifecycle helpers (set/reset/rotate) with lightweight rate-limit posture. POS-F2 bounded continuity is now complete for current-session draft-order create/reopen + current-session line add/read/update/remove + bounded persistence + thin action boundary integration + stale refresh hardening posture. |
 | Completed (Bounded) | F3 Slice 1 — Pricing & Totals (current-session draft only): deterministic subtotal/tax/total computation from current scoped order lines, thin action exposure, and read-only UI summary panel with no financial side effects. F3 Slice 2 — Pricing Extension: completed as bounded pricing-input work (explicit input layer + bounded per-line override + line-level pricing source trace), with no checkout/payment/inventory coupling. F3 Slice 3 — Order Review: completed as bounded read-only current-session orchestration (scoped draft identity + active lines + server pricing summary + pricing source trace) with no checkout/finalization/payment/inventory/persistence side effects. F3 Slice 4 — Review Validation / Checkout Readiness: completed as bounded current-session draft-order read-only pre-checkout validation with structured blocker output, deterministic ordering, summary consistency hardening, and no checkout/payment/inventory/finalization/persistence behavior. F3 Slice 5 — Checkout Transition Intent: completed as bounded current-session read-only transition-intent posture between Slice 4 validation and a future gated checkout slice, with no checkout execution/payment/inventory/receipt/finalization/persistence/cross-session/multi-order behavior. |
 | Closed (Locked) | POS-F3 Slice 6 — Checkout Execution Boundary (bounded entry decision only) is closed and locked. Slice 6 contract is frozen; no reinterpretation allowed; all further checkout behavior must go through future approved slices. |
+| Implemented (Bounded) | POS-F3 Slice 8 — Checkout Execution Coordinator is separately approved by [`pos-f3-slice-8-implementation-approval.md`](../devlog/pos-f3-slice-8-implementation-approval.md) and returns a deterministic `READY` or `BLOCKED` result from the locked foundation/lifecycle chain. It has no downstream checkout effects. |
 | Blocked / Dependency | POS remains blocked from payment/inventory/reporting/cross-session browsing/multi-order management/finance effects until their own approved slices; no tenancy/auth boundary redesign is authorized by F2 closure. |
 
 ## 4. Current Approved Next Tasks
@@ -29,9 +33,10 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 3. Keep future POS work phase-gated and explicitly approved; reject stealth expansion into checkout/payment/inventory/reporting/finance consequences.
 4. Preserve Slice 4 and Slice 5 as read-only bounded pre-checkout layers only; do not reinterpret Slice 5 as checkout capability.
 5. Preserve POS-F3 Slice 6 as a closed (locked) bounded checkout execution-entry decision contract only, with strict no-leak/exact-scope/read-only posture and no expansion into payment/inventory/receipt/finalization/persistence side effects.
-6. Keep POS-F3 Slice 7 gated. Slice 7A and Slice 7B are closed/locked; Slice 7C is the next gated planning slice. No Slice 7C runtime/API/UI/schema behavior is authorized.
+6. Preserve Slice 8 as a current-session, read-only coordinator only. It must consume upstream authority through the locked Slice 7A → Slice 7B chain and must not be expanded into payment, inventory, receipt, sale completion, persistence, UI/API, schema, or cross-session behavior.
 7. Treat Slice 7 checkout container event vocabulary, state-event consistency rules, and checkout container boundary model as governance-only boundary language (conceptual events + integrity anchors + invalidation terminology), not runtime authorization.
-8. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
+8. Preserve Roadmap gates: inventory-coupled POS work requires Operations authority and an approved inventory integration contract; settlement/accounting work requires Finance authority and an approved accounting/settlement integration contract.
+9. Maintain conservative no-leak/scope-first/operator-attributed posture as non-negotiable continuation rules.
 
 ## 5A. POS-F2 Completion Record (Bounded Closure)
 POS-F2 is closed as a bounded slice and is now documented as complete in this status record.
@@ -192,8 +197,9 @@ POS MVP is only considered done when, at minimum, all are true:
 - Slice 7A contract is frozen to bounded container-foundation decisioning (FOUNDATIONAL/BLOCKED), exact-scope anchor validation, and safe blocked output only.
 - Slice 7A preserves non-goals: no lifecycle/events/activation/payment/inventory/receipt/finalization/persistence and no UI/API expansion.
 - Slice 6 remains closed and locked as checkout entry-decision authority.
-- Slice 7B is closed and locked as lifecycle evaluation only; its canonical status and documentation are reconciled. Slice 7C is now the next gated planning slice.
-- No Slice 7C runtime/API/UI/schema behavior is authorized; payment, inventory, receipt, finalization, persistence expansion, and UI/API/schema expansion remain blocked unless separately approved.
+- Slice 7B is closed and locked as lifecycle evaluation only; its canonical status and documentation are reconciled. Slice 7C remains the execution-boundary planning authority, and Slice 7D implementation planning is complete.
+- Slice 8 is implemented as the bounded execution coordinator. It evaluates only the locked foundation/lifecycle outputs and exact current-session anchors to return `READY` or `BLOCKED`; it does not execute downstream effects.
+- Payment, inventory, receipt, sale completion, finalization, persistence expansion, and UI/API/schema expansion remain blocked unless separately approved.
 
 ## 10. Last Updated
 2026-07-17 (UTC)
@@ -572,7 +578,7 @@ Slice 6 does **not** include:
 ### Planning-only definition
 This original Slice 7 planning section remains governance + boundary-definition language. It is partially superseded by later records: Slice 7A is closed/locked, and Slice 7B is closed/locked for lifecycle evaluation only.
 
-This section authorizes no additional runtime behavior, no API/handler behavior, no UI behavior, and no schema or persistence changes. Slice 7C is the next gated planning slice; its implementation remains unauthorized.
+This section authorizes no additional runtime behavior, no API/handler behavior, no UI behavior, and no schema or persistence changes. Slice 7C is the current execution-boundary planning authority, Slice 7D implementation planning is complete, and neither authorizes implementation.
 
 ### Bounded purpose
 Slice 7 exists only to define the checkout session/container boundary language for a future gated checkout path.
@@ -702,7 +708,7 @@ Continuity-safe interpretation rules:
 
 Record posture:
 - This continuity definition is canonical governance language only.
-- Slice 7B is closed and locked as lifecycle evaluation only; Slice 7C is the next gated planning slice.
+- Slice 7B is closed and locked as lifecycle evaluation only; Slice 7C is the current execution-boundary planning authority, and Slice 7D implementation planning is complete.
 - Slice 6 remains closed/locked as entry-decision-only; Slice 7B is closed/locked as lifecycle evaluation only.
 - No additional implementation authorization is granted by this subsection.
 
@@ -722,7 +728,7 @@ Slice 7 exists specifically to prevent the misreading: **“entry exists, so pay
 ### Governance posture
 - Slice 1 through Slice 5 remain closed and locked.
 - Slice 6 remains closed/locked as entry-decision-only.
-- Slice 7 remains gated; Slice 7A and Slice 7B are closed/locked, and Slice 7C is the next gated planning slice.
+- Slice 7 remains gated; Slice 7A and Slice 7B are closed/locked, Slice 7C is the current execution-boundary planning authority, and Slice 7D implementation planning is complete.
 - No stealth expansion is authorized by this planning record.
 
 ### POS-F3 Slice 7 — Checkout Container State Vocabulary (Governance Record)
@@ -857,7 +863,7 @@ This subsection:
 - Event relationships to conceptual states are vocabulary-only and are not executable transitions.
 - Boundary triggers are naming semantics only and do not authorize handlers, persistence, queues/retries/webhooks/jobs, async orchestration, payment, inventory, receipt, finalization, or any runtime behavior.
 - No runtime/API/UI/schema changes are authorized by this event-vocabulary record.
-- Slice 6 remains unchanged as checkout execution entry-decision-only; Slice 7B is closed/locked and Slice 7C remains planning-only until separately approved.
+- Slice 6 remains unchanged as checkout execution entry-decision-only; Slice 7B is closed/locked, Slice 7C remains the current planning-only authority, and Slice 7D implementation planning is complete. Neither Slice 7C nor Slice 7D authorizes runtime behavior until separately approved.
 
 ### POS-F3 Slice 7 — Event Authority & Trigger Ownership (Planning Only)
 - Event vocabulary authority sources are now defined conceptually for Slice 7 language only.
