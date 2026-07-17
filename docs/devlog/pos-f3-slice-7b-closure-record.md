@@ -14,8 +14,12 @@ Slice 7B is responsible only for lifecycle evaluation. It evaluates:
 
 It produces:
 
-- `containerLifecycleState`; and
-- `canActivateContainer`.
+- `containerLifecycleState`;
+- `canActivateContainer`;
+- `invalidationReasons`; and
+- `lifecycleSummary`.
+
+`invalidationReasons` is required for every `INVALIDATED` outcome. Its reasons are bounded, deterministic, and non-sensitive; they must not leak foreign identifiers or operational internals.
 
 Slice 7B performs no persistence, execution, payment, inventory, receipt, finalization, or UI/API behavior.
 
