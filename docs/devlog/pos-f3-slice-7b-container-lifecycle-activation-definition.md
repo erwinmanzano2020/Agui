@@ -1,5 +1,7 @@
 # POS-F3 Slice 7B — Container Lifecycle & Activation (Definition Only)
 
+> **Historical planning artifact.** This document is superseded for execution authority by [`docs/devlog/pos-f3-slice-7b-closure-record.md`](./pos-f3-slice-7b-closure-record.md). Slice 7B is **CLOSED** and **LOCKED**; runtime is **VERIFIED** and documentation is **RECONCILED**. This planning record remains useful only for historical design rationale and is not the current execution authority. It does not authorize Slice 7C implementation or any new runtime behavior.
+
 ## Summary
 - Slice 7A established **container foundation validity** (`FOUNDATIONAL` | `BLOCKED`).
 - Slice 7B defines **container lifecycle and activation semantics**.
@@ -69,12 +71,12 @@ A checkout container may exist in the following states:
 - **CANCELED**
   - Part of canonical Slice 7 vocabulary
   - Terminal state
-  - Runtime behavior is future-slice scope and not authorized by this Slice 7B definition
+  - At planning time, runtime behavior was identified as future-slice scope and was not authorized by this Slice 7B definition
 
 - **COMPLETED**
   - Part of canonical Slice 7 vocabulary
   - Terminal state
-  - Runtime behavior is future-slice scope and not authorized by this Slice 7B definition
+  - At planning time, runtime behavior was identified as future-slice scope and was not authorized by this Slice 7B definition
 
 ---
 
@@ -101,11 +103,11 @@ Triggered by:
 
 ### `ACTIVE` → `CANCELED`
 - Canonical terminal path.
-- Runtime cancel handling is future-slice scope and not implemented/authorized by this definition.
+- At planning time, runtime cancel handling was future-slice scope and was not authorized by this definition.
 
 ### `ACTIVE` → `COMPLETED`
 - Canonical terminal path.
-- Runtime completion/finalization handling is future-slice scope and not implemented/authorized by this definition.
+- At planning time, runtime completion/finalization handling was future-slice scope and was not authorized by this definition.
 
 ### `INVALIDATED` (Terminal State)
 - `INVALIDATED` is terminal.
@@ -149,7 +151,7 @@ Rules:
 - events must never override validation rules
 - Slice 7B does not implement events
 - `ENTRY_REVOKED`, `CANCEL_REQUESTED`, and `COMPLETION_REACHED` are included for vocabulary completeness and consistency with canonical state-event rules
-- Runtime handling for cancel/completion remains future-slice scope and requires separate approval
+- Runtime handling for cancel/completion remains future-slice scope and requires a separately approved future slice
 
 ---
 
@@ -163,16 +165,18 @@ Rules:
 
 ---
 
-## Contract Expectations (Future Shape)
+## Contract Expectations (Historical Future Shape)
 
-Slice 7B may expose:
+This document originally proposed that Slice 7B may expose:
 
 - `containerLifecycleState`
 - `canActivateContainer`
 - `invalidationReasons` (bounded, non-sensitive)
 
+The implemented and locked output contract additionally includes `lifecycleSummary`; see the closure record for execution authority.
+
 But:
-> This contract is NOT yet authorized for implementation.
+> This planning status has been superseded by the completed, verified Slice 7B implementation and closure record.
 
 ---
 
@@ -220,9 +224,10 @@ Slice 7B does NOT:
 
 ## Status
 
-- Slice 7B is **defined**
-- Slice 7B is **NOT started**
-- Implementation requires separate approval
+- Historical planning status: this document originally recorded Slice 7B as defined before implementation.
+- Current status: Slice 7B is **CLOSED** and **LOCKED**; runtime is **VERIFIED** and documentation is **RECONCILED**.
+- Execution authority: `docs/devlog/pos-f3-slice-7b-closure-record.md`
+- This historical planning artifact does not authorize Slice 7C implementation.
 
 ---
 
