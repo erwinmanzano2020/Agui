@@ -85,7 +85,19 @@ Execution assumes:
 
 Loss of any invariant ends execution eligibility.
 
-## 8. Relationship to Future Slices
+## 8. Execution Termination Vocabulary
+
+Execution termination vocabulary identifies how execution conceptually ends. It uses the existing canonical lifecycle vocabulary and maps execution termination only to:
+
+- `COMPLETED` — conceptual execution completion;
+- `CANCELED` — conceptual execution termination by cancel posture; or
+- `INVALIDATED` — conceptual execution termination when an execution invariant is lost.
+
+These are conceptual execution outcomes only. They do not authorize persistence, payment, receipts, accounting, inventory, or any downstream action. They do not redefine Slice 7B lifecycle semantics.
+
+This vocabulary does not define what downstream systems do after execution conceptually ends.
+
+## 9. Relationship to Future Slices
 
 Future slices may consume execution for:
 
@@ -97,7 +109,7 @@ Future slices may consume execution for:
 
 Slice 7C defines none of them.
 
-## 9. Boundary Diagram
+## 10. Boundary Diagram
 
 ```text
 Slice 4
@@ -152,7 +164,7 @@ Future Receipt
 Future Accounting
 ```
 
-## 10. Status
+## 11. Status
 
 - Planning only.
 - No runtime authorization.
