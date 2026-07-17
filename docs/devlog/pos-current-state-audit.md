@@ -18,6 +18,7 @@
 - `docs/pos/pos-master-plan.md`
 - `docs/pos/pos-phase-1-foundation.md`
 - `docs/pos/pos-status.md`
+- `agui-starter/docs/Agui Roadmap Plan.md`
 - `docs/devlog/phase-transition-hr-to-pos.md`
 - `docs/devlog/pos-f3-slice-1.md`
 - `docs/devlog/pos-f3-slice-2.md`
@@ -46,6 +47,7 @@
 - `docs/devlog/pos-f3-slice-7b-implementation-planning.md`
 - `docs/devlog/pos-f3-slice-7b-approval-gate-checklist.md`
 - `docs/devlog/pos-f3-slice-7c-checkout-execution-boundary-definition.md` (current Slice 7C planning authority)
+- `docs/devlog/pos-f3-slice-7d-implementation-planning.md`
 - `docs/devlog/pos-f3-slice-7c-checkout-execution-finalization-definition.md` (historical planning artifact)
 - `docs/devlog/pos-f3-slice-7-consistency-audit.md`
 
@@ -72,17 +74,19 @@ Current POS authority should be read in this order:
 - **POS-F3 Slice 7 planning language: planning-complete for the core container vocabulary set.** Existing docs define order-tied checkout container boundary, structure, continuity semantics, state vocabulary, invariants, invalidation, event vocabulary, event authority, and state-event consistency as governance language.
 - **Slice 7A: closed and locked as Checkout Container Foundation only.** The locked contract consumes Slice 6 entry decisioning, validates exact-scope anchors, and returns `FOUNDATIONAL | BLOCKED` without lifecycle/events/activation/payment/inventory/receipt/finalization/persistence or UI/API expansion.
 - **Slice 7B: runtime implementation present; closure/status reconciliation complete.** Lifecycle evaluation runtime and tests exist. The repository audit identified an implementation-versus-approval mismatch; that mismatch was subsequently resolved by the Slice 7B closure record and approval-gate reconciliation. Slice 7B is **CLOSED and LOCKED**.
-- **Slice 7C: next gated planning slice only.** [`pos-f3-slice-7c-checkout-execution-boundary-definition.md`](./pos-f3-slice-7c-checkout-execution-boundary-definition.md) is the current planning authority. It defines execution-boundary governance and conceptual termination vocabulary only, and explicitly does not authorize implementation. The earlier execution/finalization definition is historical planning rationale, not current authority.
+- **Slice 7C: current execution-boundary planning authority.** [`pos-f3-slice-7c-checkout-execution-boundary-definition.md`](./pos-f3-slice-7c-checkout-execution-boundary-definition.md) defines execution-boundary governance and conceptual termination vocabulary only, and explicitly does not authorize implementation. The earlier execution/finalization definition is historical planning rationale, not current authority.
+- **Slice 7D: implementation planning complete.** [`pos-f3-slice-7d-implementation-planning.md`](./pos-f3-slice-7d-implementation-planning.md) records future implementation sequencing and phase-gate dependencies only. It does not authorize runtime implementation.
 
 ## 5. Active / Next POS Work
-Current POS docs identify **Slice 7C planning** as the next gated POS work. Slice 7C implementation remains unauthorized.
+Current POS docs identify Slice 7C as the current execution-boundary planning authority and record Slice 7D implementation planning as complete. Neither authorizes runtime implementation.
 
-- `docs/pos/pos-status.md` records Slice 7A and Slice 7B as closed/locked and names Slice 7C as the next gated planning slice.
+- `docs/pos/pos-status.md` records Slice 7A and Slice 7B as closed/locked, Slice 7C as the current planning authority, and Slice 7D planning as complete.
 - Slice 7B currently has lifecycle/activation definition and implementation-planning artifacts, and runtime lifecycle evaluation is present in the repo.
 - The historical Slice 7B approval-gate checklist is marked **APPROVED / RESOLVED**, names the Slice 7B closure record as its authority, and no longer blocks Slice 7B.
-- Slice 7C is definition/governance language under the current Execution Boundary Definition and is the next gated planning slice only.
-- Slice 7C does not authorize checkout execution, payment/tender implementation, persistence, receipt generation, inventory movement, downstream finalization, UI/API runtime behavior, or accounting/ledger effects.
-- Therefore, POS must not proceed to Slice 7C implementation, payment, finalization, receipt, inventory, or transaction persistence without explicit future approval.
+- Slice 7C is definition/governance language under the current Execution Boundary Definition; Slice 7D is planning guidance that follows it without reinterpreting it.
+- Neither Slice 7C nor Slice 7D authorizes checkout execution, payment/tender implementation, persistence, receipt generation, inventory movement, downstream finalization, UI/API runtime behavior, or accounting/ledger effects.
+- Inventory-coupled POS work remains gated by Operations authority and an approved inventory integration contract. Settlement/accounting work remains gated by Finance authority and an approved accounting/settlement integration contract.
+- The next POS work requires a separately approved bounded task and must not bypass those module gates.
 
 ## 6. POS Coverage Inventory
 
@@ -103,7 +107,7 @@ Current POS docs identify **Slice 7C planning** as the next gated POS work. Slic
 - Existing implementation computes `containerLifecycleState`, `canActivateContainer`, `invalidationReasons`, and `lifecycleSummary`.
 - Tests exist for `ENTERABLE`, `ACTIVE`, `INVALIDATED`, determinism, anchor mismatch, and boundary behavior.
 - The closure record and reconciled historical approval-gate checklist establish Slice 7B as **CLOSED and LOCKED**.
-- Slice 7C is the next gated planning slice only; its implementation remains unauthorized.
+- Slice 7C is the current execution-boundary planning authority, and Slice 7D implementation planning is complete; neither authorizes runtime implementation.
 
 ### Transaction/order model
 - **Classification: PARTIAL.**
@@ -155,12 +159,12 @@ Current POS docs identify **Slice 7C planning** as the next gated POS work. Slic
 - Slice 6 is entry decision only, not checkout execution.
 - Slice 7A is container foundation only, not lifecycle or activation.
 - Slice 7B lifecycle evaluation is CLOSED and LOCKED; no expansion beyond its existing lifecycle evaluation is authorized by this audit.
-- Slice 7C is the next gated planning slice only; implementation is not authorized.
-- No current docs authorize payment/tender implementation, inventory movement, receipt generation, finalization writes, finance/ledger effects, cross-session browsing, multi-order orchestration, new migrations, new schemas, new APIs, or new UI expansion for Slice 7.
+- Slice 7C is the current execution-boundary planning authority, and Slice 7D implementation planning is complete; neither authorizes implementation.
+- Inventory-coupled work remains gated by Operations authority, and settlement/accounting work remains gated by Finance authority. No current docs authorize payment/tender implementation, inventory movement, receipt generation, finalization writes, finance/ledger effects, cross-session browsing, multi-order orchestration, new migrations, new schemas, new APIs, or new UI expansion for Slice 7.
 
 ## 8. Inconsistencies or Ambiguities
 - **Resolved Slice 7B implementation-vs-approval mismatch:** the audit found that runtime existed while approval documentation lagged. The Slice 7B closure record and approval-gate reconciliation now establish the runtime as CLOSED and LOCKED.
-- **Resolved status wording drift for Slice 7B:** canonical status now records Slice 7A and Slice 7B as closed/locked and names Slice 7C as the next gated planning slice.
+- **Resolved planning-status wording drift:** canonical status records Slice 7A and Slice 7B as closed/locked, Slice 7C as the current execution-boundary planning authority, and Slice 7D implementation planning as complete.
 - **Checkout container vs transaction/order:** Slice 7 locks an order-tied checkout container as a conceptual boundary, while the transaction/order model remains only partly implemented as current-session draft order behavior. The docs do not yet define how a completed checkout container becomes a durable transaction/sale/order-finalization record.
 - **Lifecycle vs execution:** Slice 7B defines lifecycle/activation semantics and the current Slice 7C authority defines the execution boundary plus conceptual termination vocabulary. The separation is explicit, but future tasks must preserve the dependency chain: existence/foundation (7A) → lifecycle/state (7B) → execution/action (7C).
 - **Slice 7C dependency on transaction model:** Slice 7C maps conceptual execution termination to existing lifecycle vocabulary only; it does not define durable transaction/order finalization. Future implementation would be risky without a prior contract for what persists, what becomes immutable, and what downstream receipt/payment/accounting records reference.
@@ -179,13 +183,14 @@ Current POS docs identify **Slice 7C planning** as the next gated POS work. Slic
 - Broadening UI/API surfaces from Slice 7 definitions could bypass the documented no-runtime-authorization posture.
 
 ## 10. Recommended Next Step
-Recommended next task: **POS-F3 Slice 7C gated planning**.
+Recommended next task: a **separately approved bounded implementation-planning follow-on or implementation authorization task** that preserves the Slice 7C → Slice 7D authority chain.
 
-Slice 7B closure/status reconciliation is complete: runtime is present, documentation is reconciled, and Slice 7B is CLOSED and LOCKED. Slice 7C planning must consume the locked Slice 7B lifecycle semantics and must not redefine them. The current Slice 7C planning authority is [`pos-f3-slice-7c-checkout-execution-boundary-definition.md`](./pos-f3-slice-7c-checkout-execution-boundary-definition.md).
+Slice 7B closure/status reconciliation is complete: runtime is present, documentation is reconciled, and Slice 7B is CLOSED and LOCKED. Slice 7C is the current execution-boundary planning authority and Slice 7D implementation planning is complete. Neither authorizes runtime implementation.
 
-Do not proceed to Slice 7C implementation, payment/tender work, finalization work, receipt work, inventory work, migrations, schema changes, APIs, UI, or transaction persistence unless an explicit approved task authorizes that work.
+Do not proceed to checkout implementation, payment/tender work, finalization work, receipt work, inventory work, migrations, schema changes, APIs, UI, or transaction persistence unless an explicit approved task authorizes that work. Inventory-coupled work must not bypass Operations authority and an approved inventory integration contract; settlement/accounting work must not bypass Finance authority and an approved accounting/settlement integration contract.
 
 ## 11. Status
 - Audit complete.
 - Slice 7B closure/status reconciliation complete; Slice 7B is CLOSED and LOCKED.
-- Slice 7C is the next gated planning slice only; implementation requires explicit approval. The Execution Boundary Definition is the current authority; the execution/finalization definition remains historical.
+- Slice 7C is the current execution-boundary planning authority, and Slice 7D implementation planning is complete. Neither authorizes runtime implementation. The Execution Boundary Definition remains the current Slice 7C authority; the execution/finalization definition remains historical.
+- Inventory-coupled work remains gated by Operations authority, and settlement/accounting work remains gated by Finance authority.
