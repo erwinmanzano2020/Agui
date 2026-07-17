@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Slice 8 is the bounded implementation authorization for the Checkout Execution Coordinator. It evaluates the already-locked checkout authority chain and returns one deterministic coordinator result. It does not perform checkout or any downstream business effect.
+Slice 8 is the bounded Checkout Execution Coordinator implementation record. Its separate authorization is recorded in [`pos-f3-slice-8-implementation-approval.md`](./pos-f3-slice-8-implementation-approval.md). It evaluates the already-locked checkout authority chain and returns one deterministic coordinator result. It does not perform checkout or any downstream business effect.
 
 ## Authority and dependency direction
 
