@@ -1,18 +1,21 @@
 # POS F3 — Slice 7B Implementation Planning
 
+> **Historical planning artifact.** This document is superseded for execution authority by [`docs/devlog/pos-f3-slice-7b-closure-record.md`](./pos-f3-slice-7b-closure-record.md). Slice 7B is **CLOSED** and **LOCKED**; runtime is **VERIFIED** and documentation is **RECONCILED**. This planning record remains useful only for historical design rationale and is not the current execution authority. It does not authorize Slice 7C implementation or any new runtime behavior.
+
 ## 1) Purpose
 
-Translate the approved Slice 7B lifecycle definition into an approval-ready planning artifact for lifecycle evaluation behavior.
+At planning time, this document translated the Slice 7B lifecycle definition into an approval-ready planning artifact for lifecycle evaluation behavior.
 
 This planning document defines how lifecycle evaluation is computed from explicit inputs, with read-only and stateless behavior.
 
-## 2) Contract Shape (Planned Output)
+## 2) Contract Shape (Historical Planned Output)
 
 Planned evaluation result fields:
 
 - `containerLifecycleState`
 - `canActivateContainer`
 - `invalidationReasons[]` (bounded, non-sensitive)
+- `lifecycleSummary`
 
 Contract constraints:
 
@@ -21,7 +24,7 @@ Contract constraints:
 - No side effects.
 - Entire result is derived from provided inputs only.
 
-## 3) Input Model (Planned)
+## 3) Input Model (Historical Plan)
 
 Required full-scope identifiers:
 
@@ -44,7 +47,7 @@ Input discipline:
 - No implicit or global state is allowed.
 - All decisions must be explainable from supplied parameters.
 
-## 4) Repository Boundary (Critical)
+## 4) Repository Boundary (Historical Plan)
 
 Planned repository interface (conceptual boundary only):
 
@@ -83,7 +86,7 @@ Lifecycle rules:
 - `INVALIDATED` is terminal within this evaluator model.
 - No silent transitions are allowed.
 
-## 6) Activation Semantics (Planned Behavior)
+## 6) Activation Semantics (Historical Planned Behavior)
 
 `canActivateContainer = true` only when:
 
@@ -117,7 +120,7 @@ This plan guarantees:
 - No time-based drift in evaluation behavior.
 - No randomness in decision paths.
 
-## 9) Error Handling Strategy (Planned)
+## 9) Error Handling Strategy (Historical Plan)
 
 Error policy:
 
@@ -175,6 +178,7 @@ Key risks to control during follow-on delivery:
 
 ## 14) Status
 
-- Slice 7B: Defined + Planned
-- Implementation: Not started
-- Next step: explicit approval required before any delivery work begins
+- Historical planning status: this document originally recorded Slice 7B as defined and planned before implementation.
+- Current status: Slice 7B is **CLOSED** and **LOCKED**; runtime is **VERIFIED** and documentation is **RECONCILED**.
+- Execution authority: `docs/devlog/pos-f3-slice-7b-closure-record.md`
+- This historical planning artifact does not authorize Slice 7C implementation, payment, inventory, receipt, persistence, UI/API expansion, runtime behavior, or schema changes.
