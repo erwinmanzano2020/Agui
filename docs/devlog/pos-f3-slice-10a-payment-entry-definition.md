@@ -84,7 +84,12 @@ Its responsibility is limited to accepting that a payment intent is entering the
 
 ## 7. Downstream authority
 
-Future payment-processing slices may consume Payment Entry as their conceptual upstream boundary once separately planned and approved.
+Future payment-processing slices remain required to consume the frozen Payment Foundation outputs established by Slice 9:
+
+- `PAYMENT_READY`
+- `PAYMENT_BLOCKED`
+
+Payment Entry defines the governance boundary that those future slices may elaborate only after separate planning, implementation approval, runtime implementation, and closure. This document does not modify the frozen Slice 9 downstream contract.
 
 Payment Entry itself performs no payment execution. It does not authorize any future processing, settlement, receipt, checkout completion, inventory, accounting, loyalty, refund, split-payment, API, repository, persistence, UI, schema, or migration work.
 
