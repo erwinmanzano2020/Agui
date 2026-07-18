@@ -2,7 +2,7 @@ import type { OrderCheckoutExecutionCoordinatorResult } from "./order-checkout-e
 
 export type PaymentFoundationResult = "PAYMENT_READY" | "PAYMENT_BLOCKED";
 
-type Slice8CoordinatorResultInput = Pick<OrderCheckoutExecutionCoordinatorResult, "checkoutExecutionStatus"> | null | undefined;
+type Slice8CoordinatorResultInput = OrderCheckoutExecutionCoordinatorResult | null | undefined;
 
 export function determinePaymentFoundationAuthority(
   coordinatorResult: Slice8CoordinatorResultInput,
