@@ -49,6 +49,24 @@ test("unknown coordinator result maps to PAYMENT_BLOCKED", () => {
   assert.equal(determinePaymentFoundationAuthority({ checkoutExecutionStatus: "UNKNOWN" } as never), "PAYMENT_BLOCKED");
 });
 
+test("payment foundation does not reinterpret structurally complete READY coordinator semantics", () => {
+  const result = determinePaymentFoundationAuthority(createCoordinatorResult({
+    canContinueCheckoutExecution: false,
+    blockingIssues: [{
+      code: "CHECKOUT_EXECUTION_LIFECYCLE_NOT_ACTIVE",
+      severity: "BLOCKER",
+      message: "Synthetic inconsistent blocker owned by Slice 8 tests, not Payment Foundation.",
+    }],
+    executionScopeSummary: {
+      ...SCOPE_SUMMARY,
+      foundationStatus: "BLOCKED",
+      containerLifecycleState: "INVALIDATED",
+    },
+  }));
+
+  assert.equal(result, "PAYMENT_READY");
+});
+
 test("payment foundation is deterministic and exposes no mutable upstream or downstream state", () => {
   const input = createCoordinatorResult();
   const first = determinePaymentFoundationAuthority(input);
