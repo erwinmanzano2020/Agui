@@ -52,27 +52,24 @@ financial, inventory, receipt, accounting, settlement, or persistence effect.
 
 ## 4. Planned Inputs
 
-The planned runtime inputs are bounded to:
+The planned runtime input is bounded to:
 
-- the locked Slice 8 current-session `READY` or `BLOCKED` coordinator result;
-- the current scoped checkout context required to validate the exact inherited
-  anchor; and
-- a deterministic payment intent supplied within the future approved runtime
-  contract.
+- the locked Slice 8 current-session `READY` or `BLOCKED` coordinator result.
 
-No additional upstream dependency, scope model, identity authority, or
-cross-session input is planned. The runtime must consume Slice 8 rather than
-repeat, bypass, or reinterpret its coordinator evaluation.
+No checkout context, independent anchor payload, payment intent, repository
+lookup input, additional upstream dependency, scope model, identity authority,
+or cross-session input is planned. The runtime must consume Slice 8 as supplied
+rather than repeat, bypass, or reinterpret its coordinator evaluation.
 
 ## 5. Planned Outputs
 
 The planned public/runtime contract will expose a deterministic, entry-only
 result using bounded vocabulary such as:
 
-- `PAYMENT_READY` when the locked `READY` result and exact current-session
-  anchor permit payment-entry authority; or
-- `PAYMENT_BLOCKED` when the upstream result is `BLOCKED`, the anchor is
-  invalid, or the context is foreign or otherwise cannot be safely validated.
+- `PAYMENT_READY` when the locked Slice 8 result is `READY`; or
+- `PAYMENT_BLOCKED` when the locked Slice 8 result is `BLOCKED` or when the
+  supplied coordinator result is absent, malformed, or otherwise outside the
+  frozen result vocabulary.
 
 The future approval must freeze exact names and result shape before runtime
 work begins. These outputs do not execute payment, persist a payment intent,
@@ -83,27 +80,28 @@ mutate checkout state, or trigger downstream effects.
 A future runtime is planned to interact with the locked coordinator boundary
 as follows:
 
-- consume Slice 8 only as the upstream authority;
-- use read-only repository access only where exact current-session anchor
-  validation is required;
-- preserve the inherited house -> branch -> session -> device scope chain;
-- return a bounded no-leak denial for missing, invalid, mismatched, or foreign
-  scope; and
+- consume the locked Slice 8 coordinator output directly as the only upstream
+  authority;
+- perform no independent repository access;
+- perform no repeated scope, anchor, lifecycle, or checkout validation;
+- preserve the inherited house -> branch -> session -> device scope posture
+  solely through the locked Slice 8 result; and
 - perform no lifecycle mutation or downstream orchestration.
 
-The future implementation must explicitly prohibit database writes, inventory
-reads, accounting access, receipt generation, payment-provider access, and any
-repository contract that introduces persistence or financial behavior.
+The future implementation must explicitly prohibit database reads or writes,
+inventory reads, accounting access, receipt generation, payment-provider
+access, and any repository contract that introduces persistence, revalidation,
+or financial behavior.
 
 ## 7. Runtime Constraints
 
 Any subsequently approved runtime must remain:
 
-- deterministic and repeatable for equivalent inputs;
-- read-only and bounded to the current session;
-- exact-anchor validated before exposing a ready result;
-- scope-first and no-leak, with no cross-house, cross-branch, cross-session,
-  or cross-device route;
+- deterministic and repeatable for equivalent Slice 8 results;
+- read-only and bounded to the current session by inheriting the locked Slice 8
+  decision rather than revalidating it;
+- scope-first and no-leak through the locked Slice 8 authority, with no
+  independent cross-house, cross-branch, cross-session, or cross-device route;
 - free of timing dependencies, randomness, external integration, and side
   effects; and
 - limited to the locked Slice 8 `READY`/`BLOCKED` authority without changing
@@ -115,11 +113,12 @@ The future approved runtime task is expected to add focused coverage for:
 
 - a `READY` path producing the bounded payment-entry-ready result;
 - a `BLOCKED` path producing the bounded payment-blocked result;
-- invalid or missing exact anchors;
-- foreign-session and other mismatched scoped contexts;
-- deterministic repeatability for equivalent inputs;
-- proof that evaluation performs no mutation or persistence; and
-- factory coverage for valid, blocked, and invalid scoped coordinator inputs.
+- absent, malformed, or out-of-vocabulary coordinator results producing the
+  bounded blocked result without leaking detail;
+- deterministic repeatability for equivalent Slice 8 results;
+- proof that evaluation performs no mutation, persistence, repository access,
+  or upstream revalidation; and
+- factory coverage for ready, blocked, and malformed coordinator-result inputs.
 
 Before closure, the runtime task must run relevant lint, typecheck, build, and
 automated tests, and must document any environment limitation. This strategy
