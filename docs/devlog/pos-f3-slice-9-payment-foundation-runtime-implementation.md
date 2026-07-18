@@ -10,7 +10,7 @@ The runtime implements exactly one responsibility:
 
 > Consume the locked Slice 8 coordinator result and determine whether Payment Foundation may expose payment-entry authority.
 
-The runtime boundary accepts the complete canonical Slice 8 coordinator result type, not an ad hoc status-field subset. It consumes only the supplied Slice 8 coordinator result status from that locked contract. It performs no repository lookup, checkout reconstruction, anchor validation, payment-intent handling, tender handling, provider configuration, inventory work, accounting work, persistence, route handling, or UI work.
+The runtime boundary accepts the complete canonical Slice 8 coordinator result type, not an ad hoc status-field subset. Before trusting the status field, it performs a minimal structural provenance check that the supplied value contains the canonical Slice 8 coordinator fields. This is not Slice 8 semantic revalidation: it does not evaluate lifecycle correctness, blocker meaning, anchor consistency, or execution eligibility. It then consumes only the supplied Slice 8 coordinator result status from that locked contract. It performs no repository lookup, checkout reconstruction, anchor validation, payment-intent handling, tender handling, provider configuration, inventory work, accounting work, persistence, route handling, or UI work.
 
 ## Public result vocabulary
 
@@ -25,7 +25,7 @@ The public Payment Foundation result vocabulary is limited to:
 
 ## Verification notes
 
-Unit coverage verifies `READY -> PAYMENT_READY`, `BLOCKED -> PAYMENT_BLOCKED`, malformed or absent input -> `PAYMENT_BLOCKED`, unknown input -> `PAYMENT_BLOCKED`, deterministic repeatability, and no exposed downstream state. The public function requires the full Slice 8 coordinator result type for valid non-absent input, preserving Slice 8 as the typed upstream authority without revalidating or reconstructing it. The runtime has no repository parameter or persistence dependency, so repository access, persistence, mutation, and downstream effects remain absent by construction.
+Unit coverage verifies `READY -> PAYMENT_READY`, `BLOCKED -> PAYMENT_BLOCKED`, malformed or absent input -> `PAYMENT_BLOCKED`, partial `READY` payload -> `PAYMENT_BLOCKED`, unknown input -> `PAYMENT_BLOCKED`, deterministic repeatability, and no exposed downstream state. The public function requires the full Slice 8 coordinator result type for valid non-absent input and fails closed for structurally incomplete runtime payloads, preserving Slice 8 as the upstream authority without semantically revalidating or reconstructing it. The runtime has no repository parameter or persistence dependency, so repository access, persistence, mutation, and downstream effects remain absent by construction.
 
 ## Explicit non-expansion
 

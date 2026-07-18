@@ -38,6 +38,11 @@ test("absent or malformed coordinator result maps to PAYMENT_BLOCKED", () => {
   assert.equal(determinePaymentFoundationAuthority(undefined), "PAYMENT_BLOCKED");
   assert.equal(determinePaymentFoundationAuthority(null), "PAYMENT_BLOCKED");
   assert.equal(determinePaymentFoundationAuthority({} as never), "PAYMENT_BLOCKED");
+  assert.equal(determinePaymentFoundationAuthority({ checkoutExecutionStatus: "READY" } as never), "PAYMENT_BLOCKED");
+  assert.equal(
+    determinePaymentFoundationAuthority(createCoordinatorResult({ executionScopeSummary: undefined as never })),
+    "PAYMENT_BLOCKED",
+  );
 });
 
 test("unknown coordinator result maps to PAYMENT_BLOCKED", () => {
