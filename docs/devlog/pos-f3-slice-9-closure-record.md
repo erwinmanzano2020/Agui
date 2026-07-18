@@ -122,9 +122,29 @@ Closure verification confirms:
 - POS Status records Slice 9 as **Closed (Locked)**; and
 - Payment Foundation is now the canonical upstream dependency for future payment execution slices.
 
-This closure changes documentation only. Runtime files, tests, schemas, migrations, APIs, routes, UI, repositories, tenancy behavior, authorization behavior, payment behavior, inventory behavior, and accounting behavior are unchanged.
+## 9. Verification evidence
 
-## 9. Final status
+The following verification was completed before locking Slice 9 in this closure record:
+
+- **Focused runtime tests:** `npm run test -- src/lib/pos/payment-foundation.test.ts`
+  - Passed.
+  - Confirmed 7 Payment Foundation tests passed, covering `READY -> PAYMENT_READY`, `BLOCKED -> PAYMENT_BLOCKED`, malformed/absent/unknown input failure to `PAYMENT_BLOCKED`, deterministic repeatability, no exposed mutable state, no persistence/repository/mutation/downstream effects, and no Slice 8 semantic reinterpretation.
+- **Static analysis:** `npm run lint`
+  - Passed.
+  - Existing unrelated warnings remain in HR/home/settings files for unused variables and `<img>` usage; no Slice 9 lint failures were reported.
+- **Type safety:** `npm run typecheck`
+  - Passed.
+- **Build verification:** `npm run build`
+  - Passed.
+  - Existing environment/static-generation warnings were observed for missing Supabase environment configuration and dynamic server usage during static generation; these warnings are unrelated to Slice 9 and did not fail the build.
+- **Repository verification:** `git diff --check`
+  - Passed.
+
+Runtime changes after implementation: **none**.
+
+Closure record changes: **documentation only**. Runtime files, tests, schemas, migrations, APIs, routes, UI, repositories, tenancy behavior, authorization behavior, payment behavior, inventory behavior, and accounting behavior are unchanged.
+
+## 10. Final status
 
 - **Slice 9: CLOSED (LOCKED)**
 - **Payment Foundation public contract: FROZEN**
