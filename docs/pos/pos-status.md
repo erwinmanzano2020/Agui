@@ -15,6 +15,7 @@ This document is the canonical execution snapshot for POS status, sequencing, an
 - Slice 7D implementation planning is complete. It follows the current Slice 7C planning authority and remains planning-only with no runtime or implementation approval.
 - POS-F3 Slice 9A Payment Foundation Definition now exists as planning only. It defines the bounded payment-entry governance boundary after Slice 8 `READY`; it does not approve or implement Payment Foundation, payment processing, or any runtime behavior. See [`pos-f3-slice-9a-payment-foundation-definition.md`](../devlog/pos-f3-slice-9a-payment-foundation-definition.md).
 - POS-F3 Slice 9B Payment Foundation Implementation Planning now exists as planning only. It bounds a future implementation to locked Slice 8 consumption and deterministic payment-entry decisioning; it does not approve or implement Payment Foundation, payment processing, or any runtime behavior. See [`pos-f3-slice-9b-payment-foundation-implementation-planning.md`](../devlog/pos-f3-slice-9b-payment-foundation-implementation-planning.md).
+- POS-F3 Slice 9C Payment Foundation Implementation Approval now exists as implementation approval only. It authorizes a future bounded runtime exactly as described by Slice 9B; it does not implement Payment Foundation, mark it complete, change runtime posture, or approve payment execution. See [`pos-f3-slice-9c-payment-foundation-implementation-approval.md`](../devlog/pos-f3-slice-9c-payment-foundation-implementation-approval.md).
 - Inventory-coupled POS work remains gated by Operations authority, and settlement/accounting work remains gated by Finance authority, in accordance with the Roadmap.
 - First-slice stability checkpoint: completed on 2026-04-01 (UTC), with no blocker-class gaps identified
 - MVP posture: POS is still not MVP-complete
@@ -204,7 +205,7 @@ POS MVP is only considered done when, at minimum, all are true:
 - Payment, inventory, receipt, sale completion, finalization, persistence expansion, and UI/API/schema expansion remain blocked unless separately approved.
 
 ## 10. Last Updated
-2026-07-17 (UTC)
+2026-07-18 (UTC)
 
 ## 11. POS-F3 Slice 1 — Pricing & Totals (Completed, Bounded)
 ### Now supported
