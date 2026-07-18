@@ -70,7 +70,25 @@ The approved runtime scope is limited to:
 
 No other runtime behavior is approved by this record.
 
-## 5. Explicit Non-Goals
+## 5. Approved Runtime Result Contract
+
+The bounded runtime shall expose only the following public result vocabulary:
+
+| Result | Approved meaning | Authority granted | Downstream effects |
+|---|---|---|---|
+| `PAYMENT_READY` | The locked Slice 8 coordinator result is `READY`. | Grants payment-entry authority only. | None. |
+| `PAYMENT_BLOCKED` | The locked Slice 8 coordinator result is `BLOCKED`, absent, malformed, or outside the frozen Slice 8 coordinator-result vocabulary. | Grants no payment-entry authority. | None. |
+
+The runtime shall expose no additional public result values without a new
+planning and approval cycle. The approved semantic result shape is a single
+deterministic Payment Foundation result whose public status vocabulary is
+limited to `PAYMENT_READY` and `PAYMENT_BLOCKED`. The implementation task may
+choose the concrete programming-language representation, such as an enum or
+string literal type, but it shall not expand the approved vocabulary, add hidden
+public states, or attach downstream payment, persistence, receipt, inventory,
+accounting, provider, or UI effects to either result.
+
+## 6. Explicit Non-Goals
 
 The approved implementation shall not include, define, imply, or prepare:
 
@@ -111,7 +129,7 @@ The approved implementation shall not include, define, imply, or prepare:
 Inventory-coupled work remains Operations-gated. Accounting and settlement work
 remain Finance-gated.
 
-## 6. Required Verification
+## 7. Required Verification
 
 The future runtime implementation is not complete until verification succeeds.
 At minimum, the runtime task must include and pass:
@@ -134,7 +152,7 @@ Any environment limitation must be documented by the runtime implementation
 task. A closure record may not lock Payment Foundation until these checks are
 reported and any required follow-up is resolved or explicitly bounded.
 
-## 7. Approval Decision
+## 8. Approval Decision
 
 The Payment Foundation runtime described by Slice 9B is approved for bounded
 implementation.
@@ -144,12 +162,13 @@ payment execution, payment providers, cash handling, receipts, inventory,
 accounting, persistence expansion, UI, APIs, schemas, migrations, or any other
 future-scope behavior.
 
-## 8. Downstream Guidance
+## 9. Downstream Guidance
 
 The next runtime implementation must:
 
 - follow this approval exactly;
 - remain within the approved Slice 9B runtime scope;
+- expose only the frozen `PAYMENT_READY` or `PAYMENT_BLOCKED` result vocabulary;
 - consume the locked Slice 8 coordinator result without reinterpretation;
 - preserve current-session inherited scope and no-leak behavior;
 - avoid all non-goals listed in this approval;
@@ -161,7 +180,7 @@ The downstream runtime task must document what changed, what did not change,
 which scope and tenancy risks were checked, and which verification commands and
 tests were run.
 
-## 9. Validation and Status
+## 10. Validation and Status
 
 Validation for Slice 9C is documentation-only:
 
