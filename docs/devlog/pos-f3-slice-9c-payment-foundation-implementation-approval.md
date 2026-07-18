@@ -9,8 +9,10 @@ implementation defined by the completed
 
 This document grants implementation authority only for the bounded runtime
 scope described here and in Slice 9B. No runtime changes occur in this task.
-This task performs no implementation and changes no runtime contract, code,
-schema, API, UI, repository, service, action, or test.
+This task performs no runtime implementation and introduces no runtime code,
+exported implementation, schema, API, UI, repository, service, action, or test.
+It does intentionally approve and freeze the bounded public Payment Foundation
+result contract that future runtime work must implement.
 
 ## 2. Authority Chain
 
