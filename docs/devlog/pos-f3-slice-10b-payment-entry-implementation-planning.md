@@ -38,22 +38,19 @@ Slice 10B does not reopen, modify, or reinterpret Slice 8, Slice 9, or Slice 10A
 
 ## 3. Planned Runtime Boundary
 
-A future approved Payment Entry runtime shall begin only after the frozen Payment Foundation output is:
+A future approved Payment Entry runtime may be invoked only after the frozen Payment Foundation output is:
 
 - `PAYMENT_READY`
 
-A future approved Payment Entry runtime shall refuse to begin when the frozen Payment Foundation output is:
-
-- `PAYMENT_BLOCKED`
+When Payment Foundation produces `PAYMENT_BLOCKED`, Payment Entry must not be invoked or established. Handling that upstream outcome remains outside the Payment Entry runtime boundary.
 
 The planned runtime boundary is limited to establishing deterministic Payment Entry state after upstream payment-entry authority already exists. It remains read-only with respect to payment execution and shall not process any payment.
 
 ## 4. Planned Inputs
 
-The future runtime may consume only the frozen Slice 9 Payment Foundation contract:
+The future Payment Entry runtime may consume only the frozen Slice 9 `PAYMENT_READY` output.
 
-- `PAYMENT_READY`
-- `PAYMENT_BLOCKED`
+`PAYMENT_BLOCKED` remains a frozen Payment Foundation outcome, but it prevents Payment Entry from beginning and is not consumed as a Payment Entry runtime input.
 
 No direct dependency on the Checkout Execution Coordinator is permitted. The runtime may not consume, reinterpret, bypass, or revalidate Slice 8 directly.
 
@@ -61,10 +58,11 @@ No additional checkout context, tender details, provider payload, repository loo
 
 ## 5. Planned Conceptual Outputs
 
-The future runtime may define only the minimal conceptual output required to establish Payment Entry. The planned public vocabulary should remain intentionally small and bounded to concepts such as:
+The future runtime may define only the minimal conceptual output required to establish Payment Entry. The planned public vocabulary should remain intentionally small and bounded to a concept such as:
 
-- **Payment Entry established** — Payment Entry may begin because Payment Foundation returned `PAYMENT_READY`.
-- **Payment Entry refused** — Payment Entry must not begin because Payment Foundation returned `PAYMENT_BLOCKED` or any non-ready input.
+- **Payment Entry established** — Payment Entry began after receiving the authorized `PAYMENT_READY` input.
+
+A refusal output is not planned because it would imply Payment Entry was invoked for an upstream-blocked condition.
 
 The exact runtime names and result shape must be frozen by a separate Slice 10C implementation approval before runtime work begins.
 
@@ -74,7 +72,7 @@ The planned output must not introduce payment processing, settlement, authorizat
 
 A future approved Payment Entry runtime may only:
 
-- begin Payment Entry after `PAYMENT_READY`;
+- begin Payment Entry after receiving `PAYMENT_READY`;
 - establish payment-entry context;
 - preserve deterministic behavior; and
 - preserve inherited scope boundaries through the frozen Payment Foundation contract.
@@ -93,6 +91,7 @@ Scope and tenancy posture are inherited through the locked Slice 9 Payment Found
 
 The future runtime shall not:
 
+- consume `PAYMENT_BLOCKED` as a Payment Entry runtime input;
 - validate cash;
 - compute change;
 - execute payment;
@@ -122,13 +121,15 @@ Inventory-coupled work remains Operations-gated. Settlement and accounting work 
 
 When and only when runtime is separately approved, the implementation should include focused coverage for:
 
-- deterministic `PAYMENT_READY` entry establishment;
-- deterministic `PAYMENT_BLOCKED` refusal;
-- failure-path handling for absent, malformed, or non-ready payment-foundation inputs;
+- deterministic Payment Entry establishment from `PAYMENT_READY`;
+- contract-boundary verification that `PAYMENT_BLOCKED` does not enter or invoke Payment Entry;
+- fail-closed handling for invalid direct runtime invocation, if required by the separately approved implementation contract;
 - read-only verification;
 - no-side-effect verification;
 - contract-boundary verification proving no direct Slice 8 dependency; and
 - verification that no payment processing, persistence, provider communication, inventory work, receipt generation, checkout completion, or accounting behavior occurs.
+
+The invalid-invocation coverage must not create a second public Payment Entry state unless Slice 10C explicitly approves one.
 
 This Slice 10B planning document introduces no tests and changes no test files.
 
@@ -150,7 +151,7 @@ Slice 10B is complete when:
 
 - the future implementation boundary is fully specified;
 - runtime responsibilities remain tightly bounded;
-- frozen Slice 9 authority is preserved;
+- frozen Slice 9 authority is preserved without consuming `PAYMENT_BLOCKED` inside Payment Entry;
 - explicit non-goals prevent payment execution;
 - POS Status records Slice 10B as planning only; and
 - no runtime behavior is introduced.
