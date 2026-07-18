@@ -62,7 +62,15 @@ The implementation contract is frozen to a single allowed runtime input:
 
 `PAYMENT_BLOCKED` remains an upstream Payment Foundation outcome and must never invoke the Payment Entry runtime. The Payment Entry runtime shall not consume `PAYMENT_BLOCKED` as an input, create an alternative blocked runtime path, or introduce additional runtime inputs.
 
-The future implementation may define only the minimal runtime result needed to express that Payment Entry was established after `PAYMENT_READY`. It must not add payment processing, validation, authorization, settlement, receipt, checkout-completion, inventory, accounting, provider, API, repository, persistence, schema, migration, or UI states.
+The implementation contract is also frozen to a single public runtime output:
+
+- `PAYMENT_ENTRY_ESTABLISHED`
+
+`PAYMENT_ENTRY_ESTABLISHED` means only that Payment Entry was established after the runtime consumed the approved `PAYMENT_READY` input. It does not mean payment was validated, authorized, executed, settled, receipted, completed, persisted, or externally communicated.
+
+No additional public outputs are approved. No blocked output is approved. No alternative runtime states are approved. The runtime implementation task may not choose a different result name, result shape, blocked-state vocabulary, or expansion path.
+
+Any future expansion of the Payment Entry result contract requires a separately approved governance slice before implementation.
 
 ## 6. Runtime Expectations
 
@@ -115,7 +123,7 @@ Inventory-coupled work remains Operations-gated. Settlement and accounting work 
 When, and only when, the approved runtime is implemented, the runtime task must include focused verification for:
 
 - deterministic behavior;
-- Payment Entry establishment from `PAYMENT_READY`;
+- `PAYMENT_ENTRY_ESTABLISHED` output from `PAYMENT_READY`;
 - invalid direct invocation protection, if approved by the implementation shape;
 - no mutation;
 - no persistence;
@@ -141,6 +149,7 @@ The next runtime implementation must:
 - follow this approval exactly;
 - remain within the approved Slice 10B runtime plan;
 - consume only `PAYMENT_READY`;
+- return only `PAYMENT_ENTRY_ESTABLISHED`;
 - never invoke Payment Entry for `PAYMENT_BLOCKED`;
 - preserve inherited scope without recreating or bypassing upstream authority;
 - avoid all non-goals listed in this approval;
@@ -161,6 +170,7 @@ Validation for Slice 10C is documentation-only:
 - no migrations changed;
 - no UI changed;
 - no persistence changed;
+- the public output contract is frozen to `PAYMENT_ENTRY_ESTABLISHED`;
 - no payment execution was introduced;
 - frozen Slice 9 and Slice 10A/10B authority is preserved; and
 - POS Status records Slice 10C as implementation approval only.
