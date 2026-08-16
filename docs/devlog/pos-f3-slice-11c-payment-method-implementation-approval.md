@@ -88,7 +88,35 @@ It does not mean tender was accepted; cash was received; payment was sufficient;
 
 ## 7. Invalid direct invocation contract
 
-Invalid direct invocation is a non-domain programmer error only. The future runtime must reject a missing or incorrect `PAYMENT_ENTRY_ESTABLISHED` prerequisite; a missing or malformed method; an unsupported method; and every value outside the exact frozen vocabulary. Invalid invocation must not produce a successful selection result.
+Invalid direct invocation is a non-domain programmer error only. The future runtime must reject a missing or incorrect `PAYMENT_ENTRY_ESTABLISHED` prerequisite; a missing or malformed method; an unsupported method; every value outside the exact frozen vocabulary; and any object containing a top-level member other than `paymentEntry` or `method`. Invalid invocation must not produce a successful selection result.
+
+For example, each of these inputs is invalid because it adds an unknown top-level member:
+
+```text
+{
+  paymentEntry: "PAYMENT_ENTRY_ESTABLISHED",
+  method: "CASH",
+  amount: 100
+}
+```
+
+```text
+{
+  paymentEntry: "PAYMENT_ENTRY_ESTABLISHED",
+  method: "CARD",
+  provider: "example"
+}
+```
+
+```text
+{
+  paymentEntry: "PAYMENT_ENTRY_ESTABLISHED",
+  method: "ELECTRONIC_WALLET",
+  house_id: "..."
+}
+```
+
+Unknown members are programmer misuse and must fail before a successful result is returned. They must not be ignored, passed through, preserved, interpreted, or normalized. This strict rejection makes the frozen two-member public input shape enforceable and prevents extra fields from silently expanding the runtime contract.
 
 A synchronous `TypeError`-style misuse guard is acceptable. Its exact message remains an implementation detail unless stable tests require it. No public `PAYMENT_METHOD_BLOCKED`, `PAYMENT_METHOD_INVALID`, `PAYMENT_METHOD_FAILED`, or equivalent domain output is approved.
 
@@ -109,7 +137,10 @@ Inventory-coupled behavior remains Operations-gated. Settlement and accounting r
 The separately authorized runtime implementation task must verify:
 
 - success for every frozen category;
-- the exact result shape `{ status: "PAYMENT_METHOD_SELECTED", method }` and exact input/output method equality;
+- acceptance of the exact two-member input shape containing only `paymentEntry` and `method`;
+- rejection of every unknown top-level input member so extra fields cannot silently expand the runtime contract;
+- unknown-member rejection remaining outside the public domain result vocabulary;
+- the exact result shape `{ status: "PAYMENT_METHOD_SELECTED", method }`, exact input/output method equality, and no extra successful output member;
 - rejection of unsupported values, malformed invocation, and missing or incorrect Payment Entry evidence;
 - absence of public blocked, invalid, or failed result states;
 - deterministic behavior and no mutation;
