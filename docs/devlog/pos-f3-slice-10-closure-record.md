@@ -88,7 +88,9 @@ With this closure:
 - Slice 10B remains historical implementation-planning authority;
 - Slice 10C remains historical implementation approval;
 - the merged Slice 10 runtime and this closure record form the frozen Payment Entry implementation boundary;
-- downstream payment work must consume `PAYMENT_ENTRY_ESTABLISHED` without modifying or reinterpreting the Slice 10 contract; and
+- no downstream slice may modify or reinterpret the frozen Slice 10 runtime contract;
+- Slice 10 closure does not replace or modify the locked Slice 9 downstream contract; and
+- future payment-processing slices remain required to consume the frozen Slice 9 Payment Foundation outputs `PAYMENT_READY` / `PAYMENT_BLOCKED` unless separately approved governance authority explicitly changes that contract; and
 - any future change to the frozen input, output, or responsibility requires separately approved governance authority.
 
 Closure does not authorize payment-method selection, tender handling, payment processing, authorization, settlement, or any other downstream feature.
