@@ -41,21 +41,34 @@ test("the exact two-member input is accepted and evaluation is deterministic", (
   });
 });
 
-test("an accessor-backed method is snapshotted once before validation and returned unchanged", () => {
-  let methodAccesses = 0;
+test("an accessor-backed method that would add an unknown member is rejected without invocation", () => {
+  let getterCalls = 0;
   const accessorInput = {
     paymentEntry: PAYMENT_ENTRY_ESTABLISHED,
     get method() {
-      methodAccesses += 1;
-      return methodAccesses === 1 ? "CASH" : "GCASH";
+      getterCalls += 1;
+      Object.defineProperty(this, "amount", { value: 100 });
+      return "CASH";
     },
   };
 
-  const result = selectPaymentMethod(accessorInput as never);
+  assert.throws(() => selectPaymentMethod(accessorInput as never), TypeError);
+  assert.equal(getterCalls, 0);
+  assert.equal(Reflect.has(accessorInput, "amount"), false);
+});
 
-  assert.deepEqual(result, { status: "PAYMENT_METHOD_SELECTED", method: "CASH" });
-  assert.notEqual(result.method, "GCASH");
-  assert.equal(methodAccesses, 1);
+test("an accessor-backed Payment Entry member is rejected without invocation", () => {
+  let getterCalls = 0;
+  const accessorInput = {
+    get paymentEntry() {
+      getterCalls += 1;
+      return PAYMENT_ENTRY_ESTABLISHED;
+    },
+    method: "CASH" as const,
+  };
+
+  assert.throws(() => selectPaymentMethod(accessorInput as never), TypeError);
+  assert.equal(getterCalls, 0);
 });
 
 test("missing or incorrect Payment Entry evidence is programmer misuse", () => {
