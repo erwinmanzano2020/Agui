@@ -41,6 +41,23 @@ test("the exact two-member input is accepted and evaluation is deterministic", (
   });
 });
 
+test("an accessor-backed method is snapshotted once before validation and returned unchanged", () => {
+  let methodAccesses = 0;
+  const accessorInput = {
+    paymentEntry: PAYMENT_ENTRY_ESTABLISHED,
+    get method() {
+      methodAccesses += 1;
+      return methodAccesses === 1 ? "CASH" : "GCASH";
+    },
+  };
+
+  const result = selectPaymentMethod(accessorInput as never);
+
+  assert.deepEqual(result, { status: "PAYMENT_METHOD_SELECTED", method: "CASH" });
+  assert.notEqual(result.method, "GCASH");
+  assert.equal(methodAccesses, 1);
+});
+
 test("missing or incorrect Payment Entry evidence is programmer misuse", () => {
   assert.throws(() => selectPaymentMethod({ method: "CASH" } as never), TypeError);
   assert.throws(

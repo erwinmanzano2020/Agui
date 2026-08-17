@@ -40,12 +40,13 @@ export function selectPaymentMethod(input: PaymentMethodSelectionInput): Payment
     throw new TypeError("Payment Method Selection requires established Payment Entry.");
   }
 
-  if (!paymentMethodCategories.has(input.method)) {
+  const method = input.method;
+  if (!paymentMethodCategories.has(method)) {
     throw new TypeError("Payment Method Selection requires an approved method category.");
   }
 
   return {
     status: "PAYMENT_METHOD_SELECTED",
-    method: input.method,
+    method,
   };
 }
