@@ -51,9 +51,15 @@ The output method equals the accepted input method. No additional success member
 
 ## 4. Invalid direct invocation
 
-Missing or incorrect `paymentEntry`, missing or malformed `method`, unsupported method values, malformed inputs, and every unknown top-level member are rejected synchronously with `TypeError` as programmer misuse. Invalid invocation does not produce a domain-level blocked, invalid, failed, pending, or other result.
+Within the trusted invocation boundary, missing or incorrect `paymentEntry`, missing or malformed `method`, unsupported method values, malformed inputs, accessor-backed contract members, and every observable unknown top-level member are rejected synchronously with `TypeError` as programmer misuse. Invalid invocation does not produce a domain-level blocked, invalid, failed, pending, or other result.
 
 Unknown members—including `amount`, `provider`, and `house_id`—are rejected before success. They are not ignored, passed through, preserved, normalized, or interpreted, so they cannot silently expand the frozen contract.
+
+### Trusted invocation limitation
+
+The runtime contract applies to trusted invocation records supplied by Agui-owned upstream runtime code. For those records, unknown observable string, symbol, and non-enumerable members are rejected, and `paymentEntry` and `method` must be own data properties rather than accessors.
+
+Portable JavaScript has no reliable standard mechanism to identify a fully adversarial `Proxy` that fabricates its prototype, own keys, and property descriptors. Such proxy deception is outside the Slice 11 runtime trust contract. Future maintainers must not re-open proxy hardening through fragile reflection checks, cloning, serialization, proxy inspection, or Node-specific dependencies without a separately approved boundary change. This limitation authorizes no external caller, API, sanitization layer, repository, persistence, or payment behavior.
 
 ## 5. What changed
 
@@ -75,7 +81,7 @@ The implementation performs no cash counting, change computation, cash-drawer be
 
 ## 9. Verification
 
-Verification covers every approved method; exact two-member input and output shapes; repeated deterministic evaluation; prerequisite, vocabulary, and malformed-input rejection; explicit `amount`, `provider`, and `house_id` rejection; symbol-key rejection; no mutation; and absence of persistence, repository, API, provider, payment-execution, inventory, accounting, receipt, and checkout-completion behavior.
+Verification covers every approved method; exact two-member trusted input and output shapes; repeated deterministic evaluation; prerequisite, vocabulary, malformed-input, and accessor-backed-member rejection; explicit observable `amount`, `provider`, and `house_id` rejection; symbol-key rejection; no mutation; and absence of persistence, repository, API, provider, payment-execution, inventory, accounting, receipt, and checkout-completion behavior.
 
 Repository-wide tests, focused Slice 11 tests, lint, typecheck, build, and `git diff --check` are required for this implementation record.
 
