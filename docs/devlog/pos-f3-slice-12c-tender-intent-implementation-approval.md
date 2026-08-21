@@ -6,6 +6,8 @@ This record reviews the [Slice 12B Tender Intent Implementation Planning](./pos-
 
 Slice 12C is **Implementation Approval Only**. It freezes the contract below, but it does not implement runtime code or tests, close or lock Slice 12, or authorize tender handling, payment execution, settlement, or any downstream effect.
 
+This approval was corrected during review, before any Slice 12 runtime implementation or closure, to carry forward Slice 12B's existing caller-side `PAYMENT_BLOCKED` invocation guard. Slice 12B remains the unchanged historical planning record. The correction changes no frozen runtime input or output and does not create a Slice 12D amendment.
+
 ## 2. Authority review and approval decision
 
 The proposal was reviewed, without reinterpretation, against:
@@ -23,6 +25,10 @@ The proposal was reviewed, without reinterpretation, against:
 No conflict was found. The Slice 12B proposal requires no tender amount, provider semantics, persistence, independent scope resolution, or payment execution. It is therefore approved exactly as narrowed and frozen in this record.
 
 Slice 9 remains the canonical payment-processing authority through exactly `PAYMENT_READY` and `PAYMENT_BLOCKED`. Slice 10's `PAYMENT_ENTRY_ESTABLISHED` and Slice 11's `PAYMENT_METHOD_SELECTED` result remain prerequisite evidence only; neither Slice 10, Slice 11, nor Slice 12 replaces or redirects Slice 9 authority. The future runtime may not consume Slice 8 directly or independently evaluate payment readiness.
+
+Valid prerequisite evidence is necessary but not sufficient for Tender Intent invocation. The trusted Agui-owned caller may invoke the runtime only while current Slice 9 authority is `PAYMENT_READY`. If the current Payment Foundation outcome is `PAYMENT_BLOCKED`, the caller must not invoke Tender Intent, even when previously produced `PAYMENT_ENTRY_ESTABLISHED` and `PAYMENT_METHOD_SELECTED` evidence remains available. Retained or stale prerequisite evidence does not override or preserve payment authority after Slice 9 becomes `PAYMENT_BLOCKED`.
+
+This is a caller-side sequencing and invocation precondition at the trusted orchestration boundary. It is not an additional Tender Intent runtime input and does not give the pure runtime an independent payment-readiness responsibility. The runtime continues to receive only the frozen two-member input, does not evaluate Slice 9, and exposes no `PAYMENT_BLOCKED` or Tender-blocked result.
 
 ## 3. Exactly one approved responsibility
 
@@ -157,6 +163,13 @@ The separately authorized implementation task must verify:
 - there is no persistence, repository, API, route, action, provider/gateway communication, tender handling, amount inspection, payment execution, settlement, receipt behavior, checkout completion, inventory effect, accounting effect, or tenancy/identity/authorization resolution; and
 - the trusted invocation and adversarial-`Proxy` boundary is preserved without environment-specific inspection or an external adapter.
 
+Future trusted-orchestration integration or sequencing verification, separately from the pure runtime unit tests where necessary, must also verify:
+
+- while current upstream authority remains `PAYMENT_READY`, the trusted orchestration path may invoke Tender Intent with valid prerequisite evidence;
+- when current upstream authority is `PAYMENT_BLOCKED`, the trusted orchestration path does not invoke Tender Intent;
+- retained or stale `PAYMENT_ENTRY_ESTABLISHED` and `PAYMENT_METHOD_SELECTED` evidence cannot permit invocation after current authority becomes `PAYMENT_BLOCKED`; and
+- the Tender Intent runtime itself performs no independent payment-readiness evaluation.
+
 The future implementation task must run and report:
 
 ```text
@@ -172,9 +185,9 @@ Environment limitations and unrelated existing warnings must be documented rathe
 
 ## 13. Change and risk statement
 
-- **Changed:** the exact future Slice 12 runtime contract and its bounded implementation authority are frozen.
+- **Changed:** the exact future Slice 12 runtime contract and its bounded implementation authority are frozen, and the pre-implementation approval now explicitly carries forward Slice 12B's caller-side current-`PAYMENT_READY` sequencing precondition.
 - **Not changed:** no runtime, tests, migration, RPC, API, persistence, tenancy, identity, authorization, route guard, provider, tender, payment-execution, settlement, inventory, or accounting behavior changed.
-- **Risk checked:** the review preserved Slice 9 canonical authority, Slice 10/11 evidence semantics, the Slice 11D trusted-record limitation, exact-member behavior, House tenancy boundaries, and Operations/Finance phase gates.
+- **Risk checked:** the review preserved Slice 9 canonical authority, prevented stale prerequisite evidence from bypassing a current `PAYMENT_BLOCKED` outcome, and preserved Slice 10/11 evidence semantics, the unchanged runtime input/output contract, the Slice 11D trusted-record limitation, exact-member behavior, House tenancy boundaries, and Operations/Finance phase gates.
 - **Verification added:** future runtime verification requirements are mandatory; this documentation-only approval adds no tests.
 
 ## 14. Final status
