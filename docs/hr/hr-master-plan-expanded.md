@@ -6,20 +6,33 @@
 This document aligns the expanded HR plan with the canonical execution snapshot in [`hr-status.md`](./hr-status.md).
 
 - Contract and freeze authority remains in [`hr-master-plan.md`](./hr-master-plan.md).
-- This file is execution-facing and reflects current delivery mode.
+- This file remains canonical for HR scope and intended outcomes, but current
+  execution authorization is subordinate to the Roadmap and its audit gate.
 
-## Current Execution Mode: Hardening & Consolidation
-HR is no longer in feature-building mode for approved MVP scope.
+## Current Execution Mode: Read-Only Audit Gate
+The first authorized HR action after the POS-to-HR phase transition recorded for
+PR #489 is a **documentation/read-only HR current-state audit** against the
+canonical HR Master Plan and the actual repository/runtime checkpoint. The audit
+must determine what is actually present before any next bounded HR implementation
+task is prepared or authorized.
 
-Current mode is **hardening and consolidation**:
+The transition itself authorizes no HR runtime implementation, hardening,
+refactor, schema change, API change, migration, UI change, or test-behavior
+change. The Roadmap remains the authority for current execution sequencing.
+
+## Historical Execution Mode: Hardening & Consolidation (Pending Revalidation)
+Before the transition and audit gate, the recorded mode was **hardening and
+consolidation**:
 - stability-first delivery
 - parity across routes/pages/helpers
 - guardrail and regression depth expansion
 
-This mode preserves frozen contracts while improving confidence, consistency, and operational safety.
+These directions are historical checkpoint context only. Their accuracy and any
+remaining need for this work are pending the read-only audit; they do not
+authorize contributors to resume hardening or implementation.
 
-## Current HR Phase Reality (Execution-Aligned)
-The current execution baseline for delivered HR phases is:
+## Historical HR Phase Reality (Pending Revalidation)
+The previously recorded execution baseline for delivered HR phases was:
 
 - **HR-0:** implemented baseline, hardening-active
 - **HR-1:** implemented baseline, hardening-active
@@ -28,7 +41,10 @@ The current execution baseline for delivered HR phases is:
 - **HR-3.5:** implemented baseline, hardening-active
 
 Notes:
-- These labels reflect implementation maturity, not contract expansion.
+- These historical labels require audit verification and must not be read as a
+  declaration that HR is complete end to end.
+- These labels described implementation maturity, not contract expansion or
+  current execution authority.
 - Deferred scopes (e.g., government deductions, payout rails, broader finance integrations) remain deferred.
 
 ## Read-Path Parity & Scope Invariants
@@ -49,39 +65,41 @@ Interpretation:
 ### HR-0 — Foundations & Access
 Status: **implemented baseline, hardening-active**.
 
-Focus now:
+Historical focus (pending revalidation):
 - maintain house/branch-safe access enforcement
 - continue regression depth at high-risk boundaries
 
 ### HR-1 — Employees Core (Identity-Aware)
 Status: **implemented baseline, hardening-active**.
 
-Focus now:
+Historical focus (pending revalidation):
 - preserve frozen identity and dedupe contracts
 - harden tenancy-safe employee flows and conflict handling
 
 ### HR-2 — Time & Attendance (DTR)
 Status: **implemented baseline, hardening-active**.
 
-Focus now:
+Historical focus (pending revalidation):
 - reliability and consistency of DTR/schedule/overtime inputs
 - maintain payroll-preview readiness without scope expansion
 
 ### HR-3 — Payroll & Payslips (MVP)
 Status: **implemented baseline, hardening-active**.
 
-Focus now:
+Historical focus (pending revalidation):
 - run lifecycle wording/behavior consistency
 - lock semantics and export path reliability
 
 ### HR-3.5 — Kiosk / Setup / Employee ID
 Status: **implemented baseline, hardening-active**.
 
-Focus now:
+Historical focus (pending revalidation):
 - kiosk operations hardening and deployment confidence
 - constrained v1 ID/photo output hardening within existing limits
 
-## Current Execution Focus
+## Historical Execution Focus (Not Currently Authorized)
+The following list preserves the prior checkpoint direction for audit evidence;
+it is not an active task list:
 1. tenancy/auth guardrail regression expansion at high-risk boundaries
 2. read-path parity hardening across pages, APIs, and server helpers
 3. payroll/payslip wording and lock-state consistency hardening
@@ -90,7 +108,9 @@ Focus now:
 ## Scope and Contract Discipline
 This document does **not** authorize:
 - new HR feature scope
+- runtime implementation, hardening, or refactoring before the audit gate is resolved
 - schema changes
+- API changes, migrations, UI changes, or test-behavior changes
 - architectural rework
 - frozen contract modifications
 
