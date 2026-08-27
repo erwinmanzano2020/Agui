@@ -4,10 +4,12 @@
 This document is the canonical execution snapshot for POS status, sequencing, and implementation-readiness posture. It does not replace the roadmap, POS master plan, or POS foundation documents.
 
 ## 2. Current Execution Snapshot
+- **Phase status:** Paused by explicit owner-approved Roadmap transition after merged PR #488. POS is not abandoned, but no further POS definition, planning, runtime, native application, offline-sync, or hardware-integration work is currently authorized. Resumption requires a future explicit Roadmap/phase decision.
+- **Preserved pause checkpoint:** POS-F3 Slice 12 Tender Intent runtime, implemented by merged PR #488. All status and contract detail below is preserved as checkpoint history, not a direction to continue POS work.
 - Current-state audit: see `docs/devlog/pos-current-state-audit.md` for the repo-based POS documentation review before the next POS task.
 - Module: POS
 - Current phase: POS-F2 bounded closure completed; POS-F3 Slice 1 through Slice 5 are closed and locked as bounded pre-checkout pricing/review/validation/transition-intent layers; POS-F3 Slice 6 is closed and locked as a tightly bounded checkout execution-entry decision contract layer only.
-- Phase control note: HR stability checkpoint completed; POS is now the active development phase under roadmap sequencing.
+- Historical phase control note: the HR stability checkpoint previously activated POS under roadmap sequencing; the current Roadmap now supersedes that state by pausing POS and reactivating HR.
 - Foundation wave: complete (canonical POS foundation set present and aligned)
 - Implementation posture: POS-F1 and POS-F2 stable baselines remain intact; POS-F3 has progressed through the closed and locked Slice 11 Payment Method Selection boundary without authorizing tender handling, payment execution, or downstream effects.
 - Current work mode: POS-F3 Slice 1 through Slice 6, Slice 7A, Slice 7B, and Slice 8 through Slice 11 are closed and locked within their bounded responsibilities. Slice 7C remains the execution-boundary planning authority and Slice 7D implementation planning remains complete. Slice 12A and Slice 12B Tender Intent governance are **Planning Only**; Slice 12C is **Implementation Approval Only**; Slice 12 runtime is **Implemented, Not Closed**, and Slice 12 closure is **Not complete**.

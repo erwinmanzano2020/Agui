@@ -4,7 +4,9 @@
 This document is the **canonical execution snapshot** for HR delivery based on a conservative repository re-audit completed on **2026-03-28 (UTC)**. It is a planning/status tracker and **does not replace** the roadmap, operating principles, HR master plan, or freeze declarations.
 
 ## 2. Current HR Focus
-Based on active-phase rules and current implementation, live HR focus remains:
+By explicit owner-approved Roadmap transition, HR is reactivated as the sole active development phase for end-to-end MVP completion. The immediate authorized action is a documentation/read-only current-state audit against the HR Master Plan and actual runtime. Existing stability and baseline claims in this snapshot remain historical evidence; they are not automatic proof that the intended HR lifecycle is currently complete end to end.
+
+This governance transition declares no new HR capability complete and authorizes no HR runtime implementation. Subject to those boundaries, the previously recorded HR focus areas remain:
 - tenancy-safe HR access and branch-aware authorization enforcement
 - employee lifecycle and identity-safe employee operations
 - DTR + schedules + overtime-derived payroll preview inputs
@@ -220,7 +222,7 @@ As of **2026-03-31 UTC**, repository evidence supports this conservative checkpo
 - HR follow-up work remains documentation/planning only unless explicitly authorized.
 - No implementation is authorized by the gap audit or this status refresh.
 - Next HR actions should be planning/status/master-plan updates, not code.
-- Active delivery phase is not changed by this document (POS remains active; HR remains stable/hardening historical context).
+- The owner-approved Roadmap transition now makes HR the sole active phase and pauses POS after merged PR #488. This supersedes the former statement that POS remained active; historical stability/hardening context is preserved.
 
 ## 15C. Recommended Next HR Documentation Tasks
 1. HR Master Plan gap update
