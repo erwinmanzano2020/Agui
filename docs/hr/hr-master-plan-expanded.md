@@ -5,9 +5,15 @@
 ## Purpose
 This document aligns the expanded HR plan with the canonical execution snapshot in [`hr-status.md`](./hr-status.md).
 
-- Contract and freeze authority remains in [`hr-master-plan.md`](./hr-master-plan.md).
-- This file remains canonical for HR scope and intended outcomes, but current
-  execution authorization is subordinate to the Roadmap and its audit gate.
+- [`hr-master-plan.md`](./hr-master-plan.md) remains the canonical HR authority
+  for approved scope, frozen contracts, identity and RPC rules, and planning
+  boundaries.
+- This execution-aligned companion is subordinate to that master plan, the
+  canonical Roadmap, applicable freeze declarations, and applicable `AGENTS.md`
+  instructions, and it remains pending revalidation through the authorized
+  documentation/read-only HR current-state audit. It independently authorizes
+  neither HR scope nor implementation; if it conflicts with a higher-authority
+  document, the higher-authority document wins.
 
 ## Current Execution Mode: Read-Only Audit Gate
 The first authorized HR action after the POS-to-HR phase transition recorded for
