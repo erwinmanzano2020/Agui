@@ -10,7 +10,7 @@
   implementation, implementation plan, schema/API/migration work, or frozen
   contract change. The next capability requires a separate owner-reviewed gate.
   The dependency-first immediate gate is a separately authorized bounded
-  DTR-bulk branch-authorization security correction. Existing HR-2 and HR-4
+  HR branch-authorization security correction covering DTR-bulk and Schedules. Existing HR-2 and HR-4
   contracts may then be reviewed against confirmed governing requirements.
   Optional workflow or policy choices require separate owner scope approval and
   are not prerequisites for that review.
@@ -27,8 +27,8 @@ phase labels are not completeness determinations.
 attendance-segment, schedule-primitive, payroll, payslip/PDF, kiosk, employee-ID,
 and access-control paths; it is not an end-to-end canonical HR MVP because the
 monthly single-employee all-days DTR grid partially implements HR-2 period
-behavior, but its API has an open, statically visible branch-authorization
-limitation. The already documented HR-2 completeness/correction lifecycle, HR-4 schedule
+behavior, but DTR-bulk and HR Schedules have open, statically visible
+branch-authorization limitations. The already documented HR-2 completeness/correction lifecycle, HR-4 schedule
 lifecycle and conflict rules, and approval-aware payroll-readiness boundary are
 not implemented as required, while production-like RLS, device, PDF/print,
 concurrency, and full-flow UAT remain unverified.**
@@ -43,7 +43,7 @@ prove current end-to-end HR completeness.
 |---|---|
 | **Implemented and verified** | No whole material capability is certified end to end; focused repository behavior is verified inside the partially verified capabilities below. |
 | **Implemented but partially verified** | HR shell/access; identity-aware employees; employee photo/ID; compensation/pay settings; payroll run lifecycle/deductions/posting/paid/adjustments; payslip/PDF; kiosk. |
-| **Partially implemented** | House/branch/no-leak enforcement because DTR-bulk retains an open static limitation; daily DTR plus a monthly single-employee all-days grid versus the remaining detailed-planning contract; remaining confirmed HR-2 correction-record requirements; payroll-ready attendance; schedule lifecycle/types/assignments/conflicts; payroll calculation integration with approved upstream facts. |
+| **Partially implemented** | House/branch/no-leak enforcement because DTR-bulk and Schedules retain open static limitations; daily DTR plus a monthly single-employee all-days grid versus the remaining detailed-planning contract; remaining confirmed HR-2 correction-record requirements; payroll-ready attendance; schedule lifecycle/types/assignments/conflicts; payroll calculation integration with approved upstream facts. |
 | **Documentation/contract only** | Coherent HR-4 approvals for DTR corrections, OT, leave, and schedule changes. |
 | **Stale or conflicting documentation** | Historical blanket “HR-0 to HR-3.5 implemented baseline/usable” and “nothing in-scope not started” claims when read as canonical lifecycle completeness. |
 | **Unknown / cannot verify** | Deploy-state migration/RLS/grant/RPC parity and production-like operational behavior. Existing bounded payroll/payslip/PDF outputs are evidenced; any broader reports concept is outside approved canonical scope and would require an owner scope decision, not classification as a missing MVP capability. |
@@ -63,8 +63,14 @@ prove current end-to-end HR completeness.
    correction lineage/reasons, and an HR-4 handoff. A separate requester workflow,
    withdrawal behavior, or evidence/attachments are not established requirements;
    they are optional owner decisions. Approval authority is not HR-2 scope.
-3. HR-4 schedule primitives do not satisfy the required lifecycle, assignment,
-   conflict-detection, or history contract.
+3. Schedules already provides effective-dated append-style branch assignment
+   records, newest-first per-branch history, and weekly `day_of_week` windows as a
+   bounded recurring-template primitive. The page uses house-wide `requireHrAccess`,
+   loads all house branches, and lists assignments without an access-derived branch
+   filter; possible same-house cross-branch history exposure is inferred, not live-
+   exploited or production-confirmed. Remaining gaps are edit, cancellation,
+   override, complete immutable audit semantics, conflict detection, other approved
+   assignment modes, and production-like authorization/concurrency verification.
 4. The required approvals family is not implemented as a coherent authority and
    audit layer, so payroll cannot yet be certified as consuming fully normalized,
    approved upstream inputs.
@@ -74,9 +80,12 @@ prove current end-to-end HR completeness.
 ## Single next recommendation
 
 The audit recommends exactly one dependency-first immediate gate: a separately
-authorized **DTR-Bulk Branch-Authorization Security Correction**, because the
-statically visible limitation affects employee/month reads and destructive saves.
-This audit neither implements nor authorizes that runtime correction.
+authorized **HR Branch-Authorization Security Correction — DTR-Bulk and
+Schedules**, because static limitations affect employee/month reads, destructive
+saves, and schedule/assignment-history reads. The future gate must enforce
+access-derived branch restrictions, preserve house tenancy and owner/manager house
+authority, keep branch restriction-only, provide deny/no-leak behavior, and add
+branch-limited negative-path tests. This audit neither implements nor authorizes it.
 
 After security correction, review the existing contracts against confirmed
 requirements; do not create new refinement gates solely from optional ideas:
