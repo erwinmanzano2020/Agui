@@ -103,7 +103,7 @@ merely deployment drift. No live exploit, production exposure, or cross-branch
 response was executed or confirmed by this documentation audit.
 
 
-Confirmed static evidence for `/company/[slug]/hr/schedules`:
+**Confirmed static evidence** for `/company/[slug]/hr/schedules`:
 
 - the page uses house-wide `requireHrAccess`, not `requireHrAccessWithBranch`;
 - it calls `listBranchesForHouse`, receives the house branch list, and renders every
@@ -111,12 +111,17 @@ Confirmed static evidence for `/company/[slug]/hr/schedules`:
 - it calls `listBranchScheduleAssignments(supabase, house.id, undefined, { access })`;
 - that helper constrains `house_id`, but with no `branchId` it applies no
   access-derived branch filter and returns assignments newest-first;
+- the page loads house-wide schedule templates and weekly windows using the same
+  house-wide access decision;
 - the page groups and renders assignment history for every returned branch.
 
-Static review therefore infers that a branch-limited actor who passes HR access
+**Inferred impact:** a branch-limited actor who passes HR access
 may receive another branch's schedule-assignment history within the same house.
-This is a second **open high-risk authorization limitation**. No live exploit,
-production response, or actual cross-branch disclosure was executed or confirmed.
+The same page composition may expose house-wide schedule template/window metadata.
+This is a second **open high-risk authorization limitation**.
+
+**Unverified impact:** no live exploit, production response, or actual
+cross-branch disclosure was executed or confirmed.
 Existing tests cover branch-aware assignment writes, cross-house rejection, and
 newest-first listing, but no schedules page/read negative-path test for a
 branch-limited actor was found.

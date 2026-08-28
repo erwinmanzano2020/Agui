@@ -10,8 +10,9 @@
   implementation, implementation plan, schema/API/migration work, or frozen
   contract change. The next capability requires a separate owner-reviewed gate.
   The dependency-first immediate gate is a separately authorized bounded
-  HR branch-authorization security correction covering DTR-bulk and Schedules. Existing HR-2 and HR-4
-  contracts may then be reviewed against confirmed governing requirements.
+  HR branch-authorization security correction covering DTR-bulk and Schedules.
+  Existing HR-2 and HR-4 contracts may then be reviewed against confirmed
+  governing requirements.
   Optional workflow or policy choices require separate owner scope approval and
   are not prerequisites for that review.
 
@@ -28,10 +29,11 @@ attendance-segment, schedule-primitive, payroll, payslip/PDF, kiosk, employee-ID
 and access-control paths; it is not an end-to-end canonical HR MVP because the
 monthly single-employee all-days DTR grid partially implements HR-2 period
 behavior, but DTR-bulk and HR Schedules have open, statically visible
-branch-authorization limitations. The already documented HR-2 completeness/correction lifecycle, HR-4 schedule
-lifecycle and conflict rules, and approval-aware payroll-readiness boundary are
-not implemented as required, while production-like RLS, device, PDF/print,
-concurrency, and full-flow UAT remain unverified.**
+branch-authorization limitations. The already documented HR-2
+completeness/correction lifecycle, HR-4 schedule lifecycle and conflict rules,
+and approval-aware payroll-readiness boundary are not implemented as required,
+while production-like RLS, device, PDF/print, concurrency, and full-flow UAT
+remain unverified.**
 
 The historical 2026-03-31 stability gate remains valid only as the recorded
 sequencing decision that unlocked the subsequently paused POS work. It does not
@@ -63,12 +65,14 @@ prove current end-to-end HR completeness.
    correction lineage/reasons, and an HR-4 handoff. A separate requester workflow,
    withdrawal behavior, or evidence/attachments are not established requirements;
    they are optional owner decisions. Approval authority is not HR-2 scope.
-3. Schedules already provides effective-dated append-style branch assignment
+3. **Confirmed static schedule evidence:** Schedules provides effective-dated append-style branch assignment
    records, newest-first per-branch history, and weekly `day_of_week` windows as a
    bounded recurring-template primitive. The page uses house-wide `requireHrAccess`,
-   loads all house branches, and lists assignments without an access-derived branch
-   filter; possible same-house cross-branch history exposure is inferred, not live-
-   exploited or production-confirmed. Remaining gaps are edit, cancellation,
+   loads all house branches plus templates/windows, and lists assignments without
+   an access-derived branch filter. **Inferred impact:** a branch-limited actor may
+   receive another branch's history or house-wide schedule metadata. **Unverified
+   impact:** no live exploit, production response, or disclosure was confirmed.
+   Remaining gaps are edit, cancellation,
    override, complete immutable audit semantics, conflict detection, other approved
    assignment modes, and production-like authorization/concurrency verification.
 4. The required approvals family is not implemented as a coherent authority and
