@@ -19,8 +19,8 @@ The audit inspected all repository `AGENTS.md` files; the operating principles;
 `agui-starter/docs/Agui Roadmap Plan.md`; the canonical and expanded HR plans;
 HR status, freeze, branch-scope, access, identity, schema, payroll, runbook, and
 devlog records—including the existing
-[`HR-2 DTR Detailed Planning`](./hr-2-dtr-detailed-planning.md) contract; relevant
-Git history; application pages, route handlers, server
+[`HR-2 DTR Detailed Planning`](./hr-2-dtr-detailed-planning.md) and
+[`HR-4 Schedules and Approvals Detailed Planning`](./hr-4-schedules-approvals-detailed-planning.md) contracts; relevant Git history; application pages, route handlers, server
 helpers, migrations, generated types, and automated tests. Repository paths in
 the matrix are evidence locations, not assertions that every deployment has the
 same database state. Unit and mocked route tests demonstrate covered behavior,
@@ -37,10 +37,10 @@ POS unlock are retained as history and are not current execution authority.
 | HR shell and access-first navigation | Master Plan, Governance and Boundary Confirmation | `agui-starter/src/lib/hr/access.ts`; `agui-starter/src/app/company/[slug]/hr/layout.tsx` | House roles/branches in existing migrations and generated `agui-starter/src/lib/db.types.ts` | `agui-starter/src/lib/hr/__tests__/access.test.ts`; `agui-starter/src/app/api/hr/_shared/__tests__/route-guard-order.test.ts` | `/company/[slug]/hr` redirects to Employees; tabs exist in `hr-tabs.tsx` | **Implemented but partially verified** | No browser UAT or deployed-RLS proof; route-family tests use stubs/mocks. | Auth, feature guard, house/branch access data | Foundation |
 | HR-1 lookup-first identity and duplicate-safe employee creation | Master Plan, HR-1 Status and Frozen Contracts | `employee-identity.ts`; employee lookup/create routes and server actions | Identity migrations; employee migrations; canonical RPCs and active `(house_id, entity_id)` guard appear in migration history/types | `employee-identity.test.ts`; employee create/lookup action and route tests | `/company/[slug]/hr/employees/new` | **Implemented but partially verified** | Repository evidence covers lookup, explicit match handling, and guarded creation, but no live RPC/RLS integration run was performed; employee lifecycle is create/edit/list rather than a demonstrated full operational lifecycle. | Applied canonical RPCs, grants/RLS, identity data integrity | Foundation |
 | Employee records, branch assignment, photo and ID output | Master Plan HR-1; HR-3.5 freeze records | `employees-server.ts`; `employee-photo.ts`; `employee-id-cards-server.ts`; PDF helpers | Employee/photo migrations and generated types | employee, photo, ID page/route/PDF tests | Employees list/detail/edit, `/hr/employee-ids`, ID-card and print APIs | **Implemented but partially verified** | V1 photo/ID constraints remain; no physical print, camera/device, storage-policy, or cross-browser UAT. | Storage configuration, deployed policies, printer/browser behavior | Medium |
-| DTR period completeness and correction | Master Plan, HR-2 DTR completeness/correction and HR-4 approver role/authority; `docs/devlog/hr-2-dtr-detailed-planning.md` §§4–14 | Daily segment CRUD in `dtr-segments-server.ts` and HR DTR actions; `/payroll/dtr-bulk` single mode derives every date in a selected month, initializes one employee's all-days grid, and loads that range through its API | `dtr_segments` migrations, write policies, generated row types; no audit-lineage implementation is established by the planning record | `dtr-segments-server.test.ts`; DTR action/UI tests; overtime tests; no focused DTR-bulk route/month-grid tests found; detailed planning §14 specifies future acceptance coverage | `/company/[slug]/hr/dtr` selected-date CRUD; `/payroll/dtr-bulk` per-employee monthly grid | **Partially implemented** | The monthly grid partially implements period/all-days representation and must be reconciled and hardened, not duplicated. It does not prove custom ranges, explicit missing-versus-zero semantics, incomplete-state modeling, correction lineage/reasons, approval lifecycle, finalized approval capability, secure branch enforcement, or production behavior. The substantial plan defines tenancy/no-leak and actor attribution but not exact correction capabilities/restrictions within the canonical role model. | DTR-bulk security correction; HR-2 approval-capability refinement; owner review; later HR-4 implementation | Foundation |
+| DTR period completeness and correction requests | Master Plan, HR-2 DTR completeness/correction; `docs/devlog/hr-2-dtr-detailed-planning.md` §§4–14 | Daily segment CRUD in `dtr-segments-server.ts` and HR DTR actions; `/payroll/dtr-bulk` single mode derives every date in a selected month, initializes one employee's all-days grid, and loads that range through its API | `dtr_segments` migrations, write policies, generated row types; no audit-lineage implementation is established by the planning record | `dtr-segments-server.test.ts`; DTR action/UI tests; overtime tests; no focused DTR-bulk route/month-grid tests found; detailed planning §14 specifies future acceptance coverage | `/company/[slug]/hr/dtr` selected-date CRUD; `/payroll/dtr-bulk` per-employee monthly grid | **Partially implemented** | The monthly grid partially implements period/all-days representation and must be reconciled and hardened, not duplicated. Remaining HR-2 gaps are factual/requester-side: custom ranges, state semantics, correction-request reason/evidence and lineage, requester attribution, view/submit/edit/withdraw behavior, existing branch restrictions, and handoff to HR-4. HR-2 does not own approval authority. | DTR-bulk security correction; narrow HR-2 correction-request capabilities refinement; then owner review of HR-2 | Foundation |
 | Payroll-ready attendance normalization | Master Plan, Payroll-ready attendance boundary and Payroll Dependency Boundary | `payroll-preview-server.ts`; `overtime-engine.ts` | DTR, schedules, overtime/pay policies exist | payroll preview and overtime tests | `/hr/payroll-preview` shows flags and aggregated preview rows | **Partially implemented** | Preview consumes recorded facts, but canonical approved-correction, leave, schedule-conflict, and final normalized attendance boundary is not implemented end to end. | DTR completeness/corrections, schedules, approvals | High |
-| Schedule templates/windows and branch assignments | Master Plan, HR-4 Schedule lifecycle/types/assignments/conflicts | `schedules-server.ts`; schedule actions | `hr_schedule_templates`, `hr_schedule_windows`, `hr_branch_schedule_assignments` migration/RLS | `schedules-server.test.ts` | `/company/[slug]/hr/schedules` creates templates/windows and branch assignments | **Partially implemented** | UI explicitly says it stores definitions only. Canonical edit/cancel/override/history, employee and bulk/recurring assignment modes, schedule types, and conflict detection are not evidenced. | Owner-reviewed HR-4 definition; audit/history model | High |
-| Approvals for corrections, OT, leave, and schedules | Master Plan, HR-4 Approvals | No consolidated approval service or route found in targeted searches | No canonical approval workflow tables/types found for the required family | No approval workflow tests found | No HR approval inbox/history route found | **Documentation/contract only** | Roles, rejection reasons, timestamps, audit history, and payroll-aware resolution are planned but absent as a coherent runtime family. | DTR/schedule lifecycle definitions and authorization model | High |
+| Schedule templates/windows and branch assignments | Master Plan, HR-4 Schedule lifecycle/types/assignments/conflicts | `schedules-server.ts`; schedule actions | `hr_schedule_templates`, `hr_schedule_windows`, `hr_branch_schedule_assignments` migration/RLS | `schedules-server.test.ts` | `/company/[slug]/hr/schedules` creates templates/windows and branch assignments | **Partially implemented** | UI explicitly says it stores definitions only. Canonical edit/cancel/override/history, employee and bulk/recurring assignment modes, schedule types, and conflict detection are not evidenced. | Reconcile the existing HR-4 plan; audit/history model; then owner review | High |
+| Approval authority for corrections, OT, leave, and schedules | Master Plan, HR-4 Approvals; `docs/devlog/hr-4-schedules-approvals-detailed-planning.md` §§10–17 | No consolidated approval service or route found in targeted searches | No canonical approval workflow tables/types found for the required family | No approval workflow tests found; HR-4 detailed planning §17 specifies future coverage | No HR approval inbox/history route found | **Documentation/contract only** | The existing HR-4 plan owns approval authority, lifecycle, decision evidence, and payroll-impacting approvals; it must be reconciled, not duplicated. Exact approve/reject capability/policy, self-approval restriction, requester/approver separation, escalation/fallback, and application of existing branch restrictions remain unresolved. | Narrow HR-4 approvals-authority reconciliation/refinement; then owner review of HR-4 | High |
 | Compensation/rate history and payroll settings | Master Plan payroll dependency inputs; subordinate payroll freeze records | `employeeRates.ts`; `hr/payroll/page.tsx`; overtime/pay-policy helpers | Rate/pay-policy schema exists in migration history/types | payroll math, overtime-policy and payroll server tests | HR payroll and schedules policy surfaces; legacy `/payroll/settings` also exists | **Implemented but partially verified** | Two route families coexist; effective-dated rate and settings behavior was not proven through production-like database/UI UAT. | Deployed schema, access and data migration consistency | Medium |
 | Payroll preview/calculation | Master Plan, Payroll Dependency Boundary | `payroll-preview-server.ts`; `payroll-math.ts`; payslip server | Payroll policy and run tables/types | preview, payroll-run and payslip tests | `/hr/payroll-preview`; payroll run detail/payslip preview | **Partially implemented** | Calculation exists, but canonical payroll-ready upstream approvals and completeness are absent; therefore it cannot be certified as consuming fully normalized approved inputs. | DTR, schedules and approvals boundary | High |
 | Payroll run lifecycle, deductions, posting, paid and adjustments | Master Plan says HR-3 consumes approved inputs; HR-3 freeze/explainer subordinate records | `payroll-runs-server.ts`; run mutation routes | Run/item/deduction/posting migrations and RLS | payroll-run server, mutation freshness, route boundary/write tests | `/hr/payroll-runs` and detail actions for finalize/post/paid/adjustment | **Implemented but partially verified** | Snapshot/lock paths have focused tests, but no live DB concurrency, deployed trigger/RLS, accounting, payout, or full upstream-input UAT. Government deductions and payout rails are intentionally deferred. | Approved upstream facts; production-like DB verification | High |
@@ -115,64 +115,45 @@ lifecycle and conflict rules, and approval-aware payroll-readiness boundary are
 not implemented as required, while production-like RLS, device, PDF/print,
 concurrency, and full-flow UAT remain unverified.**
 
-This checkpoint supports post-audit correction/refinement gates but does not
-authorize or begin either. Security is dependency-first: the single immediate
-recommended gate is a separately authorized bounded DTR-bulk branch-authorization
-runtime correction. After that correction, the HR-2 approval-capability refinement
-below must be completed and reviewed before owner approval of the existing HR-2
-plan. The existing contract remains upstream of payroll and preserves frozen
-HR-1, tenancy, identity, RPC, and canonical role-model boundaries.
+This checkpoint supports post-audit correction/refinement gates but authorizes
+none. Security remains dependency-first. After that correction, HR-2 requester-
+side correction behavior and HR-4 approval authority require separate bounded
+contract gates. Owner review follows only after each existing contract's own
+unresolved boundary is reconciled. Frozen HR-1, tenancy, identity, RPC, and
+canonical role-model boundaries remain unchanged.
 
 ## Single next bounded recommendation (advisory only)
 
-- **Single immediate gate:** separately authorized **DTR-Bulk Branch-Authorization
-  Security Correction**.
-- **Why first:** static evidence identifies an unresolved high-risk access path
-  affecting reads and destructive saves. Contract-preserving security correction
-  and negative-path verification must precede reliance on this partial monthly
-  runtime. This audit does not authorize or implement that correction.
-- **Required subsequent planning gate:** **HR-2 DTR Correction Permissions and
-  Approval-Authority Refinement**. DTR is the earliest incomplete canonical
-  planning dependency, and
-  `docs/devlog/hr-2-dtr-detailed-planning.md` already supplies its explicit
-  contract. It establishes tenancy/no-leak constraints, actor attribution,
-  correction lineage/reasons, and an HR-4 handoff, but does not assign the exact
-  approval capabilities and restrictions required by the Master Plan. That
-  material gap must be refined before the existing plan proceeds to owner approval.
-- **Governing requirement:** HR Master Plan, “DTR completeness model,” “DTR
-  correction model,” and “Payroll-ready attendance boundary (HR-2).”
-- **Current evidence:** daily segment CRUD and preview flags exist. Detailed
-  planning §§4–14 already define the period/day model, missing-versus-zero and
-  incomplete states, correction lineage/reason/actor/timestamp, HR-4 approval
-  handoff, tenancy/no-leak blockers, non-goals, and future test coverage. Within
-  the canonical model—owner/manager house authority, policy/capability actions,
-  and branch as restriction only—they do not define view, submit, edit/withdraw, or
-  approve/reject capability; required approval policy; self-approval restrictions;
-  requester/approver separation; escalation/fallback; or application of existing
-  branch restrictions to those actions. Planned behavior is not implemented or
-  production-verified.
-- **Refinement scope:** resolve only those approval capabilities and restrictions
-  using the existing canonical role/policy/branch model.
-- **Non-scope:** deciding those roles in this audit; editing the existing HR-2
-  planning record; redefining canonical role house authority, role hierarchy,
-  tenancy, branch as role scope, branch-scoped roles, or the roles-versus-policies
-  distinction; creating another general HR-2 definition; runtime
-  implementation; schema/RPC/API/UI changes; payroll
-  calculation, schedule redesign, leave/OT workflow implementation, generalized
-  approvals, POS, or any frozen-contract change.
-- **Dependencies:** canonical HR-1 identity/tenancy contracts; current DTR schema
-  reality; branch/access model; and the already documented handoff to the later
-  HR-4 approval workflow.
-- **Risk:** **Foundation / High** because corrections affect payroll facts,
-  authorization, auditability, and tenant isolation.
-- **Proposed refinement acceptance boundary:** a separately authorized refinement
-  records view, submit, edit/withdraw, approve/reject, required approval policy,
-  self-approval, escalation/fallback, requester/approver separation, and how
-  existing branch restrictions apply, without widening other HR-2 scope or
-  inventing a role model. Only after that refinement is
-  completed and reviewed may the existing HR-2 plan proceed to owner approval.
-  This audit does not make those decisions, perform the refinement, grant
-  approval, or freeze a new runtime contract.
+1. **Single immediate gate — DTR-Bulk Branch-Authorization Security Correction.**
+   Static evidence identifies a high-risk read/destructive-save path. A separately
+   authorized contract-preserving correction and negative-path verification must
+   precede reliance on the monthly runtime. This audit does not authorize it.
+2. **HR-2 DTR Correction-Request Capabilities Refinement.** HR-2 owns DTR facts,
+   correction requests, reasons/evidence, original-versus-corrected lineage,
+   requester attribution, requester-side view/submit/edit/withdraw behavior,
+   enforcement of existing branch restrictions on those actions, and handoff of
+   payroll-impacting requests to HR-4. It owns no approve/reject authority.
+3. **HR-4 Approvals-Authority Reconciliation/Refinement.** The existing
+   [`HR-4 detailed-planning contract`](./hr-4-schedules-approvals-detailed-planning.md)
+   already owns approve/reject authority, approval capability/policy,
+   self-approval restrictions, requester/approver separation,
+   escalation/fallback, approval lifecycle and decision evidence, and authority
+   for payroll-impacting approvals. This gate reconciles only unresolved
+   approval-side decisions; it does not create a duplicate HR-4 definition.
+4. **Owner review.** The relevant existing HR-2 and HR-4 contracts proceed to
+   owner review only after their respective unresolved boundaries are reconciled.
+
+Steps 2 and 3 follow the ownership dependency already stated by both plans: HR-2
+creates and hands off payroll-impacting correction requests; HR-4 owns their
+approval. Their detailed sequencing must be resolved by those bounded gates, not
+invented by this audit.
+
+Both downstream gates preserve the canonical role model: owner/manager house
+authority, policies/capabilities for specific actions, and branch as restriction
+only. Neither may redefine house authority, role hierarchy, tenancy, branch as
+role scope, branch-scoped roles, or roles-versus-policies semantics. This audit
+does not decide the missing behavior, perform either refinement, edit either
+planning contract, approve HR-2/HR-4, or authorize implementation.
 
 ## Later manual UAT and unresolved unknowns
 

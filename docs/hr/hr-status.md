@@ -10,9 +10,9 @@
   implementation, implementation plan, schema/API/migration work, or frozen
   contract change. The next capability requires a separate owner-reviewed gate.
   The dependency-first immediate gate is a separately authorized bounded
-  DTR-bulk branch-authorization security correction. A narrow HR-2 approval-
-  capability refinement follows; owner approval of the existing HR-2 plan occurs
-  only after that refinement is completed and reviewed.
+  DTR-bulk branch-authorization security correction. Separate narrow HR-2
+  correction-request and HR-4 approval-authority contract gates follow; owner
+  review occurs only after each domain's unresolved boundary is reconciled.
 
 This is the canonical execution snapshot. The
 [`HR Master Plan`](./hr-master-plan.md) remains canonical for HR scope, frozen
@@ -42,7 +42,7 @@ prove current end-to-end HR completeness.
 |---|---|
 | **Implemented and verified** | No whole material capability is certified end to end; focused repository behavior is verified inside the partially verified capabilities below. |
 | **Implemented but partially verified** | HR shell/access; identity-aware employees; employee photo/ID; compensation/pay settings; payroll run lifecycle/deductions/posting/paid/adjustments; payslip/PDF; kiosk. |
-| **Partially implemented** | House/branch/no-leak enforcement because DTR-bulk retains an open static limitation; daily DTR plus a monthly single-employee all-days grid versus the remaining detailed-planning contract; exact correction approval capabilities remain unresolved; payroll-ready attendance; schedule lifecycle/types/assignments/conflicts; payroll calculation integration with approved upstream facts. |
+| **Partially implemented** | House/branch/no-leak enforcement because DTR-bulk retains an open static limitation; daily DTR plus a monthly single-employee all-days grid versus the remaining detailed-planning contract; unresolved HR-2 requester-side correction behavior; payroll-ready attendance; schedule lifecycle/types/assignments/conflicts; payroll calculation integration with approved upstream facts. |
 | **Documentation/contract only** | Coherent HR-4 approvals for DTR corrections, OT, leave, and schedule changes. |
 | **Stale or conflicting documentation** | Historical blanket “HR-0 to HR-3.5 implemented baseline/usable” and “nothing in-scope not started” claims when read as canonical lifecycle completeness. |
 | **Unknown / cannot verify** | Deploy-state migration/RLS/grant/RPC parity and production-like operational behavior. Existing bounded payroll/payslip/PDF outputs are evidenced; any broader reports concept is outside approved canonical scope and would require an owner scope decision, not classification as a missing MVP capability. |
@@ -60,9 +60,8 @@ prove current end-to-end HR completeness.
    lineage/reasons, approval lifecycle, secure branch enforcement, or production
    verification. The plan establishes tenancy/no-leak rules, actor attribution,
    correction lineage/reasons, and an HR-4 handoff, but it does not conclusively
-   assign view, submit, edit/withdraw, approve/reject, required approval policy,
-   self-approval, escalation/fallback, requester-versus-approver, or existing
-   branch-restriction behavior for those actions.
+   settle requester-side view, submit, edit/withdraw, evidence, or application of
+   existing branch restrictions. Approval authority is not HR-2 scope.
 3. HR-4 schedule primitives do not satisfy the required lifecycle, assignment,
    conflict-detection, or history contract.
 4. The required approvals family is not implemented as a coherent authority and
@@ -78,24 +77,28 @@ authorized **DTR-Bulk Branch-Authorization Security Correction**, because the
 statically visible limitation affects employee/month reads and destructive saves.
 This audit neither implements nor authorizes that runtime correction.
 
-After security correction, the required planning gate is **HR-2 DTR Correction
-Permissions and Approval-Authority Refinement**. The existing
-[`HR-2 DTR Detailed Planning`](../devlog/hr-2-dtr-detailed-planning.md) contract
-must not be duplicated: it already covers period/day and missing-versus-zero
-semantics, incomplete states, correction lineage/reasons/actor attribution,
-HR-4 approval handoff, tenancy/no-leak rules, and future acceptance coverage.
+After security correction, two ownership-separated contract gates remain:
 
-The narrow refinement must preserve the canonical role system: owner/manager
-house authority, policies/capabilities for specific actions, and branch as a
-restriction only. It may resolve view, submit, edit/withdraw, approve/reject, required
-approval policy, self-approval, escalation/fallback, requester/approver separation,
-and enforcement of existing branch restrictions for branch-limited actors. It
-must not redefine house authority, role hierarchy, tenancy, branch as role scope,
-branch-scoped roles, or roles-versus-policies semantics.
-This audit does not decide those mappings, perform the refinement, edit HR-2
-planning, create another general definition, or authorize implementation. Owner
-approval of the existing HR-2 plan may follow only after the refinement is
-completed and reviewed through a separate owner-reviewed gate.
+2. **HR-2 DTR Correction-Request Capabilities Refinement.** The existing
+   [`HR-2 DTR Detailed Planning`](../devlog/hr-2-dtr-detailed-planning.md) contract
+   must not be duplicated. HR-2 owns DTR facts and correction requests: requester-
+   side view/submit/edit/withdraw behavior, reason/evidence, lineage, attribution,
+   existing branch restrictions, and handoff of payroll-impacting requests to
+   HR-4. HR-2 owns no approve/reject or approval-authority decision.
+3. **HR-4 Approvals-Authority Reconciliation/Refinement.** The existing
+   [`HR-4 Schedules and Approvals Detailed Planning`](../devlog/hr-4-schedules-approvals-detailed-planning.md)
+   contract must be reconciled, not duplicated. HR-4 owns approve/reject authority,
+   approval capability/policy, self-approval restrictions, requester/approver
+   separation, escalation/fallback, approval lifecycle and decision evidence, and
+   payroll-impacting approval authority.
+4. **Owner review** of each existing contract follows only after its respective
+   unresolved boundary is reconciled.
+
+This ordering follows the existing handoff: HR-2 produces correction requests;
+HR-4 owns approval. Both gates preserve canonical owner/manager house authority,
+policy capabilities, and branch as restriction only. This audit does not decide
+those boundaries, perform either refinement, edit either plan, or authorize
+implementation.
 
 ## Manual verification still required later
 
