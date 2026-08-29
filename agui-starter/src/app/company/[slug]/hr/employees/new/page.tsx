@@ -23,7 +23,7 @@ export default async function NewEmployeePage({ params }: Props) {
   if (!house) {
     notFound();
   }
-  const access = await requireHrAccessWithBranch(supabase, { houseId: house.id, requiredLevel: "write" });
+  const access = await requireHrAccessWithBranch(supabase, { houseId: house.id, requiredLevel: "write", writeScope: "branch-set-preflight" });
   if (!access.allowed) notFound();
 
   const branchResult = await listBranchesForHouse(supabase, house.id, access);

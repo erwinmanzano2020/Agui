@@ -115,6 +115,7 @@ export async function createDtrSegmentAction(
   const access = await requireHrAccessWithBranch(supabase, {
     houseId: parsed.data.houseId,
     requiredLevel: "write",
+    writeScope: "branch-set-preflight",
   });
   if (!access.allowed) {
     return FORBIDDEN_RESPONSE;
@@ -209,6 +210,7 @@ export async function updateDtrSegmentAction(
   const access = await requireHrAccessWithBranch(supabase, {
     houseId: parsed.data.houseId,
     requiredLevel: "write",
+    writeScope: "branch-set-preflight",
   });
   if (!access.allowed) {
     return FORBIDDEN_RESPONSE;

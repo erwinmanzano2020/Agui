@@ -132,4 +132,26 @@ describe("upsertOvertimePolicy", () => {
       OvertimePolicyError,
     );
   });
+
+  it("denies branch-limited write capability for house-global overtime policy", async () => {
+    const supabase = new SupabaseMock({ policies: [] });
+    await assert.rejects(
+      () => upsertOvertimePolicy(
+        supabase as never,
+        { houseId: "house-1", minOtMinutes: 10, roundingMinutes: 1, roundingMode: "NONE", timezone: "Asia/Manila" },
+        { access: {
+          ...accessAllowed,
+          allowedByRole: false,
+          allowedByPolicy: true,
+          evaluatedHouseId: "house-1",
+          evaluatedLevel: "write",
+          evaluatedCapability: "hr",
+          isBranchLimited: true,
+          allowedBranchIds: ["branch-1"],
+        } as never },
+      ),
+      OvertimePolicyError,
+    );
+  });
+
 });

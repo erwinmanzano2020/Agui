@@ -39,7 +39,12 @@ async function requireEmployeePhotoUploadAuthentication(houseId: string): Promis
 
 async function requireEmployeePhotoUploadHrAccess(houseId: string, branchId: string | null): Promise<void> {
   const supabase = await createServerSupabaseClient();
-  const access = await requireHrAccessWithBranch(supabase, { houseId, branchId, requiredLevel: "write" });
+  const access = await requireHrAccessWithBranch(supabase, {
+    houseId,
+    branchId,
+    requiredLevel: "write",
+    writeScope: branchId ? "single-branch" : "branch-set-preflight",
+  });
   if (!access.allowed) throw new AuthorizationDeniedError();
 }
 

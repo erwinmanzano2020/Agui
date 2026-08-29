@@ -367,6 +367,23 @@ describe("payroll runs", () => {
     await assert.rejects(() => postPayrollRunForHouse(supabase as never, { houseId: "house-1", runId: "run-1" }, { access: readOnly }), denied);
     await assert.rejects(() => markPayrollRunPaidForHouse(supabase as never, { houseId: "house-1", runId: "run-1" }, { access: readOnly }), denied);
     await assert.rejects(() => createAdjustmentRunForHouse(supabase as never, { houseId: "house-1", adjustsRunId: "run-1" }, { access: readOnly }), denied);
+
+    const branchWrite = {
+      ...readOnly,
+      allowed: true,
+      allowedByPolicy: true,
+      policyKeys: ["domain.payroll.all", "hr.branch.branch-1"],
+      evaluatedHouseId: "house-1",
+      evaluatedLevel: "write",
+      evaluatedCapability: "payroll",
+      isBranchLimited: true,
+      allowedBranchIds: ["branch-1"],
+    } as never;
+    await assert.rejects(() => createDraftPayrollRunFromPreview(supabase as never, { houseId: "house-1", periodStart: "2026-01-01", periodEnd: "2026-01-31" }, { access: branchWrite, previewOverride: { rows: [] } as never }), denied);
+    await assert.rejects(() => finalizePayrollRunForHouse(supabase as never, "house-1", "run-1", { access: branchWrite }), denied);
+    await assert.rejects(() => postPayrollRunForHouse(supabase as never, { houseId: "house-1", runId: "run-1" }, { access: branchWrite }), denied);
+    await assert.rejects(() => markPayrollRunPaidForHouse(supabase as never, { houseId: "house-1", runId: "run-1" }, { access: branchWrite }), denied);
+    await assert.rejects(() => createAdjustmentRunForHouse(supabase as never, { houseId: "house-1", adjustsRunId: "run-1" }, { access: branchWrite }), denied);
   });
 
   it("creates a draft run and snapshots preview rows", async () => {

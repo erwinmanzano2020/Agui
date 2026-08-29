@@ -161,6 +161,20 @@ describe("requireHrAccessWithBranch", () => {
       requiredCapability: "payroll",
     });
     assert.equal(wrongBranch.allowed, false);
+
+    const targetless = await requireHrAccessWithBranch(supabase as never, {
+      houseId: houseA, requiredLevel: "write", requiredCapability: "payroll",
+    });
+    assert.equal(targetless.allowed, false);
+
+    const preflight = await requireHrAccessWithBranch(supabase as never, {
+      houseId: houseA,
+      requiredLevel: "write",
+      requiredCapability: "payroll",
+      writeScope: "branch-set-preflight",
+    });
+    assert.equal(preflight.allowed, true);
+    assert.deepEqual(preflight.allowedBranchIds, [branchA]);
   });
 
   it("keeps requested-house owner and manager authority policy-independent", async () => {

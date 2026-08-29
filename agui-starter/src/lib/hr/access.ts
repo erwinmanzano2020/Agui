@@ -122,7 +122,13 @@ function extractBranchScopesFromPolicyKeys(policyKeys: Iterable<string>): string
 
 export async function requireHrAccessWithBranch(
   supabase: SupabaseClient,
-  input: { houseId: string; branchId?: string | null; requiredLevel?: "read" | "write"; requiredCapability?: "hr" | "payroll" },
+  input: {
+    houseId: string;
+    branchId?: string | null;
+    requiredLevel?: "read" | "write";
+    requiredCapability?: "hr" | "payroll";
+    writeScope?: "house-global" | "single-branch" | "branch-set-preflight";
+  },
 ): Promise<HrBranchAccessDecision> {
   const baseAccess = await requireHrAccess(supabase, input.houseId);
   const requiredLevel = input.requiredLevel ?? "read";
@@ -151,8 +157,12 @@ export async function requireHrAccessWithBranch(
   const isBranchLimited = !access.allowedByRole && allowedBranchIds.length > 0;
   const branchId = input.branchId?.trim().toLowerCase() || null;
   const hasZeroScopeBranchAccess = !access.allowedByRole && access.allowed && allowedBranchIds.length === 0;
+  const writeScope = input.writeScope ?? (branchId ? "single-branch" : "house-global");
+  const targetlessBranchWrite =
+    requiredLevel === "write" && !access.allowedByRole && isBranchLimited &&
+    (writeScope === "house-global" || (writeScope === "single-branch" && !branchId));
 
-  if (!access.allowed) {
+  if (!access.allowed || targetlessBranchWrite) {
     return {
       ...access,
       branchId,

@@ -155,10 +155,10 @@ async function resolvePayrollWriteAccess(
   accessOverride?: HrAccessDecision,
 ): Promise<HrAccessDecision> {
   if (accessOverride) {
-    const valid = accessOverride.allowedByRole || (
+    const valid = accessOverride.allowedByRole || ((accessOverride as Partial<HrBranchAccessDecision>).isBranchLimited !== true && (
       accessOverride.allowed && accessOverride.evaluatedHouseId === houseId &&
       accessOverride.evaluatedLevel === "write" && accessOverride.evaluatedCapability === "payroll"
-    );
+    ));
     return valid ? accessOverride : { ...accessOverride, allowed: false };
   }
   return requireHrAccessWithBranch(supabase, {

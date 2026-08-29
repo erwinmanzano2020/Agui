@@ -10,7 +10,7 @@ import type {
   HrScheduleTemplateRow,
   HrScheduleWindowRow,
 } from "@/lib/db.types";
-import { requireHrAccess, type HrAccessDecision } from "./access";
+import { requireHrAccess, requireHrAccessWithBranch, type HrAccessDecision, type HrBranchAccessDecision } from "./access";
 import { listDtrByHouseAndDate } from "./dtr-segments-server";
 import {
   computeOvertimeForDay,
@@ -130,8 +130,22 @@ export async function upsertOvertimePolicy(
   },
   options: { access?: HrAccessDecision } = {},
 ): Promise<OvertimePolicy> {
-  const access = await resolveAccess(supabase, input.houseId, options.access);
-  if (!access.allowed) {
+  const access = options.access
+    ? options.access
+    : await requireHrAccessWithBranch(supabase, {
+        houseId: input.houseId,
+        requiredLevel: "write",
+        requiredCapability: "hr",
+        writeScope: "house-global",
+      });
+  const validHouseGlobalWrite = access.allowedByRole || (
+    access.allowed &&
+    access.evaluatedHouseId === input.houseId &&
+    access.evaluatedLevel === "write" &&
+    access.evaluatedCapability === "hr" &&
+    (access as Partial<HrBranchAccessDecision>).isBranchLimited !== true
+  );
+  if (!validHouseGlobalWrite) {
     throw new OvertimePolicyError("Access denied for overtime policy update.");
   }
 

@@ -8,7 +8,7 @@ import type {
   HrPayrollRunItemRow,
   HrPayrollRunRow,
 } from "@/lib/db.types";
-import { requireHrAccess, requireHrAccessWithBranch, type HrAccessDecision } from "./access";
+import { requireHrAccess, requireHrAccessWithBranch, type HrAccessDecision, type HrBranchAccessDecision } from "./access";
 import {
   computePayrollPreviewForHousePeriod,
   type PayrollPreviewResult,
@@ -155,12 +155,12 @@ async function resolveAccess(
 }
 
 function isPayrollWriteAccess(access: HrAccessDecision, houseId: string): boolean {
-  return access.allowedByRole || (
+  return access.allowedByRole || ((access as Partial<HrBranchAccessDecision>).isBranchLimited !== true && (
     access.allowed &&
     access.evaluatedHouseId === houseId &&
     access.evaluatedLevel === "write" &&
     access.evaluatedCapability === "payroll"
-  );
+  ));
 }
 
 async function resolvePayrollWriteAccess(

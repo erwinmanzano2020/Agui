@@ -225,3 +225,15 @@ read-level access decision are covered by focused regression tests. Branch remai
 restriction-only. Production-like scoped-view/RLS parity and realistic multi-house
 UAT remain required; no grants, RLS rules, identity behavior, POS, HR-2, or HR-4
 behavior changed.
+
+### PR #492 targetless branch-write re-review correction
+
+Targetless writes no longer allow branch-limited policy actors by default. Schedule
+template/window and overtime-policy changes plus payroll-run create/finalize/post/
+mark-paid/adjustment/deduction boundaries are house-global and deny that actor class.
+Explicit branch targets remain checked against the derived branch set. DTR Bulk,
+employee target resolution, photo pre-authorization, and form metadata use an explicit
+branch-set preflight whose downstream reads/writes remain restricted to allowed
+branches; preflight is not mutation permission. Production-like multi-house/branch
+and scoped-view/RLS UAT remains outstanding. No identity, POS, HR-2, HR-4, grant, or
+RLS behavior changed.

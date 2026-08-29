@@ -253,3 +253,13 @@ finalize, post, mark-paid, adjustment creation, and run deduction resolution/wri
 resolves payroll write access or validates that a supplied decision was evaluated as
 `write` + `payroll` for the same house. A generic/read decision is rejected rather
 than reused.
+
+### Targetless branch-write rule (2026-08-29)
+
+Requested-house write capability is necessary but is not sufficient to authorize a
+branch-limited mutation. A branch-limited actor must either authorize one explicit
+allowed branch or enter the explicitly marked `branch-set-preflight` path. Preflight
+returns capability and allowed-scope metadata for downstream target validation; it is
+not authorization for a house-global mutation. House-global HR definitions and
+payroll-run transitions deny branch-limited policy actors. Owner/manager requested-house
+authority remains broad, and branch continues to restrict rather than grant authority.

@@ -246,6 +246,7 @@ export async function POST(req: NextRequest) {
   const hrAccess = await requireHrAccessWithBranch(authed, {
     houseId,
     requiredLevel: "write",
+    writeScope: "branch-set-preflight",
   });
   if (!hrAccess.allowed) {
     logApiWarning({

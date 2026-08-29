@@ -55,6 +55,13 @@ type EntryUpsert = Pick<
   "employee_id" | "work_date" | "time_in" | "time_out" | "company_id"
 >;
 
+export function hasOnlyAccessibleEmployeeIds(
+  requestedIds: string[],
+  employeeBranchMap: ReadonlyMap<string, string | null>,
+): boolean {
+  return requestedIds.every((id) => employeeBranchMap.has(id));
+}
+
 function toISO(date: string, hhmm: string) {
   const m = hhmm.trim().match(/^(\d{1,2})(:?)(\d{0,2})$/);
   if (!m) return null;
@@ -251,7 +258,7 @@ export async function POST(req: NextRequest) {
   }
 
   const parsedAction = loadSchema.safeParse(body).success ? "read" : "write";
-  const access = await requireHrAccessWithBranch(supabase, { houseId, requiredLevel: parsedAction, requiredCapability: "payroll" });
+  const access = await requireHrAccessWithBranch(supabase, { houseId, requiredLevel: parsedAction, requiredCapability: "payroll", writeScope: "branch-set-preflight" });
   if (!access.allowed) return NextResponse.json({ error: "Not allowed" }, { status: 403 });
 
   let branchIds: string[] = [];
@@ -323,23 +330,22 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ entries: [] });
       }
 
-      let allowedIds = ids;
+      let employeeMap: Map<string, string | null> = new Map();
       try {
-        const map = await loadEmployeeBranchMap(service, ids, houseId, branchIds);
-        allowedIds = ids.filter((id: string) => map.has(id));
+        employeeMap = await loadEmployeeBranchMap(service, ids, houseId, branchIds);
       } catch (error) {
         console.error("[/api/payroll/dtr-bulk] failed to verify employees for load", error);
         return NextResponse.json({ error: "Failed to resolve employees" }, { status: 500 });
       }
 
-      if (!allowedIds.length) {
-        return NextResponse.json({ entries: [] });
+      if (!hasOnlyAccessibleEmployeeIds(ids, employeeMap)) {
+        return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
       }
 
       const { data, error } = await service
         .from("dtr_entries")
         .select("employee_id, work_date, time_in, time_out")
-        .in("employee_id", allowedIds)
+        .in("employee_id", ids)
         .gte("work_date", payload.from)
         .lte("work_date", payload.to);
       if (error) throw error;
@@ -478,8 +484,8 @@ export async function POST(req: NextRequest) {
       }
 
       const allowedIds = ids.filter((id: string) => employeeMap.has(id));
-      if (!allowedIds.length) {
-        return NextResponse.json({ status: "ok" });
+      if (!hasOnlyAccessibleEmployeeIds(ids, employeeMap)) {
+        return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
       }
 
       const rows: EntryUpsert[] = [];

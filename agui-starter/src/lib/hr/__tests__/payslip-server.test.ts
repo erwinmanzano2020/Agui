@@ -1485,6 +1485,26 @@ describe("payslip preview", () => {
       ),
       PayslipAccessError,
     );
+
+    const branchWrite = {
+      ...readOnly,
+      allowed: true,
+      allowedByPolicy: true,
+      policyKeys: ["domain.payroll.all", "hr.branch.branch-1"],
+      evaluatedHouseId: "house-1",
+      evaluatedLevel: "write",
+      evaluatedCapability: "payroll",
+      isBranchLimited: true,
+      allowedBranchIds: ["branch-1"],
+    } as never;
+    await assert.rejects(
+      () => createPayrollRunDeduction(
+        supabase as never,
+        { runId: "run-1", houseId: "house-1", employeeId: "emp-1", label: "Cash advance", amount: 100, createdBy: "staff" },
+        { access: branchWrite },
+      ),
+      PayslipAccessError,
+    );
   });
 
 });
