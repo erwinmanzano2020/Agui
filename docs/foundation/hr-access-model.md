@@ -263,3 +263,12 @@ returns capability and allowed-scope metadata for downstream target validation; 
 not authorization for a house-global mutation. House-global HR definitions and
 payroll-run transitions deny branch-limited policy actors. Owner/manager requested-house
 authority remains broad, and branch continues to restrict rather than grant authority.
+
+### Unassigned employee targets in branch preflight (2026-08-29)
+
+Branch-set preflight discovers the actor's allowed branches; it does not place an
+unassigned employee into that set. For a branch-limited actor, a concrete employee
+read or mutation target must have a branch explicitly present in the allowed set.
+Missing, out-of-scope, and `branch_id = null` targets fail closed. Broad requested-house
+owner/manager authority continues to support legitimately unassigned employees; this
+rule does not redefine the domain meaning of an unassigned employee.

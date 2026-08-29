@@ -237,3 +237,13 @@ branch-set preflight whose downstream reads/writes remain restricted to allowed
 branches; preflight is not mutation permission. Production-like multi-house/branch
 and scoped-view/RLS UAT remains outstanding. No identity, POS, HR-2, HR-4, grant, or
 RLS behavior changed.
+
+### PR #492 GAP-021/GAP-022 correction
+
+DTR Bulk now treats an unassigned employee as outside a branch-limited actor's derived
+branch set and rejects a mixed all-mode load/save before any DTR mutation; broad house
+authority retains unassigned-employee behavior. Employee photo upload preserves
+preflight-before-lookup no-leak ordering, then always performs a `single-branch`
+authorization for the resolved target—including a null branch, which denies
+branch-limited actors and remains valid for owner/manager authority. Production-like
+multi-house/branch UAT remains outstanding.

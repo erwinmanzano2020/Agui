@@ -37,13 +37,17 @@ async function requireEmployeePhotoUploadAuthentication(houseId: string): Promis
   );
 }
 
-async function requireEmployeePhotoUploadHrAccess(houseId: string, branchId: string | null): Promise<void> {
+async function requireEmployeePhotoUploadHrAccess(
+  houseId: string,
+  branchId: string | null,
+  writeScope: "single-branch" | "branch-set-preflight",
+): Promise<void> {
   const supabase = await createServerSupabaseClient();
   const access = await requireHrAccessWithBranch(supabase, {
     houseId,
     branchId,
     requiredLevel: "write",
-    writeScope: branchId ? "single-branch" : "branch-set-preflight",
+    writeScope,
   });
   if (!access.allowed) throw new AuthorizationDeniedError();
 }
@@ -92,7 +96,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
 
   try {
     await requireEmployeePhotoUploadAuthentication(houseId);
-    await requireEmployeePhotoUploadHrAccess(houseId, null);
+    await requireEmployeePhotoUploadHrAccess(houseId, null, "branch-set-preflight");
     const employee = await resolveEmployeeScope(employeeId);
     if (!employee) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
@@ -101,7 +105,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
     if (normalizeUuid(employee.house_id) !== houseId) {
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
     }
-    await requireEmployeePhotoUploadHrAccess(houseId, employee.branch_id);
+    await requireEmployeePhotoUploadHrAccess(houseId, employee.branch_id, "single-branch");
 
   } catch (error) {
     if (isAuthorizationDeniedError(error)) {
