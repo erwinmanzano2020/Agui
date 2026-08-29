@@ -355,6 +355,20 @@ const accessAllowed = evaluateHrAccess({ roles: ["house_owner"], policyKeys: [],
 const accessDenied = evaluateHrAccess({ roles: [], policyKeys: [], entityId: null });
 
 describe("payroll runs", () => {
+  it("denies every run mutation when supplied access is read-only", async () => {
+    const readOnly = evaluateHrAccess({ roles: ["house_staff"], policyKeys: ["tiles.payroll.read"], entityId: "staff" });
+    const supabase = new SupabaseMock(
+      { runs: [], items: [], segments: [], employees: [] },
+      { runResult: { run: null, error: null }, itemResult: { items: [], error: null, called: false }, runUpdateResult: { error: null }, referenceCounter: new Map() },
+    );
+    const denied = PayrollRunAccessError;
+    await assert.rejects(() => createDraftPayrollRunFromPreview(supabase as never, { houseId: "house-1", periodStart: "2026-01-01", periodEnd: "2026-01-31" }, { access: readOnly, previewOverride: { rows: [] } as never }), denied);
+    await assert.rejects(() => finalizePayrollRunForHouse(supabase as never, "house-1", "run-1", { access: readOnly }), denied);
+    await assert.rejects(() => postPayrollRunForHouse(supabase as never, { houseId: "house-1", runId: "run-1" }, { access: readOnly }), denied);
+    await assert.rejects(() => markPayrollRunPaidForHouse(supabase as never, { houseId: "house-1", runId: "run-1" }, { access: readOnly }), denied);
+    await assert.rejects(() => createAdjustmentRunForHouse(supabase as never, { houseId: "house-1", adjustsRunId: "run-1" }, { access: readOnly }), denied);
+  });
+
   it("creates a draft run and snapshots preview rows", async () => {
     const runResult = { run: null, error: null };
     const itemResult = { items: [] as HrPayrollRunItemInsert[], error: null, called: false };

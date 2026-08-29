@@ -213,3 +213,15 @@ RLS policies, grants, frozen HR contracts, POS code, HR-2, or HR-4 workflow beha
 changed. Remaining verification is production-like migration/RLS parity, realistic
 branch-role UAT, service-role boundary observation, browser schedule/form checks, and
 payroll/payslip full-flow UAT.
+
+### PR #492 P1 re-review correction
+
+The implementation checkpoint above includes two follow-up review corrections:
+non-authority write policy hydration is bound to the requested house through the
+canonical scoped assignment view, and all current payroll-run mutation helpers fail
+closed unless the decision is owner/manager authority or requested-house
+`domain.payroll.all` write capability. Cross-house policy transfer and reuse of a
+read-level access decision are covered by focused regression tests. Branch remains
+restriction-only. Production-like scoped-view/RLS parity and realistic multi-house
+UAT remain required; no grants, RLS rules, identity behavior, POS, HR-2, or HR-4
+behavior changed.

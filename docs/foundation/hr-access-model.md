@@ -237,3 +237,19 @@ write capability for non-authority actors. `domain.hr.all` follows the existing
 role assignment. Owner and manager roles retain broad house authority. Capability is
 evaluated before branch restriction, and policy actors without an explicit allowed
 branch fail closed.
+
+### Requested-house binding and payroll mutation boundary correction (2026-08-29)
+
+For non-authority write checks, capability keys are resolved from the existing
+`entity_policies` scoped-assignment view with `scope = HOUSE` and
+`scope_ref = <requested house>`. The flattened entity policy set remains available
+for read/module-entry behavior, but cannot authorize a write. Membership in a second
+house does not import a capability assigned through the first house. Owner/manager
+authority remains derived from the requested house role, and branch policy remains
+a restriction applied only after capability succeeds.
+
+Every payroll-run mutation domain boundary—including create, write-target resolution,
+finalize, post, mark-paid, adjustment creation, and run deduction resolution/write—now
+resolves payroll write access or validates that a supplied decision was evaluated as
+`write` + `payroll` for the same house. A generic/read decision is rejected rather
+than reused.

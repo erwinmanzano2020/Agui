@@ -121,4 +121,66 @@ describe("requireHrAccessWithBranch", () => {
     assert.equal(decision.isBranchLimited, true);
     assert.deepEqual(decision.allowedBranchIds, []);
   });
+
+  it("binds HR and payroll write capabilities to the requested house", async () => {
+    const houseA = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const houseB = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const branchA = "11111111-1111-4111-8111-111111111111";
+    mock.method(policyServer, "getCurrentEntityAndPolicies", async () => ({
+      entityId: "entity-staff",
+      policyKeys: ["domain.hr.all", "domain.payroll.all", `hr.branch.${branchA}`],
+    }) as never);
+    mock.method(policyServer, "listPolicyKeysForEntityAtHouse", async (_client: unknown, _entityId: string, houseId: string) =>
+      houseId === houseA ? ["domain.hr.all", "domain.payroll.all", `hr.branch.${branchA}`] : [],
+    );
+    const supabase = {
+      from() {
+        return {
+          select() { return this; },
+          eq() { return this; },
+          then(resolve: (value: unknown) => void) { resolve({ data: [{ role: "house_staff" }], error: null }); },
+        };
+      },
+    };
+
+    for (const capability of ["hr", "payroll"] as const) {
+      const allowed = await requireHrAccessWithBranch(supabase as never, {
+        houseId: houseA, branchId: branchA, requiredLevel: "write", requiredCapability: capability,
+      });
+      assert.equal(allowed.allowed, true);
+      const wrongHouse = await requireHrAccessWithBranch(supabase as never, {
+        houseId: houseB, branchId: branchA, requiredLevel: "write", requiredCapability: capability,
+      });
+      assert.equal(wrongHouse.allowed, false);
+    }
+
+    const wrongBranch = await requireHrAccessWithBranch(supabase as never, {
+      houseId: houseA,
+      branchId: "22222222-2222-4222-8222-222222222222",
+      requiredLevel: "write",
+      requiredCapability: "payroll",
+    });
+    assert.equal(wrongBranch.allowed, false);
+  });
+
+  it("keeps requested-house owner and manager authority policy-independent", async () => {
+    mock.method(policyServer, "getCurrentEntityAndPolicies", async () => ({ entityId: "entity", policyKeys: [] }) as never);
+    for (const role of ["house_owner", "house_manager"]) {
+      const supabase = {
+        from() {
+          return {
+            select() { return this; }, eq() { return this; },
+            then(resolve: (value: unknown) => void) { resolve({ data: [{ role }], error: null }); },
+          };
+        },
+      };
+      const decision = await requireHrAccessWithBranch(supabase as never, {
+        houseId: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+        requiredLevel: "write",
+        requiredCapability: "payroll",
+      });
+      assert.equal(decision.allowed, true);
+    }
+  });
+
 });

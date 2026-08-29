@@ -2,7 +2,7 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getCurrentEntityAndPolicies } from "@/lib/policy/server";
+import { getCurrentEntityAndPolicies, listPolicyKeysForEntityAtHouse } from "@/lib/policy/server";
 import { isOptionalTableError } from "@/lib/supabase/errors";
 import { normalizeWorkspaceRole } from "@/lib/workspaces/roles";
 
@@ -17,6 +17,9 @@ export type HrAccessDecision = {
   normalizedRoles: ReturnType<typeof normalizeWorkspaceRole>[];
   policyKeys: string[];
   entityId: string | null;
+  evaluatedHouseId?: string;
+  evaluatedLevel?: "read" | "write";
+  evaluatedCapability?: "hr" | "payroll";
 };
 
 export type HrBranchAccessDecision = HrAccessDecision & {
@@ -122,13 +125,28 @@ export async function requireHrAccessWithBranch(
   input: { houseId: string; branchId?: string | null; requiredLevel?: "read" | "write"; requiredCapability?: "hr" | "payroll" },
 ): Promise<HrBranchAccessDecision> {
   const baseAccess = await requireHrAccess(supabase, input.houseId);
-  const access = evaluateHrAccess({
-    roles: baseAccess.roles,
-    policyKeys: baseAccess.policyKeys,
-    entityId: baseAccess.entityId,
-    requiredLevel: input.requiredLevel ?? "read",
-    requiredCapability: input.requiredCapability,
-  });
+  const requiredLevel = input.requiredLevel ?? "read";
+  let policyKeys = baseAccess.policyKeys;
+  if (requiredLevel === "write" && baseAccess.entityId && !baseAccess.allowedByRole) {
+    try {
+      policyKeys = await listPolicyKeysForEntityAtHouse(supabase, baseAccess.entityId, input.houseId);
+    } catch (error) {
+      console.warn("Failed to load house-scoped HR write policies", error);
+      policyKeys = [];
+    }
+  }
+  const access = {
+    ...evaluateHrAccess({
+      roles: baseAccess.roles,
+      policyKeys,
+      entityId: baseAccess.entityId,
+      requiredLevel,
+      requiredCapability: input.requiredCapability,
+    }),
+    evaluatedHouseId: input.houseId,
+    evaluatedLevel: requiredLevel,
+    evaluatedCapability: input.requiredCapability ?? "hr",
+  };
   const allowedBranchIds = extractBranchScopesFromPolicyKeys(access.policyKeys);
   const isBranchLimited = !access.allowedByRole && allowedBranchIds.length > 0;
   const branchId = input.branchId?.trim().toLowerCase() || null;
