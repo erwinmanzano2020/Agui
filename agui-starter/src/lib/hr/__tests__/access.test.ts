@@ -44,6 +44,16 @@ describe("evaluateHrAccess", () => {
     assert.equal(decision.hasWorkspaceAccess, false);
     assert.equal(decision.allowed, false);
   });
+  it("distinguishes read and write policy capability while preserving authority roles", () => {
+    for (const role of ["house_owner", "house_manager"]) {
+      assert.equal(evaluateHrAccess({ roles: [role], policyKeys: [], entityId: "entity", requiredLevel: "read" }).allowed, true);
+      assert.equal(evaluateHrAccess({ roles: [role], policyKeys: [], entityId: "entity", requiredLevel: "write" }).allowed, true);
+    }
+    assert.equal(evaluateHrAccess({ roles: ["house_staff"], policyKeys: ["tiles.hr.read"], entityId: "entity", requiredLevel: "read" }).allowed, true);
+    assert.equal(evaluateHrAccess({ roles: ["house_staff"], policyKeys: ["tiles.hr.read"], entityId: "entity", requiredLevel: "write" }).allowed, false);
+    assert.equal(evaluateHrAccess({ roles: ["house_staff"], policyKeys: ["domain.hr.all"], entityId: "entity", requiredLevel: "write" }).allowed, true);
+  });
+
 });
 
 describe("requireHrAccessWithBranch", () => {

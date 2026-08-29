@@ -188,3 +188,28 @@ HR-1 identity columns, RPC signatures, lookup-first behavior, no-auto-merge rule
 duplicate guardrail, and no-cross-house access remain unchanged. This status
 refresh changes no runtime, test, database, API/RPC, access, UI/route, POS,
 Roadmap, architecture, or frozen-contract artifact.
+
+## 2026-08-29 — HR Authorization Security Correction implementation checkpoint
+
+**Status: implemented; production-like/manual UAT remains required.** The owner-authorized
+security gate from the merged PR #491 audit now enforces action capability centrally:
+read policies (`tiles.hr.read` / `tiles.payroll.read`) cannot satisfy write requests,
+while owner/manager authority remains house-wide. The additive `domain.hr.all` policy
+is the explicit HR write-capability convention; it is not assigned to any role by the
+migration. Existing `domain.payroll.all` remains the full payroll capability.
+
+Access-derived branch restrictions are composed into DTR Bulk, Schedules assignment
+history and branch metadata, employee photo storage upload, Add/Edit Employee branch
+metadata, Payroll Run Detail, Payslips, the Payroll Runs index, and the payroll-runs
+GET API. Payroll-run lists discard runs with no visible items and calculate counts
+only from visible employee items. Zero-scope policy actors fail closed. The adjacent
+schedule assignment repository was updated to accept an allowed branch set; no new
+schedule product permission model was introduced.
+
+Focused evaluator and affected repository/route coverage verifies read-versus-write,
+branch allow/deny, zero-scope denial, owner/manager authority, storage mutation denial,
+and filtered payroll item/list/count behavior. No identity semantics, RPC signatures,
+RLS policies, grants, frozen HR contracts, POS code, HR-2, or HR-4 workflow behavior
+changed. Remaining verification is production-like migration/RLS parity, realistic
+branch-role UAT, service-role boundary observation, browser schedule/form checks, and
+payroll/payslip full-flow UAT.

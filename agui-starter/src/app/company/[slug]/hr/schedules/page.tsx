@@ -7,7 +7,7 @@ import {
   updateOvertimePolicyAction,
 } from "./actions";
 import { requireAuth } from "@/lib/auth/require-auth";
-import { requireHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import type { HrScheduleWindowRow } from "@/lib/db.types";
 import { listBranchesForHouse } from "@/lib/hr/employees-server";
 import {
@@ -65,7 +65,7 @@ export default async function HrSchedulesPage({ params }: Props) {
     notFound();
   }
 
-  const access = await requireHrAccess(supabase, house.id);
+  const access = await requireHrAccessWithBranch(supabase, { houseId: house.id });
   if (!access.allowed) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-white/60 p-6 text-sm text-muted-foreground">
@@ -95,8 +95,8 @@ export default async function HrSchedulesPage({ params }: Props) {
       .map((detail) => [detail.template.id, detail.windows]),
   );
 
-  const branchResult = await listBranchesForHouse(supabase, house.id);
-  const assignments = await listBranchScheduleAssignments(supabase, house.id, undefined, { access });
+  const branchResult = await listBranchesForHouse(supabase, house.id, access);
+  const assignments = await listBranchScheduleAssignments(supabase, house.id, access.isBranchLimited ? access.allowedBranchIds : undefined, { access });
   const assignmentsByBranch = new Map<string, typeof assignments>();
   assignments.forEach((assignment) => {
     const bucket = assignmentsByBranch.get(assignment.branch_id) ?? [];

@@ -102,7 +102,7 @@ export async function getScheduleTemplateWithWindows(
 export async function listBranchScheduleAssignments(
   supabase: SupabaseClient<Database>,
   houseId: string,
-  branchId?: string,
+  branchId?: string | string[],
   options: { access?: HrAccessDecision } = {},
 ): Promise<HrBranchScheduleAssignmentRow[]> {
   const access = await resolveAccess(supabase, houseId, options.access);
@@ -113,7 +113,10 @@ export async function listBranchScheduleAssignments(
     .select(ASSIGNMENT_COLUMNS)
     .eq("house_id", houseId);
 
-  if (branchId) {
+  if (Array.isArray(branchId)) {
+    if (branchId.length === 0) return [];
+    query = query.in("branch_id", branchId);
+  } else if (branchId) {
     query = query.eq("branch_id", branchId);
   }
 

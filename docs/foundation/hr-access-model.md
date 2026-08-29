@@ -227,3 +227,13 @@ After authentication + entity + feature + HR access pass, routes/services still 
 
 ### Future issue (out of scope)
 - Feature definitions still include some action-like requirements (for example payroll wildcard policy), which blurs pure module-entry semantics. This pass documents the reality and does not redesign it.
+
+## Action capability correction (2026-08-29)
+
+`requireHrAccessWithBranch` enforces its requested action level. Read tile policies
+satisfy reads only; `domain.hr.all` and the existing `domain.payroll.all` satisfy
+write capability for non-authority actors. `domain.hr.all` follows the existing
+`domain.<resource>.all` convention and is additive/assignable but receives no default
+role assignment. Owner and manager roles retain broad house authority. Capability is
+evaluated before branch restriction, and policy actors without an explicit allowed
+branch fail closed.

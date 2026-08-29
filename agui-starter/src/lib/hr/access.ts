@@ -6,7 +6,7 @@ import { getCurrentEntityAndPolicies } from "@/lib/policy/server";
 import { isOptionalTableError } from "@/lib/supabase/errors";
 import { normalizeWorkspaceRole } from "@/lib/workspaces/roles";
 
-const HR_POLICY_KEYS = new Set(["tiles.hr.read", "tiles.payroll.read"]);
+const HR_READ_POLICY_KEYS = new Set(["tiles.hr.read", "tiles.payroll.read"]);
 
 export type HrAccessDecision = {
   allowed: boolean;
@@ -29,13 +29,19 @@ export function evaluateHrAccess(input: {
   roles: string[];
   policyKeys: Iterable<string>;
   entityId: string | null;
+  requiredLevel?: "read" | "write";
+  requiredCapability?: "hr" | "payroll";
 }): HrAccessDecision {
   const normalizedRoles = input.roles.map((role) => normalizeWorkspaceRole(role));
   const allowedByRole = normalizedRoles.some((role) => role === "owner" || role === "manager");
   const hasWorkspaceAccess = input.roles.length > 0;
 
   const policyKeys = Array.from(input.policyKeys ?? []);
-  const allowedByPolicy = policyKeys.some((key) => HR_POLICY_KEYS.has(key));
+  const requiredLevel = input.requiredLevel ?? "read";
+  const writePolicyKey = input.requiredCapability === "payroll" ? "domain.payroll.all" : "domain.hr.all";
+  const allowedByPolicy = policyKeys.some((key) =>
+    requiredLevel === "write" ? key === writePolicyKey : HR_READ_POLICY_KEYS.has(key),
+  );
 
   return {
     allowed: hasWorkspaceAccess && (allowedByRole || allowedByPolicy),
@@ -113,11 +119,16 @@ function extractBranchScopesFromPolicyKeys(policyKeys: Iterable<string>): string
 
 export async function requireHrAccessWithBranch(
   supabase: SupabaseClient,
-  input: { houseId: string; branchId?: string | null; requiredLevel?: "read" | "write" },
+  input: { houseId: string; branchId?: string | null; requiredLevel?: "read" | "write"; requiredCapability?: "hr" | "payroll" },
 ): Promise<HrBranchAccessDecision> {
-  // Reserved for future read/write split without changing function signature today.
-  void input.requiredLevel;
-  const access = await requireHrAccess(supabase, input.houseId);
+  const baseAccess = await requireHrAccess(supabase, input.houseId);
+  const access = evaluateHrAccess({
+    roles: baseAccess.roles,
+    policyKeys: baseAccess.policyKeys,
+    entityId: baseAccess.entityId,
+    requiredLevel: input.requiredLevel ?? "read",
+    requiredCapability: input.requiredCapability,
+  });
   const allowedBranchIds = extractBranchScopesFromPolicyKeys(access.policyKeys);
   const isBranchLimited = !access.allowedByRole && allowedBranchIds.length > 0;
   const branchId = input.branchId?.trim().toLowerCase() || null;

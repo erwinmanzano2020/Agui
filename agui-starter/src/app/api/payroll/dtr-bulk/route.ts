@@ -6,6 +6,7 @@ import { AppFeature } from "@/lib/auth/permissions";
 import type { Database } from "@/lib/db.types";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import { assertManilaReasonableSegment, toManilaTimestamptz } from "@/lib/hr/timezone";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
@@ -249,9 +250,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No accessible house" }, { status: 403 });
   }
 
+  const parsedAction = loadSchema.safeParse(body).success ? "read" : "write";
+  const access = await requireHrAccessWithBranch(supabase, { houseId, requiredLevel: parsedAction, requiredCapability: "payroll" });
+  if (!access.allowed) return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+
   let branchIds: string[] = [];
   try {
-    branchIds = await resolveBranchesForHouse(service, houseId);
+    branchIds = access.isBranchLimited ? access.allowedBranchIds : await resolveBranchesForHouse(service, houseId);
   } catch (error) {
     console.error("[/api/payroll/dtr-bulk] failed to resolve departments", error);
     return NextResponse.json({ error: "Failed to resolve house departments" }, { status: 500 });
