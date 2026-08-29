@@ -11,7 +11,8 @@
   contract change. The next capability requires a separate owner-reviewed gate.
   The dependency-first immediate gate is a separately authorized bounded
   HR Authorization Security Correction covering action capability, DTR-bulk,
-  Schedules, Employee Photo Upload, and Add/Edit Employee branch metadata.
+  Schedules, Employee Photo Upload, Add/Edit Employee branch metadata, Payroll Run
+  Detail, and Payslips/payroll UI reads.
   Existing HR-2 and HR-4 contracts may then be reviewed against confirmed
   governing requirements.
   Optional workflow or policy choices require separate owner scope approval and
@@ -29,9 +30,10 @@ phase labels are not completeness determinations.
 attendance-segment, schedule-primitive, payroll, payslip/PDF, kiosk, employee-ID,
 and access-control paths; it is not an end-to-end canonical HR MVP because the
 monthly single-employee all-days DTR grid partially implements HR-2 period
-behavior, but static authorization limitations remain in action-capability
-enforcement, DTR-bulk, HR Schedules, Employee Photo Upload, and Add/Edit Employee
-metadata. The already documented HR-2 completeness/correction lifecycle, HR-4
+behavior, but confirmed static authorization limitations include action-capability
+enforcement, DTR-bulk, HR Schedules, Employee Photo Upload, Add/Edit Employee
+metadata, Payroll Run Detail, and Payslips/payroll UI reads. This inventory is not
+exhaustive. The already documented HR-2 completeness/correction lifecycle, HR-4
 schedule lifecycle and conflict rules,
 and approval-aware payroll-readiness boundary are not implemented as required,
 while production-like RLS, device, PDF/print, concurrency, and full-flow UAT
@@ -97,10 +99,20 @@ prove current end-to-end HR completeness.
    The helper filters only `house_id`. **Inferred impact:** branch-limited actors
    may receive out-of-scope branch names/IDs. **Unverified impact:** no live
    production disclosure was confirmed.
-7. The required approvals family is not implemented as a coherent authority and
+7. **Confirmed static payroll UI read evidence:** Payroll Run Detail and Payslips
+   use house-wide `requireHrAccess`; both load selected run items without
+   `branchScope`, and Payslips lists house runs and item counts without an
+   access-derived branch restriction. The sibling run API passes branch-aware
+   access and scope to the same detail helper. Repository SELECT policies for runs
+   and items are house-role scoped, not branch scoped. **Inferred impact:** a
+   branch-limited same-house actor may receive out-of-scope payroll item records,
+   employee references, attendance snapshot fields, run/item counts, or related
+   metadata. **Unverified impact:** no live exploit, production response,
+   disclosure, or deployed-database conclusion was confirmed.
+8. The required approvals family is not implemented as a coherent authority and
    audit layer, so payroll cannot yet be certified as consuming fully normalized,
    approved upstream inputs.
-8. Focused mocked/unit coverage does not replace production-like validation of
+9. Focused mocked/unit coverage does not replace production-like validation of
    RLS, grants, RPCs, concurrency, kiosk devices, PDFs/printing, or full flows.
 
 ## Single next recommendation
@@ -112,10 +124,12 @@ authorized **HR Authorization Security Correction**. Its boundary includes:
 - denial of mutations to read-only-policy actors while preserving owner/manager
   house authority;
 - access-derived branch restrictions for DTR-bulk, Schedules/history/metadata,
-  Employee Photo Upload, and Add/Edit Employee branch metadata;
+  Employee Photo Upload, Add/Edit Employee branch metadata, Payroll Run Detail,
+  and Payslips/payroll UI reads;
 - canonical house tenancy, branch as restriction-only, and deny/no-leak behavior;
 - branch-limited and read-only-policy negative-path tests, including out-of-branch
-  photo mutation and Add/Edit form metadata disclosure denial.
+  photo mutation, Add/Edit form metadata disclosure, Payroll Run Detail reads,
+  and Payslips run-list/item-count/selected-item read denial.
 
 This list covers the confirmed audit findings without claiming an exhaustive
 inventory or prescribing a new authorization architecture. The gate requires
