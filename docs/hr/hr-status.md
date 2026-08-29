@@ -10,8 +10,8 @@
   implementation, implementation plan, schema/API/migration work, or frozen
   contract change. The next capability requires a separate owner-reviewed gate.
   The dependency-first immediate gate is a separately authorized bounded
-  HR branch-authorization security correction covering DTR-bulk, Schedules, and
-  Employee Photo Upload.
+  HR Authorization Security Correction covering action capability, DTR-bulk,
+  Schedules, Employee Photo Upload, and Add/Edit Employee branch metadata.
   Existing HR-2 and HR-4 contracts may then be reviewed against confirmed
   governing requirements.
   Optional workflow or policy choices require separate owner scope approval and
@@ -29,9 +29,10 @@ phase labels are not completeness determinations.
 attendance-segment, schedule-primitive, payroll, payslip/PDF, kiosk, employee-ID,
 and access-control paths; it is not an end-to-end canonical HR MVP because the
 monthly single-employee all-days DTR grid partially implements HR-2 period
-behavior, but DTR-bulk, HR Schedules, and Employee Photo Upload have open,
-statically visible branch-authorization limitations. The already documented HR-2
-completeness/correction lifecycle, HR-4 schedule lifecycle and conflict rules,
+behavior, but static authorization limitations remain in action-capability
+enforcement, DTR-bulk, HR Schedules, Employee Photo Upload, and Add/Edit Employee
+metadata. The already documented HR-2 completeness/correction lifecycle, HR-4
+schedule lifecycle and conflict rules,
 and approval-aware payroll-readiness boundary are not implemented as required,
 while production-like RLS, device, PDF/print, concurrency, and full-flow UAT
 remain unverified.**
@@ -46,7 +47,7 @@ prove current end-to-end HR completeness.
 |---|---|
 | **Implemented and verified** | No whole material capability is certified end to end; focused repository behavior is verified inside the partially verified capabilities below. |
 | **Implemented but partially verified** | HR shell/access; identity-aware employees; employee photo/ID; compensation/pay settings; payroll run lifecycle/deductions/posting/paid/adjustments; payslip/PDF; kiosk. |
-| **Partially implemented** | House/branch/no-leak enforcement because DTR-bulk, Schedules, and Employee Photo Upload retain open static limitations; daily DTR plus a monthly single-employee all-days grid versus the remaining detailed-planning contract; remaining confirmed HR-2 correction-record requirements; payroll-ready attendance; schedule lifecycle/types/assignments/conflicts; payroll calculation integration with approved upstream facts. |
+| **Partially implemented** | House/branch/no-leak and action-capability enforcement because multiple confirmed static limitations remain; daily DTR plus a monthly single-employee all-days grid versus the remaining detailed-planning contract; remaining confirmed HR-2 correction-record requirements; payroll-ready attendance; schedule lifecycle/types/assignments/conflicts; payroll calculation integration with approved upstream facts. |
 | **Documentation/contract only** | Coherent HR-4 approvals for DTR corrections, OT, leave, and schedule changes. |
 | **Stale or conflicting documentation** | Historical blanket “HR-0 to HR-3.5 implemented baseline/usable” and “nothing in-scope not started” claims when read as canonical lifecycle completeness. |
 | **Unknown / cannot verify** | Deploy-state migration/RLS/grant/RPC parity and production-like operational behavior. Existing bounded payroll/payslip/PDF outputs are evidenced; any broader reports concept is outside approved canonical scope and would require an owner scope decision, not classification as a missing MVP capability. |
@@ -84,22 +85,41 @@ prove current end-to-end HR completeness.
    employee ID may overwrite that employee's storage object even when later row
    persistence would be branch-denied. **Unverified impact:** no live exploit,
    production response, mutation, or disclosure was confirmed.
-5. The required approvals family is not implemented as a coherent authority and
+5. **Confirmed static action-capability evidence:** `requireHrAccessWithBranch`
+   accepts read/write `requiredLevel` but explicitly ignores it. Read-style
+   `tiles.hr.read`/`tiles.payroll.read` policies admit non-authority staff, and
+   inspected mutations requesting `write` receive no distinct capability decision.
+   **Inferred impact:** a read-policy actor may reach a mutation when other scope
+   checks pass. **Unverified impact:** no live or production exploit was confirmed.
+6. **Confirmed static employee-form metadata evidence:** Add Employee uses
+   house-wide access and passes all house branches to its form. Edit Employee
+   branch-scopes its employee target but separately passes all house branches.
+   The helper filters only `house_id`. **Inferred impact:** branch-limited actors
+   may receive out-of-scope branch names/IDs. **Unverified impact:** no live
+   production disclosure was confirmed.
+7. The required approvals family is not implemented as a coherent authority and
    audit layer, so payroll cannot yet be certified as consuming fully normalized,
    approved upstream inputs.
-6. Focused mocked/unit coverage does not replace production-like validation of
+8. Focused mocked/unit coverage does not replace production-like validation of
    RLS, grants, RPCs, concurrency, kiosk devices, PDFs/printing, or full flows.
 
 ## Single next recommendation
 
 The audit recommends exactly one dependency-first immediate gate: a separately
-authorized **HR Branch-Authorization Security Correction — DTR-Bulk,
-Schedules, and Employee Photo Upload**, because static limitations affect
-employee/month reads, destructive saves, schedule/assignment-history reads, and
-employee-photo storage mutation. The future gate must enforce
-access-derived branch restrictions, preserve house tenancy and owner/manager house
-authority, keep branch restriction-only, provide deny/no-leak behavior, and add
-branch-limited negative-path tests, including an out-of-branch employee-photo object mutation denial. This audit neither implements nor authorizes it.
+authorized **HR Authorization Security Correction**. Its boundary includes:
+
+- effective policy-granted action capability and read-versus-write distinction;
+- denial of mutations to read-only-policy actors while preserving owner/manager
+  house authority;
+- access-derived branch restrictions for DTR-bulk, Schedules/history/metadata,
+  Employee Photo Upload, and Add/Edit Employee branch metadata;
+- canonical house tenancy, branch as restriction-only, and deny/no-leak behavior;
+- branch-limited and read-only-policy negative-path tests, including out-of-branch
+  photo mutation and Add/Edit form metadata disclosure denial.
+
+This list covers the confirmed audit findings without claiming an exhaustive
+inventory or prescribing a new authorization architecture. The gate requires
+separate owner authorization; this audit neither implements nor authorizes it.
 
 After security correction, review the existing contracts against confirmed
 requirements; do not create new refinement gates solely from optional ideas:

@@ -36,7 +36,7 @@ POS unlock are retained as history and are not current execution authority.
 |---|---|---|---|---|---|---|---|---|---|
 | HR shell and access-first navigation | Master Plan, Governance and Boundary Confirmation | `agui-starter/src/lib/hr/access.ts`; `agui-starter/src/app/company/[slug]/hr/layout.tsx` | House roles/branches in existing migrations and generated `agui-starter/src/lib/db.types.ts` | `agui-starter/src/lib/hr/__tests__/access.test.ts`; `agui-starter/src/app/api/hr/_shared/__tests__/route-guard-order.test.ts` | `/company/[slug]/hr` redirects to Employees; tabs exist in `hr-tabs.tsx` | **Implemented but partially verified** | No browser UAT or deployed-RLS proof; route-family tests use stubs/mocks. | Auth, feature guard, house/branch access data | Foundation |
 | HR-1 lookup-first identity and duplicate-safe employee creation | Master Plan, HR-1 Status and Frozen Contracts | `employee-identity.ts`; employee lookup/create routes and server actions | Identity migrations; employee migrations; canonical RPCs and active `(house_id, entity_id)` guard appear in migration history/types | `employee-identity.test.ts`; employee create/lookup action and route tests | `/company/[slug]/hr/employees/new` | **Implemented but partially verified** | Repository evidence covers lookup, explicit match handling, and guarded creation, but no live RPC/RLS integration run was performed; employee lifecycle is create/edit/list rather than a demonstrated full operational lifecycle. | Applied canonical RPCs, grants/RLS, identity data integrity | Foundation |
-| Employee records, branch assignment, photo and ID output | Master Plan HR-1; HR-3.5 freeze records | `employees-server.ts`; `employee-photo.ts`; ID/PDF helpers; photo upload and persistence routes | Employee/photo migrations and generated types | employee, photo, ID page/route/PDF tests; upload tests do not cover an out-of-branch same-house employee target | Employees list/detail/edit, `/hr/employee-ids`, ID-card/print APIs, photo upload/persistence APIs | **Partially implemented** | V1 photo/ID constraints and print/camera/storage UAT remain. In addition, photo upload uses house-wide access and a service-client storage upsert without branch-aware employee-target authorization; the sibling persistence route is branch-aware. This open static mutation limitation is documented below. | HR branch-authorization security correction including employee photo upload; storage/print/browser UAT | Foundation |
+| Employee records, branch assignment, photo and ID output | Master Plan HR-1; HR-3.5 freeze records | `employees-server.ts`; employee create/edit pages/actions; photo upload/persistence; ID/PDF helpers | Employee/photo migrations and generated types | employee, photo, ID page/route/PDF tests; no Add/Edit form metadata branch-limited negative test or upload out-of-branch target test found | Add/Edit forms, employee list/detail, photo APIs, `/hr/employee-ids`, ID/print APIs | **Partially implemented** | Add uses house-wide access and passes all house branches to its form. Edit branch-scopes the employee row but separately passes the unfiltered house branch list. `listBranchesForHouse` filters only `house_id`, not access-derived branch IDs. Photo upload also has the static mutation limitation below. | HR Authorization Security Correction; storage/print/browser UAT | Foundation |
 | DTR period completeness and correction records | Master Plan, HR-2 DTR completeness/correction; `docs/devlog/hr-2-dtr-detailed-planning.md` §§4–14 | Daily segment CRUD in `dtr-segments-server.ts` and HR DTR actions; `/payroll/dtr-bulk` single mode derives every date in a selected month, initializes one employee's all-days grid, and loads that range through its API | `dtr_segments` migrations, write policies, generated row types; no audit-lineage implementation is established by the planning record | `dtr-segments-server.test.ts`; DTR action/UI tests; overtime tests; no focused DTR-bulk route/month-grid tests found; detailed planning §14 specifies future acceptance coverage | `/company/[slug]/hr/dtr` selected-date CRUD; `/payroll/dtr-bulk` per-employee monthly grid | **Partially implemented** | Confirmed HR-2 requirements are correction/edit flow, required reason, actor identity and timestamp, original-versus-corrected lineage, HR-4 handoff for payroll-impacting corrections, and existing tenancy/no-leak/branch restrictions. The monthly grid partially implements all-days representation, but these correction requirements, custom ranges, state semantics, secure branch enforcement, and production behavior are not fully implemented. A separate requester submission/withdrawal workflow or evidence/attachment requirement is not established scope; each is only a possible option requiring explicit owner approval. | DTR-bulk security correction; review existing HR-2 contract against confirmed requirements | Foundation |
 | Payroll-ready attendance normalization | Master Plan, Payroll-ready attendance boundary and Payroll Dependency Boundary | `payroll-preview-server.ts`; `overtime-engine.ts` | DTR, schedules, overtime/pay policies exist | payroll preview and overtime tests | `/hr/payroll-preview` shows flags and aggregated preview rows | **Partially implemented** | Preview consumes recorded facts, but canonical approved-correction, leave, schedule-conflict, and final normalized attendance boundary is not implemented end to end. | DTR completeness/corrections, schedules, approvals | High |
 | Schedule templates/windows and branch assignments | Master Plan, HR-4 Schedule lifecycle/types/assignments/conflicts | `schedules-server.ts` creates append-style effective-dated branch assignment rows, lists them newest-first, and stores weekly `day_of_week` windows as a bounded recurring-template primitive | `hr_schedule_templates`, `hr_schedule_windows`, and effective-dated `hr_branch_schedule_assignments` migration/types | `schedules-server.test.ts` verifies branch-aware writes, cross-house denial, and newest-first assignment ordering; no branch-limited page/read negative-path test found | `/company/[slug]/hr/schedules` renders weekly windows and per-branch assignment history | **Partially implemented** | Existing history and weekly recurrence primitives must be preserved, not rebuilt. Missing canonical behavior includes edit, cancellation, override, complete immutable audit semantics, conflict detection, employee-specific/other approved assignments, and production-like authorization/concurrency verification. The page's branch-limited read limitation is documented below. | HR branch-authorization security correction; reconcile remaining existing HR-4 plan gaps; owner review | High |
@@ -47,7 +47,8 @@ POS unlock are retained as history and are not current execution authority.
 | Payslip review and PDF exports | HR-3.2/3.4 freeze records, subordinate to Master Plan | `payslip-server.ts`; PDF helpers and API routes | Payroll run snapshots/deductions | payslip, PDF layout/format and route tests | `/hr/payslips`, per-employee payslip, individual/run PDF routes | **Implemented but partially verified** | Generated PDFs are tested programmatically, not manually validated across representative data, fonts, browsers, printers, and deployment storage/runtime. | Stable run data and production rendering environment | Medium |
 | Kiosk devices, authentication, scan and sync | HR-3.5 freeze records; Master Plan governance boundaries | `lib/hr/kiosk/*`; kiosk admin and public API routes | Kiosk device/event migration and policies | kiosk repository/service/admin/device route and client tests | `/hr/kiosk-devices`; public `/company/[slug]/kiosk` | **Implemented but partially verified** | Mocked coverage does not prove real scanner wedge behavior, offline queue recovery, clock accuracy, token rotation, RLS, or field rollout reliability. | Production-like device/network/database UAT | High |
 | Existing bounded payroll/payslip outputs versus broader reports concept | Payroll/PDF freeze records for existing outputs; no broader reports requirement in the canonical Master Plan | Payroll/payslip/PDF outputs exist; no broader reports family was assessed as required | Existing payroll operational tables only | Export tests cover payslip/run PDFs | Payroll/payslip exports only | **Unknown / cannot verify** | Existing bounded outputs are evidenced. A general HR reports family or operations dashboard is outside currently approved canonical scope; only an owner scope decision could introduce it, and this audit neither identifies it as an MVP gap nor recommends it. | Owner scope decision only if broader reports are later proposed | Low |
-| House tenancy, branch limitation, deny/no-leak enforcement | Master Plan, Frozen Contracts and Governance; canonical `hr-role-system-model.md`; operating principles | `access.ts`; scoped repositories; route guard helper; three static limitations below: `POST /api/payroll/dtr-bulk`, `/company/[slug]/hr/schedules`, and employee photo upload | House-scoped columns, RLS policies and grants throughout HR migrations | broad negative-path coverage elsewhere; no focused DTR-bulk authorization test, schedules page branch-limited read test, or photo-upload out-of-branch target test found | Most audited HR routes have denied/empty/not-found handling; affected DTR-bulk reads/saves, schedules branch/history page, and photo storage upload | **Partially implemented** | DTR-bulk uses service-wide house branches without `requireHrAccessWithBranch`. Schedules uses house-wide `requireHrAccess`, unscoped branch metadata, and unfiltered assignment listing. Photo upload uses house-wide access and a service-client storage upsert without branch-aware target resolution. All three imply possible same-house cross-branch exposure for branch-limited actors; none was live-exploited or production-confirmed. | Separately authorized bounded HR branch-authorization correction for DTR-bulk, Schedules, and employee photo upload, negative-path tests, then production-like verification | Foundation |
+| House tenancy, branch limitation, deny/no-leak enforcement | Master Plan, Frozen Contracts and Governance; canonical role/scoped-authorization models | Broad scoped helpers plus confirmed static limitations including DTR-bulk, Schedules, Employee Photo Upload, and Add/Edit Employee branch metadata | House-scoped columns, RLS policies and grants | broad negative-path coverage elsewhere; missing focused negative paths for the listed branch-limited surfaces | Affected reads, writes, metadata, and storage upload surfaces | **Partially implemented** | Branch scoping alone is insufficient where action capability or access-derived metadata scope is not enforced. Static evidence and conservative impact classifications are detailed below; the listed paths are confirmed findings, not asserted to be an exhaustive authorization inventory. | Separately authorized HR Authorization Security Correction and production-like verification | Foundation |
+| HR action-capability enforcement | Canonical `hr-role-system-model.md` and scoped authorization model | `requireHrAccessWithBranch` accepts `requiredLevel: read/write`, but explicitly ignores it; employee, DTR, schedule, photo and kiosk mutation paths request `write` | No database evidence can substitute for the ignored application action-level decision | Existing access tests cover role/policy and branch outcomes, not denial of writes to a read-only policy actor | Multiple mutation actions consume the same access decision | **Partially implemented** | `evaluateHrAccess` admits `tiles.hr.read` or `tiles.payroll.read` as policy capability for non-authority staff. Because `requiredLevel` is ignored, static code does not distinguish their read and write admission. Owner/manager house authority remains canonical. No production exploit was tested. | HR Authorization Security Correction with read-only-policy mutation negative tests | Foundation |
 | Historical “HR-0 to HR-3.5 implemented baseline” and “usable” claims | Roadmap HR Track Status; pre-audit `hr-status.md`; expanded plan Historical Phase Reality | Broad runtime inventory above | Broad schema inventory above | Broad focused suite above | Broad route inventory above | **Stale or conflicting documentation** | These labels overstate canonical DTR/schedule/approval coverage and operational verification. They remain historical checkpoint evidence, not present completeness findings. | This audit/status reconciliation | Foundation |
 
 ## Conclusions
@@ -153,15 +154,53 @@ cross-branch storage mutation, or production disclosure was executed or confirme
 Existing upload tests cover authentication, house ownership and path matching, but
 no branch-limited out-of-scope employee-object negative path was found.
 
+
+**Confirmed static evidence** for HR action capability:
+
+- `requireHrAccessWithBranch` accepts `requiredLevel?: "read" | "write"`, but the
+  implementation explicitly discards it with `void input.requiredLevel`;
+- policy admission uses the read-style keys `tiles.hr.read` and
+  `tiles.payroll.read`; non-owner/manager staff may receive usable HR access from
+  those policy capabilities, while owner/manager authority remains house-wide;
+- inspected employee create/edit/delete, DTR, schedule, photo-persistence, and
+  kiosk mutations request `requiredLevel: "write"`, but that parameter currently
+  causes no different capability decision.
+
+**Inferred impact:** a non-authority actor admitted through a read-style HR/payroll
+policy may reach mutation authorization where branch scope alone passes, because
+no effective read-versus-write capability distinction is applied. Branch never
+grants authority, and this finding does not alter canonical owner/manager authority.
+
+**Unverified impact:** no live mutation by a read-only-policy actor, production
+request/response, or production exploit was executed or confirmed.
+
+**Confirmed static evidence** for employee-form branch metadata:
+
+- Add Employee uses house-wide `requireHrAccess`, calls `listBranchesForHouse`, and
+  passes every returned house branch to `CreateEmployeeForm` without applying
+  access-derived allowed branch IDs;
+- Edit Employee branch-scopes its target access and employee read, but separately
+  calls `listBranchesForHouse` and passes that returned list to `EditEmployeeForm`;
+- `listBranchesForHouse` constrains rows by `house_id` and accepts no access
+  decision or allowed-branch IDs.
+
+**Inferred impact:** a branch-limited actor may receive out-of-scope same-house
+branch names/IDs in Add or Edit Employee forms even when the target employee row
+or later mutation is restricted.
+
+**Unverified impact:** no live production disclosure, request/response, or actual
+cross-branch metadata exposure was executed or confirmed. No focused Add/Edit form
+metadata negative-path coverage for branch-limited actors was found.
+
 ## Exact checkpoint
 
 **HR has a broad, repository-tested implementation baseline for employee,
 attendance-segment, schedule-primitive, payroll, payslip/PDF, kiosk, employee-ID,
 and access-control paths; it is not an end-to-end canonical HR MVP. A monthly
 single-employee all-days DTR grid partially implements HR-2 period behavior, but
-DTR-bulk, HR Schedules, and employee photo upload have statically visible,
-unremediated branch-authorization limitations. In addition, the
-already planned HR-2 DTR completeness/correction lifecycle, HR-4 schedule
+static findings remain in DTR-bulk, HR Schedules, Employee Photo Upload,
+Add/Edit Employee branch metadata, and action-capability enforcement. In
+addition, the already planned HR-2 DTR completeness/correction lifecycle, HR-4 schedule
 lifecycle and conflict rules, and approval-aware payroll-readiness boundary are
 not implemented as required, while production-like RLS, device, PDF/print,
 concurrency, and full-flow UAT remain unverified.**
@@ -176,14 +215,18 @@ remain unchanged.
 
 ## Single next bounded recommendation (advisory only)
 
-1. **Single immediate gate — HR Branch-Authorization Security Correction —
-   DTR-Bulk, Schedules, and Employee Photo Upload.** Static evidence identifies
-   high-risk DTR read/save, schedule/history read, and employee-photo storage
-   mutation paths. A separately authorized correction must enforce
-   access-derived branch restrictions, preserve house tenancy and owner/manager
-   house authority, keep branch restriction-only, provide deny/no-leak behavior,
-   and add branch-limited negative-path tests, including proof that photo upload cannot mutate an out-of-branch employee object. This audit prescribes no runtime
-   implementation detail beyond those boundaries and does not authorize the gate.
+1. **Single immediate gate — HR Authorization Security Correction.** Static
+   evidence identifies high-risk action-capability, DTR read/save,
+   schedule/history, employee-photo storage mutation, and Add/Edit
+   branch-metadata paths. A separately authorized correction must enforce
+   policy-granted action capability,
+   distinguish read from write where the canonical model requires it, deny mutation
+   to read-only-policy actors, enforce access-derived branch restrictions, preserve
+   house tenancy and owner/manager house authority, keep branch restriction-only,
+   and provide deny/no-leak negative tests for DTR-bulk, Schedules
+   metadata/history, photo upload out-of-branch mutation, and Add/Edit Employee
+   branch metadata. This audit prescribes no runtime implementation detail beyond
+   those boundaries and does not authorize the gate.
 2. **Subsequent contract review — confirmed requirements only.** Review the
    existing HR-2 plan for its established correction/edit, reason, actor/timestamp,
    lineage, HR-4 handoff, tenancy, no-leak and branch-restriction requirements.
