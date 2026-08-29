@@ -43,11 +43,11 @@ POS unlock are retained as history and are not current execution authority.
 | Approval authority for corrections, OT, leave, and schedules | Master Plan, HR-4 Approvals; `docs/devlog/hr-4-schedules-approvals-detailed-planning.md` §§10–17 | No consolidated approval service or route found in targeted searches | No canonical approval workflow tables/types found for the required family | No approval workflow tests found; HR-4 detailed planning §17 specifies future coverage | No HR approval inbox/history route found | **Documentation/contract only** | Confirmed HR-4 requirements are approver authority; actor and approver attribution; status, timestamp, rejection reason, audit history and immutable decision evidence; payroll-impacting approval ownership; and the boundary that HR-2 cannot approve its own corrections. Broader self-approval policy, generalized requester/approver separation, escalation/fallback, multi-level approval, or extra approval-policy mechanisms are optional owner decisions, not mandatory reconciliation gaps. | Review the existing HR-4 contract against confirmed requirements; explicit owner scope approval for any optional policy | High |
 | Compensation/rate history and payroll settings | Master Plan payroll dependency inputs; subordinate payroll freeze records | `employeeRates.ts`; `hr/payroll/page.tsx`; overtime/pay-policy helpers | Rate/pay-policy schema exists in migration history/types | payroll math, overtime-policy and payroll server tests | HR payroll and schedules policy surfaces; legacy `/payroll/settings` also exists | **Implemented but partially verified** | Two route families coexist; effective-dated rate and settings behavior was not proven through production-like database/UI UAT. | Deployed schema, access and data migration consistency | Medium |
 | Payroll preview/calculation | Master Plan, Payroll Dependency Boundary | `payroll-preview-server.ts`; `payroll-math.ts`; payslip server | Payroll policy and run tables/types | preview, payroll-run and payslip tests | `/hr/payroll-preview`; payroll run detail/payslip preview | **Partially implemented** | Calculation exists, but canonical payroll-ready upstream approvals and completeness are absent; therefore it cannot be certified as consuming fully normalized approved inputs. | DTR, schedules and approvals boundary | High |
-| Payroll run lifecycle, deductions, posting, paid and adjustments | Master Plan says HR-3 consumes approved inputs; HR-3 freeze/explainer subordinate records | `agui-starter/src/lib/hr/payroll-runs-server.ts`; run mutation routes | Run/item/deduction/posting migrations and RLS | payroll-run server, mutation freshness, API route branch-scope and write tests; no branch-limited Run Detail page test found | `/company/[slug]/hr/payroll-runs/[runId]` and lifecycle actions | **Implemented but partially verified** | Snapshot/lock semantics retain focused evidence, but Run Detail uses house-wide access and calls `getPayrollRunWithItems` without `branchScope`. Live DB concurrency, deployed trigger/RLS, accounting, payout, full upstream-input UAT, and page branch isolation remain unverified. | HR Authorization Security Correction; approved upstream facts; production-like DB verification | Foundation |
+| Payroll run lifecycle, deductions, posting, paid and adjustments | Master Plan says HR-3 consumes approved inputs; HR-3 freeze/explainer subordinate records | `agui-starter/src/app/company/[slug]/hr/payroll-runs/page.tsx`; `agui-starter/src/app/api/hr/payroll-runs/route.ts`; `agui-starter/src/lib/hr/payroll-runs-server.ts`; run mutation routes | Run/item/deduction/posting migrations and RLS | payroll-run server, mutation freshness, detail-API branch-scope and write tests; list API tests cover guard/validation/no-leak but no branch-limited list scope; no branch-limited index test found | `/company/[slug]/hr/payroll-runs` list, `/company/[slug]/hr/payroll-runs/[runId]`, and lifecycle actions | **Implemented but partially verified** | Snapshot/lock semantics retain focused evidence, but index and GET list API use `listPayrollRunsForHouse` without branch scope, while Run Detail omits `branchScope`. Lifecycle semantics remain implemented; list/detail branch isolation, live DB concurrency, deployed trigger/RLS, accounting, payout and full UAT remain unverified. | HR Authorization Security Correction; approved upstream facts; production-like DB verification | Foundation |
 | Payslip review and PDF exports | HR-3.2/3.4 freeze records, subordinate to Master Plan | `agui-starter/src/app/company/[slug]/hr/payslips/page.tsx`; `payroll-runs-server.ts`; payslip/PDF helpers and API routes | Payroll run snapshots/deductions; house-role SELECT policies for runs/items | payslip, PDF layout/format and branch-aware API route tests; no branch-limited Payslips page/list/count test found | `/company/[slug]/hr/payslips`, per-employee payslip, individual/run PDF routes | **Implemented but partially verified** | Payslips uses house-wide access, lists runs/item counts house-wide, and loads selected run items without `branchScope`; PDF behavior is tested programmatically, but affected page authorization and production rendering remain unverified. | HR Authorization Security Correction; stable run data and production rendering | Foundation |
 | Kiosk devices, authentication, scan and sync | HR-3.5 freeze records; Master Plan governance boundaries | `lib/hr/kiosk/*`; kiosk admin and public API routes | Kiosk device/event migration and policies | kiosk repository/service/admin/device route and client tests | `/hr/kiosk-devices`; public `/company/[slug]/kiosk` | **Implemented but partially verified** | Mocked coverage does not prove real scanner wedge behavior, offline queue recovery, clock accuracy, token rotation, RLS, or field rollout reliability. | Production-like device/network/database UAT | High |
 | Existing bounded payroll/payslip outputs versus broader reports concept | Payroll/PDF freeze records for existing outputs; no broader reports requirement in the canonical Master Plan | Payroll/payslip/PDF outputs exist; no broader reports family was assessed as required | Existing payroll operational tables only | Export tests cover payslip/run PDFs | Payroll/payslip exports only | **Unknown / cannot verify** | Existing bounded outputs are evidenced. A general HR reports family or operations dashboard is outside currently approved canonical scope; only an owner scope decision could introduce it, and this audit neither identifies it as an MVP gap nor recommends it. | Owner scope decision only if broader reports are later proposed | Low |
-| House tenancy, branch limitation, deny/no-leak enforcement | Master Plan, Frozen Contracts and Governance; canonical role/scoped-authorization models | Broad scoped helpers plus confirmed static limitations including DTR-bulk, Schedules, Employee Photo Upload, Add/Edit Employee branch metadata, Payroll Run Detail, and Payslips/payroll UI reads | House-scoped columns and RLS; payroll run/item SELECT policies admit same-house `house_roles` members without branch scope | broad negative-path coverage elsewhere; missing focused negatives for the listed branch-limited UI/API surfaces | Affected reads, writes, metadata, storage upload, payroll run items and counts | **Partially implemented** | House-scoped RLS does not establish branch isolation. Static evidence and conservative impacts are detailed below; listed paths are confirmed findings, not an exhaustive authorization inventory. | Separately authorized HR Authorization Security Correction and production-like verification | Foundation |
+| House tenancy, branch limitation, deny/no-leak enforcement | Master Plan, Frozen Contracts and Governance; canonical role/scoped-authorization models | Broad scoped helpers plus confirmed static limitations including DTR-bulk, Schedules, Employee Photo Upload, Add/Edit Employee branch metadata, Payroll Run Detail, Payslips/payroll UI reads, Payroll Runs index, and `GET /api/hr/payroll-runs` | House-scoped columns and RLS; payroll run/item SELECT policies admit same-house `house_roles` members without branch scope | broad negative-path coverage elsewhere; missing focused negatives for the listed branch-limited UI/API surfaces | Affected reads, writes, metadata, storage upload, payroll run items, lists and counts | **Partially implemented** | House-scoped RLS does not establish branch isolation. Static evidence and conservative impacts are detailed below; listed paths are confirmed findings, not an exhaustive authorization inventory. | Separately authorized HR Authorization Security Correction and production-like verification | Foundation |
 | HR action-capability enforcement | Canonical `hr-role-system-model.md` and scoped authorization model | `requireHrAccessWithBranch` accepts `requiredLevel: read/write`, but explicitly ignores it; employee, DTR, schedule, photo and kiosk mutation paths request `write` | No database evidence can substitute for the ignored application action-level decision | Existing access tests cover role/policy and branch outcomes, not denial of writes to a read-only policy actor | Multiple mutation actions consume the same access decision | **Partially implemented** | `evaluateHrAccess` admits `tiles.hr.read` or `tiles.payroll.read` as policy capability for non-authority staff. Because `requiredLevel` is ignored, static code does not distinguish their read and write admission. Owner/manager house authority remains canonical. No production exploit was tested. | HR Authorization Security Correction with read-only-policy mutation negative tests | Foundation |
 | Historical “HR-0 to HR-3.5 implemented baseline” and “usable” claims | Roadmap HR Track Status; pre-audit `hr-status.md`; expanded plan Historical Phase Reality | Broad runtime inventory above | Broad schema inventory above | Broad focused suite above | Broad route inventory above | **Stale or conflicting documentation** | These labels overstate canonical DTR/schedule/approval coverage and operational verification. They remain historical checkpoint evidence, not present completeness findings. | This audit/status reconciliation | Foundation |
 
@@ -227,6 +227,44 @@ claim about deployed database state beyond the inspected repository migrations.
 No focused branch-limited negative-path coverage was found for Payroll Run Detail
 or the Payslips page's run-list, item-count, and selected-item composition.
 
+**Confirmed static evidence** for the Payroll Runs index and list API:
+
+- `agui-starter/src/app/company/[slug]/hr/payroll-runs/page.tsx` uses house-wide
+  `requireHrAccess` and calls `listPayrollRunsForHouse(supabase, house.id)` without
+  access-derived branch restriction; it renders every returned run's period,
+  status, created timestamp, and item count;
+- `GET /api/hr/payroll-runs` in
+  `agui-starter/src/app/api/hr/payroll-runs/route.ts` resolves an actor through
+  `resolveHrRouteActorContext`, validates the caller-supplied `houseId`, calls
+  `listPayrollRunsForHouse(supabase, houseId)` without branch scope, and returns
+  the resulting `runs`; actor resolution and feature admission do not themselves
+  provide branch filtering to the helper;
+- `listPayrollRunsForHouse` accepts optional `{ access?: HrAccessDecision }`,
+  resolves house-level HR access, and has no `branchScope` or allowed-branch
+  option. It selects every `hr_payroll_runs` row for the house, selects `run_id`
+  from `hr_payroll_run_items` for those runs, and derives each run's `itemCount`;
+- the API therefore returns the helper's mapped `PayrollRunListItem` metadata,
+  including run/house identifiers, period, status, lifecycle attribution and
+  timestamps/notes, payment/reference metadata, adjustment linkage, and item count;
+  it does not return individual payroll item contents through this list path;
+- repository SELECT policies for `hr_payroll_runs` and `hr_payroll_run_items`
+  require same-house `house_roles` membership (or GM) but contain no branch
+  predicate. They establish house tenancy, not branch isolation for this list
+  composition.
+
+**Inferred impact:** a branch-limited same-house actor admitted to the HR/payroll
+surface may receive run-list information representing employees outside allowed
+branches because neither the index nor GET API supplies access-derived branch
+scope. The page renders only period/date range, status, created timestamp, and item
+count; the API returns the mapped run metadata described above, not item records.
+This is distinct from the Payroll Run Detail/Payslips item-record finding.
+
+**Unverified impact:** no live exploit or production request/response was exercised;
+no actual cross-branch disclosure or deployed-database state was confirmed, and no
+production actor was shown to receive the inferred data. Existing list API tests
+cover route boundaries, validation and no-leak access errors, not branch-limited
+list/count scoping; no focused index-page branch-limited negative test was found.
+
 ## Exact checkpoint
 
 **HR has a broad, repository-tested implementation baseline for employee,
@@ -235,7 +273,8 @@ and access-control paths; it is not an end-to-end canonical HR MVP. A monthly
 single-employee all-days DTR grid partially implements HR-2 period behavior, but
 confirmed static findings include DTR-bulk, HR Schedules, Employee Photo Upload,
 Add/Edit Employee branch metadata, Payroll Run Detail, Payslips/payroll UI reads,
-and action-capability enforcement; this inventory is not exhaustive. In addition,
+the Payroll Runs index, `GET /api/hr/payroll-runs`, and action-capability
+enforcement; this inventory is not exhaustive. In addition,
 the already planned HR-2 DTR completeness/correction lifecycle, HR-4 schedule
 lifecycle and conflict rules, and approval-aware payroll-readiness boundary are not
 implemented as required, while production-like RLS, device, PDF/print,
@@ -254,16 +293,20 @@ remain unchanged.
 1. **Single immediate gate — HR Authorization Security Correction.** Static
    evidence identifies high-risk action-capability, DTR read/save,
    schedule/history, employee-photo storage mutation, Add/Edit branch-metadata,
-   Payroll Run Detail, and Payslips/payroll UI read paths. A separately authorized
+   Payroll Run Detail, Payslips/payroll UI reads, the Payroll Runs index, and
+   `GET /api/hr/payroll-runs`. A separately authorized
    correction must enforce policy-granted action capability,
    distinguish read from write where the canonical model requires it, deny mutation
    to read-only-policy actors, enforce access-derived branch restrictions, preserve
    house tenancy and owner/manager house authority, keep branch restriction-only,
    and provide deny/no-leak negative tests for DTR-bulk, Schedules
    metadata/history, photo upload out-of-branch mutation, Add/Edit Employee branch
-   metadata, Payroll Run Detail reads, and Payslips run-list/item-count/selected-item
-   reads. This audit prescribes no runtime implementation detail beyond
-   those boundaries and does not authorize the gate.
+   metadata, Payroll Run Detail reads, Payslips selected-item reads, Payroll Runs
+   index list/count visibility, and `GET /api/hr/payroll-runs` list plus
+   period/status/count metadata. This audit prescribes no runtime implementation
+   detail beyond those boundaries and does not authorize the gate.
+
+   These are confirmed findings, not an exhaustive HR authorization inventory.
 2. **Subsequent contract review — confirmed requirements only.** Review the
    existing HR-2 plan for its established correction/edit, reason, actor/timestamp,
    lineage, HR-4 handoff, tenancy, no-leak and branch-restriction requirements.

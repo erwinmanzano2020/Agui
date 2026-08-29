@@ -12,7 +12,8 @@
   The dependency-first immediate gate is a separately authorized bounded
   HR Authorization Security Correction covering action capability, DTR-bulk,
   Schedules, Employee Photo Upload, Add/Edit Employee branch metadata, Payroll Run
-  Detail, and Payslips/payroll UI reads.
+  Detail, Payslips/payroll UI reads, the Payroll Runs index, and
+  `GET /api/hr/payroll-runs`.
   Existing HR-2 and HR-4 contracts may then be reviewed against confirmed
   governing requirements.
   Optional workflow or policy choices require separate owner scope approval and
@@ -32,9 +33,10 @@ and access-control paths; it is not an end-to-end canonical HR MVP because the
 monthly single-employee all-days DTR grid partially implements HR-2 period
 behavior, but confirmed static authorization limitations include action-capability
 enforcement, DTR-bulk, HR Schedules, Employee Photo Upload, Add/Edit Employee
-metadata, Payroll Run Detail, and Payslips/payroll UI reads. This inventory is not
-exhaustive. The already documented HR-2 completeness/correction lifecycle, HR-4
-schedule lifecycle and conflict rules,
+metadata, Payroll Run Detail, Payslips/payroll UI reads, the Payroll Runs index,
+and `GET /api/hr/payroll-runs`. This inventory is not exhaustive. The already
+documented HR-2 completeness/correction lifecycle, HR-4 schedule lifecycle and
+conflict rules,
 and approval-aware payroll-readiness boundary are not implemented as required,
 while production-like RLS, device, PDF/print, concurrency, and full-flow UAT
 remain unverified.**
@@ -109,10 +111,20 @@ prove current end-to-end HR completeness.
    employee references, attendance snapshot fields, run/item counts, or related
    metadata. **Unverified impact:** no live exploit, production response,
    disclosure, or deployed-database conclusion was confirmed.
-8. The required approvals family is not implemented as a coherent authority and
+8. **Confirmed static Payroll Runs list evidence:** the index uses house-wide
+   access and renders all returned periods, statuses, created timestamps, and item
+   counts. The GET list API resolves a route actor and validates `houseId`, but both
+   surfaces call `listPayrollRunsForHouse` without branch scope. The helper checks
+   house access, has no branch-scope option, queries every house run, and counts
+   matching item rows; house-role SELECT RLS has no branch predicate. **Inferred
+   impact:** a branch-limited same-house actor may receive out-of-scope run/count
+   metadata; the API returns mapped run metadata, not individual item contents.
+   **Unverified impact:** no live/production disclosure, deployed-database state,
+   or production actor access was confirmed.
+9. The required approvals family is not implemented as a coherent authority and
    audit layer, so payroll cannot yet be certified as consuming fully normalized,
    approved upstream inputs.
-9. Focused mocked/unit coverage does not replace production-like validation of
+10. Focused mocked/unit coverage does not replace production-like validation of
    RLS, grants, RPCs, concurrency, kiosk devices, PDFs/printing, or full flows.
 
 ## Single next recommendation
@@ -125,14 +137,16 @@ authorized **HR Authorization Security Correction**. Its boundary includes:
   house authority;
 - access-derived branch restrictions for DTR-bulk, Schedules/history/metadata,
   Employee Photo Upload, Add/Edit Employee branch metadata, Payroll Run Detail,
-  and Payslips/payroll UI reads;
+  Payslips/payroll UI reads, the Payroll Runs index, and
+  `GET /api/hr/payroll-runs`;
 - canonical house tenancy, branch as restriction-only, and deny/no-leak behavior;
 - branch-limited and read-only-policy negative-path tests, including out-of-branch
-  photo mutation, Add/Edit form metadata disclosure, Payroll Run Detail reads,
-  and Payslips run-list/item-count/selected-item read denial.
+  photo mutation, Add/Edit form metadata disclosure, Payroll Run Detail and
+  Payslips reads, Payroll Runs index list/count visibility, and
+  `GET /api/hr/payroll-runs` list plus period/status/count metadata denial.
 
-This list covers the confirmed audit findings without claiming an exhaustive
-inventory or prescribing a new authorization architecture. The gate requires
+These are confirmed findings, not an exhaustive HR authorization inventory. This
+boundary does not prescribe a new authorization architecture. The gate requires
 separate owner authorization; this audit neither implements nor authorizes it.
 
 After security correction, review the existing contracts against confirmed
