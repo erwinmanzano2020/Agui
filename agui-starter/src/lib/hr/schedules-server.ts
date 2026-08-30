@@ -41,6 +41,25 @@ async function resolveAccess(
   return requireHrAccess(supabase, houseId);
 }
 
+async function resolveVisibleScheduleIds(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  access: HrAccessDecision & { isBranchLimited?: boolean; allowedBranchIds?: string[] },
+): Promise<string[] | null> {
+  if (access.allowedByRole) return null;
+  if (!access.isBranchLimited) return [];
+  const allowedBranchIds = access.allowedBranchIds ?? [];
+  if (allowedBranchIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from("hr_branch_schedule_assignments")
+    .select(ASSIGNMENT_COLUMNS)
+    .eq("house_id", houseId)
+    .in("branch_id", allowedBranchIds)
+    .order("effective_from", { ascending: false });
+  if (error) throw new Error(error.message);
+  return Array.from(new Set(((data as HrBranchScheduleAssignmentRow[] | null) ?? []).map((row) => row.schedule_id)));
+}
+
 export async function listScheduleTemplates(
   supabase: SupabaseClient<Database>,
   houseId: string,
@@ -49,11 +68,14 @@ export async function listScheduleTemplates(
   const access = await resolveAccess(supabase, houseId, options.access);
   if (!access.allowed) return [];
 
-  const { data, error } = await supabase
+  const visibleScheduleIds = await resolveVisibleScheduleIds(supabase, houseId, access);
+  if (visibleScheduleIds?.length === 0) return [];
+  let query = supabase
     .from("hr_schedule_templates")
     .select(TEMPLATE_COLUMNS)
-    .eq("house_id", houseId)
-    .order("name", { ascending: true });
+    .eq("house_id", houseId);
+  if (visibleScheduleIds) query = query.in("id", visibleScheduleIds);
+  const { data, error } = await query.order("name", { ascending: true });
 
   if (error) {
     throw new Error(error.message);
@@ -70,6 +92,8 @@ export async function getScheduleTemplateWithWindows(
 ): Promise<ScheduleTemplateWithWindows | null> {
   const access = await resolveAccess(supabase, houseId, options.access);
   if (!access.allowed) return null;
+  const visibleScheduleIds = await resolveVisibleScheduleIds(supabase, houseId, access);
+  if (visibleScheduleIds && !visibleScheduleIds.includes(scheduleId)) return null;
 
   const { data: template, error } = await supabase
     .from("hr_schedule_templates")

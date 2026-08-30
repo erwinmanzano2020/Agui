@@ -272,3 +272,12 @@ read or mutation target must have a branch explicitly present in the allowed set
 Missing, out-of-scope, and `branch_id = null` targets fail closed. Broad requested-house
 owner/manager authority continues to support legitimately unassigned employees; this
 rule does not redefine the domain meaning of an unassigned employee.
+
+### Schedule definition read visibility (2026-08-30)
+
+Schedule templates remain house-level definitions. For a branch-limited reader,
+server-side template and window visibility is derived from schedule assignments whose
+branches are in the actor's explicitly allowed branch set. Templates assigned only to
+other branches and currently unassigned templates have no branch-derived visibility;
+this read restriction does not make templates branch-owned. Broad requested-house
+authority retains all house templates and their windows.

@@ -247,3 +247,12 @@ preflight-before-lookup no-leak ordering, then always performs a `single-branch`
 authorization for the resolved target—including a null branch, which denies
 branch-limited actors and remains valid for owner/manager authority. Production-like
 multi-house/branch UAT remains outstanding.
+
+### PR #492 residual GAP-012 correction
+
+Schedule template lists and direct template/window reads now derive branch-limited
+visibility from `hr_branch_schedule_assignments` restricted to the actor's allowed
+branches. Other-branch-only and unassigned templates fail closed for branch-limited
+readers, while shared templates remain visible through any allowed assignment and
+owner/manager house-wide visibility is unchanged. Production-like branch/RLS UAT
+remains outstanding.
