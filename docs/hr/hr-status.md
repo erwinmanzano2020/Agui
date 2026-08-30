@@ -264,3 +264,14 @@ retain assignment-derived schedule visibility but receive a clear read-only noti
 no mutation forms. House-global template/window/overtime controls require broad
 house-write authority; branch-limited HR writers receive assignment controls only for
 branches in their allowed write scope. Server/domain authorization remains authoritative.
+
+### PR #492 payroll affordance alignment
+
+Payroll pages now resolve read access and requested-house payroll write access as
+separate decisions. Read-only and branch-limited actors retain their existing scoped
+run, snapshot, payslip, diagnostic, and export reads, but do not receive house-global
+run creation, lifecycle transition, adjustment, or manual-deduction controls. Owner,
+manager, and legitimate non-branch-limited requested-house payroll writers retain the
+existing lifecycle-valid controls. This UI alignment is defense in depth only; the
+server/domain payroll mutation checks remain authoritative. Production-like browser,
+multi-house, and branch-role UAT remains outstanding.

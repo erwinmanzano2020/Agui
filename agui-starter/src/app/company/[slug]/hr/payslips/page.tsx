@@ -21,6 +21,12 @@ export default async function HrPayslipsPage({ params, searchParams }: Props) {
   if (!house) notFound();
   const access = await requireHrAccessWithBranch(supabase, { houseId: house.id });
   if (!access.allowed) notFound();
+  const writeAccess = await requireHrAccessWithBranch(supabase, {
+    houseId: house.id,
+    requiredLevel: "write",
+    requiredCapability: "payroll",
+  });
+  const canMutatePayroll = writeAccess.allowed && !writeAccess.isBranchLimited;
 
   const runs = await listPayrollRunsForHouse(supabase, house.id, { access, branchScope: { isBranchLimited: access.isBranchLimited, allowedBranchIds: access.allowedBranchIds } });
   const selectedRunId = (typeof search.runId === "string" ? search.runId : "") || runs[0]?.id || "";
@@ -72,6 +78,7 @@ export default async function HrPayslipsPage({ params, searchParams }: Props) {
           runId={selectedRun.run.id}
           employees={employees}
           runStatus={selectedRun.run.status}
+          canMutatePayroll={canMutatePayroll}
         />
       ) : null}
 

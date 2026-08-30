@@ -51,6 +51,12 @@ export default async function PayrollRunDetailPage({ params }: Props) {
   }
   const access = await requireHrAccessWithBranch(supabase, { houseId: house.id });
   if (!access.allowed) notFound();
+  const writeAccess = await requireHrAccessWithBranch(supabase, {
+    houseId: house.id,
+    requiredLevel: "write",
+    requiredCapability: "payroll",
+  });
+  const canMutatePayroll = writeAccess.allowed && !writeAccess.isBranchLimited;
 
   const result = await getPayrollRunWithItems(supabase, house.id, runId, { access, branchScope: { isBranchLimited: access.isBranchLimited, allowedBranchIds: access.allowedBranchIds } });
   if (!result) {
@@ -58,10 +64,10 @@ export default async function PayrollRunDetailPage({ params }: Props) {
   }
 
   const { run, items } = result;
-  const canFinalize = run.status === "draft";
-  const canPost = run.status === "finalized";
-  const canMarkPaid = run.status === "posted";
-  const canAdjust = run.status === "posted" || run.status === "paid";
+  const canFinalize = canMutatePayroll && run.status === "draft";
+  const canPost = canMutatePayroll && run.status === "finalized";
+  const canMarkPaid = canMutatePayroll && run.status === "posted";
+  const canAdjust = canMutatePayroll && (run.status === "posted" || run.status === "paid");
   const statusTone = run.status === "draft" ? "off" : "on";
   const houseSlug = house.slug ?? slug;
   const employees = items.map((item) => ({
@@ -184,6 +190,7 @@ export default async function PayrollRunDetailPage({ params }: Props) {
           runId={run.id}
           employees={employees}
           runStatus={run.status}
+          canMutatePayroll={canMutatePayroll}
         />
       ) : null}
 
