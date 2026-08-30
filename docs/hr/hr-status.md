@@ -256,3 +256,11 @@ branches. Other-branch-only and unassigned templates fail closed for branch-limi
 readers, while shared templates remain visible through any allowed assignment and
 owner/manager house-wide visibility is unchanged. Production-like branch/RLS UAT
 remains outstanding.
+
+### PR #492 schedule affordance alignment
+
+The Schedules page now resolves read and write decisions separately. Read-only actors
+retain assignment-derived schedule visibility but receive a clear read-only notice and
+no mutation forms. House-global template/window/overtime controls require broad
+house-write authority; branch-limited HR writers receive assignment controls only for
+branches in their allowed write scope. Server/domain authorization remains authoritative.

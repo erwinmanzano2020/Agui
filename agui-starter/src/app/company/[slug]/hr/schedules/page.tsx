@@ -74,6 +74,16 @@ export default async function HrSchedulesPage({ params }: Props) {
     );
   }
 
+  const writeAccess = await requireHrAccessWithBranch(supabase, {
+    houseId: house.id,
+    requiredLevel: "write",
+    requiredCapability: "hr",
+    writeScope: "branch-set-preflight",
+  });
+  const canManageHouseDefinitions =
+    writeAccess.allowed && (writeAccess.allowedByRole || !writeAccess.isBranchLimited);
+  const canAssignAnyBranch = writeAccess.allowed;
+
   const overtimePolicy = await getOvertimePolicyForHouse(supabase, house.id, { access });
   if (!overtimePolicy) {
     return (
@@ -108,6 +118,11 @@ export default async function HrSchedulesPage({ params }: Props) {
 
   return (
     <div className="space-y-6">
+      {!canManageHouseDefinitions && !canAssignAnyBranch ? (
+        <div className="rounded-2xl border border-dashed border-border bg-white/60 p-4 text-sm text-muted-foreground">
+          You have read-only access to schedule settings.
+        </div>
+      ) : null}
       <section className="rounded-2xl border border-border bg-white/70 p-6 shadow-sm">
         <div className="space-y-2">
           <h2 className="text-xl font-semibold text-foreground">Schedule templates</h2>
@@ -116,6 +131,7 @@ export default async function HrSchedulesPage({ params }: Props) {
             grace, or auto-close logic is applied yet.
           </p>
         </div>
+        {canManageHouseDefinitions ? (
         <form action={createScheduleTemplateAction} className="mt-4 grid gap-3 md:grid-cols-2">
           <input type="hidden" name="houseId" value={house.id} />
           <input type="hidden" name="houseSlug" value={house.slug ?? slug} />
@@ -195,6 +211,7 @@ export default async function HrSchedulesPage({ params }: Props) {
             </button>
           </div>
         </form>
+        ) : null}
       </section>
 
       {templates.length === 0 ? (
@@ -236,6 +253,7 @@ export default async function HrSchedulesPage({ params }: Props) {
                   })}
                 </div>
 
+                {canManageHouseDefinitions ? (
                 <form action={addScheduleWindowAction} className="mt-4 flex flex-wrap items-end gap-3">
                   <input type="hidden" name="houseId" value={house.id} />
                   <input type="hidden" name="houseSlug" value={house.slug ?? slug} />
@@ -295,6 +313,7 @@ export default async function HrSchedulesPage({ params }: Props) {
                     Add window
                   </button>
                 </form>
+                ) : null}
               </section>
             );
           })}
@@ -309,6 +328,7 @@ export default async function HrSchedulesPage({ params }: Props) {
             Asia/Manila for now.
           </p>
         </div>
+        {canManageHouseDefinitions ? (
         <form action={updateOvertimePolicyAction} className="mt-4 grid gap-3 md:grid-cols-2">
           <input type="hidden" name="houseId" value={house.id} />
           <input type="hidden" name="houseSlug" value={house.slug ?? slug} />
@@ -371,6 +391,7 @@ export default async function HrSchedulesPage({ params }: Props) {
             </button>
           </div>
         </form>
+        ) : null}
       </section>
 
       <section className="rounded-2xl border border-border bg-white/70 p-6 shadow-sm">
@@ -401,6 +422,7 @@ export default async function HrSchedulesPage({ params }: Props) {
                     <h3 className="text-base font-semibold text-foreground">{branch.name}</h3>
                     <span className="text-xs text-muted-foreground">{history.length} assignment(s)</span>
                   </div>
+                  {canAssignAnyBranch && (!writeAccess.isBranchLimited || writeAccess.allowedBranchIds.includes(branch.id)) ? (
                   <form action={createBranchScheduleAssignmentAction} className="mt-3 flex flex-wrap items-end gap-3">
                     <input type="hidden" name="houseId" value={house.id} />
                     <input type="hidden" name="houseSlug" value={house.slug ?? slug} />
@@ -436,6 +458,7 @@ export default async function HrSchedulesPage({ params }: Props) {
                       Assign
                     </button>
                   </form>
+                  ) : null}
                   {history.length === 0 ? (
                     <p className="mt-3 text-xs text-muted-foreground">No schedule history yet.</p>
                   ) : (
