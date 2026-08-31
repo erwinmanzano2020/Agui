@@ -28,8 +28,18 @@ test("GAP-023 migration remains idempotent and reconciles an existing descriptio
   const upserts = normalized.match(/on conflict \(key\) do update/g) ?? [];
   assert.equal(upserts.length, 2);
   assert.equal(
-    normalized.match(/set description = excluded\.description/g)?.length,
+    normalized.match(/description = excluded\.description/g)?.length,
     2,
+  );
+});
+
+test("GAP-023 canonical path does not reference legacy metadata", () => {
+  const canonicalBranch = normalized.match(/else (.*?) end if;/)?.[1];
+  assert.ok(canonicalBranch);
+  assert.match(canonicalBranch, /insert into public\.policies \(key, description\)/);
+  assert.doesNotMatch(
+    canonicalBranch,
+    /public\.policies \([^)]*\b(?:action|resource|is_system|is_assignable)\b/,
   );
 });
 
@@ -46,9 +56,19 @@ test("GAP-023 migration does not add legacy policy columns", () => {
 
 test("GAP-023 migration preserves the evidenced extended-schema replay path", () => {
   assert.match(normalized, /from information_schema\.columns/);
-  assert.match(normalized, /column_name = 'action'/);
   assert.match(
     normalized,
-    /insert into public\.policies \(key, action, resource, description\) values \('domain\.hr\.all', 'hr:\*', '\*', 'full hr action capability'\)/,
+    /column_name in \('action', 'resource', 'description', 'is_system', 'is_assignable'\)/,
+  );
+  assert.match(
+    normalized,
+    /insert into public\.policies \( key, action, resource, description, is_system, is_assignable \) values \('domain\.hr\.all', 'hr:\*', '\*', 'full hr action capability', true, true\)/,
+  );
+});
+
+test("GAP-023 extended conflict path reconciles migration-owned metadata", () => {
+  assert.match(
+    normalized,
+    /set action = excluded\.action, resource = excluded\.resource, description = excluded\.description, is_system = excluded\.is_system, is_assignable = excluded\.is_assignable/,
   );
 });

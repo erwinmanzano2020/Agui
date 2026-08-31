@@ -297,13 +297,17 @@ environments remain aligned. No repository evidence says `20260829120000` was
 applied through an immutable or checksum-locked managed mechanism.
 
 The merged migration is therefore corrected in place so a fresh/replayed ordered
-sequence cannot fail before reaching a later fixer. It detects only whether the
-older required `action` column exists: canonical databases use a `(key,
-description)` upsert, while the evidenced historical bootstrap shape receives the
-minimum required `action`/`resource` values. Both paths reconcile only the
-description on key conflict. The migration does not add legacy columns, change RLS
-or grants, or insert/update role policies, memberships, or entity assignments.
-`domain.hr.all` remains unassigned by default.
+sequence cannot fail before reaching a later fixer. It detects the complete
+repository-evidenced legacy metadata column set before using that path. Canonical
+databases use a `(key, description)` upsert, while the historical bootstrap shape
+receives the
+original migration-owned `action`, `resource`, `is_system`, and `is_assignable`
+metadata only after the complete legacy column set is confirmed present. The legacy
+path reconciles that metadata and the description on key conflict; the canonical
+path remains key/description-only. No legacy columns are added to the canonical
+schema, and runtime capability semantics remain key-based. The migration does not
+change RLS or grants or insert/update role policies, memberships, or entity
+assignments. `domain.hr.all` remains unassigned by default.
 
 The compatibility assumption is that replay starts from one of the two repository-
 evidenced policy shapes and that `key` remains unique. The correction does not claim

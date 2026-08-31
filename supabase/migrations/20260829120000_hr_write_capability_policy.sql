@@ -5,18 +5,29 @@
 -- executable without adding legacy columns to the canonical schema.
 do $migration$
 begin
-  if exists (
-    select 1
+  if (
+    select count(*) = 5
     from information_schema.columns
     where table_schema = 'public'
       and table_name = 'policies'
-      and column_name = 'action'
+      and column_name in ('action', 'resource', 'description', 'is_system', 'is_assignable')
   ) then
     execute $sql$
-      insert into public.policies (key, action, resource, description)
-      values ('domain.hr.all', 'hr:*', '*', 'Full HR action capability')
+      insert into public.policies (
+        key,
+        action,
+        resource,
+        description,
+        is_system,
+        is_assignable
+      )
+      values ('domain.hr.all', 'hr:*', '*', 'Full HR action capability', true, true)
       on conflict (key) do update
-      set description = excluded.description
+      set action = excluded.action,
+          resource = excluded.resource,
+          description = excluded.description,
+          is_system = excluded.is_system,
+          is_assignable = excluded.is_assignable
     $sql$;
   else
     insert into public.policies (key, description)
