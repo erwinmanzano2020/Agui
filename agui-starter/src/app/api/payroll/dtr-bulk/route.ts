@@ -6,6 +6,7 @@ import { AppFeature } from "@/lib/auth/permissions";
 import type { Database } from "@/lib/db.types";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import { assertManilaReasonableSegment, toManilaTimestamptz } from "@/lib/hr/timezone";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
@@ -53,6 +54,16 @@ type EntryUpsert = Pick<
   Database["public"]["Tables"]["dtr_entries"]["Insert"],
   "employee_id" | "work_date" | "time_in" | "time_out" | "company_id"
 >;
+
+export function hasOnlyAccessibleEmployeeIds(
+  requestedIds: string[],
+  employeeBranchMap: ReadonlyMap<string, string | null>,
+  options: { allowUnassigned: boolean },
+): boolean {
+  return requestedIds.every((id) =>
+    employeeBranchMap.has(id) && (options.allowUnassigned || employeeBranchMap.get(id) !== null),
+  );
+}
 
 function toISO(date: string, hhmm: string) {
   const m = hhmm.trim().match(/^(\d{1,2})(:?)(\d{0,2})$/);
@@ -249,9 +260,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No accessible house" }, { status: 403 });
   }
 
+  const parsedAction = loadSchema.safeParse(body).success ? "read" : "write";
+  const access = await requireHrAccessWithBranch(supabase, { houseId, requiredLevel: parsedAction, requiredCapability: "payroll", writeScope: "branch-set-preflight" });
+  if (!access.allowed) return NextResponse.json({ error: "Not allowed" }, { status: 403 });
+
   let branchIds: string[] = [];
   try {
-    branchIds = await resolveBranchesForHouse(service, houseId);
+    branchIds = access.isBranchLimited ? access.allowedBranchIds : await resolveBranchesForHouse(service, houseId);
   } catch (error) {
     console.error("[/api/payroll/dtr-bulk] failed to resolve departments", error);
     return NextResponse.json({ error: "Failed to resolve house departments" }, { status: 500 });
@@ -288,18 +303,16 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        let branchId: string | null = null;
         try {
           const map = await loadEmployeeBranchMap(service, [employeeId], houseId, branchIds);
-          branchId = map.get(employeeId) ?? null;
+          if (!hasOnlyAccessibleEmployeeIds([employeeId], map, { allowUnassigned: !access.isBranchLimited })) {
+            return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
+          }
         } catch (error) {
           console.error("[/api/payroll/dtr-bulk] failed to verify employee department", error);
           return NextResponse.json({ error: "Failed to resolve employee" }, { status: 500 });
         }
 
-        if (!branchId) {
-          return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
-        }
 
         const { data, error } = await service
           .from("dtr_segments")
@@ -318,23 +331,22 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ entries: [] });
       }
 
-      let allowedIds = ids;
+      let employeeMap: Map<string, string | null> = new Map();
       try {
-        const map = await loadEmployeeBranchMap(service, ids, houseId, branchIds);
-        allowedIds = ids.filter((id: string) => map.has(id));
+        employeeMap = await loadEmployeeBranchMap(service, ids, houseId, branchIds);
       } catch (error) {
         console.error("[/api/payroll/dtr-bulk] failed to verify employees for load", error);
         return NextResponse.json({ error: "Failed to resolve employees" }, { status: 500 });
       }
 
-      if (!allowedIds.length) {
-        return NextResponse.json({ entries: [] });
+      if (!hasOnlyAccessibleEmployeeIds(ids, employeeMap, { allowUnassigned: !access.isBranchLimited })) {
+        return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
       }
 
       const { data, error } = await service
         .from("dtr_entries")
         .select("employee_id, work_date, time_in, time_out")
-        .in("employee_id", allowedIds)
+        .in("employee_id", ids)
         .gte("work_date", payload.from)
         .lte("work_date", payload.to);
       if (error) throw error;
@@ -355,15 +367,15 @@ export async function POST(req: NextRequest) {
         let branchId: string | null = null;
         try {
           const map = await loadEmployeeBranchMap(service, [employeeId], houseId, branchIds);
+          if (!hasOnlyAccessibleEmployeeIds([employeeId], map, { allowUnassigned: !access.isBranchLimited })) {
+            return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
+          }
           branchId = map.get(employeeId) ?? null;
         } catch (error) {
           console.error("[/api/payroll/dtr-bulk] failed to verify employee for save", error);
           return NextResponse.json({ error: "Failed to resolve employee" }, { status: 500 });
         }
 
-        if (!branchId) {
-          return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
-        }
 
         const perDay = payload.grid[employeeId] ?? {};
         for (const day of payload.days) {
@@ -473,8 +485,8 @@ export async function POST(req: NextRequest) {
       }
 
       const allowedIds = ids.filter((id: string) => employeeMap.has(id));
-      if (!allowedIds.length) {
-        return NextResponse.json({ status: "ok" });
+      if (!hasOnlyAccessibleEmployeeIds(ids, employeeMap, { allowUnassigned: !access.isBranchLimited })) {
+        return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
       }
 
       const rows: EntryUpsert[] = [];

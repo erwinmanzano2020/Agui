@@ -8,7 +8,7 @@ import type {
   HrPayrollRunItemRow,
   HrPayrollRunRow,
 } from "@/lib/db.types";
-import { requireHrAccess, type HrAccessDecision } from "./access";
+import { requireHrAccess, requireHrAccessWithBranch, type HrAccessDecision, type HrBranchAccessDecision } from "./access";
 import {
   computePayrollPreviewForHousePeriod,
   type PayrollPreviewResult,
@@ -154,6 +154,30 @@ async function resolveAccess(
   return requireHrAccess(supabase, houseId);
 }
 
+function isPayrollWriteAccess(access: HrAccessDecision, houseId: string): boolean {
+  return access.allowedByRole || ((access as Partial<HrBranchAccessDecision>).isBranchLimited !== true && (
+    access.allowed &&
+    access.evaluatedHouseId === houseId &&
+    access.evaluatedLevel === "write" &&
+    access.evaluatedCapability === "payroll"
+  ));
+}
+
+async function resolvePayrollWriteAccess(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  accessOverride?: HrAccessDecision,
+): Promise<HrAccessDecision> {
+  if (accessOverride) {
+    return isPayrollWriteAccess(accessOverride, houseId) ? accessOverride : { ...accessOverride, allowed: false };
+  }
+  return requireHrAccessWithBranch(supabase, {
+    houseId,
+    requiredLevel: "write",
+    requiredCapability: "payroll",
+  });
+}
+
 async function loadPayrollRun(
   supabase: SupabaseClient<Database>,
   runId: string,
@@ -245,7 +269,10 @@ function mapItem(row: HrPayrollRunItemRow, employeeLookup: Map<string, { name: s
 export async function listPayrollRunsForHouse(
   supabase: SupabaseClient<Database>,
   houseId: string,
-  options: { access?: HrAccessDecision } = {},
+  options: {
+    access?: HrAccessDecision;
+    branchScope?: { isBranchLimited: boolean; allowedBranchIds: string[] };
+  } = {},
 ): Promise<PayrollRunListItem[]> {
   const access = await resolveAccess(supabase, houseId, options.access);
   if (!access.allowed) {
@@ -270,21 +297,36 @@ export async function listPayrollRunsForHouse(
   const runIds = rows.map((row) => row.id);
   const { data: itemRows, error: itemError } = await supabase
     .from("hr_payroll_run_items")
-    .select("run_id")
+    .select("run_id, employee_id")
     .in("run_id", runIds);
 
   if (itemError) {
     throw new PayrollRunFetchError(itemError.message);
   }
 
+  let visibleItems = (itemRows ?? []) as Array<{ run_id?: string | null; employee_id?: string | null }>;
+  if (options.branchScope?.isBranchLimited) {
+    const employeeIds = Array.from(new Set(visibleItems.map((row) => row.employee_id).filter(Boolean))) as string[];
+    if (employeeIds.length === 0) return [];
+    const { data: employees, error: employeeError } = await supabase
+      .from("employees")
+      .select("id, branch_id")
+      .eq("house_id", houseId)
+      .in("id", employeeIds);
+    if (employeeError) throw new PayrollRunFetchError(employeeError.message);
+    const allowed = new Set(options.branchScope.allowedBranchIds);
+    const visibleEmployeeIds = new Set((employees ?? []).filter((row) => allowed.has(row.branch_id ?? "")).map((row) => row.id));
+    visibleItems = visibleItems.filter((row) => Boolean(row.employee_id && visibleEmployeeIds.has(row.employee_id)));
+  }
+
   const counts = new Map<string, number>();
-  (itemRows ?? []).forEach((row) => {
-    const runId = (row as { run_id?: string | null }).run_id;
+  visibleItems.forEach((row) => {
+    const runId = row.run_id;
     if (!runId) return;
     counts.set(runId, (counts.get(runId) ?? 0) + 1);
   });
 
-  return rows.map((row) => mapRun(row, counts.get(row.id) ?? 0));
+  return rows.filter((row) => !options.branchScope?.isBranchLimited || counts.has(row.id)).map((row) => mapRun(row, counts.get(row.id) ?? 0));
 }
 
 export async function getPayrollRunWithItems(
@@ -394,7 +436,7 @@ export async function resolvePayrollRunWriteTargetForHouseWithAccess(
   runId: string,
   options: { access?: HrAccessDecision } = {},
 ): Promise<PayrollRunWriteTarget | null> {
-  const access = await resolveAccess(supabase, houseId, options.access);
+  const access = await resolvePayrollWriteAccess(supabase, houseId, options.access);
   if (!access.allowed) {
     throw new PayrollRunAccessError("Not allowed to mutate payroll runs for this house.");
   }
@@ -411,7 +453,7 @@ export async function finalizePayrollRunForHouse(
   runId: string,
   options: { access?: HrAccessDecision; resolvedTarget?: PayrollRunWriteTarget | null } = {},
 ): Promise<{ run: PayrollRunListItem; itemsCount: number }> {
-  const access = await resolveAccess(supabase, houseId, options.access);
+  const access = await resolvePayrollWriteAccess(supabase, houseId, options.access);
   if (!access.allowed) {
     throw new PayrollRunAccessError("Not allowed to finalize payroll runs for this house.");
   }
@@ -483,7 +525,7 @@ export async function createDraftPayrollRunFromPreview(
   input: PayrollRunCreateInput,
   options: { access?: HrAccessDecision; previewOverride?: PayrollPreviewResult } = {},
 ): Promise<{ runId: string }> {
-  const access = await resolveAccess(supabase, input.houseId, options.access);
+  const access = await resolvePayrollWriteAccess(supabase, input.houseId, options.access);
   if (!access.allowed) {
     throw new PayrollRunAccessError("Not allowed to create payroll runs for this house.");
   }
@@ -582,7 +624,7 @@ export async function postPayrollRunForHouse(
   input: { houseId: string; runId: string; postNote?: string | null },
   options: { access?: HrAccessDecision } = {},
 ): Promise<PayrollRunListItem> {
-  const access = await resolveAccess(supabase, input.houseId, options.access);
+  const access = await resolvePayrollWriteAccess(supabase, input.houseId, options.access);
   if (!access.allowed) {
     throw new PayrollRunAccessError("Not allowed to post payroll runs for this house.");
   }
@@ -653,7 +695,7 @@ export async function markPayrollRunPaidForHouse(
   input: { houseId: string; runId: string; paymentMethod?: string | null; paymentNote?: string | null },
   options: { access?: HrAccessDecision; resolvedTarget?: PayrollRunWriteTarget | null } = {},
 ): Promise<PayrollRunListItem> {
-  const access = await resolveAccess(supabase, input.houseId, options.access);
+  const access = await resolvePayrollWriteAccess(supabase, input.houseId, options.access);
   if (!access.allowed) {
     throw new PayrollRunAccessError("Not allowed to mark payroll runs as paid for this house.");
   }
@@ -713,7 +755,7 @@ export async function createAdjustmentRunForHouse(
   options: { access?: HrAccessDecision; resolvedTarget?: PayrollRunWriteTarget | null } = {},
 ): Promise<{ runId: string }> {
   void input.note;
-  const access = await resolveAccess(supabase, input.houseId, options.access);
+  const access = await resolvePayrollWriteAccess(supabase, input.houseId, options.access);
   if (!access.allowed) {
     throw new PayrollRunAccessError("Not allowed to create adjustment runs for this house.");
   }

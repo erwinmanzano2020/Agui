@@ -13,7 +13,7 @@ import type {
   HrPayrollRunRow,
   HrScheduleWindowRow,
 } from "@/lib/db.types";
-import { requireHrAccess, type HrAccessDecision, type HrBranchAccessDecision } from "./access";
+import { requireHrAccess, requireHrAccessWithBranch, type HrAccessDecision, type HrBranchAccessDecision } from "./access";
 import {
   buildZonedDateTime,
   getDayOfWeekInTimeZone,
@@ -147,6 +147,25 @@ async function resolveAccess(
 ): Promise<HrAccessDecision> {
   if (accessOverride) return accessOverride;
   return requireHrAccess(supabase, houseId);
+}
+
+async function resolvePayrollWriteAccess(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  accessOverride?: HrAccessDecision,
+): Promise<HrAccessDecision> {
+  if (accessOverride) {
+    const valid = accessOverride.allowedByRole || ((accessOverride as Partial<HrBranchAccessDecision>).isBranchLimited !== true && (
+      accessOverride.allowed && accessOverride.evaluatedHouseId === houseId &&
+      accessOverride.evaluatedLevel === "write" && accessOverride.evaluatedCapability === "payroll"
+    ));
+    return valid ? accessOverride : { ...accessOverride, allowed: false };
+  }
+  return requireHrAccessWithBranch(supabase, {
+    houseId,
+    requiredLevel: "write",
+    requiredCapability: "payroll",
+  });
 }
 
 async function loadPayrollRun(
@@ -878,7 +897,7 @@ export async function createPayrollRunDeduction(
   }
 
   const houseId = input.houseId ?? run.house_id;
-  const access = await resolveAccess(supabase, houseId, options.access);
+  const access = await resolvePayrollWriteAccess(supabase, houseId, options.access);
   if (!access.allowed) {
     throw new PayslipAccessError("Not allowed to add deductions for this payroll run.");
   }
@@ -934,7 +953,7 @@ export async function resolvePayrollRunDeductionWriteContext(
   if (!run) return null;
 
   const houseId = input.houseId ?? run.house_id;
-  const access = await resolveAccess(supabase, houseId, options.access);
+  const access = await resolvePayrollWriteAccess(supabase, houseId, options.access);
   if (!access.allowed) {
     throw new PayslipAccessError("Not allowed to add deductions for this payroll run.");
   }

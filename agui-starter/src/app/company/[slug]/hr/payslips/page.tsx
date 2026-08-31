@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { requireAuth } from "@/lib/auth/require-auth";
-import { requireHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { getPayrollRunWithItems, listPayrollRunsForHouse } from "@/lib/hr/payroll-runs-server";
 import PayslipPreviewPanel from "@/app/company/[slug]/hr/payroll-runs/[runId]/PayslipPreviewPanel";
 
@@ -19,11 +19,18 @@ export default async function HrPayslipsPage({ params, searchParams }: Props) {
 
   const { data: house } = await supabase.from("houses").select("id, slug, name").eq("slug", slug).maybeSingle();
   if (!house) notFound();
-  await requireHrAccess(supabase, house.id);
+  const access = await requireHrAccessWithBranch(supabase, { houseId: house.id });
+  if (!access.allowed) notFound();
+  const writeAccess = await requireHrAccessWithBranch(supabase, {
+    houseId: house.id,
+    requiredLevel: "write",
+    requiredCapability: "payroll",
+  });
+  const canMutatePayroll = writeAccess.allowed && !writeAccess.isBranchLimited;
 
-  const runs = await listPayrollRunsForHouse(supabase, house.id);
+  const runs = await listPayrollRunsForHouse(supabase, house.id, { access, branchScope: { isBranchLimited: access.isBranchLimited, allowedBranchIds: access.allowedBranchIds } });
   const selectedRunId = (typeof search.runId === "string" ? search.runId : "") || runs[0]?.id || "";
-  const selectedRun = selectedRunId ? await getPayrollRunWithItems(supabase, house.id, selectedRunId) : null;
+  const selectedRun = selectedRunId ? await getPayrollRunWithItems(supabase, house.id, selectedRunId, { access, branchScope: { isBranchLimited: access.isBranchLimited, allowedBranchIds: access.allowedBranchIds } }) : null;
 
   const employees = (selectedRun?.items ?? []).map((item) => ({
     id: item.employeeId,
@@ -71,6 +78,7 @@ export default async function HrPayslipsPage({ params, searchParams }: Props) {
           runId={selectedRun.run.id}
           employees={employees}
           runStatus={selectedRun.run.status}
+          canMutatePayroll={canMutatePayroll}
         />
       ) : null}
 

@@ -227,3 +227,57 @@ After authentication + entity + feature + HR access pass, routes/services still 
 
 ### Future issue (out of scope)
 - Feature definitions still include some action-like requirements (for example payroll wildcard policy), which blurs pure module-entry semantics. This pass documents the reality and does not redesign it.
+
+## Action capability correction (2026-08-29)
+
+`requireHrAccessWithBranch` enforces its requested action level. Read tile policies
+satisfy reads only; `domain.hr.all` and the existing `domain.payroll.all` satisfy
+write capability for non-authority actors. `domain.hr.all` follows the existing
+`domain.<resource>.all` convention and is additive/assignable but receives no default
+role assignment. Owner and manager roles retain broad house authority. Capability is
+evaluated before branch restriction, and policy actors without an explicit allowed
+branch fail closed.
+
+### Requested-house binding and payroll mutation boundary correction (2026-08-29)
+
+For non-authority write checks, capability keys are resolved from the existing
+`entity_policies` scoped-assignment view with `scope = HOUSE` and
+`scope_ref = <requested house>`. The flattened entity policy set remains available
+for read/module-entry behavior, but cannot authorize a write. Membership in a second
+house does not import a capability assigned through the first house. Owner/manager
+authority remains derived from the requested house role, and branch policy remains
+a restriction applied only after capability succeeds.
+
+Every payroll-run mutation domain boundary—including create, write-target resolution,
+finalize, post, mark-paid, adjustment creation, and run deduction resolution/write—now
+resolves payroll write access or validates that a supplied decision was evaluated as
+`write` + `payroll` for the same house. A generic/read decision is rejected rather
+than reused.
+
+### Targetless branch-write rule (2026-08-29)
+
+Requested-house write capability is necessary but is not sufficient to authorize a
+branch-limited mutation. A branch-limited actor must either authorize one explicit
+allowed branch or enter the explicitly marked `branch-set-preflight` path. Preflight
+returns capability and allowed-scope metadata for downstream target validation; it is
+not authorization for a house-global mutation. House-global HR definitions and
+payroll-run transitions deny branch-limited policy actors. Owner/manager requested-house
+authority remains broad, and branch continues to restrict rather than grant authority.
+
+### Unassigned employee targets in branch preflight (2026-08-29)
+
+Branch-set preflight discovers the actor's allowed branches; it does not place an
+unassigned employee into that set. For a branch-limited actor, a concrete employee
+read or mutation target must have a branch explicitly present in the allowed set.
+Missing, out-of-scope, and `branch_id = null` targets fail closed. Broad requested-house
+owner/manager authority continues to support legitimately unassigned employees; this
+rule does not redefine the domain meaning of an unassigned employee.
+
+### Schedule definition read visibility (2026-08-30)
+
+Schedule templates remain house-level definitions. For a branch-limited reader,
+server-side template and window visibility is derived from schedule assignments whose
+branches are in the actor's explicitly allowed branch set. Templates assigned only to
+other branches and currently unassigned templates have no branch-derived visibility;
+this read restriction does not make templates branch-owned. Broad requested-house
+authority retains all house templates and their windows.

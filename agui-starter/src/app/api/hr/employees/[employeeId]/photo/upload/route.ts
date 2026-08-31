@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AuthorizationDeniedError, isAuthorizationDeniedError } from "@/lib/access/access-errors";
 import { requireAuthentication } from "@/lib/access/access-check";
 import { buildEmployeePhotoPath } from "@/lib/hr/employee-photo";
-import { requireHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { getServiceSupabase } from "@/lib/supabase-service";
 
@@ -37,23 +37,26 @@ async function requireEmployeePhotoUploadAuthentication(houseId: string): Promis
   );
 }
 
-async function requireEmployeePhotoUploadHrAccess(houseId: string): Promise<void> {
+async function requireEmployeePhotoUploadHrAccess(
+  houseId: string,
+  branchId: string | null,
+  writeScope: "single-branch" | "branch-set-preflight",
+): Promise<void> {
   const supabase = await createServerSupabaseClient();
-  const access = await requireHrAccess(supabase, houseId);
-  if (!access.allowed) {
-    throw new AuthorizationDeniedError();
-  }
+  const access = await requireHrAccessWithBranch(supabase, {
+    houseId,
+    branchId,
+    requiredLevel: "write",
+    writeScope,
+  });
+  if (!access.allowed) throw new AuthorizationDeniedError();
 }
 
-async function resolveEmployeeHouseId(employeeId: string): Promise<string | null> {
+async function resolveEmployeeScope(employeeId: string): Promise<{ house_id: string; branch_id: string | null } | null> {
   const service = getServiceSupabase();
-  const employee = await service.from("employees").select("house_id").eq("id", employeeId).maybeSingle<{ house_id: string }>();
-
-  if (employee.error) {
-    throw new Error("Unable to verify employee ownership");
-  }
-
-  return employee.data?.house_id?.trim() || null;
+  const employee = await service.from("employees").select("house_id, branch_id").eq("id", employeeId).maybeSingle<{ house_id: string; branch_id: string | null }>();
+  if (employee.error) throw new Error("Unable to verify employee ownership");
+  return employee.data ?? null;
 }
 
 export async function POST(req: NextRequest, context: { params: Promise<{ employeeId: string }> }) {
@@ -93,16 +96,16 @@ export async function POST(req: NextRequest, context: { params: Promise<{ employ
 
   try {
     await requireEmployeePhotoUploadAuthentication(houseId);
-    await requireEmployeePhotoUploadHrAccess(houseId);
-
-    const employeeHouseId = await resolveEmployeeHouseId(employeeId);
-    if (!employeeHouseId) {
+    await requireEmployeePhotoUploadHrAccess(houseId, null, "branch-set-preflight");
+    const employee = await resolveEmployeeScope(employeeId);
+    if (!employee) {
       return NextResponse.json({ error: "Employee not found" }, { status: 404 });
     }
 
-    if (normalizeUuid(employeeHouseId) !== houseId) {
+    if (normalizeUuid(employee.house_id) !== houseId) {
       return NextResponse.json({ error: "Not allowed" }, { status: 403 });
     }
+    await requireEmployeePhotoUploadHrAccess(houseId, employee.branch_id, "single-branch");
 
   } catch (error) {
     if (isAuthorizationDeniedError(error)) {

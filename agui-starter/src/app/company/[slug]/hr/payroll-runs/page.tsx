@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { requireAuth } from "@/lib/auth/require-auth";
-import { requireHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { listPayrollRunsForHouse } from "@/lib/hr/payroll-runs-server";
 import { PayrollRunCreateForm } from "./PayrollRunCreateForm";
 
@@ -29,10 +29,17 @@ export default async function PayrollRunsPage({ params }: Props) {
   if (!house) {
     notFound();
   }
-  await requireHrAccess(supabase, house.id);
+  const access = await requireHrAccessWithBranch(supabase, { houseId: house.id });
+  if (!access.allowed) notFound();
+  const writeAccess = await requireHrAccessWithBranch(supabase, {
+    houseId: house.id,
+    requiredLevel: "write",
+    requiredCapability: "payroll",
+  });
+  const canMutatePayroll = writeAccess.allowed && !writeAccess.isBranchLimited;
 
   const today = new Date().toISOString().slice(0, 10);
-  const runs = await listPayrollRunsForHouse(supabase, house.id);
+  const runs = await listPayrollRunsForHouse(supabase, house.id, { access, branchScope: { isBranchLimited: access.isBranchLimited, allowedBranchIds: access.allowedBranchIds } });
 
   return (
     <div className="space-y-6">
@@ -46,12 +53,18 @@ export default async function PayrollRunsPage({ params }: Props) {
             Finalize locks snapshot rows. Posting locks deductions and payslip outputs. Government deductions and payout integrations remain deferred in the current HR phase.
           </p>
         </div>
-        <PayrollRunCreateForm
-          houseId={house.id}
-          houseSlug={house.slug ?? slug}
-          defaultStartDate={today}
-          defaultEndDate={today}
-        />
+        {canMutatePayroll ? (
+          <PayrollRunCreateForm
+            houseId={house.id}
+            houseSlug={house.slug ?? slug}
+            defaultStartDate={today}
+            defaultEndDate={today}
+          />
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">
+            You have read-only access to payroll runs.
+          </p>
+        )}
       </section>
 
       {runs.length === 0 ? (

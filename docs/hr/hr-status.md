@@ -188,3 +188,90 @@ HR-1 identity columns, RPC signatures, lookup-first behavior, no-auto-merge rule
 duplicate guardrail, and no-cross-house access remain unchanged. This status
 refresh changes no runtime, test, database, API/RPC, access, UI/route, POS,
 Roadmap, architecture, or frozen-contract artifact.
+
+## 2026-08-29 — HR Authorization Security Correction implementation checkpoint
+
+**Status: implemented; production-like/manual UAT remains required.** The owner-authorized
+security gate from the merged PR #491 audit now enforces action capability centrally:
+read policies (`tiles.hr.read` / `tiles.payroll.read`) cannot satisfy write requests,
+while owner/manager authority remains house-wide. The additive `domain.hr.all` policy
+is the explicit HR write-capability convention; it is not assigned to any role by the
+migration. Existing `domain.payroll.all` remains the full payroll capability.
+
+Access-derived branch restrictions are composed into DTR Bulk, Schedules assignment
+history and branch metadata, employee photo storage upload, Add/Edit Employee branch
+metadata, Payroll Run Detail, Payslips, the Payroll Runs index, and the payroll-runs
+GET API. Payroll-run lists discard runs with no visible items and calculate counts
+only from visible employee items. Zero-scope policy actors fail closed. The adjacent
+schedule assignment repository was updated to accept an allowed branch set; no new
+schedule product permission model was introduced.
+
+Focused evaluator and affected repository/route coverage verifies read-versus-write,
+branch allow/deny, zero-scope denial, owner/manager authority, storage mutation denial,
+and filtered payroll item/list/count behavior. No identity semantics, RPC signatures,
+RLS policies, grants, frozen HR contracts, POS code, HR-2, or HR-4 workflow behavior
+changed. Remaining verification is production-like migration/RLS parity, realistic
+branch-role UAT, service-role boundary observation, browser schedule/form checks, and
+payroll/payslip full-flow UAT.
+
+### PR #492 P1 re-review correction
+
+The implementation checkpoint above includes two follow-up review corrections:
+non-authority write policy hydration is bound to the requested house through the
+canonical scoped assignment view, and all current payroll-run mutation helpers fail
+closed unless the decision is owner/manager authority or requested-house
+`domain.payroll.all` write capability. Cross-house policy transfer and reuse of a
+read-level access decision are covered by focused regression tests. Branch remains
+restriction-only. Production-like scoped-view/RLS parity and realistic multi-house
+UAT remain required; no grants, RLS rules, identity behavior, POS, HR-2, or HR-4
+behavior changed.
+
+### PR #492 targetless branch-write re-review correction
+
+Targetless writes no longer allow branch-limited policy actors by default. Schedule
+template/window and overtime-policy changes plus payroll-run create/finalize/post/
+mark-paid/adjustment/deduction boundaries are house-global and deny that actor class.
+Explicit branch targets remain checked against the derived branch set. DTR Bulk,
+employee target resolution, photo pre-authorization, and form metadata use an explicit
+branch-set preflight whose downstream reads/writes remain restricted to allowed
+branches; preflight is not mutation permission. Production-like multi-house/branch
+and scoped-view/RLS UAT remains outstanding. No identity, POS, HR-2, HR-4, grant, or
+RLS behavior changed.
+
+### PR #492 GAP-021/GAP-022 correction
+
+DTR Bulk now treats an unassigned employee as outside a branch-limited actor's derived
+branch set and rejects a mixed all-mode load/save before any DTR mutation; broad house
+authority retains unassigned-employee behavior. Employee photo upload preserves
+preflight-before-lookup no-leak ordering, then always performs a `single-branch`
+authorization for the resolved target—including a null branch, which denies
+branch-limited actors and remains valid for owner/manager authority. Production-like
+multi-house/branch UAT remains outstanding.
+
+### PR #492 residual GAP-012 correction
+
+Schedule template lists and direct template/window reads now derive branch-limited
+visibility from `hr_branch_schedule_assignments` restricted to the actor's allowed
+branches. Other-branch-only and unassigned templates fail closed for branch-limited
+readers, while shared templates remain visible through any allowed assignment and
+owner/manager house-wide visibility is unchanged. Production-like branch/RLS UAT
+remains outstanding.
+
+### PR #492 schedule affordance alignment
+
+The Schedules page now resolves read and write decisions separately. Read-only actors
+retain assignment-derived schedule visibility but receive a clear read-only notice and
+no mutation forms. House-global template/window/overtime controls require broad
+house-write authority; branch-limited HR writers receive assignment controls only for
+branches in their allowed write scope. Server/domain authorization remains authoritative.
+
+### PR #492 payroll affordance alignment
+
+Payroll pages now resolve read access and requested-house payroll write access as
+separate decisions. Read-only and branch-limited actors retain their existing scoped
+run, snapshot, payslip, diagnostic, and export reads, but do not receive house-global
+run creation, lifecycle transition, adjustment, or manual-deduction controls. Owner,
+manager, and legitimate non-branch-limited requested-house payroll writers retain the
+existing lifecycle-valid controls. This UI alignment is defense in depth only; the
+server/domain payroll mutation checks remain authoritative. Production-like browser,
+multi-house, and branch-role UAT remains outstanding.

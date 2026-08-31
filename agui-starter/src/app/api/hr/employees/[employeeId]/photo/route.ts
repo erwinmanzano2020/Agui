@@ -24,7 +24,7 @@ function isNullableString(value: unknown): value is string | null {
 async function persistPhoto(employeeId: string, houseId: string, photoUrl: string | null, photoPath: string | null, operationId: string | null) {
   const startedAt = Date.now();
   const supabase = await createServerSupabaseClient();
-  const access = await requireHrAccessWithBranch(supabase, { houseId, requiredLevel: "write" });
+  const access = await requireHrAccessWithBranch(supabase, { houseId, requiredLevel: "write", writeScope: "branch-set-preflight" });
 
   if (!access.allowed) {
     return NextResponse.json({ error: "Not allowed" }, { status: 403 });

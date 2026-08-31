@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { requireAuth } from "@/lib/auth/require-auth";
-import { requireHrAccess } from "@/lib/hr/access";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { listBranchesForHouse } from "@/lib/hr/employees-server";
 
 import { CreateEmployeeForm } from "./CreateEmployeeForm";
@@ -23,9 +23,10 @@ export default async function NewEmployeePage({ params }: Props) {
   if (!house) {
     notFound();
   }
-  await requireHrAccess(supabase, house.id);
+  const access = await requireHrAccessWithBranch(supabase, { houseId: house.id, requiredLevel: "write", writeScope: "branch-set-preflight" });
+  if (!access.allowed) notFound();
 
-  const branchResult = await listBranchesForHouse(supabase, house.id);
+  const branchResult = await listBranchesForHouse(supabase, house.id, access);
 
   return (
     <div className="space-y-4">

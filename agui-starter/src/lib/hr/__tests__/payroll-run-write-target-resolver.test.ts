@@ -45,7 +45,7 @@ describe("resolvePayrollRunWriteTargetForHouseWithAccess", () => {
     });
 
     const result = await resolvePayrollRunWriteTargetForHouseWithAccess(supabase, HOUSE_ID, RUN_ID, {
-      access: { allowed: true, entityId: "entity-1" } as never,
+      access: { allowed: true, allowedByRole: true, entityId: "entity-1" } as never,
     });
 
     assert.deepEqual(result, {
@@ -60,7 +60,7 @@ describe("resolvePayrollRunWriteTargetForHouseWithAccess", () => {
   it("returns null when run is missing", async () => {
     const supabase = createSupabaseMock(null);
     const result = await resolvePayrollRunWriteTargetForHouseWithAccess(supabase, HOUSE_ID, RUN_ID, {
-      access: { allowed: true, entityId: "entity-1" } as never,
+      access: { allowed: true, allowedByRole: true, entityId: "entity-1" } as never,
     });
     assert.equal(result, null);
   });
@@ -75,7 +75,7 @@ describe("resolvePayrollRunWriteTargetForHouseWithAccess", () => {
     });
 
     const result = await resolvePayrollRunWriteTargetForHouseWithAccess(supabase, HOUSE_ID, RUN_ID, {
-      access: { allowed: true, entityId: "entity-1" } as never,
+      access: { allowed: true, allowedByRole: true, entityId: "entity-1" } as never,
     });
 
     assert.equal(result, null);

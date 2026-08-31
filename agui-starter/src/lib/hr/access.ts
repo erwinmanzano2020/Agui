@@ -2,11 +2,11 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { getCurrentEntityAndPolicies } from "@/lib/policy/server";
+import { getCurrentEntityAndPolicies, listPolicyKeysForEntityAtHouse } from "@/lib/policy/server";
 import { isOptionalTableError } from "@/lib/supabase/errors";
 import { normalizeWorkspaceRole } from "@/lib/workspaces/roles";
 
-const HR_POLICY_KEYS = new Set(["tiles.hr.read", "tiles.payroll.read"]);
+const HR_READ_POLICY_KEYS = new Set(["tiles.hr.read", "tiles.payroll.read"]);
 
 export type HrAccessDecision = {
   allowed: boolean;
@@ -17,6 +17,9 @@ export type HrAccessDecision = {
   normalizedRoles: ReturnType<typeof normalizeWorkspaceRole>[];
   policyKeys: string[];
   entityId: string | null;
+  evaluatedHouseId?: string;
+  evaluatedLevel?: "read" | "write";
+  evaluatedCapability?: "hr" | "payroll";
 };
 
 export type HrBranchAccessDecision = HrAccessDecision & {
@@ -29,13 +32,19 @@ export function evaluateHrAccess(input: {
   roles: string[];
   policyKeys: Iterable<string>;
   entityId: string | null;
+  requiredLevel?: "read" | "write";
+  requiredCapability?: "hr" | "payroll";
 }): HrAccessDecision {
   const normalizedRoles = input.roles.map((role) => normalizeWorkspaceRole(role));
   const allowedByRole = normalizedRoles.some((role) => role === "owner" || role === "manager");
   const hasWorkspaceAccess = input.roles.length > 0;
 
   const policyKeys = Array.from(input.policyKeys ?? []);
-  const allowedByPolicy = policyKeys.some((key) => HR_POLICY_KEYS.has(key));
+  const requiredLevel = input.requiredLevel ?? "read";
+  const writePolicyKey = input.requiredCapability === "payroll" ? "domain.payroll.all" : "domain.hr.all";
+  const allowedByPolicy = policyKeys.some((key) =>
+    requiredLevel === "write" ? key === writePolicyKey : HR_READ_POLICY_KEYS.has(key),
+  );
 
   return {
     allowed: hasWorkspaceAccess && (allowedByRole || allowedByPolicy),
@@ -113,17 +122,47 @@ function extractBranchScopesFromPolicyKeys(policyKeys: Iterable<string>): string
 
 export async function requireHrAccessWithBranch(
   supabase: SupabaseClient,
-  input: { houseId: string; branchId?: string | null; requiredLevel?: "read" | "write" },
+  input: {
+    houseId: string;
+    branchId?: string | null;
+    requiredLevel?: "read" | "write";
+    requiredCapability?: "hr" | "payroll";
+    writeScope?: "house-global" | "single-branch" | "branch-set-preflight";
+  },
 ): Promise<HrBranchAccessDecision> {
-  // Reserved for future read/write split without changing function signature today.
-  void input.requiredLevel;
-  const access = await requireHrAccess(supabase, input.houseId);
+  const baseAccess = await requireHrAccess(supabase, input.houseId);
+  const requiredLevel = input.requiredLevel ?? "read";
+  let policyKeys = baseAccess.policyKeys;
+  if (requiredLevel === "write" && baseAccess.entityId && !baseAccess.allowedByRole) {
+    try {
+      policyKeys = await listPolicyKeysForEntityAtHouse(supabase, baseAccess.entityId, input.houseId);
+    } catch (error) {
+      console.warn("Failed to load house-scoped HR write policies", error);
+      policyKeys = [];
+    }
+  }
+  const access = {
+    ...evaluateHrAccess({
+      roles: baseAccess.roles,
+      policyKeys,
+      entityId: baseAccess.entityId,
+      requiredLevel,
+      requiredCapability: input.requiredCapability,
+    }),
+    evaluatedHouseId: input.houseId,
+    evaluatedLevel: requiredLevel,
+    evaluatedCapability: input.requiredCapability ?? "hr",
+  };
   const allowedBranchIds = extractBranchScopesFromPolicyKeys(access.policyKeys);
   const isBranchLimited = !access.allowedByRole && allowedBranchIds.length > 0;
   const branchId = input.branchId?.trim().toLowerCase() || null;
   const hasZeroScopeBranchAccess = !access.allowedByRole && access.allowed && allowedBranchIds.length === 0;
+  const writeScope = input.writeScope ?? (branchId ? "single-branch" : "house-global");
+  const targetlessBranchWrite =
+    requiredLevel === "write" && !access.allowedByRole && isBranchLimited &&
+    (writeScope === "house-global" || (writeScope === "single-branch" && !branchId));
 
-  if (!access.allowed) {
+  if (!access.allowed || targetlessBranchWrite) {
     return {
       ...access,
       branchId,
