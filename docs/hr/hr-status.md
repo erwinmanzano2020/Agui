@@ -275,3 +275,39 @@ manager, and legitimate non-branch-limited requested-house payroll writers retai
 existing lifecycle-valid controls. This UI alignment is defense in depth only; the
 server/domain payroll mutation checks remain authoritative. Production-like browser,
 multi-house, and branch-role UAT remains outstanding.
+
+## 2026-08-31 — GAP-023 repository migration compatibility stabilization
+
+**Status: repository correction; live data already complete.** The confirmed live
+`public.policies` contract is the canonical key-based shape: `id`, unique `key`,
+nullable `description`, and `created_at`. It has none of the historical `action`,
+`resource`, `is_system`, or `is_assignable` columns. Before this correction, the
+live `domain.hr.all` row was manually seeded and verified exactly once with the
+description `Full HR action capability`. Live SQL execution is outside this PR.
+
+GAP-023 was caused by migration `20260829120000` assuming the historical extended
+policy shape introduced by `20251107_rbac_policy_framework.sql`, while the current
+runtime and live schema use policy keys as capability semantics. Repository audit
+found no Supabase config, migration CLI command, deployment migration job, checksum
+tooling, or repository-managed migration-history table. Root package scripts only
+generate database types; GitHub Actions lint, typecheck, test, and build the app.
+The root setup README instead documents manual SQL Editor execution, while the
+starter migration hygiene note requires SQL Editor hotfixes to be backported so
+environments remain aligned. No repository evidence says `20260829120000` was
+applied through an immutable or checksum-locked managed mechanism.
+
+The merged migration is therefore corrected in place so a fresh/replayed ordered
+sequence cannot fail before reaching a later fixer. It detects only whether the
+older required `action` column exists: canonical databases use a `(key,
+description)` upsert, while the evidenced historical bootstrap shape receives the
+minimum required `action`/`resource` values. Both paths reconcile only the
+description on key conflict. The migration does not add legacy columns, change RLS
+or grants, or insert/update role policies, memberships, or entity assignments.
+`domain.hr.all` remains unassigned by default.
+
+The compatibility assumption is that replay starts from one of the two repository-
+evidenced policy shapes and that `key` remains unique. The correction does not claim
+that the full historical migration chain has otherwise been validated against a
+production-like Supabase instance. Focused deterministic coverage locks the two SQL
+paths, idempotent conflict behavior, description reconciliation, absence of schema
+alteration, and absence of implicit assignment. No live SQL is executed by this PR.
