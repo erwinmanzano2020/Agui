@@ -16,9 +16,13 @@ guardrails in `docs/hr/hr-2-1-daily-dtr-review.md`.
 
 House remains the tenant boundary. Branch remains a location and access
 restriction, never a substitute tenant boundary. The capability, deny/no-leak,
-access-derived branch restriction, and owner/manager house-authority rules
-stabilized by PR #492/#493 remain in force. This reconciliation changes none of
-those rules and changes no frozen HR-1 identity contract.
+access-derived branch restriction, and owner/manager house-authority rules remain
+governing requirements. PR #492/#493 repository-stabilized only the bounded
+authorization paths those corrections actually touched; they did not stabilize the
+Daily DTR branch-limited employee and attendance-segment read path, which still
+does not derive and apply the actor's `allowedBranchIds`. This reconciliation
+changes no runtime behavior and leaves that limitation open; it changes none of the
+governing rules and changes no frozen HR-1 identity contract.
 
 ## 2. Required HR-2 outcome
 
@@ -166,7 +170,7 @@ confirmed HR-2 contract or be inferred from this planning record.
 | Correction reason, actor/timestamp, and original/corrected lineage as the confirmed lifecycle | Still missing/planned. A raw segment marked `corrected` is not proof of this lifecycle. |
 | HR-4 approval authority and approval audit lifecycle | Documentation/contract only; not HR-2 implementation. |
 | Approval-aware payroll-ready attendance handoff | Still missing/planned end to end. |
-| Authorization-security stabilization | Implemented in the PR #492/#493 checkpoint, with production-like/manual verification still outstanding; it does not implement HR-2 lifecycle behavior. |
+| Authorization-security stabilization | The bounded PR #492/#493 corrections are implemented in the repository, with production-like/manual verification still outstanding. The Daily DTR branch-limited employee/segment read path is explicitly excluded because it does not yet apply access-derived `allowedBranchIds`; any separately authorized correction must add focused branch allow/deny and deny/no-leak regression coverage. This does not implement HR-2 lifecycle behavior. |
 
 Historical “baseline implemented,” “usable,” or stability-checkpoint language means
 repository coverage at that time, not end-to-end completion of this contract.
