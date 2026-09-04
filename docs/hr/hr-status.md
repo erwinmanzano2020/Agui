@@ -197,8 +197,9 @@ Roadmap, architecture, or frozen-contract artifact.
 
 ## 2026-08-29 — HR Authorization Security Correction implementation checkpoint
 
-**Status: implemented; production-like/manual UAT remains required.** The owner-authorized
-security gate from the merged PR #491 audit now enforces action capability centrally:
+**Status: bounded corrections implemented; daily DTR branch-limited reads and
+production-like/manual UAT remain open.** The owner-authorized security gate from
+the merged PR #491 audit now enforces action capability centrally:
 read policies (`tiles.hr.read` / `tiles.payroll.read`) cannot satisfy write requests,
 while owner/manager authority remains house-wide. The additive `domain.hr.all` policy
 is the explicit HR write-capability convention; it is not assigned to any role by the
@@ -221,7 +222,8 @@ access-derived branch scope and receive deny/no-leak regression coverage.
 
 Focused evaluator and affected repository/route coverage verifies read-versus-write,
 branch allow/deny, zero-scope denial, owner/manager authority, storage mutation denial,
-and filtered payroll item/list/count behavior. No identity semantics, RPC signatures,
+and filtered payroll item/list/count behavior for the bounded corrected paths. No
+identity semantics, RPC signatures,
 RLS policies, grants, frozen HR contracts, POS code, HR-2, or HR-4 workflow behavior
 changed. Remaining verification is production-like migration/RLS parity, realistic
 branch-role UAT, service-role boundary observation, browser schedule/form checks, and
