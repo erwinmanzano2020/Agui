@@ -21,10 +21,15 @@ access-derived branch restriction, and owner/manager house-authority rules
 remain governing requirements; read permission does not imply write permission.
 PR #492/#493 repository-stabilized only the bounded authorization paths corrected
 by those PRs. That claim explicitly excludes the Daily DTR branch-limited employee
-and attendance-segment reads, which remain open because they do not yet derive and
-apply the actor's `allowedBranchIds`. Legitimate owner/manager house-wide authority
-remains unchanged. This documentation-only reconciliation neither fixes that runtime
-limitation nor changes these rules or the frozen HR-1 identity contract.
+and attendance-segment reads, which do not provide a complete approved visibility
+path for branch-limited actors. Safe employee-list behavior requires an access-scoped
+resolution without treating optional employee branch context as ownership. Because
+`dtr_segments` has derived rather than directly stored branch scope, segment
+enforcement must remain deferred until a deterministic derivation contract is
+separately defined and approved. Legitimate owner/manager house-wide authority
+remains unchanged. This documentation-only reconciliation neither defines that
+contract, fixes the runtime limitation, nor changes these rules or the frozen HR-1
+identity contract.
 
 ## 2. Required HR-2 outcome
 
@@ -172,7 +177,7 @@ confirmed HR-2 contract or be inferred from this planning record.
 | Correction reason, actor/timestamp, and original/corrected lineage as the confirmed lifecycle | Still missing/planned. A raw segment marked `corrected` is not proof of this lifecycle. |
 | HR-4 approval authority and approval audit lifecycle | Documentation/contract only; not HR-2 implementation. |
 | Approval-aware payroll-ready attendance handoff | Still missing/planned end to end. |
-| Authorization-security stabilization | The bounded paths corrected by PR #492/#493 are implemented in the repository, with production-like/manual verification still outstanding. The Daily DTR branch-limited employee and attendance-segment reads remain explicitly outside that stabilization checkpoint because they do not yet apply access-derived `allowedBranchIds`; see `docs/hr/hr-status.md`. Focused branch allow/deny and deny/no-leak regression coverage is required with any separately authorized runtime correction. This does not implement the HR-2 correction lifecycle. |
+| Authorization-security stabilization | The bounded paths corrected by PR #492/#493 are implemented in the repository, with production-like/manual verification still outstanding. The Daily DTR branch-limited employee and attendance-segment reads remain explicitly outside that stabilization checkpoint. Safe segment visibility depends on the canonical derived-branch contract being deterministic and approved before enforcement; see `docs/hr/hr-status.md`. Focused branch allow/deny and deny/no-leak regression coverage will be required after a separately authorized implementation contract exists. This reconciliation defines no derivation contract, implements no runtime correction, and does not implement the HR-2 correction lifecycle. |
 
 Historical “baseline implemented,” “usable,” or stability-checkpoint language means
 repository coverage at that time, not end-to-end completion of this contract.

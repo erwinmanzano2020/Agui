@@ -29,9 +29,11 @@ attendance-segment, schedule-primitive, payroll, payslip/PDF, kiosk, employee-ID
 and access-control paths; it is not an end-to-end canonical HR MVP. PR #492/#493
 addressed the bounded authorization findings named in that correction, but did
 not stabilize the daily DTR page's branch-limited read path. That page still uses
-house-wide access and house/date reads without applying access-derived
-`allowedBranchIds`; production-like authorization/RLS verification also remains
-outstanding. The monthly single-employee all-days DTR grid only partially
+house-wide access and house/date reads without a complete approved branch-limited
+visibility path; production-like authorization/RLS verification also remains
+outstanding. `dtr_segments` has derived, not directly stored, branch scope, so
+segment enforcement remains deferred until a deterministic derivation contract is
+approved. The monthly single-employee all-days DTR grid only partially
 implements HR-2 period behavior. The custom-range and explicit day-evaluation
 contract, confirmed DTR correction lineage/reason/actor/timestamp lifecycle, HR-4
 approval authority, and approval-aware payroll-readiness handoff remain
@@ -47,7 +49,7 @@ prove current end-to-end HR completeness.
 |---|---|
 | **Implemented and verified** | No whole material capability is certified end to end; focused repository behavior is verified inside the partially verified capabilities below. |
 | **Implemented but partially verified** | HR shell/access; identity-aware employees; employee photo/ID; compensation/pay settings; payroll run lifecycle/deductions/posting/paid/adjustments; payslip/PDF; kiosk. |
-| **Partially implemented** | Action-capability enforcement and the bounded PR #492/#493 branch/no-leak corrections are repository-stabilized but not production-like verified; the daily DTR branch-limited read path remains open because its employee and segment reads do not apply access-derived `allowedBranchIds`; daily DTR plus a monthly single-employee all-days grid versus the remaining detailed-planning contract; remaining confirmed HR-2 correction-record requirements; payroll-ready attendance; schedule lifecycle/types/assignments/conflicts; payroll calculation integration with approved upstream facts. |
+| **Partially implemented** | Action-capability enforcement and the bounded PR #492/#493 branch/no-leak corrections are repository-stabilized but not production-like verified; the Daily DTR branch-limited employee-list behavior still requires a safe access-scoped resolution, while segment enforcement remains deferred pending an approved deterministic derived-branch contract; daily DTR plus a monthly single-employee all-days grid versus the remaining detailed-planning contract; remaining confirmed HR-2 correction-record requirements; payroll-ready attendance; schedule lifecycle/types/assignments/conflicts; payroll calculation integration with approved upstream facts. |
 | **Documentation/contract only** | Coherent HR-4 approvals for DTR corrections, OT, leave, and schedule changes. |
 | **Stale or conflicting documentation** | Historical blanket “HR-0 to HR-3.5 implemented baseline/usable” and “nothing in-scope not started” claims when read as canonical lifecycle completeness. |
 | **Unknown / cannot verify** | Deploy-state migration/RLS/grant/RPC parity and production-like operational behavior. Existing bounded payroll/payslip/PDF outputs are evidenced; any broader reports concept is outside approved canonical scope and would require an owner scope decision, not classification as a missing MVP capability. |
@@ -214,10 +216,19 @@ schedule product permission model was introduced.
 
 This bounded checkpoint does **not** include the daily DTR page's read path. The
 page authorizes with house-wide HR access, then loads employees by house and segments
-by house/date without deriving or applying `allowedBranchIds`. For a branch-limited
-actor, RLS may omit allowed employees or deployed policy behavior may expose
-out-of-branch data. This limitation remains open until both reads use the
-access-derived branch scope and receive deny/no-leak regression coverage.
+by house/date without a complete approved visibility path for a branch-limited actor.
+The employee list requires a safe access-scoped resolution, but optional
+`employees.branch_id` context is not ownership and cannot establish historical
+attendance scope. `dtr_segments` is house-owned with derived rather than directly
+stored branch scope; direct segment enforcement is deferred until a separately
+approved deterministic derivation contract addresses historical attribution,
+employee transfers, null branch context, conflicting branch evidence, source and
+precedence, and no-leak behavior. Current house-wide reads are not thereby safe for
+branch-limited actors: RLS may omit legitimate records or deployed policy behavior
+may expose out-of-scope data. The security/no-leak limitation remains open; its
+confirmation does not approve a remediation design. PR #496 neither defines nor
+implements the derivation contract or runtime correction. House remains the tenant
+boundary, and legitimate owner/manager house-wide authority remains unchanged.
 
 Focused evaluator and affected repository/route coverage verifies read-versus-write,
 branch allow/deny, zero-scope denial, owner/manager authority, storage mutation denial,
