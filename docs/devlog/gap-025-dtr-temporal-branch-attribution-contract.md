@@ -21,9 +21,21 @@ bounded choices. No option below is approved by its inclusion here.
 - **PROPOSED CONTRACT RULE — OWNER APPROVAL REQUIRED** — a recommendation, not canon.
 - **UNRESOLVED — OWNER DECISION REQUIRED** — evidence does not select a safe answer.
 
-## Governing material reviewed
+## Governing material reviewed and hierarchy reconciliation
 
-The audit reviewed `AGENTS.md`, `docs/hr/AGENTS.md`,
+This audit explicitly applies the repository hierarchy of truth, in descending order:
+
+1. Agui Development Operating Principles
+   (`agui-development-operating-principles.md`)
+2. Agui Roadmap (`agui-starter/docs/Agui Roadmap Plan.md`)
+3. canonical HR Master Plan (`docs/hr/hr-master-plan.md`)
+4. lower-level HR planning and contract documents
+5. this Codex task
+6. implementation detail
+
+`AGENTS.md` and `docs/hr/AGENTS.md` were re-read as repository operating instructions.
+The three higher-order sources above were then read before revalidating the lower-level
+evidence. The retained lower-level review includes
 `docs/hr-branch-scope-model.md`, `docs/hr-branch-scope-enforcement-plan.md`,
 `docs/hr-branch-scope-reality-audit.md`, `docs/hr/hr-status.md`,
 `docs/devlog/hr-2-dtr-detailed-planning.md`,
@@ -34,11 +46,68 @@ The audit reviewed `AGENTS.md`, `docs/hr/AGENTS.md`,
 `docs/hr/hr-role-system-model.md`, and
 `docs/hr/hr-employee-branch-assignment-rules.md`.
 
-The governing contract confirms that house is the tenant/owner boundary; branch is
-restriction or operational context, never a grant; `employees.branch_id` is optional
-context; `dtr_segments` has derived branch scope without an approved deterministic
-path; and owner/manager house-wide authority is preserved. The canonical employee
-assignment document explicitly defers transfer lifecycle and multi-branch semantics.
+The lower-level documents and repository implementation are evidence inputs only. They
+cannot override a higher-order freeze, phase boundary, tenancy/identity invariant,
+planning requirement, or approval gate. Conversely, this planning record cannot use an
+implementation detail to manufacture a contract absent from the governing sources.
+
+### Agui Development Operating Principles reconciliation
+
+**CONFIRMED BY GOVERNING CONTRACT — aligned, with no conflict found.** The Operating
+Principles make documented contracts the source of truth, require named freezes to be
+preserved, and treat documentation as a first-class deliverable before implementation.
+GAP-025 leaves the frozen HR-1 identity columns, lookup-first behavior, duplicate
+guardrail, and canonical RPC signatures unchanged. It preserves house-scoped tenancy,
+no-cross-house identity behavior, and the prohibition on identity auto-merge. This is a
+planning/evidence record only: it authorizes no migration, RPC, generated-type,
+identity, RLS/grant, API/UI, test, or runtime expansion. Any future option requiring
+such work remains subject to a separate planning and implementation authorization.
+
+### Agui Roadmap reconciliation
+
+**CONFIRMED BY GOVERNING CONTRACT — aligned, with no conflict found.** The Roadmap makes
+HR the sole active system phase, keeps POS paused at its preserved PR #488 checkpoint,
+and authorizes documentation/read-only HR current-state audit before any renewed HR
+runtime implementation. It requires HR to be audited against the HR Master Plan and
+actual runtime, exactly the method used here. House remains the tenant boundary; branch
+remains a location limiter/restriction and cannot replace ownership or grant access.
+GAP-025 is therefore within Roadmap authority as an HR evidence/planning activity.
+Neither its Outcome B finding nor its unapproved options unlocks HR runtime, GAP-024,
+POS, Operations, Finance, Growth, or any other module.
+
+### HR Master Plan reconciliation
+
+**CONFIRMED BY GOVERNING CONTRACT — aligned, with no conflict found.** The Master Plan
+keeps HR-1 frozen and puts DTR/attendance in HR-2 contract planning. Its completeness
+requirements include date-range representation, distinct missing/no-DTR state, and
+explicit incomplete-clock handling. Its correction contract requires reason, audit
+history, approval for payroll-impacting corrections, and traceable original/corrected
+values. HR-2 prepares attendance facts but does not compute payroll; schedules supply
+planned-work facts, HR-4 owns schedule/approval concerns, and payroll may consume only
+normalized, approval-aware inputs. The renewed sequence requires a separately approved
+implementation gate and preserves house tenancy, branch-as-location, identity, and
+no-leak rules.
+
+Outcome B does not weaken or replace any of those requirements. In particular, it does
+not treat schedule branch as actual attendance, does not make a branch decision a
+payroll computation, and does not use an attribution correction to bypass required
+correction lineage or approval. None of the four options is implementation-ready:
+Options 3 and 4 would require separately approved future data-model and contract work;
+Options 1 and 2 may describe only authorization visibility and must not erase DTR facts
+or weaken the Master Plan's completeness/correction requirements. All options must
+preserve HR-1 contracts and the HR-2/HR-4/payroll boundaries.
+
+### Outcome B revalidation after higher-order review
+
+**CONFIRMED BY REPOSITORY EVIDENCE:** **yes, Outcome B remains valid.** The Operating
+Principles, Roadmap, and HR Master Plan constrain how Agui may decide and implement a
+contract, but none supplies the missing branch-at-attendance-time data, durable
+event-to-segment relationship, transfer chronology, source precedence, or null/conflict
+algorithm. They therefore do not eliminate the repository-evidence gaps below.
+
+Outcome B remains an evidence finding only; owner decision is required; no contract or
+option is approved; GAP-025 is not closed; and GAP-024 remains blocked. No higher-order
+conflict was found, and no higher-order document was modified.
 
 ## Schema and migration evidence reviewed
 
@@ -201,7 +270,12 @@ Every cell is an evidence assessment, not an architectural preference.
    needs an explicit owner-approved conflict/split rule. This is semantic guidance only,
    not a schema proposal.
 
-## Bounded owner decision options
+## UNAPPROVED OWNER DECISION OPTIONS
+
+The four bounded options remain compatible with higher-order governance only under the
+constraints stated in the HR Master Plan reconciliation above. They are alternatives
+for owner decision, not canonical architecture, approval, or implementation authority.
+No preferred option is selected by this record.
 
 ### Option 1 — Fail closed for all derived DTR branch reads until explicit durable attribution exists
 
