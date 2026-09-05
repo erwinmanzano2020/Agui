@@ -300,6 +300,31 @@ existing lifecycle-valid controls. This UI alignment is defense in depth only; t
 server/domain payroll mutation checks remain authoritative. Production-like browser,
 multi-house, and branch-role UAT remains outstanding.
 
+## 2026-09-05 — GAP-025 DTR temporal branch-attribution planning
+
+**Status: Outcome B; owner decision required; contract not approved; gate not closed.**
+The repository evidence audit is recorded in
+`docs/devlog/gap-025-dtr-temporal-branch-attribution-contract.md`. It confirms that
+`dtr_segments` has no durable first-class branch, device, event, operator-selection,
+or correction-lineage field and is created through kiosk, manual, bulk, and legacy
+direct paths. Kiosk events capture temporal branch and currently place `segmentId` in
+JSON metadata, but the segment has no back-reference and the relationship is neither
+relationally complete nor immutable. Current employee/device branch, schedules, and
+`clock_events` cannot safely fill that historical gap.
+
+No deterministic universal attribution contract can therefore be approved from
+repository evidence alone. The owner must choose among bounded fail-closed,
+event-evidenced-subset, future operator-capture, or temporal-assignment fallback options
+and decide null/conflict, transfer, multi-branch, manual/legacy, and correction/replay
+semantics. A notable unresolved case is a kiosk segment opened in one branch and closed
+in another.
+
+GAP-024 remains blocked until the owner approves a complete temporal attribution
+contract and separately authorizes any prerequisite data-model/runtime work. Legitimate
+owner/manager house-wide authority, house tenancy, and branch-limited deny/no-leak
+requirements remain unchanged. GAP-025 made no runtime, schema, migration, RLS/grant,
+API/UI, test, identity, HR-2, HR-4, payroll, or POS change.
+
 ## 2026-08-31 — GAP-023 repository migration compatibility stabilization
 
 **Status: repository correction; live data already complete.** The confirmed live
