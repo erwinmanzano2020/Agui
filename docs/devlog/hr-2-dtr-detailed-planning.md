@@ -1,255 +1,194 @@
 # HR-2 DTR Detailed Planning
 
-## 1. Summary
-This is a documentation-only planning record.
-
-It defines HR-2 DTR / Attendance behavior before implementation.
-
-It does not authorize implementation.
-
-It builds from the HR gap audit, HR status refresh, and HR master plan update.
-
-## 2. Planning Authority
-This planning aligns with the following source records:
-- `docs/devlog/hr-system-gap-audit.md`
-- `docs/hr/hr-status.md`
-- `docs/hr/hr-master-plan.md`
-
-HR-2 DTR planning must preserve HR-1 identity and tenancy contracts.
-
-House remains the tenant boundary.
-
-Branch remains location scope.
-
-This planning document does not change the active delivery phase.
-
-## 3. HR-2 DTR Purpose
-HR-2 DTR is the attendance fact layer.
-
-HR-2 records and evaluates attendance facts.
-
-HR-2 prepares normalized attendance data for payroll dependency use.
-
-HR-2 does not compute payroll.
-
-HR-2 does not perform approval authority by itself; approval workflows are an HR-4 dependency when payroll-impacting changes occur.
-
-## 4. DTR Day Model
-A DTR day is scoped by employee + house + date.
-
-Branch may be present as work location scope.
-
-A selected period must show every day in range.
-
-A day with no DTR record is not the same as zero worked hours.
-
-A day may have one of the following conditions:
-- no record
-- incomplete record
-- complete record
-- corrected record
-- approved corrected record
-- payroll-ready attendance fact
-
-## 5. Date Range / Month View Contract
-HR-2 must support:
-- per-employee month view
-- per-employee custom date-range view
-
-Contract requirements:
-- all days in selected period must appear
-- days must be ordered deterministically by date
-- missing/no-DTR days must be explicit
-- output must be no-leak and house-scoped
-- branch filters must not become tenant boundaries
-
-## 6. DTR Record States
-Canonical DTR record/evaluation states are defined as follows.
-
-### NO_RECORD
-Meaning: No attendance record exists for the scoped employee-house-date.
-
-Payroll-ready contribution: No.
-
-Approval required: No.
-
-### INCOMPLETE
-Meaning: Attendance record exists but lacks a required clock pair or required minimum completeness to evaluate attendance fact outputs.
-
-Payroll-ready contribution: No.
-
-Approval required: No.
-
-### COMPLETE
-Meaning: Attendance record is complete enough to evaluate attendance outcomes for the day, with no correction pending.
-
-Payroll-ready contribution: Conditionally, once evaluation confirms no blockers and no pending payroll-impacting correction.
-
-Approval required: No (unless superseded by a payroll-impacting correction flow).
-
-### CORRECTED_PENDING_APPROVAL
-Meaning: A correction exists and is payroll-impacting but has not yet been approved by the HR-4 approval flow.
-
-Payroll-ready contribution: No.
-
-Approval required: Yes.
-
-### CORRECTED_APPROVED
-Meaning: A payroll-impacting correction has been approved by the HR-4 approval flow.
-
-Payroll-ready contribution: Conditionally, after post-approval validation confirms no blockers.
-
-Approval required: Already satisfied.
-
-### CORRECTED_REJECTED
-Meaning: A submitted correction was rejected and must not alter payroll-ready attendance facts.
-
-Payroll-ready contribution: No for the rejected correction path; base record behavior remains subject to separate valid state evaluation.
-
-Approval required: Already resolved as rejected.
-
-### PAYROLL_READY
-Meaning: Attendance fact is validated and eligible for HR-3 payroll dependency consumption under approved attendance boundaries.
-
-Payroll-ready contribution: Yes.
-
-Approval required: Only if any payroll-impacting correction occurred; otherwise no additional approval requirement is implied by this state alone.
-
-### BLOCKED
-Meaning: One or more deterministic blockers prevent evaluation or payroll-ready eligibility.
-
-Payroll-ready contribution: No.
-
-Approval required: Depends on blocker cause, but state itself is not an approval substitute.
-
-## 7. DTR Correction Model
-Correction lifecycle requirements:
-- original values must remain traceable
-- corrected values must be distinguishable
-- correction reason is required
-- correction actor must be attributable
-- correction timestamp is required
-- correction cannot silently overwrite original attendance
-- payroll-impacting correction requires approval
-- rejected corrections must not become payroll-ready facts
-
-## 8. Approval Dependency
-HR-2 may identify a correction requiring approval.
-
-HR-2 does not approve its own correction.
-
-HR-4 owns approval workflow semantics.
-
-Until HR-4 approval exists, payroll-impacting corrected attendance must not be considered approved.
-
-Approval history must remain auditable.
-
-## 9. Payroll-Ready Attendance Boundary
-HR-2 may provide the following outputs to HR-3 dependency workflows:
-- payable days/hours
-- late minutes
-- undertime
-- overtime candidate minutes
-- rest-day work candidate
-- holiday work candidate
-- approved leave marker if available
-- approved correction marker
-- final attendance summary candidate
-
-Strict boundaries:
-- HR-2 does not calculate salary
-- HR-2 does not compute deductions
-- HR-2 does not finalize payroll
-- HR-2 does not post ledger/accounting entries
-
-## 10. Schedule Dependency
-DTR can compare actual attendance to schedule facts when available.
-
-Schedule facts come from HR-4 schedules/shifts.
-
-If no schedule exists, DTR must not invent schedule assumptions.
-
-Schedule absence must be explicit.
-
-Schedule mismatch must be bounded and non-sensitive.
-
-## 11. Validation / Blocking Rules
-DTR blockers include:
-- employee not found in house
-- employee inactive for selected date
-- cross-house request
-- branch mismatch where branch filter is applied
-- invalid date range
-- incomplete clock pair
-- correction missing reason
-- payroll-impacting correction missing approval
-- conflicting DTR records
-- schedule ambiguity where schedule-dependent evaluation is requested
-
-Blocker output requirements:
-- bounded
-- non-sensitive
-- no cross-house leakage
-- deterministic ordering
-
-## 12. Audit Trail Requirements
-Audit requirements include:
-- DTR creation
-- DTR edit/correction
-- correction approval/rejection reference
-- actor
-- timestamp
-- reason
-- before/after values
-- source of change
-
-Audit requirements in this record are planning contracts only.
-
-Implementation requires a future approval gate.
-
-## 13. Non-Goals
-The following are explicitly excluded from this planning scope:
-- payroll calculation
-- salary computation
-- government deductions
-- payment/payout
-- accounting/ledger posting
-- schedule creation/editing
-- approval workflow implementation
-- UI/API expansion
-- schema/migration authorization
-
-## 14. Required Future Test Coverage
-Future implementation must include coverage for:
-- month view includes all days
-- date range view includes all days
-- no-DTR day distinct from zero hours
-- incomplete clock pair detected
-- correction requires reason
-- correction preserves original values
-- payroll-impacting correction requires approval
-- rejected correction excluded from payroll-ready summary
-- branch filter does not leak cross-house data
-- invalid ranges block deterministically
-- operational errors are not masked as attendance states
-
-## 15. Risks Prevented
-This planning contract is intended to prevent:
-- payroll using incomplete attendance
-- corrections silently overwriting originals
-- no-DTR misread as zero hours
-- branch treated as tenant
-- approval bypass
-- schedule assumptions invented by DTR
-- audit trail gaps
-
-## 16. Status
-HR-2 DTR planning is defined by this record.
-
-Existing HR-2 baseline implementation remains historical/current repo context.
-
-New or expanded DTR contract changes defined by this planning record are NOT implementation-started.
-
-No new implementation is authorized by this planning record.
-
-Next step is HR-2 DTR approval gate or further planning refinement if required.
+## 1. Status and authority
+
+- **Status:** reconciled contract; documentation only.
+- **Reconciled:** 2026-09-04 UTC, after review of the bounded PR #492/#493
+  authorization-security corrections and the still-open Daily DTR read limitation.
+- **Implementation authority:** none. This record does not authorize runtime, UI,
+  API, schema, migration, approval, payroll, or HR-4 implementation.
+- **Existing implementation posture:** partial baseline only; see
+  `docs/hr/hr-status.md`. Planned behavior below is not a claim that it exists.
+
+This is the existing primary HR-2 planning record. It reconciles, rather than
+duplicates, the HR-2 requirements in `docs/hr/hr-master-plan.md`, the evidence in
+`docs/devlog/hr-current-state-audit-2026-08-28.md`, and the lower-level raw-capture
+guardrails in `docs/hr/hr-2-1-daily-dtr-review.md`.
+
+House remains the tenant boundary. Branch remains a location and access
+restriction, never a substitute tenant boundary. The capability, deny/no-leak,
+access-derived branch restriction, and owner/manager house-authority rules
+remain governing requirements; read permission does not imply write permission.
+PR #492/#493 repository-stabilized only the bounded authorization paths corrected
+by those PRs. That claim explicitly excludes the Daily DTR branch-limited employee
+and attendance-segment reads, which do not provide a complete approved visibility
+path for branch-limited actors. Safe employee-list behavior requires an access-scoped
+resolution without treating optional employee branch context as ownership. Because
+`dtr_segments` has derived rather than directly stored branch scope, segment
+enforcement must remain deferred until a deterministic derivation contract is
+separately defined and approved. Legitimate owner/manager house-wide authority
+remains unchanged. This documentation-only reconciliation neither defines that
+contract, fixes the runtime limitation, nor changes these rules or the frozen HR-1
+identity contract.
+
+## 2. Required HR-2 outcome
+
+HR-2 is the attendance-fact and DTR-correction-record layer. It must:
+
+- support a per-employee month view and a per-employee custom date-range view;
+- represent every calendar day in the selected period, in deterministic date order;
+- distinguish a day with no DTR from a day evaluated as zero worked hours;
+- explicitly represent incomplete clock records;
+- provide an explicit DTR correction/edit flow;
+- require a correction reason and attribute the correction actor and timestamp;
+- retain traceable original and corrected attendance values without silently
+  overwriting the original attendance;
+- identify payroll-impacting corrections and hand them to HR-4 approval authority;
+- exclude a rejected payroll-impacting correction from payroll-ready facts; and
+- prepare attendance facts without calculating payroll.
+
+All reads and writes remain house-scoped and no-leak. Any branch restriction must
+be derived from the authorized actor's scope and applied as a restriction; a caller
+supplied branch or employee identifier cannot widen access.
+
+## 3. HR-2.1 raw-capture compatibility
+
+HR-2.1 remains the lower-level raw-capture guardrail, not the complete HR-2
+lifecycle contract. Its existing contract is preserved:
+
+- multiple segments per employee/day are allowed;
+- segments are not implicitly merged or collapsed;
+- raw capture records what happened and does not apply schedule, overtime, or
+  payroll interpretation; and
+- an open segment may contain only `time_in`, may later receive `time_out`, and is
+  not subject to a one-open-segment rule unless a future authorized contract adds
+  one.
+
+The raw segment `status` values (`open | closed | corrected`) describe individual
+capture records only. They do not decide whether a whole day/period is complete,
+whether a correction has approval, or whether attendance is payroll-ready.
+
+## 4. Separate state dimensions
+
+The following dimensions must remain separate. The labels below describe planning
+semantics; they do not authorize new columns, enums, APIs, or state machines.
+
+| Dimension | Owner | Meaning |
+|---|---|---|
+| Raw segment status | HR-2 raw capture | Whether an individual captured segment is `open`, `closed`, or marked `corrected`; multiple segments remain independent. |
+| Day/period evaluation | HR-2 | Whether the selected day has no record, has incomplete attendance, is complete enough to evaluate, or is blocked. Evaluation must consider all represented days without rewriting raw segments. |
+| Correction state | HR-2 record + HR-4 decision | HR-2 records proposed original/corrected lineage and whether it affects payroll; HR-4 supplies any required pending/approved/rejected decision. |
+| Payroll-ready state | HR-2 handoff boundary | Whether an evaluated attendance fact has no unresolved blocker and any payroll-impacting correction has an HR-4 approval. It is not a payroll calculation. |
+
+Consequently, `NO_RECORD`, `INCOMPLETE`, `COMPLETE`, and `BLOCKED` are day/period
+evaluation concepts; correction pending/approved/rejected is a separate lifecycle;
+and `PAYROLL_READY` is a separate eligibility result. They must not be compressed
+into one raw segment status. A rejected correction remains audit history and cannot
+become a payroll-ready fact, while the unchanged base attendance may be evaluated
+separately under the normal rules.
+
+No-record handling is intentionally explicit: absence is not zero hours and must
+not be inferred to be payable. A future policy may classify a represented day, but
+this contract does not invent that policy.
+
+## 5. Correction contract and ownership boundary
+
+### HR-2 owns
+
+- attendance facts and DTR correction records;
+- correction reason, correcting actor identity, and correction timestamp;
+- original-versus-corrected lineage and a non-destructive audit trail;
+- identification of whether a correction affects payroll; and
+- handoff of payroll-impacting corrections to HR-4.
+
+### HR-4 owns
+
+- approval authority and the approval/rejection decision;
+- approver attribution;
+- approval status and timestamps;
+- rejection reason; and
+- approval audit evidence.
+
+HR-2 does not approve its own corrections. Until HR-4 approves a
+payroll-impacting correction, that corrected path is not payroll-ready. Rejection
+must not promote the rejected values into payable inputs. HR-2 may retain an HR-4
+decision reference for lineage, but that does not transfer approval ownership to
+HR-2. HR-4 implementation is not authorized by this record.
+
+## 6. Attendance and payroll boundary
+
+HR-2 may prepare normalized attendance facts or candidates such as payable
+days/hours, late or undertime minutes, overtime/rest-day/holiday-work candidates,
+approved leave markers when available, correction markers, and attendance
+summaries. These are attendance outputs, not payroll calculations.
+
+HR-2 does not calculate salary, deductions, payouts, or accounting entries; does
+not finalize payroll; and does not manufacture approval. Schedule facts, when
+needed, are supplied by HR-4. If no schedule exists, HR-2 must represent that
+absence rather than infer a schedule. Raw capture remains interpretation-free.
+
+## 7. Required validation and future verification
+
+Any separately authorized implementation must preserve deterministic, bounded,
+non-sensitive failures for invalid ranges, out-of-house employees, unauthorized or
+out-of-branch targets, incomplete clocks, missing correction reasons, unresolved
+payroll-impacting approvals, conflicting records, and schedule ambiguity when a
+schedule-dependent evaluation is requested.
+
+Future coverage must verify at least:
+
+- month and custom-range views represent every day;
+- no-DTR differs from zero hours, and incomplete clocks remain explicit;
+- multiple raw segments survive without implicit collapse;
+- corrections require reason/actor/timestamp and preserve before/after lineage;
+- pending or rejected payroll-impacting corrections cannot supply corrected
+  payroll-ready facts;
+- only HR-4 approval can resolve the approval decision;
+- house, branch, capability, and deny/no-leak rules hold for reads and writes; and
+- operational failures are not disguised as attendance states.
+
+Production-like RLS/grant/RPC parity and realistic multi-house/branch UAT remain
+required independently of repository tests.
+
+## 8. Proposed options — owner decision required
+
+The following ideas are useful but are **not approved HR-2 or HR-4 requirements**:
+
+- a separate employee/requester submission lifecycle;
+- withdrawal or cancellation of a correction request;
+- evidence or attachment requirements;
+- generalized requester-versus-approver separation beyond HR-2's inability to
+  approve its own correction;
+- a broad self-approval policy beyond that confirmed boundary;
+- escalation or fallback approvers;
+- multi-level approvals; and
+- additional approval-policy machinery.
+
+They must remain proposed until an explicit owner decision and must not block the
+confirmed HR-2 contract or be inferred from this planning record.
+
+## 9. Implementation reconciliation
+
+| Capability | Current classification |
+|---|---|
+| Manual daily raw segment capture, including independent/open segments | Existing baseline; bounded by HR-2.1 and only partially verified. |
+| Monthly single-employee all-days grid | Partially implemented; not proof of the complete period contract. |
+| Custom date-range view and complete explicit evaluation semantics | Still missing/planned. |
+| Correction reason, actor/timestamp, and original/corrected lineage as the confirmed lifecycle | Still missing/planned. A raw segment marked `corrected` is not proof of this lifecycle. |
+| HR-4 approval authority and approval audit lifecycle | Documentation/contract only; not HR-2 implementation. |
+| Approval-aware payroll-ready attendance handoff | Still missing/planned end to end. |
+| Authorization-security stabilization | The bounded paths corrected by PR #492/#493 are implemented in the repository, with production-like/manual verification still outstanding. The Daily DTR branch-limited employee and attendance-segment reads remain explicitly outside that stabilization checkpoint. Safe segment visibility depends on the canonical derived-branch contract being deterministic and approved before enforcement; see `docs/hr/hr-status.md`. Focused branch allow/deny and deny/no-leak regression coverage will be required after a separately authorized implementation contract exists. This reconciliation defines no derivation contract, implements no runtime correction, and does not implement the HR-2 correction lifecycle. |
+
+Historical “baseline implemented,” “usable,” or stability-checkpoint language means
+repository coverage at that time, not end-to-end completion of this contract.
+
+## 10. Non-goals and next gate
+
+This reconciliation does not implement or authorize UI/API expansion, schema or
+migrations, schedules, approvals, payroll computation, identity changes, tenancy
+changes, POS, or any other runtime behavior. It also does not create an HR-2 Codex
+implementation task.
+
+Any implementation requires a separate owner-authorized gate that selects a
+bounded slice from this confirmed contract. Optional ideas in Section 8 require
+their own owner decision and are not prerequisites for that gate.

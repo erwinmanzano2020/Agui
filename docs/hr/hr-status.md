@@ -2,22 +2,19 @@
 
 ## Current authority and posture
 
-- **Last audited:** 2026-08-28 UTC.
+- **Last audited:** 2026-08-28 UTC; contract reconciliation refreshed 2026-09-04 UTC.
 - **Active phase:** HR is the sole active development phase; POS remains paused
   at merged PR #488.
 - **Current checkpoint source:** [HR Current-State Audit After Phase Re-entry](../devlog/hr-current-state-audit-2026-08-28.md).
-- **Execution boundary:** the audit is complete, but it authorizes no runtime
-  implementation, implementation plan, schema/API/migration work, or frozen
-  contract change. The next capability requires a separate owner-reviewed gate.
-  The dependency-first immediate gate is a separately authorized bounded
-  HR Authorization Security Correction covering action capability, DTR-bulk,
-  Schedules, Employee Photo Upload, Add/Edit Employee branch metadata, Payroll Run
-  Detail, Payslips/payroll UI reads, the Payroll Runs index, and
-  `GET /api/hr/payroll-runs`.
-  Existing HR-2 and HR-4 contracts may then be reviewed against confirmed
-  governing requirements.
-  Optional workflow or policy choices require separate owner scope approval and
-  are not prerequisites for that review.
+- **Execution boundary:** the audit is complete and the dependency-first HR
+  Authorization Security Correction was subsequently implemented through PR
+  #492/#493, subject to the production-like/manual verification recorded below.
+  The existing HR-2 contract has now been documentation-only reconciled against
+  confirmed governing requirements in
+  [`HR-2 DTR Detailed Planning`](../devlog/hr-2-dtr-detailed-planning.md). Neither
+  checkpoint authorizes HR-2 or HR-4 runtime implementation, an implementation
+  plan, schema/API/migration work, or a frozen-contract change. Optional workflow
+  or approval-policy choices still require separate owner scope approval.
 
 This is the canonical execution snapshot. The
 [`HR Master Plan`](./hr-master-plan.md) remains canonical for HR scope, frozen
@@ -27,19 +24,20 @@ phase labels are not completeness determinations.
 
 ## Exact current checkpoint
 
-**HR has a broad, repository-tested implementation baseline for employee,
+**HR has a broad, repository-tested implementation baseline for employee, raw
 attendance-segment, schedule-primitive, payroll, payslip/PDF, kiosk, employee-ID,
-and access-control paths; it is not an end-to-end canonical HR MVP because the
-monthly single-employee all-days DTR grid partially implements HR-2 period
-behavior, but confirmed static authorization limitations include action-capability
-enforcement, DTR-bulk, HR Schedules, Employee Photo Upload, Add/Edit Employee
-metadata, Payroll Run Detail, Payslips/payroll UI reads, the Payroll Runs index,
-and `GET /api/hr/payroll-runs`. This inventory is not exhaustive. The already
-documented HR-2 completeness/correction lifecycle, HR-4 schedule lifecycle and
-conflict rules,
-and approval-aware payroll-readiness boundary are not implemented as required,
-while production-like RLS, device, PDF/print, concurrency, and full-flow UAT
-remain unverified.**
+and access-control paths; it is not an end-to-end canonical HR MVP. PR #492/#493
+addressed the bounded authorization findings named in that correction, but did
+not stabilize the daily DTR page's branch-limited read path. That page still uses
+house-wide access and house/date reads without a complete approved branch-limited
+visibility path; production-like authorization/RLS verification also remains
+outstanding. `dtr_segments` has derived, not directly stored, branch scope, so
+segment enforcement remains deferred until a deterministic derivation contract is
+approved. The monthly single-employee all-days DTR grid only partially
+implements HR-2 period behavior. The custom-range and explicit day-evaluation
+contract, confirmed DTR correction lineage/reason/actor/timestamp lifecycle, HR-4
+approval authority, and approval-aware payroll-readiness handoff remain
+unimplemented as required.**
 
 The historical 2026-03-31 stability gate remains valid only as the recorded
 sequencing decision that unlocked the subsequently paused POS work. It does not
@@ -51,12 +49,17 @@ prove current end-to-end HR completeness.
 |---|---|
 | **Implemented and verified** | No whole material capability is certified end to end; focused repository behavior is verified inside the partially verified capabilities below. |
 | **Implemented but partially verified** | HR shell/access; identity-aware employees; employee photo/ID; compensation/pay settings; payroll run lifecycle/deductions/posting/paid/adjustments; payslip/PDF; kiosk. |
-| **Partially implemented** | House/branch/no-leak and action-capability enforcement because multiple confirmed static limitations remain; daily DTR plus a monthly single-employee all-days grid versus the remaining detailed-planning contract; remaining confirmed HR-2 correction-record requirements; payroll-ready attendance; schedule lifecycle/types/assignments/conflicts; payroll calculation integration with approved upstream facts. |
+| **Partially implemented** | Action-capability enforcement and the bounded PR #492/#493 branch/no-leak corrections are repository-stabilized but not production-like verified; the Daily DTR branch-limited employee-list behavior still requires a safe access-scoped resolution, while segment enforcement remains deferred pending an approved deterministic derived-branch contract; daily DTR plus a monthly single-employee all-days grid versus the remaining detailed-planning contract; remaining confirmed HR-2 correction-record requirements; payroll-ready attendance; schedule lifecycle/types/assignments/conflicts; payroll calculation integration with approved upstream facts. |
 | **Documentation/contract only** | Coherent HR-4 approvals for DTR corrections, OT, leave, and schedule changes. |
 | **Stale or conflicting documentation** | Historical blanket “HR-0 to HR-3.5 implemented baseline/usable” and “nothing in-scope not started” claims when read as canonical lifecycle completeness. |
 | **Unknown / cannot verify** | Deploy-state migration/RLS/grant/RPC parity and production-like operational behavior. Existing bounded payroll/payslip/PDF outputs are evidenced; any broader reports concept is outside approved canonical scope and would require an owner scope decision, not classification as a missing MVP capability. |
 
-## Highest-risk gaps
+## Historical 2026-08-28 highest-risk findings
+
+Items 1–8 below preserve the audit evidence that motivated the authorization
+security correction. They are not the current repository classification; the
+dated PR #492/#493 checkpoints below supersede that classification. Their stated
+production-like and live-verification limits remain applicable.
 
 1. `POST /api/payroll/dtr-bulk` feature-gates access but uses a service client to
    enumerate all house branches, accepts caller-supplied employee IDs, omits
@@ -127,7 +130,12 @@ prove current end-to-end HR completeness.
 10. Focused mocked/unit coverage does not replace production-like validation of
    RLS, grants, RPCs, concurrency, kiosk devices, PDFs/printing, or full flows.
 
-## Single next recommendation
+## Historical 2026-08-28 recommendation
+
+This recommendation is retained as audit history. Its immediate security gate was
+implemented by PR #492/#493, and its subsequent HR-2 contract review is now the
+reconciled planning record linked at the top of this status. Neither event
+authorizes the remaining runtime work.
 
 The audit recommends exactly one dependency-first immediate gate: a separately
 authorized **HR Authorization Security Correction**. Its boundary includes:
@@ -205,6 +213,22 @@ GET API. Payroll-run lists discard runs with no visible items and calculate coun
 only from visible employee items. Zero-scope policy actors fail closed. The adjacent
 schedule assignment repository was updated to accept an allowed branch set; no new
 schedule product permission model was introduced.
+
+This bounded checkpoint does **not** include the daily DTR page's read path. The
+page authorizes with house-wide HR access, then loads employees by house and segments
+by house/date without a complete approved visibility path for a branch-limited actor.
+The employee list requires a safe access-scoped resolution, but optional
+`employees.branch_id` context is not ownership and cannot establish historical
+attendance scope. `dtr_segments` is house-owned with derived rather than directly
+stored branch scope; direct segment enforcement is deferred until a separately
+approved deterministic derivation contract addresses historical attribution,
+employee transfers, null branch context, conflicting branch evidence, source and
+precedence, and no-leak behavior. Current house-wide reads are not thereby safe for
+branch-limited actors: RLS may omit legitimate records or deployed policy behavior
+may expose out-of-scope data. The security/no-leak limitation remains open; its
+confirmation does not approve a remediation design. PR #496 neither defines nor
+implements the derivation contract or runtime correction. House remains the tenant
+boundary, and legitimate owner/manager house-wide authority remains unchanged.
 
 Focused evaluator and affected repository/route coverage verifies read-versus-write,
 branch allow/deny, zero-scope denial, owner/manager authority, storage mutation denial,

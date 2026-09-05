@@ -13,7 +13,11 @@ HR-2.1 delivers **Daily DTR Entry (Manual, House-Scoped)** that records raw atte
 - `status` uses `open | closed | corrected`, but **no closing rules** are defined in HR-2.1.
 - House scoping rules:
   - Employee must belong to the house.
-  - Caller must have HR access (same access pattern as HR-1).
+  - Caller must have the required HR action capability; read access must not
+    authorize a write.
+  - Access-derived branch restrictions, deny/no-leak behavior, and owner/manager
+    house authority remain in force. Caller-supplied identifiers cannot widen
+    access.
 
 ## Time Handling Caution (Explicit)
 Current implementation uses:
@@ -45,6 +49,12 @@ This interpretation depends on runtime timezone rules and can differ between ser
 ## Boundary Statement (Very Clear)
 HR-2.1 is **raw capture only**. Schedule rules, overtime rules (e.g., 10-minute minimum, OT after scheduled end), and house-specific policies belong to **later phases** (HR-2.2+ / HR-2.3+).
 
+The raw segment `open | closed | corrected` status is not a whole-day/period
+evaluation, a correction approval decision, or a payroll-ready decision. The
+broader completeness, correction-lineage, and HR-4 handoff contract is owned by
+`docs/devlog/hr-2-dtr-detailed-planning.md`; it does not collapse the independent
+segments captured here.
+
 ## Common Debug Pitfalls
 - PostgREST schema cache mismatch: run `notify pgrst, 'reload schema'` after migrations.
 - Schema vs types mismatch: regenerate `db.types.ts` whenever schema changes.
@@ -60,7 +70,8 @@ HR-2.1 is **raw capture only**. Schedule rules, overtime rules (e.g., 10-minute 
 2) Access control sanity
 Confirm server helpers enforce:
 - employee belongs to house
-- caller has HR access (same pattern as HR-1)
+- caller has the required action capability and write access is distinct from read
+- access-derived branch restrictions fail closed for out-of-scope targets
 Confirm cross-house denial test exists.
 
 3) Time handling (common pitfall)
