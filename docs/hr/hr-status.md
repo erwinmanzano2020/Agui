@@ -2,7 +2,7 @@
 
 ## Current authority and posture
 
-- **Last audited:** 2026-08-28 UTC; contract reconciliation refreshed 2026-09-03 UTC.
+- **Last audited:** 2026-08-28 UTC; contract reconciliation refreshed 2026-09-04 UTC.
 - **Active phase:** HR is the sole active development phase; POS remains paused
   at merged PR #488.
 - **Current checkpoint source:** [HR Current-State Audit After Phase Re-entry](../devlog/hr-current-state-audit-2026-08-28.md).
@@ -27,12 +27,15 @@ phase labels are not completeness determinations.
 **HR has a broad, repository-tested implementation baseline for employee, raw
 attendance-segment, schedule-primitive, payroll, payslip/PDF, kiosk, employee-ID,
 and access-control paths; it is not an end-to-end canonical HR MVP. PR #492/#493
-addressed the audit's confirmed static authorization findings in the repository,
-but production-like authorization/RLS verification remains outstanding. The
-monthly single-employee all-days DTR grid only partially implements HR-2 period
-behavior. The custom-range and explicit day-evaluation contract, confirmed DTR
-correction lineage/reason/actor/timestamp lifecycle, HR-4 approval authority, and
-approval-aware payroll-readiness handoff remain unimplemented as required.**
+addressed the bounded authorization findings named in that correction, but did
+not stabilize the daily DTR page's branch-limited read path. That page still uses
+house-wide access and house/date reads without applying access-derived
+`allowedBranchIds`; production-like authorization/RLS verification also remains
+outstanding. The monthly single-employee all-days DTR grid only partially
+implements HR-2 period behavior. The custom-range and explicit day-evaluation
+contract, confirmed DTR correction lineage/reason/actor/timestamp lifecycle, HR-4
+approval authority, and approval-aware payroll-readiness handoff remain
+unimplemented as required.**
 
 The historical 2026-03-31 stability gate remains valid only as the recorded
 sequencing decision that unlocked the subsequently paused POS work. It does not
@@ -44,7 +47,7 @@ prove current end-to-end HR completeness.
 |---|---|
 | **Implemented and verified** | No whole material capability is certified end to end; focused repository behavior is verified inside the partially verified capabilities below. |
 | **Implemented but partially verified** | HR shell/access; identity-aware employees; employee photo/ID; compensation/pay settings; payroll run lifecycle/deductions/posting/paid/adjustments; payslip/PDF; kiosk. |
-| **Partially implemented** | House/branch/no-leak and action-capability enforcement is repository-stabilized but not production-like verified; daily DTR plus a monthly single-employee all-days grid versus the remaining detailed-planning contract; remaining confirmed HR-2 correction-record requirements; payroll-ready attendance; schedule lifecycle/types/assignments/conflicts; payroll calculation integration with approved upstream facts. |
+| **Partially implemented** | Action-capability enforcement and the bounded PR #492/#493 branch/no-leak corrections are repository-stabilized but not production-like verified; the daily DTR branch-limited read path remains open because its employee and segment reads do not apply access-derived `allowedBranchIds`; daily DTR plus a monthly single-employee all-days grid versus the remaining detailed-planning contract; remaining confirmed HR-2 correction-record requirements; payroll-ready attendance; schedule lifecycle/types/assignments/conflicts; payroll calculation integration with approved upstream facts. |
 | **Documentation/contract only** | Coherent HR-4 approvals for DTR corrections, OT, leave, and schedule changes. |
 | **Stale or conflicting documentation** | Historical blanket “HR-0 to HR-3.5 implemented baseline/usable” and “nothing in-scope not started” claims when read as canonical lifecycle completeness. |
 | **Unknown / cannot verify** | Deploy-state migration/RLS/grant/RPC parity and production-like operational behavior. Existing bounded payroll/payslip/PDF outputs are evidenced; any broader reports concept is outside approved canonical scope and would require an owner scope decision, not classification as a missing MVP capability. |
@@ -208,6 +211,13 @@ GET API. Payroll-run lists discard runs with no visible items and calculate coun
 only from visible employee items. Zero-scope policy actors fail closed. The adjacent
 schedule assignment repository was updated to accept an allowed branch set; no new
 schedule product permission model was introduced.
+
+This bounded checkpoint does **not** include the daily DTR page's read path. The
+page authorizes with house-wide HR access, then loads employees by house and segments
+by house/date without deriving or applying `allowedBranchIds`. For a branch-limited
+actor, RLS may omit allowed employees or deployed policy behavior may expose
+out-of-branch data. This limitation remains open until both reads use the
+access-derived branch scope and receive deny/no-leak regression coverage.
 
 Focused evaluator and affected repository/route coverage verifies read-versus-write,
 branch allow/deny, zero-scope denial, owner/manager authority, storage mutation denial,
