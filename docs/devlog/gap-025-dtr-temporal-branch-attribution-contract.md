@@ -5,23 +5,220 @@
 **Gate:** GAP-025
 **Phase:** HR
 **Risk:** P1 foundation/security prerequisite
-**Record type:** documentation/evidence/decision planning only
-**Status:** **owner decision required; not approved; not closed**
-**Outcome:** **Outcome B — repository evidence is insufficient to define a safe deterministic contract today**
+**Record type:** canonical semantic contract plus preserved evidence history
+**Owner decision:** **approved direction**
+**Status:** **Closed — Contract Approved / Runtime Implementation Separately Gated**
 
-This audit does not implement a derivation algorithm, GAP-024, an assignment-history
-model, or any runtime/schema/RLS/API/UI/test change. It records what the current
-repository can prove, separates those facts from proposals, and gives the owner
-bounded choices. No option below is approved by its inclusion here.
+This document canonicalizes the owner-approved temporal DTR branch-attribution policy.
+It changes documentation only. It does not implement attribution, GAP-024, GAP-026,
+HR-2/HR-4 behavior, or any runtime, schema, migration, RLS/grant, RPC, API, UI, or test
+change.
 
-## Decision labels
+## 1. Original evidence outcome (historical)
 
-- **CONFIRMED BY GOVERNING CONTRACT** — already established by a higher document.
-- **CONFIRMED BY REPOSITORY EVIDENCE** — established by the current schema or code.
-- **PROPOSED CONTRACT RULE — OWNER APPROVAL REQUIRED** — a recommendation, not canon.
-- **UNRESOLVED — OWNER DECISION REQUIRED** — evidence does not select a safe answer.
+The merged evidence audit reached **Outcome B**: repository evidence alone was
+insufficient to select a safe deterministic attribution contract. At that checkpoint,
+the contract was not approved, GAP-025 was open, GAP-024 was blocked, and the four
+options later preserved in this document were explicitly unapproved. The audit found:
 
-## Governing material reviewed and hierarchy reconciliation
+- kiosk events capture event-time branch, but the current JSON `metadata.segmentId`
+  link is not a sufficiently durable, universal event-to-segment integrity contract;
+- manual, bulk, and legacy segments do not carry approved deterministic branch
+  provenance;
+- current employee/device branch, schedule, and `clock_events` cannot safely prove
+  historical attendance location; and
+- null, conflict, transfer, multi-branch, correction, replay, and cross-branch IN/OUT
+  semantics required an owner decision.
+
+The detailed governing reconciliation, repository facts, evidence matrix, temporal
+cases, and then-unapproved alternatives remain below as the historical reasoning that
+led to the decision. Their historical labels describe the state when the audit was
+merged; they do not override the approved contract in Sections 2–11.
+
+## 2. Owner decision
+
+The owner approves a bounded hybrid contract:
+
+1. kiosk-origin attendance uses integrity-valid event-at-attendance-time branch
+   evidence, once separately authorized implementation supplies and verifies durable
+   observation-to-segment linkage;
+2. future manual/administrative attendance requires explicit operator-captured
+   attendance-location provenance; and
+3. legacy, unknown, incomplete, broken, ambiguous, or conflicting attribution fails
+   closed for branch-limited actors while remaining a valid house-owned attendance fact
+   visible to legitimate house-wide authority under existing authorization rules.
+
+This decision selects semantic requirements, not a database or runtime design. It does
+not approve any one historical option wholesale and intentionally rejects effective-
+dated employee assignment or schedule as a silent fallback for actual attendance.
+No higher-order conflict was found.
+
+## 3. Canonical approved contract
+
+### 3.1 Ownership and restriction order
+
+House remains the canonical HR tenant and ownership boundary. Every authorization
+path resolves house authorization first. Branch is attendance-location context and an
+additive restriction layer: it can narrow existing access but can never create house
+access. Legitimate `owner`/`manager` house-wide authority remains unchanged.
+
+### 3.2 Attendance-location fact
+
+Historical attendance branch belongs to the attendance observation and its resulting
+DTR segment, not permanently to the employee. It is not automatically the employee's
+current or default branch, the device's current branch, the viewer's branch, the
+correcting operator's branch, or the schedule branch. One DTR segment represents one
+attendance location.
+
+### 3.3 Kiosk-origin attendance
+
+The canonical semantic branch evidence for kiosk-origin attendance is the branch
+captured by the attendance event at the time of the attendance action. Current JSON
+`metadata.segmentId` is evidence of present behavior, not canonical or sufficient
+enforcement infrastructure. Branch-limited enforcement may rely on kiosk evidence only
+after a separately authorized implementation provides and verifies sufficient durable
+integrity and linkage between each relevant attendance observation and resulting
+segment. This contract deliberately does not choose a schema mechanism.
+
+### 3.4 Manual and future administrative attendance
+
+For every future manual/admin-created attendance fact, the authorized operator must
+explicitly identify where the attendance occurred. That selection is attendance
+provenance. It must not be silently inferred from current employee branch, current
+device branch, schedule, or operator location. This requirement defines semantics only;
+it does not define a column, table, RPC, API input, or UI control.
+
+### 3.5 Transfers, multi-branch work, and schedules
+
+Changing `employees.branch_id` must not alter existing historical attendance
+attribution. That optional field remains current operational context and may support
+placement, UI defaults, workflow convenience, or schedule selection, but is not
+canonical historical attendance evidence.
+
+An employee may legitimately work at multiple branches on different days, in one pay
+period, or on the same day. Do not assume one employee equals one permanent branch.
+Their DTR history may contain separate, deterministically attributable segments for
+different branches; later transfer or current assignment does not restrict those facts.
+
+Schedules describe planned work, not proof of actual attendance location. Schedule
+branch alone cannot canonically attribute DTR because people may work off schedule,
+substitute, assist another branch temporarily, or attend somewhere other than planned.
+
+## 4. Attribution classes
+
+These are conceptual semantic states only. They do not create enums, schema, columns,
+tables, or runtime code.
+
+- **ATTRIBUTED — KIOSK EVENT EVIDENCE:** integrity-valid event-at-time evidence
+  deterministically establishes the attendance branch under the approved provenance
+  contract.
+- **ATTRIBUTED — AUTHORIZED MANUAL CAPTURE:** an authorized operator explicitly captured
+  the branch where the attendance occurred as attendance provenance.
+- **UNATTRIBUTED:** no approved deterministic branch evidence exists, including legacy
+  or incomplete evidence.
+- **CONFLICT:** relevant branch facts disagree, or evidence integrity is ambiguous.
+
+Valid deterministic evidence is accepted only when non-conflicting. This contract has
+no silent evidence-precedence ladder. If strong evidence conflicts, the state is
+**CONFLICT**; the system must not automatically choose IN, OUT, manual attribution,
+latest event, employee branch, current device, or schedule as the winner.
+
+## 5. Temporal semantics
+
+Attribution is evaluated for the attendance observation and resulting segment at the
+time the attendance occurred. Viewing time, employee-transfer time, correction time,
+replay time, and server-processing time do not redefine it. Historical facts retain
+the approved attendance-location evidence applicable to those facts.
+
+The employee's current branch, the device's current branch, and planned schedule may
+all change later without rewriting historical attendance. Legitimate same-day
+multi-branch work is represented by separately attributable facts/segments rather than
+by silently blending locations into one segment.
+
+## 6. Legacy, null, broken, and conflicting evidence
+
+Legacy attendance without reliable attribution remains a valid house-owned DTR fact.
+**Unknown branch is not unknown house ownership.** Such facts must not be deleted,
+rewritten, or assigned a fabricated branch from current employee, schedule, device, or
+viewer context. They remain visible to legitimate house-wide authority according to
+existing authorization rules, but unsafe for branch-limited visibility until an
+explicit, auditable adjudication under a future approved process.
+
+Unknown, missing, broken, incomplete, or ambiguous evidence is **UNATTRIBUTED**.
+Contradictory integrity-valid observations or disagreement between event evidence and
+manual provenance is **CONFLICT**. A conflict remains explicit until an authorized,
+auditable correction process resolves it; no implicit precedence is approved.
+
+## 7. GAP-026 cross-branch IN/OUT rule
+
+The canonical invariant is: **one segment = one attendance location; contradictory
+IN/OUT branch evidence cannot be silently normalized.**
+
+If an open segment begins in Branch A and receives a closing observation from Branch B,
+that is an explicit cross-branch attribution conflict. Runtime must not treat it as a
+normal same-location segment, rewrite it to Branch B, preserve Branch A as though no
+conflict exists, or choose current employee/device branch. Eventual resolution must be
+authorized and auditable.
+
+This resolves GAP-026 policy semantics only. A later separately authorized design gate
+may choose to reject the OUT, require closure of the first segment, split segments,
+create a conflict workflow, or use another compliant mechanism. This document chooses
+and implements none of those mechanisms, and GAP-026 runtime remains unfixed.
+
+## 8. Authorization and no-leak behavior
+
+For a branch-limited actor, attendance is visible only when approved deterministic,
+non-conflicting attribution establishes a branch within that actor's allowed scope.
+**UNATTRIBUTED** and **CONFLICT** attendance—and any unknown, broken, incomplete, or
+ambiguous variant—fails closed.
+
+An unauthorized branch-limited path must not reveal the record, record count,
+existence, timing, or employee association. Filtering and metadata must preserve that
+no-leak boundary. House authorization is always evaluated first; branch can only narrow
+it. Legitimate house-wide `owner`/`manager` visibility of house-owned attendance remains
+unchanged under existing authorization rules.
+
+## 9. Correction and replay semantics
+
+A normal time correction must not silently change attendance-location attribution.
+Time correction and location correction are conceptually distinct. Any future explicit
+location correction must be separately intentional, identify the correcting actor,
+record a reason, preserve original and corrected values, preserve audit history, and
+comply with the HR-2/HR-4 approval boundary when payroll-impacting.
+
+Offline replay or synchronization must preserve the original observation's approved
+branch evidence. Replay/server-processing time and current device location at replay
+must not replace event-time branch evidence.
+
+## 10. Implementation prerequisites and explicit boundary
+
+GAP-025 approves policy, not implementation. Before branch-limited runtime enforcement,
+a separately authorized gate must inspect and define the schema/provenance/runtime work
+needed to satisfy this contract, including durable event-to-segment integrity,
+operator-captured provenance, semantic-state handling, correction auditability, and
+scope-first no-leak verification. The design must preserve house ownership and may not
+assume current `metadata.segmentId` already satisfies that prerequisite.
+
+This document does not prescribe `branch_id` on `dtr_segments`, a provenance table, an
+assignment-history table, a backfill, an enum, an RPC signature, a UI mechanism, or a
+conflict-resolution workflow. No runtime, query, schema, migration, RLS/grant, API/UI,
+test, HR-2/HR-4 runtime, payroll, or POS work is authorized here.
+
+## 11. GAP-025 closure and GAP-024 handoff
+
+GAP-025 is **Closed — Contract Approved / Runtime Implementation Separately Gated**.
+Closure means all required semantic decisions are canonical; it does not mean runtime
+enforcement exists.
+
+GAP-024 is **not closed and not authorized for implementation**. After this contract is
+merged, GAP-024 may advance only through a new, explicit Foundation Security Correction
+planning/implementation gate. That future gate must first inspect the provenance,
+integrity, schema, authorization, and runtime changes necessary to implement this
+contract. This document itself authorizes none of that work.
+
+## Preserved historical evidence audit
+
+### Governing material reviewed and hierarchy reconciliation
 
 This audit explicitly applies the repository hierarchy of truth, in descending order:
 
@@ -97,7 +294,7 @@ Options 1 and 2 may describe only authorization visibility and must not erase DT
 or weaken the Master Plan's completeness/correction requirements. All options must
 preserve HR-1 contracts and the HR-2/HR-4/payroll boundaries.
 
-### Outcome B revalidation after higher-order review
+### Outcome B revalidation after higher-order review (historical checkpoint)
 
 **CONFIRMED BY REPOSITORY EVIDENCE:** **yes, Outcome B remains valid.** The Operating
 Principles, Roadmap, and HR Master Plan constrain how Agui may decide and implement a
@@ -105,9 +302,10 @@ contract, but none supplies the missing branch-at-attendance-time data, durable
 event-to-segment relationship, transfer chronology, source precedence, or null/conflict
 algorithm. They therefore do not eliminate the repository-evidence gaps below.
 
-Outcome B remains an evidence finding only; owner decision is required; no contract or
-option is approved; GAP-025 is not closed; and GAP-024 remains blocked. No higher-order
-conflict was found, and no higher-order document was modified.
+At that historical checkpoint, Outcome B remained an evidence finding only: owner
+decision was required, no contract or option was approved, GAP-025 was open, and
+GAP-024 was blocked. Sections 2–11 now supersede only that decision status; the
+underlying evidence and absence of higher-order conflict remain valid.
 
 ## Schema and migration evidence reviewed
 
@@ -270,12 +468,13 @@ Every cell is an evidence assessment, not an architectural preference.
    needs an explicit owner-approved conflict/split rule. This is semantic guidance only,
    not a schema proposal.
 
-## UNAPPROVED OWNER DECISION OPTIONS
+## Historical unapproved owner-decision options
 
-The four bounded options remain compatible with higher-order governance only under the
-constraints stated in the HR Master Plan reconciliation above. They are alternatives
-for owner decision, not canonical architecture, approval, or implementation authority.
-No preferred option is selected by this record.
+At the evidence-audit checkpoint, the four bounded options below were alternatives,
+not canonical architecture or implementation authority. Their unapproved status at that
+time is preserved as decision history. The later owner decision in Sections 2–11 adopts
+a bounded hybrid of event evidence, explicit manual capture, and fail-closed behavior;
+it does not retroactively make any historical option an approved implementation design.
 
 ### Option 1 — Fail closed for all derived DTR branch reads until explicit durable attribution exists
 
@@ -314,15 +513,15 @@ can misattribute multi-branch/off-schedule work. **Later capability required:** 
 employee assignments with precise time-zone/boundary and overlap semantics, plus an
 owner-approved precedence rule. That model does not exist today.
 
-**UNRESOLVED — OWNER DECISION REQUIRED:** choose an option or an explicitly bounded
-combination; decide whether unattributed manual/legacy rows are permanently house-only,
-temporarily quarantined from branch-limited visibility, or administratively adjudicated;
-decide event integrity/cardinality and IN/OUT branch conflict behavior; define transfer
-effective instant/time zone; and decide supported cross-branch/same-day work semantics.
+**HISTORICAL DECISION REQUEST (now resolved semantically):** the audit asked the owner
+to select a bounded approach and decide legacy, integrity, conflict, transfer, and
+multi-branch semantics. Sections 2–11 record the resulting approved contract. Runtime
+mechanisms, integrity design, and adjudication workflow remain separately gated.
 
-## Draft safety envelope common to any future contract
+## Historical draft safety envelope
 
-These recommendations do not select an evidence source:
+These recommendations were unapproved at the audit checkpoint. They are retained as
+history; their approved successors are stated canonically in Sections 2–11:
 
 - **PROPOSED CONTRACT RULE — OWNER APPROVAL REQUIRED:** resolve house authorization
   first; branch may only narrow it. Never infer a house grant from branch evidence.
@@ -340,24 +539,24 @@ These recommendations do not select an evidence source:
   not silently reattribute location. An explicit location correction requires distinct
   audited semantics.
 
-## GAP-024 prerequisite and findings
+## Historical GAP-024 prerequisite and findings
 
-GAP-024 remains blocked. Before implementation the owner must approve a complete choice
-covering canonical evidence, temporal meaning, linkage integrity, precedence, null and
-conflict behavior, transfers, multi-branch/same-day work, manual/legacy records,
-correction/replay, and branch-limited deny/no-leak behavior. Any required data-model
-capability must then be separately planned and authorized; this record authorizes none.
+At the audit checkpoint, GAP-024 was blocked because no complete attribution contract
+had been approved. Sections 2–11 now satisfy that semantic prerequisite, but GAP-024
+remains blocked from implementation until a new explicit Foundation Security Correction
+planning/implementation gate inspects and authorizes the required design and runtime
+work. GAP-025 closure is not GAP-024 implementation authorization.
 
-**New P1 finding:** kiosk event branch is not currently a universal deterministic bridge
-to DTR: linkage is one-way JSON metadata without relational completeness or immutability,
-while manual/bulk origins have no branch fact. This is the precise foundation blocker,
-not evidence that GAP-024 may fail open.
+**P1 finding retained:** kiosk event branch is not currently a universal deterministic
+bridge to DTR: linkage is one-way JSON metadata without relational completeness or
+immutability, while manual/bulk origins have no branch fact. This remains an
+implementation prerequisite, not permission to fail open.
 
-**New P2 finding:** a single open segment can be opened at one branch and closed from a
-different branch because kiosk open-segment selection is employee-based and not device/
-branch-bound. Both event branches may survive, but the segment contract has no rule for
-that conflict. Owner intent and future remediation are not decided here.
+**P2 finding retained as GAP-026:** a single open segment can be opened at one branch
+and closed from another because kiosk open-segment selection is employee-based and not
+device/branch-bound. The approved semantic response is explicit conflict under the
+one-segment-one-location invariant; the runtime correction remains unimplemented and
+separately gated.
 
-No contradiction requiring edits to the canonical branch-scope model or enforcement
-plan was found. Their statement that derivation remains deferred accurately describes
-the repository.
+No higher-order contradiction was found. No new P1/P2 finding was introduced by the
+owner-decision canonicalization.
