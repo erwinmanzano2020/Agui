@@ -197,12 +197,17 @@ But this remains a restriction mechanism, never an ownership or grant mechanism.
 | `kiosk_devices` | branch-bound operational record within house | strict restriction |
 | `kiosk_events` | branch-bound operational record within house | strict restriction |
 | `employees` | house-owned | optional / contextual |
-| `dtr_segments` | house-owned | TBD |
+| `dtr_segments` | house-owned | approved temporal attendance-location attribution; runtime separately gated |
 | `schedules` | mixed | likely restricted |
 
 Notes:
 - “branch-bound operational record within house” means operationally anchored to a branch while still under house ownership.
-- `dtr_segments` branch handling remains explicitly unresolved.
+- `dtr_segments` follows the approved semantic contract in
+  `docs/devlog/gap-025-dtr-temporal-branch-attribution-contract.md`: kiosk event-time
+  evidence or explicit authorized manual provenance may establish attendance location;
+  unknown or conflicting attribution fails closed for branch-limited actors. Durable
+  linkage, storage, correction, and enforcement mechanisms remain separately gated and
+  unimplemented.
 
 ---
 
