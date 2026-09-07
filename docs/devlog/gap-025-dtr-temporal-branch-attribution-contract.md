@@ -42,8 +42,9 @@ The owner approves a bounded hybrid contract:
 1. kiosk-origin attendance uses integrity-valid event-at-attendance-time branch
    evidence, once separately authorized implementation supplies and verifies durable
    observation-to-segment linkage;
-2. future manual/administrative attendance requires explicit operator-captured
-   attendance-location provenance; and
+2. future manual/administrative and compliant bulk/import attendance requires
+   explicit authorized attendance-location provenance that applies deterministically
+   to each resulting attendance fact; and
 3. legacy, unknown, incomplete, broken, ambiguous, or conflicting attribution fails
    closed for branch-limited actors while remaining a valid house-owned attendance fact
    visible to legitimate house-wide authority under existing authorization rules.
@@ -88,7 +89,49 @@ provenance. It must not be silently inferred from current employee branch, curre
 device branch, schedule, or operator location. This requirement defines semantics only;
 it does not define a column, table, RPC, API input, or UI control.
 
-### 3.5 Transfers, multi-branch work, and schedules
+### 3.5 Bulk/import creation and replacement
+
+Bulk/import is a transport, creation, or replacement mechanism—not attendance-location
+provenance. A `bulk` source label, import/upload mechanism, API route, source file,
+filename, workbook context, batch, batch destination, upload context, or operator
+session does not by itself establish where attendance occurred. Bulk/import must not
+silently derive historical attendance location from `employees.branch_id`, current
+employee branch, current device branch, schedule, uploader/operator current branch,
+`source = bulk`, or viewing-time branch.
+
+When a future authorized bulk/import workflow can authoritatively establish the actual
+branch where attendance occurred, every resulting attendance fact must carry explicit,
+authorized, deterministic actual-attendance branch provenance under the same semantic
+standard as authorized manual/admin capture. The provenance must apply deterministically
+to each resulting fact. This contract does not choose a per-row field, a batch field
+with validated homogeneous semantics, a provenance relation, or any other storage
+mechanism; that choice belongs to a separately authorized GAP-024/Foundation Security
+Correction gate.
+
+If bulk/import creates a valid attendance fact without approved deterministic
+attendance-location provenance, the fact is **UNATTRIBUTED**. It remains valid
+house-owned DTR and visible to legitimate house-wide `owner`/`manager` authority under
+existing authorization rules. For branch-limited actors it fails closed without
+revealing the record, count, existence, timing, or employee association. This applies
+especially to legacy, backfill, and import data whose historical location cannot be
+honestly reconstructed. Unknown branch remains distinct from unknown house ownership;
+attribution must not be fabricated merely to make a fact branch-visible.
+
+Bulk replacement or delete/recreate behavior must not silently destroy, remove, change,
+or rederive approved attendance-location provenance. If a replacement represents the
+same underlying attendance fact, its approved attribution is preserved semantically
+unless an explicit authorized location correction occurs. Replacement is not permission
+to infer current employee branch or convert event-at-time evidence into current-context
+evidence. If bulk/import intentionally changes location, it is a location correction
+and must be intentional, identify the authorized actor and reason, preserve original
+and corrected values and audit history, and comply with the HR-2/HR-4 approval boundary
+when payroll-impacting.
+
+Explicit bulk/import provenance that conflicts with other approved integrity-valid
+evidence produces **CONFLICT**. Imported branch, kiosk event, latest write, and existing
+row have no automatic precedence. Authorized, auditable resolution is required.
+
+### 3.6 Transfers, multi-branch work, and schedules
 
 Changing `employees.branch_id` must not alter existing historical attendance
 attribution. That optional field remains current operational context and may support
@@ -112,8 +155,9 @@ tables, or runtime code.
 - **ATTRIBUTED — KIOSK EVENT EVIDENCE:** integrity-valid event-at-time evidence
   deterministically establishes the attendance branch under the approved provenance
   contract.
-- **ATTRIBUTED — AUTHORIZED MANUAL CAPTURE:** an authorized operator explicitly captured
-  the branch where the attendance occurred as attendance provenance.
+- **ATTRIBUTED — AUTHORIZED EXPLICIT CAPTURE:** an authorized administrative creation
+  mechanism explicitly captured deterministic actual-attendance branch provenance.
+  This class covers compliant manual/admin entry and compliant bulk/import entry.
 - **UNATTRIBUTED:** no approved deterministic branch evidence exists, including legacy
   or incomplete evidence.
 - **CONFLICT:** relevant branch facts disagree, or evidence integrity is ambiguous.
@@ -145,9 +189,10 @@ existing authorization rules, but unsafe for branch-limited visibility until an
 explicit, auditable adjudication under a future approved process.
 
 Unknown, missing, broken, incomplete, or ambiguous evidence is **UNATTRIBUTED**.
-Contradictory integrity-valid observations or disagreement between event evidence and
-manual provenance is **CONFLICT**. A conflict remains explicit until an authorized,
-auditable correction process resolves it; no implicit precedence is approved.
+Contradictory integrity-valid observations or disagreement among event evidence,
+manual/admin provenance, and explicit bulk/import provenance is **CONFLICT**. A
+conflict remains explicit until an authorized, auditable correction process resolves
+it; no implicit precedence is approved.
 
 ## 7. GAP-026 cross-branch IN/OUT rule
 
@@ -195,12 +240,14 @@ must not replace event-time branch evidence.
 GAP-025 approves policy, not implementation. Before branch-limited runtime enforcement,
 a separately authorized gate must inspect and define the schema/provenance/runtime work
 needed to satisfy this contract, including durable event-to-segment integrity,
-operator-captured provenance, semantic-state handling, correction auditability, and
-scope-first no-leak verification. The design must preserve house ownership and may not
+operator-captured manual/bulk/import provenance, replacement preservation,
+semantic-state handling, correction auditability, and scope-first no-leak verification.
+The design must preserve house ownership and may not
 assume current `metadata.segmentId` already satisfies that prerequisite.
 
-This document does not prescribe `branch_id` on `dtr_segments`, a provenance table, an
-assignment-history table, a backfill, an enum, an RPC signature, a UI mechanism, or a
+This document does not prescribe `branch_id` on `dtr_segments`, an import provenance
+table, an assignment-history table, a backfill, an enum, an RPC signature, a UI
+mechanism, or a
 conflict-resolution workflow. No runtime, query, schema, migration, RLS/grant, API/UI,
 test, HR-2/HR-4 runtime, payroll, or POS work is authorized here.
 

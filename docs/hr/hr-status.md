@@ -313,7 +313,13 @@ Kiosk-origin attendance canonically uses integrity-valid event-at-attendance-tim
 evidence, but current JSON `metadata.segmentId` is not sufficient enforcement
 infrastructure; separately authorized implementation must provide and verify durable
 observation-to-segment integrity. Future manual/admin attendance requires explicit
-authorized-operator capture of the branch where attendance occurred. Legacy or
+authorized-operator capture of the branch where attendance occurred. Bulk/import is a
+transport or replacement mechanism, not provenance: when it authoritatively establishes
+actual attendance location, explicit authorized provenance must apply deterministically
+to each resulting fact; otherwise the fact is **UNATTRIBUTED**. Bulk delete/recreate must
+preserve existing approved attribution for the same underlying fact unless an explicit,
+audited location correction occurs. Conflicting bulk/import and other integrity-valid
+evidence is **CONFLICT**, with no automatic precedence. Legacy, backfill, import, or
 otherwise unattributed house-owned attendance remains valid and visible to legitimate
 house-wide authority, but unknown, broken, incomplete, ambiguous, or conflicting
 evidence fails closed with no record/count/existence/timing/employee-association leak
