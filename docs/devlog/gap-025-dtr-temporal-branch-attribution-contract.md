@@ -101,12 +101,12 @@ to the expected exact state, it is **UNATTRIBUTED** when branch facts agree, or
 A completed kiosk segment requires exactly one integrity-valid logical IN and exactly
 one integrity-valid logical OUT. Both observations must correspond to the same house,
 employee, underlying DTR segment/attendance fact, and attendance branch. An exact,
-agreeing pair may establish **ATTRIBUTED — KIOSK EVENT EVIDENCE**. If an expected IN or
-OUT is missing, invalid, or cannot be integrity-validated, the completed segment is
-**UNATTRIBUTED** for branch-limited visibility. If more than one distinct valid IN or
-more than one distinct valid OUT remains, the segment is **UNATTRIBUTED** when all
-established branch facts agree; exact-cardinality failure is not conflict. It is
-**CONFLICT** only when the established integrity-valid branch facts disagree.
+agreeing pair may establish **ATTRIBUTED — KIOSK EVENT EVIDENCE**. If established
+integrity-valid branch facts disagree, the segment is **CONFLICT** even when an expected
+IN/OUT is also missing or invalid or cardinality also fails. Otherwise, a missing,
+invalid, or non-validatable expected IN/OUT is **UNATTRIBUTED** for branch-limited
+visibility. More than one distinct valid IN or OUT is **UNATTRIBUTED** when all
+established valid branch facts agree, but **CONFLICT** when they disagree.
 
 Multiple physical event rows do not automatically mean conflict. They may represent one
 logical observation only when a future separately approved integrity/idempotency
@@ -118,6 +118,9 @@ ambiguous/incomplete and the segment is **UNATTRIBUTED**. If multiple distinct,
 integrity-valid logical observations remain and establish different branches, the
 segment is **CONFLICT**.
 
+The matrix applies conflict classification first; every **UNATTRIBUTED** row assumes no
+established integrity-valid branch disagreement.
+
 | Segment state | Canonical kiosk evidence | Semantic result |
 |---|---|---|
 | Open/incomplete | Exactly one valid logical IN, zero OUT, no conflict | **ATTRIBUTED** |
@@ -128,7 +131,7 @@ segment is **CONFLICT**.
 | Completed | More than one distinct valid IN and/or OUT; same branch | **UNATTRIBUTED** |
 | Completed | Missing, invalid, or ambiguous expected IN or OUT | **UNATTRIBUTED** |
 | Completed | Valid branch facts disagree | **CONFLICT** |
-| Any | Unresolved duplicate/replay/cardinality ambiguity | **UNATTRIBUTED** |
+| Any | Unresolved duplicate/replay/cardinality ambiguity; no valid branch disagreement | **UNATTRIBUTED** |
 
 This is a semantic cardinality contract only. It creates no runtime enum, database
 constraint, event-uniqueness rule, storage design, or event-matching/idempotency code.
@@ -307,42 +310,71 @@ Schedules describe planned work, not proof of actual attendance location. Schedu
 branch alone cannot canonically attribute DTR because people may work off schedule,
 substitute, assist another branch temporarily, or attend somewhere other than planned.
 
-## 4. Attribution classes
+## 4. Attribution classes and canonical classification order
 
 These mutually exclusive conceptual semantic states do not create runtime enums,
-schema, columns, tables, or code:
+schema, columns, tables, or code. Apply this ordered classification:
 
-- **ATTRIBUTED:** a complete integrity-valid canonical evidence set exists and
-  deterministically establishes exactly one attendance branch.
+1. **Collect established integrity-valid branch facts.** Determine which facts satisfy
+   the canonical provenance/integrity contract. Malformed, broken, unresolved, or
+   integrity-uncertain evidence does not become an established fact merely because it
+   contains a branch-looking value.
+2. **Classify valid disagreement as CONFLICT.** If two or more established
+   integrity-valid facts identify different branches, the result is **CONFLICT**, even
+   when evidence is also missing, excessive, incomplete, ambiguous, or cardinality-
+   invalid.
+3. **Otherwise classify insufficient evidence as UNATTRIBUTED.** When no established
+   valid branch disagreement exists but the applicable evidence set is missing, broken,
+   malformed, uncertain, ambiguous, incomplete, or cardinality-invalid, the result is
+   **UNATTRIBUTED**.
+4. **Classify complete agreeing evidence as ATTRIBUTED.** Only a complete,
+   integrity-valid, applicable-cardinality evidence set that deterministically
+   establishes exactly one branch without valid disagreement is **ATTRIBUTED**.
+
+Definitions under that order:
+
+- **ATTRIBUTED:** the applicable canonical evidence set is complete and integrity-valid,
+  satisfies exact cardinality, and establishes exactly one branch without established
+  valid disagreement.
   - **ATTRIBUTED — KIOSK EVENT EVIDENCE:** the applicable complete logical-observation
-    set in Section 3.3 establishes one event-time branch without conflicting valid
-    branch facts.
+    set in Section 3.3 establishes one event-time branch.
   - **ATTRIBUTED — AUTHORIZED EXPLICIT CAPTURE:** an authorized administrative creation
-    mechanism explicitly captured deterministic actual-attendance branch provenance.
-    This class covers compliant manual/admin and bulk/import entry.
-- **UNATTRIBUTED:** a complete integrity-valid canonical evidence set cannot be
-  established, so the system cannot safely establish a canonical branch fact. This
-  includes missing required evidence, broken or malformed linkage, an incomplete
-  canonical observation set, a missing expected kiosk boundary observation, unresolved
-  duplicate/cardinality ambiguity, excess same-branch logical IN or OUT observations,
-  exact-cardinality failure, integrity-uncertain evidence, legacy attendance
-  without deterministic provenance, and bulk/import attendance without approved
-  deterministic provenance. **UNATTRIBUTED does not mean that two valid branch facts
-  disagree.**
-- **CONFLICT:** two or more integrity-valid canonical branch facts are established but
-  disagree on branch. Examples include a valid kiosk IN in Branch A and valid kiosk OUT
-  in Branch B, valid explicit administrative provenance disagreeing with valid canonical
-  event evidence, or valid bulk/import provenance disagreeing with another valid
-  canonical branch fact. **CONFLICT requires valid contradictory branch facts; missing,
-  malformed, incomplete, duplicate-ambiguous, or integrity-uncertain evidence alone is
-  UNATTRIBUTED.**
+    mechanism explicitly captured deterministic actual-attendance branch provenance,
+    including compliant manual/admin and bulk/import entry.
+- **CONFLICT:** two or more established integrity-valid canonical branch facts disagree.
+  **CONFLICT takes classification precedence** over simultaneous incompleteness,
+  ambiguity, excess observations, or exact-cardinality failure.
+- **UNATTRIBUTED:** no established valid branch disagreement exists, but a complete
+  canonical evidence set cannot be established. This includes missing observations,
+  broken/malformed linkage, incomplete observation sets, unresolved duplicate/replay
+  ambiguity, excess same-branch logical observations, exact-cardinality failure,
+  integrity-uncertain evidence, and legacy or bulk/import attendance without approved
+  provenance. A malformed branch-looking candidate does not create conflict.
 
-The states do not overlap: inability to establish a complete integrity-valid evidence
-set is **UNATTRIBUTED**; disagreement between multiple established integrity-valid
-branch facts is **CONFLICT**. Valid deterministic evidence is accepted only when
-complete and non-conflicting. The system must not automatically choose IN, OUT, manual
-or bulk/import attribution, latest event, employee branch, current device, or schedule
-as the winner.
+Conflict precedence is classification precedence only. It is not source or branch
+precedence, IN-over-OUT, OUT-over-IN, kiosk-over-manual, manual-over-kiosk, bulk/import-
+over-event, or latest-write-wins. It selects no winning branch or evidence source;
+authorized, auditable correction/adjudication remains required. Both **UNATTRIBUTED**
+and **CONFLICT** remain fail closed for branch-limited access.
+
+| Evidence | Result |
+|---|---|
+| Exact valid IN + OUT, both Branch A | **ATTRIBUTED** |
+| Two valid INs Branch A + valid OUT Branch A | **UNATTRIBUTED** |
+| Valid IN Branch A + valid IN Branch B + valid OUT Branch A | **CONFLICT** |
+| Valid IN Branch A + valid OUT Branch B | **CONFLICT** |
+| Valid IN Branch A + missing OUT on completed segment | **UNATTRIBUTED** |
+| Valid IN Branch A + malformed candidate Branch B evidence | **UNATTRIBUTED** |
+| Valid IN Branch A + integrity-valid manual provenance Branch B | **CONFLICT** |
+| Excess same-branch valid observations only | **UNATTRIBUTED** |
+| Excess observations containing valid contradictory branches | **CONFLICT** |
+| No deterministic branch evidence | **UNATTRIBUTED** |
+
+The mixed example of valid IN Branch A, another valid IN Branch B, and valid OUT Branch
+A is **CONFLICT**, not UNATTRIBUTED: cardinality fails, but established valid branch
+facts disagree and Step 2 takes precedence. Conversely, two valid same-branch INs plus
+a same-branch OUT is **UNATTRIBUTED** because cardinality fails without valid branch
+disagreement.
 
 ## 5. Temporal semantics
 
@@ -365,12 +397,12 @@ viewer context. They remain visible to legitimate house-wide authority according
 existing authorization rules, but unsafe for branch-limited visibility until an
 explicit, auditable adjudication under a future approved process.
 
-Missing, broken, malformed, incomplete, duplicate-ambiguous, or integrity-uncertain
-evidence is **UNATTRIBUTED** because no complete integrity-valid canonical set can be
-established. Only disagreement among two or more established integrity-valid branch
-facts—including event, manual/admin, or bulk/import provenance—is **CONFLICT**. A
-conflict remains explicit until an authorized, auditable correction process resolves
-it; no implicit precedence is approved.
+Apply Section 4's order: disagreement among established integrity-valid branch facts
+is **CONFLICT** first, including when other evidence is incomplete or cardinality-
+invalid. Otherwise missing, broken, malformed, incomplete, duplicate-ambiguous,
+cardinality-invalid, or integrity-uncertain evidence is **UNATTRIBUTED**. A conflict
+remains explicit until authorized, auditable resolution; classification precedence does
+not select a winning source or branch.
 
 ## 7. GAP-026 cross-branch IN/OUT rule
 

@@ -207,9 +207,10 @@ Notes:
   evidence or explicit authorized manual/admin or bulk/import provenance may establish
   attendance location when deterministic for each fact. Bulk/import is not itself
   provenance. Branch visibility requires a complete integrity-valid canonical evidence
-  set: missing, incomplete, malformed, integrity-uncertain, or duplicate-ambiguous
-  evidence is **UNATTRIBUTED** and fails closed; **CONFLICT** requires multiple
-  established valid branch facts that disagree. Durable linkage, logical-observation
+  set. Classify established valid branch disagreement as **CONFLICT** first; otherwise
+  incomplete, invalid, ambiguous, or cardinality-failed evidence is **UNATTRIBUTED**;
+  complete agreeing evidence is **ATTRIBUTED**. Both non-attributed states fail closed.
+  Durable linkage, logical-observation
   cardinality, storage, replacement/correction, and enforcement mechanisms remain
   separately gated and unimplemented. Branch visibility follows the active canonical
   attribution; proposed, rejected, and historical correction values do not independently
