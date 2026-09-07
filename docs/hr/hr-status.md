@@ -330,7 +330,16 @@ that disagree are CONFLICT. An open kiosk segment can be attributed by exactly o
 logical IN with no conflict; a completed kiosk segment requires a valid logical IN and
 OUT for the same house, employee, attendance fact, and branch. A missing expected
 boundary or unresolved duplicate ambiguity is UNATTRIBUTED; a valid cross-branch pair is
-CONFLICT. These clarified semantics are part of GAP-025 closure, not implemented runtime.
+CONFLICT. Excess distinct same-branch logical INs or OUTs also fail exact cardinality
+and are UNATTRIBUTED, not conflict. These clarified semantics are part of GAP-025
+closure, not implemented runtime.
+
+Branch-limited visibility follows the **active canonical attribution**. A proposed or
+rejected A → B correction leaves A active and gives B no access; only applicable
+authorized approval/finalization makes B active. Pending proposals from UNATTRIBUTED or
+CONFLICT remain fail closed. Payroll-impacting corrected attribution requires HR-4
+approval before activation, while original/proposed/rejected values remain audit lineage
+and independently grant no branch access.
 
 Attendance location belongs to the attendance fact, not current employee/device branch,
 viewer, correcting operator, or schedule. Transfers do not rewrite history; schedules

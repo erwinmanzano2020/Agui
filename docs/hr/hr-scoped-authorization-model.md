@@ -211,7 +211,9 @@ Notes:
   evidence is **UNATTRIBUTED** and fails closed; **CONFLICT** requires multiple
   established valid branch facts that disagree. Durable linkage, logical-observation
   cardinality, storage, replacement/correction, and enforcement mechanisms remain
-  separately gated and unimplemented.
+  separately gated and unimplemented. Branch visibility follows the active canonical
+  attribution; proposed, rejected, and historical correction values do not independently
+  grant branch access.
 
 ---
 

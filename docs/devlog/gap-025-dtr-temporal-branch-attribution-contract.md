@@ -83,21 +83,30 @@ segment. This contract deliberately does not choose a schema mechanism.
 
 #### Canonical kiosk logical-observation set
 
-An open/incomplete kiosk segment may be **ATTRIBUTED — KIOSK EVENT EVIDENCE** when
-exactly one canonical integrity-valid logical IN observation is linked to the segment,
-deterministically establishes the same house, same employee, and event-time attendance
-branch, and no integrity-valid branch fact conflicts with it. The absent OUT is expected
-while the segment is legitimately open; it does not by itself make that open segment
-unattributed.
+After any future separately approved deterministic duplicate/replay collapse, the
+canonical evidence set uses exact logical-observation cardinality.
 
-A completed kiosk segment requires a complete canonical pair: one integrity-valid
-logical IN and one integrity-valid logical OUT. Both observations must correspond to
-the same house, employee, underlying DTR segment/attendance fact, and attendance branch.
-An agreeing pair may establish **ATTRIBUTED — KIOSK EVENT EVIDENCE**. If an expected IN
-or OUT is missing, invalid, or cannot be integrity-validated, the completed segment is
-**UNATTRIBUTED** for branch-limited visibility. If both valid observations establish
-different branches, the segment is **CONFLICT** under the one-segment-one-location
-invariant.
+An open/incomplete kiosk segment may be **ATTRIBUTED — KIOSK EVENT EVIDENCE** only when
+exactly one canonical integrity-valid logical IN and zero logical OUT observations are
+linked to the legitimately open segment, the IN deterministically establishes the same
+house, same employee, and event-time attendance branch, and no integrity-valid branch
+fact conflicts with it. The absent OUT is expected while legitimately open.
+
+If more than one distinct integrity-valid logical IN remains, the open segment is
+**UNATTRIBUTED** even when every IN names the same branch. If one or more logical OUTs
+also remain while the segment is represented as open and the set cannot be reconciled
+to the expected exact state, it is **UNATTRIBUTED** when branch facts agree, or
+**CONFLICT** only when established integrity-valid branch facts disagree.
+
+A completed kiosk segment requires exactly one integrity-valid logical IN and exactly
+one integrity-valid logical OUT. Both observations must correspond to the same house,
+employee, underlying DTR segment/attendance fact, and attendance branch. An exact,
+agreeing pair may establish **ATTRIBUTED — KIOSK EVENT EVIDENCE**. If an expected IN or
+OUT is missing, invalid, or cannot be integrity-validated, the completed segment is
+**UNATTRIBUTED** for branch-limited visibility. If more than one distinct valid IN or
+more than one distinct valid OUT remains, the segment is **UNATTRIBUTED** when all
+established branch facts agree; exact-cardinality failure is not conflict. It is
+**CONFLICT** only when the established integrity-valid branch facts disagree.
 
 Multiple physical event rows do not automatically mean conflict. They may represent one
 logical observation only when a future separately approved integrity/idempotency
@@ -111,14 +120,15 @@ segment is **CONFLICT**.
 
 | Segment state | Canonical kiosk evidence | Semantic result |
 |---|---|---|
-| Open/incomplete | One valid logical IN; no conflicting valid branch fact | **ATTRIBUTED** |
-| Open/incomplete | Missing, invalid, or ambiguous IN | **UNATTRIBUTED** |
+| Open/incomplete | Exactly one valid logical IN, zero OUT, no conflict | **ATTRIBUTED** |
+| Open/incomplete | More than one distinct valid IN; same branch | **UNATTRIBUTED** |
+| Open/incomplete | Excess logical IN/OUT observations; no branch disagreement | **UNATTRIBUTED** |
 | Open/incomplete | Valid branch facts disagree | **CONFLICT** |
-| Completed | Valid logical IN and valid logical OUT; same branch | **ATTRIBUTED** |
+| Completed | Exactly one valid IN and exactly one valid OUT; same branch | **ATTRIBUTED** |
+| Completed | More than one distinct valid IN and/or OUT; same branch | **UNATTRIBUTED** |
 | Completed | Missing, invalid, or ambiguous expected IN or OUT | **UNATTRIBUTED** |
-| Completed | Valid IN and OUT disagree on branch | **CONFLICT** |
-| Any | Unresolved duplicate/cardinality ambiguity | **UNATTRIBUTED** |
-| Any | Multiple valid contradictory branch facts | **CONFLICT** |
+| Completed | Valid branch facts disagree | **CONFLICT** |
+| Any | Unresolved duplicate/replay/cardinality ambiguity | **UNATTRIBUTED** |
 
 This is a semantic cardinality contract only. It creates no runtime enum, database
 constraint, event-uniqueness rule, storage design, or event-matching/idempotency code.
@@ -208,7 +218,8 @@ schema, columns, tables, or code:
   established, so the system cannot safely establish a canonical branch fact. This
   includes missing required evidence, broken or malformed linkage, an incomplete
   canonical observation set, a missing expected kiosk boundary observation, unresolved
-  duplicate/cardinality ambiguity, integrity-uncertain evidence, legacy attendance
+  duplicate/cardinality ambiguity, excess same-branch logical IN or OUT observations,
+  exact-cardinality failure, integrity-uncertain evidence, legacy attendance
   without deterministic provenance, and bulk/import attendance without approved
   deterministic provenance. **UNATTRIBUTED does not mean that two valid branch facts
   disagree.**
@@ -292,6 +303,53 @@ location correction must be separately intentional, identify the correcting acto
 record a reason, preserve original and corrected values, preserve audit history, and
 comply with the HR-2/HR-4 approval boundary when payroll-impacting.
 
+**Active canonical attribution** means the one branch attribution currently permitted
+to control branch-limited visibility. This is semantic terminology only; it does not
+create a column, enum, correction workflow, or access implementation.
+
+For an active Branch A attribution with a proposed correction to Branch B:
+
+- while pending or proposed, Branch A remains active and Branch B is proposal/audit data
+  only; B gains no branch-limited visibility, and A does not lose visibility merely
+  because a proposal exists;
+- if rejected, Branch A remains active, Branch B never becomes active, and B remains
+  rejected audit history that grants no access; and
+- only after the applicable authorized approval/finalization does Branch B become
+  active. Branch A then stops governing current branch-limited visibility but remains
+  historical lineage; preserving A does not continue to grant Branch A access.
+
+Pending or rejected lineage is a workflow record, not two simultaneous active branch
+facts, and does not create **CONFLICT** merely because original and proposed values are
+stored. Proposed/historical values must not independently grant access. The contract
+prohibits both branches receiving access from lineage, latest-write-wins visibility
+before approval, correction-actor branch attribution, and current-employee-branch
+fallback.
+
+If the existing fact is **UNATTRIBUTED** or **CONFLICT**, a pending location proposal
+does not make it branch-visible; it remains fail closed for branch-limited actors. Once
+an authorized final correction establishes one complete deterministic attribution,
+exactly that corrected branch becomes active. Prior unattributed/conflicting evidence
+remains audit history but neither keeps the corrected fact hidden nor creates continuing
+multi-branch visibility.
+
+| Base attribution | Correction state | Active branch visibility |
+|---|---|---|
+| Branch A | No correction | Branch A |
+| Branch A | Pending A → B | Branch A |
+| Branch A | Rejected A → B | Branch A |
+| Branch A | Approved/finalized A → B | Branch B |
+| **UNATTRIBUTED** | Pending proposal to B | Fail closed |
+| **UNATTRIBUTED** | Finalized valid correction to B | Branch B |
+| **CONFLICT** | Pending proposal to B | Fail closed |
+| **CONFLICT** | Finalized valid correction to B | Branch B |
+
+HR-2 records the correction; HR-4 owns required payroll-impacting approval. A
+payroll-impacting corrected attribution cannot become active or payroll-ready before
+HR-4 approval, and rejected values cannot become payroll-ready. A future
+non-payroll-impacting correction uses its separately approved finalization authority;
+this contract invents no workflow. Legitimate owner/manager house-wide visibility is
+unchanged throughout.
+
 Offline replay or synchronization must preserve the original observation's approved
 branch evidence. Replay/server-processing time and current device location at replay
 must not replace event-time branch evidence.
@@ -302,14 +360,14 @@ GAP-025 approves policy, not implementation. Before branch-limited runtime enfor
 a separately authorized gate must inspect and define the schema/provenance/runtime work
 needed to satisfy this contract, including durable event-to-segment integrity,
 operator-captured manual/bulk/import provenance, replacement preservation,
-semantic-state handling, correction auditability, and scope-first no-leak verification.
-The design must preserve house ownership and may not
-assume current `metadata.segmentId` already satisfies that prerequisite.
+semantic-state handling, exact cardinality, active-attribution correction visibility,
+correction auditability, and scope-first no-leak verification. The design must preserve
+house ownership and may not assume current `metadata.segmentId` already satisfies that prerequisite.
 
 This document does not prescribe `branch_id` on `dtr_segments`, an import provenance
-table, an assignment-history table, a backfill, an enum, an RPC signature, a UI
-mechanism, or a
-conflict-resolution workflow. No runtime, query, schema, migration, RLS/grant, API/UI,
+table, an assignment-history table, a backfill, a correction-state enum or
+`active_branch_id`, an RPC signature, a UI mechanism, or a conflict-resolution
+workflow. No runtime, query, schema, migration, RLS/grant, API/UI,
 test, HR-2/HR-4 runtime, payroll, or POS work is authorized here.
 
 ## 11. GAP-025 closure and GAP-024 handoff
