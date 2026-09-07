@@ -206,9 +206,11 @@ Notes:
   `docs/devlog/gap-025-dtr-temporal-branch-attribution-contract.md`: kiosk event-time
   evidence or explicit authorized manual/admin or bulk/import provenance may establish
   attendance location when deterministic for each fact. Bulk/import is not itself
-  provenance; without approved deterministic provenance its output is **UNATTRIBUTED**
-  and fails closed for branch-limited access. Conflicting evidence is **CONFLICT**.
-  Durable linkage, storage, replacement/correction, and enforcement mechanisms remain
+  provenance. Branch visibility requires a complete integrity-valid canonical evidence
+  set: missing, incomplete, malformed, integrity-uncertain, or duplicate-ambiguous
+  evidence is **UNATTRIBUTED** and fails closed; **CONFLICT** requires multiple
+  established valid branch facts that disagree. Durable linkage, logical-observation
+  cardinality, storage, replacement/correction, and enforcement mechanisms remain
   separately gated and unimplemented.
 
 ---

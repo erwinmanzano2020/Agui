@@ -81,6 +81,50 @@ after a separately authorized implementation provides and verifies sufficient du
 integrity and linkage between each relevant attendance observation and resulting
 segment. This contract deliberately does not choose a schema mechanism.
 
+#### Canonical kiosk logical-observation set
+
+An open/incomplete kiosk segment may be **ATTRIBUTED — KIOSK EVENT EVIDENCE** when
+exactly one canonical integrity-valid logical IN observation is linked to the segment,
+deterministically establishes the same house, same employee, and event-time attendance
+branch, and no integrity-valid branch fact conflicts with it. The absent OUT is expected
+while the segment is legitimately open; it does not by itself make that open segment
+unattributed.
+
+A completed kiosk segment requires a complete canonical pair: one integrity-valid
+logical IN and one integrity-valid logical OUT. Both observations must correspond to
+the same house, employee, underlying DTR segment/attendance fact, and attendance branch.
+An agreeing pair may establish **ATTRIBUTED — KIOSK EVENT EVIDENCE**. If an expected IN
+or OUT is missing, invalid, or cannot be integrity-validated, the completed segment is
+**UNATTRIBUTED** for branch-limited visibility. If both valid observations establish
+different branches, the segment is **CONFLICT** under the one-segment-one-location
+invariant.
+
+Multiple physical event rows do not automatically mean conflict. They may represent one
+logical observation only when a future separately approved integrity/idempotency
+mechanism deterministically proves that they are duplicates or replays of the same
+logical action. An approved idempotency key, canonical client-event identity, or another
+deterministic method might provide that proof, but this contract selects none. If
+apparently duplicate rows cannot be deterministically collapsed, the observation set is
+ambiguous/incomplete and the segment is **UNATTRIBUTED**. If multiple distinct,
+integrity-valid logical observations remain and establish different branches, the
+segment is **CONFLICT**.
+
+| Segment state | Canonical kiosk evidence | Semantic result |
+|---|---|---|
+| Open/incomplete | One valid logical IN; no conflicting valid branch fact | **ATTRIBUTED** |
+| Open/incomplete | Missing, invalid, or ambiguous IN | **UNATTRIBUTED** |
+| Open/incomplete | Valid branch facts disagree | **CONFLICT** |
+| Completed | Valid logical IN and valid logical OUT; same branch | **ATTRIBUTED** |
+| Completed | Missing, invalid, or ambiguous expected IN or OUT | **UNATTRIBUTED** |
+| Completed | Valid IN and OUT disagree on branch | **CONFLICT** |
+| Any | Unresolved duplicate/cardinality ambiguity | **UNATTRIBUTED** |
+| Any | Multiple valid contradictory branch facts | **CONFLICT** |
+
+This is a semantic cardinality contract only. It creates no runtime enum, database
+constraint, event-uniqueness rule, storage design, or event-matching/idempotency code.
+Those mechanisms remain for a separately authorized GAP-024/Foundation Security
+Correction gate.
+
 ### 3.4 Manual and future administrative attendance
 
 For every future manual/admin-created attendance fact, the authorized operator must
@@ -149,23 +193,39 @@ substitute, assist another branch temporarily, or attend somewhere other than pl
 
 ## 4. Attribution classes
 
-These are conceptual semantic states only. They do not create enums, schema, columns,
-tables, or runtime code.
+These mutually exclusive conceptual semantic states do not create runtime enums,
+schema, columns, tables, or code:
 
-- **ATTRIBUTED — KIOSK EVENT EVIDENCE:** integrity-valid event-at-time evidence
-  deterministically establishes the attendance branch under the approved provenance
-  contract.
-- **ATTRIBUTED — AUTHORIZED EXPLICIT CAPTURE:** an authorized administrative creation
-  mechanism explicitly captured deterministic actual-attendance branch provenance.
-  This class covers compliant manual/admin entry and compliant bulk/import entry.
-- **UNATTRIBUTED:** no approved deterministic branch evidence exists, including legacy
-  or incomplete evidence.
-- **CONFLICT:** relevant branch facts disagree, or evidence integrity is ambiguous.
+- **ATTRIBUTED:** a complete integrity-valid canonical evidence set exists and
+  deterministically establishes exactly one attendance branch.
+  - **ATTRIBUTED — KIOSK EVENT EVIDENCE:** the applicable complete logical-observation
+    set in Section 3.3 establishes one event-time branch without conflicting valid
+    branch facts.
+  - **ATTRIBUTED — AUTHORIZED EXPLICIT CAPTURE:** an authorized administrative creation
+    mechanism explicitly captured deterministic actual-attendance branch provenance.
+    This class covers compliant manual/admin and bulk/import entry.
+- **UNATTRIBUTED:** a complete integrity-valid canonical evidence set cannot be
+  established, so the system cannot safely establish a canonical branch fact. This
+  includes missing required evidence, broken or malformed linkage, an incomplete
+  canonical observation set, a missing expected kiosk boundary observation, unresolved
+  duplicate/cardinality ambiguity, integrity-uncertain evidence, legacy attendance
+  without deterministic provenance, and bulk/import attendance without approved
+  deterministic provenance. **UNATTRIBUTED does not mean that two valid branch facts
+  disagree.**
+- **CONFLICT:** two or more integrity-valid canonical branch facts are established but
+  disagree on branch. Examples include a valid kiosk IN in Branch A and valid kiosk OUT
+  in Branch B, valid explicit administrative provenance disagreeing with valid canonical
+  event evidence, or valid bulk/import provenance disagreeing with another valid
+  canonical branch fact. **CONFLICT requires valid contradictory branch facts; missing,
+  malformed, incomplete, duplicate-ambiguous, or integrity-uncertain evidence alone is
+  UNATTRIBUTED.**
 
-Valid deterministic evidence is accepted only when non-conflicting. This contract has
-no silent evidence-precedence ladder. If strong evidence conflicts, the state is
-**CONFLICT**; the system must not automatically choose IN, OUT, manual attribution,
-latest event, employee branch, current device, or schedule as the winner.
+The states do not overlap: inability to establish a complete integrity-valid evidence
+set is **UNATTRIBUTED**; disagreement between multiple established integrity-valid
+branch facts is **CONFLICT**. Valid deterministic evidence is accepted only when
+complete and non-conflicting. The system must not automatically choose IN, OUT, manual
+or bulk/import attribution, latest event, employee branch, current device, or schedule
+as the winner.
 
 ## 5. Temporal semantics
 
@@ -188,9 +248,10 @@ viewer context. They remain visible to legitimate house-wide authority according
 existing authorization rules, but unsafe for branch-limited visibility until an
 explicit, auditable adjudication under a future approved process.
 
-Unknown, missing, broken, incomplete, or ambiguous evidence is **UNATTRIBUTED**.
-Contradictory integrity-valid observations or disagreement among event evidence,
-manual/admin provenance, and explicit bulk/import provenance is **CONFLICT**. A
+Missing, broken, malformed, incomplete, duplicate-ambiguous, or integrity-uncertain
+evidence is **UNATTRIBUTED** because no complete integrity-valid canonical set can be
+established. Only disagreement among two or more established integrity-valid branch
+facts—including event, manual/admin, or bulk/import provenance—is **CONFLICT**. A
 conflict remains explicit until an authorized, auditable correction process resolves
 it; no implicit precedence is approved.
 

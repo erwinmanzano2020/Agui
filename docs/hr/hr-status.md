@@ -323,7 +323,14 @@ evidence is **CONFLICT**, with no automatic precedence. Legacy, backfill, import
 otherwise unattributed house-owned attendance remains valid and visible to legitimate
 house-wide authority, but unknown, broken, incomplete, ambiguous, or conflicting
 evidence fails closed with no record/count/existence/timing/employee-association leak
-for branch-limited actors.
+for branch-limited actors. **UNATTRIBUTED** and **CONFLICT** are non-overlapping:
+incomplete, missing, malformed, integrity-uncertain, or unresolved duplicate/cardinality
+evidence is UNATTRIBUTED, while two or more established integrity-valid branch facts
+that disagree are CONFLICT. An open kiosk segment can be attributed by exactly one valid
+logical IN with no conflict; a completed kiosk segment requires a valid logical IN and
+OUT for the same house, employee, attendance fact, and branch. A missing expected
+boundary or unresolved duplicate ambiguity is UNATTRIBUTED; a valid cross-branch pair is
+CONFLICT. These clarified semantics are part of GAP-025 closure, not implemented runtime.
 
 Attendance location belongs to the attendance fact, not current employee/device branch,
 viewer, correcting operator, or schedule. Transfers do not rewrite history; schedules
