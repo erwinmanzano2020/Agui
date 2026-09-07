@@ -218,7 +218,9 @@ Notes:
   ambiguous successors require independent canonical provenance. Fact access does not
   authorize full correction lineage; branch-limited projections expose only sanitized
   correction state and must not leak out-of-scope branch, actor, reason, or audit data.
-  This adds no new permission model.
+  A same-logical-observation time/boundary-value correction does not itself invalidate
+  attribution; changed observation membership, role, pairing, or fact association does
+  and requires independent provenance. This adds no new permission model.
 
 ---
 

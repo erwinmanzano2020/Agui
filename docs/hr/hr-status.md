@@ -349,7 +349,11 @@ merge, materially changed observation membership, and ambiguous mapping cannot i
 attribution mechanically; each successor needs independent approved provenance or is
 UNATTRIBUTED. One-to-one successors preserve predecessor UNATTRIBUTED/CONFLICT state
 unless separately resolved, and intentional location change uses the active-attribution
-correction lifecycle.
+correction lifecycle. Ordinary one-to-one timestamp or numeric-boundary correction may
+preserve same-fact attribution when the same logical IN/OUT identity, roles, pairing,
+and fact association remain; a date/day-bucket change alone does not break identity.
+Adding, removing, substituting, re-pairing, or reassigning observations changes
+membership and requires independent provenance, as do split and merge.
 
 Active attribution controls fact visibility, but ordinary branch-limited fact access
 uses only a sanitized correction-state projection; it does not disclose proposed or

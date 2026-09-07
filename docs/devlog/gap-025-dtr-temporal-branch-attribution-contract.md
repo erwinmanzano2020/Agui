@@ -189,11 +189,24 @@ A different database segment ID does not itself make the fact different. Convers
 equal employee, date, source label, approximate timestamp, batch membership, or a
 recreated employee/day row does not by itself prove fact identity.
 
-Corrected time values may remain the same fact only when they are linked one-to-one to
-the predecessor, correct the same logical observations, preserve auditable original and
-corrected values, and introduce no split, merge, addition, removal, substitution, or
-silent location change. Segment-ID equality and exact timestamp equality are not
-required; deterministic lineage and logical-observation identity are required.
+A timestamp or numeric segment boundary is a mutable value of a logical attendance
+observation. Changing `time_in`, `time_out`, another timestamp, calculated duration,
+calendar date/day bucket, or displayed/numeric segment start/end boundary does not by
+itself change logical observation identity or membership.
+
+A one-to-one authorized and auditable time correction may preserve the same fact and
+predecessor attribution/state when exactly one predecessor maps to one successor, the
+same logical observation or IN/OUT pair remains involved, IN remains that logical IN and
+OUT remains that logical OUT, and no observation is added, removed, substituted,
+re-paired, or reassigned to another fact; no fact is split or merged; and no location
+change occurs silently. Original and corrected values remain auditable. Segment-ID and
+exact timestamp equality are not required; deterministic lineage, logical-observation
+identity, role, pairing, and fact association are required.
+
+A corrected timestamp may move the fact to another calendar day or reporting bucket.
+That value change alone does not create a new fact. When the same logical observations
+remain under deterministic one-to-one lineage, existing attribution/state may remain
+attached. This contract defines no payroll or day-bucket recalculation implementation.
 
 If an **ATTRIBUTED** predecessor and its successor satisfy that full same-fact rule, the
 approved attribution may remain semantically attached to the successor. That is
@@ -219,10 +232,33 @@ successor must independently satisfy the attribution contract: without approved
 deterministic provenance it is **UNATTRIBUTED**; if independently established valid
 branch facts disagree, it is **CONFLICT**.
 
-Adding or removing a logical IN/OUT, substituting one observation for another, changing
-segment boundaries, splitting one fact, or combining multiple facts materially changes
-observation membership. The resulting fact or facts require independent approved
-provenance; prior kiosk evidence must not be silently carried across that change.
+Logical observation membership means which observations belong to the fact, their IN/OUT
+roles, their pairing, and their fact association. Adding or removing a logical IN/OUT,
+substituting an observation, moving an observation between facts, re-pairing IN/OUT,
+splitting one fact, or merging multiple facts materially changes membership/composition.
+The resulting facts require independent approved provenance; prior kiosk evidence must
+not be silently carried across the change. Changing timestamp or numeric boundary
+values alone does not change membership.
+
+| Change | Same logical observation membership? | Identity result | Attribution result |
+|---|---:|---|---|
+| Correct IN timestamp only | Yes | Same fact | Preserve attribution/state |
+| Correct OUT timestamp only | Yes | Same fact | Preserve attribution/state |
+| Correct both IN and OUT timestamps | Yes | Same fact | Preserve attribution/state |
+| Correct time so date/day bucket changes | Yes | Same fact | Preserve attribution/state |
+| Add a new IN/OUT | No | Materially changed/new fact | Independent provenance |
+| Remove an IN/OUT | No | Materially changed/new fact | Independent provenance |
+| Substitute an observation | No | Materially changed/new fact | Independent provenance |
+| Re-pair IN/OUT | No | Materially changed/new fact | Independent provenance |
+| Move observation to another fact | No | Materially changed/new fact | Independent provenance |
+| Split one fact into many | No | New successor facts | Independent provenance |
+| Merge many facts into one | No | New combined fact | Independent provenance |
+| Change Branch A → Branch B | Separate location correction | Same logical fact may remain | Active-attribution correction lifecycle applies |
+
+For every independent-provenance case, a successor without approved deterministic
+provenance is **UNATTRIBUTED**; established valid branch facts that disagree produce
+**CONFLICT**. This matrix is semantic only and implements no matching, correction,
+storage, day-bucketing, or authorization mechanism.
 
 When predecessor → successor mapping cannot be deterministically proven, attribution is
 not inherited. Each successor is evaluated independently and is **UNATTRIBUTED** without
@@ -499,8 +535,8 @@ must not replace event-time branch evidence.
 GAP-025 approves policy, not implementation. Before branch-limited runtime enforcement,
 a separately authorized gate must inspect and define the schema/provenance/runtime work
 needed to satisfy this contract, including durable event-to-segment integrity,
-operator-captured manual/bulk/import provenance, replacement identity/lineage
-preservation, split/merge handling, semantic-state handling, exact cardinality,
+operator-captured manual/bulk/import provenance, replacement identity/lineage preservation, time-value versus observation-membership
+semantics, split/merge handling, semantic-state handling, exact cardinality,
 active-attribution correction and sanitized audit visibility, correction auditability, and scope-first no-leak verification. The design must preserve
 house ownership and may not assume current `metadata.segmentId` already satisfies that
 prerequisite.
