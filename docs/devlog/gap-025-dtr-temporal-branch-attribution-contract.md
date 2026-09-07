@@ -420,6 +420,76 @@ non-payroll-impacting correction uses its separately approved finalization autho
 this contract invents no workflow. Legitimate owner/manager house-wide visibility is
 unchanged throughout.
 
+### Correction audit-lineage field visibility
+
+Attendance-fact visibility and correction-audit-lineage visibility are separate
+authorization concerns. Permission to view a branch-scoped attendance fact does not by
+itself grant permission to view the complete correction audit record. An ordinary
+branch-limited attendance response uses a sanitized correction projection containing
+only the minimum state needed to understand the visible fact, such as pending, rejected,
+or finalized/corrected. Those examples do not prescribe UI labels.
+
+Fact access alone must not expose historical, proposed, or not-yet-active corrected
+branch IDs, names, labels, or raw values; original-versus-proposed/corrected payloads;
+correction actor identity; free-text correction reason; or other lineage capable of
+disclosing an out-of-scope branch, person, or correction detail. Free-text reason is
+audit content because it may itself name another branch, employee, or operational fact;
+it must not be parsed or treated as safe merely because the attendance fact is visible.
+Correction actor identity is likewise audit content and is excluded unless another
+approved authorization contract explicitly grants access.
+
+For pending Branch A → Branch B, an A-limited viewer may see the fact and a sanitized
+pending indication but no B identifier, name, label, raw value, reason, actor, nested
+audit payload, count, or related metadata. A B-limited viewer receives no fact,
+correction record, existence/status signal, count, actor, reason, timestamp, or Branch A
+metadata. The proposal is not an access grant.
+
+For rejected A → B, an A-limited viewer may see the fact and, if surfaced, a sanitized
+rejected indication. Rejected B remains hidden audit history and grants no access. A
+B-limited viewer receives neither attendance nor correction metadata.
+
+After authorized finalization of A → B, a B-limited viewer may see the fact and a
+sanitized corrected/finalized indication, but fact access does not reveal historical A,
+original branch payload, actor, reason, or other restricted lineage. Because A is no
+longer active, an A-limited viewer receives no fact or correction/audit metadata;
+historical participation creates no continuing visibility.
+
+For **UNATTRIBUTED** or **CONFLICT** attendance with a pending proposal, every
+branch-limited path remains fully fail closed for the fact, correction existence and
+status, proposed branch, actor, reason, timestamps, counts, employee association, and
+audit payload. A pending proposal cannot be a metadata side channel. After authorized
+finalization establishes one active attribution, that branch may receive the fact only
+through the same sanitized projection; prior evidence remains preserved audit history,
+not automatically disclosed lineage.
+
+| Attendance state | Viewer | Fact | Sanitized correction state | Full audit lineage |
+|---|---|---:|---:|---:|
+| A active, no correction | Branch A | Yes | N/A | No |
+| Pending A → B | Branch A | Yes | Yes | No |
+| Pending A → B | Branch B | No | No | No |
+| Rejected A → B | Branch A | Yes | Optional sanitized rejected state | No |
+| Rejected A → B | Branch B | No | No | No |
+| Finalized A → B | Branch A | No | No | No |
+| Finalized A → B | Branch B | Yes | Yes | No |
+| **UNATTRIBUTED** + pending proposal | Any branch-limited actor | No | No | No |
+| **CONFLICT** + pending proposal | Any branch-limited actor | No | No | No |
+| Any house-owned fact | Legitimate house-wide owner/manager | Per existing house authority | Yes where applicable | Yes under existing house-wide audit authority |
+
+Audit preservation is mandatory; disclosure to every fact viewer is not. Audit
+persistence/traceability and response visibility/disclosure are distinct. HR-2/HR-4
+audit requirements remain intact, and hidden branch-limited fields are not deleted or
+discarded. Under existing legitimate house-wide audit authority, an owner/manager may
+continue to see complete lineage—including original and proposed/corrected branches,
+actor, reason, timestamps, values, and history. This adds no new role, permission, or
+capability and does not narrow house-wide authority; house authorization remains first.
+
+Branch-limited no-leak protection covers both the attendance fact and associated audit
+metadata. An unauthorized response must not leak through direct or nested fields,
+labels, IDs, reason text, actor data, counts, existence indicators, or audit payloads.
+Filtering the parent fact while returning unrestricted audit metadata is non-compliant.
+This semantic matrix creates no DTO, serializer, RPC shape, database view, redaction
+code, permission, or API implementation.
+
 Offline replay or synchronization must preserve the original observation's approved
 branch evidence. Replay/server-processing time and current device location at replay
 must not replace event-time branch evidence.
@@ -429,15 +499,16 @@ must not replace event-time branch evidence.
 GAP-025 approves policy, not implementation. Before branch-limited runtime enforcement,
 a separately authorized gate must inspect and define the schema/provenance/runtime work
 needed to satisfy this contract, including durable event-to-segment integrity,
-operator-captured manual/bulk/import provenance, replacement identity/lineage preservation, split/merge handling,
-semantic-state handling, exact cardinality, active-attribution correction visibility,
-correction auditability, and scope-first no-leak verification. The design must preserve
-house ownership and may not assume current `metadata.segmentId` already satisfies that prerequisite.
+operator-captured manual/bulk/import provenance, replacement identity/lineage
+preservation, split/merge handling, semantic-state handling, exact cardinality,
+active-attribution correction and sanitized audit visibility, correction auditability, and scope-first no-leak verification. The design must preserve
+house ownership and may not assume current `metadata.segmentId` already satisfies that
+prerequisite.
 
 This document does not prescribe `branch_id` on `dtr_segments`, an import provenance
 table, predecessor/successor columns, an assignment-history table, a backfill, a
-correction-state enum or
-`active_branch_id`, an RPC signature, a UI mechanism, or a conflict-resolution
+correction-state enum or `active_branch_id`, an audit permission, response DTO, serializer, RPC signature, UI
+mechanism, or conflict-resolution
 workflow. No runtime, query, schema, migration, RLS/grant, API/UI,
 test, HR-2/HR-4 runtime, payroll, or POS work is authorized here.
 

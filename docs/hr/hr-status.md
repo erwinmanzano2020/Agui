@@ -351,6 +351,13 @@ UNATTRIBUTED. One-to-one successors preserve predecessor UNATTRIBUTED/CONFLICT s
 unless separately resolved, and intentional location change uses the active-attribution
 correction lifecycle.
 
+Active attribution controls fact visibility, but ordinary branch-limited fact access
+uses only a sanitized correction-state projection; it does not disclose proposed or
+historical branch metadata, correction actor, free-text reason, or full lineage. Pending
+UNATTRIBUTED/CONFLICT corrections expose no fact or correction metadata. Existing
+owner/manager house-wide audit authority remains unchanged, and audit data remains
+preserved even when omitted from branch-limited responses.
+
 Attendance location belongs to the attendance fact, not current employee/device branch,
 viewer, correcting operator, or schedule. Transfers do not rewrite history; schedules
 are planned work rather than proof; and legitimate multi-branch work is permitted through

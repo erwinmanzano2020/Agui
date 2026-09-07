@@ -215,7 +215,10 @@ Notes:
   attribution; proposed, rejected, and historical correction values do not independently
   grant branch access. Replacement preserves visibility only with deterministic
   one-to-one same-fact lineage and unchanged logical observations; split, merge, or
-  ambiguous successors require independent canonical provenance.
+  ambiguous successors require independent canonical provenance. Fact access does not
+  authorize full correction lineage; branch-limited projections expose only sanitized
+  correction state and must not leak out-of-scope branch, actor, reason, or audit data.
+  This adds no new permission model.
 
 ---
 
