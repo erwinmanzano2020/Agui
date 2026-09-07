@@ -365,6 +365,12 @@ UNATTRIBUTED/CONFLICT corrections expose no fact or correction metadata. Existin
 owner/manager house-wide audit authority remains unchanged, and audit data remains
 preserved even when omitted from branch-limited responses.
 
+The branch-scope model's Category D placement now explicitly describes current
+repository storage reality only. GAP-025 governs canonical source-aware, storage-neutral
+DTR semantics: kiosk event-time or authorized explicit manual/admin/bulk provenance may
+establish attribution, while future direct storage, a provenance relation, an event
+relation, or another mechanism remains unselected and GAP-024-gated.
+
 Attendance location belongs to the attendance fact, not current employee/device branch,
 viewer, correcting operator, or schedule. Transfers do not rewrite history; schedules
 are planned work rather than proof; and legitimate multi-branch work is permitted through

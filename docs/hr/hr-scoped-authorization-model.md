@@ -221,7 +221,9 @@ Notes:
   correction state and must not leak out-of-scope branch, actor, reason, or audit data.
   A same-logical-observation time/boundary-value correction does not itself invalidate
   attribution; changed observation membership, role, pairing, or fact association does
-  and requires independent provenance. This adds no new permission model.
+  and requires independent provenance. The scope model's Category D label describes
+  current derived/not-stored reality, not a universal future device/event rule; GAP-025
+  remains storage-neutral and source-aware. This adds no new permission model.
 
 ---
 

@@ -50,7 +50,9 @@ Rules:
 
 ## 2. Branch Scope Categories
 
-Each HR table or feature must fall into one of these categories (mutually exclusive for the current model):
+Each HR table or feature must fall into one of these categories (mutually exclusive for
+the current model). These categories describe current-model scope/storage reality; they
+do not override later approved source-specific semantic contracts such as GAP-025:
 
 ### A. House-owned (no branch)
 
@@ -97,13 +99,16 @@ Rules:
 ### D. Derived branch (not stored directly)
 
 Examples:
-- dtr_segments (derived from device/event)
+- `dtr_segments` (current repository placement only; see the qualified note below)
 - clock_events
 
-Rules:
+Rules for records actually in current Category D:
 - `house_id` required
-- branch inferred through relationship
-- must define **deterministic derivation path**
+- branch is currently inferred through a relationship
+- a **deterministic derivation path** is required before enforcement
+
+The qualified `dtr_segments` note below controls where its later approved hybrid
+source-aware semantics differ from this current-model description.
 
 ---
 
@@ -176,10 +181,34 @@ Must be:
 
 ---
 
-### dtr_segments
-- house-owned
-- branch derived
-- must define derivation strategy before enforcing branch auth
+### `dtr_segments`
+
+**Current repository/runtime reality:**
+
+- `dtr_segments` is house-owned and has no approved first-class canonical branch field.
+- Existing kiosk-oriented paths associate branch evidence through event/device context,
+  so the current implementation has derived/not-directly-stored characteristics.
+- This Category D placement describes current-model storage reality only. It is not a
+  binding rule that all future DTR attribution must derive from device/event relations.
+
+**Canonical temporal attendance-location semantics:**
+
+- `docs/devlog/gap-025-dtr-temporal-branch-attribution-contract.md` is canonical for
+  `dtr_segments` attendance-location provenance and classification.
+- Approved source-aware evidence may be integrity-valid kiosk event-time evidence,
+  explicit authorized manual/admin provenance, or explicit authorized compliant
+  bulk/import provenance. Bulk/import transport alone is not provenance.
+- Legacy, unknown, broken, or otherwise insufficient evidence is **UNATTRIBUTED** when
+  no established valid branch disagreement exists; established integrity-valid branch
+  facts that disagree are **CONFLICT**. Both fail closed for branch-limited access.
+
+**Storage neutrality:**
+
+- This scope model neither requires nor forbids direct storage. It does not choose
+  between a direct field, related provenance record, event relation, or another
+  separately approved deterministic mechanism.
+- Storage, linkage, validation, and enforcement design belongs to a future explicitly
+  authorized GAP-024/Foundation Security Correction gate.
 
 ---
 

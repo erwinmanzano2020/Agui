@@ -573,6 +573,10 @@ active-attribution correction and sanitized audit visibility, correction auditab
 house ownership and may not assume current `metadata.segmentId` already satisfies that
 prerequisite.
 
+The current-model Category D placement in `docs/hr-branch-scope-model.md` describes
+existing derived/not-directly-stored characteristics; it does not override this
+storage-neutral, source-aware contract.
+
 This document does not prescribe `branch_id` on `dtr_segments`, an import provenance
 table, predecessor/successor columns, an assignment-history table, a backfill, a
 correction-state enum or `active_branch_id`, an audit permission, response DTO, serializer, RPC signature, UI
