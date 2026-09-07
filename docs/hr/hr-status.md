@@ -341,6 +341,16 @@ CONFLICT remain fail closed. Payroll-impacting corrected attribution requires HR
 approval before activation, while original/proposed/rejected values remain audit lineage
 and independently grant no branch access.
 
+Bulk replacement preserves attribution only through authorized, auditable, deterministic
+one-to-one predecessor → successor lineage with unchanged logical-observation membership.
+A segment-ID or timestamp change may still be the same fact under that rule, but matching
+employee/day, source, approximate time, or batch alone does not prove identity. Split,
+merge, materially changed observation membership, and ambiguous mapping cannot inherit
+attribution mechanically; each successor needs independent approved provenance or is
+UNATTRIBUTED. One-to-one successors preserve predecessor UNATTRIBUTED/CONFLICT state
+unless separately resolved, and intentional location change uses the active-attribution
+correction lifecycle.
+
 Attendance location belongs to the attendance fact, not current employee/device branch,
 viewer, correcting operator, or schedule. Transfers do not rewrite history; schedules
 are planned work rather than proof; and legitimate multi-branch work is permitted through

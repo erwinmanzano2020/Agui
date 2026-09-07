@@ -171,15 +171,85 @@ especially to legacy, backfill, and import data whose historical location cannot
 honestly reconstructed. Unknown branch remains distinct from unknown house ownership;
 attribution must not be fabricated merely to make a fact branch-visible.
 
-Bulk replacement or delete/recreate behavior must not silently destroy, remove, change,
-or rederive approved attendance-location provenance. If a replacement represents the
-same underlying attendance fact, its approved attribution is preserved semantically
-unless an explicit authorized location correction occurs. Replacement is not permission
-to infer current employee branch or convert event-at-time evidence into current-context
-evidence. If bulk/import intentionally changes location, it is a location correction
-and must be intentional, identify the authorized actor and reason, preserve original
-and corrected values and audit history, and comply with the HR-2/HR-4 approval boundary
-when payroll-impacting.
+### Semantic attendance-fact identity across replacement
+
+Bulk replacement or delete/recreate must not silently destroy, remove, change, or
+rederive approved attendance-location provenance. A successor may be treated as the same
+underlying attendance fact only when all of these conditions hold:
+
+1. a future authorized and auditable process establishes explicit one-to-one
+   predecessor → successor correction/replacement lineage;
+2. exactly one predecessor fact maps to exactly one successor fact;
+3. the successor represents the same logical attendance-observation set;
+4. no observation is split, combined, added, removed, or substituted merely by the
+   replacement; and
+5. attendance location is not silently changed.
+
+A different database segment ID does not itself make the fact different. Conversely,
+equal employee, date, source label, approximate timestamp, batch membership, or a
+recreated employee/day row does not by itself prove fact identity.
+
+Corrected time values may remain the same fact only when they are linked one-to-one to
+the predecessor, correct the same logical observations, preserve auditable original and
+corrected values, and introduce no split, merge, addition, removal, substitution, or
+silent location change. Segment-ID equality and exact timestamp equality are not
+required; deterministic lineage and logical-observation identity are required.
+
+If an **ATTRIBUTED** predecessor and its successor satisfy that full same-fact rule, the
+approved attribution may remain semantically attached to the successor. That is
+preservation, not fresh inference. It must not be rederived from current employee or
+device branch, schedule, bulk source, batch, uploader, or replacement time.
+
+A one-to-one replacement alone does not improve attribution quality. An
+**UNATTRIBUTED** predecessor remains **UNATTRIBUTED** unless a separate authorized
+finalized location correction or new approved deterministic provenance resolves it. A
+**CONFLICT** predecessor remains **CONFLICT** unless a separately authorized finalized
+correction resolves the conflict. Replacement is not adjudication.
+
+A split from one predecessor into multiple successors creates new successor facts for
+attribution-preservation purposes. Do not mechanically copy predecessor attribution to
+all descendants, even when the predecessor was attributed. Each successor must
+independently satisfy canonical kiosk evidence or authorized explicit provenance;
+otherwise it is **UNATTRIBUTED**.
+
+A merge from multiple predecessors into one successor creates a new combined fact. It
+cannot mechanically inherit attribution, even if every predecessor names the same
+branch, because a shared branch value alone does not prove canonical provenance. The
+successor must independently satisfy the attribution contract: without approved
+deterministic provenance it is **UNATTRIBUTED**; if independently established valid
+branch facts disagree, it is **CONFLICT**.
+
+Adding or removing a logical IN/OUT, substituting one observation for another, changing
+segment boundaries, splitting one fact, or combining multiple facts materially changes
+observation membership. The resulting fact or facts require independent approved
+provenance; prior kiosk evidence must not be silently carried across that change.
+
+When predecessor → successor mapping cannot be deterministically proven, attribution is
+not inherited. Each successor is evaluated independently and is **UNATTRIBUTED** without
+approved deterministic provenance, so branch-limited access fails closed. Legitimate
+owner/manager house-wide authority remains unchanged.
+
+An intentional attendance-location change is not ordinary same-fact preservation; it
+uses the active-canonical-attribution correction lifecycle in Section 9. Pending or
+rejected correction does not change active visibility, authorized finalization activates
+the corrected branch, payroll-impacting activation requires HR-4 approval, and original
+attribution remains non-granting audit history.
+
+| Replacement shape | Identity result | Attribution result |
+|---|---|---|
+| One predecessor → one successor; explicit lineage; same logical observations; only approved value correction | Same fact | Preserve predecessor attribution/state |
+| One → one without deterministic lineage | Identity unproven | Independent provenance required; otherwise **UNATTRIBUTED** |
+| One → many | New successor facts | No mechanical inheritance; each successor independently attributed or **UNATTRIBUTED** |
+| Many → one | New combined fact | No mechanical inheritance; independent provenance required |
+| One → one with observation added, removed, or substituted | Materially changed fact | Independent provenance required |
+| **UNATTRIBUTED** predecessor → one-to-one same-fact successor | Same fact may be preserved | Remains **UNATTRIBUTED** unless separately resolved |
+| **CONFLICT** predecessor → one-to-one same-fact successor | Same fact may be preserved | Remains **CONFLICT** unless separately resolved |
+| Intentional Branch A → Branch B change | Location correction | Section 9 active-attribution lifecycle applies |
+
+This matrix defines semantic identity only. It does not implement or select database
+identity, predecessor/successor storage, lineage, observation matching, or enforcement.
+Those mechanisms belong to the separately authorized GAP-024/Foundation Security
+Correction gate.
 
 Explicit bulk/import provenance that conflicts with other approved integrity-valid
 evidence produces **CONFLICT**. Imported branch, kiosk event, latest write, and existing
@@ -359,13 +429,14 @@ must not replace event-time branch evidence.
 GAP-025 approves policy, not implementation. Before branch-limited runtime enforcement,
 a separately authorized gate must inspect and define the schema/provenance/runtime work
 needed to satisfy this contract, including durable event-to-segment integrity,
-operator-captured manual/bulk/import provenance, replacement preservation,
+operator-captured manual/bulk/import provenance, replacement identity/lineage preservation, split/merge handling,
 semantic-state handling, exact cardinality, active-attribution correction visibility,
 correction auditability, and scope-first no-leak verification. The design must preserve
 house ownership and may not assume current `metadata.segmentId` already satisfies that prerequisite.
 
 This document does not prescribe `branch_id` on `dtr_segments`, an import provenance
-table, an assignment-history table, a backfill, a correction-state enum or
+table, predecessor/successor columns, an assignment-history table, a backfill, a
+correction-state enum or
 `active_branch_id`, an RPC signature, a UI mechanism, or a conflict-resolution
 workflow. No runtime, query, schema, migration, RLS/grant, API/UI,
 test, HR-2/HR-4 runtime, payroll, or POS work is authorized here.

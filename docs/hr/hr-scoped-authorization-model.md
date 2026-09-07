@@ -213,7 +213,9 @@ Notes:
   cardinality, storage, replacement/correction, and enforcement mechanisms remain
   separately gated and unimplemented. Branch visibility follows the active canonical
   attribution; proposed, rejected, and historical correction values do not independently
-  grant branch access.
+  grant branch access. Replacement preserves visibility only with deterministic
+  one-to-one same-fact lineage and unchanged logical observations; split, merge, or
+  ambiguous successors require independent canonical provenance.
 
 ---
 
