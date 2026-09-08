@@ -25,8 +25,12 @@ const PUBLIC_PATHS: (string | RegExp)[] = [
   /^\/api\/hr\/kiosk\/(?:ping|scan|sync|verify)$/,
   // Agui Mobile shell is public only at the Supabase-session layer. It returns
   // no operational data by itself; live workflows must enforce their own
-  // signed Telegram or future direct staff-session authorization server-side.
+  // signed Telegram or direct staff-session authorization server-side.
   "/mini",
+  // Direct staff-auth POC endpoints are public only at the Supabase-session
+  // layer. They are fail-closed behind an explicit server feature gate and
+  // upstream Device Registry / Staff PIN / V2 Staff Session verification.
+  /^\/api\/miniapp\/direct\/(?:context|login|session|logout)$/,
   // Existing Telegram Mini App closing remains public at the Supabase-session
   // layer. Its server routes verify signed Telegram initData before returning
   // cashier/shift context or accepting a controlled closing submit.

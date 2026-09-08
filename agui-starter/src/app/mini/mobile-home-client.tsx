@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import AguiMobileShell from "@/components/mobile/agui-mobile-shell";
+import type { DirectStaffSession } from "@/lib/mobile/direct-auth";
 import { resolveAguiMobileEntry, type AguiMobileEntry } from "@/lib/mobile/entry";
 import {
   CASHIER_MOBILE_ACTIONS,
@@ -11,6 +12,7 @@ import {
   nextMobileAction,
   type AguiMobileAction,
 } from "@/lib/mobile/workspace";
+import DirectSignIn from "./direct-sign-in";
 import styles from "./mobile-home.module.css";
 
 type EntryState =
@@ -26,6 +28,7 @@ function statusLabel(action: AguiMobileAction, entry: AguiMobileEntry) {
 
 export default function MobileHomeClient() {
   const [entryState, setEntryState] = useState<EntryState>({ status: "loading" });
+  const [directSession, setDirectSession] = useState<DirectStaffSession | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,31 +60,32 @@ export default function MobileHomeClient() {
       title="My Workspace"
       subtitle="One frontline app · Telegram shortcut or direct Agui entry"
       badge={<span className={`${styles.modeBadge} ${isTelegram ? styles.telegramBadge : styles.directBadge}`}>{isTelegram ? "TELEGRAM" : "DIRECT"}</span>}
-      footer="Foundation only: existing business rules remain in the current Apps Script / Sheets engine."
+      footer="Shared-foundation POC only. Existing business rules remain in the current Apps Script / Sheets engine."
     >
-      <section className={`${styles.card} ${isTelegram ? styles.readyCard : styles.warningCard}`}>
+      <section className={`${styles.card} ${isTelegram || directSession ? styles.readyCard : styles.warningCard}`}>
         <div className={styles.cardHeading}>
           <div>
             <span className={styles.kicker}>ENTRY MODE</span>
-            <strong>{isTelegram ? "Connected through Telegram" : "Direct Agui browser entry"}</strong>
+            <strong>
+              {isTelegram
+                ? "Connected through Telegram"
+                : directSession
+                  ? `Direct staff session · ${directSession.employeeName}`
+                  : "Direct Agui browser entry"}
+            </strong>
           </div>
           <span className={styles.statusDot} aria-hidden="true" />
         </div>
         {isTelegram ? (
           <p>Telegram signed session data is available. Live workflows still perform their existing server-side verification before returning operational context.</p>
+        ) : directSession ? (
+          <p>Shared-device Staff PIN identity has been verified. Operational workflows remain separately phase-gated and must re-check authorization at their own server boundary.</p>
         ) : (
-          <p>Direct entry is reachable, but employee + PIN authentication is intentionally not enabled yet. No operational workflow is unlocked from this browser session.</p>
+          <p>Direct entry can establish a shared-device staff session through the gated Device ID + Employee ID + Staff PIN contract. Until verified, no operational workflow is unlocked.</p>
         )}
       </section>
 
-      {!isTelegram ? (
-        <section className={`${styles.card} ${styles.authCard}`}>
-          <span className={styles.kicker}>DIRECT SIGN-IN</span>
-          <strong>Known device → employee → PIN</strong>
-          <p>This will be the next shared-auth foundation. We are not faking a login before the server-side identity contract exists.</p>
-          <button type="button" disabled className={styles.disabledButton}>DIRECT SIGN-IN · COMING NEXT</button>
-        </section>
-      ) : null}
+      {!isTelegram ? <DirectSignIn onSessionChange={setDirectSession} /> : null}
 
       <section className={styles.section}>
         <div className={styles.sectionHeading}>
@@ -89,7 +93,9 @@ export default function MobileHomeClient() {
             <span className={styles.kicker}>CASHIER WORKSPACE</span>
             <h2>Quick actions</h2>
           </div>
-          <span className={styles.sectionHint}>{isTelegram ? "1 LIVE" : "FOUNDATION"}</span>
+          <span className={styles.sectionHint}>
+            {isTelegram ? "1 LIVE" : directSession ? "SIGNED IN · NO LIVE ACTIONS" : "SIGN-IN POC"}
+          </span>
         </div>
 
         <div className={styles.actionGrid}>
@@ -119,7 +125,7 @@ export default function MobileHomeClient() {
         <section className={`${styles.card} ${styles.nextCard}`}>
           <span className={styles.kicker}>NEXT BUILD TARGET</span>
           <strong>{nextAction.emoji} {nextAction.label}</strong>
-          <p>Once shared direct authentication is established, Start / Resume Shift becomes the first dual-entry operational route.</p>
+          <p>Direct staff identity can now be represented by a fail-closed POC contract. Start / Resume Shift remains the next operational migration target and is not unlocked by this commit.</p>
         </section>
       ) : null}
     </AguiMobileShell>

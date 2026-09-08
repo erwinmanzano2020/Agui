@@ -1,0 +1,37 @@
+.card {
+  border: 1px solid rgba(127,127,127,.28);
+  border-radius: 14px;
+  background: var(--agui-panel);
+  padding: 12px;
+}
+.card > strong { display: block; font-size: 14px; line-height: 1.3; }
+.card > p { margin: 6px 0 0; color: var(--agui-muted); font-size: 12px; line-height: 1.42; }
+.kicker { display: block; margin-bottom: 4px; color: var(--agui-muted); font-size: 9.5px; font-weight: 800; letter-spacing: .1em; }
+.step { display: grid; grid-template-columns: 26px minmax(0,1fr); gap: 8px; margin-top: 13px; }
+.stepNumber { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 50%; background: var(--agui-bg); border: 1px solid rgba(127,127,127,.28); font-size: 11px; font-weight: 850; }
+.stepBody { min-width: 0; }
+.disabledStep { opacity: .48; }
+.field { display: block; margin-bottom: 8px; }
+.field > span { display: block; margin-bottom: 4px; font-size: 10.5px; font-weight: 750; }
+.field input { width: 100%; min-height: 43px; box-sizing: border-box; border: 1px solid rgba(127,127,127,.3); border-radius: 10px; background: var(--agui-bg); color: var(--agui-text); padding: 8px 10px; font-size: 16px; }
+.primaryButton,
+.secondaryButton { width: 100%; min-height: 42px; border-radius: 10px; padding: 9px 10px; font-size: 11px; font-weight: 850; }
+.primaryButton { border: 0; background: var(--agui-button); color: var(--agui-button-text); }
+.secondaryButton { border: 1px solid rgba(127,127,127,.3); background: var(--agui-bg); color: var(--agui-text); }
+.primaryButton:disabled,
+.secondaryButton:disabled { opacity: .5; }
+.deviceReady { margin: 10px 0 2px 34px; padding: 9px 10px; border-radius: 10px; border: 1px solid rgba(35,134,54,.35); background: var(--agui-bg); }
+.deviceReady strong { display: block; font-size: 12px; }
+.deviceReady span { display: block; margin-top: 2px; color: var(--agui-muted); font-size: 10.5px; }
+.errorBox { margin-top: 10px; padding: 9px 10px; border-radius: 9px; border-left: 3px solid #c62828; background: var(--agui-bg); font-size: 11px; line-height: 1.4; }
+.securityNote,
+.guardNote { margin-top: 10px !important; font-size: 10.5px !important; }
+.signedInCard { border-left: 4px solid #238636; }
+.sessionHeading { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+.sessionHeading strong { display: block; font-size: 16px; }
+.sessionHeading p { margin: 2px 0 0; color: var(--agui-muted); font-size: 11px; }
+.verifiedBadge { flex: 0 0 auto; display: inline-flex; align-items: center; min-height: 22px; border-radius: 999px; padding: 0 7px; border: 1px solid rgba(35,134,54,.4); font-size: 8.5px; font-weight: 850; letter-spacing: .05em; }
+.sessionGrid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 7px; margin: 11px 0; }
+.sessionGrid > div { min-width: 0; padding: 8px; border: 1px solid rgba(127,127,127,.24); border-radius: 9px; background: var(--agui-bg); }
+.sessionGrid dt { color: var(--agui-muted); font-size: 9px; }
+.sessionGrid dd { margin: 3px 0 0; font-size: 11px; font-weight: 750; overflow-wrap: anywhere; }
