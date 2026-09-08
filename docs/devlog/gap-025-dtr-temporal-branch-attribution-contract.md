@@ -313,29 +313,45 @@ substitute, assist another branch temporarily, or attend somewhere other than pl
 ## 4. Attribution classes and canonical classification order
 
 These mutually exclusive conceptual semantic states do not create runtime enums,
-schema, columns, tables, or code. Apply this ordered classification:
+schema, columns, tables, or code. Classification uses **applicability first, then
+independent sufficiency**.
+
+An evidence lane is applicable only when its evidence legitimately pertains to the same
+attendance fact under this contract. Mere source presence, a label, branch-looking
+value, related record, or transport context does not establish applicability:
+
+- The **kiosk lane** applies when its observations legitimately belong to the fact under
+  the approved kiosk linkage semantics. It is sufficient only when Section 3.3's exact
+  logical-observation cardinality and integrity rules are satisfied.
+- The **manual/admin explicit-provenance lane** applies only when an authorized explicit-
+  capture or finalized correction/adjudication path establishes actual-attendance
+  provenance for that fact. Current operator/employee branch, free text, UI context, or
+  a casually entered branch-looking value is not applicable provenance.
+- The **bulk/import explicit-provenance lane** applies only when explicit, authorized,
+  deterministic actual-attendance provenance pertains to the resulting fact. Transport,
+  source label, file, batch, destination, uploader, or session is not provenance.
+
+Apply this ordered classification across all applicable lanes:
 
 1. **Collect established integrity-valid branch facts.** Determine which facts satisfy
    the canonical provenance/integrity contract. Malformed, broken, unresolved, or
    integrity-uncertain evidence does not become an established fact merely because it
    contains a branch-looking value.
-2. **Classify valid disagreement as CONFLICT.** If two or more established
-   integrity-valid facts identify different branches, the result is **CONFLICT**, even
-   when evidence is also missing, excessive, incomplete, ambiguous, or cardinality-
-   invalid.
-3. **Otherwise classify insufficient evidence as UNATTRIBUTED.** When no established
-   valid branch disagreement exists but the applicable evidence set is missing, broken,
-   malformed, uncertain, ambiguous, incomplete, or cardinality-invalid, the result is
-   **UNATTRIBUTED**.
-4. **Classify complete agreeing evidence as ATTRIBUTED.** Only a complete,
-   integrity-valid, applicable-cardinality evidence set that deterministically
-   establishes exactly one branch without valid disagreement is **ATTRIBUTED**.
+2. **Classify valid disagreement as CONFLICT.** If established integrity-valid branch
+   facts from any applicable lanes identify different branches, the result is
+   **CONFLICT**, even when another lane is complete, incomplete, ambiguous,
+   cardinality-invalid, or independently sufficient. No source wins disagreement.
+3. **Evaluate independent sufficiency.** With no valid disagreement, if at least one
+   applicable lane independently satisfies its source-specific canonical rule, the
+   result is **ATTRIBUTED** to the one agreed branch.
+4. **Otherwise classify as UNATTRIBUTED.** If no applicable lane independently
+   suffices, the result is **UNATTRIBUTED**.
 
 Definitions under that order:
 
-- **ATTRIBUTED:** the applicable canonical evidence set is complete and integrity-valid,
-  satisfies exact cardinality, and establishes exactly one branch without established
-  valid disagreement.
+- **ATTRIBUTED:** at least one applicable lane is independently complete and integrity-
+  valid under its own source-specific rule, and all established valid branch facts
+  across applicable lanes agree on exactly one branch.
   - **ATTRIBUTED — KIOSK EVENT EVIDENCE:** the applicable complete logical-observation
     set in Section 3.3 establishes one event-time branch.
   - **ATTRIBUTED — AUTHORIZED EXPLICIT CAPTURE:** an authorized administrative creation
@@ -344,8 +360,8 @@ Definitions under that order:
 - **CONFLICT:** two or more established integrity-valid canonical branch facts disagree.
   **CONFLICT takes classification precedence** over simultaneous incompleteness,
   ambiguity, excess observations, or exact-cardinality failure.
-- **UNATTRIBUTED:** no established valid branch disagreement exists, but a complete
-  canonical evidence set cannot be established. This includes missing observations,
+- **UNATTRIBUTED:** no established valid branch disagreement exists, but no applicable
+  lane independently supplies sufficient canonical provenance. This includes missing observations,
   broken/malformed linkage, incomplete observation sets, unresolved duplicate/replay
   ambiguity, excess same-branch logical observations, exact-cardinality failure,
   integrity-uncertain evidence, and legacy or bulk/import attendance without approved
@@ -356,6 +372,13 @@ precedence, IN-over-OUT, OUT-over-IN, kiosk-over-manual, manual-over-kiosk, bulk
 over-event, or latest-write-wins. It selects no winning branch or evidence source;
 authorized, auditable correction/adjudication remains required. Both **UNATTRIBUTED**
 and **CONFLICT** remain fail closed for branch-limited access.
+
+Incomplete, ambiguous, or cardinality-invalid agreeing evidence in one applicable lane
+does not veto another applicable lane that independently supplies complete authorized
+deterministic provenance. Incompleteness is a failure of that lane, not a universal
+cross-source veto. This is independent sufficiency plus global valid-disagreement
+detection—not kiosk-over-manual, manual-over-kiosk, bulk-over-kiosk, newest-source-wins,
+most-complete-source-wins, existing-row-wins, import precedence, or latest-write-wins.
 
 | Evidence | Result |
 |---|---|
@@ -375,6 +398,27 @@ A is **CONFLICT**, not UNATTRIBUTED: cardinality fails, but established valid br
 facts disagree and Step 2 takes precedence. Conversely, two valid same-branch INs plus
 a same-branch OUT is **UNATTRIBUTED** because cardinality fails without valid branch
 disagreement.
+
+Mixed-source examples apply only after each named lane is established as applicable to
+the same attendance fact:
+
+| Applicable evidence lanes | Result | Reason |
+|---|---|---|
+| Completed kiosk IN A; OUT missing; no other sufficient lane | **UNATTRIBUTED** | No lane independently suffices |
+| Completed kiosk IN A; OUT missing; complete authorized explicit provenance A | **ATTRIBUTED — A** | Explicit provenance independently suffices; incomplete agreeing kiosk evidence is non-vetoing |
+| Completed kiosk IN A; OUT missing; complete authorized explicit provenance B | **CONFLICT** | Established valid facts disagree |
+| Exact kiosk IN/OUT A; complete authorized explicit provenance A | **ATTRIBUTED — A** | Both sufficient lanes agree |
+| Exact kiosk IN/OUT A; complete authorized explicit provenance B | **CONFLICT** | Established valid facts disagree; no source precedence |
+| Incomplete kiosk A; incomplete explicit provenance A | **UNATTRIBUTED** | Neither lane independently suffices |
+| Same-branch excess kiosk A; complete authorized explicit provenance A | **ATTRIBUTED — A** | Only the applicable explicit lane independently suffices; kiosk remains cardinality-invalid |
+| Complete authorized explicit provenance A; malformed branch-looking candidate B | **ATTRIBUTED — A** | Malformed/uncertain B is not an established valid branch fact |
+
+These outcomes do not weaken kiosk exact cardinality. When kiosk is the only candidate
+lane, a completed fact still requires exactly one valid IN and OUT; missing OUT and
+same-branch excess remain **UNATTRIBUTED**, while valid disagreement is **CONFLICT**.
+Arbitrary manual data cannot rescue kiosk evidence: explicit provenance counts only
+through an already-authorized creation, correction, or adjudication path, and location
+correction remains governed by Section 9.
 
 ## 5. Temporal semantics
 
@@ -432,6 +476,12 @@ existence, timing, or employee association. Filtering and metadata must preserve
 no-leak boundary. House authorization is always evaluated first; branch can only narrow
 it. Legitimate house-wide `owner`/`manager` visibility of house-owned attendance remains
 unchanged under existing authorization rules.
+
+Classification does not authorize branch-limited viewers to learn which lanes were
+evaluated. Visible projections must not disclose source counts, hidden source types,
+failed kiosk evidence, manual/admin or bulk/import provenance details, out-of-scope
+branch values, actors/reasons, or evidence-completeness metadata. Existing legitimate
+house-wide audit authority remains unchanged.
 
 ## 9. Correction and replay semantics
 

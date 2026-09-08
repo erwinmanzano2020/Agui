@@ -331,10 +331,13 @@ logical IN with no conflict; a completed kiosk segment requires a valid logical 
 OUT for the same house, employee, attendance fact, and branch. A missing expected
 boundary or unresolved duplicate ambiguity is UNATTRIBUTED; a valid cross-branch pair is
 CONFLICT. Excess distinct same-branch logical INs or OUTs also fail exact cardinality
-and are UNATTRIBUTED, not conflict. Classification is ordered: established valid branch
-disagreement is CONFLICT even when cardinality also fails; otherwise incomplete,
-invalid, ambiguous, or cardinality-failed evidence is UNATTRIBUTED; complete agreeing
-evidence is ATTRIBUTED. This precedence selects no winning source or branch. These
+and are UNATTRIBUTED, not conflict. Classification is applicability-first across
+canonical provenance lanes: established valid branch disagreement across applicable
+lanes is CONFLICT. Otherwise, when at least one applicable lane independently satisfies
+its source-specific sufficiency rule and all established facts agree, the result is
+ATTRIBUTED; incomplete, ambiguous, or cardinality-failed agreeing evidence in another
+lane is non-vetoing. UNATTRIBUTED applies when no applicable lane independently
+suffices. This selects no winning source or branch. These
 clarified semantics are part of GAP-025 closure, not implemented runtime.
 
 Branch-limited visibility follows the **active canonical attribution**. A proposed or
