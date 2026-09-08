@@ -488,6 +488,91 @@ non-payroll-impacting correction uses its separately approved finalization autho
 this contract invents no workflow. Legitimate owner/manager house-wide visibility is
 unchanged throughout.
 
+### Competing and stale location-correction proposals
+
+Every location-correction proposal is semantically bound to both the same underlying
+attendance fact and the **expected base attribution/state**: the active canonical
+attribution or fail-closed state that existed when the proposal was created. This is
+semantic terminology only. A proposal may activate only when its expected base still
+matches the fact's current active canonical attribution/state at finalization time.
+Applicable authorization and approval are necessary but not sufficient for activation.
+
+Zero, one, or multiple proposals may exist as pending audit records. With A active,
+pending A → B and A → C proposals leave A as the only branch controlling current
+branch-limited fact visibility. Both proposals are non-active and non-granting; B and C
+receive no access. Different proposed targets do not themselves create **CONFLICT**.
+This contract neither requires nor forbids a future implementation from preventing a
+second proposal at creation time.
+
+If A → B finalizes first, B becomes active and every still-pending proposal bound to
+the former A base, including A → C, becomes **stale/non-finalizable**. Later approval
+of stale A → C cannot switch B to C, restore A, grant C visibility, create access for
+multiple branches, or change the fact to **CONFLICT**. Approval never permits
+latest-write-wins replacement of a changed base. A later legitimate move to C requires
+a new B → C proposal bound to then-current B; the old A → C proposal cannot be
+repurposed.
+
+The same expected-base rule applies when the base is **UNATTRIBUTED** or **CONFLICT**.
+Competing proposals from either state remain fully fail closed while pending. If a valid
+authorized proposal to B finalizes first, B becomes active and every other proposal
+bound to the former fail-closed state becomes stale/non-finalizable. A subsequent move
+from B requires a new proposal against B.
+
+A stale or superseded proposal is preserved audit lineage. It is not active attribution,
+a second active branch fact, fresh canonical evidence, an access grant, or automatically
+**CONFLICT**. Successful finalization semantically supersedes competing proposals bound
+to the same prior base; superseded proposals remain non-active, non-granting, and
+non-finalizable against the changed fact state. No destructive deletion is required.
+Pending, rejected, stale, and superseded workflow values remain distinct from the
+established integrity-valid canonical branch evidence that governs **CONFLICT** under
+Sections 3 and 4.
+
+| Current active/base | Proposal(s) | Event | Result |
+|---|---|---|---|
+| A | A → B pending | None | A remains active |
+| A | A → B and A → C pending | None | A remains active; both proposals are non-granting |
+| A | A → B and A → C pending | A → B finalizes first | B active; A → C stale/non-finalizable |
+| B | Stale historical A → C | Stale proposal later approved | No change; B remains active |
+| B | New B → C proposal | Pending | B remains active |
+| B | New B → C proposal | Valid finalization | C active |
+| **UNATTRIBUTED** | Proposals to B and C pending | None | Fail closed |
+| **UNATTRIBUTED** | Proposals to B and C | B finalizes first | B active; C proposal stale/non-finalizable |
+| **CONFLICT** | Proposals to B and C pending | None | Fail closed |
+| **CONFLICT** | Proposals to B and C | B finalizes first | B active; C proposal stale/non-finalizable |
+
+Canonical finalization proceeds semantically in this order:
+
+1. Resolve the proposal's attendance fact and expected base attribution/state.
+2. Resolve the fact's current active canonical attribution/state.
+3. Verify every applicable authorization, approval, and finalization requirement.
+4. If expected base and current state differ, the proposal cannot activate; it becomes
+   stale/non-finalizable audit lineage and current active attribution remains unchanged.
+5. If expected base and current state match and all requirements are satisfied, activate
+   the corrected branch/state, preserve the prior state as historical audit lineage, and
+   make other proposals bound to that prior base stale/non-finalizable.
+6. Preserve the complete audit history.
+
+For payroll-impacting corrections, HR-4 approval remains mandatory but does not override
+expected-base validation. A fully approved proposal can still be stale and unable to
+activate; approval eligibility is not successful activation.
+
+Ordinary branch-limited viewers receive no competing-proposal count, target, actor,
+reason, timestamp, ordering, hidden approval state, stale/superseded existence signal,
+or nested lineage. Before finalization, only A may see the fact and the already-approved
+minimum sanitized pending indication; B and C see nothing. After A → B finalizes, B
+may see the fact and sanitized finalized indication, while A and C receive no fact or
+correction metadata. Existing legitimate house-wide audit authority may continue to see
+the complete competing/stale history, including bases, targets, actors, reasons,
+timestamps, approvals, finalization outcomes, and supersession status; this creates no
+new permission.
+
+This contract does not select how expected-base equality or competing finalization is
+implemented. It prescribes no `active_branch_id`, version or revision value,
+`updated_at` comparison, generation, hash, sequence, transaction identifier, lock,
+isolation level, compare-and-swap field, constraint, RPC, or runtime state enum. A future
+separately authorized GAP-024 gate must choose and verify an auditable deterministic
+mechanism that proves the proposal still applies to the current state.
+
 ### Correction audit-lineage field visibility
 
 Attendance-fact visibility and correction-audit-lineage visibility are separate
@@ -569,7 +654,9 @@ a separately authorized gate must inspect and define the schema/provenance/runti
 needed to satisfy this contract, including durable event-to-segment integrity,
 operator-captured manual/bulk/import provenance, replacement identity/lineage preservation, time-value versus observation-membership
 semantics, split/merge handling, semantic-state handling, exact cardinality,
-active-attribution correction and sanitized audit visibility, correction auditability, and scope-first no-leak verification. The design must preserve
+active-attribution correction, expected-base validation for competing proposals,
+sanitized audit visibility, correction auditability, and scope-first no-leak
+verification. The design must preserve
 house ownership and may not assume current `metadata.segmentId` already satisfies that
 prerequisite.
 
