@@ -168,7 +168,8 @@ export default function ClosingClient() {
   }
 
   const data = load.data;
-  const amountsEnabled = data.preflight.ready && floorReady && !submit.status.startsWith("submitting");
+  const submitReviewRequired = submit.status === "error" && submit.reviewRequired;
+  const amountsEnabled = data.preflight.ready && floorReady && submit.status !== "submitting";
   const salesNumber = readMoney(sales);
   const tomorrowFundNumber = readMoney(tomorrowFund);
   const finalDropNumber = readMoney(finalDrop);
@@ -178,7 +179,7 @@ export default function ClosingClient() {
   const selectedChecker = data.eligibleCheckers.find((checker) => checker.employeeId === checkerId)?.name ?? "—";
   const amountsValid = salesNumber !== null && tomorrowFundNumber !== null && finalDropNumber !== null;
   const physicalReady = !packetRequired || (Boolean(checkerId) && checkerMatched && (data.checks.count === 0 || checksMatched) && vaultDone);
-  const canSubmit = Boolean(data.rules.submitEnabled && data.preflight.ready && floorReady && amountsValid && physicalReady && submit.status !== "submitting" && !submit.reviewRequired);
+  const canSubmit = Boolean(data.rules.submitEnabled && data.preflight.ready && floorReady && amountsValid && physicalReady && submit.status !== "submitting" && !submitReviewRequired);
   const reservedDropRef = data.finalDropReservation?.finalDropRef ?? "";
 
   async function submitClosing() {
