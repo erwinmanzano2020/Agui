@@ -229,7 +229,9 @@ Must be:
 ### hr_kiosk_events
 - branch-operational within house ownership
 - branch required
-- canonical source of branch context for attendance
+- canonical event-time branch source for kiosk-origin attendance
+- not the required provenance source for manual/admin or bulk/import attendance; those
+  non-kiosk origins follow the GAP-025 explicit-provenance rules
 
 ---
 
