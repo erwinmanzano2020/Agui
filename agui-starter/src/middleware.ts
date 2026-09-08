@@ -24,10 +24,10 @@ const PUBLIC_PATHS: (string | RegExp)[] = [
   /^\/api\/kiosk\/(?:ping|scan|sync)$/,
   /^\/api\/hr\/kiosk\/(?:ping|scan|sync|verify)$/,
   // Telegram Mini App entry is public at the Supabase-session layer. The
-  // server route still verifies signed Telegram initData before returning
-  // cashier/shift context, and Apps Script validates the request again.
+  // server routes still verify signed Telegram initData before returning
+  // cashier/shift context or accepting a controlled closing submit.
   /^\/mini\/cashier\/closing(?:\/.*)?$/,
-  /^\/api\/miniapp\/closing\/context$/,
+  /^\/api\/miniapp\/closing\/(?:context|submit)$/,
   // Next.js runtime/asset paths
   /^\/_next\//,
   /^\/favicon\.ico$/,
