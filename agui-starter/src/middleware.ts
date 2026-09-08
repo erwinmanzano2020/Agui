@@ -23,8 +23,12 @@ const PUBLIC_PATHS: (string | RegExp)[] = [
   /^\/company\/[^/]+\/kiosk(?:\/.*)?$/,
   /^\/api\/kiosk\/(?:ping|scan|sync)$/,
   /^\/api\/hr\/kiosk\/(?:ping|scan|sync|verify)$/,
-  // Telegram Mini App entry is public at the Supabase-session layer. The
-  // server routes still verify signed Telegram initData before returning
+  // Agui Mobile shell is public only at the Supabase-session layer. It returns
+  // no operational data by itself; live workflows must enforce their own
+  // signed Telegram or future direct staff-session authorization server-side.
+  "/mini",
+  // Existing Telegram Mini App closing remains public at the Supabase-session
+  // layer. Its server routes verify signed Telegram initData before returning
   // cashier/shift context or accepting a controlled closing submit.
   /^\/mini\/cashier\/closing(?:\/.*)?$/,
   /^\/api\/miniapp\/closing\/(?:context|submit)$/,

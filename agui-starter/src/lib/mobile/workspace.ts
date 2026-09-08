@@ -9,7 +9,10 @@ export type AguiMobileAction = {
   href: string | null;
   emoji: string;
   status: AguiMobileActionStatus;
+  launchModes: readonly AguiMobileLaunchMode[];
 };
+
+const BOTH_LAUNCH_MODES: readonly AguiMobileLaunchMode[] = ["telegram", "direct"];
 
 export const CASHIER_MOBILE_ACTIONS: readonly AguiMobileAction[] = [
   {
@@ -19,6 +22,7 @@ export const CASHIER_MOBILE_ACTIONS: readonly AguiMobileAction[] = [
     href: null,
     emoji: "▶️",
     status: "next",
+    launchModes: BOTH_LAUNCH_MODES,
   },
   {
     key: "customer-utang",
@@ -27,6 +31,7 @@ export const CASHIER_MOBILE_ACTIONS: readonly AguiMobileAction[] = [
     href: null,
     emoji: "🧾",
     status: "planned",
+    launchModes: BOTH_LAUNCH_MODES,
   },
   {
     key: "collection",
@@ -35,6 +40,7 @@ export const CASHIER_MOBILE_ACTIONS: readonly AguiMobileAction[] = [
     href: null,
     emoji: "💰",
     status: "planned",
+    launchModes: BOTH_LAUNCH_MODES,
   },
   {
     key: "cash-out",
@@ -43,6 +49,7 @@ export const CASHIER_MOBILE_ACTIONS: readonly AguiMobileAction[] = [
     href: null,
     emoji: "💸",
     status: "planned",
+    launchModes: BOTH_LAUNCH_MODES,
   },
   {
     key: "cash-transfer",
@@ -51,6 +58,7 @@ export const CASHIER_MOBILE_ACTIONS: readonly AguiMobileAction[] = [
     href: null,
     emoji: "🔄",
     status: "planned",
+    launchModes: BOTH_LAUNCH_MODES,
   },
   {
     key: "cash-drop",
@@ -59,6 +67,7 @@ export const CASHIER_MOBILE_ACTIONS: readonly AguiMobileAction[] = [
     href: null,
     emoji: "🔐",
     status: "planned",
+    launchModes: BOTH_LAUNCH_MODES,
   },
   {
     key: "end-shift",
@@ -67,11 +76,24 @@ export const CASHIER_MOBILE_ACTIONS: readonly AguiMobileAction[] = [
     href: "/mini/cashier/closing",
     emoji: "🏁",
     status: "available",
+    launchModes: ["telegram"],
   },
 ] as const;
 
-export function availableMobileActions(actions: readonly AguiMobileAction[] = CASHIER_MOBILE_ACTIONS) {
-  return actions.filter((action) => action.status === "available" && action.href);
+export function isMobileActionAvailable(action: AguiMobileAction, launchMode: AguiMobileLaunchMode) {
+  return action.status === "available" && Boolean(action.href) && action.launchModes.includes(launchMode);
+}
+
+export function availableMobileActions(
+  actions: readonly AguiMobileAction[] = CASHIER_MOBILE_ACTIONS,
+  launchMode?: AguiMobileLaunchMode,
+) {
+  return actions.filter(
+    (action) =>
+      action.status === "available" &&
+      action.href &&
+      (!launchMode || action.launchModes.includes(launchMode)),
+  );
 }
 
 export function nextMobileAction(actions: readonly AguiMobileAction[] = CASHIER_MOBILE_ACTIONS) {
