@@ -168,8 +168,9 @@ export default function ClosingClient() {
   }
 
   const data = load.data;
+  const isSubmitting = submit.status === "submitting";
   const submitReviewRequired = submit.status === "error" && submit.reviewRequired;
-  const amountsEnabled = data.preflight.ready && floorReady && submit.status !== "submitting";
+  const amountsEnabled = data.preflight.ready && floorReady && !isSubmitting;
   const salesNumber = readMoney(sales);
   const tomorrowFundNumber = readMoney(tomorrowFund);
   const finalDropNumber = readMoney(finalDrop);
@@ -179,7 +180,7 @@ export default function ClosingClient() {
   const selectedChecker = data.eligibleCheckers.find((checker) => checker.employeeId === checkerId)?.name ?? "—";
   const amountsValid = salesNumber !== null && tomorrowFundNumber !== null && finalDropNumber !== null;
   const physicalReady = !packetRequired || (Boolean(checkerId) && checkerMatched && (data.checks.count === 0 || checksMatched) && vaultDone);
-  const canSubmit = Boolean(data.rules.submitEnabled && data.preflight.ready && floorReady && amountsValid && physicalReady && submit.status !== "submitting" && !submitReviewRequired);
+  const canSubmit = Boolean(data.rules.submitEnabled && data.preflight.ready && floorReady && amountsValid && physicalReady && !isSubmitting && !submitReviewRequired);
   const reservedDropRef = data.finalDropReservation?.finalDropRef ?? "";
 
   async function submitClosing() {
@@ -262,7 +263,7 @@ export default function ClosingClient() {
       <section className={styles.card}>
         <h2>1 · FLOOR READY</h2>
         <label className={styles.checkRow}>
-          <input type="checkbox" checked={floorReady} disabled={!data.preflight.ready || submit.status === "submitting"} onChange={(event) => { setFloorReady(event.target.checked); markChanged(); }} />
+          <input type="checkbox" checked={floorReady} disabled={!data.preflight.ready || isSubmitting} onChange={(event) => { setFloorReady(event.target.checked); markChanged(); }} />
           <span className={styles.checkList}>{data.floorChecklist.map((item) => <span key={item}>{item}</span>)}</span>
         </label>
       </section>
@@ -283,16 +284,16 @@ export default function ClosingClient() {
             {data.checks.items.map((item) => <div key={`${item.reference}-${item.posReference}`}>• {item.displayName} · {item.reference || item.posReference} · ₱{money(item.amount)}</div>)}
           </div>
         )}
-        <label className={styles.field}><span>Checker</span><select disabled={!checkerEnabled || submit.status === "submitting"} value={checkerId} onChange={(e) => { setCheckerId(e.target.value); setCheckerMatched(false); setChecksMatched(false); setVaultDone(false); markChanged(); }}><option value="">Select independent checker</option>{data.eligibleCheckers.map((checker) => <option key={checker.employeeId} value={checker.employeeId}>{checker.name}{checker.atClosingBranch ? " · here" : checker.location ? ` · ${checker.location}` : ""}</option>)}</select></label>
+        <label className={styles.field}><span>Checker</span><select disabled={!checkerEnabled || isSubmitting} value={checkerId} onChange={(e) => { setCheckerId(e.target.value); setCheckerMatched(false); setChecksMatched(false); setVaultDone(false); markChanged(); }}><option value="">Select independent checker</option>{data.eligibleCheckers.map((checker) => <option key={checker.employeeId} value={checker.employeeId}>{checker.name}{checker.atClosingBranch ? " · here" : checker.location ? ` · ${checker.location}` : ""}</option>)}</select></label>
         <div className={styles.verifyBox}><span>Cash for independent count</span><strong>₱{money(finalDropNumber ?? 0)}</strong></div>
-        <button type="button" disabled={!checkerEnabled || !checkerId || submit.status === "submitting"} className={styles.secondaryButton} onClick={() => { setCheckerMatched(true); if (data.checks.count === 0) setChecksMatched(true); window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light"); markChanged(); }}>✓ CHECKER COUNT MATCHES</button>
+        <button type="button" disabled={!checkerEnabled || !checkerId || isSubmitting} className={styles.secondaryButton} onClick={() => { setCheckerMatched(true); if (data.checks.count === 0) setChecksMatched(true); window.Telegram?.WebApp?.HapticFeedback?.impactOccurred?.("light"); markChanged(); }}>✓ CHECKER COUNT MATCHES</button>
         {data.checks.count > 0 && (
-          <label className={styles.checkRow}><input type="checkbox" disabled={!checkerMatched || submit.status === "submitting"} checked={checksMatched} onChange={(e) => { setChecksMatched(e.target.checked); setVaultDone(false); markChanged(); }} /><span>Checker matched every physical check to the references above.</span></label>
+          <label className={styles.checkRow}><input type="checkbox" disabled={!checkerMatched || isSubmitting} checked={checksMatched} onChange={(e) => { setChecksMatched(e.target.checked); setVaultDone(false); markChanged(); }} /><span>Checker matched every physical check to the references above.</span></label>
         )}
         {packetRequired && reservedDropRef && data.rules.submitEnabled && (
           <div className={styles.dropRefBox}><span>DROP REF</span><strong>{reservedDropRef}</strong><small>Write this on the envelope before both people sign and seal it.</small></div>
         )}
-        <label className={styles.checkRow}><input type="checkbox" disabled={!vaultEnabled || submit.status === "submitting"} checked={vaultDone} onChange={(e) => { setVaultDone(e.target.checked); markChanged(); }} /><span>Both people signed, the envelope was sealed, and it is now inside {data.shift.branchLabel || data.shift.branch} Drop Vault.</span></label>
+        <label className={styles.checkRow}><input type="checkbox" disabled={!vaultEnabled || isSubmitting} checked={vaultDone} onChange={(e) => { setVaultDone(e.target.checked); markChanged(); }} /><span>Both people signed, the envelope was sealed, and it is now inside {data.shift.branchLabel || data.shift.branch} Drop Vault.</span></label>
         <p className={styles.muted}>{data.rules.submitEnabled ? "The reserved Drop Ref belongs to this exact closing request. If submit fails, retry this same request—never create a second envelope." : "Drop Ref will be assigned only by the future controlled submit. This LOAD pilot does not create a Drop."}</p>
       </section>
 
@@ -313,7 +314,7 @@ export default function ClosingClient() {
       <div className={styles.bottomSpacer} />
       <div className={styles.stickyBar}>
         <button type="button" disabled={!canSubmit} className={styles.submitButton} onClick={() => void submitClosing()} title={data.rules.submitEnabled ? "Controlled final commit" : "Disabled in LOAD-only pilot"}>
-          {submit.status === "submitting" ? "⏳ CLOSING SHIFT… DO NOT TAP AGAIN" : data.rules.submitEnabled ? (submit.status === "error" && submit.retrySameRequest ? "↻ RETRY SAME CLOSING" : "✅ SUBMIT & CLOSE SHIFT") : "✅ SUBMIT & CLOSE SHIFT · LOAD ONLY"}
+          {isSubmitting ? "⏳ CLOSING SHIFT… DO NOT TAP AGAIN" : data.rules.submitEnabled ? (submit.status === "error" && submit.retrySameRequest ? "↻ RETRY SAME CLOSING" : "✅ SUBMIT & CLOSE SHIFT") : "✅ SUBMIT & CLOSE SHIFT · LOAD ONLY"}
         </button>
       </div>
     </main>
