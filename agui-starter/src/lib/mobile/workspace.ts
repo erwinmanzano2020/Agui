@@ -19,9 +19,9 @@ export const CASHIER_MOBILE_ACTIONS: readonly AguiMobileAction[] = [
     key: "start-shift",
     label: "Start / Resume Shift",
     description: "Open or resume your assigned cashier box.",
-    href: null,
+    href: "/mini/cashier/start",
     emoji: "▶️",
-    status: "next",
+    status: "available",
     launchModes: BOTH_LAUNCH_MODES,
   },
   {
@@ -30,7 +30,7 @@ export const CASHIER_MOBILE_ACTIONS: readonly AguiMobileAction[] = [
     description: "Record customer credit from one compact form.",
     href: null,
     emoji: "🧾",
-    status: "planned",
+    status: "next",
     launchModes: BOTH_LAUNCH_MODES,
   },
   {
