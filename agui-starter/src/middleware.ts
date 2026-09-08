@@ -9,34 +9,31 @@ import { NEXT_PUBLIC_SUPABASE_ANON_KEY, NEXT_PUBLIC_SUPABASE_URL } from "@/lib/e
 import { getSupabaseAuthCookieName } from "@/lib/supabase-auth-cookie";
 import { createServerClient } from "@/lib/supabase-ssr";
 
-// Public paths (no session required)
+// Public paths (no Supabase session required). Agui Mobile operational routes
+// listed here still enforce their own Telegram/direct staff authorization.
 const PUBLIC_PATHS: (string | RegExp)[] = [
-  "/",                 // landing
-  "/welcome",          // magic-link entry
-  "/auth/callback",    // email link lands here
-  /^\/apply(\/.*)?$/,  // public apply flows
-  /^\/enroll(\/.*)?$/, // public enroll flows
-  /^\/api\/auth\/session$/,          // cookie sync endpoint
-  /^\/api\/identity\/bootstrap$/,    // bootstrap identity
-  /^\/api\/lookup\/resolve$/,        // new lookup API
-  /^\/api\/identifiers\/link$/,      // allow POST; RLS guards auth/GM
+  "/",
+  "/welcome",
+  "/auth/callback",
+  /^\/apply(\/.*)?$/,
+  /^\/enroll(\/.*)?$/,
+  /^\/api\/auth\/session$/,
+  /^\/api\/identity\/bootstrap$/,
+  /^\/api\/lookup\/resolve$/,
+  /^\/api\/identifiers\/link$/,
   /^\/company\/[^/]+\/kiosk(?:\/.*)?$/,
   /^\/api\/kiosk\/(?:ping|scan|sync)$/,
   /^\/api\/hr\/kiosk\/(?:ping|scan|sync|verify)$/,
-  // Agui Mobile shell is public only at the Supabase-session layer. It returns
-  // no operational data by itself; live workflows must enforce their own
-  // signed Telegram or direct staff-session authorization server-side.
   "/mini",
-  // Direct staff-auth POC endpoints are public only at the Supabase-session
-  // layer. They are fail-closed behind an explicit server feature gate and
-  // upstream Device Registry / Staff PIN / V2 Staff Session verification.
   /^\/api\/miniapp\/direct\/(?:context|login|session|logout)$/,
-  // Existing Telegram Mini App closing remains public at the Supabase-session
-  // layer. Its server routes verify signed Telegram initData before returning
-  // cashier/shift context or accepting a controlled closing submit.
+  // First dual-entry operational route. Its API resolves either signed Telegram
+  // initData or the signed HttpOnly direct staff-session cookie and then asks
+  // Apps Script to revalidate the canonical staff session/authorization.
+  /^\/mini\/cashier\/start(?:\/.*)?$/,
+  /^\/api\/miniapp\/cashier\/start\/(?:context|submit)$/,
+  // Existing controlled Telegram End Shift remains Telegram-authenticated.
   /^\/mini\/cashier\/closing(?:\/.*)?$/,
   /^\/api\/miniapp\/closing\/(?:context|submit)$/,
-  // Next.js runtime/asset paths
   /^\/_next\//,
   /^\/favicon\.ico$/,
   /^\/images\//,
