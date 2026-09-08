@@ -512,6 +512,14 @@ latest-write-wins replacement of a changed base. A later legitimate move to C re
 a new B → C proposal bound to then-current B; the old A → C proposal cannot be
 repurposed.
 
+If two same-base proposals are approved or presented for finalization concurrently,
+exactly one may successfully activate: the one whose finalization completes while that
+expected base is still current. That successful activation changes the current base as
+one semantic transition. Every other old-base proposal must then fail its expected-base
+check and become stale/non-finalizable, even if its approval was recorded first or at
+nearly the same time. Approval is an eligibility fact; it is not itself finalization and
+cannot reserve, preselect, or later force an active branch.
+
 The same expected-base rule applies when the base is **UNATTRIBUTED** or **CONFLICT**.
 Competing proposals from either state remain fully fail closed while pending. If a valid
 authorized proposal to B finalizes first, B becomes active and every other proposal
