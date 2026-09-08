@@ -6,7 +6,7 @@ import type { MiniAppClosingLoadResponse } from "@/lib/miniapp/types";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const EXPECTED_LOAD_MODE = "LOAD_ONLY_NO_OPERATIONAL_WRITES" as const;
+const ALLOWED_MODES = new Set(["LOAD_ONLY_NO_OPERATIONAL_WRITES", "CONTROLLED_SUBMIT_PILOT"]);
 
 function json(body: MiniAppClosingLoadResponse, status = 200) {
   return NextResponse.json(body, {
@@ -33,7 +33,6 @@ export async function POST(request: Request) {
   const validation = validateTelegramInitData(initData, botToken, Number.isFinite(maxAge) && maxAge > 0 ? maxAge : 7200);
   if (!validation.ok) return json(validation, 401);
 
-  // Accept both the pilot's original names and the API_* names already used in Vercel setup.
   const appsScriptUrl =
     process.env.AGUI_APPS_SCRIPT_WEB_APP_URL ??
     process.env.AGUI_APPS_SCRIPT_API_URL ??
@@ -77,16 +76,14 @@ export async function POST(request: Request) {
     return json(payload, status);
   }
 
-  // Pilot safety gate: never accept a write-enabled/unknown Apps Script contract here.
-  if (payload.mode !== EXPECTED_LOAD_MODE || payload.rules.submitEnabled !== false) {
-    return json(
-      {
-        ok: false,
-        code: "UPSTREAM_MODE_MISMATCH",
-        message: "Agui closing service is not running the approved LOAD-only Mini App contract.",
-      },
-      502,
-    );
+  if (!ALLOWED_MODES.has(payload.mode)) {
+    return json({ ok: false, code: "UPSTREAM_MODE_MISMATCH", message: "Agui closing service returned an unsupported Mini App mode." }, 502);
+  }
+  if (payload.mode === "LOAD_ONLY_NO_OPERATIONAL_WRITES" && payload.rules.submitEnabled !== false) {
+    return json({ ok: false, code: "UPSTREAM_MODE_MISMATCH", message: "LOAD-only mode unexpectedly enabled submit." }, 502);
+  }
+  if (payload.mode === "CONTROLLED_SUBMIT_PILOT" && payload.rules.submitEnabled !== true) {
+    return json({ ok: false, code: "UPSTREAM_MODE_MISMATCH", message: "Controlled-submit mode did not explicitly enable submit." }, 502);
   }
 
   return json(payload);
