@@ -136,7 +136,9 @@ export default function ClosingClient() {
             disabled={!data.preflight.ready}
             onChange={(event) => { setFloorReady(event.target.checked); markChanged(); }}
           />
-          <span>{data.floorChecklist.join(" ")}</span>
+          <span className={styles.checkList}>
+            {data.floorChecklist.map((item) => <span key={item}>{item}</span>)}
+          </span>
         </label>
       </section>
 
@@ -165,7 +167,7 @@ export default function ClosingClient() {
 
       <div className={styles.bottomSpacer} />
       <div className={styles.stickyBar}>
-        <button type="button" disabled className={styles.submitButton}>✅ Submit & Close Shift · not enabled in LOAD pilot</button>
+        <button type="button" disabled className={styles.submitButton} title="Disabled in the LOAD-only pilot">✅ SUBMIT & CLOSE SHIFT · LOAD ONLY</button>
       </div>
     </main>
   );
