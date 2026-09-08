@@ -19,10 +19,17 @@ type EntryState =
   | { status: "loading" }
   | { status: "ready"; entry: AguiMobileEntry };
 
-function statusLabel(action: AguiMobileAction, entry: AguiMobileEntry) {
-  if (isMobileActionAvailable(action, entry.launchMode)) return "OPEN";
+function actionAvailable(action: AguiMobileAction, entry: AguiMobileEntry, directSession: DirectStaffSession | null) {
+  if (!isMobileActionAvailable(action, entry.launchMode)) return false;
+  if (entry.launchMode === "direct" && !directSession) return false;
+  return true;
+}
+
+function statusLabel(action: AguiMobileAction, entry: AguiMobileEntry, directSession: DirectStaffSession | null) {
+  if (actionAvailable(action, entry, directSession)) return "OPEN";
   if (action.status === "next") return "NEXT";
-  if (action.status === "available" && entry.launchMode === "direct") return "TELEGRAM ONLY TODAY";
+  if (action.status === "available" && entry.launchMode === "direct" && !action.launchModes.includes("direct")) return "TELEGRAM ONLY TODAY";
+  if (action.status === "available" && entry.launchMode === "direct" && !directSession) return "SIGN IN FIRST";
   return "PLANNED";
 }
 
@@ -60,7 +67,7 @@ export default function MobileHomeClient() {
       title="My Workspace"
       subtitle="One frontline app · Telegram shortcut or direct Agui entry"
       badge={<span className={`${styles.modeBadge} ${isTelegram ? styles.telegramBadge : styles.directBadge}`}>{isTelegram ? "TELEGRAM" : "DIRECT"}</span>}
-      footer="Shared-foundation POC only. Existing business rules remain in the current Apps Script / Sheets engine."
+      footer="Existing business rules remain in the current Apps Script / Sheets engine. Each operational route re-checks authorization server-side."
     >
       <section className={`${styles.card} ${isTelegram || directSession ? styles.readyCard : styles.warningCard}`}>
         <div className={styles.cardHeading}>
@@ -77,11 +84,11 @@ export default function MobileHomeClient() {
           <span className={styles.statusDot} aria-hidden="true" />
         </div>
         {isTelegram ? (
-          <p>Telegram signed session data is available. Live workflows still perform their existing server-side verification before returning operational context.</p>
+          <p>Telegram signed session data is available. Live workflows still perform server-side verification before returning or changing operational context.</p>
         ) : directSession ? (
-          <p>Shared-device Staff PIN identity has been verified. Operational workflows remain separately phase-gated and must re-check authorization at their own server boundary.</p>
+          <p>Shared-device Staff PIN identity is verified. Start / Resume Shift is now the first direct operational route, with Apps Script revalidating the canonical staff session before any write.</p>
         ) : (
-          <p>Direct entry can establish a shared-device staff session through the gated Device ID + Employee ID + Staff PIN contract. Until verified, no operational workflow is unlocked.</p>
+          <p>Sign in through the shared-device Device ID + Employee ID + Staff PIN contract before opening any direct operational workflow.</p>
         )}
       </section>
 
@@ -94,18 +101,18 @@ export default function MobileHomeClient() {
             <h2>Quick actions</h2>
           </div>
           <span className={styles.sectionHint}>
-            {isTelegram ? "1 LIVE" : directSession ? "SIGNED IN · NO LIVE ACTIONS" : "SIGN-IN POC"}
+            {isTelegram ? "2 LIVE" : directSession ? "1 LIVE" : "SIGN IN FIRST"}
           </span>
         </div>
 
         <div className={styles.actionGrid}>
           {CASHIER_MOBILE_ACTIONS.map((action) => {
-            const available = isMobileActionAvailable(action, entry.launchMode);
+            const available = actionAvailable(action, entry, directSession);
             const content = (
               <>
                 <div className={styles.actionTop}>
                   <span className={styles.actionEmoji} aria-hidden="true">{action.emoji}</span>
-                  <span className={`${styles.actionStatus} ${available ? styles.actionStatusLive : ""}`}>{statusLabel(action, entry)}</span>
+                  <span className={`${styles.actionStatus} ${available ? styles.actionStatusLive : ""}`}>{statusLabel(action, entry, directSession)}</span>
                 </div>
                 <strong>{action.label}</strong>
                 <span className={styles.actionDescription}>{action.description}</span>
@@ -125,7 +132,7 @@ export default function MobileHomeClient() {
         <section className={`${styles.card} ${styles.nextCard}`}>
           <span className={styles.kicker}>NEXT BUILD TARGET</span>
           <strong>{nextAction.emoji} {nextAction.label}</strong>
-          <p>Direct staff identity can now be represented by a fail-closed POC contract. Start / Resume Shift remains the next operational migration target and is not unlocked by this commit.</p>
+          <p>After Start / Resume Shift is proven in the direct pilot, Customer Utang becomes the next compact dual-entry transaction screen.</p>
         </section>
       ) : null}
     </AguiMobileShell>
