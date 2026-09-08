@@ -1,0 +1,40 @@
+.card {
+  border: 1px solid rgba(127,127,127,.28);
+  border-radius: 14px;
+  background: var(--agui-panel);
+  padding: 12px;
+}
+
+.card strong { display: block; font-size: 14px; line-height: 1.3; }
+.card p { margin: 6px 0 0; color: var(--agui-muted); font-size: 12px; line-height: 1.42; }
+.readyCard { border-left: 4px solid #238636; }
+.warningCard { border-left: 4px solid #b7791f; }
+.authCard { border-style: dashed; }
+.nextCard { border-left: 4px solid var(--agui-button); }
+.kicker { display: block; margin-bottom: 4px; color: var(--agui-muted); font-size: 9.5px; font-weight: 800; letter-spacing: .1em; }
+.cardHeading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.statusDot { width: 10px; height: 10px; flex: 0 0 auto; border-radius: 50%; background: currentColor; opacity: .55; }
+.modeBadge { display: inline-flex; align-items: center; min-height: 24px; border-radius: 999px; padding: 0 8px; font-size: 9px; font-weight: 850; letter-spacing: .08em; border: 1px solid rgba(127,127,127,.26); }
+.telegramBadge { background: color-mix(in srgb, var(--agui-button) 12%, var(--agui-bg)); }
+.directBadge { background: var(--agui-panel); }
+.disabledButton { width: 100%; min-height: 42px; margin-top: 11px; border: 1px solid rgba(127,127,127,.28); border-radius: 10px; background: var(--agui-bg); color: var(--agui-muted); font-size: 11px; font-weight: 800; opacity: .68; }
+.section { display: grid; gap: 9px; }
+.sectionHeading { display: flex; align-items: end; justify-content: space-between; gap: 10px; padding: 4px 2px 0; }
+.sectionHeading h2 { margin: 0; font-size: 17px; }
+.sectionHint { color: var(--agui-muted); font-size: 9.5px; font-weight: 800; letter-spacing: .08em; }
+.actionGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.actionCard { min-width: 0; min-height: 116px; box-sizing: border-box; display: flex; flex-direction: column; gap: 6px; border: 1px solid rgba(127,127,127,.28); border-radius: 13px; padding: 11px; background: var(--agui-panel); color: var(--agui-text); text-decoration: none; }
+.actionCard strong { font-size: 13px; line-height: 1.25; }
+.actionTop { display: flex; align-items: flex-start; justify-content: space-between; gap: 7px; }
+.actionEmoji { font-size: 20px; line-height: 1; }
+.actionStatus { min-height: 18px; display: inline-flex; align-items: center; border-radius: 999px; padding: 0 6px; background: rgba(127,127,127,.12); color: var(--agui-muted); font-size: 8px; font-weight: 850; line-height: 1; text-align: center; }
+.actionStatusLive { background: color-mix(in srgb, var(--agui-button) 14%, var(--agui-bg)); color: var(--agui-text); }
+.actionDescription { color: var(--agui-muted); font-size: 10.5px; line-height: 1.35; }
+.liveAction { border-color: color-mix(in srgb, var(--agui-button) 48%, transparent); box-shadow: 0 1px 0 rgba(0,0,0,.04); }
+.liveAction:active { transform: translateY(1px); }
+.disabledAction { opacity: .58; }
+
+@media (max-width: 340px) {
+  .actionGrid { grid-template-columns: 1fr; }
+  .actionCard { min-height: 96px; }
+}
