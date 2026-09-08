@@ -316,6 +316,14 @@ These mutually exclusive conceptual semantic states do not create runtime enums,
 schema, columns, tables, or code. Classification uses **applicability first, then
 independent sufficiency**.
 
+Current classification operates only over the **current governing evidence frame**:
+evidence currently eligible to govern canonical attribution. Evidence retained as
+historical or superseded lineage after a valid finalized correction/adjudication remains
+auditable and available under legitimate house-wide audit authority, but is no longer
+eligible to compete in ordinary current classification merely because it remains
+stored. Section 4 therefore evaluates current, non-superseded evidence—not every value
+ever preserved.
+
 An evidence lane is applicable only when its evidence legitimately pertains to the same
 attendance fact under this contract. Mere source presence, a label, branch-looking
 value, related record, or transport context does not establish applicability:
@@ -495,6 +503,22 @@ comply with the HR-2/HR-4 approval boundary when payroll-impacting.
 to control branch-limited visibility. This is semantic terminology only; it does not
 create a column, enum, correction workflow, or access implementation.
 
+A valid finalized correction/adjudication changes the current governing evidence frame.
+For finalized A → B, B becomes current governing attribution and the current result is
+**ATTRIBUTED — B**; prior A remains historical/superseded audit lineage and must not be
+re-fed into Section 4 to manufacture `historical A + finalized B = CONFLICT`. Pending B
+is non-governing proposal data, and rejected B is non-governing history. The same rule
+allows finalized adjudication to C to resolve former **UNATTRIBUTED** or **CONFLICT**
+evidence into current **ATTRIBUTED — C**, while preserving the former evidence as audit
+lineage outside ordinary current classification.
+
+This is an authorized lifecycle transition, not manual-over-kiosk,
+correction-over-kiosk, or other generic source precedence. Before finalization, current
+kiosk/manual/bulk evidence uses Section 4 normally. Nor does adjudication permanently
+immunize a fact: genuinely new current integrity-valid evidence established after
+finalization enters the current frame and may create a new **CONFLICT** with active B.
+Superseded historical A still does not re-enter merely because it is preserved.
+
 For an active Branch A attribution with a proposed correction to Branch B:
 
 - while pending or proposed, Branch A remains active and Branch B is proposal/audit data
@@ -540,12 +564,29 @@ unchanged throughout.
 
 ### Competing and stale location-correction proposals
 
-Every location-correction proposal is semantically bound to both the same underlying
-attendance fact and the **expected base attribution/state**: the active canonical
-attribution or fail-closed state that existed when the proposal was created. This is
-semantic terminology only. A proposal may activate only when its expected base still
-matches the fact's current active canonical attribution/state at finalization time.
-Applicable authorization and approval are necessary but not sufficient for activation.
+Every location-correction proposal is semantically bound to the same attendance fact,
+its active attribution or fail-closed classification, and the specific canonical
+evidence basis that produced that state when the proposal was created. This is the
+**expected attribution/evidence base** (or expected evidence-base revision). These are
+semantic terms only. Coarse equality such as `CONFLICT == CONFLICT` or
+`UNATTRIBUTED == UNATTRIBUTED` is insufficient. A proposal may activate only when its
+expected evidence basis remains semantically the same as the fact's current governing
+attribution/evidence basis at finalization. Authorization and approval are necessary
+but not sufficient.
+
+Material evidence-base changes include changes to established integrity-valid branch
+facts, applicable lanes, logical-observation membership, IN/OUT roles or pairing, fact
+association, duplicate/replay canonicalization, evidence integrity/validity, current
+adjudication result, or the canonical facts responsible for **UNATTRIBUTED** or
+**CONFLICT**. Thus `CONFLICT(A,B) → CONFLICT(A,D)` makes an old proposal to C stale,
+and `UNATTRIBUTED` due to missing OUT changing to `UNATTRIBUTED` due to excess duplicate
+INs also makes the old proposal stale. A new proposal must adjudicate the new basis.
+
+A value-only time correction need not change the evidence basis when the same logical
+observations, roles, pairing, fact association, branch evidence, integrity status, and
+lane applicability remain unchanged and no location correction occurs. Correcting IN,
+OUT, both timestamps, duration, or a resulting date/day bucket does not alone make a
+pending location proposal stale.
 
 Zero, one, or multiple proposals may exist as pending audit records. With A active,
 pending A → B and A → C proposals leave A as the only branch controlling current
@@ -564,13 +605,14 @@ repurposed.
 
 If two same-base proposals are approved or presented for finalization concurrently,
 exactly one may successfully activate: the one whose finalization completes while that
-expected base is still current. That successful activation changes the current base as
-one semantic transition. Every other old-base proposal must then fail its expected-base
-check and become stale/non-finalizable, even if its approval was recorded first or at
+expected attribution/evidence base is still current. That successful activation changes
+the current basis as one semantic transition. Every other old-base proposal must then
+fail evidence-base validation and become stale/non-finalizable, even if approved first or at
 nearly the same time. Approval is an eligibility fact; it is not itself finalization and
 cannot reserve, preselect, or later force an active branch.
 
-The same expected-base rule applies when the base is **UNATTRIBUTED** or **CONFLICT**.
+The same expected-evidence-base rule applies when the coarse classification is
+**UNATTRIBUTED** or **CONFLICT**.
 Competing proposals from either state remain fully fail closed while pending. If a valid
 authorized proposal to B finalizes first, B becomes active and every other proposal
 bound to the former fail-closed state becomes stale/non-finalizable. A subsequent move
@@ -600,18 +642,19 @@ Sections 3 and 4.
 
 Canonical finalization proceeds semantically in this order:
 
-1. Resolve the proposal's attendance fact and expected base attribution/state.
-2. Resolve the fact's current active canonical attribution/state.
+1. Resolve the proposal's attendance fact and expected attribution/evidence base.
+2. Resolve the fact's current governing attribution/evidence base.
 3. Verify every applicable authorization, approval, and finalization requirement.
-4. If expected base and current state differ, the proposal cannot activate; it becomes
+4. If the evidence bases materially differ, the proposal cannot activate; it becomes
    stale/non-finalizable audit lineage and current active attribution remains unchanged.
-5. If expected base and current state match and all requirements are satisfied, activate
-   the corrected branch/state, preserve the prior state as historical audit lineage, and
-   make other proposals bound to that prior base stale/non-finalizable.
+5. If the evidence bases are semantically the same and all requirements are satisfied,
+   activate the corrected branch as current governing evidence, preserve the prior
+   governing evidence as superseded historical lineage, and make other proposals bound
+   to that prior basis stale/non-finalizable.
 6. Preserve the complete audit history.
 
 For payroll-impacting corrections, HR-4 approval remains mandatory but does not override
-expected-base validation. A fully approved proposal can still be stale and unable to
+evidence-base revalidation. A fully approved proposal can still be stale and unable to
 activate; approval eligibility is not successful activation.
 
 Ordinary branch-limited viewers receive no competing-proposal count, target, actor,
@@ -624,10 +667,11 @@ the complete competing/stale history, including bases, targets, actors, reasons,
 timestamps, approvals, finalization outcomes, and supersession status; this creates no
 new permission.
 
-This contract does not select how expected-base equality or competing finalization is
-implemented. It prescribes no `active_branch_id`, version or revision value,
-`updated_at` comparison, generation, hash, sequence, transaction identifier, lock,
-isolation level, compare-and-swap field, constraint, RPC, or runtime state enum. A future
+This contract does not select how current-vs-historical evidence, evidence-base equality,
+or competing finalization is implemented. It prescribes no `evidence_revision`,
+`active_branch_id`, current/superseded flag, version/revision, `updated_at` comparison,
+row/event-set hash, generation, sequence, transaction identifier, lock, isolation level,
+compare-and-swap field, unique constraint, RPC, materialized table, or runtime enum. A future
 separately authorized GAP-024 gate must choose and verify an auditable deterministic
 mechanism that proves the proposal still applies to the current state.
 
@@ -712,7 +756,8 @@ a separately authorized gate must inspect and define the schema/provenance/runti
 needed to satisfy this contract, including durable event-to-segment integrity,
 operator-captured manual/bulk/import provenance, replacement identity/lineage preservation, time-value versus observation-membership
 semantics, split/merge handling, semantic-state handling, exact cardinality,
-active-attribution correction, expected-base validation for competing proposals,
+active-attribution correction, current-vs-historical governing evidence, evidence-base
+revalidation for competing proposals,
 sanitized audit visibility, correction auditability, and scope-first no-leak
 verification. The design must preserve
 house ownership and may not assume current `metadata.segmentId` already satisfies that
