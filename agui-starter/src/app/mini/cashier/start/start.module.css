@@ -1,0 +1,42 @@
+.card {
+  border: 1px solid rgba(127,127,127,.28);
+  border-radius: 14px;
+  background: var(--agui-panel);
+  padding: 12px;
+}
+.card strong { display: block; font-size: 15px; line-height: 1.3; }
+.card p { margin: 6px 0 0; color: var(--agui-muted); font-size: 12px; line-height: 1.45; }
+.kicker { display: block; margin-bottom: 5px; color: var(--agui-muted); font-size: 9.5px; font-weight: 850; letter-spacing: .1em; }
+.identityCard { border-left: 4px solid #238636; }
+.successCard { border-left: 4px solid #238636; }
+.warningCard { border-left: 4px solid #b7791f; }
+.errorCard { border-left: 4px solid #c62828; }
+.modeBadge { display: inline-flex; align-items: center; min-height: 24px; border-radius: 999px; padding: 0 8px; border: 1px solid rgba(127,127,127,.28); font-size: 9px; font-weight: 850; letter-spacing: .08em; }
+.grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin: 10px 0 0; }
+.grid > div { min-width: 0; border: 1px solid rgba(127,127,127,.24); border-radius: 10px; background: var(--agui-bg); padding: 9px; }
+.grid dt { color: var(--agui-muted); font-size: 9px; }
+.grid dd { margin: 3px 0 0; font-size: 11px; font-weight: 800; overflow-wrap: anywhere; }
+.amountBanner { margin-top: 10px; padding: 10px; border-radius: 10px; background: var(--agui-bg); border: 1px solid rgba(127,127,127,.24); font-size: 13px; font-weight: 850; }
+.field { display: block; margin-top: 11px; }
+.field > span { display: block; margin-bottom: 5px; font-size: 10.5px; font-weight: 800; }
+.field input,
+.field textarea { width: 100%; box-sizing: border-box; border: 1px solid rgba(127,127,127,.3); border-radius: 10px; background: var(--agui-bg); color: var(--agui-text); padding: 9px 10px; font-size: 16px; }
+.field input { min-height: 44px; }
+.field textarea { min-height: 76px; resize: vertical; font-size: 14px; }
+.confirmRow { display: flex; align-items: flex-start; gap: 9px; margin-top: 12px; font-size: 11px; line-height: 1.4; }
+.confirmRow input { margin-top: 2px; width: 18px; height: 18px; flex: 0 0 auto; }
+.primaryButton,
+.secondaryButton { width: 100%; min-height: 44px; margin-top: 11px; border-radius: 10px; padding: 10px 12px; font-size: 11px; font-weight: 850; }
+.primaryButton { border: 0; background: var(--agui-button); color: var(--agui-button-text); }
+.secondaryButton { border: 1px solid rgba(127,127,127,.3); background: var(--agui-bg); color: var(--agui-text); }
+.primaryButton:disabled,
+.secondaryButton:disabled { opacity: .5; }
+.primaryLink,
+.linkButton { display: grid; place-items: center; min-height: 44px; margin-top: 11px; border-radius: 10px; text-decoration: none; font-size: 11px; font-weight: 850; }
+.primaryLink { background: var(--agui-button); color: var(--agui-button-text); }
+.linkButton { border: 1px solid rgba(127,127,127,.3); color: var(--agui-text); background: var(--agui-bg); }
+.errorBox { margin-top: 10px; padding: 9px 10px; border-radius: 9px; border-left: 3px solid #c62828; background: var(--agui-panel); font-size: 11px; line-height: 1.4; }
+
+@media (max-width: 340px) {
+  .grid { grid-template-columns: 1fr; }
+}
