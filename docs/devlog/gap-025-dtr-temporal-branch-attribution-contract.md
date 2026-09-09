@@ -849,9 +849,64 @@ Filtering the parent fact while returning unrestricted audit metadata is non-com
 This semantic matrix creates no DTO, serializer, RPC shape, database view, redaction
 code, permission, or API implementation.
 
+### Late-arriving evidence after successful finalization
+
+Successful finalization supersedes only evidence actually included in,
+deterministically represented by, or semantically covered by the finalized expected and
+governing evidence base. It does not supersede every observation whose event time
+predates finalization. Event time remains the attendance-location truth for an
+observation, while evidence-base coverage determines whether that observation is
+historical/superseded or newly established current evidence. Server receipt, replay,
+synchronization, processing, and correction time are not branch provenance.
+
+If deterministic integrity/idempotency proves that a delayed physical row represents a
+logical observation already covered by the finalized evidence base, it is a covered
+replay—not new current evidence. It remains in the adjudicated/superseded frame as
+applicable, does not re-enter Section 4 merely because another row arrived, creates no
+new conflict, and grants no second branch access.
+
+If a pre-finalization observation was not included in, represented by, or semantically
+covered by that evidence base, and it later becomes deterministically linked to the same
+fact, applicable, and integrity-valid, it becomes newly established current evidence at
+the time it becomes established for canonical classification. Its earlier event time
+does not make it automatically superseded. Section 4 then classifies it together with
+the current finalized attribution without any late-arrival source or time precedence:
+
+| Current finalized attribution plus late item | Current result |
+|---|---|
+| B plus covered deterministic replay of an already-represented observation | No new evidence or reclassification |
+| B plus newly established valid evidence B | Remains **ATTRIBUTED — B** |
+| B plus newly established valid evidence A | **CONFLICT**; branch-limited access fails closed |
+| B plus malformed/uncertain branch-looking A candidate | No new conflict; candidate is not an established valid fact |
+| B plus incomplete agreeing kiosk evidence B, while another applicable lane independently supports B | Remains **ATTRIBUTED — B**; incomplete lane is non-vetoing |
+
+Late evidence changes only the current classification; it does not erase or retroactively
+rewrite the historical fact that finalization succeeded under its then-current evidence
+base, reopen the finalized proposal, or reactivate that lifecycle. If it creates a new
+current **CONFLICT** or other fail-closed state, resolution requires a new authorized
+proposal against the new evidence base. The old proposal and approval do not apply
+automatically; HR-4 requirements apply anew when payroll-impacting.
+
+Late evidence that changes established facts, applicable lanes, observation membership,
+integrity, pairing, or duplicate/replay canonicalization is a material evidence-base
+change. Any still-pending proposal bound to the earlier basis becomes stale/non-
+finalizable under the existing rule. Temporal ordering alone—such as
+`event_time < finalization_time` or `sync_time > finalization_time`—does not determine
+supersession; semantic evidence-base coverage does.
+
+If late evidence makes the current result **UNATTRIBUTED** or **CONFLICT**, ordinary
+branch-limited actors receive no fact or late-evidence existence, source, branch value,
+replay/sync status, timestamp, conflict detail, or correction lineage. House-wide audit
+authority and the historical finalized record remain unchanged. This section prescribes
+no event/evidence revision, snapshot table, hash, covered-event identifier, sequence,
+watermark, cutoff, replay marker, lock, transaction isolation, compare-and-swap, RPC,
+trigger, materialized evidence table, or serializer behavior.
+
 Offline replay or synchronization must preserve the original observation's approved
 branch evidence. Replay/server-processing time and current device location at replay
-must not replace event-time branch evidence.
+must not replace event-time branch evidence. Late synchronization alone does not decide
+whether evidence is historical or current; deterministic coverage by the finalized
+governing evidence base decides whether the logical observation was already adjudicated.
 
 ## 10. Implementation prerequisites and explicit boundary
 
