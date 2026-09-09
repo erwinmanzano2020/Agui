@@ -748,6 +748,17 @@ the complete competing/stale history, including bases, targets, actors, reasons,
 timestamps, approvals, finalization outcomes, and supersession status; this creates no
 new permission.
 
+Stale and superseded proposals are invisible as correction/proposal state to every
+ordinary branch-limited viewer. Fact visibility remains independently controlled by the
+current active canonical attribution; it does not imply stale audit visibility. Thus, if
+an A → B proposal becomes stale while A remains current, A may still see the fact but
+receives no stale/superseded indication, while B receives nothing. If C has become
+current, only C may see the fact under C scope, and C still receives no signal about the
+old A → B proposal. The same rule applies when an evidence-basis revision leaves A
+active: A sees no indication that a stale location proposal existed. Labels such as
+stale, superseded, failed, obsolete, replaced, or invalidated are audit-only for ordinary
+branch-limited paths.
+
 This contract does not select how current-vs-historical evidence, evidence-base equality,
 or competing finalization is implemented. It prescribes no `evidence_revision`,
 `active_branch_id`, current/superseded flag, version/revision, `updated_at` comparison,
@@ -811,7 +822,7 @@ not automatically disclosed lineage.
 | Pending A → B | Branch B | No | No | No |
 | Approved, not successfully finalized A → B | Branch A | Yes | Minimum sanitized state only | No |
 | Approved, not successfully finalized A → B | Branch B | No | No | No |
-| Approved but stale/non-finalizable A → B | Branch A/current active scope | Per current active attribution | Minimum sanitized state only | No |
+| Approved but stale/non-finalizable proposal | Current active-scope viewer | Per current active attribution | No | No |
 | Approved but stale/non-finalizable A → B | Branch B | No | No | No |
 | Rejected A → B | Branch A | Yes | Optional sanitized rejected state | No |
 | Rejected A → B | Branch B | No | No | No |
