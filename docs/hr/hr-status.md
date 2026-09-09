@@ -219,16 +219,26 @@ page authorizes with house-wide HR access, then loads employees by house and seg
 by house/date without a complete approved visibility path for a branch-limited actor.
 The employee list requires a safe access-scoped resolution, but optional
 `employees.branch_id` context is not ownership and cannot establish historical
-attendance scope. `dtr_segments` is house-owned with derived rather than directly
-stored branch scope; direct segment enforcement is deferred until a separately
-approved deterministic derivation contract addresses historical attribution,
-employee transfers, null branch context, conflicting branch evidence, source and
-precedence, and no-leak behavior. Current house-wide reads are not thereby safe for
+attendance scope. At this 2026-08-29 checkpoint, `dtr_segments` was house-owned with
+derived rather than directly stored branch scope, and direct segment enforcement was
+deferred because no approved deterministic temporal branch-attribution contract yet
+addressed historical attribution, employee transfers, null branch context, conflicting
+branch evidence, source/applicability, and no-leak behavior. Current house-wide reads
+are not thereby safe for
 branch-limited actors: RLS may omit legitimate records or deployed policy behavior
 may expose out-of-scope data. The security/no-leak limitation remains open; its
-confirmation does not approve a remediation design. PR #496 neither defines nor
-implements the derivation contract or runtime correction. House remains the tenant
-boundary, and legitimate owner/manager house-wide authority remains unchanged.
+confirmation did not approve a remediation design. PR #496 neither defined nor
+implemented that then-missing contract or its runtime correction. House remains the
+tenant boundary, and legitimate owner/manager house-wide authority remains unchanged.
+
+**Subsequent current-status reconciliation:** GAP-025 later supplied and closed that
+semantic prerequisite. No second owner semantic decision or temporal derivation
+contract is required unless a genuinely new unresolved semantic issue is discovered.
+Direct segment enforcement remains deferred only until a separately owner-authorized
+GAP-024/Foundation Security Correction chooses, implements, and verifies mechanisms
+that satisfy the approved GAP-025 contract. This chronological clarification authorizes
+no implementation and does not change the checkpoint's Daily DTR, branch/no-leak,
+production-like UAT, or PR #496 scope findings.
 
 Focused evaluator and affected repository/route coverage verifies read-versus-write,
 branch allow/deny, zero-scope denial, owner/manager authority, storage mutation denial,
