@@ -18,6 +18,14 @@ Scope is intentionally limited to:
 
 No behavior changes are implemented here.
 
+### 2026-09-08 GAP-025 reconciliation
+
+DTR temporal branch-attribution semantics were subsequently approved through GAP-025.
+This reconciliation preserves this audit's current implementation/schema evidence while
+updating the current `dtr_segments` semantic-prerequisite status. GAP-025 supplies the
+governing semantic contract; enforceable runtime mechanisms remain separately gated and
+unimplemented.
+
 ---
 
 ## Audit framing
@@ -122,13 +130,23 @@ This audit applies the following constraints from the branch-scope model and enf
 
 ### Expected state (model + enforcement plan)
 
-- Model category: **D** (derived branch, not stored directly).
-- Enforcement plan category: **B** (branch enforcement deferred until derivation is formalized).
+- Model category: **D** as current-model derived/not-first-class storage placement, not
+  as a required future provenance architecture.
+- Enforcement plan category: **B** (branch enforcement deferred until attribution is
+  enforceable), not because `dtr_segments` semantics await approval.
+- Governing semantic contract: the already-approved
+  `docs/devlog/gap-025-dtr-temporal-branch-attribution-contract.md`.
 
 ### Gap type
 
-- **Derivation gap**: branch derivation exists in practice but no canonical deterministic derivation contract is formalized and enforced.
-- **Missing enforcement (deferred-by-plan)**: no direct branch authorization on `dtr_segments` (expected to be deferred), but derivation prerequisites are still incomplete.
+- **Implementation/enforcement gap:** GAP-025 approves the semantic attribution contract,
+  but current runtime lacks the complete enforceable provenance, observation linkage,
+  storage/integrity, exact-cardinality, correction/audit, authorization, sanitized-
+  projection, and no-leak mechanisms needed to apply it safely.
+- Branch authorization remains deferred by plan because current storage, linkage, and
+  integrity cannot yet make approved GAP-025 attribution enforceable. The runtime cannot
+  canonically enforce branch-limited `dtr_segments` visibility today; this is no longer
+  a missing-semantic-contract gap.
 
 ### Risk level
 
@@ -136,8 +154,13 @@ This audit applies the following constraints from the branch-scope model and enf
 
 ### Recommendation (do not implement yet)
 
-- Before any branch auth hardening, define a deterministic derivation contract (source precedence, null/conflict behavior, replay rules).
-- Keep current house-first enforcement until that contract is approved and published.
+- Use GAP-025 as the already-approved semantic contract before branch hardening.
+- A separately owner-authorized GAP-024/Foundation Security Correction must inspect,
+  choose, implement, and verify compliant provenance, linkage, storage, integrity,
+  cardinality, correction/audit, authorization, sanitized-projection, and no-leak
+  mechanisms. Keep current house-first safety until compliant enforcement exists.
+- No second temporal branch-attribution semantic approval is required unless future work
+  discovers a genuinely new unresolved semantic issue.
 
 ---
 
@@ -159,7 +182,8 @@ This audit applies the following constraints from the branch-scope model and enf
 ### Expected state (model + enforcement plan)
 
 - Model category: **D** (derived branch, not stored directly).
-- Enforcement plan category: **B** (branch enforcement deferred until derivation formalization).
+- Enforcement plan category: **B** (branch enforcement deferred until attribution is
+  enforceable); its independent derivation semantics remain unresolved.
 
 ### Gap type
 
@@ -257,14 +281,17 @@ This audit applies the following constraints from the branch-scope model and enf
 |---|---|---|---|
 | employees | B | C | Aligned (house-first, branch optional) |
 | employments | A | C | Mostly aligned; owner naming/auth exceptions remain |
-| dtr_segments | D | B | Conceptually aligned with deferred state; derivation contract missing |
+| dtr_segments | D | B | GAP-025 semantics approved; runtime attribution/enforcement mechanism still deferred |
 | clock_events | D | B | Deferred state present but weaker/heterogeneous auth + no derivation contract |
 | hr_kiosk_devices | C | A | Structurally aligned; branch authorization lanes incomplete |
 | hr_kiosk_events | C | A | Structurally aligned; branch authorization lanes incomplete |
 
 ## Gap inventory by type
 
-- **Derivation gap:** `dtr_segments`, `clock_events`.
+- **DTR attribution enforcement gap:** `dtr_segments` — GAP-025 semantic contract
+  approved; compliant runtime enforcement mechanism missing.
+- **Derivation gap:** `clock_events` — independent canonical derivation/enforcement
+  posture remains unresolved.
 - **Ambiguous ownership:** `employments` (`business_id` naming residue).
 - **Authorization-model gap:** `hr_kiosk_devices`, `hr_kiosk_events` (branch-role-limited authorization lanes not yet standardized).
 - **Authorization inconsistency:** `employments`, `clock_events`.

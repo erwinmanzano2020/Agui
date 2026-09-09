@@ -3,8 +3,9 @@
 ## 1. Status and authority
 
 - **Status:** reconciled contract; documentation only.
-- **Reconciled:** 2026-09-04 UTC, after review of the bounded PR #492/#493
-  authorization-security corrections and the still-open Daily DTR read limitation.
+- **Reconciled:** original contract reconciliation 2026-09-04 UTC after review of
+  PR #492/#493; branch-attribution prerequisite reconciled 2026-09-08 UTC after
+  GAP-025 semantic approval.
 - **Implementation authority:** none. This record does not authorize runtime, UI,
   API, schema, migration, approval, payroll, or HR-4 implementation.
 - **Existing implementation posture:** partial baseline only; see
@@ -23,13 +24,17 @@ PR #492/#493 repository-stabilized only the bounded authorization paths correcte
 by those PRs. That claim explicitly excludes the Daily DTR branch-limited employee
 and attendance-segment reads, which do not provide a complete approved visibility
 path for branch-limited actors. Safe employee-list behavior requires an access-scoped
-resolution without treating optional employee branch context as ownership. Because
-`dtr_segments` has derived rather than directly stored branch scope, segment
-enforcement must remain deferred until a deterministic derivation contract is
-separately defined and approved. Legitimate owner/manager house-wide authority
-remains unchanged. This documentation-only reconciliation neither defines that
-contract, fixes the runtime limitation, nor changes these rules or the frozen HR-1
-identity contract.
+resolution without treating optional employee branch context as ownership. `dtr_segments` still lacks a complete runtime-enforceable branch-attribution mechanism:
+its current row shape has no first-class enforceable branch representation. The canonical
+temporal attendance-location semantic contract is already approved in
+`docs/devlog/gap-025-dtr-temporal-branch-attribution-contract.md`. Enforcement remains
+deferred not because semantics are undecided, but until a separately authorized
+GAP-024/Foundation Security Correction implements and verifies GAP-025-compliant
+provenance, integrity, observation linkage, storage, correction, authorization, and
+no-leak mechanisms. This HR-2 record does not redefine or duplicate GAP-025; it delegates
+DTR temporal branch-attribution semantics to it. Legitimate owner/manager house-wide
+authority remains unchanged. This documentation-only reconciliation fixes no runtime
+limitation and changes neither the HR-2/HR-4 boundary nor frozen HR-1 contracts.
 
 ## 2. Required HR-2 outcome
 
@@ -177,7 +182,7 @@ confirmed HR-2 contract or be inferred from this planning record.
 | Correction reason, actor/timestamp, and original/corrected lineage as the confirmed lifecycle | Still missing/planned. A raw segment marked `corrected` is not proof of this lifecycle. |
 | HR-4 approval authority and approval audit lifecycle | Documentation/contract only; not HR-2 implementation. |
 | Approval-aware payroll-ready attendance handoff | Still missing/planned end to end. |
-| Authorization-security stabilization | The bounded paths corrected by PR #492/#493 are implemented in the repository, with production-like/manual verification still outstanding. The Daily DTR branch-limited employee and attendance-segment reads remain explicitly outside that stabilization checkpoint. Safe segment visibility depends on the canonical derived-branch contract being deterministic and approved before enforcement; see `docs/hr/hr-status.md`. Focused branch allow/deny and deny/no-leak regression coverage will be required after a separately authorized implementation contract exists. This reconciliation defines no derivation contract, implements no runtime correction, and does not implement the HR-2 correction lifecycle. |
+| Authorization-security stabilization | The bounded paths corrected by PR #492/#493 are implemented in the repository, with production-like/manual verification still outstanding. Daily DTR branch-limited employee and segment reads remain outside that checkpoint. Safe segment visibility depends on separately authorized implementation of the approved GAP-025 temporal attribution contract; the remaining blocker is runtime-enforceable provenance, integrity, linkage, authorization, and no-leak behavior—not approval of another derivation contract. Focused branch allow/deny and no-leak coverage remains required after authorization. This HR-2 record authorizes no implementation and does not implement runtime correction or the HR-2 correction lifecycle. |
 
 Historical “baseline implemented,” “usable,” or stability-checkpoint language means
 repository coverage at that time, not end-to-end completion of this contract.

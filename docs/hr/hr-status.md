@@ -2,7 +2,7 @@
 
 ## Current authority and posture
 
-- **Last audited:** 2026-08-28 UTC; contract reconciliation refreshed 2026-09-04 UTC.
+- **Last audited:** 2026-08-28 UTC; GAP-025 contract canonicalized 2026-09-06 UTC.
 - **Active phase:** HR is the sole active development phase; POS remains paused
   at merged PR #488.
 - **Current checkpoint source:** [HR Current-State Audit After Phase Re-entry](../devlog/hr-current-state-audit-2026-08-28.md).
@@ -32,9 +32,9 @@ not stabilize the daily DTR page's branch-limited read path. That page still use
 house-wide access and house/date reads without a complete approved branch-limited
 visibility path; production-like authorization/RLS verification also remains
 outstanding. `dtr_segments` has derived, not directly stored, branch scope, so
-segment enforcement remains deferred until a deterministic derivation contract is
-approved. The monthly single-employee all-days DTR grid only partially
-implements HR-2 period behavior. The custom-range and explicit day-evaluation
+segment enforcement remains deferred until separately authorized implementation
+satisfies the approved GAP-025 temporal attribution contract. The monthly
+single-employee all-days DTR grid only partially implements HR-2 period behavior. The custom-range and explicit day-evaluation
 contract, confirmed DTR correction lineage/reason/actor/timestamp lifecycle, HR-4
 approval authority, and approval-aware payroll-readiness handoff remain
 unimplemented as required.**
@@ -49,7 +49,7 @@ prove current end-to-end HR completeness.
 |---|---|
 | **Implemented and verified** | No whole material capability is certified end to end; focused repository behavior is verified inside the partially verified capabilities below. |
 | **Implemented but partially verified** | HR shell/access; identity-aware employees; employee photo/ID; compensation/pay settings; payroll run lifecycle/deductions/posting/paid/adjustments; payslip/PDF; kiosk. |
-| **Partially implemented** | Action-capability enforcement and the bounded PR #492/#493 branch/no-leak corrections are repository-stabilized but not production-like verified; the Daily DTR branch-limited employee-list behavior still requires a safe access-scoped resolution, while segment enforcement remains deferred pending an approved deterministic derived-branch contract; daily DTR plus a monthly single-employee all-days grid versus the remaining detailed-planning contract; remaining confirmed HR-2 correction-record requirements; payroll-ready attendance; schedule lifecycle/types/assignments/conflicts; payroll calculation integration with approved upstream facts. |
+| **Partially implemented** | Action-capability enforcement and the bounded PR #492/#493 branch/no-leak corrections are repository-stabilized but not production-like verified; the Daily DTR branch-limited employee-list behavior still requires a safe access-scoped resolution, while segment enforcement remains deferred pending separately authorized implementation of the approved GAP-025 temporal attribution contract; daily DTR plus a monthly single-employee all-days grid versus the remaining detailed-planning contract; remaining confirmed HR-2 correction-record requirements; payroll-ready attendance; schedule lifecycle/types/assignments/conflicts; payroll calculation integration with approved upstream facts. |
 | **Documentation/contract only** | Coherent HR-4 approvals for DTR corrections, OT, leave, and schedule changes. |
 | **Stale or conflicting documentation** | Historical blanket “HR-0 to HR-3.5 implemented baseline/usable” and “nothing in-scope not started” claims when read as canonical lifecycle completeness. |
 | **Unknown / cannot verify** | Deploy-state migration/RLS/grant/RPC parity and production-like operational behavior. Existing bounded payroll/payslip/PDF outputs are evidenced; any broader reports concept is outside approved canonical scope and would require an owner scope decision, not classification as a missing MVP capability. |
@@ -219,16 +219,26 @@ page authorizes with house-wide HR access, then loads employees by house and seg
 by house/date without a complete approved visibility path for a branch-limited actor.
 The employee list requires a safe access-scoped resolution, but optional
 `employees.branch_id` context is not ownership and cannot establish historical
-attendance scope. `dtr_segments` is house-owned with derived rather than directly
-stored branch scope; direct segment enforcement is deferred until a separately
-approved deterministic derivation contract addresses historical attribution,
-employee transfers, null branch context, conflicting branch evidence, source and
-precedence, and no-leak behavior. Current house-wide reads are not thereby safe for
+attendance scope. At this 2026-08-29 checkpoint, `dtr_segments` was house-owned with
+derived rather than directly stored branch scope, and direct segment enforcement was
+deferred because no approved deterministic temporal branch-attribution contract yet
+addressed historical attribution, employee transfers, null branch context, conflicting
+branch evidence, source/applicability, and no-leak behavior. Current house-wide reads
+are not thereby safe for
 branch-limited actors: RLS may omit legitimate records or deployed policy behavior
 may expose out-of-scope data. The security/no-leak limitation remains open; its
-confirmation does not approve a remediation design. PR #496 neither defines nor
-implements the derivation contract or runtime correction. House remains the tenant
-boundary, and legitimate owner/manager house-wide authority remains unchanged.
+confirmation did not approve a remediation design. PR #496 neither defined nor
+implemented that then-missing contract or its runtime correction. House remains the
+tenant boundary, and legitimate owner/manager house-wide authority remains unchanged.
+
+**Subsequent current-status reconciliation:** GAP-025 later supplied and closed that
+semantic prerequisite. No second owner semantic decision or temporal derivation
+contract is required unless a genuinely new unresolved semantic issue is discovered.
+Direct segment enforcement remains deferred only until a separately owner-authorized
+GAP-024/Foundation Security Correction chooses, implements, and verifies mechanisms
+that satisfy the approved GAP-025 contract. This chronological clarification authorizes
+no implementation and does not change the checkpoint's Daily DTR, branch/no-leak,
+production-like UAT, or PR #496 scope findings.
 
 Focused evaluator and affected repository/route coverage verifies read-versus-write,
 branch allow/deny, zero-scope denial, owner/manager authority, storage mutation denial,
@@ -300,36 +310,102 @@ existing lifecycle-valid controls. This UI alignment is defense in depth only; t
 server/domain payroll mutation checks remain authoritative. Production-like browser,
 multi-house, and branch-role UAT remains outstanding.
 
-## 2026-09-05 — GAP-025 DTR temporal branch-attribution planning
+## 2026-09-06 — GAP-025 canonical temporal branch-attribution contract
 
-**Status: Outcome B; owner decision required; contract not approved; gate not closed.**
-The repository evidence audit is recorded in
-`docs/devlog/gap-025-dtr-temporal-branch-attribution-contract.md`. It confirms that
-`dtr_segments` has no durable first-class branch, device, event, operator-selection,
-or correction-lineage field and is created through kiosk, manual, bulk, and legacy
-direct paths. Kiosk events capture temporal branch and currently place `segmentId` in
-JSON metadata, but the segment has no back-reference and the relationship is neither
-relationally complete nor immutable. Current employee/device branch, schedules, and
-`clock_events` cannot safely fill that historical gap.
+**Status: Closed — Contract Approved / Runtime Implementation Separately Gated.** The
+owner-approved canonical contract is recorded in
+[`GAP-025 DTR Temporal Branch Attribution Contract`](../devlog/gap-025-dtr-temporal-branch-attribution-contract.md).
+The document preserves the merged Outcome B evidence audit and its then-unapproved
+options as historical reasoning, while superseding their decision-required status with
+an approved bounded hybrid semantic contract.
 
-The Outcome B record has been explicitly reconciled against the Agui Development
-Operating Principles, the Agui Roadmap, and the canonical HR Master Plan. No
-higher-order conflict was found, and those sources supply no missing temporal branch
-evidence or derivation mechanism; the outcome and approval status therefore remain
-unchanged.
+Kiosk-origin attendance canonically uses integrity-valid event-at-attendance-time branch
+evidence, but current JSON `metadata.segmentId` is not sufficient enforcement
+infrastructure; separately authorized implementation must provide and verify durable
+observation-to-segment integrity. Future manual/admin attendance requires explicit
+authorized-operator capture of the branch where attendance occurred. Bulk/import is a
+transport or replacement mechanism, not provenance: when it authoritatively establishes
+actual attendance location, explicit authorized provenance must apply deterministically
+to each resulting fact; otherwise the fact is **UNATTRIBUTED**. Bulk delete/recreate must
+preserve existing approved attribution for the same underlying fact unless an explicit,
+audited location correction occurs. Conflicting bulk/import and other integrity-valid
+evidence is **CONFLICT**, with no automatic precedence. Legacy, backfill, import, or
+otherwise unattributed house-owned attendance remains valid and visible to legitimate
+house-wide authority, but unknown, broken, incomplete, ambiguous, or conflicting
+evidence fails closed with no record/count/existence/timing/employee-association leak
+for branch-limited actors. **UNATTRIBUTED** and **CONFLICT** are non-overlapping:
+incomplete, missing, malformed, integrity-uncertain, or unresolved duplicate/cardinality
+evidence is UNATTRIBUTED, while two or more established integrity-valid branch facts
+that disagree are CONFLICT. An open kiosk segment can be attributed by exactly one valid
+logical IN with no conflict; a completed kiosk segment requires a valid logical IN and
+OUT for the same house, employee, attendance fact, and branch. A missing expected
+boundary or unresolved duplicate ambiguity is UNATTRIBUTED; a valid cross-branch pair is
+CONFLICT. Excess distinct same-branch logical INs or OUTs also fail exact cardinality
+and are UNATTRIBUTED, not conflict. Classification is applicability-first across
+canonical provenance lanes: established valid branch disagreement across applicable
+lanes is CONFLICT. Otherwise, when at least one applicable lane independently satisfies
+its source-specific sufficiency rule and all established facts agree, the result is
+ATTRIBUTED; incomplete, ambiguous, or cardinality-failed agreeing evidence in another
+lane is non-vetoing. UNATTRIBUTED applies when no applicable lane independently
+suffices. This selects no winning source or branch. These
+clarified semantics are part of GAP-025 closure, not implemented runtime.
 
-No deterministic universal attribution contract can therefore be approved from
-repository evidence alone. The owner must choose among bounded fail-closed,
-event-evidenced-subset, future operator-capture, or temporal-assignment fallback options
-and decide null/conflict, transfer, multi-branch, manual/legacy, and correction/replay
-semantics. A notable unresolved case is a kiosk segment opened in one branch and closed
-in another.
+Branch-limited visibility follows the **active canonical attribution**. A proposed or
+rejected A → B correction leaves A active and gives B no access. Required approval is
+eligibility only and does not activate B. Only successful finalization after the current
+expected attribution/evidence base is revalidated makes B active. Pending or approved-
+but-not-finalized proposals from UNATTRIBUTED or CONFLICT remain fail closed; only
+successfully finalized valid adjudication establishes the target branch. Payroll-
+impacting correction requires HR-4 approval before finalization, while original,
+proposed, approved-but-not-finalized, rejected, or stale values remain non-granting audit
+lineage.
 
-GAP-024 remains blocked until the owner approves a complete temporal attribution
-contract and separately authorizes any prerequisite data-model/runtime work. Legitimate
-owner/manager house-wide authority, house tenancy, and branch-limited deny/no-leak
-requirements remain unchanged. GAP-025 made no runtime, schema, migration, RLS/grant,
-API/UI, test, identity, HR-2, HR-4, payroll, or POS change.
+Bulk replacement preserves attribution only through authorized, auditable, deterministic
+one-to-one predecessor → successor lineage with unchanged logical-observation membership.
+A segment-ID or timestamp change may still be the same fact under that rule, but matching
+employee/day, source, approximate time, or batch alone does not prove identity. Split,
+merge, materially changed observation membership, and ambiguous mapping cannot inherit
+attribution mechanically; each successor needs independent approved provenance or is
+UNATTRIBUTED. One-to-one successors preserve predecessor UNATTRIBUTED/CONFLICT state
+unless separately resolved, and intentional location change uses the active-attribution
+correction lifecycle. Ordinary one-to-one timestamp or numeric-boundary correction may
+preserve same-fact attribution when the same logical IN/OUT identity, roles, pairing,
+and fact association remain; a date/day-bucket change alone does not break identity.
+Adding, removing, substituting, re-pairing, or reassigning observations changes
+membership and requires independent provenance, as do split and merge.
+
+Active attribution controls fact visibility, but ordinary branch-limited fact access
+uses only a sanitized correction-state projection; it does not disclose proposed or
+historical branch metadata, correction actor, free-text reason, or full lineage. Pending
+UNATTRIBUTED/CONFLICT corrections expose no fact or correction metadata. Existing
+owner/manager house-wide audit authority remains unchanged, and audit data remains
+preserved even when omitted from branch-limited responses.
+
+The branch-scope model's Category D placement now explicitly describes current
+repository storage reality only. GAP-025 governs canonical source-aware, storage-neutral
+DTR semantics: kiosk event-time or authorized explicit manual/admin/bulk provenance may
+establish attribution, while future direct storage, a provenance relation, an event
+relation, or another mechanism remains unselected and GAP-024-gated.
+
+Attendance location belongs to the attendance fact, not current employee/device branch,
+viewer, correcting operator, or schedule. Transfers do not rewrite history; schedules
+are planned work rather than proof; and legitimate multi-branch work is permitted through
+separately attributable facts. The one-segment-one-location invariant resolves GAP-026
+semantically: cross-branch IN/OUT evidence is an explicit conflict and cannot be silently
+normalized. GAP-026 runtime is not fixed or authorized by this closure.
+
+Time correction does not silently change location. A future location correction must be
+intentional, actor/reason attributed, original-versus-corrected and audit preserving,
+and HR-2/HR-4 approval-aware when payroll-impacting. Offline replay preserves original
+observation evidence rather than replay-time/server-time or current-device context.
+
+GAP-024 is **still open and blocked from implementation until a new explicit Foundation
+Security Correction planning/implementation gate** first inspects and authorizes the
+schema/provenance/integrity/runtime work required by the GAP-025 contract. No GAP-024 or
+GAP-026 runtime, schema, migration, RLS/grant, RPC, API/UI, test, correction lifecycle,
+HR-2/HR-4 runtime, payroll, or POS work occurred in this documentation gate. House
+remains ownership, branch remains restriction-only, and owner/manager house-wide
+authority remains unchanged.
 
 ## 2026-08-31 — GAP-023 repository migration compatibility stabilization
 

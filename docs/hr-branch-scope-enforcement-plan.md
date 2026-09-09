@@ -34,7 +34,10 @@ Current HR scope posture is intentionally mixed and should be treated as a stage
 - House is the canonical HR owner scope.
 - Some HR tables are branch-ready now (`hr_kiosk_devices`, `hr_kiosk_events`).
 - Some tables have optional branch context only (`employees`).
-- Some tables have derived branch only in practice and lack a formalized derivation contract (`dtr_segments`, `clock_events`).
+- `dtr_segments` has derived/not-first-class runtime characteristics, but GAP-025 now
+  supplies its approved temporal attribution semantic contract; the enforceable mechanism
+  remains unimplemented. `clock_events` retains its independent unresolved derivation
+  and enforcement posture.
 - Some tables are not yet safe for direct branch enforcement and should remain house-first until prerequisites are met (`employments`, non-kiosk attendance primitives).
 
 ---
@@ -54,12 +57,17 @@ Examples:
 - `hr_kiosk_devices`
 - `hr_kiosk_events`
 
-### B. Branch enforcement deferred until derivation is formalized
+### B. Branch enforcement deferred until attribution is enforceable
 
 Use when:
-- branch is not stored directly
-- branch can only be inferred today
-- no canonical derivation contract has been enforced yet
+- current runtime, storage, linkage, or integrity cannot safely enforce branch; and
+- an approved semantic attribution contract may exist without its mechanism, or an
+  area-specific semantic/derivation decision may still be unresolved.
+
+The examples share an enforcement category, not the same contract status:
+- `dtr_segments` has approved GAP-025 semantics but no enforceable implementation.
+- `clock_events` may still require its own canonical derivation or additive-schema
+  decision; GAP-025 does not resolve it.
 
 Examples:
 - `dtr_segments`
@@ -107,14 +115,15 @@ Examples:
 ### `dtr_segments`
 
 - **Current state:** House-owned attendance segments with employee linkage; branch is not first-class in row shape.
-- **Enforcement category:** B (Branch enforcement deferred until derivation is formalized).
+- **Enforcement category:** B (Branch enforcement deferred until attribution is enforceable).
 - **Whether branch auth is safe now:** Not for direct row-level branch enforcement.
-- **What must happen before stronger branch enforcement is introduced:** Formalize a deterministic branch-derivation contract (including conflict/null behavior), publish it in current-state contracts, and validate derivation consistency before policy hardening.
+- **Governing semantics:** The approved GAP-025 temporal attribution contract is canonical. No second owner approval of temporal branch-attribution semantics is required unless a genuinely new unresolved semantic issue is discovered.
+- **What must happen before stronger branch enforcement is introduced:** A separately authorized GAP-024/Foundation Security Correction must choose, implement, and verify compliant provenance, observation linkage, storage, integrity, exact-cardinality, correction, sanitized-projection, authorization, null/conflict, and no-leak mechanisms before policy hardening.
 
 ### `clock_events`
 
 - **Current state:** House-owned attendance-adjacent primitive with no explicit branch column.
-- **Enforcement category:** B (Branch enforcement deferred until derivation is formalized).
+- **Enforcement category:** B (Branch enforcement deferred until attribution is enforceable).
 - **Whether branch auth is safe now:** Not safely, unless branch attribution becomes explicit or derivation is made canonical and enforceable.
 - **What must happen before stronger branch enforcement is introduced:** Choose and standardize a canonical branch derivation path (or additive schema strategy), then align authorization/filtering contracts accordingly.
 
@@ -139,7 +148,8 @@ Examples:
 Before adding stronger branch authorization or schema-level enforcement in non-branch-ready HR areas, all of the following must be true:
 
 - canonical branch-role source of truth exists for HR decisions that require branch-limited authority
-- deterministic branch derivation contract is documented and approved where branch is derived
+- approved semantic attribution/derivation contract exists where required, and its
+  compliant mechanism is implementation-authorized and enforceable
 - validated house↔branch consistency is guaranteed for all rows participating in branch-aware flows
 - current-state contracts are updated first, then implementation follows those contracts
 - no fallback ownership assumptions remain in enforcement-critical logic
@@ -162,7 +172,8 @@ Branch enforcement is not just a code change; it depends on schema and authority
 ## 6. Recommended Enforcement Sequence
 
 1. Preserve and standardize branch-ready kiosk flows.
-2. Formalize derivation contracts before branch authorization on derived tables.
+2. For unresolved areas, formalize semantics first; for `dtr_segments`, implement and
+   verify the already-approved GAP-025 contract before branch authorization.
 3. Define branch-role source of truth.
 4. Add branch-aware authorization only where schema and contracts support it.
 5. Consider additive schema hardening only after contracts and role model are clear.

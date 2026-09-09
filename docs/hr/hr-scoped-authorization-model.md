@@ -197,12 +197,36 @@ But this remains a restriction mechanism, never an ownership or grant mechanism.
 | `kiosk_devices` | branch-bound operational record within house | strict restriction |
 | `kiosk_events` | branch-bound operational record within house | strict restriction |
 | `employees` | house-owned | optional / contextual |
-| `dtr_segments` | house-owned | TBD |
+| `dtr_segments` | house-owned | approved temporal attendance-location attribution; runtime separately gated |
 | `schedules` | mixed | likely restricted |
 
 Notes:
 - “branch-bound operational record within house” means operationally anchored to a branch while still under house ownership.
-- `dtr_segments` branch handling remains explicitly unresolved.
+- `dtr_segments` follows the approved semantic contract in
+  `docs/devlog/gap-025-dtr-temporal-branch-attribution-contract.md`: kiosk event-time
+  evidence or explicit authorized manual/admin or bulk/import provenance may establish
+  attendance location when deterministic for each fact. Bulk/import is not itself
+  provenance. Classification is applicability-first across approved provenance lanes.
+  Established valid branch disagreement across applicable lanes is **CONFLICT**.
+  Otherwise, at least one applicable lane that independently satisfies its own canonical
+  sufficiency rule, with all established valid facts agreeing, makes the fact
+  **ATTRIBUTED** to that branch. Incomplete or cardinality-failed agreeing evidence in
+  another lane is non-vetoing; if no lane independently suffices, the fact is
+  **UNATTRIBUTED**. Both non-attributed states fail closed.
+  Durable linkage, logical-observation
+  cardinality, storage, replacement/correction, and enforcement mechanisms remain
+  separately gated and unimplemented. Branch visibility follows the active canonical
+  attribution; proposed, rejected, and historical correction values do not independently
+  grant branch access. Replacement preserves visibility only with deterministic
+  one-to-one same-fact lineage and unchanged logical observations; split, merge, or
+  ambiguous successors require independent canonical provenance. Fact access does not
+  authorize full correction lineage; branch-limited projections expose only sanitized
+  correction state and must not leak out-of-scope branch, actor, reason, or audit data.
+  A same-logical-observation time/boundary-value correction does not itself invalidate
+  attribution; changed observation membership, role, pairing, or fact association does
+  and requires independent provenance. The scope model's Category D label describes
+  current derived/not-stored reality, not a universal future device/event rule; GAP-025
+  remains storage-neutral and source-aware. This adds no new permission model.
 
 ---
 
