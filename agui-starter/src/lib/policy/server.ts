@@ -94,6 +94,21 @@ async function listPoliciesForEntity(client: SupabaseClient, entityId: string): 
   return dedupePolicies(Array.from(hydrated.values()));
 }
 
+export async function listPolicyKeysForEntityAtHouse(
+  client: SupabaseClient,
+  entityId: string,
+  houseId: string,
+): Promise<string[]> {
+  const { data, error } = await client
+    .from("entity_policies")
+    .select("policy_key, scope, scope_ref")
+    .eq("entity_id", entityId)
+    .eq("scope", "HOUSE")
+    .eq("scope_ref", houseId);
+  if (error) throw new Error(error.message);
+  return Array.from(new Set((data ?? []).map(extractPolicyKey).filter(Boolean)));
+}
+
 export type CurrentEntityPolicies = {
   entityId: string | null;
   policies: PolicyRecord[];

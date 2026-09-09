@@ -23,7 +23,7 @@ export default async function EditEmployeePage({ params }: Props) {
     notFound();
   }
 
-  const access = await requireHrAccessWithBranch(supabase, { houseId: house.id });
+  const access = await requireHrAccessWithBranch(supabase, { houseId: house.id, requiredLevel: "write", writeScope: "branch-set-preflight" });
   if (!access.allowed) {
     notFound();
   }
@@ -34,7 +34,7 @@ export default async function EditEmployeePage({ params }: Props) {
         allowedBranchIds: access.allowedBranchIds,
       },
     }),
-    listBranchesForHouse(supabase, house.id),
+    listBranchesForHouse(supabase, house.id, access),
   ]);
 
   if (!employee) {

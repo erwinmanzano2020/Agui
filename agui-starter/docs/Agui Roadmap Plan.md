@@ -7,29 +7,30 @@
 - HR execution-aligned plan: [`docs/hr/hr-master-plan-expanded.md`](../../docs/hr/hr-master-plan-expanded.md)
 
 ## Current System Phase (Canonical)
-- Active system: POS
-- Execution mode: Bounded POS slice progression under explicit slice initiation and no-stealth-expansion rules
-- Phase activation note: HR reached the required stability checkpoint for sequencing unlock; POS is now the active development phase
-- HR remains stable but is not the currently active phase
-- Future systems remain gated behind POS progression
+- Active system: **HR System — end-to-end MVP** (sole active development phase)
+- Execution mode: documentation/read-only HR current-state audit first; no HR runtime implementation is authorized by this phase record
+- Phase activation note: by explicit owner decision, HR is reactivated after POS paused at merged PR #488
+- POS is paused, not abandoned. Its preserved checkpoint is **POS-F3 Slice 12 Tender Intent runtime** from merged PR #488.
+- No further POS definition, planning, runtime, native application, offline-sync, or hardware-integration work is authorized while HR remains active. Future POS ideas may be logged without interrupting HR, and POS may resume only through a later explicit Roadmap/phase decision.
+- Future systems remain gated
 - Phase-based execution discipline remains in force (one active phase at a time)
 
 ## HR Track Status
 - HR-0 to HR-3.5: **implemented baseline, hardening-active**
-- HR is functionally complete at approved MVP scope (implementation baseline)
+- Historical checkpoint claim: HR was assessed as functionally complete at the then-approved MVP implementation baseline; the reactivated phase's required current-state audit must verify whether the intended lifecycle is complete end to end
 - Remaining work is focused on:
   - regression depth
   - parity enforcement
   - UX consistency
   - runtime confidence
-- **HR is not awaiting feature completion; it is undergoing stabilization**
+- Historical posture: HR was treated as undergoing stabilization rather than awaiting feature completion; this is evidence for the audit, not a current completeness determination
 
 ## Current Execution Focus
-- POS bounded-slice continuation under approved roadmap sequencing
-- preserve scope-first/no-leak and tenancy/identity guardrails during POS progression
-- maintain explicit slice gating (POS-F3 Slice 2 requires explicit initiation)
-- retain HR as stable-maintained (non-active) with no frozen-contract regressions
-- keep Operations/Finance/Growth gated until POS progression checkpoints authorize their own starts
+- perform a documentation/read-only HR current-state audit against the HR Master Plan and actual runtime
+- preserve scope-first/no-leak, tenancy, identity, and frozen-contract guardrails during HR re-entry
+- do not infer end-to-end HR completeness from the historical stability checkpoint
+- preserve the merged PR #488 POS checkpoint without further POS work
+- keep POS/Operations/Finance/Growth gated until later explicit phase decisions authorize their resumption or start
 
 ## HR Stability Gate (Satisfied; POS Unlock Recorded)
 HR can be considered stable enough to move forward **only** when:
@@ -44,15 +45,15 @@ Gate verdict (as of **2026-03-31 UTC**): **STABLE ENOUGH TO UNLOCK BOUNDED POS F
 Checkpoint rationale: blocker-class HR streams for tenancy/access consistency, branch-scope parity, and no-leak parity are documented closed with no known blocker regressions remaining in repository evidence.
 Transition record: this checkpoint is the sequencing unlock condition that moved active-phase focus from HR to POS; it is not a relaxation of phase controls.
 
-## Next System (Unlocked by HR Stability Checkpoint)
+## Historical POS Unlock (Superseded by Current Pause Decision)
 - Next system: POS
-- Status: Eligible to start in bounded foundation scope (conservatively unlocked by HR blocker-closeout checkpoint)
+- Historical status: POS was eligible to start in bounded foundation scope (conservatively unlocked by HR blocker-closeout checkpoint)
 - Unlock condition: HR stability gate satisfied (**met on 2026-03-31 UTC**)
-- Bounded POS foundations may proceed after the recorded HR stability checkpoint, within explicit POS scope limits
+- Bounded POS foundations were permitted to proceed after the recorded HR stability checkpoint, within explicit POS scope limits
 - Inventory-coupled and finance-coupled POS behaviors remain separately gated
-- HR remains hardening-active; POS continuation must not modify frozen HR contracts or weaken tenancy/identity boundaries
+- Historical note: HR remained hardening-active while POS proceeded. The current phase decision above now pauses POS and reactivates HR; this section records the earlier sequencing unlock and does not authorize current POS work.
 
-## POS Dependency Boundaries (Clarified)
+## Historical POS Dependency Boundaries (Preserved)
 The canonical module order remains unchanged: **HR → POS → Operations → Finance → Growth/advanced systems**.
 
 POS continuation is split into explicit dependency-bounded layers:
@@ -74,7 +75,7 @@ POS continuation is split into explicit dependency-bounded layers:
    - credit or payroll-deduction integrations
    - finance-ledger consequences
 
-Roadmap interpretation rule: bounded POS foundation continuation is authorized after HR stability; later POS expansion phases are **not** automatically authorized.
+Historical roadmap interpretation: bounded POS foundation continuation was authorized after HR stability. The current phase decision supersedes that authorization while POS is paused; no POS layer may continue until a future explicit Roadmap/phase decision.
 
 ## Operations and Finance Role Clarification
 - Operations owns inventory, purchasing, and stock-flow foundations.

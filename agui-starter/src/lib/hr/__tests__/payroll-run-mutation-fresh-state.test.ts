@@ -96,7 +96,7 @@ describe("payroll run mutation helpers validate fresh state even with resolvedTa
     await assert.rejects(
       () =>
         finalizePayrollRunForHouse(supabase, HOUSE_ID, RUN_ID, {
-          access: { allowed: true, entityId: "entity-1" } as never,
+          access: { allowed: true, allowedByRole: true, entityId: "entity-1" } as never,
           resolvedTarget: staleResolvedTarget,
         }),
       (error: unknown) => error instanceof PayrollRunWrongStatusError,
@@ -126,7 +126,7 @@ describe("payroll run mutation helpers validate fresh state even with resolvedTa
           supabase,
           { houseId: HOUSE_ID, runId: RUN_ID },
           {
-            access: { allowed: true, entityId: "entity-1" } as never,
+            access: { allowed: true, allowedByRole: true, entityId: "entity-1" } as never,
             resolvedTarget: staleResolvedTarget,
           },
         ),
@@ -157,7 +157,7 @@ describe("payroll run mutation helpers validate fresh state even with resolvedTa
           supabase,
           { houseId: HOUSE_ID, adjustsRunId: RUN_ID },
           {
-            access: { allowed: true, entityId: "entity-1" } as never,
+            access: { allowed: true, allowedByRole: true, entityId: "entity-1" } as never,
             resolvedTarget: staleResolvedTarget,
           },
         ),
@@ -188,7 +188,7 @@ describe("payroll run mutation helpers validate fresh state even with resolvedTa
     await assert.rejects(
       () =>
         finalizePayrollRunForHouse(supabase, HOUSE_ID, RUN_ID, {
-          access: { allowed: true, entityId: "entity-1" } as never,
+          access: { allowed: true, allowedByRole: true, entityId: "entity-1" } as never,
           resolvedTarget: staleResolvedTarget,
         }),
       (error: unknown) => error instanceof PayrollRunOpenSegmentsError,

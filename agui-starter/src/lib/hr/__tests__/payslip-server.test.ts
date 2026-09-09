@@ -1471,4 +1471,40 @@ describe("payslip preview", () => {
       PayrollRunDeductionLockedError,
     );
   });
+
+  it("denies deduction mutation to read-only payroll policy access", async () => {
+    const supabase = new SupabaseMock(buildBaseData());
+    const readOnly = evaluateHrAccess({
+      roles: ["house_staff"], policyKeys: ["tiles.payroll.read"], entityId: "staff",
+    });
+    await assert.rejects(
+      () => createPayrollRunDeduction(
+        supabase as never,
+        { runId: "run-1", houseId: "house-1", employeeId: "emp-1", label: "Cash advance", amount: 100, createdBy: "staff" },
+        { access: readOnly },
+      ),
+      PayslipAccessError,
+    );
+
+    const branchWrite = {
+      ...readOnly,
+      allowed: true,
+      allowedByPolicy: true,
+      policyKeys: ["domain.payroll.all", "hr.branch.branch-1"],
+      evaluatedHouseId: "house-1",
+      evaluatedLevel: "write",
+      evaluatedCapability: "payroll",
+      isBranchLimited: true,
+      allowedBranchIds: ["branch-1"],
+    } as never;
+    await assert.rejects(
+      () => createPayrollRunDeduction(
+        supabase as never,
+        { runId: "run-1", houseId: "house-1", employeeId: "emp-1", label: "Cash advance", amount: 100, createdBy: "staff" },
+        { access: branchWrite },
+      ),
+      PayslipAccessError,
+    );
+  });
+
 });

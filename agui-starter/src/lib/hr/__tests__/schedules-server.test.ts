@@ -4,11 +4,13 @@ import { afterEach, describe, it, mock } from "node:test";
 import type {
   HrBranchScheduleAssignmentRow,
   HrScheduleTemplateRow,
+  HrScheduleWindowRow,
 } from "@/lib/db.types";
 import * as access from "../access";
 import { evaluateHrAccess } from "../access";
 import {
   createBranchScheduleAssignment,
+  getScheduleTemplateWithWindows,
   listBranchScheduleAssignments,
   listScheduleTemplates,
   ScheduleAssignmentError,
@@ -22,6 +24,7 @@ type SupabaseData = {
   templates: HrScheduleTemplateRow[];
   branches: BranchRow[];
   assignments: HrBranchScheduleAssignmentRow[];
+  windows?: HrScheduleWindowRow[];
 };
 
 class TemplateQueryMock {
@@ -37,6 +40,10 @@ class TemplateQueryMock {
 
   eq(column: keyof HrScheduleTemplateRow, value: string) {
     return new TemplateQueryMock(this.rows, { ...this.filters, [column]: value }, this.result);
+  }
+
+  in(column: keyof HrScheduleTemplateRow, values: string[]) {
+    return new TemplateQueryMock(this.rows.filter((row) => values.includes(String(row[column]))), this.filters, this.result);
   }
 
   async order(column: keyof HrScheduleTemplateRow) {
@@ -97,6 +104,10 @@ class AssignmentQueryMock {
     return new AssignmentQueryMock(this.rows, { ...this.filters, [column]: value }, this.result);
   }
 
+  in(column: keyof HrBranchScheduleAssignmentRow, values: string[]) {
+    return new AssignmentQueryMock(this.rows.filter((row) => values.includes(String(row[column]))), this.filters, this.result);
+  }
+
   async order(column: keyof HrBranchScheduleAssignmentRow, options?: { ascending?: boolean }) {
     const filtered = this.rows.filter((row) =>
       Object.entries(this.filters).every(([key, value]) =>
@@ -135,12 +146,29 @@ class AssignmentInsertQueryMock {
   }
 }
 
+class WindowQueryMock {
+  constructor(private rows: HrScheduleWindowRow[], private filters: Partial<HrScheduleWindowRow> = {}) {}
+  select() { return this; }
+  eq(column: keyof HrScheduleWindowRow, value: string) {
+    return new WindowQueryMock(this.rows, { ...this.filters, [column]: value });
+  }
+  order() { return this; }
+  then(resolve: (value: QueryResult<HrScheduleWindowRow[]>) => void) {
+    const data = this.rows.filter((row) => Object.entries(this.filters).every(([key, value]) =>
+      (row as Record<string, unknown>)[key] === value));
+    resolve({ data, error: null });
+  }
+}
+
 class SupabaseMock {
   constructor(private data: SupabaseData) {}
 
   from(table: string) {
     if (table === "hr_schedule_templates") {
       return new TemplateQueryMock(this.data.templates);
+    }
+    if (table === "hr_schedule_windows") {
+      return new WindowQueryMock(this.data.windows ?? []);
     }
     if (table === "branches") {
       return new BranchQueryMock(this.data.branches);
@@ -191,6 +219,60 @@ describe("listScheduleTemplates", () => {
     const result = await listScheduleTemplates(supabase as never, "house-1", { access: accessDenied });
 
     assert.deepEqual(result, []);
+  });
+});
+
+describe("branch-limited schedule template visibility", () => {
+  const branchAccess = {
+    ...evaluateHrAccess({ roles: ["house_staff"], policyKeys: ["tiles.hr.read"], entityId: "staff" }),
+    allowed: true,
+    isBranchLimited: true,
+    allowedBranchIds: ["branch-a"],
+  } as never;
+  const templates = [
+    { ...baseTemplate, id: "template-a", name: "A" },
+    { ...baseTemplate, id: "shared", name: "Shared" },
+    { ...baseTemplate, id: "template-b", name: "B" },
+    { ...baseTemplate, id: "unassigned", name: "Unassigned" },
+  ];
+  const assignments = [
+    { ...baseAssignment, id: "a1", branch_id: "branch-a", schedule_id: "template-a" },
+    { ...baseAssignment, id: "a2", branch_id: "branch-a", schedule_id: "shared" },
+    { ...baseAssignment, id: "a3", branch_id: "branch-b", schedule_id: "shared" },
+    { ...baseAssignment, id: "a4", branch_id: "branch-b", schedule_id: "template-b" },
+  ];
+  const windows = templates.map((template, index) => ({
+    id: `window-${index}`, house_id: "house-1", schedule_id: template.id,
+    day_of_week: 1, start_time: "09:00", end_time: "17:00",
+    break_start: null, break_end: null, created_at: "2024-01-01T00:00:00Z",
+  } satisfies HrScheduleWindowRow));
+
+  it("returns allowed and shared templates but hides other-branch and unassigned templates", async () => {
+    const supabase = new SupabaseMock({ templates, assignments, branches: [], windows });
+    const result = await listScheduleTemplates(supabase as never, "house-1", { access: branchAccess });
+    assert.deepEqual(result.map((row) => row.id), ["template-a", "shared"]);
+    const allowed = await getScheduleTemplateWithWindows(supabase as never, "house-1", "shared", { access: branchAccess });
+    assert.equal(allowed?.template.id, "shared");
+    assert.equal(allowed?.windows.length, 1);
+  });
+
+  it("fails closed for direct inaccessible and unassigned template lookups", async () => {
+    const supabase = new SupabaseMock({ templates, assignments, branches: [], windows });
+    assert.equal(await getScheduleTemplateWithWindows(supabase as never, "house-1", "template-b", { access: branchAccess }), null);
+    assert.equal(await getScheduleTemplateWithWindows(supabase as never, "house-1", "unassigned", { access: branchAccess }), null);
+  });
+
+  it("returns empty without house-wide fallback when allowed branches have no assignments", async () => {
+    const supabase = new SupabaseMock({ templates, assignments: assignments.filter((row) => row.branch_id === "branch-b"), branches: [], windows });
+    assert.deepEqual(await listScheduleTemplates(supabase as never, "house-1", { access: branchAccess }), []);
+  });
+
+  it("preserves every house template and window for broad authority", async () => {
+    const supabase = new SupabaseMock({ templates, assignments, branches: [], windows });
+    const result = await listScheduleTemplates(supabase as never, "house-1", { access: accessAllowed });
+    assert.equal(result.length, 4);
+    const unassigned = await getScheduleTemplateWithWindows(supabase as never, "house-1", "unassigned", { access: accessAllowed });
+    assert.equal(unassigned?.windows.length, 1);
   });
 });
 

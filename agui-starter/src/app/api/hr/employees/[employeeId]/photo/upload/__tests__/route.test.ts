@@ -11,7 +11,12 @@ import { POST, runtime } from "../route";
 const EMPLOYEE_ID = "11111111-1111-4111-8111-111111111111";
 const HOUSE_ID = "33333333-3333-4333-8333-333333333333";
 
-function createServiceStub(options?: { employeeHouseId?: string | null; employeeLookupError?: string; uploadMock?: (...args: unknown[]) => unknown }) {
+function createServiceStub(options?: {
+  employeeHouseId?: string | null;
+  employeeBranchId?: string | null;
+  employeeLookupError?: string;
+  uploadMock?: (...args: unknown[]) => unknown;
+}) {
   const maybeSingle = async () => {
     if (options?.employeeLookupError) {
       return { data: null, error: { message: options.employeeLookupError } };
@@ -21,7 +26,15 @@ function createServiceStub(options?: { employeeHouseId?: string | null; employee
       return { data: null, error: null };
     }
 
-    return { data: { house_id: options?.employeeHouseId ?? HOUSE_ID }, error: null };
+    return {
+      data: {
+        house_id: options?.employeeHouseId ?? HOUSE_ID,
+        branch_id: options?.employeeBranchId === undefined
+          ? "44444444-4444-4444-8444-444444444444"
+          : options.employeeBranchId,
+      },
+      error: null,
+    };
   };
 
   return {
@@ -115,7 +128,7 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
 
     mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-1b" } } as never));
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
-    mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: true } as never));
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true } as never));
     mock.method(supabaseService, "getServiceSupabase", () => createServiceStub({ uploadMock }) as never);
 
     const response = await POST(buildUploadRequest(EMPLOYEE_ID, HOUSE_ID.toUpperCase(), `employee-photos/${EMPLOYEE_ID}.jpg`, "image/jpeg"), {
@@ -133,7 +146,7 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
 
     mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-1" } } as never));
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
-    mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: true } as never));
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true } as never));
     mock.method(supabaseService, "getServiceSupabase", () => createServiceStub({ uploadMock }) as never);
 
     const response = await POST(buildUploadRequest(EMPLOYEE_ID, HOUSE_ID, `employee-photos/${EMPLOYEE_ID}.png`, "image/png"), {
@@ -149,7 +162,7 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
   it("returns 404 for authenticated request when target employee does not exist", async () => {
     mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-2" } } as never));
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
-    mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: true } as never));
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true } as never));
     mock.method(supabaseService, "getServiceSupabase", () => createServiceStub({ employeeHouseId: null }) as never);
 
     const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
@@ -166,7 +179,7 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
 
     mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-4" } } as never));
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
-    mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: true } as never));
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true } as never));
     mock.method(supabaseService, "getServiceSupabase", () => createServiceStub({ employeeHouseId: "99999999-9999-4999-8999-999999999999", uploadMock }) as never);
 
     const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
@@ -184,7 +197,7 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
 
     mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-3" } } as never));
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
-    mock.method(hrAccess, "requireHrAccess", async () => ({ allowed: false } as never));
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: false } as never));
     mock.method(supabaseService, "getServiceSupabase", getServiceMock as never);
 
     const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
@@ -212,7 +225,7 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
       callOrder.push("createServerSupabaseClient");
       return {} as never;
     });
-    mock.method(hrAccess, "requireHrAccess", async () => {
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => {
       callOrder.push("hrAccess");
       return { allowed: true } as never;
     });
@@ -244,7 +257,7 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
       callOrder.push("createServerSupabaseClient");
       return {} as never;
     });
-    mock.method(hrAccess, "requireHrAccess", async () => {
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => {
       callOrder.push("hrAccess");
       return { allowed: true } as never;
     });
@@ -258,14 +271,14 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
     });
 
     assert.equal(response.status, 200);
-    assert.deepEqual(callOrder, ["auth", "createServerSupabaseClient", "hrAccess", "employeeLookup", "employeeLookup", "upload"]);
+    assert.deepEqual(callOrder, ["auth", "createServerSupabaseClient", "hrAccess", "employeeLookup", "createServerSupabaseClient", "hrAccess", "employeeLookup", "upload"]);
     assert.equal(uploadMock.mock.calls.length, 1);
   });
 
   it("returns 500 when authorization backend throws unexpectedly", async () => {
     mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "user-5" } } as never));
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
-    mock.method(hrAccess, "requireHrAccess", async () => {
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => {
       throw new Error("backend down");
     });
     mock.method(supabaseService, "getServiceSupabase", () => createServiceStub() as never);
@@ -291,4 +304,50 @@ describe("POST /api/hr/employees/[employeeId]/photo/upload", () => {
     const payload = await response.json();
     assert.equal(payload?.error, "Storage upload failed");
   });
+
+  it("denies an unassigned target after preflight for a branch-limited actor without uploading", async () => {
+    const uploadMock = mock.fn(async () => ({ error: null }));
+    const scopes: string[] = [];
+    mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "branch-staff" } } as never));
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
+    mock.method(hrAccess, "requireHrAccessWithBranch", async (_client: unknown, input: Parameters<typeof hrAccess.requireHrAccessWithBranch>[1]) => {
+      scopes.push(input.writeScope ?? "");
+      return { allowed: input.writeScope === "branch-set-preflight" } as never;
+    });
+    mock.method(supabaseService, "getServiceSupabase", () =>
+      createServiceStub({ employeeBranchId: null, uploadMock }) as never,
+    );
+
+    const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
+      params: Promise.resolve({ employeeId: EMPLOYEE_ID }),
+    });
+
+    assert.equal(response.status, 403);
+    assert.deepEqual(scopes, ["branch-set-preflight", "single-branch"]);
+    assert.equal(uploadMock.mock.calls.length, 0);
+  });
+
+  it("preserves owner authority for an unassigned target", async () => {
+    const uploadMock = mock.fn(async () => ({ error: null }));
+    const inputs: Array<{ branchId?: string | null; writeScope?: string }> = [];
+    mock.method(accessCheck, "requireAuthentication", async () => ({ user: { id: "owner" } } as never));
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({} as never));
+    mock.method(hrAccess, "requireHrAccessWithBranch", async (_client: unknown, input: Parameters<typeof hrAccess.requireHrAccessWithBranch>[1]) => {
+      inputs.push(input);
+      return { allowed: true, allowedByRole: true } as never;
+    });
+    mock.method(supabaseService, "getServiceSupabase", () =>
+      createServiceStub({ employeeBranchId: null, uploadMock }) as never,
+    );
+
+    const response = await POST(buildUploadRequest(EMPLOYEE_ID), {
+      params: Promise.resolve({ employeeId: EMPLOYEE_ID }),
+    });
+
+    assert.equal(response.status, 200);
+    assert.equal(inputs[1]?.branchId, null);
+    assert.equal(inputs[1]?.writeScope, "single-branch");
+    assert.equal(uploadMock.mock.calls.length, 1);
+  });
+
 });

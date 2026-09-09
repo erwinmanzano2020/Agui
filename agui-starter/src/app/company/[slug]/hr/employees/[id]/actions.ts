@@ -99,6 +99,7 @@ export async function updateEmployeeAction(
     houseId,
     branchId: normalizedBranchId,
     requiredLevel: "write",
+    writeScope: "branch-set-preflight",
   });
   if (!access.allowed) {
     return { status: "error", message: "You are not allowed to edit this employee." } satisfies UpdateEmployeeState;
@@ -158,7 +159,7 @@ export async function deleteEmployeeAction(formData: FormData): Promise<{ status
     return { status: "error", message: "Authentication required." };
   }
 
-  const access = await requireHrAccessWithBranch(supabase, { houseId, requiredLevel: "write" });
+  const access = await requireHrAccessWithBranch(supabase, { houseId, requiredLevel: "write", writeScope: "branch-set-preflight" });
   if (!access.allowed) {
     return { status: "error", message: "You are not allowed to delete this employee." };
   }

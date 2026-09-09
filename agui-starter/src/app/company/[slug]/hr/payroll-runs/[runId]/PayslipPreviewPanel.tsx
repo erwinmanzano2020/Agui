@@ -70,11 +70,13 @@ export default function PayslipPreviewPanel({
   runId,
   employees,
   runStatus,
+  canMutatePayroll,
 }: {
   houseSlug: string;
   runId: string;
   employees: EmployeeSummary[];
   runStatus: "draft" | "finalized" | "posted" | "paid" | "cancelled";
+  canMutatePayroll: boolean;
 }) {
   const [rows, setRows] = useState<PayslipPreviewRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -316,68 +318,74 @@ export default function PayslipPreviewPanel({
         </table>
       </div>
 
-      <form className="space-y-4 rounded-xl border border-border bg-white/60 p-4" onSubmit={submitDeduction}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h4 className="text-sm font-semibold text-foreground">Add manual deduction</h4>
-            <p className="text-xs text-muted-foreground">
-              Cash advances, uniforms, and other one-off adjustments for this run snapshot. Deductions stay editable in draft/finalized and lock after posting.
-            </p>
+      {canMutatePayroll ? (
+        <form className="space-y-4 rounded-xl border border-border bg-white/60 p-4" onSubmit={submitDeduction}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h4 className="text-sm font-semibold text-foreground">Add manual deduction</h4>
+              <p className="text-xs text-muted-foreground">
+                Cash advances, uniforms, and other one-off adjustments for this run snapshot. Deductions stay editable in draft/finalized and lock after posting.
+              </p>
+            </div>
+            {deductionsLocked ? (
+              <Badge tone="off">Locked after posting</Badge>
+            ) : null}
           </div>
-          {deductionsLocked ? (
-            <Badge tone="off">Locked after posting</Badge>
-          ) : null}
-        </div>
 
-        <div className="grid gap-4 md:grid-cols-[minmax(160px,_1fr)_minmax(200px,_2fr)_minmax(140px,_1fr)]">
-          <div className="space-y-2">
-            <Label htmlFor="deduction-employee">Employee</Label>
-            <select
-              id="deduction-employee"
-              className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm"
-              value={employeeId}
-              onChange={(event) => setEmployeeId(event.target.value)}
-              disabled={deductionsLocked}
-            >
-              {employees.map((employee) => (
-                <option key={employee.id} value={employee.id}>
-                  {employee.name}
-                </option>
-              ))}
-            </select>
+          <div className="grid gap-4 md:grid-cols-[minmax(160px,_1fr)_minmax(200px,_2fr)_minmax(140px,_1fr)]">
+            <div className="space-y-2">
+              <Label htmlFor="deduction-employee">Employee</Label>
+              <select
+                id="deduction-employee"
+                className="h-9 w-full rounded-md border border-input bg-white px-3 text-sm"
+                value={employeeId}
+                onChange={(event) => setEmployeeId(event.target.value)}
+                disabled={deductionsLocked}
+              >
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="deduction-label">Label</Label>
+              <Input
+                id="deduction-label"
+                value={label}
+                onChange={(event) => setLabel(event.target.value)}
+                placeholder="Cash advance"
+                disabled={deductionsLocked}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="deduction-amount">Amount</Label>
+              <Input
+                id="deduction-amount"
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                placeholder="0.00"
+                type="number"
+                step="0.01"
+                min="0"
+                disabled={deductionsLocked}
+              />
+            </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="deduction-label">Label</Label>
-            <Input
-              id="deduction-label"
-              value={label}
-              onChange={(event) => setLabel(event.target.value)}
-              placeholder="Cash advance"
-              disabled={deductionsLocked}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="deduction-amount">Amount</Label>
-            <Input
-              id="deduction-amount"
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-              placeholder="0.00"
-              type="number"
-              step="0.01"
-              min="0"
-              disabled={deductionsLocked}
-            />
-          </div>
-        </div>
 
-        <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" size="sm" disabled={deductionsLocked || saving}>
-            {saving ? "Saving..." : "Add deduction"}
-          </Button>
-          {message ? <span className="text-xs text-muted-foreground">{message}</span> : null}
+          <div className="flex flex-wrap items-center gap-3">
+            <Button type="submit" size="sm" disabled={deductionsLocked || saving}>
+              {saving ? "Saving..." : "Add deduction"}
+            </Button>
+            {message ? <span className="text-xs text-muted-foreground">{message}</span> : null}
+          </div>
+        </form>
+      ) : (
+        <div className="rounded-xl border border-dashed border-border bg-white/60 p-4 text-sm text-muted-foreground">
+          Manual deductions are read-only because you do not have payroll mutation access.
         </div>
-      </form>
+      )}
     </section>
   );
 }

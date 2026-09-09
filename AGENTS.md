@@ -24,8 +24,8 @@ If a lower layer conflicts with a higher layer, stop and surface the conflict in
 Agui is phase-based, and only one active phase may be worked on at a time.
 
 Current priority order (sequence unchanged):
-1. HR System (initial active phase)
-2. POS (current active phase)
+1. HR System (current active phase)
+2. POS (paused phase)
 3. Operations
 4. Finance
 5. Growth and advanced systems
@@ -33,16 +33,19 @@ Current priority order (sequence unchanged):
 Phase transition note:
 - HR was the initial active phase.
 - HR reached the required stability checkpoint (recorded on 2026-03-31 UTC).
-- POS is now the active development phase under roadmap sequencing.
-- HR remains stable but is not the currently active phase.
+- POS subsequently became active and progressed through merged PR #488.
+- By explicit owner decision, POS is paused after PR #488 and HR is reactivated as the sole active development phase for end-to-end MVP completion.
+- The preserved POS checkpoint is POS-F3 Slice 12 Tender Intent runtime. POS code and frozen contracts must remain untouched unless a future explicit Roadmap/phase decision reactivates POS.
+- The first permitted HR task after the governance transition is a documentation/read-only current-state audit; the transition itself authorizes no HR runtime implementation.
 
 ### Hard rules
 - Only the active phase may be worked on.
+- Only HR work may proceed while this phase decision remains current.
 - No feature jumping.
 - No future-scope implementation unless the task explicitly authorizes shared foundation work.
 - No partial implementation “just to test” unless explicitly requested.
 
-Operations, Finance, and later systems remain gated until POS progression authorizes their own start.
+POS, Operations, Finance, and later systems remain gated until an explicit future Roadmap/phase decision authorizes their own start or resumption.
 
 ---
 

@@ -124,6 +124,7 @@ async function findActiveEmployeeForEntity(
 export async function listBranchesForHouse(
   supabase: SupabaseClient<Database>,
   houseId: string,
+  options: { isBranchLimited?: boolean; allowedBranchIds?: string[] } = {},
 ): Promise<BranchListResult> {
   const { data, error } = await supabase
     .from("branches")
@@ -131,8 +132,10 @@ export async function listBranchesForHouse(
     .eq("house_id", houseId)
     .order("name", { ascending: true });
 
+  const allowed = new Set(options.allowedBranchIds ?? []);
   const rows = (data ?? [])
     .filter((row) => (row as { house_id?: string | null }).house_id === houseId)
+    .filter((row) => !options.isBranchLimited || allowed.has((row as { id?: string | null }).id ?? ""))
     .map((row) => {
       const id = (row as { id?: string | null }).id;
       const name = (row as { name?: string | null }).name;

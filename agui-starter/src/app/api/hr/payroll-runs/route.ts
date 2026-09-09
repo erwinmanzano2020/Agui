@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { jsonError, jsonOk } from "@/lib/api/http";
 import { logApiError, logApiWarning } from "@/lib/api/logging";
 import { AppFeature } from "@/lib/auth/permissions";
+import { requireHrAccessWithBranch } from "@/lib/hr/access";
 import { resolveHrRouteActorContext } from "@/app/api/hr/_shared/route-guard-order";
 import {
   createDraftPayrollRunFromPreview,
@@ -55,7 +56,12 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const runs = await listPayrollRunsForHouse(supabase, parsed.data.houseId);
+    const access = await requireHrAccessWithBranch(supabase, { houseId: parsed.data.houseId });
+    if (!access.allowed) throw new PayrollRunAccessError("Not allowed to access payroll runs for this house.");
+    const runs = await listPayrollRunsForHouse(supabase, parsed.data.houseId, {
+      access,
+      branchScope: { isBranchLimited: access.isBranchLimited, allowedBranchIds: access.allowedBranchIds },
+    });
     return jsonOk({ runs });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

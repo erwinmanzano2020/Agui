@@ -4,6 +4,7 @@ import { afterEach, describe, it, mock } from "node:test";
 import * as featureGuard from "@/lib/auth/feature-guard";
 import * as identityServer from "@/lib/identity/entity-server";
 import * as payrollRunsServer from "@/lib/hr/payroll-runs-server";
+import * as hrAccess from "@/lib/hr/access";
 import * as payslipServer from "@/lib/hr/payslip-server";
 import * as supabaseServer from "@/lib/supabase/server";
 import * as supabaseService from "@/lib/supabase-service";
@@ -47,6 +48,11 @@ function setupAuthOk() {
   mockSupabase();
   mock.method(supabaseService, "getServiceSupabase", () => ({}) as never);
   mock.method(identityServer, "resolveEntityIdForUser", async () => "entity-1");
+  mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({
+    allowed: true, allowedByRole: true, allowedByPolicy: false, hasWorkspaceAccess: true,
+    roles: ["house_owner"], normalizedRoles: ["owner"], policyKeys: [], entityId: "entity-1",
+    branchId: null, isBranchLimited: false, allowedBranchIds: [],
+  }) as never);
 }
 
 function setupSafeRouteEntryOrderProbe(order: string[]) {
