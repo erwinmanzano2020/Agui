@@ -84,6 +84,63 @@ after a separately authorized implementation provides and verifies sufficient du
 integrity and linkage between each relevant attendance observation and resulting
 segment. This contract deliberately does not choose a schema mechanism.
 
+#### Canonical semantic completion mode
+
+Before kiosk cardinality is evaluated, current governing attendance evidence must
+deterministically establish the fact's **canonical semantic completion mode** as either
+legitimately open/incomplete or completed. This is semantic terminology only; it does
+not create a completion enum, column, constraint, RPC, lifecycle state machine, or
+storage-precedence mechanism.
+
+Row `status` alone does not select the mode. In particular, `status = corrected`
+describes correction history and is orthogonal to attendance completion: a corrected
+fact may be open/incomplete or completed according to its current canonical attendance
+evidence. Likewise, `status = open` cannot downshift a fact when current evidence
+establishes completion, and `status = closed` does not make an unsupported completion
+valid.
+
+Current completion signals may include a linked current logical OUT, non-null current
+`time_out`, an explicit current closed lifecycle state, or auditable current correction
+lineage establishing completion. These categories help select the applicable
+cardinality rule; none is attendance-branch provenance, and this contract defines no
+technical precedence among them.
+
+Open/incomplete mode applies only when the fact is deterministically still open: exactly
+one canonical integrity-valid logical IN is present, no current logical OUT candidate
+belongs to the fact, no current completion boundary is established, lifecycle evidence
+is compatible with still-open attendance, and no unresolved completion contradiction
+exists. Completed mode applies when current canonical evidence establishes that the
+attendance action progressed through completion. A completed-mode fact missing its
+required valid OUT cannot fall back to open mode; its kiosk lane is insufficient.
+
+If current lifecycle, value, observation, or correction evidence cannot be reconciled to
+one mode, the kiosk lane is insufficient rather than silently selecting a permissive
+mode. This is a kiosk-lane sufficiency failure, not an automatic whole-fact
+classification: Section 4 may still classify the fact **ATTRIBUTED** through another
+independently sufficient agreeing lane, **CONFLICT** when established valid branch facts
+disagree, or **UNATTRIBUTED** when no lane suffices.
+
+| Current fact evidence | Completion mode | Kiosk-lane result |
+|---|---|---|
+| Valid IN A; no OUT or completion signal | Open/incomplete | May be **ATTRIBUTED — A** if every open rule is satisfied |
+| Valid IN A and valid OUT A | Completed | **ATTRIBUTED — A** if the exact pair and integrity rules are satisfied |
+| Valid IN A; `time_out` exists; valid logical OUT missing | Completed expectation | Kiosk lane insufficient; no fallback to open |
+| `status = open`; valid IN A and valid OUT A | Completed | Apply completed cardinality; status cannot downshift |
+| `status = corrected`; corrected fact proves valid IN A and OUT A | Completed | Apply completed cardinality |
+| `status = corrected`; evidence proves IN-only and legitimately still open | Open/incomplete | Apply open cardinality |
+| `status = corrected`; completion cannot be established | Unresolved | Kiosk lane insufficient |
+| `status = closed`; completion cannot be validated | Completed expectation unresolved/invalid | Kiosk lane insufficient |
+| Completion contradiction; complete authorized explicit A | Kiosk insufficient | Final fact may be **ATTRIBUTED — A** under Section 4 |
+| Completion contradiction; no sufficient other lane | Kiosk insufficient | Final **UNATTRIBUTED** |
+| Completion contradiction; established valid branch disagreement | Unresolved | Final **CONFLICT** |
+
+Only current governing evidence selects completion mode. Historical/superseded values
+remain audit history and do not re-enter completion classification. A value-only time
+correction does not itself create a new observation or branch provenance, but the
+resulting current fact must still be classified as open/incomplete or completed.
+Location correction is separate and does not itself decide completion; Section 9's
+expected evidence-base, stale-finalization, and HR-4 rules remain authoritative.
+
 #### Canonical kiosk logical-observation set
 
 After any future separately approved deterministic duplicate/replay collapse, the
@@ -97,7 +154,7 @@ fact conflicts with it. The absent OUT is expected while legitimately open.
 
 If more than one distinct integrity-valid logical IN remains, the open segment is
 **UNATTRIBUTED** even when every IN names the same branch. If one or more logical OUTs
-also remain while the segment is represented as open and the set cannot be reconciled
+also remain while the fact is canonically determined to be open and the set cannot be reconciled
 to the expected exact state, it is **UNATTRIBUTED** when branch facts agree, or
 **CONFLICT** only when established integrity-valid branch facts disagree.
 
@@ -497,7 +554,7 @@ unchanged under existing authorization rules.
 Classification does not authorize branch-limited viewers to learn which lanes were
 evaluated. Visible projections must not disclose source counts, hidden source types,
 failed kiosk evidence, manual/admin or bulk/import provenance details, out-of-scope
-branch values, actors/reasons, or evidence-completeness metadata. Existing legitimate
+branch values, actors/reasons, evidence-completeness metadata, or completion-mode ambiguity. Existing legitimate
 house-wide audit authority remains unchanged.
 
 ## 9. Correction and replay semantics
@@ -764,7 +821,7 @@ GAP-025 approves policy, not implementation. Before branch-limited runtime enfor
 a separately authorized gate must inspect and define the schema/provenance/runtime work
 needed to satisfy this contract, including durable event-to-segment integrity,
 operator-captured manual/bulk/import provenance, replacement identity/lineage preservation, time-value versus observation-membership
-semantics, split/merge handling, semantic-state handling, exact cardinality,
+semantics, split/merge handling, semantic-state handling, canonical completion-mode selection, exact cardinality,
 active-attribution correction, current-vs-historical governing evidence, evidence-base
 revalidation for competing proposals,
 sanitized audit visibility, correction auditability, and scope-first no-leak
@@ -776,7 +833,7 @@ The current-model Category D placement in `docs/hr-branch-scope-model.md` descri
 existing derived/not-directly-stored characteristics; it does not override this
 storage-neutral, source-aware contract.
 
-This document does not prescribe `branch_id` on `dtr_segments`, an import provenance
+This document does not prescribe `completion_state`, `is_complete`, a status rewrite/migration, trigger, generated column, event-count field, `time_out IS NOT NULL` rule, reducer, materialized completion state, serializer behavior, database constraint, `branch_id` on `dtr_segments`, or an import provenance
 table, predecessor/successor columns, an assignment-history table, a backfill, a
 correction-state enum or `active_branch_id`, an audit permission, response DTO, serializer, RPC signature, UI
 mechanism, or conflict-resolution
