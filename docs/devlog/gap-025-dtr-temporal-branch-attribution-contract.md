@@ -45,9 +45,12 @@ The owner approves a bounded hybrid contract:
 2. future manual/administrative and compliant bulk/import attendance requires
    explicit authorized attendance-location provenance that applies deterministically
    to each resulting attendance fact; and
-3. legacy, unknown, incomplete, broken, ambiguous, or conflicting attribution fails
-   closed for branch-limited actors while remaining a valid house-owned attendance fact
-   visible to legitimate house-wide authority under existing authorization rules.
+3. facts whose final canonical result under Section 4 is **UNATTRIBUTED** or
+   **CONFLICT** fail closed for branch-limited actors while remaining valid house-owned
+   attendance facts visible to legitimate house-wide authority under existing
+   authorization rules. Mere presence of incomplete or otherwise insufficient agreeing
+   evidence in one lane does not force that final result when another applicable lane
+   independently supplies sufficient provenance.
 
 This decision selects semantic requirements, not a database or runtime design. It does
 not approve any one historical option wholesale and intentionally rejects effective-
@@ -449,12 +452,15 @@ viewer context. They remain visible to legitimate house-wide authority according
 existing authorization rules, but unsafe for branch-limited visibility until an
 explicit, auditable adjudication under a future approved process.
 
-Apply Section 4's order: disagreement among established integrity-valid branch facts
-is **CONFLICT** first, including when other evidence is incomplete or cardinality-
-invalid. Otherwise missing, broken, malformed, incomplete, duplicate-ambiguous,
-cardinality-invalid, or integrity-uncertain evidence is **UNATTRIBUTED**. A conflict
-remains explicit until authorized, auditable resolution; classification precedence does
-not select a winning source or branch.
+Apply Section 4's ordered classifier. Established integrity-valid branch disagreement
+is **CONFLICT**, including when another lane is incomplete or cardinality-invalid.
+Otherwise missing, broken, malformed, incomplete, duplicate-ambiguous, cardinality-
+invalid, or integrity-uncertain evidence causes **UNATTRIBUTED** only when no applicable
+lane independently satisfies its canonical sufficiency rule. If another applicable
+lane independently supplies complete valid provenance and all established valid branch
+facts agree, the fact remains **ATTRIBUTED**; the incomplete agreeing lane is
+non-vetoing. Unsupported evidence cannot itself grant branch visibility, a conflict
+remains explicit until authorized auditable resolution, and no source or branch wins.
 
 ## 7. GAP-026 cross-branch IN/OUT rule
 
@@ -474,10 +480,13 @@ and implements none of those mechanisms, and GAP-026 runtime remains unfixed.
 
 ## 8. Authorization and no-leak behavior
 
-For a branch-limited actor, attendance is visible only when approved deterministic,
-non-conflicting attribution establishes a branch within that actor's allowed scope.
-**UNATTRIBUTED** and **CONFLICT** attendance—and any unknown, broken, incomplete, or
-ambiguous variant—fails closed.
+For a branch-limited actor, attendance is visible only when the final Section 4
+classification is **ATTRIBUTED** to a branch within that actor's allowed scope.
+Attendance whose final classification is **UNATTRIBUTED** or **CONFLICT** fails closed.
+An incomplete, broken, malformed, ambiguous, duplicate-ambiguous, cardinality-invalid,
+or integrity-uncertain lane cannot grant access by itself, but an agreeing insufficient
+lane does not veto a separate applicable lane that independently establishes
+**ATTRIBUTED**.
 
 An unauthorized branch-limited path must not reveal the record, record count,
 existence, timing, or employee association. Filtering and metadata must preserve that
