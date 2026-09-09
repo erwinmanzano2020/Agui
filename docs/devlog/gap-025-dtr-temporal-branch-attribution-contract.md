@@ -470,7 +470,8 @@ most-complete-source-wins, existing-row-wins, import precedence, or latest-write
 | Valid IN Branch A + valid IN Branch B + valid OUT Branch A | **CONFLICT** |
 | Valid IN Branch A + valid OUT Branch B | **CONFLICT** |
 | Valid IN Branch A + missing OUT on completed segment | **UNATTRIBUTED** |
-| Valid IN Branch A + malformed candidate Branch B evidence | **UNATTRIBUTED** |
+| Legitimately open kiosk: exact valid IN Branch A, zero OUT + malformed/non-applicable Branch B candidate from another lane | **ATTRIBUTED — A** |
+| Completed kiosk IN Branch A + malformed/invalid expected OUT; no other sufficient lane | **UNATTRIBUTED** |
 | Valid IN Branch A + integrity-valid manual provenance Branch B | **CONFLICT** |
 | Excess same-branch valid observations only | **UNATTRIBUTED** |
 | Excess observations containing valid contradictory branches | **CONFLICT** |
@@ -481,6 +482,14 @@ A is **CONFLICT**, not UNATTRIBUTED: cardinality fails, but established valid br
 facts disagree and Step 2 takes precedence. Conversely, two valid same-branch INs plus
 a same-branch OUT is **UNATTRIBUTED** because cardinality fails without valid branch
 disagreement.
+
+The legitimately open example is **ATTRIBUTED — A** because its exact kiosk IN/zero-OUT
+shape independently satisfies the open rule. A malformed or non-applicable branch-
+looking candidate from another lane is not an established branch fact and cannot veto
+that sufficient kiosk lane or manufacture **CONFLICT**. By contrast, once completion is
+established, malformed, invalid, missing, or non-validatable expected OUT evidence makes
+the kiosk lane insufficient; absent another independently sufficient applicable lane,
+the completed fact is **UNATTRIBUTED**.
 
 Mixed-source examples apply only after each named lane is established as applicable to
 the same attendance fact:
