@@ -66,6 +66,19 @@ path resolves house authorization first. Branch is attendance-location context a
 additive restriction layer: it can narrow existing access but can never create house
 access. Legitimate `owner`/`manager` house-wide authority remains unchanged.
 
+Every branch eligible to become established integrity-valid attendance provenance,
+active canonical attribution, or a location-correction/adjudication target must
+deterministically belong to the attendance fact's `house_id`. This source-neutral
+same-house integrity rule applies to every provenance lane. A foreign-house
+branch-looking value is invalid provenance: it cannot become an established branch
+fact, grant branch-limited visibility, become active through correction, or itself
+manufacture **CONFLICT**. If no other applicable lane independently supplies sufficient
+valid provenance, the fact is **UNATTRIBUTED**; if a sufficient same-house lane exists,
+Section 4 classifies from that valid evidence. Attendance-house authorization must not
+dereference or project a foreign-house candidate into branch names, labels, employee
+associations, or other cross-house metadata. This contract selects no validation,
+lookup, schema, FK, constraint, trigger, RPC, API, serializer, or storage mechanism.
+
 ### 3.2 Attendance-location fact
 
 Historical attendance branch belongs to the attendance observation and its resulting
@@ -202,7 +215,8 @@ Correction gate.
 
 For every future manual/admin-created attendance fact, the authorized operator must
 explicitly identify where the attendance occurred. That selection is attendance
-provenance. It must not be silently inferred from current employee branch, current
+provenance and is sufficient only when the selected branch satisfies Section 3.1's
+same-house integrity rule. It must not be silently inferred from current employee branch, current
 device branch, schedule, or operator location. This requirement defines semantics only;
 it does not define a column, table, RPC, API input, or UI control.
 
@@ -219,7 +233,8 @@ employee branch, current device branch, schedule, uploader/operator current bran
 When a future authorized bulk/import workflow can authoritatively establish the actual
 branch where attendance occurred, every resulting attendance fact must carry explicit,
 authorized, deterministic actual-attendance branch provenance under the same semantic
-standard as authorized manual/admin capture. The provenance must apply deterministically
+standard as authorized manual/admin capture, including Section 3.1's same-house
+integrity rule. The provenance must apply deterministically
 to each resulting fact. This contract does not choose a per-row field, a batch field
 with validated homogeneous semantics, a provenance relation, or any other storage
 mechanism; that choice belongs to a separately authorized GAP-024/Foundation Security
@@ -593,7 +608,8 @@ For an active Branch A attribution with a proposed correction to Branch B:
 - if rejected, Branch A remains active, Branch B never becomes active, and B remains
   rejected audit history that grants no access; and
 - only after every applicable authorization requirement is satisfied, any required approval is
-  present, the expected attribution/evidence base is revalidated, and finalization
+  present, Branch B is validated as a branch belonging to the attendance fact's house,
+  the expected attribution/evidence base is revalidated, and finalization
   successfully completes does Branch B become active. Approval alone leaves active
   visibility unchanged. Branch A then stops governing current branch-limited visibility
   but remains historical lineage; preserving A does not continue to grant Branch A
@@ -641,7 +657,10 @@ Approval is an eligibility fact, not activation. It does not grant visibility, r
 or preselect a branch, supersede current attribution/evidence, bypass evidence-base
 revalidation, guarantee finalization, or itself change the current governing evidence
 frame. For payroll-impacting correction, HR-4 approval is mandatory before successful
-finalization, but only successful finalization after revalidation activates the target.
+finalization, but only successful finalization after same-house target validation and
+evidence-base revalidation activates the target. A foreign-house target is invalid and
+non-finalizable: house authority or approval cannot make it active, governing, or
+visibility-granting.
 
 ### Competing and stale location-correction proposals
 
