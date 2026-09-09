@@ -74,6 +74,53 @@ The active schema has no DTR-specific evidence-membership, canonical-attribution
 correction/audit table, view, or RPC. `clock_events` is an independent legacy surface
 and supplies no proved link to `dtr_segments`; it is not a GAP-024 attribution source.
 
+### 2.3 Complete current `dtr_segments` consumer inventory
+
+Daily DTR is not the only production consumer. A fresh bounded target-tree search for
+direct table calls, `listDtrByHouseAndDate`, and all `dtr_segments` references found the
+following dependencies. **Base `dtr_segments` read access MUST NOT be revoked while any
+live application consumer still depends on it.** Before any base-access change, the
+future implementation must repeat this search against its then-current head and classify
+every newly discovered consumer too.
+
+| Class | Current consumer | Current use and required disposition before revocation |
+|---|---|---|
+| **A — branch-scoped operational reader** | `src/app/company/[slug]/hr/dtr/page.tsx` through `src/lib/hr/dtr-segments-server.ts::listDtrByHouseAndDate` | Live Daily DTR date/employee read. Migrate to the canonical branch-aware GAP-025 projection. |
+| **A/B — shared operational/house computation** | `src/lib/hr/overtime-engine.ts::computeOvertimeForHouseDate` | Reads house/date segments for Daily DTR and payroll preview. It must accept only appropriately authorized projected inputs or an approved interface matching each caller's authority; it must not silently broaden A through B. |
+| **B — legitimate house-wide HR/payroll reader** | `src/lib/hr/payroll-preview-server.ts` | Loads period segments for selected house employees and feeds overtime/payroll preview. Migrate to the canonical authorized house-wide attendance-consumption interface and parity-test calculations. |
+| **B — legitimate house-wide HR/payroll reader** | `src/lib/hr/payroll-runs-server.ts::hasOpenSegmentsInPeriod` | Checks whether a house period contains open segments before run behavior. Preserve its authorized house-wide predicate through the house-wide canonical interface and parity-test run creation/read behavior. |
+| **B — legitimate house-wide HR/payroll reader** | `src/lib/hr/payslip-server.ts` | Loads an employee's house-period segments for payslip generation/review and PDF/API callers. Migrate to the house-wide canonical interface and parity-test output. |
+| **C — live browser-direct reader** | `src/app/payroll/dtr-today/page.client.tsx` | Direct browser select (and adjacent insert/update). Replace with an approved server/RPC boundary or retire the route before revocation; branch-limited bypass must be impossible. |
+| **C — live browser-direct reader** | `src/app/payroll/bulk-payslip/page.client.tsx` | Direct browser period select used in bulk payslip calculation. Replace with an authorized server/house-wide interface or retire before revocation. |
+| **C — live browser-direct reader** | `src/app/payroll/payslip/page.client.tsx` | Direct browser employee/range select used in payslip calculation. Replace with an authorized server/house-wide interface or retire before revocation. |
+| **D — trusted kiosk runtime** | `src/lib/hr/kiosk/repository.ts` via `src/lib/hr/kiosk/http.ts` | Reads open segments while also creating/closing them. Migrate to a narrow authenticated-device ingestion/continuation boundary; service privilege must not become a generic read bypass. |
+| **D — service API reader** | `src/app/api/payroll/dtr-bulk/route.ts` | Service-role single-mode period select with adjacent destructive writes. Require a narrow user-authorized house/branch-compatible boundary; preserve Section 3.7's separate provenance risk and do not treat service role as authorization. |
+| **D/E — manual admin utility** | `agui-starter/scripts/fix-dtr-timezone.ts` | Prints review/update SQL for manual database execution and is not application runtime. Intentionally retire/update the runbook utility or explicitly retain it as a separately approved audited admin boundary before base restriction makes its SQL invalid. |
+| **E — currently unreferenced helper** | `src/lib/hr/overtime-policy-server.ts::getDailyComputedDtrForEmployee` through `listDtrByHouseAndDate` | No production caller found. Retire it or migrate it before any future activation; do not count it as proof of a live dependency. |
+| **E — currently unreferenced helpers** | `src/lib/hr/dtr-segments-server.ts::listDtrByEmployee` and `listDtrTodayByBranch` | No production callers found. The latter retains the separate P2 in Section 4.2. Retire or replace rather than preserving raw dependency. |
+| **E — non-route alternate client file** | `src/app/payroll/dtr-bulk/page2.tsx` | Direct browser reads/writes, but Next's route uses `page.tsx` plus `DtrBulkClient`; no import of `page2.tsx` was found. Retire or migrate before it can be activated. |
+| **E — tests/types** | DTR, overtime, payroll preview/run/payslip, PDF-route tests and `src/lib/db.types.ts` | Test doubles/type declarations are not production consumers. Update them only in an authorized implementation to verify replacements; never use them to claim runtime migration completeness. |
+
+`src/app/company/[slug]/hr/dtr/actions.ts` and the create/update paths in
+`dtr-segments-server.ts`, kiosk, browser clients, bulk API, and `page2.tsx` also select
+rows as part of writes. They are mutation dependencies, not read-product consumers, but
+base-table revocation must account for their returning/target-resolution reads through
+the separately authorized write/provenance corrections. No other production read was
+found in the target tree at this baseline.
+
+The future architecture must provide at least two authorization-appropriate interfaces,
+not force every consumer through one branch DTO:
+
+1. a canonical **branch-aware operational read interface** implementing GAP-025
+   ATTRIBUTED/allowed-branch projection and no-leak behavior; and
+2. a canonical **authorized house-wide attendance-consumption interface** for legitimate
+   owner/manager and payroll computation contexts.
+
+Both interfaces must derive from the same protected canonical attendance authority,
+preserve house ownership, and avoid unrestricted raw base-table dependency. The second
+interface is not permission for a branch-limited consumer to opt out of attribution.
+Physical view/RPC/table names remain unapproved and storage-neutral.
+
 ## 3. Current-state findings
 
 ### 3.1 Daily DTR read path — confirmed security gap
@@ -466,12 +513,17 @@ Use layered defense:
   are not directly selectable by ordinary application actors;
 - database constraints/transactional functions enforce same-house integrity, observation
   uniqueness, revision activation, and projection consistency;
-- a canonical RPC or security-barrier equivalent resolves authorized projection rows;
+- a canonical RPC or security-barrier equivalent resolves branch-aware projection rows;
+- a distinct canonical authorized house-wide consumption interface supplies legitimate
+  payroll/owner-manager contexts without routing them through a branch-limited DTO;
+- both interfaces use the same protected attendance authority and neither exposes an
+  unrestricted raw base-table dependency;
 - server repository accepts an `HrBranchAccessDecision` for defense and typed behavior,
-  but cannot broaden database results;
-- Daily DTR uses only that helper; and
+  but cannot broaden database results or select the house-wide interface for a
+  branch-limited actor;
+- Daily DTR uses only the branch-aware helper; and
 - service-role paths are limited to authenticated kiosk or user-authorized narrow
-  mutation functions and never general projection bypass.
+  read/mutation functions and never general projection bypass.
 
 RLS alone over `dtr_segments` is insufficient because attribution is not a segment
 column. Application-only filtering is bypassable. A view without safe invocation/RLS
@@ -533,10 +585,61 @@ window that grants stale visibility.
   compare-and-swap semantics for ingestion/replay/finalization.
 - Provide a deterministic projection rebuild and discrepancy checker from durable
   evidence; rebuild must fail closed while a fact is missing/invalid.
-- Stage deployment: add authority/storage and constraints; ingest/backfill provable
-  subsets; shadow-compare owner results; verify scoped no-leak/RLS; switch canonical
-  reader; revoke direct paths. Rollback disables the new reader without deleting
-  evidence; branch-limited fallback is deny/empty, never the old house-wide reader.
+### 11.1 Dependency-safe rollout and revocation sequence
+
+The previous shorthand “switch the canonical reader; revoke direct paths” is unsafe
+because Daily DTR is not the only consumer. The mandatory sequence is:
+
+1. introduce the separately approved durable authority, current projection, and
+   branch-aware and authorized house-wide read boundaries;
+2. ingest/backfill only provable subsets and validate projection/rebuild behavior;
+3. introduce and verify the canonical branch-aware Daily DTR reader;
+4. repeat and freeze an inventory of **all** production `dtr_segments` readers at the
+   implementation head, including indirect helpers, browser clients, APIs, kiosk,
+   service/admin/background paths, and returning reads coupled to writes;
+5. migrate each live consumer to its authorization-appropriate canonical interface,
+   intentionally retire it, or explicitly retain it behind an approved narrow safe
+   boundary;
+6. parity-test every migrated consumer, especially payroll preview, payroll run
+   creation/read gates, payslip review/generation/PDF, owner/manager house-wide paths,
+   kiosk, and browser replacements;
+7. prove through bounded searches, runtime tests, and dependency review that no
+   unauthorized/direct production dependency remains and no branch-limited consumer can
+   reach the house-wide interface;
+8. verify deployed database grants, RLS, RPC/view invocation behavior, service-role
+   boundaries, and no-leak behavior;
+9. **only then** revoke or tightly bound direct base access; and
+10. repeat production-like parity, cross-house, branch/no-leak, browser denial, kiosk,
+    payroll/payslip, and rollback verification after revocation.
+
+If migrating all consumers is too broad for one implementation PR, the Foundation
+Security Correction must be decomposed into ordered dependency sub-gates. Every consumer
+migration and its parity evidence is a prerequisite to the final revocation gate; no
+partial rollout may revoke access early.
+
+### 11.2 Hard revocation and closure gate
+
+Revocation is permitted only when all conditions below are evidenced:
+
+- every live production reader is inventoried and has an approved replacement, explicit
+  retirement, or approved narrow trusted boundary;
+- branch-limited consumers cannot bypass canonical attribution, including indirectly
+  through overtime, payroll, browser, API, kiosk, or service paths;
+- legitimate owner/manager house-wide behavior remains available through the authorized
+  house-wide interface;
+- payroll preview, payroll run creation/read, and payslip generation/review/PDF behavior
+  is parity-verified without changing calculation semantics;
+- client/browser direct reads are removed or safely replaced;
+- service-role/admin/background paths are narrow, explicit, authenticated/audited as
+  applicable, and not generic bypasses;
+- deployed grants, RLS, and approved RPC/view behavior have been verified; and
+- rollback cannot restore the old insecure house-wide fallback for a branch-limited
+  actor.
+
+If any prerequisite is unmet, revocation is deferred. Conversely, leaving unrestricted
+raw direct access available indefinitely is **not** valid GAP-024 closure: if it remains
+a branch-limited bypass, branch enforcement is incomplete. During staged migration,
+branch-limited fallback is deny/empty rather than the old house-wide reader.
 - Load-test realistic house/date ranges, multiple daily segments, pagination, late sync,
   and concurrent duplicate/finalization races.
 
@@ -563,6 +666,7 @@ window that grants stale visibility.
 | Generated DB types | `agui-starter/src/lib/db.types.ts` | Regenerate approved additive shapes/DTO interfaces. |
 | RLS/policy/grants | new migration plus review of active `dtr_segments`, kiosk, employee policies | Revoke/bound direct access; preserve house-wide authority; enforce scoped projection and service boundaries. |
 | Repository/server helper | `agui-starter/src/lib/hr/dtr-segments-server.ts` (or focused new attribution repository) | Replace raw date reader with canonical scoped projection; deprecate current-branch helper. |
+| DTR consumer migration / compatibility | `src/lib/hr/payroll-preview-server.ts`, `payroll-runs-server.ts`, `payslip-server.ts`, `overtime-engine.ts`, live payroll client pages, kiosk repository, bulk API, and every then-current consumer in Section 2.3 | Security-boundary compatibility dependency: migrate/retire/safely retain each before revocation, using branch-aware or authorized house-wide interfaces as appropriate; preserve behavior without adding payroll features. |
 | Authorization helper | `agui-starter/src/lib/hr/access.ts` | Reuse access decision and allowed branches; do not make it the classifier. |
 | Daily DTR page | `agui-starter/src/app/company/[slug]/hr/dtr/page.tsx` | Scope-first data flow, safe DTO, bounded derived data, approved roster only. |
 | Mutation/provenance | Daily DTR `actions.ts`/forms and `src/app/api/payroll/dtr-bulk/route.ts` | Separate authorized scope: explicit actual branch, immutable provenance, safe correction path; never infer assignment. |
@@ -641,6 +745,27 @@ window that grants stale visibility.
   sanitized correction indicator contain only scoped facts;
 - schedule/overtime set-based query count is bounded and range pagination remains scoped.
 
+### 14.7 Consumer-migration and revocation acceptance
+
+- payroll preview produces parity-equivalent authorized attendance results immediately
+  before and after base-access revocation;
+- payroll run creation/open-segment gates and read paths preserve authorized DTR
+  consumption before and after revocation;
+- payslip generation, review, bulk output, and PDF paths preserve authorized DTR
+  consumption before and after revocation;
+- legitimate owner/manager house-wide consumers remain functional through the distinct
+  authorized house-wide interface;
+- a branch-limited actor cannot bypass the branch-aware projection through overtime,
+  payroll preview/run/payslip, another migrated server helper, or crafted API input;
+- every live client/browser direct base read is absent or replaced, and authenticated
+  browser attempts to select the base table fail after final revocation;
+- kiosk, bulk, service-role, admin, and background consumers remain narrow and prove
+  their own authentication, house, capability/branch, and audit boundary;
+- pre-/post-revocation parity covers errors and empty/open-segment behavior, not only
+  successful totals; and
+- rollback preserves protected authority and fails closed for branch-limited reads; it
+  never restores an insecure house-wide raw fallback.
+
 ## 15. Unresolved owner decisions and explicit non-goals
 
 Implementation cannot claim the complete Daily DTR page contract until the owner decides:
@@ -653,10 +778,17 @@ Implementation cannot claim the complete Daily DTR page contract until the owner
    migration/backfill, and separate urgent write correction.
 
 The facts-only read projection can be specified independently, but implementation still
-requires explicit authorization. This plan does not solve HR-2 correction UI, HR-4
-approval product, payroll readiness, schedule lifecycle, independent `clock_events`
-derivation, employee multi-branch assignment, native/offline Frontline migration, or any
-non-HR phase.
+requires explicit authorization. GAP-024 does not redesign payroll, change payroll
+calculation semantics, or authorize HR-3 feature work. Existing payroll/payslip readers
+must nevertheless remain functional across the security-boundary change: their migration
+preserves legitimate house-authorized behavior while removing raw base-table dependency.
+That compatibility work is a security prerequisite, not new payroll product scope, and
+must be split into ordered pre-revocation sub-gates if it cannot safely fit one future
+implementation PR.
+
+This plan does not solve HR-2 correction UI, HR-4 approval product, payroll readiness,
+schedule lifecycle, independent `clock_events` derivation, employee multi-branch
+assignment, native/offline Frontline migration, or any non-HR phase.
 
 ## 16. Search classification and closure checklist
 
