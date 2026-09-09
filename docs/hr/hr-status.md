@@ -341,11 +341,14 @@ suffices. This selects no winning source or branch. These
 clarified semantics are part of GAP-025 closure, not implemented runtime.
 
 Branch-limited visibility follows the **active canonical attribution**. A proposed or
-rejected A → B correction leaves A active and gives B no access; only applicable
-authorized approval/finalization makes B active. Pending proposals from UNATTRIBUTED or
-CONFLICT remain fail closed. Payroll-impacting corrected attribution requires HR-4
-approval before activation, while original/proposed/rejected values remain audit lineage
-and independently grant no branch access.
+rejected A → B correction leaves A active and gives B no access. Required approval is
+eligibility only and does not activate B. Only successful finalization after the current
+expected attribution/evidence base is revalidated makes B active. Pending or approved-
+but-not-finalized proposals from UNATTRIBUTED or CONFLICT remain fail closed; only
+successfully finalized valid adjudication establishes the target branch. Payroll-
+impacting correction requires HR-4 approval before finalization, while original,
+proposed, approved-but-not-finalized, rejected, or stale values remain non-granting audit
+lineage.
 
 Bulk replacement preserves attribution only through authorized, auditable, deterministic
 one-to-one predecessor → successor lineage with unchanged logical-observation membership.

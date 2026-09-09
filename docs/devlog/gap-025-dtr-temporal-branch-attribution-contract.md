@@ -592,9 +592,12 @@ For an active Branch A attribution with a proposed correction to Branch B:
   because a proposal exists;
 - if rejected, Branch A remains active, Branch B never becomes active, and B remains
   rejected audit history that grants no access; and
-- only after the applicable authorized approval/finalization does Branch B become
-  active. Branch A then stops governing current branch-limited visibility but remains
-  historical lineage; preserving A does not continue to grant Branch A access.
+- only after every applicable authorization requirement is satisfied, any required approval is
+  present, the expected attribution/evidence base is revalidated, and finalization
+  successfully completes does Branch B become active. Approval alone leaves active
+  visibility unchanged. Branch A then stops governing current branch-limited visibility
+  but remains historical lineage; preserving A does not continue to grant Branch A
+  access.
 
 Pending or rejected lineage is a workflow record, not two simultaneous active branch
 facts, and does not create **CONFLICT** merely because original and proposed values are
@@ -613,13 +616,19 @@ multi-branch visibility.
 | Base attribution | Correction state | Active branch visibility |
 |---|---|---|
 | Branch A | No correction | Branch A |
-| Branch A | Pending A → B | Branch A |
+| Branch A | Pending/proposed A → B | Branch A |
+| Branch A | Approved but not successfully finalized A → B | Branch A |
 | Branch A | Rejected A → B | Branch A |
-| Branch A | Approved/finalized A → B | Branch B |
+| Branch A | Approved but stale/non-finalizable A → B | Branch A/current active basis |
+| Branch A | Successfully finalized A → B | Branch B |
 | **UNATTRIBUTED** | Pending proposal to B | Fail closed |
-| **UNATTRIBUTED** | Finalized valid correction to B | Branch B |
+| **UNATTRIBUTED** | Approved but not finalized proposal to B | Fail closed |
+| **UNATTRIBUTED** | Approved but stale/non-finalizable proposal to B | Fail closed |
+| **UNATTRIBUTED** | Successfully finalized valid correction to B | Branch B |
 | **CONFLICT** | Pending proposal to B | Fail closed |
-| **CONFLICT** | Finalized valid correction to B | Branch B |
+| **CONFLICT** | Approved but not finalized proposal to B | Fail closed |
+| **CONFLICT** | Approved but stale/non-finalizable proposal to B | Fail closed |
+| **CONFLICT** | Successfully finalized valid correction to B | Branch B |
 
 HR-2 records the correction; HR-4 owns required payroll-impacting approval. A
 payroll-impacting corrected attribution cannot become active or payroll-ready before
@@ -627,6 +636,12 @@ HR-4 approval, and rejected values cannot become payroll-ready. A future
 non-payroll-impacting correction uses its separately approved finalization authority;
 this contract invents no workflow. Legitimate owner/manager house-wide visibility is
 unchanged throughout.
+
+Approval is an eligibility fact, not activation. It does not grant visibility, reserve
+or preselect a branch, supersede current attribution/evidence, bypass evidence-base
+revalidation, guarantee finalization, or itself change the current governing evidence
+frame. For payroll-impacting correction, HR-4 approval is mandatory before successful
+finalization, but only successful finalization after revalidation activates the target.
 
 ### Competing and stale location-correction proposals
 
@@ -765,6 +780,12 @@ audit payload, count, or related metadata. A B-limited viewer receives no fact,
 correction record, existence/status signal, count, actor, reason, timestamp, or Branch A
 metadata. The proposal is not an access grant.
 
+For approved-but-not-successfully-finalized A → B, the same visibility boundary holds:
+an A-limited viewer may see the fact and only a permitted minimum sanitized correction
+indication, while B receives no fact, proposal, approval, finalization, actor, reason,
+timestamp, or A metadata. Hidden approval/finalization details remain audit data unless
+independently authorized. Approval does not make B active.
+
 For rejected A → B, an A-limited viewer may see the fact and, if surfaced, a sanitized
 rejected indication. Rejected B remains hidden audit history and grants no access. A
 B-limited viewer receives neither attendance nor correction metadata.
@@ -788,12 +809,18 @@ not automatically disclosed lineage.
 | A active, no correction | Branch A | Yes | N/A | No |
 | Pending A → B | Branch A | Yes | Yes | No |
 | Pending A → B | Branch B | No | No | No |
+| Approved, not successfully finalized A → B | Branch A | Yes | Minimum sanitized state only | No |
+| Approved, not successfully finalized A → B | Branch B | No | No | No |
+| Approved but stale/non-finalizable A → B | Branch A/current active scope | Per current active attribution | Minimum sanitized state only | No |
+| Approved but stale/non-finalizable A → B | Branch B | No | No | No |
 | Rejected A → B | Branch A | Yes | Optional sanitized rejected state | No |
 | Rejected A → B | Branch B | No | No | No |
-| Finalized A → B | Branch A | No | No | No |
-| Finalized A → B | Branch B | Yes | Yes | No |
+| Successfully finalized A → B | Branch A | No | No | No |
+| Successfully finalized A → B | Branch B | Yes | Yes | No |
 | **UNATTRIBUTED** + pending proposal | Any branch-limited actor | No | No | No |
+| **UNATTRIBUTED** + approved but not finalized/stale proposal | Any branch-limited actor | No | No | No |
 | **CONFLICT** + pending proposal | Any branch-limited actor | No | No | No |
+| **CONFLICT** + approved but not finalized/stale proposal | Any branch-limited actor | No | No | No |
 | Any house-owned fact | Legitimate house-wide owner/manager | Per existing house authority | Yes where applicable | Yes under existing house-wide audit authority |
 
 Audit preservation is mandatory; disclosure to every fact viewer is not. Audit
