@@ -73,11 +73,12 @@ closed and canonical. The owner resolved the plan's four decisions on 2026-09-10
 The
 [`GAP-024 Implementation Approval`](../devlog/gap-024-daily-dtr-branch-enforcement-implementation-approval.md)
 authorizes future bounded tasks, after this governance PR merges, in fixed order:
-Gate A authority/projection foundation; Gate B deterministic ingest/backfill/rebuild
-verification; Gate C canonical branch-aware and house-global readers plus Daily DTR
-facts-only cutover; Gate D migration of every live consumer; and Gate E final security
-cutover/raw-access revocation. A gate may be subdivided, but order and semantics cannot
-change. Payroll/payslip, browser-direct, kiosk, bulk, service/admin/background, repair
+Gate A authority/projection plus canonical branch-aware and house-global read-boundary
+foundation; Gate B deterministic ingest/backfill/rebuild and interface validation; Gate C
+Daily DTR facts-only cutover using those already-established canonical readers; Gate D
+migration of every live consumer; and Gate E final security cutover/raw-access
+revocation. A gate may be subdivided, but order and semantics cannot change.
+Payroll/payslip, browser-direct, kiosk, bulk, service/admin/background, repair
 script/runbook, and every other active consumer must have an approved migrated/retired
 disposition before revocation.
 

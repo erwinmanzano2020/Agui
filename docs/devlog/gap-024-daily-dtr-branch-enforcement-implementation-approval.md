@@ -133,26 +133,49 @@ The following order is frozen. A gate may be subdivided without changing its ord
 semantics. A later gate may not be pulled forward for implementation convenience. Every
 slice requires a separate bounded Codex task.
 
-### GAP-024 Gate A — authority/projection foundation
+### GAP-024 Gate A — authority/projection and canonical read-boundary foundation
 
-Introduce only the durable authority and rebuildable current-projection foundation
-needed by Option D. There is no final consumer cutover and no raw-access revocation.
+Introduce the approved foundational security structure:
+
+- durable evidence/revision/lineage authority required by Option D;
+- the rebuildable current authorization projection;
+- the canonical branch-aware attendance read boundary; and
+- the distinct authorized house-global attendance-consumption read boundary.
+
+At the end of Gate A, both protected read boundaries exist as security interfaces, but
+production consumer cutover remains separately gated. The boundaries must fail closed
+where required canonical authority/projection data is unavailable or invalid; no
+permissive house-wide fallback is allowed.
+
+Gate A does not cut Daily DTR over, migrate any normal production consumer, revoke
+raw/base access, or broaden payroll or other product behavior. Daily DTR, payroll,
+payslip, overtime, browser, kiosk, bulk, repair, service, admin, and background consumer
+migration remains in the applicable later gate. Focused Gate-A verification may exercise
+the interfaces without making them production consumer paths.
 
 ### GAP-024 Gate B — deterministic ingest/backfill/rebuild verification
 
 Populate or backfill only provable evidence. Unknown or invalid facts fail closed.
-Verify rebuild determinism and owner/manager parity. There is no final canonical-reader
-cutover and no raw-access revocation.
+Verify rebuild determinism, projection consistency, and legitimate owner/manager
+house-wide parity as applicable. Exercise the Gate-A read boundaries against the
+backfilled/rebuilt projection. There is no final Daily DTR cutover, all-consumer
+migration, or raw-access revocation.
 
-### GAP-024 Gate C — canonical read boundaries and Daily DTR facts-only cutover
+### GAP-024 Gate C — canonical Daily DTR facts-only cutover
 
-Introduce both:
+Using the canonical read boundaries already established in Gate A and validated through
+Gate B:
 
-- the canonical branch-aware attendance reader; and
-- the distinct authorized house-global attendance-consumption reader.
+- branch-limited Daily DTR switches to the branch-aware canonical interface;
+- legitimate owner/manager house-global Daily DTR behavior uses the authorized global
+  interface;
+- branch-limited Daily DTR remains facts-only;
+- **UNATTRIBUTED** and **CONFLICT** remain fail closed;
+- metadata, row, count, no-record, and no-leak parity is enforced; and
+- current `employee.branch_id`, request `branchId`, schedule, or device context does not
+  become attendance attribution.
 
-Daily DTR branch-limited mode becomes facts-only against canonical GAP-025 attribution.
-**UNATTRIBUTED** and **CONFLICT** remain fail closed. Raw access is not revoked yet.
+Raw/base access is not revoked yet.
 
 ### GAP-024 Gate D — migrate all consumers
 

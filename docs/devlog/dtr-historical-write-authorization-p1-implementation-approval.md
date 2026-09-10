@@ -110,13 +110,29 @@ For a branch-limited historical manual create, all of these must be true:
 4. the proposed actual-attendance branch is explicitly supplied as provenance;
 5. that branch is in the actor's `allowedBranchIds`;
 6. the actor has the relevant HR write capability;
-7. the provenance assertion is durably bound to the newly created logical attendance
-   fact/evidence frame;
-8. the resulting fact is classified under unchanged GAP-025 semantics;
-9. actual-attendance branch is not silently derived from current employee assignment,
-   request/UI branch context, schedule guess, viewer branch, operator branch, or current
-   device branch; and
-10. missing, malformed, unknown, cross-house, or out-of-scope provenance fails closed.
+7. actor identity is captured;
+8. the historical attendance context being created is captured;
+9. a non-empty valid manual-creation reason is required;
+10. deterministic logical fact/evidence identity is retained;
+11. the authorized provenance and audit context—including actor, attendance context, and
+    reason—are durably bound to the newly created logical attendance fact/evidence frame;
+12. the resulting fact is classified under unchanged GAP-025 semantics;
+13. actual-attendance branch is not silently derived from current employee assignment,
+    request/UI branch context, schedule guess, viewer branch, operator branch, or current
+    device branch; and
+14. missing, malformed, unknown, cross-house, or out-of-scope provenance fails closed.
+
+The required creation reason is audit context answering why an authorized actor is
+manually creating the historical fact—for example, missed time capture, kiosk
+unavailability, or an approved administrative reconstruction. It does not prove that
+attendance occurred and does not identify where attendance occurred; explicit
+actual-attendance provenance and all GAP-025 evidence rules remain independently
+required. This approval freezes no reason enum or UI option list.
+
+This P1 concerns manual historical creation. A manual/admin fact requires a reason. An
+import-produced fact may instead use an import provenance reference for the corresponding
+audit context only under its separately approved import contract; this approval does not
+authorize or implement bulk/import behavior.
 
 A future UI may prefill the assertion for usability only when it visibly presents the
 value as the attendance-location assertion, the actor explicitly confirms and submits
@@ -186,13 +202,17 @@ The separately tasked runtime PR must add focused existing-fact tests proving:
 It must add positive branch-limited historical manual-create tests proving:
 
 1. a P3-limited actor with valid HR write authority can create a new historical fact
-   using explicit actual-attendance provenance of P3;
+   using explicit actual-attendance provenance of P3 and a non-empty valid creation
+   reason;
 2. a same-house employee, same-house P3 provenance, and P3 in `allowedBranchIds`
    succeeds;
-3. the resulting fact/evidence retains the explicit actor-authorized manual provenance;
-4. the resulting classification is **ATTRIBUTED — P3** when no valid conflicting
+3. the resulting fact/evidence retains actor identity, historical attendance context,
+   explicit actual-attendance provenance, deterministic logical fact/evidence identity,
+   and the required reason;
+4. the reason and provenance remain bound to the created fact/evidence lineage;
+5. the resulting classification is **ATTRIBUTED — P3** when no valid conflicting
    evidence exists; and
-5. the P3-limited actor receives only the sanitized authorized result.
+6. the P3-limited actor receives only the sanitized authorized result.
 
 It must also add negative and no-leak historical manual-create tests proving:
 
@@ -205,10 +225,14 @@ It must also add negative and no-leak historical manual-create tests proving:
 - zero allowed branch scope denies;
 - missing HR write capability denies;
 - malformed provenance denies;
+- a missing required manual-creation reason denies and fails closed;
+- a blank or invalid reason under the future bounded input contract denies;
+- a reason without explicit actual-attendance provenance denies;
+- valid actual-attendance provenance without the required reason denies;
 - an existing conflicting fact cannot be bypassed by creating another manual fact;
 - denial does not reveal whether another branch has attendance for that employee/date;
 - denial exposes no hidden branch IDs/names, source evidence, counts, record existence,
-  or correction metadata; and
+  correction metadata, or audit context; and
 - legitimate owner/manager house-wide create behavior remains preserved under existing
   separately approved broad authority rules.
 
