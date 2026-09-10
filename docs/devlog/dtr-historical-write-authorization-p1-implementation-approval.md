@@ -23,7 +23,10 @@ the authority of an existing fact.
 
 ### 2.1 Existing-fact mutation
 
-For an existing historical attendance fact:
+#### Step 1 — authorization eligibility
+
+For an existing historical attendance fact, authorization eligibility resolves as
+follows:
 
 - current `employee.branch_id` is not historical attendance ownership;
 - current employee branch assignment cannot independently authorize historical mutation;
@@ -36,6 +39,59 @@ For an existing historical attendance fact:
 - **UNATTRIBUTED** or **CONFLICT** must fail closed for branch-limited mutation unless a
   separately authorized correction/finalization contract permits resolution;
 - existing owner/manager house-wide authority remains unchanged.
+
+Authorization eligibility is necessary but not sufficient to edit the fact. Existing
+owner/manager breadth remains an authorization rule; it does not bypass the correction
+contract below.
+
+#### Step 2 — required correction and finalization
+
+Authorization alone must not permit direct destructive mutation of canonical attendance
+state. Every edit of an existing historical attendance fact must use the approved DTR
+correction/audit/finalization contract and preserve at minimum:
+
+- original values;
+- proposed or corrected values;
+- the required correction reason;
+- actor identity;
+- correction timestamp;
+- immutable, auditable history;
+- current-versus-historical distinction;
+- finalization state; and
+- payroll-impact classification where applicable.
+
+Direct overwrite, silent replacement, branch-only overwrite, a temporary shortcut, or a
+destructive save merely because authorization succeeded is not permitted. This approval
+freezes semantic behavior only and does not select physical correction storage.
+
+A time, duration, numeric-boundary, or equivalent correction that preserves the same
+logical observation identity must still use correction lineage with traceable original
+and corrected values. GAP-025 same-fact identity rules remain unchanged. A
+payroll-impacting correction requires HR-4 approval before successful finalization or
+payroll-ready use. A non-payroll-impacting correction that is otherwise allowed by the
+frozen contract must still be finalized through the approved correction path.
+
+Changing active attendance branch changes authorization scope. A branch-limited user
+must not directly overwrite location. Location correction must use the approved
+correction/finalization lifecycle; initial finalization authority for a
+non-payroll-impacting location correction remains **OWNER/MANAGER ONLY**, and a
+payroll-impacting location correction remains HR-4 approval-aware before successful
+finalization or payroll-ready use. Approval is not finalization. A pending or rejected
+proposal does not change active attribution or activate the target branch. Successful
+finalization alone may activate the corrected branch, while original attribution remains
+historical and auditable.
+
+If the requested edit subtype needs a correction/finalization capability that is not
+implemented, authorized, or safely callable, the future P1 runtime must fail closed using
+the bounded failure behavior permitted by its runtime contract. It must not fall back to
+a direct update, silent replacement, branch-only overwrite, temporary shortcut, or
+destructive save.
+
+HR-2 continues to own attendance facts and correction records, including reason,
+actor/timestamp, and original-versus-corrected lineage. HR-4 continues to own required
+approval for payroll-impacting corrections. This P1 requires future runtime to use those
+approved correction/finalization semantics where safely available or fail closed; it
+does not authorize the full HR-2 correction UI or HR-4 product workflow.
 
 ### 2.2 New historical manual creation
 
@@ -102,18 +158,30 @@ implementation.
 
 ## 3. Required future focused verification
 
-The separately tasked runtime PR must retain focused existing-fact tests for:
+The separately tasked runtime PR must add focused existing-fact tests proving:
 
-1. an employee moved from P3 to Main after historical attendance at P3;
-2. current Main assignment does not authorize a Main-limited actor to edit the prior P3
-   fact;
-3. a prior P3-limited actor cannot edit a current Main fact merely because the employee
-   used to be assigned to P3;
-4. **UNATTRIBUTED** and **CONFLICT** fail closed;
-5. zero allowed branch scope denies;
-6. a cross-house target denies;
-7. legitimate owner/manager house-wide behavior is preserved; and
-8. denial does not leak hidden out-of-scope branch metadata.
+1. a branch-limited actor with the correct branch authority cannot directly overwrite an
+   existing historical fact;
+2. an existing-fact edit creates or preserves correction lineage;
+3. correction reason is required where the canonical contract requires it;
+4. actor identity and correction timestamp are preserved;
+5. original and corrected values remain traceable;
+6. a pending correction does not change active attribution;
+7. a rejected correction does not change active attribution;
+8. successful finalization changes current state only according to the approved contract;
+9. an ordinary branch-limited actor cannot finalize a non-payroll-impacting location
+   correction;
+10. a payroll-impacting correction cannot finalize or become payroll-ready without the
+    required HR-4 approval;
+11. a missing correction/finalization dependency fails closed rather than permitting
+    destructive overwrite;
+12. employee-transfer scenarios preserve historical authorization: current Main
+    assignment does not authorize a Main-limited actor to edit a prior P3 fact, and prior
+    P3 assignment does not authorize a P3-limited actor to edit a current Main fact;
+13. **UNATTRIBUTED** and **CONFLICT** fail closed;
+14. denial leaks no hidden branch, correction, or audit metadata; and
+15. legitimate owner/manager house-wide authorization behavior remains preserved without
+    bypassing required correction/finalization semantics.
 
 It must add positive branch-limited historical manual-create tests proving:
 
@@ -144,6 +212,15 @@ It must also add negative and no-leak historical manual-create tests proving:
 - legitimate owner/manager house-wide create behavior remains preserved under existing
   separately approved broad authority rules.
 
+Create-versus-edit boundary tests must additionally prove:
+
+- a new fact with no prior logical attendance fact may proceed through the explicit
+  provenance create path;
+- an existing logical fact cannot use create instead of correction;
+- a conflicting existing fact cannot be bypassed by manufacturing a second fact; and
+- a branch-limited actor cannot convert an edit into a “new create” to move authorization
+  scope.
+
 These are future implementation requirements. This documentation approval adds no tests.
 
 ## 4. Separation from GAP-024 Option D
@@ -169,6 +246,8 @@ This P1 authorization neither implements nor accelerates those gates.
 - **Risk checked:** house authorization precedes branch restriction, current assignment
   cannot rewrite historical authority or supply creation provenance, explicit creation
   provenance is same-house and allowed-branch validated and durably bound, existing facts
-  cannot be bypassed through create, ambiguous historical facts deny branch-limited
-  mutation, cross-house access denies, owner/manager authority is preserved, and denial
-  cannot leak hidden metadata.
+  cannot be destructively overwritten or bypassed through create, required correction
+  lineage/finalization cannot be skipped when dependencies are unavailable, ambiguous
+  historical facts deny branch-limited mutation, cross-house access denies,
+  owner/manager authorization breadth is preserved without bypassing correction
+  semantics, and denial cannot leak hidden metadata.

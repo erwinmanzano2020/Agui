@@ -87,10 +87,13 @@ recommended first urgent runtime correction and is frozen in its own
 It must reject current `employee.branch_id` or current assignment as independent proof
 of authority over a historical attendance fact, preserve house-first authorization and
 owner/manager house-wide authority, derive existing-fact branch-limited mutation
-authority from the fact's current canonical GAP-025 attribution/evidence, and require an
-explicit, authorized, same-house, allowed-branch actual-attendance assertion as durable
-manual provenance when creating a new historical fact. It must fail closed for unsafe,
-missing/malformed/out-of-scope provenance, UNATTRIBUTED, CONFLICT, zero-scope, or
+authority from the fact's current canonical GAP-025 attribution/evidence, and require
+every authorized existing-fact edit to follow approved correction/audit/finalization
+semantics rather than destructively overwrite canonical attendance state. If the needed
+correction/finalization dependency is unavailable, the edit must fail closed. New
+historical facts require an explicit, authorized, same-house, allowed-branch
+actual-attendance assertion as durable manual provenance. The P1 must fail closed for
+unsafe, missing/malformed/out-of-scope provenance, UNATTRIBUTED, CONFLICT, zero-scope, or
 cross-house targets without metadata leakage. It requires a separate bounded runtime
 Codex task/PR and must not be bundled into Option D Gate A.
 
