@@ -1,0 +1,24 @@
+.card { border: 1px solid rgba(127,127,127,.28); border-radius: 14px; background: var(--agui-panel); padding: 12px; }
+.card strong { display: block; font-size: 15px; line-height: 1.3; }
+.card p { margin: 6px 0 0; color: var(--agui-muted); font-size: 12px; line-height: 1.45; }
+.kicker { display: block; margin-bottom: 5px; color: var(--agui-muted); font-size: 9.5px; font-weight: 850; letter-spacing: .1em; }
+.modeBadge { display: inline-flex; align-items: center; min-height: 24px; border: 1px solid rgba(127,127,127,.28); border-radius: 999px; padding: 0 8px; font-size: 9px; font-weight: 850; letter-spacing: .08em; }
+.identityCard, .summaryCard { border-left: 4px solid #238636; }
+.previewCard { border-left: 4px solid #2563eb; }
+.paperCard { border-left: 4px solid #b7791f; }
+.errorCard { border-left: 4px solid #c62828; }
+.grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; margin: 10px 0 0; }
+.grid > div { min-width: 0; border: 1px solid rgba(127,127,127,.24); border-radius: 10px; background: var(--agui-bg); padding: 9px; }
+.grid dt { color: var(--agui-muted); font-size: 9px; }
+.grid dd { margin: 3px 0 0; font-size: 11px; font-weight: 800; overflow-wrap: anywhere; }
+.field { display: block; margin-top: 11px; }
+.field > span { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 5px; font-size: 10.5px; font-weight: 800; }
+.field b { color: #b45309; font-size: 9px; text-transform: uppercase; }
+.field input, .field textarea, .field select { width: 100%; box-sizing: border-box; border: 1px solid rgba(127,127,127,.3); border-radius: 10px; background: var(--agui-bg); color: var(--agui-text); padding: 9px 10px; font-size: 16px; min-height: 44px; }
+.field textarea { min-height: 70px; resize: vertical; font-size: 14px; }
+.fallback { padding: 8px; border-radius: 9px; background: var(--agui-bg); }
+.disabledButton, .secondaryButton { width: 100%; min-height: 44px; border-radius: 10px; padding: 10px 12px; font-size: 11px; font-weight: 850; }
+.disabledButton { border: 1px dashed rgba(127,127,127,.5); background: var(--agui-panel); color: var(--agui-muted); opacity: .75; }
+.secondaryButton { margin-top: 11px; border: 1px solid rgba(127,127,127,.3); background: var(--agui-bg); color: var(--agui-text); }
+.linkButton { display: grid; place-items: center; min-height: 44px; margin-top: 8px; border: 1px solid rgba(127,127,127,.3); border-radius: 10px; background: var(--agui-bg); color: var(--agui-text); text-decoration: none; font-size: 11px; font-weight: 850; }
+@media (max-width: 340px) { .grid { grid-template-columns: 1fr; } }

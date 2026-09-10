@@ -8,23 +8,23 @@ import {
   nextMobileAction,
 } from "@/lib/mobile/workspace";
 
-test("Telegram mode exposes Start / Resume plus the proven End Shift route", () => {
+test("Telegram mode exposes Customer Utang context with Start / Resume and End Shift", () => {
   assert.deepEqual(
     availableMobileActions(CASHIER_MOBILE_ACTIONS, "telegram").map((action) => action.key),
-    ["start-shift", "end-shift"],
+    ["start-shift", "customer-utang", "end-shift"],
   );
 });
 
-test("Direct mode exposes Start / Resume but still keeps End Shift Telegram-only", () => {
+test("Direct mode exposes Start / Resume and Customer Utang but keeps End Shift Telegram-only", () => {
   const endShift = CASHIER_MOBILE_ACTIONS.find((action) => action.key === "end-shift");
   assert.ok(endShift);
   assert.equal(isMobileActionAvailable(endShift, "direct"), false);
   assert.deepEqual(
     availableMobileActions(CASHIER_MOBILE_ACTIONS, "direct").map((action) => action.key),
-    ["start-shift"],
+    ["start-shift", "customer-utang"],
   );
 });
 
-test("Customer Utang becomes the explicit next migration target", () => {
-  assert.equal(nextMobileAction(CASHIER_MOBILE_ACTIONS)?.key, "customer-utang");
+test("Gate 1 does not promote another workflow into active delivery", () => {
+  assert.equal(nextMobileAction(CASHIER_MOBILE_ACTIONS), null);
 });

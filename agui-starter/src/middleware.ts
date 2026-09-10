@@ -31,6 +31,10 @@ const PUBLIC_PATHS: (string | RegExp)[] = [
   // Apps Script to revalidate the canonical staff session/authorization.
   /^\/mini\/cashier\/start(?:\/.*)?$/,
   /^\/api\/miniapp\/cashier\/start\/(?:context|submit)$/,
+  // Customer Utang Gate 1 exposes a read-only context route only. Apps Script
+  // revalidates staff session, permission, branch, and current OPEN shift.
+  /^\/mini\/cashier\/customer-utang(?:\/.*)?$/,
+  /^\/api\/miniapp\/cashier\/customer-utang\/context$/,
   // Existing controlled Telegram End Shift remains Telegram-authenticated.
   /^\/mini\/cashier\/closing(?:\/.*)?$/,
   /^\/api\/miniapp\/closing\/(?:context|submit)$/,

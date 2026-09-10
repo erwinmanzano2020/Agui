@@ -101,7 +101,7 @@ export default function MobileHomeClient() {
             <h2>Quick actions</h2>
           </div>
           <span className={styles.sectionHint}>
-            {isTelegram ? "2 LIVE" : directSession ? "1 LIVE" : "SIGN IN FIRST"}
+            {isTelegram ? "3 LIVE" : directSession ? "2 LIVE" : "SIGN IN FIRST"}
           </span>
         </div>
 
@@ -132,7 +132,7 @@ export default function MobileHomeClient() {
         <section className={`${styles.card} ${styles.nextCard}`}>
           <span className={styles.kicker}>NEXT BUILD TARGET</span>
           <strong>{nextAction.emoji} {nextAction.label}</strong>
-          <p>After Start / Resume Shift is proven in the direct pilot, Customer Utang becomes the next compact dual-entry transaction screen.</p>
+          <p>Customer Utang Gate 1 is now available as a read-only context and preview screen. No Customer Utang posting is enabled.</p>
         </section>
       ) : null}
     </AguiMobileShell>

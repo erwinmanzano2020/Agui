@@ -27,10 +27,10 @@ export const CASHIER_MOBILE_ACTIONS: readonly AguiMobileAction[] = [
   {
     key: "customer-utang",
     label: "Customer Utang",
-    description: "Record customer credit from one compact form.",
-    href: null,
+    description: "Load customer credit context and preview a future record.",
+    href: "/mini/cashier/customer-utang",
     emoji: "🧾",
-    status: "next",
+    status: "available",
     launchModes: BOTH_LAUNCH_MODES,
   },
   {
