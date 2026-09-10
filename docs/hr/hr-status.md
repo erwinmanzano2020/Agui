@@ -86,11 +86,13 @@ recommended first urgent runtime correction and is frozen in its own
 [`Implementation Approval`](../devlog/dtr-historical-write-authorization-p1-implementation-approval.md).
 It must reject current `employee.branch_id` or current assignment as independent proof
 of authority over a historical attendance fact, preserve house-first authorization and
-owner/manager house-wide authority, derive branch-limited mutation authority from the
-canonical historical fact/applicable GAP-025 evidence, and fail closed for unsafe,
-UNATTRIBUTED, CONFLICT, zero-scope, or cross-house targets without metadata leakage. It
-requires a separate bounded runtime Codex task/PR and must not be bundled into Option D
-Gate A.
+owner/manager house-wide authority, derive existing-fact branch-limited mutation
+authority from the fact's current canonical GAP-025 attribution/evidence, and require an
+explicit, authorized, same-house, allowed-branch actual-attendance assertion as durable
+manual provenance when creating a new historical fact. It must fail closed for unsafe,
+missing/malformed/out-of-scope provenance, UNATTRIBUTED, CONFLICT, zero-scope, or
+cross-house targets without metadata leakage. It requires a separate bounded runtime
+Codex task/PR and must not be bundled into Option D Gate A.
 
 Neither approved stream has runtime in this governance checkpoint. GAP-024 remains open
 until runtime, migrations, complete consumer cutover, no-leak verification, final
