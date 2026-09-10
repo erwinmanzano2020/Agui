@@ -457,13 +457,20 @@ intentional, actor/reason attributed, original-versus-corrected and audit preser
 and HR-2/HR-4 approval-aware when payroll-impacting. Offline replay preserves original
 observation evidence rather than replay-time/server-time or current-device context.
 
-GAP-024 is **still open and blocked from implementation until a new explicit Foundation
-Security Correction planning/implementation gate** first inspects and authorizes the
-schema/provenance/integrity/runtime work required by the GAP-025 contract. No GAP-024 or
-GAP-026 runtime, schema, migration, RLS/grant, RPC, API/UI, test, correction lifecycle,
-HR-2/HR-4 runtime, payroll, or POS work occurred in this documentation gate. House
-remains ownership, branch remains restriction-only, and owner/manager house-wide
-authority remains unchanged.
+At this historical checkpoint, GAP-024 remained open and blocked from implementation
+pending a new explicit Foundation Security Correction planning/implementation gate that
+would inspect and authorize the schema/provenance/integrity/runtime work required by the
+GAP-025 contract. That historical block was valid then but is superseded as current
+execution guidance by the 2026-09-10 GAP-024 implementation-governance approval recorded
+above, which supplies the required bounded gate. GAP-024 itself remains **OPEN and
+unimplemented** until its authorized runtime, migration, consumer-cutover, no-leak
+verification, and final raw-access revocation requirements are complete. GAP-026 remains
+separately unauthorized unless independently approved.
+
+No GAP-024 or GAP-026 runtime, schema, migration, RLS/grant, RPC, API/UI, test,
+correction lifecycle, HR-2/HR-4 runtime, payroll, or POS work occurred in this historical
+documentation gate. House remains ownership, branch remains restriction-only, and
+owner/manager house-wide authority remains unchanged.
 
 ## 2026-08-31 — GAP-023 repository migration compatibility stabilization
 
