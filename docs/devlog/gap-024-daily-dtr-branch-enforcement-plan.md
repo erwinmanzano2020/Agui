@@ -74,7 +74,7 @@ The active schema has no DTR-specific evidence-membership, canonical-attribution
 correction/audit table, view, or RPC. `clock_events` is an independent legacy surface
 and supplies no proved link to `dtr_segments`; it is not a GAP-024 attribution source.
 
-### 2.3 Complete current `dtr_segments` consumer inventory
+### 2.3 Complete current code and operational-procedure `dtr_segments` inventory
 
 Daily DTR is not the only production consumer. A fresh bounded target-tree search for
 direct table calls, `listDtrByHouseAndDate`, and all `dtr_segments` references found the
@@ -87,15 +87,16 @@ every newly discovered consumer too.
 |---|---|---|
 | **A — branch-scoped operational reader** | `src/app/company/[slug]/hr/dtr/page.tsx` through `src/lib/hr/dtr-segments-server.ts::listDtrByHouseAndDate` | Live Daily DTR date/employee read. Migrate to the canonical branch-aware GAP-025 projection. |
 | **A/B — shared operational/house computation** | `src/lib/hr/overtime-engine.ts::computeOvertimeForHouseDate` | Reads house/date segments for Daily DTR and payroll preview. It must accept only appropriately authorized projected inputs or an approved interface matching each caller's authority; it must not silently broaden A through B. |
-| **B — legitimate house-wide HR/payroll reader** | `src/lib/hr/payroll-preview-server.ts` | Loads period segments for selected house employees and feeds overtime/payroll preview. Migrate to the canonical authorized house-wide attendance-consumption interface and parity-test calculations. |
-| **B — legitimate house-wide HR/payroll reader** | `src/lib/hr/payroll-runs-server.ts::hasOpenSegmentsInPeriod` | Checks whether a house period contains open segments before run behavior. Preserve its authorized house-wide predicate through the house-wide canonical interface and parity-test run creation/read behavior. |
-| **B — legitimate house-wide HR/payroll reader** | `src/lib/hr/payslip-server.ts` | Loads an employee's house-period segments for payslip generation/review and PDF/API callers. Migrate to the house-wide canonical interface and parity-test output. |
+| **A/B — dual-mode payroll preview consumer** | `src/lib/hr/payroll-preview-server.ts` and its API/page/run callers | `computePayrollPreviewForHousePeriod` currently resolves only `requireHrAccess` unless given an override and loads raw period segments. Future interface selection must follow a full resolved branch-aware access decision: branch projection for limited callers, authorized house-global interface only for legitimate global callers. |
+| **B — house-global-only payroll mutation predicate** | `src/lib/hr/payroll-runs-server.ts::hasOpenSegmentsInPeriod` as currently called by finalize/post | Its discovered callers first use `resolvePayrollWriteAccess`, which rejects branch-limited access, then check the whole run period. Preserve that existing house-global mutation behavior through the authorized house-global interface; re-audit if a read-only/branch-limited caller is added. |
+| **A/B — dual-mode payslip consumer** | `src/lib/hr/payslip-server.ts` and its page/API/PDF callers | Routes can pass `isBranchLimited`/`allowedBranchIds`, while one server page currently supplies only house-level access. Branch-limited calls require canonical attributed facts; legitimate global calls may use the house-global interface. Downstream calculations receive only the caller-authorized fact set. |
 | **C — live browser-direct reader** | `src/app/payroll/dtr-today/page.client.tsx` | Direct browser select (and adjacent insert/update). Replace with an approved server/RPC boundary or retire the route before revocation; branch-limited bypass must be impossible. |
-| **C — live browser-direct reader** | `src/app/payroll/bulk-payslip/page.client.tsx` | Direct browser period select used in bulk payslip calculation. Replace with an authorized server/house-wide interface or retire before revocation. |
-| **C — live browser-direct reader** | `src/app/payroll/payslip/page.client.tsx` | Direct browser employee/range select used in payslip calculation. Replace with an authorized server/house-wide interface or retire before revocation. |
+| **C — live browser-direct reader** | `src/app/payroll/bulk-payslip/page.client.tsx` | Direct browser period select used in bulk payslip calculation. Replace with an approved server/RPC boundary that selects the canonical interface from resolved authority, or retire before revocation. |
+| **C — live browser-direct reader** | `src/app/payroll/payslip/page.client.tsx` | Direct browser employee/range select used in payslip calculation. Replace with an approved server/RPC boundary that selects the canonical interface from resolved authority, or retire before revocation. |
 | **D — trusted kiosk runtime** | `src/lib/hr/kiosk/repository.ts` via `src/lib/hr/kiosk/http.ts` | Reads open segments while also creating/closing them. Migrate to a narrow authenticated-device ingestion/continuation boundary; service privilege must not become a generic read bypass. |
 | **D — service API reader** | `src/app/api/payroll/dtr-bulk/route.ts` | Service-role single-mode period select with adjacent destructive writes. Require a narrow user-authorized house/branch-compatible boundary; preserve Section 3.7's separate provenance risk and do not treat service role as authorization. |
-| **D/E — manual admin utility** | `agui-starter/scripts/fix-dtr-timezone.ts` | Prints review/update SQL for manual database execution and is not application runtime. Intentionally retire/update the runbook utility or explicitly retain it as a separately approved audited admin boundary before base restriction makes its SQL invalid. |
+| **D/E — operational/admin utility** | `agui-starter/scripts/fix-dtr-timezone.ts` | Prints direct review/update SQL and is not application runtime. Migrate, retire, or explicitly retain it behind a separately approved audited repair boundary before revocation. |
+| **D/E — active operational repair procedure** | `docs/admin/hr-dtr-timezone-repair.md` | Directly selects, backs up, updates, rolls back, and verifies `dtr_segments`. Migrate, retire, or explicitly retain it behind an approved narrow audited repair boundary before revocation; this plan does not choose a disposition or edit the runbook. |
 | **E — currently unreferenced helper** | `src/lib/hr/overtime-policy-server.ts::getDailyComputedDtrForEmployee` through `listDtrByHouseAndDate` | No production caller found. Retire it or migrate it before any future activation; do not count it as proof of a live dependency. |
 | **E — currently unreferenced helpers** | `src/lib/hr/dtr-segments-server.ts::listDtrByEmployee` and `listDtrTodayByBranch` | No production callers found. The latter retains the separate P2 in Section 4.2. Retire or replace rather than preserving raw dependency. |
 | **E — non-route alternate client file** | `src/app/payroll/dtr-bulk/page2.tsx` | Direct browser reads/writes, but Next's route uses `page.tsx` plus `DtrBulkClient`; no import of `page2.tsx` was found. Retire or migrate before it can be activated. |
@@ -120,6 +121,47 @@ Both interfaces must derive from the same protected canonical attendance authori
 preserve house ownership, and avoid unrestricted raw base-table dependency. The second
 interface is not permission for a branch-limited consumer to opt out of attribution.
 Physical view/RPC/table names remain unapproved and storage-neutral.
+
+### 2.4 Payroll DTR call-path authority audit
+
+Classification is per **call path**, not source module. Module names, payroll feature
+membership, request filters, and UI context do not establish house-global authority.
+Where current code resolves only `requireHrAccess`, the path may admit policy-authorized
+actors but lacks the complete branch decision needed to select a future interface; it is
+therefore dual-mode/unresolved rather than assumed global.
+
+| Call path | Current access evidence | Branch-limited reach / branch set | Classification | Future interface |
+|---|---|---|---|---|
+| `GET /api/hr/payroll-preview` → `computePayrollPreviewForHousePeriod` | Route guard resolves identity/features; helper calls `requireHrAccess`. Optional request `branchId` is forwarded. | Policy-based access can reach it; no `allowedBranchIds` is carried today. | **DUAL-MODE; current authority propagation incomplete** | Resolve/carry `HrBranchAccessDecision`; choose branch-aware or house-global interface from it. Request `branchId` may only narrow the selected fact set. |
+| Company payroll-preview page → `computePayrollPreviewForHousePeriod` | Page calls `requireHrAccess`, loads house-wide branches/employees, then helper repeats/accepts house access. | Policy-based branch-limited reach is possible; no allowed branch set is propagated. | **DUAL-MODE; current authority propagation incomplete** | Same authority-driven selection; selector/filter inputs cannot grant fact visibility. |
+| Payroll-run create → `createDraftPayrollRunFromPreview` → preview | `resolvePayrollWriteAccess` uses `requireHrAccessWithBranch(requiredLevel=write, payroll)` and rejects `isBranchLimited`; helper passes that access to preview. | Branch-limited callers are rejected; a branch set may exist in the rejected decision but cannot authorize creation. | **HOUSE-GLOBAL ONLY under current write contract** | Authorized house-global attendance interface, preserving existing calculation semantics. |
+| Payroll adjustment creation → preview | Same `resolvePayrollWriteAccess` non-branch-limited write gate. | Branch-limited callers rejected. | **HOUSE-GLOBAL ONLY under current write contract** | Authorized house-global attendance interface. |
+| Payroll finalize/post → `hasOpenSegmentsInPeriod` | Both mutation paths resolve non-branch-limited payroll write authority before the raw open-segment query. | No branch-limited caller found for this predicate. | **HOUSE-GLOBAL ONLY under current write contract** | Authorized house-global interface preserving whole-run open-segment semantics; any future caller requires reclassification. |
+| Payslips API, run PDF, and employee PDF → `computePayslipsForPayrollRun` | Routes call `requireHrAccessWithBranch` and pass `isBranchLimited` and `allowedBranchIds`. | Both global and branch-limited decisions are represented. | **DUAL-MODE** | Limited calls use GAP-025 projection; global calls use authorized house-global interface. Never filter house-global raw facts afterward. |
+| Company payroll-run employee payslip page → `computePayslipForPayrollRunEmployee` | Page calls only `requireHrAccess`; helper receives no branch scope. | Policy-based limited reach is possible, but allowed branches are absent. | **DUAL-MODE; current authority propagation incomplete** | Resolve/carry full branch decision before selecting the interface and before employee/segment-derived output. |
+| Payroll-run/payslip list/detail pages and run-detail API | Current run/item repositories receive branch-scope options on several paths, but only downstream payslip computation reads DTR. | Read paths can be branch-limited; allowed branch IDs are present on the hardened paths. | **DUAL-MODE context feeding DTR computation** | Preserve resolved access through every call boundary; module membership never selects global mode. |
+| `computeOvertimeForHouseDate` | Shared helper currently performs its own raw house/date segment read; callers include Daily DTR and payroll preview. | Caller authority differs and helper itself receives no full branch decision. | **INTERNAL COMPUTATION WITH CALLER-SCOPED INPUT** | Caller supplies already-authorized canonical facts or an access-bound reader; helper cannot select or widen authority. |
+| Browser-direct payroll DTR/payslip clients in Section 2.3 | Feature/UI gates precede direct Supabase table calls, but no canonical attendance decision binds the raw query. | Exact effective deployed RLS authority is environment-dependent; branch-safe behavior is not established. | **DUAL-MODE/UNRESOLVED DIRECT CLIENT — migrate or retire** | Approved server/RPC boundary selects by resolved authority; no direct base read remains. |
+| `getDailyComputedDtrForEmployee`, `listDtrByEmployee`, `listDtrTodayByBranch` | No production caller found. | None currently. | **DEAD / UNREFERENCED** | Retire or reclassify/migrate before activation. |
+
+**Authority-selection rules:**
+
+- **House-global mode:** select the authorized house-global interface only after resolved
+  authorization proves legitimate existing global authority (for example approved
+  owner/manager breadth or the existing non-branch-limited payroll write contract).
+- **Branch-limited mode:** select the GAP-025 projection first and return only current
+  ATTRIBUTED facts in `allowedBranchIds`; UNATTRIBUTED and CONFLICT fail closed with no
+  existence/count/source/history leakage. Never obtain global output and filter it later.
+- **Dual mode:** the same feature/helper must select between those interfaces using the
+  resolved `HrBranchAccessDecision`. A branch-limited caller cannot invoke or obtain the
+  global interface merely because the path is payroll, payslip, overtime, or HR.
+- **Filters do not authorize:** request/UI/caller `branchId`, payroll-row branch,
+  schedule branch, `employee.branch_id`, and current employee assignment may further
+  narrow already-authorized facts only. They never establish canonical attribution or
+  expand visibility. Current employee branch is not historical attendance ownership.
+- **Shared computation cannot broaden:** overtime, schedule, and pay calculations accept
+  already-authorized canonical attendance input or an access-bound canonical reader;
+  they do not independently choose global scope.
 
 ## 3. Current-state findings
 
@@ -514,13 +556,14 @@ Use layered defense:
 - database constraints/transactional functions enforce same-house integrity, observation
   uniqueness, revision activation, and projection consistency;
 - a canonical RPC or security-barrier equivalent resolves branch-aware projection rows;
-- a distinct canonical authorized house-wide consumption interface supplies legitimate
-  payroll/owner-manager contexts without routing them through a branch-limited DTO;
+- a distinct canonical authorized house-global consumption interface supplies only
+  callers whose resolved authority proves legitimate global breadth, without routing
+  them through a branch-limited DTO;
 - both interfaces use the same protected attendance authority and neither exposes an
   unrestricted raw base-table dependency;
 - server repository accepts an `HrBranchAccessDecision` for defense and typed behavior,
-  but cannot broaden database results or select the house-wide interface for a
-  branch-limited actor;
+  but cannot broaden database results or select the house-global interface for a
+  branch-limited actor; interface selection follows resolved authority, never module;
 - Daily DTR uses only the branch-aware helper; and
 - service-role paths are limited to authenticated kiosk or user-authorized narrow
   read/mutation functions and never general projection bypass.
@@ -594,23 +637,29 @@ because Daily DTR is not the only consumer. The mandatory sequence is:
    branch-aware and authorized house-wide read boundaries;
 2. ingest/backfill only provable subsets and validate projection/rebuild behavior;
 3. introduce and verify the canonical branch-aware Daily DTR reader;
-4. repeat and freeze an inventory of **all** production `dtr_segments` readers at the
-   implementation head, including indirect helpers, browser clients, APIs, kiosk,
-   service/admin/background paths, and returning reads coupled to writes;
-5. migrate each live consumer to its authorization-appropriate canonical interface,
-   intentionally retire it, or explicitly retain it behind an approved narrow safe
-   boundary;
-6. parity-test every migrated consumer, especially payroll preview, payroll run
-   creation/read gates, payslip review/generation/PDF, owner/manager house-wide paths,
-   kiosk, and browser replacements;
-7. prove through bounded searches, runtime tests, and dependency review that no
+4. repeat and freeze inventories of **all** production `dtr_segments` consumers and
+   every script, runbook, manual admin procedure, emergency repair workflow, indirect
+   helper, browser client, API, kiosk/service/background path, and returning read coupled
+   to a write at the implementation head;
+5. classify every call path by its actual resolved authority, not by module: branch-
+   limited, house-global, dual-mode, internal computation with caller-scoped input, or
+   dead/unreferenced;
+6. migrate branch-limited paths to the branch-aware projection, house-global paths to the
+   authorized global interface, and dual-mode paths to authority-driven selection;
+7. migrate, retire, or explicitly retain scripts/runbooks/repair procedures—including
+   the timezone repair workflow—behind an approved narrow audited repair boundary;
+8. parity-test every authority mode, especially payroll preview, payroll run
+   creation/read gates, payslip review/generation/PDF, owner/manager global paths,
+   kiosk, browser replacements, repair/rollback, and shared computations;
+9. prove through bounded searches, runtime tests, and dependency review that no
    unauthorized/direct production dependency remains and no branch-limited consumer can
-   reach the house-wide interface;
-8. verify deployed database grants, RLS, RPC/view invocation behavior, service-role
-   boundaries, and no-leak behavior;
-9. **only then** revoke or tightly bound direct base access; and
-10. repeat production-like parity, cross-house, branch/no-leak, browser denial, kiosk,
-    payroll/payslip, and rollback verification after revocation.
+   invoke or obtain house-global attendance output;
+10. verify deployed database grants, RLS, RPC/view invocation behavior, service-role
+    boundaries, operational repair boundaries, and no-leak behavior;
+11. **only then** revoke or tightly bound direct base access; and
+12. repeat production-like parity, cross-house, branch/no-leak, browser denial, kiosk,
+    payroll/payslip, repair/rollback, and operational-procedure verification after
+    revocation.
 
 If migrating all consumers is too broad for one implementation PR, the Foundation
 Security Correction must be decomposed into ordered dependency sub-gates. Every consumer
@@ -621,10 +670,13 @@ partial rollout may revoke access early.
 
 Revocation is permitted only when all conditions below are evidenced:
 
-- every live production reader is inventoried and has an approved replacement, explicit
-  retirement, or approved narrow trusted boundary;
-- branch-limited consumers cannot bypass canonical attribution, including indirectly
-  through overtime, payroll, browser, API, kiosk, or service paths;
+- every live production reader and every script/runbook/manual repair procedure is
+  inventoried and has an approved replacement, explicit retirement, or approved narrow
+  trusted boundary;
+- every payroll DTR call path has a documented actual-authority classification;
+- branch-limited payroll preview/payslip and other consumers use the GAP-025 projection
+  and cannot bypass canonical attribution through overtime, payroll, browser, API,
+  kiosk, service, filters, or the house-global interface;
 - legitimate owner/manager house-wide behavior remains available through the authorized
   house-wide interface;
 - payroll preview, payroll run creation/read, and payslip generation/review/PDF behavior
@@ -632,6 +684,9 @@ Revocation is permitted only when all conditions below are evidenced:
 - client/browser direct reads are removed or safely replaced;
 - service-role/admin/background paths are narrow, explicit, authenticated/audited as
   applicable, and not generic bypasses;
+- `docs/admin/hr-dtr-timezone-repair.md` and `scripts/fix-dtr-timezone.ts` have a migrated,
+  retired, or explicitly approved audited disposition, and no procedure can silently
+  mutate raw segments around evidence/revision/projection consistency;
 - deployed grants, RLS, and approved RPC/view behavior have been verified; and
 - rollback cannot restore the old insecure house-wide fallback for a branch-limited
   actor.
@@ -666,7 +721,8 @@ branch-limited fallback is deny/empty rather than the old house-wide reader.
 | Generated DB types | `agui-starter/src/lib/db.types.ts` | Regenerate approved additive shapes/DTO interfaces. |
 | RLS/policy/grants | new migration plus review of active `dtr_segments`, kiosk, employee policies | Revoke/bound direct access; preserve house-wide authority; enforce scoped projection and service boundaries. |
 | Repository/server helper | `agui-starter/src/lib/hr/dtr-segments-server.ts` (or focused new attribution repository) | Replace raw date reader with canonical scoped projection; deprecate current-branch helper. |
-| DTR consumer migration / compatibility | `src/lib/hr/payroll-preview-server.ts`, `payroll-runs-server.ts`, `payslip-server.ts`, `overtime-engine.ts`, live payroll client pages, kiosk repository, bulk API, and every then-current consumer in Section 2.3 | Security-boundary compatibility dependency: migrate/retire/safely retain each before revocation, using branch-aware or authorized house-wide interfaces as appropriate; preserve behavior without adding payroll features. |
+| DTR consumer migration / compatibility | `src/lib/hr/payroll-preview-server.ts`, `payroll-runs-server.ts`, `payslip-server.ts`, `overtime-engine.ts`, related APIs/pages, live payroll clients, kiosk, bulk API, and every then-current consumer in Sections 2.3–2.4 | Security-boundary compatibility dependency: classify each call path by resolved authority; migrate limited/global/dual paths to the matching canonical interface, retire, or safely retain before revocation. Payroll module identity never implies global authority; preserve calculations without adding features. |
+| Documentation / operational repair dependency | `docs/admin/hr-dtr-timezone-repair.md`, `agui-starter/scripts/fix-dtr-timezone.ts`, and any then-current repair procedure | Before revocation, migrate, retire, or explicitly retain each through the future approved canonical audited repair boundary. Do not rewrite the current runbook until a physical mechanism is authorized. |
 | Authorization helper | `agui-starter/src/lib/hr/access.ts` | Reuse access decision and allowed branches; do not make it the classifier. |
 | Daily DTR page | `agui-starter/src/app/company/[slug]/hr/dtr/page.tsx` | Scope-first data flow, safe DTO, bounded derived data, approved roster only. |
 | Mutation/provenance | Daily DTR `actions.ts`/forms and `src/app/api/payroll/dtr-bulk/route.ts` | Separate authorized scope: explicit actual branch, immutable provenance, safe correction path; never infer assignment. |
@@ -745,7 +801,23 @@ branch-limited fallback is deny/empty rather than the old house-wide reader.
   sanitized correction indicator contain only scoped facts;
 - schedule/overtime set-based query count is bounded and range pagination remains scoped.
 
-### 14.7 Consumer-migration and revocation acceptance
+### 14.7 Authority-routed payroll and repair acceptance
+
+- branch-limited payroll preview receives only current ATTRIBUTED facts in its allowed
+  branches; UNATTRIBUTED, CONFLICT, and other-branch history are absent without signals;
+- branch-limited payslip cannot consume an out-of-branch historical fact, while legitimate
+  owner/manager payroll preview and payslip preserve house-global behavior;
+- the same dual-mode payroll function receives different authorized fact sets according
+  to resolved access, and a limited caller cannot invoke/obtain the global interface;
+- request/UI `branchId` can narrow but never expand the canonical set, and current
+  employee branch never substitutes for fact attribution;
+- shared overtime/pay/schedule computation cannot widen caller-scoped attendance input;
+- after final revocation no raw payroll DTR read remains in server, API, page, or browser
+  paths; and
+- timezone repair and rollback cannot bypass evidence membership, revision, projection,
+  audit, house containment, or current authorization consistency.
+
+### 14.8 Consumer-migration and revocation acceptance
 
 - payroll preview produces parity-equivalent authorized attendance results immediately
   before and after base-access revocation;
@@ -795,8 +867,9 @@ assignment, native/offline Frontline migration, or any non-HR phase.
 Bounded search findings were classified as follows:
 
 - **Current runtime evidence:** access helpers, Daily DTR/page/forms/actions, DTR and
-  employee readers, schedule/overtime helpers, kiosk service/repository, bulk route,
-  generated types, active migrations/policies, and current tests.
+  employee readers, payroll preview/run/payslip callers, schedule/overtime helpers,
+  kiosk service/repository, bulk route, browser clients, generated types, active
+  migrations/policies, current tests, and the timezone repair script/runbook.
 - **Governing canonical rule:** GAP-025, branch-scope model/enforcement/reality audit,
   scoped authorization model, HR status/master plans, roadmap, and operating principles.
 - **Implementation option:** storage-neutral suggestions in GAP-025 and this document's
