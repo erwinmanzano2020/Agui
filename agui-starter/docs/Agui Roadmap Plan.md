@@ -8,7 +8,11 @@
 
 ## Current System Phase (Canonical)
 - Active system: **HR System — end-to-end MVP** (sole active development phase)
-- Execution mode: documentation/read-only HR current-state audit first; no HR runtime implementation is authorized by this phase record
+- Execution mode: narrowly scoped **Foundation Security Correction** implementation is
+  authorized only through (1) the separate historical Daily DTR write-authorization P1
+  approval and (2) the ordered GAP-024 implementation gates. Each runtime slice still
+  requires its own bounded Codex task aligned to the applicable implementation-approval
+  record. This does not broadly reopen HR runtime or authorize unrelated HR work.
 - Phase activation note: by explicit owner decision, HR is reactivated after POS paused at merged PR #488
 - POS is paused, not abandoned. Its preserved checkpoint is **POS-F3 Slice 12 Tender Intent runtime** from merged PR #488.
 - No further POS definition, planning, runtime, native application, offline-sync, or hardware-integration work is authorized while HR remains active. Future POS ideas may be logged without interrupting HR, and POS may resume only through a later explicit Roadmap/phase decision.
@@ -26,9 +30,16 @@
 - Historical posture: HR was treated as undergoing stabilization rather than awaiting feature completion; this is evidence for the audit, not a current completeness determination
 
 ## Current Execution Focus
-- perform a documentation/read-only HR current-state audit against the HR Master Plan and actual runtime
+- implement no runtime in the governance approval itself; after it merges, prioritize the
+  separately approved historical Daily DTR write-authorization P1, then proceed in order
+  through the approved GAP-024 Foundation Security Correction gates
+- require a separate bounded Codex task/PR for every runtime slice; do not combine the
+  historical-write P1 with GAP-024 Gate A
 - preserve scope-first/no-leak, tenancy, identity, and frozen-contract guardrails during HR re-entry
 - do not infer end-to-end HR completeness from the historical stability checkpoint
+- keep general HR feature development gated: HR-2 feature expansion, HR-4 product
+  workflow implementation, native/offline work, and unrelated refactors are not
+  authorized by this execution posture
 - preserve the merged PR #488 POS checkpoint without further POS work
 - keep POS/Operations/Finance/Growth gated until later explicit phase decisions authorize their resumption or start
 
@@ -90,6 +101,8 @@ Historical roadmap interpretation: bounded POS foundation continuation was autho
 - Lookup-first behavior remains canonical across module boundaries.
 
 ## Notes
-- This roadmap update is alignment-only and does not introduce new implementation scope.
+- This roadmap update is governance alignment only. Its implementation authority is
+  limited to the separately approved historical Daily DTR write P1 and the ordered
+  GAP-024 security gates; no other implementation scope is introduced.
 - No module reordering is authorized.
 - Any work that changes frozen contracts, tenancy boundaries, identity boundaries, or phase gates must be explicitly approved in governing docs.

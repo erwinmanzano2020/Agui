@@ -2,19 +2,20 @@
 
 ## Current authority and posture
 
-- **Last audited:** 2026-08-28 UTC; GAP-025 contract canonicalized 2026-09-06 UTC.
+- **Last audited:** 2026-08-28 UTC; GAP-025 contract canonicalized 2026-09-06 UTC;
+  GAP-024 implementation governance approved 2026-09-10 UTC.
 - **Active phase:** HR is the sole active development phase; POS remains paused
   at merged PR #488.
 - **Current checkpoint source:** [HR Current-State Audit After Phase Re-entry](../devlog/hr-current-state-audit-2026-08-28.md).
 - **Execution boundary:** the audit is complete and the dependency-first HR
   Authorization Security Correction was subsequently implemented through PR
   #492/#493, subject to the production-like/manual verification recorded below.
-  The existing HR-2 contract has now been documentation-only reconciled against
-  confirmed governing requirements in
-  [`HR-2 DTR Detailed Planning`](../devlog/hr-2-dtr-detailed-planning.md). Neither
-  checkpoint authorizes HR-2 or HR-4 runtime implementation, an implementation
-  plan, schema/API/migration work, or a frozen-contract change. Optional workflow
-  or approval-policy choices still require separate owner scope approval.
+  PR #503 subsequently merged the decision-ready GAP-024 plan. The owner has now
+  approved only the separate historical Daily DTR write P1 and the ordered GAP-024
+  Foundation Security Correction gates. Each future runtime slice requires its own
+  bounded Codex task after this governance approval merges. This is not broad HR
+  runtime authorization: HR-2 feature expansion, HR-4 product workflow, payroll
+  expansion, and all unrelated implementation remain gated.
 
 This is the canonical execution snapshot. The
 [`HR Master Plan`](./hr-master-plan.md) remains canonical for HR scope, frozen
@@ -31,9 +32,11 @@ addressed the bounded authorization findings named in that correction, but did
 not stabilize the daily DTR page's branch-limited read path. That page still uses
 house-wide access and house/date reads without a complete approved branch-limited
 visibility path; production-like authorization/RLS verification also remains
-outstanding. `dtr_segments` has derived, not directly stored, branch scope, so
-segment enforcement remains deferred until separately authorized implementation
-satisfies the approved GAP-025 temporal attribution contract. The monthly
+outstanding. GAP-024 planning is complete and Option D is approved, but no GAP-024
+runtime, migration, consumer cutover, no-leak verification, or raw-access revocation
+has occurred. `dtr_segments` has derived, not directly stored, branch scope, so
+segment enforcement remains unimplemented until bounded approved gates satisfy the
+GAP-025 temporal attribution contract. The monthly
 single-employee all-days DTR grid only partially implements HR-2 period behavior. The custom-range and explicit day-evaluation
 contract, confirmed DTR correction lineage/reason/actor/timestamp lifecycle, HR-4
 approval authority, and approval-aware payroll-readiness handoff remain
@@ -42,6 +45,59 @@ unimplemented as required.**
 The historical 2026-03-31 stability gate remains valid only as the recorded
 sequencing decision that unlocked the subsequently paused POS work. It does not
 prove current end-to-end HR completeness.
+
+## 2026-09-10 — GAP-024 implementation-governance checkpoint
+
+**Status: planning complete; Implementation Approval Only; runtime unimplemented;
+GAP-024 OPEN.** PR #503 merged the decision-ready
+[`GAP-024 plan`](../devlog/gap-024-daily-dtr-branch-enforcement-plan.md). GAP-025 remains
+closed and canonical. The owner resolved the plan's four decisions on 2026-09-10:
+
+1. initial branch-limited Daily DTR is **facts-only**: only a current canonical
+   **ATTRIBUTED** fact in the actor's allowed branches may produce an employee/attendance
+   row; current employee assignment, request branch, schedule guess, or current device
+   branch cannot manufacture a no-DTR, absence, or roster row;
+2. full evidence and correction lineage remains owner/manager-only initially, while
+   ordinary branch-limited users receive only GAP-025-sanitized operational state and no
+   hidden metadata, existence, or count signal; no auditor role or `domain.hr.audit`
+   capability is approved;
+3. non-payroll-impacting attendance-location correction finalization remains
+   owner/manager-only initially; HR-2 continues to own attendance/correction facts and
+   HR-4 continues to own required payroll-impacting approval before successful
+   finalization/payroll-ready use; and
+4. Option D—durable evidence/revision/lineage authority, a rebuildable current
+   authorization projection, and canonical authorized read boundaries—is approved for
+   staged Foundation Security Correction implementation, with raw/base access revocation
+   last.
+
+The
+[`GAP-024 Implementation Approval`](../devlog/gap-024-daily-dtr-branch-enforcement-implementation-approval.md)
+authorizes future bounded tasks, after this governance PR merges, in fixed order:
+Gate A authority/projection foundation; Gate B deterministic ingest/backfill/rebuild
+verification; Gate C canonical branch-aware and house-global readers plus Daily DTR
+facts-only cutover; Gate D migration of every live consumer; and Gate E final security
+cutover/raw-access revocation. A gate may be subdivided, but order and semantics cannot
+change. Payroll/payslip, browser-direct, kiosk, bulk, service/admin/background, repair
+script/runbook, and every other active consumer must have an approved migrated/retired
+disposition before revocation.
+
+The historical Daily DTR write-authorization P1 is separately owner-approved as the
+recommended first urgent runtime correction and is frozen in its own
+[`Implementation Approval`](../devlog/dtr-historical-write-authorization-p1-implementation-approval.md).
+It must reject current `employee.branch_id` or current assignment as independent proof
+of authority over a historical attendance fact, preserve house-first authorization and
+owner/manager house-wide authority, derive branch-limited mutation authority from the
+canonical historical fact/applicable GAP-025 evidence, and fail closed for unsafe,
+UNATTRIBUTED, CONFLICT, zero-scope, or cross-house targets without metadata leakage. It
+requires a separate bounded runtime Codex task/PR and must not be bundled into Option D
+Gate A.
+
+Neither approved stream has runtime in this governance checkpoint. GAP-024 remains open
+until runtime, migrations, complete consumer cutover, no-leak verification, final
+revocation, and post-revocation verification are satisfied. Production-like/manual
+verification remains required. Existing HR-2, HR-4, payroll-readiness, and payroll gaps
+remain unchanged unless independently authorized and implemented. POS remains paused at
+merged PR #488.
 
 ## Classification summary
 

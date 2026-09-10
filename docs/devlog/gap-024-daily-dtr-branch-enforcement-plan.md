@@ -838,19 +838,21 @@ branch-limited fallback is deny/empty rather than the old house-wide reader.
 - rollback preserves protected authority and fails closed for branch-limited reads; it
   never restores an insecure house-wide raw fallback.
 
-## 15. Unresolved owner decisions and explicit non-goals
+## 15. Owner decisions resolved 2026-09-10 and explicit non-goals
 
-Implementation cannot claim the complete Daily DTR page contract until the owner decides:
+The owner resolved all four decisions that were open when PR #503 merged. The canonical
+decisions, approved Option D architecture, ordered Foundation Security Correction gates,
+and bounded future implementation authority are frozen in the
+[GAP-024 Implementation Approval](./gap-024-daily-dtr-branch-enforcement-implementation-approval.md).
+The separately authorized historical Daily DTR write P1 is frozen in its own
+[Implementation Approval](./dtr-historical-write-authorization-p1-implementation-approval.md)
+and must not be bundled into Option D implementation.
 
-1. branch-limited employee selector/no-record roster semantics described in Section 3.3;
-2. which role/capability may see full DTR evidence/correction audit beyond existing
-   legitimate owner/manager house authority;
-3. non-payroll-impacting location-correction finalization authority; and
-4. approval of the recommended physical hybrid, canonical database boundary, staged
-   migration/backfill, and separate urgent write correction.
-
-The facts-only read projection can be specified independently, but implementation still
-requires explicit authorization. GAP-024 does not redesign payroll, change payroll
+The PR #503 planning findings and historical decision-ready posture remain valid records
+of the state in which they were written. This planning document does not itself implement
+or authorize runtime; authority now comes from the separate approval records and Roadmap,
+and every runtime slice requires its own bounded Codex task. GAP-024 does not redesign
+payroll, change payroll
 calculation semantics, or authorize HR-3 feature work. Existing payroll/payslip readers
 must nevertheless remain functional across the security-boundary change: their migration
 preserves legitimate house-authorized behavior while removing raw base-table dependency.
