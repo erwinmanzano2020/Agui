@@ -10,34 +10,62 @@ This document aligns the expanded HR plan with the canonical execution snapshot 
   boundaries.
 - This execution-aligned companion is subordinate to that master plan, the
   canonical Roadmap, applicable freeze declarations, and applicable `AGENTS.md`
-  instructions, and it remains pending revalidation through the authorized
-  documentation/read-only HR current-state audit. It independently authorizes
-  neither HR scope nor implementation; if it conflicts with a higher-authority
-  document, the higher-authority document wins.
+  instructions. The documentation/read-only HR current-state audit completed and
+  its canonical results are recorded in [`hr-status.md`](./hr-status.md). This
+  companion independently authorizes neither HR scope nor implementation; if it
+  conflicts with a higher-authority document, the higher-authority document wins.
 
-## Current Execution Mode: Read-Only Audit Gate
-The first authorized HR action after the POS-to-HR phase transition recorded for
-PR #489 is a **documentation/read-only HR current-state audit** against the
-canonical HR Master Plan and the actual repository/runtime checkpoint. The audit
-must determine what is actually present before any next bounded HR implementation
-task is prepared or authorized.
+## Current Execution Mode: Bounded Foundation Security Correction
 
-The transition itself authorizes no HR runtime implementation, hardening,
-refactor, schema change, API change, migration, UI change, or test-behavior
-change. The Roadmap remains the authority for current execution sequencing.
+The prior read-only audit gate is complete. Current execution is governed by the
+[Agui Roadmap](../../agui-starter/docs/Agui%20Roadmap%20Plan.md), canonical
+[`HR Status`](./hr-status.md), the separately approved
+[`Historical Daily DTR Write Authorization P1`](../devlog/dtr-historical-write-authorization-p1-implementation-approval.md),
+the ordered
+[`GAP-024 Implementation Approval`](../devlog/gap-024-daily-dtr-branch-enforcement-implementation-approval.md),
+and the closed
+[`GAP-025 semantic contract`](../devlog/gap-025-dtr-temporal-branch-attribution-contract.md)
+where relevant.
 
-## Historical Execution Mode: Hardening & Consolidation (Pending Revalidation)
+After the governing PR #504 approval merges, runtime authority is narrowly limited
+to the separate Historical Daily DTR Write P1 as the recommended first urgent
+correction and then the ordered GAP-024 Foundation Security Correction Gates A–E.
+Every runtime slice requires its own bounded Codex task and PR aligned to the
+applicable approval record. The P1 remains separate from GAP-024 Gate A. GAP-024
+remains **OPEN and unimplemented**; production-like verification and the existing
+HR-2, HR-4, and payroll-readiness gaps remain outstanding as recorded in HR Status.
+
+This is not broad HR runtime authorization. This expanded plan does not authorize
+general HR runtime, HR-2 feature expansion or the full correction product, HR-4
+product workflow, unrelated payroll changes or new payroll semantics, unrelated
+hardening/refactors, unrelated schema/API/migration/UI changes, native/offline HR,
+GAP-026, POS, Operations, Finance, or Growth/Advanced systems work. POS remains
+paused at merged PR #488.
+
+## Historical Execution Checkpoint: Read-Only Audit Gate — Completed
+
+After the POS-to-HR phase transition recorded for PR #489, the first authorized HR
+action was a **documentation/read-only HR current-state audit** against the
+canonical HR Master Plan and repository/runtime checkpoint. That gate intentionally
+prohibited runtime implementation, hardening, refactoring, schema, API, migration,
+UI, and test-behavior changes while current state was re-established.
+
+The audit served that purpose and is now completed historical evidence. Its former
+pre-implementation block does not currently block the separately approved bounded
+DTR security corrections described above; it also does not itself authorize them.
+
+## Historical Execution Mode: Hardening & Consolidation (Reviewed by Completed Audit)
 Before the transition and audit gate, the recorded mode was **hardening and
 consolidation**:
 - stability-first delivery
 - parity across routes/pages/helpers
 - guardrail and regression depth expansion
 
-These directions are historical checkpoint context only. Their accuracy and any
-remaining need for this work are pending the read-only audit; they do not
-authorize contributors to resume hardening or implementation.
+These directions are historical checkpoint context reviewed through the completed
+read-only audit. They do not authorize contributors to resume hardening or
+implementation.
 
-## Historical HR Phase Reality (Pending Revalidation)
+## Historical HR Phase Reality (Reviewed by Completed Audit)
 The previously recorded execution baseline for delivered HR phases was:
 
 - **HR-0:** implemented baseline, hardening-active
@@ -47,8 +75,10 @@ The previously recorded execution baseline for delivered HR phases was:
 - **HR-3.5:** implemented baseline, hardening-active
 
 Notes:
-- These historical labels require audit verification and must not be read as a
-  declaration that HR is complete end to end.
+- These historical labels were reviewed by the completed audit and must not be read
+  as a current declaration that HR is complete end to end. Canonical HR Status says
+  a broad repository-tested baseline exists but HR is not yet an end-to-end
+  canonical MVP.
 - These labels described implementation maturity, not contract expansion or
   current execution authority.
 - Deferred scopes (e.g., government deductions, payout rails, broader finance integrations) remain deferred.
@@ -66,40 +96,40 @@ Interpretation:
 - Access-derived scope is authoritative for both row payloads and metadata.
 - Metadata failures or partial loads must never broaden returned row scope.
 
-## Phase Summary (Condensed)
+## Historical Phase Summary (Condensed)
 
 ### HR-0 — Foundations & Access
-Status: **implemented baseline, hardening-active**.
+Historical recorded status: **implemented baseline, hardening-active**.
 
-Historical focus (pending revalidation):
+Historical focus (reviewed by completed audit):
 - maintain house/branch-safe access enforcement
 - continue regression depth at high-risk boundaries
 
 ### HR-1 — Employees Core (Identity-Aware)
-Status: **implemented baseline, hardening-active**.
+Historical recorded status: **implemented baseline, hardening-active**.
 
-Historical focus (pending revalidation):
+Historical focus (reviewed by completed audit):
 - preserve frozen identity and dedupe contracts
 - harden tenancy-safe employee flows and conflict handling
 
 ### HR-2 — Time & Attendance (DTR)
-Status: **implemented baseline, hardening-active**.
+Historical recorded status: **implemented baseline, hardening-active**.
 
-Historical focus (pending revalidation):
+Historical focus (reviewed by completed audit):
 - reliability and consistency of DTR/schedule/overtime inputs
 - maintain payroll-preview readiness without scope expansion
 
 ### HR-3 — Payroll & Payslips (MVP)
-Status: **implemented baseline, hardening-active**.
+Historical recorded status: **implemented baseline, hardening-active**.
 
-Historical focus (pending revalidation):
+Historical focus (reviewed by completed audit):
 - run lifecycle wording/behavior consistency
 - lock semantics and export path reliability
 
 ### HR-3.5 — Kiosk / Setup / Employee ID
-Status: **implemented baseline, hardening-active**.
+Historical recorded status: **implemented baseline, hardening-active**.
 
-Historical focus (pending revalidation):
+Historical focus (reviewed by completed audit):
 - kiosk operations hardening and deployment confidence
 - constrained v1 ID/photo output hardening within existing limits
 
@@ -114,7 +144,8 @@ it is not an active task list:
 ## Scope and Contract Discipline
 This document does **not** authorize:
 - new HR feature scope
-- runtime implementation, hardening, or refactoring before the audit gate is resolved
+- runtime implementation, hardening, or refactoring outside the separately approved
+  bounded DTR Foundation Security Correction tasks
 - schema changes
 - API changes, migrations, UI changes, or test-behavior changes
 - architectural rework
