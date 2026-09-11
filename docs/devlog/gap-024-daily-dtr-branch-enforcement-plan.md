@@ -465,10 +465,26 @@ Rejected alternatives:
 Remaining trade-offs are additional schema concepts, transactional reducer complexity,
 migration/backfill cost, projection-rebuild operations, and careful database security.
 Repository evidence supports house-owned segments, event-time kiosk branch observations,
-branch-access decisions, and the need for bounded date reads. It does **not** approve
-physical table/column names, selector roster semantics, full audit permission roles,
-non-payroll correction finalization authority, or an implementation rollout; those need
-owner approval.
+branch-access decisions, and the need for bounded date reads. At the PR #503 planning
+checkpoint, that evidence did **not** itself approve physical table/column names,
+selector/roster semantics, audit-visibility policy beyond the evidenced owner/manager
+baseline, non-payroll correction-finalization authority, or an implementation rollout;
+those semantic and execution decisions still required owner approval at that time.
+
+The owner subsequently resolved the selector/roster, initial audit-visibility,
+non-payroll attendance-location finalization, and Option D rollout decisions on
+2026-09-10, as frozen in the
+[GAP-024 Implementation Approval](./gap-024-daily-dtr-branch-enforcement-implementation-approval.md).
+That approval establishes facts-only branch-limited attendance results, existing
+owner/manager-only full evidence/correction-audit visibility initially with no new auditor
+role or `domain.hr.audit` capability, owner/manager-only initial non-payroll location
+finalization, and ordered Gates A–E. Those decisions are no longer current blockers.
+
+Exact physical table, column, index, database-object, RPC/view/function signature,
+reducer/outbox/transaction, and migration/backfill mechanics remain intentionally
+unselected. Their bounded Gate tasks must choose them under repository and migration
+review without changing frozen contracts. A choice that would change a frozen semantic
+contract still requires explicit approval through the normal governance hierarchy.
 
 ## 8. Logical data contract (schema-neutral)
 
