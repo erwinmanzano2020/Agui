@@ -1,7 +1,6 @@
-# HR Master Plan
+# HR Master Plan (Compatibility Reference)
 
-## Source of Truth
-- Development Operating Principles: [agui-development-operating-principles.md](./agui-development-operating-principles.md)
+This legacy starter-path file is non-authoritative and retained for compatibility/reference only. It does not independently define HR scope, status, or authority.
 
-## Notes
-- HR roadmap items that touch identities, payroll, or employee records must follow the migration-backed RPC rule above.
+- Canonical HR Master Plan: [`../../docs/hr/hr-master-plan.md`](../../docs/hr/hr-master-plan.md)
+- Canonical HR execution snapshot: [`../../docs/hr/hr-status.md`](../../docs/hr/hr-status.md)

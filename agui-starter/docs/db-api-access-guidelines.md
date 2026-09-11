@@ -1,6 +1,6 @@
 # DB & API Access Guidelines (reference copy)
 
-Canvas documentation remains the source of truth. This file keeps a working copy alongside the codebase so contributors have the access rules and guardrails in one place. Treat this as the operational spec; see `agui-dev-process-codex-guidelines.md` for contributor-facing requirements and the Data Access Plan template.
+Repository governing documents are canonical project truth, and higher governing authority wins on conflict. This file is subordinate reference guidance, not independent authority. Contributor process requirements and the Data Access Plan template live in [`agui-dev-process-codex-guidelines.md`](agui-dev-process-codex-guidelines.md). The Agui Project Control Center is an operational mirror/index and is not DB/API authority.
 
 ## Split-client pattern
 - UI-facing routes must use the authenticated Supabase client so RLS policies govern reads and writes.

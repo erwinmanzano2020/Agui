@@ -1,30 +1,91 @@
 # Agui Development Operating Principles
 
-These principles document how we manage freezes, contracts, and PR hygiene for Codex work. Apply these rules to every change in this repository, with extra care for identity, migrations, and RPC changes.
+## Purpose
 
-## Freeze and Contract Policy
+These Operating Principles are Agui's repository-canonical execution constitution. They govern how Agui is built, how decisions are made, and how ideas, bugs, risks, discoveries, and development work are handled.
 
-- **Freezes are explicit and named.** When a feature milestone (e.g., **HR-1**) is marked frozen, treat its contracts as immutable until the freeze is lifted or superseded. All frozen contracts must be listed in the relevant doc (see `docs/hr/hr-master-plan.md`) with any allowed deviations.
-- **Changes during a freeze require justification.** Only bug fixes that keep the contract behavior intact are allowed; anything that expands or breaks a contract must be proposed as a post-freeze milestone (e.g., HR-2).
-- **Documented contracts are the source of truth.** Use the canonical RPC signatures and identity columns captured in the HR docs—do not resurrect legacy `kind` or `value_norm` columns, and keep signatures consistent with the canonical forms.
+## Core Philosophy
 
-## Required PR Notes
+- Clarity beats speed.
+- Stability beats cleverness.
+- Foundations come before features.
+- Progress is phase-based, not impulse-based.
+- Documentation is part of the feature.
 
-Include an explicit checklist in PR descriptions whenever a change touches **migrations**, **RPCs**, or **identity flows**:
+## Hierarchy of Truth
 
-- Called out whether migrations were added or modified (or explicitly state “no migrations”).
-- Confirmed RPC signature compatibility, including overload counts and argument order.
-- Noted any updates to identity handling (lookups, inserts, guardrails, normalization).
-- Recorded whether schema cache invalidation (e.g., `NOTIFY pgrst, 'reload schema';`) is required post-deploy.
+When authorities conflict, apply this order:
 
-## Identity and Tenancy Guardrails
+1. Agui Development Operating Principles
+2. Agui Roadmap
+3. Master Plans
+4. Codex Tasks
+5. Implementation details
 
-- **Canonical columns:** `identifier_type`, `identifier_value` are the only supported identity fields. Do not introduce or rely on legacy `kind`/`value_norm`.
-- **Tenancy:** All identity and HR data remains house-scoped—no cross-house access. Enforce RLS and grant checks for RPCs and queries that expose identity.
-- **Duplicate prevention:** Respect the partial unique index requirement: at most one active employee per `(house_id, entity_id)`.
+Stop and surface a conflict rather than allowing a lower authority to silently override a higher one.
 
-## CI and Quality Expectations
+## Phase-Based Execution
 
-- Keep ESLint clean (no unused imports or `any`), and ensure `npm run lint`, `npm run typecheck`, `npm run test`, and `npm run build` stay green locally before merging.
-- Avoid changes to generated API types (`db.types.ts`) unless the task explicitly calls for it.
-- Treat documentation as a first-class deliverable—major freezes and contracts must be reflected in the docs before code changes land.
+- Work one active phase at a time.
+- Work only on the current active phase.
+- Do not jump between features or phases.
+- Do not partially implement future work “just to test.”
+- Park future ideas in the appropriate plan or log, then return to authorized work.
+
+The priority order is:
+
+1. HR
+2. POS
+3. Operations
+4. Finance
+5. Growth & Advanced Systems
+
+The Roadmap defines current execution state. These principles define the durable sequencing discipline and must not be used to infer that a phase is active.
+
+## Mandatory Idea/Bug/Risk Flow
+
+Every idea, bug, risk, or discovery follows the same flow:
+
+**Acknowledge → Classify → Place → Log → Return to current work.**
+
+Acknowledge the item, classify its urgency and governing phase, place it in the correct plan or backlog, log the durable context needed to recover it, and return to the currently authorized work. Discovery alone is not implementation authorization.
+
+## Identity/Data Rules
+
+- One Person/Entity may have multiple phone numbers, email addresses, and other identifiers.
+- Identifiers are weak signals, not proof of uniqueness.
+- Use lookup-first flows before creating identity records.
+- Reuse identities only when the approved evidence and boundaries support doing so safely.
+- Handle ambiguous matches and conflicts explicitly.
+- Never assume phone number or email equals a unique person.
+- Never auto-merge identities.
+- Shared identifiers are legitimate and must remain representable.
+- Preserve tenancy, authorization, privacy, and approved contract boundaries in every identity or data operation.
+
+## Codex Responsibilities
+
+Codex must:
+
+- follow the hierarchy of truth and current phase authorization;
+- update repository documentation when work introduces patterns, limitations, or workarounds;
+- surface bugs, risks, contradictions, and boundary concerns;
+- stop and ask when scope or authority is unclear.
+
+Codex must not:
+
+- invent architecture or policy;
+- skip required documentation;
+- solve future problems early;
+- override tenancy, security, authorization, or identity rules.
+
+## Documentation Is Part of the Feature
+
+Behavior, assumptions, and limitations must be documented in the appropriate canonical repository location. A change is incomplete when its operation, boundaries, or known constraints cannot be recovered from durable project documentation.
+
+## Compliance
+
+Deviations from these principles must be explicit, logged in the appropriate durable record, and approved by the owner or other governing authority. Silence, convenience, or an implementation detail does not constitute an exception.
+
+## Living Document
+
+These principles may evolve, but changes must be intentional, logged, and communicated. Supporting documents may add detail within their scope; they may not create competing authority or silently weaken this constitution.
