@@ -66,35 +66,25 @@ zero-count rows, attendance-derived employee display, counts, metadata, and hist
 attendance visibility. Current employee assignment or metadata alone must not manufacture
 any of those results.
 
-#### Historical remediation initiation surface
+#### Initial write surface under DEC-014
 
-The separately approved historical remediation flow must remain reachable for an
-otherwise authorized actor even when the target employee has no visible attendance fact.
-It must use a distinct, access-scoped employee-target lookup/selection surface solely to
-initiate the approved P1 operation. That surface answers only which employee
-identities the actor may legitimately target for that operation. It is not an attendance
-roster or result and does not assert who attended, who has no DTR, or which historical
-attendance branch belongs to an employee.
+The initial Historical DTR P1 does not authorize an independently reachable
+branch-limited missing-fact remediation surface. A branch-limited actor may operate only
+on a canonical attendance fact already visible under GAP-025 and currently
+**ATTRIBUTED** to a branch in the actor's allowed set, through the separately approved
+visible-fact correction path. The absence of a visible fact must expose neither a create, DEC-013
+submission, transferred-target DEC-012 remediation, no-record row, nor another control that
+could probe hidden attendance state.
 
-The remediation-target surface must expose no hidden attendance state through results, labels,
-badges, disabled-state explanations, counts, errors, timing, duplicate warnings, or
-validation metadata. Selecting employee metadata—including current branch—does not
-establish attendance provenance. The actor must separately assert and explicitly confirm
-the actual-attendance branch under the P1 contract, and the server must independently
-validate it. For an ordinary branch-limited actor, the selected target and asserted
-provenance initiate the DEC-013 opaque remediation submission, not a direct canonical
-create-if-absent command. Once independently visible submission preconditions pass,
-hidden existing attendance must not alter the actor's observable submission outcome.
-Submission itself creates no attendance fact or visibility; authorized house-wide
-owner/manager adjudication alone determines new fact, correction/conflict handling, or no
-canonical change, and final visibility follows ordinary GAP-025 authorization.
+Missing historical fact creation/remediation is **OWNER/MANAGER HOUSE-WIDE ONLY**
+initially. It remains governed by the separate P1's House, explicit actual-attendance
+provenance, reason, actor, context, deterministic identity, durable audit, existing-fact
+correction/conflict, and GAP-025 requirements. Current employee metadata—including
+current branch—does not establish historical attendance provenance.
 
-This approval freezes no modal, page, panel, button, dialog, dropdown, or other component
-architecture and designates no existing repository helper as canonical. A future runtime
-task may reuse a helper only after verifying its write-target authorization, House,
-branch, null-assignment, identity, and no-leak behavior. Otherwise it must stop and use
-only the smallest separately authorized scoped lookup without broadening employee
-visibility.
+DEC-012 exact-target resolution and DEC-013 opaque submission remain approved future
+design records, but DEC-014 defers their branch-limited missing-fact path from the initial
+runtime. No future anti-oracle UI, queue, lifecycle, or storage design is selected here.
 
 ### Decision 2 — full evidence and correction-audit visibility
 
@@ -230,14 +220,12 @@ Gate B:
 - current `employee.branch_id`, request `branchId`, schedule, or device context does not
   become attendance attribution.
 
-Gate C must preserve the separately approved historical-remediation entry point independently
-from facts-only attendance rows. An otherwise authorized actor must be able to use the
-access-scoped employee-target/remediation surface when no visible fact exists, without
-manufacturing a no-record attendance result or treating employee selection as attendance
-evidence. For ordinary branch-limited actors, this surface submits the uniform,
-non-disclosing DEC-013 claim for house-wide adjudication; it does not synchronously
-create a canonical fact or reveal whether the result is creation, correction/conflict,
-or no change. Gate C must preserve that surface and ordinary GAP-025 final visibility.
+Under DEC-014, Gate C does not expose branch-limited missing-fact remediation. A
+branch-limited actor may use a separately approved correction path only for an
+already-visible canonical fact; no visible fact produces no create/submission control and
+no manufactured no-record result. Legitimate owner/manager house-wide missing-fact
+creation/remediation remains available only under the separate P1 and is not moved into
+GAP-024. Final legitimate visibility remains governed by ordinary GAP-025 authorization.
 
 Gate C may begin only after evidence proves that the Gate-A readers exist, required
 authority/projection state is populated and rebuildable, every live producer remaining

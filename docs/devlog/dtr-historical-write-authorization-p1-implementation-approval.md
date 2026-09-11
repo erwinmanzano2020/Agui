@@ -17,10 +17,11 @@ branch. The owner separately authorized this correction on 2026-09-10.
 
 ## 2. Exact approved boundary
 
-The future P1 runtime task must distinguish mutation of an existing historical fact from
-branch-limited submission of a historical remediation claim. Under DEC-013, only
-house-wide owner/manager adjudication may determine whether that claim results in new
-canonical creation, correction/conflict handling, or no canonical change.
+The initial P1 runtime distinguishes branch-limited correction of an already-visible
+canonical fact from creation/remediation of a missing historical fact. Under DEC-014,
+missing-fact creation/remediation is **OWNER/MANAGER HOUSE-WIDE ONLY** initially.
+Branch-limited DEC-012/DEC-013 missing-fact remediation remains approved future design
+work but is deferred from this runtime boundary.
 
 ### 2.1 Existing-fact mutation
 
@@ -31,14 +32,16 @@ follows:
 
 - current `employee.branch_id` is not historical attendance ownership;
 - current employee branch assignment cannot independently authorize historical mutation;
+- for a branch-limited actor, the canonical fact must already be visible under ordinary
+  GAP-025 authorization; knowing or guessing a hidden employee/date does not confer a
+  correction path;
 - requested-house authorization must be valid first, before branch restriction is
   evaluated;
 - branch-limited mutation authority must derive from that fact's **current canonical
   GAP-025 attribution/evidence state**;
 - an **ATTRIBUTED** fact may be mutated by a branch-limited actor only when its current
   attributed branch is in the actor's `allowedBranchIds`;
-- **UNATTRIBUTED** or **CONFLICT** must fail closed for branch-limited mutation unless a
-  separately authorized correction/finalization contract permits resolution;
+- **UNATTRIBUTED** or **CONFLICT** must fail closed for branch-limited mutation;
 - existing owner/manager house-wide authority remains unchanged.
 
 Authorization eligibility is necessary but not sufficient to edit the fact. Existing
@@ -94,176 +97,94 @@ approval for payroll-impacting corrections. This P1 requires future runtime to u
 approved correction/finalization semantics where safely available or fail closed; it
 does not authorize the full HR-2 correction UI or HR-4 product workflow.
 
-### 2.2 Branch-limited historical remediation submission (DEC-013)
+### 2.2 Missing historical fact creation/remediation (DEC-014)
 
-A historical manual claim has no visible canonical fact from which a branch-limited actor
-may derive branch authority. The actor must therefore include an **explicit claimed
-actual-attendance-branch assertion**. This is the actor's manual provenance claim that
-the employee attended or worked at branch X for the selected historical context; it is
-not a UI filter, routing target, request `branchId`, viewing context, or canonical fact.
+**Owner decision approved 2026-09-11: DEC-014 Option A — initial owner/manager-only
+missing-fact remediation.** In the initial P1 runtime, only a legitimate house-wide
+owner/manager may create or remediate a missing historical attendance fact. An ordinary
+branch-limited actor may correct only a canonical **ATTRIBUTED** fact that is already
+visible under GAP-025 and whose current branch is in the actor's `allowedBranchIds`,
+subject to House authorization, required HR write capability, and the correction and
+finalization contract in Section 2.1.
 
-**Owner decision approved 2026-09-11: DEC-013 Option A — opaque remediation
-submission.** For an ordinary branch-limited actor, this entry point submits an auditable
-historical attendance claim for house-wide adjudication. It is not a synchronous
-create-if-absent command and does not itself create, correct, classify, or expose a
-canonical attendance fact.
+No visible fact does not authorize a branch-limited create or remediation operation. The
+initial runtime must not expose to branch-limited actors a direct create-if-absent action,
+an opaque DEC-013 missing-fact submission, a transferred-target DEC-012 missing-fact
+operation, or any other canonical-changing missing-fact workflow. Knowing or guessing an
+employee/date/branch combination is not visible-fact correction authority, and no control
+may imply that a fact is absent, hidden in another branch, conflicting, or in need of
+remediation. The initial P1 does not select a missing-attendance reporting UX.
 
-Before accepting a branch-limited remediation submission, all of these independently
-visible and verifiable preconditions must be true:
+A house-wide owner/manager may inspect whether the logical fact exists because that actor
+already has legitimate house-wide attendance visibility. If no fact exists, the actor may
+create a new historical fact under the approved provenance rules. If a fact exists, the
+operation must enter applicable correction/conflict semantics rather than create a
+duplicate. House-wide breadth is authorization, not permission to bypass evidence
+integrity, correction lineage, finalization, or audit requirements; destructive overwrite
+remains prohibited.
 
-1. requested-house authorization is valid;
-2. the target employee belongs to the requested house;
-3. the proposed actual-attendance branch belongs to that same house;
-4. the proposed actual-attendance branch is explicitly supplied as provenance;
-5. that branch is in the actor's `allowedBranchIds`;
-6. the actor has the relevant HR write capability;
-7. actor identity is captured;
-8. the historical attendance context being claimed is captured;
-9. a non-empty valid manual-creation reason is required;
-10. deterministic logical fact/evidence identity is retained;
-11. the authorized provenance and audit context—including actor, attendance context, and
-    reason—are durably bound to the submission and any resulting fact/evidence lineage;
-12. any resulting fact is classified under unchanged GAP-025 semantics;
-13. actual-attendance branch is not silently derived from current employee assignment,
-    request/UI branch context, schedule guess, viewer branch, operator branch, or current
-    device branch; and
-14. missing, malformed, unknown, cross-house, or out-of-scope provenance fails closed.
+Owner/manager missing-fact creation must retain all of the following:
 
-The required reason is audit context answering why an authorized actor is submitting the
-historical remediation—for example, missed time capture, kiosk
-unavailability, or an approved administrative reconstruction. It does not prove that
-attendance occurred and does not identify where attendance occurred; explicit
-actual-attendance provenance and all GAP-025 evidence rules remain independently
-required. This approval freezes no reason enum or UI option list.
+1. valid requested-House authorization;
+2. a target employee belonging to that House;
+3. an asserted actual-attendance branch belonging to the same House;
+4. an explicit actual-attendance-branch assertion rather than inferred provenance;
+5. the relevant HR write capability;
+6. actor identity;
+7. historical attendance context;
+8. a non-empty valid manual-creation reason;
+9. deterministic logical fact/evidence identity;
+10. durable binding of provenance and audit context to the resulting lineage;
+11. no silent inference from current employee assignment, request/UI context, schedule,
+    viewer/operator branch, or device branch; and
+12. classification of any resulting fact under unchanged GAP-025 semantics.
 
-This P1 concerns manual historical remediation. A manual/admin claim requires a reason. An
-import-produced fact may instead use an import provenance reference for the corresponding
-audit context only under its separately approved import contract; this approval does not
-authorize or implement bulk/import behavior.
+The reason explains why the authorized actor is creating the historical fact; it does not
+prove attendance or identify its location. A visible prefill may improve usability, but
+the actor must explicitly confirm the actual-attendance assertion and the server must
+independently validate it. Current assignment remains non-authoritative for
+owners/managers as well as branch-limited actors. This approval freezes no reason enum,
+component, physical storage, RPC, transaction, or UI architecture. It does not authorize
+bulk/import behavior; import provenance remains governed by a separately approved
+contract.
 
-A future UI may prefill the assertion for usability only when it visibly presents the
-value as the attendance-location assertion, the actor explicitly confirms and submits
-it, and server-side authorization validates it. Opening a screen for a branch or silently
-accepting its UI context is not proof.
+#### DEC-012 — approved future design, deferred from initial P1
 
-An accepted submission guarantees only that the claim entered the authorized
-adjudication boundary. It does not guarantee creation, correction, approval, visibility,
-or any canonical change. The submission itself creates no attendance row, Daily DTR
-fact, branch visibility, active attribution, payroll-ready state, or correction result,
-and does not prove attendance. Claimed provenance becomes active canonical provenance
-only through authorized adjudication and the resulting GAP-025 process; no new GAP-025
-evidence class or classifier semantic is created.
+DEC-012 Option A remains an approved design record for narrow, no-leak exact-target
+resolution of one specifically identified same-House transferred employee. It authorizes
+no browse-all or paginated cross-branch directory, fuzzy/prefix/autocomplete search,
+transfer-history list, or enumeration; it returns only minimum identity confirmation.
+Phone and email remain weak signals, shared identifiers are legitimate, neither is
+assumed unique, identities are never auto-merged, and ambiguous or unsafe resolution
+fails closed without observable hidden-state disclosure.
 
-Once the listed branch-limited-verifiable preconditions pass, hidden existing attendance
-must not change the caller's observable submission result. Whether no logical fact, a
-hidden other-branch fact, a hidden correction, or conflicting attendance exists, the
-actor receives one bounded, non-disclosing submission outcome. Exact UI copy is not
-frozen. In particular, the outcome must not disclose created, existing, duplicate,
-correction, conflict, other-branch, no-fact, or adjudication-route state through response
-shape, result category, IDs, metadata, warnings, errors, counts, or observable timing.
+Current assignment neither proves attendance nor rewrites historical truth. Nevertheless,
+DEC-014 means DEC-012 must **not** be implemented as branch-limited missing-fact runtime in
+the initial P1. It cannot be used to bypass the requirement that branch-limited correction
+target an already-visible fact. Ordinary identity context independently needed for a
+visible-fact correction remains governed by that visible-fact authorization, not by a
+DEC-012 missing-fact path.
 
-Only legitimate house-wide owner/manager authority may initially adjudicate the
-submission. Under existing contracts, adjudication may (a) produce a genuinely new
-canonical historical fact when no logical fact exists and evidence is valid, (b) enter
-the applicable correction/conflict lifecycle when a fact exists, or (c) make no
-canonical change when evidence is insufficient, unsafe, stale, incorrect, or conflicting.
-Modification of an existing fact retains original-versus-corrected lineage,
-reason/actor/timestamp/audit, finalization, late-evidence, and HR-4 payroll-impact rules;
-no destructive overwrite is authorized. Genuine new creation does not acquire a new
-blanket HR-4 requirement.
+#### DEC-013 — approved future design, deferred from initial P1
 
-Any final canonical state is visible to the submitter only when ordinary GAP-025
-classification and authorization independently permit it. Submission does not expose
-**ATTRIBUTED — Main**, **UNATTRIBUTED**, **CONFLICT**, or no-change state to a P3-limited
-actor. If **ATTRIBUTED — P3** later becomes visible, the branch-limited interface must not
-reveal whether it resulted from new creation, correction, conflict resolution, or another
-authorized path; detailed lineage remains limited to the authorized audit audience.
+DEC-013 Option A remains an approved design record: a branch-limited remediation claim
+would use an opaque immediate submission outcome, no direct create-if-absent behavior,
+house-wide adjudication, and no submission-response disclosure of hidden existing,
+branch, correction, conflict, or audit state. It is not rejected or reinterpreted.
 
-Durable traceability must connect submitting actor, exact target, claimed context and
-branch, reason/provenance, adjudicator, adjudication result, and any resulting
-attendance/correction lineage. This approval chooses no table, column, schema, queue,
-RPC, enum, transaction/outbox mechanism, or UI. Replays and duplicate submissions must
-be handled safely without exposing hidden attendance or adjudication state.
+DEC-013 alone is insufficient for the initial branch-limited missing-fact runtime because
+its final lifecycle can still become an oracle: a resulting **ATTRIBUTED — P3** fact is
+legitimately visible to P3 under GAP-025, while a hidden Main fact, conflict, or no-change
+outcome can leave no P3-visible result. The initial runtime must neither suppress valid
+finalized branch visibility nor force a destination result over valid hidden or
+conflicting evidence. DEC-014 therefore defers the branch-limited DEC-012/DEC-013 path
+until a new separately approved design proves end-to-end no-leak behavior without
+weakening attribution integrity, current-assignment non-provenance, directory scope, or
+correction/audit integrity.
 
-#### Independent remediation-flow reachability
-
-Facts-only Daily DTR attendance results must not make legitimate remediation submission
-unreachable. An otherwise authorized branch-limited actor must be able to initiate the
-remediation flow without a pre-existing visible attendance fact through a distinct,
-access-scoped employee-target surface. The surface answers only which employee identities
-the actor may legitimately target for this authorized HR write; it is not an attendance
-roster, no-record/absence list, statement of attendance, or source of historical branch
-provenance.
-
-Employee selection must not manufacture an attendance/no-record row or reveal whether a
-hidden fact exists in another branch. It must expose no hidden attendance existence,
-count, branch, source/provenance, conflict, correction, audit, or absence state through
-labels, badges, disabled explanations, search results, timing, errors, duplicate warnings,
-or validation metadata. An unauthorized employee target must be unavailable or denied
-without confirming hidden identity or attendance existence beyond information the actor
-is independently authorized to receive.
-
-Selected employee metadata and current `employee.branch_id` remain current directory
-context only. They do not establish actual-attendance branch. The actor must separately
-provide and explicitly confirm the actual historical attendance branch, reason, and
-attendance context; server-side validation must independently enforce House authorization,
-employee House, branch House, allowed scope, HR write capability, actor identity,
-deterministic fact/evidence identity, durable provenance/audit binding, and the
-remediation/adjudication boundary.
-
-No component form or repository helper is frozen. An existing employee lookup may be
-reused only after the future runtime task verifies its authorization, House and branch
-restriction, null-assignment, identity, and no-leak behavior for this write target. If no
-safe lookup exists, the task must stop and use only the smallest separately authorized
-scoped lookup; it must not broaden employee visibility.
-
-#### DEC-012 — exact-target resolution for transferred employees
-
-**Owner decision approved 2026-09-11: Option A — narrow no-leak exact-target
-resolution.** For an otherwise authorized historical remediation, a branch-limited actor may
-resolve one specifically identified same-House employee even when that employee is
-currently assigned outside the actor's branch scope. Current assignment must not by
-itself narrow legitimate historical-remediation eligibility.
-
-The resolver answers only whether one exact known employee reference identifies a
-same-House employee who may be targeted for this specific authorized operation. It must
-not provide a browse-all or paginated cross-branch directory, fuzzy/prefix/autocomplete
-search, transfer-history or former-branch lists, or other enumeration. This approval
-freezes no physical reference. A future runtime task must select the safest already-
-approved deterministic operation-safe reference; malformed, nonexistent, ambiguous,
-unsafe, unauthorized, or cross-House resolution fails closed.
-
-Identity principles remain frozen: phone and email are weak signals, shared identifiers
-are legitimate, neither phone nor email is assumed unique, and identities are never
-auto-merged. An ambiguous or nondeterministic reference fails closed.
-
-After safe resolution, DEC-012 returns only the minimum identity confirmation necessary
-to avoid acting on the wrong employee. It does not itself reveal current branch, transfer
-history, attendance branch or count, hidden fact existence, correction/conflict state,
-source/provenance, schedules, payroll state, or audit history. Metadata independently
-authorized by another contract remains governed only by that contract.
-
-Ordinary branch-limited failure is generic and anti-enumerating. User-facing error
-wording, result shape, counts, badges, validation metadata, duplicate warnings, and
-observable timing must not distinguish nonexistent, malformed, cross-House,
-unauthorized, ambiguous, other-branch, hidden-attendance, or otherwise unusable targets.
-Authorized internal audit may retain the true reason under existing audit rules.
-
-A same-House employee's current `employee.branch_id` outside the actor's scope does not
-by itself make an otherwise valid historical-remediation target ineligible. Conversely,
-current assignment inside scope does not prove historical attendance there. Exact-target
-resolution identifies only the employee; the actor must separately provide and explicitly
-confirm actual-attendance branch, and all House, allowed-branch, write-capability, reason,
-actor, context, deterministic identity, durable binding, create-versus-edit, and GAP-025
-checks remain independently required.
-
-DEC-012 performs no hidden-attendance detection and does not authorize a duplicate
-bypass. Existing-fact handling occurs only behind the DEC-013 house-wide adjudication
-boundary, without revealing a hidden fact's existence, branch, source, count,
-correction/conflict state, or audit history. The ordinary employee directory is not broadened, and
-`listEmployeesByHouse` is not designated as the canonical resolver. A safe existing exact
-lookup may be reused only after verification; otherwise only the smallest separately
-authorized operation-specific exact lookup may be added by the future runtime task.
+No future queue, case-management, notification, delayed-reveal, blind-workflow, or other
+anti-oracle architecture is selected here. Final legitimate visibility remains governed
+only by GAP-025.
 
 ### 2.3 Shared exclusions and non-change boundary
 
@@ -312,100 +233,52 @@ The separately tasked runtime PR must add focused existing-fact tests proving:
 15. legitimate owner/manager house-wide authorization behavior remains preserved without
     bypassing required correction/finalization semantics.
 
-It must add positive branch-limited historical remediation tests proving:
+Branch-limited existing-visible-fact tests must additionally prove:
 
-1. a P3-limited actor with valid HR write authority can reach the remediation flow
-   without a pre-existing visible attendance fact;
-2. exact target selection comes from the authorized operation-scoped DEC-012 surface and
-   manufactures no attendance/no-record row;
-3. selected employee metadata does not establish attendance branch, and the actor
-   separately asserts P3 as claimed actual-attendance provenance;
-4. same-House employee and branch, P3 in `allowedBranchIds`, valid context, actor,
-   deterministic identity, provenance, and a non-empty reason satisfy the submission
-   preconditions;
-5. the submission retains and durably binds actor identity, target, historical context,
-   claimed branch, deterministic identity, reason, and provenance for adjudication; and
-6. acceptance creates no immediate attendance fact or branch visibility and exposes no
-   create-path or adjudication-route information.
+- a P3-limited actor can enter correction only for an already-visible canonical
+  **ATTRIBUTED — P3** fact;
+- current employee assignment cannot grant mutation authority;
+- a hidden Main fact cannot be targeted through branch-limited correction;
+- **UNATTRIBUTED**, **CONFLICT**, zero allowed scope, and cross-House access fail closed;
+- denial exposes no hidden existence, branch, source, correction, or audit metadata;
+- pending, rejected, and finalized behavior preserves GAP-025;
+- initial non-payroll location finalization remains owner/manager-only; and
+- payroll-impacting correction requires HR-4 approval before successful finalization or
+  payroll-ready use.
 
-It must also add negative and no-leak remediation tests proving:
+Branch-limited missing-fact denial tests must prove:
 
-- no actual-attendance provenance denies;
-- employee current branch alone denies;
-- UI/request branch context alone denies;
-- Main provenance denies for a P3-only actor;
-- a branch from another house denies;
-- an unknown branch denies;
-- zero allowed branch scope denies;
-- missing HR write capability denies;
-- malformed provenance denies;
-- a missing required manual-creation reason denies and fails closed;
-- a blank or invalid reason under the future bounded input contract denies;
-- a reason without explicit actual-attendance provenance denies;
-- valid actual-attendance provenance without the required reason denies;
-- a facts-only attendance view has no row for an employee with no visible fact while the
-  authorized remediation flow remains independently reachable;
-- the employee-target surface leaks no hidden attendance state and does not silently
-  infer attendance branch;
-- an unauthorized employee target is unavailable or denied without hidden existence
-  leakage;
-- out-of-scope branch provenance denies independently of employee selection;
-- a submission cannot bypass correction or manufacture a second manual fact;
-- submission validation does not reveal a hidden existing fact;
-- denial does not reveal whether another branch has attendance for that employee/date;
-- denial exposes no hidden branch IDs/names, source evidence, counts, record existence,
-  correction metadata, or audit context; and
-- legitimate owner/manager house-wide adjudication remains available under existing
-  separately approved broad authority rules.
+- no visible fact exposes either a canonical-create action or DEC-013 submission in the
+  initial runtime;
+- DEC-012 transferred exact-target resolution cannot become a missing-fact bypass;
+- current assignment cannot enable missing-fact creation;
+- guessed employee/date/branch inputs cannot create or probe hidden attendance;
+- controls, results, errors, metadata, counts, and observable timing do not disclose
+  hidden fact state; and
+- facts-only behavior manufactures no no-record, absence, or alternate hidden roster.
 
-Submission-oracle comparison tests must use otherwise identical branch-limited requests
-for (a) no prior logical fact and (b) a hidden same-House other-branch fact. Both must
-produce the same allowed response shape, generic outcome semantics, HTTP/result category
-as applicable, counts, IDs/metadata, errors, duplicate-warning behavior, and observable
-timing. Neither response promises immediate creation or reveals existing, correction, or
-conflict state; existing-fact handling occurs only during house-wide adjudication.
+Owner/manager missing-fact tests must prove:
 
-Adjudication tests must additionally prove:
+- legitimate house-wide owner/manager authority may create a genuinely missing historical
+  fact;
+- explicit actual-attendance provenance is required and current assignment cannot
+  substitute for it;
+- same-House employee and branch validation is enforced;
+- reason, actor, context, deterministic identity, and durable audit/provenance binding are
+  retained;
+- an existing logical fact routes to correction/conflict handling rather than duplicate
+  creation;
+- house-wide authorization does not bypass correction lineage or finalization;
+- payroll-impact rules remain unchanged; and
+- final classification and visibility follow GAP-025.
 
-- no prior fact plus valid evidence may produce a genuinely new canonical fact;
-- an existing fact enters approved correction/conflict handling without destructive
-  overwrite;
-- invalid or insufficient evidence may produce no canonical change;
-- payroll-impacting correction obeys HR-4 and initial non-payroll location finalization
-  remains owner/manager-only; and
-- the branch-limited submitter cannot observe adjudication route or protected evidence.
-
-Final-visibility tests must prove that **ATTRIBUTED — P3** is visible through ordinary
-GAP-025 P3 scope, while **ATTRIBUTED — Main**, **UNATTRIBUTED**, **CONFLICT**, and no
-canonical change gain no visibility merely from submission. A final visible P3 result
-must not disclose whether it originated through creation, correction, conflict
-resolution, or another authorized canonical path, and no-change must create no synthetic
-no-record result.
-
-DEC-012 verification must additionally prove:
-
-- a P3-limited actor with required HR write capability can resolve an exact known
-  same-House employee currently assigned Main, receive only minimum identity
-  confirmation without Main disclosure from DEC-012, separately assert actual-attendance
-  branch P3, satisfy the P1 reason/context/actor/provenance requirements, and submit the
-  opaque remediation without current Main assignment blocking it;
-- current Main assignment alone does not reject that otherwise valid P3 remediation;
-- current P3 assignment alone does not establish historical P3 provenance;
-- fuzzy/prefix search and broad cross-branch listing cannot enumerate hidden employees;
-- malformed, nonexistent, cross-House, ambiguous, unauthorized, and otherwise unsafe
-  exact references use generic fail-closed behavior;
-- hidden existing attendance is not revealed through resolution or submission;
-- unauthorized branch provenance denies independently of successful identity resolution;
-- zero branch scope and missing write capability deny; and
-- result shape, errors, and observable timing leak no hidden metadata.
-
-Timing verification must cover protected exact-resolution and submission classes,
-including malformed, nonexistent, cross-House, unauthorized, other-branch, hidden-fact,
-and hidden correction/conflict states. The no-leak result is absolute; this approval does
-not prescribe a delay, sleep, jitter, padding, constant-time database technique, or queue
-latency. If deterministic automation cannot prove the full environmental property, the
-runtime task must combine controlled automated checks with documented production-like or
-manual verification and must stop if the absolute contract cannot be satisfied.
+Future DEC-012/DEC-013 verification remains relevant only to a new separately approved
+branch-limited missing-fact design. That future design must prove that final observable
+lifecycle behavior does not leak hidden fact existence or timing while valid finalized
+branch attribution remains visible, conflicting evidence is not overridden, current
+assignment remains non-provenance, employee scope is not broadened, and correction/audit
+integrity remains intact. Those future tests are not authorization to implement the path
+in the initial P1.
 
 These are future implementation requirements. This documentation approval adds no tests.
 
@@ -424,16 +297,16 @@ This P1 authorization neither implements nor accelerates those gates.
 ## 5. Non-change and risk statement
 
 - **Changed:** governance authorizes one future correction covering existing historical
-  Daily DTR mutation authority and explicit provenance for branch-limited historical
-  remediation, including DEC-012 narrow exact-target resolution and DEC-013 opaque
-  submission with house-wide adjudication, and freezes its fail-closed test boundary.
+  Daily DTR mutation authority for already-visible branch-limited facts and house-wide
+  owner/manager missing-fact creation under DEC-014, while preserving DEC-012 and
+  DEC-013 as deferred future design records, and freezes its fail-closed test boundary.
 - **Not changed:** no runtime or test is implemented; no schema, migration, RLS, grant,
   RPC, API, repository, UI, generated type, payroll computation, identity, read-path,
   GAP-024 projection, POS, Operations, or Finance behavior changes.
 - **Risk checked:** house authorization precedes branch restriction, current assignment
-  cannot rewrite historical authority or supply attendance provenance, explicit claimed
-  provenance is same-house and allowed-branch validated and durably bound, submissions
-  do not disclose hidden fact state, existing facts cannot be destructively overwritten,
+  cannot rewrite historical authority or supply attendance provenance, owner/manager
+  explicit provenance is same-House validated and durably bound, branch-limited missing-fact
+  operations are absent from initial runtime, existing facts cannot be destructively overwritten,
   required correction
   lineage/finalization cannot be skipped when dependencies are unavailable, ambiguous
   historical facts deny branch-limited mutation, cross-house access denies,

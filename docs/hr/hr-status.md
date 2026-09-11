@@ -56,11 +56,10 @@ closed and canonical. The owner resolved the plan's four decisions on 2026-09-10
 1. initial branch-limited Daily DTR is **facts-only**: only a current canonical
    **ATTRIBUTED** fact in the actor's allowed branches may produce an employee/attendance
    row; current employee assignment, request branch, schedule guess, or current device
-   branch cannot manufacture a no-DTR, absence, or roster row. A distinct access-scoped
-   historical-remediation surface may select an authorized employee write target without
-   generating a no-record attendance row; that employee selection and current branch are
-   not historical attendance provenance, which the actor must assert and confirm
-   separately under the P1 contract;
+   branch cannot manufacture a no-DTR, absence, or roster row. Under DEC-014, no visible
+   fact also exposes no branch-limited missing-fact remediation control. Branch-limited
+   actors may use separately approved correction semantics only for already-visible
+   canonical facts; current assignment remains non-authoritative;
 2. full evidence and correction lineage remains owner/manager-only initially, while
    ordinary branch-limited users receive only GAP-025-sanitized operational state and no
    hidden metadata, existence, or count signal; no auditor role or `domain.hr.audit`
@@ -99,26 +98,31 @@ owner/manager house-wide authority, derive existing-fact branch-limited mutation
 authority from the fact's current canonical GAP-025 attribution/evidence, and require
 every authorized existing-fact edit to follow approved correction/audit/finalization
 semantics rather than destructively overwrite canonical attendance state. If the needed
-correction/finalization dependency is unavailable, the edit must fail closed. New
-historical facts require an explicit, authorized, same-house, allowed-branch
-actual-attendance assertion as durable manual provenance. The P1 must fail closed for
+correction/finalization dependency is unavailable, the edit must fail closed. Under
+DEC-014, only legitimate house-wide owners/managers may create missing historical facts,
+and they require an explicit, authorized, same-house actual-attendance assertion as
+durable manual provenance. The P1 must fail closed for
 unsafe, missing/malformed/out-of-scope provenance, UNATTRIBUTED, CONFLICT, zero-scope, or
 cross-house targets without metadata leakage. It requires a separate bounded runtime
 Codex task/PR and must not be bundled into Option D Gate A.
 
-**DEC-012 approved 2026-09-11 — Option A, narrow no-leak exact-target resolution.** An
-otherwise authorized branch-limited historical-remediation actor may resolve one exact known
-same-House employee even when current assignment is outside the actor's branch scope.
+**DEC-012 approved 2026-09-11 — Option A, narrow no-leak exact-target resolution;
+future/deferred for branch-limited missing-fact runtime.** The approved future design
+would allow an otherwise authorized branch-limited historical-remediation actor to
+resolve one exact known same-House employee even when current assignment is outside the
+actor's branch scope.
 DEC-012 authorizes no broad cross-branch directory, fuzzy search, or enumeration and
 returns only minimum identity confirmation with generic fail-closed denial. Current
 assignment neither narrows otherwise valid historical-remediation eligibility nor supplies
 attendance provenance; the actor must separately assert and confirm actual-attendance
 branch, and every P1 House, scope, capability, reason, audit, identity, no-leak, and
-remediation/adjudication rule remains required.
+remediation/adjudication rule remains required. DEC-014 means this resolver is not an
+initial branch-limited missing-fact path.
 
-**DEC-013 approved 2026-09-11 — Option A, opaque historical remediation submission.**
-For ordinary branch-limited actors, the P1 entry point is not a direct canonical
-create-if-absent command. After independently verifiable House, capability, exact-target,
+**DEC-013 approved 2026-09-11 — Option A, opaque historical remediation submission;
+future/deferred for branch-limited missing-fact runtime.** Under this approved future
+design, the P1 entry point would not be a direct canonical create-if-absent command.
+After independently verifiable House, capability, exact-target,
 same-House branch, allowed-scope, context, reason, and explicit claimed-attendance
 preconditions pass, hidden attendance state cannot change the actor's uniform,
 non-disclosing submission outcome. Submission creates no attendance fact or visibility.
@@ -128,6 +132,18 @@ visibility follows GAP-025 alone, and branch-limited actors receive no create-ve
 correction lineage or protected adjudication state. Observable timing must not distinguish
 protected target, attendance, existing-fact, or correction/conflict states; no physical
 timing mechanism or workflow architecture is selected here.
+
+**DEC-014 approved 2026-09-11 — Option A, initial owner/manager-only missing-fact
+remediation.** This is the controlling initial P1 runtime boundary. Ordinary
+branch-limited actors may correct only canonical facts already visible and attributed
+within their allowed scope; they receive no direct create-if-absent, DEC-013 submission,
+DEC-012 transferred-target remediation, or other missing-fact workflow. Legitimate
+house-wide owners/managers may create a genuinely missing historical fact under explicit
+same-House provenance, reason, actor, context, deterministic identity, durable audit, and
+GAP-025 rules, while an existing fact must use correction/conflict semantics. DEC-012 and
+DEC-013 remain approved future design records, but their branch-limited missing-fact path
+is deferred because final visibility could otherwise become a hidden-state oracle. No
+future anti-oracle architecture is selected by this decision.
 
 Neither approved stream has runtime in this governance checkpoint. GAP-024 remains open
 until runtime, migrations, complete consumer cutover, no-leak verification, final
