@@ -184,6 +184,54 @@ restriction, null-assignment, identity, and no-leak behavior for this write targ
 safe lookup exists, the task must stop and use only the smallest separately authorized
 scoped lookup; it must not broaden employee visibility.
 
+#### DEC-012 — exact-target resolution for transferred employees
+
+**Owner decision approved 2026-09-11: Option A — narrow no-leak exact-target
+resolution.** For an otherwise authorized historical create, a branch-limited actor may
+resolve one specifically identified same-House employee even when that employee is
+currently assigned outside the actor's branch scope. Current assignment must not by
+itself narrow legitimate historical-create eligibility.
+
+The resolver answers only whether one exact known employee reference identifies a
+same-House employee who may be targeted for this specific authorized operation. It must
+not provide a browse-all or paginated cross-branch directory, fuzzy/prefix/autocomplete
+search, transfer-history or former-branch lists, or other enumeration. This approval
+freezes no physical reference. A future runtime task must select the safest already-
+approved deterministic operation-safe reference; malformed, nonexistent, ambiguous,
+unsafe, unauthorized, or cross-House resolution fails closed.
+
+Identity principles remain frozen: phone and email are weak signals, shared identifiers
+are legitimate, neither phone nor email is assumed unique, and identities are never
+auto-merged. An ambiguous or nondeterministic reference fails closed.
+
+After safe resolution, DEC-012 returns only the minimum identity confirmation necessary
+to avoid acting on the wrong employee. It does not itself reveal current branch, transfer
+history, attendance branch or count, hidden fact existence, correction/conflict state,
+source/provenance, schedules, payroll state, or audit history. Metadata independently
+authorized by another contract remains governed only by that contract.
+
+Ordinary branch-limited failure is generic and anti-enumerating. User-facing error
+wording, result shape, counts, badges, validation metadata, duplicate warnings, and timing
+where reasonably controllable must not distinguish nonexistent, malformed, cross-House,
+unauthorized, ambiguous, other-branch, hidden-attendance, or otherwise unusable targets.
+Authorized internal audit may retain the true reason under existing audit rules.
+
+A same-House employee's current `employee.branch_id` outside the actor's scope does not
+by itself make an otherwise valid historical-create target ineligible. Conversely,
+current assignment inside scope does not prove historical attendance there. Exact-target
+resolution identifies only the employee; the actor must separately provide and explicitly
+confirm actual-attendance branch, and all House, allowed-branch, write-capability, reason,
+actor, context, deterministic identity, durable binding, create-versus-edit, and GAP-025
+checks remain independently required.
+
+DEC-012 does not authorize a duplicate bypass. If an existing logical fact exists, the
+runtime must use approved correction/conflict semantics where authorized or fail closed,
+without revealing a hidden fact's existence, branch, source, count, correction/conflict
+state, or audit history. The ordinary employee directory is not broadened, and
+`listEmployeesByHouse` is not designated as the canonical resolver. A safe existing exact
+lookup may be reused only after verification; otherwise only the smallest separately
+authorized operation-specific exact lookup may be added by the future runtime task.
+
 ### 2.3 Shared exclusions and non-change boundary
 
 Across both cases:
@@ -290,6 +338,23 @@ Create-versus-edit boundary tests must additionally prove:
 - a branch-limited actor cannot convert an edit into a “new create” to move authorization
   scope.
 
+DEC-012 verification must additionally prove:
+
+- a P3-limited actor with required HR write capability can resolve an exact known
+  same-House employee currently assigned Main, receive only minimum identity
+  confirmation without Main disclosure from DEC-012, separately assert actual-attendance
+  branch P3, satisfy the P1 reason/context/actor/provenance requirements, and create the
+  new fact under unchanged GAP-025 semantics when no existing logical fact blocks it;
+- current Main assignment alone does not reject that otherwise valid P3 remediation;
+- current P3 assignment alone does not establish historical P3 provenance;
+- fuzzy/prefix search and broad cross-branch listing cannot enumerate hidden employees;
+- malformed, nonexistent, cross-House, ambiguous, unauthorized, and otherwise unsafe
+  exact references use generic fail-closed behavior;
+- hidden existing attendance is not revealed through create validation;
+- unauthorized branch provenance denies independently of successful identity resolution;
+- zero branch scope and missing write capability deny; and
+- result shape and errors leak no hidden metadata.
+
 These are future implementation requirements. This documentation approval adds no tests.
 
 ## 4. Separation from GAP-024 Option D
@@ -308,7 +373,8 @@ This P1 authorization neither implements nor accelerates those gates.
 
 - **Changed:** governance authorizes one future correction covering existing historical
   Daily DTR mutation authority and explicit provenance for new historical manual creation,
-  and freezes its fail-closed test boundary.
+  including DEC-012 narrow exact-target resolution, and freezes its fail-closed test
+  boundary.
 - **Not changed:** no runtime or test is implemented; no schema, migration, RLS, grant,
   RPC, API, repository, UI, generated type, payroll computation, identity, read-path,
   GAP-024 projection, POS, Operations, or Finance behavior changes.

@@ -78,10 +78,14 @@ The
 [`GAP-024 Implementation Approval`](../devlog/gap-024-daily-dtr-branch-enforcement-implementation-approval.md)
 authorizes future bounded tasks, after this governance PR merges, in fixed order:
 Gate A authority/projection plus canonical branch-aware and house-global read-boundary
-foundation; Gate B deterministic ingest/backfill/rebuild and interface validation; Gate C
-Daily DTR facts-only cutover using those already-established canonical readers; Gate D
-migration of every live consumer; and Gate E final security cutover/raw-access
-revocation. A gate may be subdivided, but order and semantics cannot change.
+foundation; Gate B deterministic ingest/backfill/rebuild, interface validation, and
+ongoing canonical authority/projection maintenance by every active attendance producer;
+Gate C Daily DTR facts-only cutover using those already-established canonical readers;
+Gate D migration of every live read consumer; and Gate E final security cutover/raw-
+access revocation. Gate C must not cut over while any live producer can create raw-only
+or projection-incompatible attendance. A component's writer compatibility may therefore
+be required in Gate B even when its unrelated reader migrates later in Gate D. A gate may
+be subdivided, but order and semantics cannot change.
 Payroll/payslip, browser-direct, kiosk, bulk, service/admin/background, repair
 script/runbook, and every other active consumer must have an approved migrated/retired
 disposition before revocation.
@@ -101,6 +105,16 @@ actual-attendance assertion as durable manual provenance. The P1 must fail close
 unsafe, missing/malformed/out-of-scope provenance, UNATTRIBUTED, CONFLICT, zero-scope, or
 cross-house targets without metadata leakage. It requires a separate bounded runtime
 Codex task/PR and must not be bundled into Option D Gate A.
+
+**DEC-012 approved 2026-09-11 — Option A, narrow no-leak exact-target resolution.** An
+otherwise authorized branch-limited historical-create actor may resolve one exact known
+same-House employee even when current assignment is outside the actor's branch scope.
+DEC-012 authorizes no broad cross-branch directory, fuzzy search, or enumeration and
+returns only minimum identity confirmation with generic fail-closed denial. Current
+assignment neither narrows otherwise valid historical-create eligibility nor supplies
+attendance provenance; the actor must separately assert and confirm actual-attendance
+branch, and every P1 House, scope, capability, reason, audit, identity, no-leak, and
+create-versus-edit rule remains required.
 
 Neither approved stream has runtime in this governance checkpoint. GAP-024 remains open
 until runtime, migrations, complete consumer cutover, no-leak verification, final

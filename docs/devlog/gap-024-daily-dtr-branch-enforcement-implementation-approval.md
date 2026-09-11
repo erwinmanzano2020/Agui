@@ -189,8 +189,26 @@ the interfaces without making them production consumer paths.
 Populate or backfill only provable evidence. Unknown or invalid facts fail closed.
 Verify rebuild determinism, projection consistency, and legitimate owner/manager
 house-wide parity as applicable. Exercise the Gate-A read boundaries against the
-backfilled/rebuilt projection. There is no final Daily DTR cutover, all-consumer
-migration, or raw-access revocation.
+backfilled/rebuilt projection.
+
+Gate B must also inventory every live attendance producer at the implementation head and
+establish ongoing compatibility for every producer that remains active before Gate C. A
+live producer is any kiosk, manual/admin, bulk/import, correction/finalization,
+service/admin/background, offline replay/sync, repair procedure, or other path that can
+create, close, replace, correct, import, or otherwise materially change an attendance
+fact. The inventory is not limited to this known list.
+
+Every post-backfill live write must maintain the canonical durable
+evidence/revision/lineage authority and update the current projection deterministically.
+Replay and retry behavior must be idempotent where applicable. No producer may create a
+raw-only fact invisible to the canonical readers. Invalid or insufficient provenance
+must fail closed; current employee/device/UI/request branch cannot become silent
+historical provenance; House and branch boundaries and correction/finalization semantics
+remain enforced.
+
+Gate B may be subdivided into bounded producer-compatibility slices. It does not perform
+final Daily DTR cutover, unrelated read-consumer migration, all-consumer migration, or
+raw-access revocation.
 
 ### GAP-024 Gate C — canonical Daily DTR facts-only cutover
 
@@ -212,6 +230,14 @@ access-scoped employee-target/create surface when no visible fact exists, withou
 manufacturing a no-record attendance result or treating employee selection as attendance
 evidence. Existing-fact detection and denial must preserve the P1 create-versus-edit and
 no-leak rules.
+
+Gate C may begin only after evidence proves that the Gate-A readers exist, required
+authority/projection state is populated and rebuildable, every live producer remaining
+active during Gate C continuously maintains that state, newly committed legitimate
+attendance is immediately canonically readable without a later migration, invalid or
+ambiguous new writes fail closed, and no known producer can create projection-invisible
+attendance. If any live producer remains capable of raw-only or projection-incompatible
+mutation, **Gate C must not cut over**.
 
 Raw/base access is not revoked yet.
 
@@ -237,6 +263,12 @@ use the house-global canonical interface. A house-wide result must never be fetc
 then filtered afterward for a branch-limited user. Raw access is not revoked in this
 gate.
 
+Gate D remains the broad read-consumer migration/disposition gate. Producer-side write
+compatibility required to prevent projection drift before Gate C belongs in Gate B and
+must not be deferred merely because the same component also has a reader listed in Gate
+D. A component's writer may require Gate-B compatibility while its unrelated reader
+migrates in Gate D.
+
 ### GAP-024 Gate E — final security cutover and raw-access revocation
 
 This gate is **LAST**. It is permitted only after:
@@ -250,6 +282,24 @@ This gate is **LAST**. It is permitted only after:
 - rollback cannot restore insecure raw house-wide access.
 
 Only then may raw access be revoked or bounded, followed by post-revocation verification.
+
+### Required producer compatibility verification
+
+Future Gate-B tasks must prove:
+
+- kiosk, manual/admin, and applicable bulk/import post-backfill writes immediately
+  maintain canonical authority and projection;
+- correction/finalization and every other active writer maintain the same contract;
+- replay, duplicate, retry, and concurrent behavior cannot create divergent projection
+  state or grant stale branch visibility;
+- a raw-only write cannot silently bypass the projection;
+- projection rebuild reproduces the same current authority;
+- insufficient provenance produces a fail-closed state;
+- the canonical Daily DTR reader can see a newly valid fact immediately after its
+  successful committed write;
+- branch-limited readers cannot see newly invalid, **UNATTRIBUTED**, or **CONFLICT**
+  facts; and
+- legitimate owner/manager house-global behavior remains preserved.
 
 ## 6. First runtime priority and separation rule
 
