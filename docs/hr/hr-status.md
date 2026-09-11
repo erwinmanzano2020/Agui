@@ -56,7 +56,11 @@ closed and canonical. The owner resolved the plan's four decisions on 2026-09-10
 1. initial branch-limited Daily DTR is **facts-only**: only a current canonical
    **ATTRIBUTED** fact in the actor's allowed branches may produce an employee/attendance
    row; current employee assignment, request branch, schedule guess, or current device
-   branch cannot manufacture a no-DTR, absence, or roster row;
+   branch cannot manufacture a no-DTR, absence, or roster row. A distinct access-scoped
+   historical-create surface may select an authorized employee write target without
+   generating a no-record attendance row; that employee selection and current branch are
+   not historical attendance provenance, which the actor must assert and confirm
+   separately under the P1 contract;
 2. full evidence and correction lineage remains owner/manager-only initially, while
    ordinary branch-limited users receive only GAP-025-sanitized operational state and no
    hidden metadata, existence, or count signal; no auditor role or `domain.hr.audit`

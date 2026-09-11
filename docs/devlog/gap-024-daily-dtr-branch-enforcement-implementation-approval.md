@@ -42,6 +42,8 @@ HR-2, HR-4, payroll, attribution, and no-leak boundaries remain unchanged.
 
 ### Decision 1 — branch-limited Daily DTR roster
 
+#### Attendance result surface
+
 Initial branch-limited Daily DTR behavior is **FACTS-ONLY**. A branch-limited actor may
 see an employee/attendance row only when current canonical attendance evidence produces
 a visible **ATTRIBUTED** fact whose active branch is inside the actor's allowed branch
@@ -58,6 +60,35 @@ The implementation must not manufacture a “No DTR,” absence, or roster row u
 Current employee branch is not historical attendance ownership. A future effective-dated
 roster/schedule capability may support legitimate no-record or absence rows only through
 a separate approved contract; that enhancement is not part of this approval.
+
+Facts-only applies to attendance/result rows, attendance cards, no-DTR or absence rows,
+zero-count rows, attendance-derived employee display, counts, metadata, and historical
+attendance visibility. Current employee assignment or metadata alone must not manufacture
+any of those results.
+
+#### Historical create initiation surface
+
+The separately approved historical manual-create flow must remain reachable for an
+otherwise authorized actor even when the target employee has no visible attendance fact.
+It must use a distinct, access-scoped employee-target lookup/selection surface solely to
+initiate the approved P1 write operation. That surface answers only which employee
+identities the actor may legitimately target for that operation. It is not an attendance
+roster or result and does not assert who attended, who has no DTR, or which historical
+attendance branch belongs to an employee.
+
+The create-target surface must expose no hidden attendance state through results, labels,
+badges, disabled-state explanations, counts, errors, timing, duplicate warnings, or
+validation metadata. Selecting employee metadata—including current branch—does not
+establish attendance provenance. The actor must separately assert and explicitly confirm
+the actual-attendance branch under the P1 contract, and the server must independently
+validate it.
+
+This approval freezes no modal, page, panel, button, dialog, dropdown, or other component
+architecture and designates no existing repository helper as canonical. A future runtime
+task may reuse a helper only after verifying its write-target authorization, House,
+branch, null-assignment, identity, and no-leak behavior. Otherwise it must stop and use
+only the smallest separately authorized scoped lookup without broadening employee
+visibility.
 
 ### Decision 2 — full evidence and correction-audit visibility
 
@@ -174,6 +205,13 @@ Gate B:
 - metadata, row, count, no-record, and no-leak parity is enforced; and
 - current `employee.branch_id`, request `branchId`, schedule, or device context does not
   become attendance attribution.
+
+Gate C must preserve the separately approved historical-create entry point independently
+from facts-only attendance rows. An otherwise authorized actor must be able to use the
+access-scoped employee-target/create surface when no visible fact exists, without
+manufacturing a no-record attendance result or treating employee selection as attendance
+evidence. Existing-fact detection and denial must preserve the P1 create-versus-edit and
+no-leak rules.
 
 Raw/base access is not revoked yet.
 

@@ -152,6 +152,38 @@ employee/date/context, future runtime must follow approved correction/conflict r
 rather than manufacture a second manual fact or use new provenance to overwrite the
 existing fact. This is a fail-safe requirement, not a new duplicate architecture.
 
+#### Independent create-flow reachability
+
+Facts-only Daily DTR attendance results must not make legitimate new-fact creation
+unreachable. An otherwise authorized branch-limited actor must be able to initiate the
+historical-create flow without a pre-existing visible attendance fact through a distinct,
+access-scoped employee-target surface. The surface answers only which employee identities
+the actor may legitimately target for this authorized HR write; it is not an attendance
+roster, no-record/absence list, statement of attendance, or source of historical branch
+provenance.
+
+Employee selection must not manufacture an attendance/no-record row or reveal whether a
+hidden fact exists in another branch. It must expose no hidden attendance existence,
+count, branch, source/provenance, conflict, correction, audit, or absence state through
+labels, badges, disabled explanations, search results, timing, errors, duplicate warnings,
+or validation metadata. An unauthorized employee target must be unavailable or denied
+without confirming hidden identity or attendance existence beyond information the actor
+is independently authorized to receive.
+
+Selected employee metadata and current `employee.branch_id` remain current directory
+context only. They do not establish actual-attendance branch. The actor must separately
+provide and explicitly confirm the actual historical attendance branch, reason, and
+attendance context; server-side validation must independently enforce House authorization,
+employee House, branch House, allowed scope, HR write capability, actor identity,
+deterministic fact/evidence identity, durable provenance/audit binding, and the
+create-versus-edit boundary.
+
+No component form or repository helper is frozen. An existing employee lookup may be
+reused only after the future runtime task verifies its authorization, House and branch
+restriction, null-assignment, identity, and no-leak behavior for this write target. If no
+safe lookup exists, the task must stop and use only the smallest separately authorized
+scoped lookup; it must not broaden employee visibility.
+
 ### 2.3 Shared exclusions and non-change boundary
 
 Across both cases:
@@ -201,18 +233,23 @@ The separately tasked runtime PR must add focused existing-fact tests proving:
 
 It must add positive branch-limited historical manual-create tests proving:
 
-1. a P3-limited actor with valid HR write authority can create a new historical fact
+1. a P3-limited actor with valid HR write authority can reach the historical-create flow
+   without a pre-existing visible attendance fact and can create a new historical fact
    using explicit actual-attendance provenance of P3 and a non-empty valid creation
    reason;
-2. a same-house employee, same-house P3 provenance, and P3 in `allowedBranchIds`
+2. employee selection comes from an authorized access-scoped write-target surface and
+   manufactures no attendance/no-record row;
+3. selected employee metadata does not establish attendance branch, and the actor
+   separately asserts and confirms actual-attendance provenance;
+4. a same-house employee, same-house P3 provenance, and P3 in `allowedBranchIds`
    succeeds;
-3. the resulting fact/evidence retains actor identity, historical attendance context,
+5. the resulting fact/evidence retains actor identity, historical attendance context,
    explicit actual-attendance provenance, deterministic logical fact/evidence identity,
    and the required reason;
-4. the reason and provenance remain bound to the created fact/evidence lineage;
-5. the resulting classification is **ATTRIBUTED — P3** when no valid conflicting
+6. the reason and provenance remain bound to the created fact/evidence lineage;
+7. the resulting classification is **ATTRIBUTED — P3** when no valid conflicting
    evidence exists; and
-6. the P3-limited actor receives only the sanitized authorized result.
+8. the P3-limited actor receives only the sanitized authorized result.
 
 It must also add negative and no-leak historical manual-create tests proving:
 
@@ -229,7 +266,15 @@ It must also add negative and no-leak historical manual-create tests proving:
 - a blank or invalid reason under the future bounded input contract denies;
 - a reason without explicit actual-attendance provenance denies;
 - valid actual-attendance provenance without the required reason denies;
+- a facts-only attendance view has no row for an employee with no visible fact while the
+  authorized historical-create flow remains independently reachable;
+- the employee-target surface leaks no hidden attendance state and does not silently
+  infer attendance branch;
+- an unauthorized employee target is unavailable or denied without hidden existence
+  leakage;
+- out-of-scope branch provenance denies independently of employee selection;
 - an existing conflicting fact cannot be bypassed by creating another manual fact;
+- duplicate/create validation does not reveal a hidden existing fact;
 - denial does not reveal whether another branch has attendance for that employee/date;
 - denial exposes no hidden branch IDs/names, source evidence, counts, record existence,
   correction metadata, or audit context; and
