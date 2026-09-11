@@ -57,7 +57,7 @@ closed and canonical. The owner resolved the plan's four decisions on 2026-09-10
    **ATTRIBUTED** fact in the actor's allowed branches may produce an employee/attendance
    row; current employee assignment, request branch, schedule guess, or current device
    branch cannot manufacture a no-DTR, absence, or roster row. A distinct access-scoped
-   historical-create surface may select an authorized employee write target without
+   historical-remediation surface may select an authorized employee write target without
    generating a no-record attendance row; that employee selection and current branch are
    not historical attendance provenance, which the actor must assert and confirm
    separately under the P1 contract;
@@ -107,14 +107,27 @@ cross-house targets without metadata leakage. It requires a separate bounded run
 Codex task/PR and must not be bundled into Option D Gate A.
 
 **DEC-012 approved 2026-09-11 — Option A, narrow no-leak exact-target resolution.** An
-otherwise authorized branch-limited historical-create actor may resolve one exact known
+otherwise authorized branch-limited historical-remediation actor may resolve one exact known
 same-House employee even when current assignment is outside the actor's branch scope.
 DEC-012 authorizes no broad cross-branch directory, fuzzy search, or enumeration and
 returns only minimum identity confirmation with generic fail-closed denial. Current
-assignment neither narrows otherwise valid historical-create eligibility nor supplies
+assignment neither narrows otherwise valid historical-remediation eligibility nor supplies
 attendance provenance; the actor must separately assert and confirm actual-attendance
 branch, and every P1 House, scope, capability, reason, audit, identity, no-leak, and
-create-versus-edit rule remains required.
+remediation/adjudication rule remains required.
+
+**DEC-013 approved 2026-09-11 — Option A, opaque historical remediation submission.**
+For ordinary branch-limited actors, the P1 entry point is not a direct canonical
+create-if-absent command. After independently verifiable House, capability, exact-target,
+same-House branch, allowed-scope, context, reason, and explicit claimed-attendance
+preconditions pass, hidden attendance state cannot change the actor's uniform,
+non-disclosing submission outcome. Submission creates no attendance fact or visibility.
+House-wide owner/manager adjudication determines whether the claim becomes a genuinely
+new fact, enters correction/conflict handling, or causes no canonical change. Any final
+visibility follows GAP-025 alone, and branch-limited actors receive no create-versus-
+correction lineage or protected adjudication state. Observable timing must not distinguish
+protected target, attendance, existing-fact, or correction/conflict states; no physical
+timing mechanism or workflow architecture is selected here.
 
 Neither approved stream has runtime in this governance checkpoint. GAP-024 remains open
 until runtime, migrations, complete consumer cutover, no-leak verification, final

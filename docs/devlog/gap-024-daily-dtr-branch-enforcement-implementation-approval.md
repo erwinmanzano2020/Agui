@@ -66,22 +66,28 @@ zero-count rows, attendance-derived employee display, counts, metadata, and hist
 attendance visibility. Current employee assignment or metadata alone must not manufacture
 any of those results.
 
-#### Historical create initiation surface
+#### Historical remediation initiation surface
 
-The separately approved historical manual-create flow must remain reachable for an
+The separately approved historical remediation flow must remain reachable for an
 otherwise authorized actor even when the target employee has no visible attendance fact.
 It must use a distinct, access-scoped employee-target lookup/selection surface solely to
-initiate the approved P1 write operation. That surface answers only which employee
+initiate the approved P1 operation. That surface answers only which employee
 identities the actor may legitimately target for that operation. It is not an attendance
 roster or result and does not assert who attended, who has no DTR, or which historical
 attendance branch belongs to an employee.
 
-The create-target surface must expose no hidden attendance state through results, labels,
+The remediation-target surface must expose no hidden attendance state through results, labels,
 badges, disabled-state explanations, counts, errors, timing, duplicate warnings, or
 validation metadata. Selecting employee metadata—including current branch—does not
 establish attendance provenance. The actor must separately assert and explicitly confirm
 the actual-attendance branch under the P1 contract, and the server must independently
-validate it.
+validate it. For an ordinary branch-limited actor, the selected target and asserted
+provenance initiate the DEC-013 opaque remediation submission, not a direct canonical
+create-if-absent command. Once independently visible submission preconditions pass,
+hidden existing attendance must not alter the actor's observable submission outcome.
+Submission itself creates no attendance fact or visibility; authorized house-wide
+owner/manager adjudication alone determines new fact, correction/conflict handling, or no
+canonical change, and final visibility follows ordinary GAP-025 authorization.
 
 This approval freezes no modal, page, panel, button, dialog, dropdown, or other component
 architecture and designates no existing repository helper as canonical. A future runtime
@@ -224,12 +230,14 @@ Gate B:
 - current `employee.branch_id`, request `branchId`, schedule, or device context does not
   become attendance attribution.
 
-Gate C must preserve the separately approved historical-create entry point independently
+Gate C must preserve the separately approved historical-remediation entry point independently
 from facts-only attendance rows. An otherwise authorized actor must be able to use the
-access-scoped employee-target/create surface when no visible fact exists, without
+access-scoped employee-target/remediation surface when no visible fact exists, without
 manufacturing a no-record attendance result or treating employee selection as attendance
-evidence. Existing-fact detection and denial must preserve the P1 create-versus-edit and
-no-leak rules.
+evidence. For ordinary branch-limited actors, this surface submits the uniform,
+non-disclosing DEC-013 claim for house-wide adjudication; it does not synchronously
+create a canonical fact or reveal whether the result is creation, correction/conflict,
+or no change. Gate C must preserve that surface and ordinary GAP-025 final visibility.
 
 Gate C may begin only after evidence proves that the Gate-A readers exist, required
 authority/projection state is populated and rebuildable, every live producer remaining
