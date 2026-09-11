@@ -67,6 +67,8 @@ Acknowledge the item, classify its urgency and governing phase, place it in the 
 Codex must:
 
 - follow the hierarchy of truth and current phase authorization;
+- follow applicable lower-level technical governance documents and local `AGENTS.md` files within their scope;
+- for DB/API/RPC work, follow `agui-starter/docs/db-api-access-guidelines.md` and applicable migration instructions;
 - update repository documentation when work introduces patterns, limitations, or workarounds;
 - surface bugs, risks, contradictions, and boundary concerns;
 - stop and ask when scope or authority is unclear.

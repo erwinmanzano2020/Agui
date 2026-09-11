@@ -47,11 +47,14 @@ Read exact relevant canonical paths. At minimum, read:
 1. `AGENTS.md`;
 2. every applicable nested `AGENTS.md`;
 3. `agui-development-operating-principles.md`;
-4. `agui-starter/docs/Agui Roadmap Plan.md`;
-5. the relevant canonical Master Plan and status document;
-6. the relevant decision, approval, and devlog records;
-7. mapped code/runtime surfaces when implementation is authorized; and
-8. `docs/agui/project-control-sync-protocol.md`.
+4. `agui-starter/docs/agui-dev-process-codex-guidelines.md`;
+5. `agui-starter/docs/Agui Roadmap Plan.md`;
+6. the relevant canonical Master Plan;
+7. the relevant canonical status or execution snapshot;
+8. the applicable decision, approval, gate, and devlog records;
+9. applicable domain-specific technical guidance, including `agui-starter/docs/db-api-access-guidelines.md` whenever DB/API/RPC work is in scope;
+10. mapped code/runtime surfaces when implementation is authorized; and
+11. `docs/agui/project-control-sync-protocol.md`.
 
 Do not select an authority by filename or title alone when compatibility or legacy copies exist.
 

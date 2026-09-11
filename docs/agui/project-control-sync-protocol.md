@@ -48,12 +48,13 @@ Before work, read these exact paths in order:
 1. `AGENTS.md`.
 2. Every applicable nested `AGENTS.md` for the surfaces in scope.
 3. `agui-development-operating-principles.md`.
-4. `agui-starter/docs/Agui Roadmap Plan.md`.
-5. For HR work, `docs/hr/hr-master-plan.md`.
-6. For HR work, `docs/hr/hr-status.md`.
-7. `docs/hr/hr-master-plan-expanded.md` only where relevant, and only as a subordinate/supporting plan.
-8. The exact applicable gate, approval, and devlog records.
-9. Mapped code/runtime surfaces only when implementation is authorized.
+4. `agui-starter/docs/agui-dev-process-codex-guidelines.md`.
+5. `agui-starter/docs/Agui Roadmap Plan.md`.
+6. The relevant canonical Master Plan; for HR work, this is `docs/hr/hr-master-plan.md`.
+7. The relevant canonical status or execution snapshot; for HR work, this is `docs/hr/hr-status.md`.
+8. The exact applicable approval, gate, and devlog records. For HR work, read `docs/hr/hr-master-plan-expanded.md` only where relevant and only as a subordinate/supporting plan.
+9. Applicable domain-specific technical guidance. DB/API/RPC work requires `agui-starter/docs/db-api-access-guidelines.md`.
+10. Mapped code/runtime surfaces only when implementation is authorized.
 
 Matching by filename or title alone is insufficient when compatibility or legacy copies exist. The exact canonical paths above resolve the canonical-bootstrap ambiguity identified during review of the initial DEC-011 attempt.
 

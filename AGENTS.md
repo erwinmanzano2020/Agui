@@ -130,7 +130,7 @@ A change is not complete unless:
 - limitations are known
 - phase alignment is preserved
 
-For the repository-to-Project-Control knowledge relay and deterministic canonical bootstrap, follow `docs/agui/project-control-sync-protocol.md`.
+For contributor process and the deterministic repository-to-Project-Control bootstrap, follow both `agui-starter/docs/agui-dev-process-codex-guidelines.md` and `docs/agui/project-control-sync-protocol.md`.
 
 ---
 
