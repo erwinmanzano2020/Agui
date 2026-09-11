@@ -967,11 +967,17 @@ GAP-025 is **Closed — Contract Approved / Runtime Implementation Separately Ga
 Closure means all required semantic decisions are canonical; it does not mean runtime
 enforcement exists.
 
-GAP-024 is **not closed and not authorized for implementation**. After this contract is
-merged, GAP-024 may advance only through a new, explicit Foundation Security Correction
-planning/implementation gate. That future gate must first inspect the provenance,
-integrity, schema, authorization, and runtime changes necessary to implement this
-contract. This document itself authorizes none of that work.
+At the GAP-025 closure checkpoint, GAP-024 was **not closed and not yet authorized for
+implementation**. It could advance only through a later explicit Foundation Security
+Correction planning/implementation gate that inspected the provenance, integrity,
+schema, authorization, and runtime changes necessary to implement this contract. That
+handoff condition was subsequently satisfied by the merged GAP-024 planning record from
+PR #503 and the owner-approved 2026-09-10
+[GAP-024 Implementation Approval](./gap-024-daily-dtr-branch-enforcement-implementation-approval.md).
+
+GAP-024 remains **OPEN and unimplemented**. After that governance approval merges,
+separately bounded runtime tasks may proceed only through its approved gates and the
+Roadmap. This GAP-025 contract itself authorizes no runtime implementation.
 
 ## Preserved historical evidence audit
 

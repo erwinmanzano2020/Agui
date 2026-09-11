@@ -2,7 +2,10 @@
 
 ## 1. Status, authority, and decision boundary
 
-- **Status:** proposed, decision-ready implementation plan; no runtime approval.
+- **Status at the PR #503 planning checkpoint:** proposed, decision-ready implementation
+  plan; runtime was not yet approved. Option D and the bounded implementation gates were
+  subsequently approved on 2026-09-10 in the
+  [GAP-024 Implementation Approval](./gap-024-daily-dtr-branch-enforcement-implementation-approval.md).
 - **Active phase:** HR only.
 - **Gate:** GAP-024 — Runtime authorization / Daily DTR branch-scoped reads.
 - **Baseline audited:** hosted `develop` commit `8dfb2f21ba06533f1e146070e1094fa9a8d1eedb`.
@@ -12,10 +15,13 @@
   implement schema, migration, RLS, grant, RPC, API, UI, query, generated-type, test,
   HR-2, HR-4, payroll, GAP-026, POS, Operations, or Finance changes.
 
-A recommendation below is not implementation authorization. A future owner-authorized
-Foundation Security Correction must approve its implementation boundary and rollout.
-House remains the tenant boundary; branch is only an additive restriction. No finding
-in this plan reopens GAP-025 semantics.
+At the PR #503 checkpoint, a recommendation below was not implementation authorization
+and still required a future owner-authorized Foundation Security Correction. That
+pre-authorization condition was subsequently satisfied by the 2026-09-10 approval; the
+Roadmap, that separate approval record, and bounded Codex tasks now govern future runtime
+authority. This planning document itself implements no runtime. House remains the tenant
+boundary; branch is only an additive restriction. No finding in this plan reopens
+GAP-025 semantics.
 
 ## 2. Authority and evidence reviewed
 
@@ -201,7 +207,7 @@ For a branch-limited response:
 - mutation affordances are advisory only; their server action must independently
   authorize the fact's current attribution and write authority.
 
-### 3.3 Employee identity/metadata is a separate unresolved contract
+### 3.3 Employee identity/metadata roster decision (unresolved at planning checkpoint)
 
 `listEmployeesByHouse` already accepts an `EmployeeReadScope` and, when branch-limited,
 keeps employees whose current `branch_id` is allowed **and employees with null branch**.
@@ -210,27 +216,27 @@ metadata behavior, but current employee assignment is optional context—not his
 attendance ownership—and the governing documents do not settle a date-sensitive Daily
 DTR roster.
 
-The exact owner decision still required is:
+At the PR #503 planning checkpoint, the exact owner decision still required was:
 
 > For a branch-limited Daily DTR date, is the selector/display roster (a) current
 > allowed-branch employees, (b) employees having at least one visible fact that date,
 > (c) the union of those sets, and are currently unassigned/no-record employees visible?
 
-Until decided, future implementation must not invent a roster or claim a no-record
-employee is visible. The safe interim implementation boundary is facts-only: show
-identity metadata only as the minimal display join for already visible attributed facts;
-do not render house-wide or null-branch no-record cards. This is a fail-closed proposal,
-not approval of selector semantics.
+The owner subsequently resolved this decision on 2026-09-10: initial branch-limited
+Daily DTR behavior is facts-only, as frozen in the
+[GAP-024 Implementation Approval](./gap-024-daily-dtr-branch-enforcement-implementation-approval.md).
+Implementation must show identity metadata only as the minimal display join for already
+visible attributed facts and must not render house-wide or null-branch no-record cards.
 
 Required case conclusions:
 
 | Employee situation | Attendance result | Selector/no-record result |
 |---|---|---|
-| No fact on selected date | No attendance fact exists to authorize. | Unresolved owner roster decision; never manufacture an attendance-visible card from current branch alone. |
+| No fact on selected date | No attendance fact exists to authorize. | The later facts-only decision forbids manufacturing an attendance-visible card from current branch alone. |
 | Current A, historical fact B | Fact follows B and is invisible to A-only actor. | Current A may support a current metadata directory, but cannot expose B attendance or alter historical classification. |
-| Transfer to B after selected date | Pre-transfer fact retains its proved event-time branch. | Current assignment cannot rewrite historical selector or fact semantics; date-roster behavior remains owner-decided. |
+| Transfer to B after selected date | Pre-transfer fact retains its proved event-time branch. | Current assignment cannot rewrite historical selector or fact semantics; the later facts-only decision governs the roster. |
 | Same-day/multi-branch facts | Each logical fact is independently classified and projected. | Show only permitted facts; do not use one visible fact to expose another. |
-| No current branch | Attributed fact can still be visible to its attributed branch. | Null assignment alone grants no fact visibility; no-record roster visibility remains undecided. |
+| No current branch | Attributed fact can still be visible to its attributed branch. | Null assignment alone grants no fact visibility; the later facts-only decision supplies no no-record row. |
 
 ### 3.4 Authorization behavior
 
@@ -459,10 +465,26 @@ Rejected alternatives:
 Remaining trade-offs are additional schema concepts, transactional reducer complexity,
 migration/backfill cost, projection-rebuild operations, and careful database security.
 Repository evidence supports house-owned segments, event-time kiosk branch observations,
-branch-access decisions, and the need for bounded date reads. It does **not** approve
-physical table/column names, selector roster semantics, full audit permission roles,
-non-payroll correction finalization authority, or an implementation rollout; those need
-owner approval.
+branch-access decisions, and the need for bounded date reads. At the PR #503 planning
+checkpoint, that evidence did **not** itself approve physical table/column names,
+selector/roster semantics, audit-visibility policy beyond the evidenced owner/manager
+baseline, non-payroll correction-finalization authority, or an implementation rollout;
+those semantic and execution decisions still required owner approval at that time.
+
+The owner subsequently resolved the selector/roster, initial audit-visibility,
+non-payroll attendance-location finalization, and Option D rollout decisions on
+2026-09-10, as frozen in the
+[GAP-024 Implementation Approval](./gap-024-daily-dtr-branch-enforcement-implementation-approval.md).
+That approval establishes facts-only branch-limited attendance results, existing
+owner/manager-only full evidence/correction-audit visibility initially with no new auditor
+role or `domain.hr.audit` capability, owner/manager-only initial non-payroll location
+finalization, and ordered Gates A–E. Those decisions are no longer current blockers.
+
+Exact physical table, column, index, database-object, RPC/view/function signature,
+reducer/outbox/transaction, and migration/backfill mechanics remain intentionally
+unselected. Their bounded Gate tasks must choose them under repository and migration
+review without changing frozen contracts. A choice that would change a frozen semantic
+contract still requires explicit approval through the normal governance hierarchy.
 
 ## 8. Logical data contract (schema-neutral)
 
@@ -598,8 +620,12 @@ finalization must atomically validate expected fact/evidence revision, required 
 and HR-4 approval for payroll-impacting corrections, activate the new governing frame,
 classify it, update the projection, and retain old frame/proposal history. A changed base
 makes the proposal stale/non-finalizable. Competing proposals cannot last-write-win.
-Non-payroll finalization authority remains an owner decision; GAP-024 does not implement
-HR-2/HR-4 workflows.
+At the PR #503 planning checkpoint, non-payroll finalization authority remained an owner
+decision. The owner subsequently resolved it on 2026-09-10: initial finalization
+authority for a non-payroll-impacting attendance-location correction is
+owner/manager-only, as frozen in the
+[GAP-024 Implementation Approval](./gap-024-daily-dtr-branch-enforcement-implementation-approval.md).
+This planning document still does not implement HR-2/HR-4 product workflows.
 
 ### 10.3 Late/offline observations
 
@@ -838,19 +864,21 @@ branch-limited fallback is deny/empty rather than the old house-wide reader.
 - rollback preserves protected authority and fails closed for branch-limited reads; it
   never restores an insecure house-wide raw fallback.
 
-## 15. Unresolved owner decisions and explicit non-goals
+## 15. Owner decisions resolved 2026-09-10 and explicit non-goals
 
-Implementation cannot claim the complete Daily DTR page contract until the owner decides:
+The owner resolved all four decisions that were open when PR #503 merged. The canonical
+decisions, approved Option D architecture, ordered Foundation Security Correction gates,
+and bounded future implementation authority are frozen in the
+[GAP-024 Implementation Approval](./gap-024-daily-dtr-branch-enforcement-implementation-approval.md).
+The separately authorized historical Daily DTR write P1 is frozen in its own
+[Implementation Approval](./dtr-historical-write-authorization-p1-implementation-approval.md)
+and must not be bundled into Option D implementation.
 
-1. branch-limited employee selector/no-record roster semantics described in Section 3.3;
-2. which role/capability may see full DTR evidence/correction audit beyond existing
-   legitimate owner/manager house authority;
-3. non-payroll-impacting location-correction finalization authority; and
-4. approval of the recommended physical hybrid, canonical database boundary, staged
-   migration/backfill, and separate urgent write correction.
-
-The facts-only read projection can be specified independently, but implementation still
-requires explicit authorization. GAP-024 does not redesign payroll, change payroll
+The PR #503 planning findings and historical decision-ready posture remain valid records
+of the state in which they were written. This planning document does not itself implement
+or authorize runtime; authority now comes from the separate approval records and Roadmap,
+and every runtime slice requires its own bounded Codex task. GAP-024 does not redesign
+payroll, change payroll
 calculation semantics, or authorize HR-3 feature work. Existing payroll/payslip readers
 must nevertheless remain functional across the security-boundary change: their migration
 preserves legitimate house-authorized behavior while removing raw base-table dependency.
@@ -872,15 +900,21 @@ Bounded search findings were classified as follows:
   migrations/policies, current tests, and the timezone repair script/runbook.
 - **Governing canonical rule:** GAP-025, branch-scope model/enforcement/reality audit,
   scoped authorization model, HR status/master plans, roadmap, and operating principles.
-- **Implementation option:** storage-neutral suggestions in GAP-025 and this document's
-  explicitly recommended—not approved—hybrid/map.
+- **Implementation option at the PR #503 planning checkpoint:** storage-neutral
+  suggestions in GAP-025 and this document's recommended, then-not-yet-approved
+  hybrid/map. The owner subsequently approved Option D on 2026-09-10 through the separate
+  GAP-024 Implementation Approval; that later record now governs.
 - **Adjacent risk:** current-employee-branch DTR write resolvers, dormant
   `listDtrTodayByBranch`, service-role bulk provenance/bypass boundary, and obsolete broad
   migration-policy history.
 - **Unrelated/historical:** independent `clock_events`, old migration comments, generic
   settings audit, and non-HR search matches; none was treated as attribution evidence.
 
-This planning change creates only
-`docs/devlog/gap-024-daily-dtr-branch-enforcement-plan.md`. No runtime, schema, migration,
-RLS/grant, RPC, API, UI, production query, test, generated type, or package file changes
-are authorized or included. STOP before implementation.
+This PR #503 planning change created only
+`docs/devlog/gap-024-daily-dtr-branch-enforcement-plan.md` and included no runtime,
+schema, migration, RLS/grant, RPC, API, UI, production query, test, generated type, or
+package change. At that planning checkpoint, work stopped before implementation. That
+pre-authorization stop condition was subsequently satisfied and superseded as current
+execution guidance by the 2026-09-10 implementation-governance approval. This planning
+document itself contains no runtime implementation; future authority comes only from the
+Roadmap, the separate approval record, and bounded Codex tasks.
