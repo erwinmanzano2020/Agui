@@ -50,13 +50,17 @@ Before work, read these exact paths in order:
 3. `agui-development-operating-principles.md`.
 4. `agui-starter/docs/agui-dev-process-codex-guidelines.md`.
 5. `agui-starter/docs/Agui Roadmap Plan.md`.
-6. The relevant canonical Master Plan; for HR work, this is `docs/hr/hr-master-plan.md`.
-7. The relevant canonical status or execution snapshot; for HR work, this is `docs/hr/hr-status.md`.
-8. The exact applicable approval, gate, and devlog records. For HR work, read `docs/hr/hr-master-plan-expanded.md` only where relevant and only as a subordinate/supporting plan.
+6. The relevant canonical Master Plan:
+   - for HR work: `docs/hr/hr-master-plan.md`;
+   - for POS work, only after a future explicit Roadmap/phase decision reactivates POS: `docs/pos/pos-master-plan.md`.
+7. The relevant canonical status or execution snapshot:
+   - for HR work: `docs/hr/hr-status.md`;
+   - for POS work, only after a future explicit Roadmap/phase decision reactivates POS: `docs/pos/pos-status.md`.
+8. The exact applicable approval, gate, and devlog records. For HR work, read `docs/hr/hr-master-plan-expanded.md` only where relevant and only as subordinate/supporting material.
 9. Applicable domain-specific technical guidance. DB/API/RPC work requires `agui-starter/docs/db-api-access-guidelines.md`.
 10. Mapped code/runtime surfaces only when implementation is authorized.
 
-Matching by filename or title alone is insufficient when compatibility or legacy copies exist. The exact canonical paths above resolve the canonical-bootstrap ambiguity identified during review of the initial DEC-011 attempt.
+Matching by filename or title alone is insufficient when compatibility or legacy copies exist. In particular, `agui-starter/docs/pos-master-plan.md` must not be selected as the canonical POS Master Plan. The POS path mapping above does not reactivate POS; current Roadmap authority keeps POS paused. For a future module without an explicitly mapped canonical path, do not guess by title: stop and resolve the canonical path before treating a document as governing authority. The exact canonical paths above resolve the canonical-bootstrap ambiguity identified during review of the initial DEC-011 attempt.
 
 ## 6. During-Work Documentation Rule
 

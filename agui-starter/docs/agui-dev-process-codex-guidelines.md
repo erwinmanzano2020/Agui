@@ -49,14 +49,14 @@ Read exact relevant canonical paths. At minimum, read:
 3. `agui-development-operating-principles.md`;
 4. `agui-starter/docs/agui-dev-process-codex-guidelines.md`;
 5. `agui-starter/docs/Agui Roadmap Plan.md`;
-6. the relevant canonical Master Plan;
-7. the relevant canonical status or execution snapshot;
+6. the relevant canonical Master Plan: `docs/hr/hr-master-plan.md` for HR, or `docs/pos/pos-master-plan.md` for POS only after a future explicit Roadmap/phase decision reactivates POS;
+7. the relevant canonical status or execution snapshot: `docs/hr/hr-status.md` for HR, or `docs/pos/pos-status.md` for POS only after a future explicit Roadmap/phase decision reactivates POS;
 8. the applicable decision, approval, gate, and devlog records;
 9. applicable domain-specific technical guidance, including `agui-starter/docs/db-api-access-guidelines.md` whenever DB/API/RPC work is in scope;
 10. mapped code/runtime surfaces when implementation is authorized; and
 11. `docs/agui/project-control-sync-protocol.md`.
 
-Do not select an authority by filename or title alone when compatibility or legacy copies exist.
+Do not select an authority by filename or title alone when compatibility or legacy copies exist. `agui-starter/docs/pos-master-plan.md` is not the canonical POS Master Plan, and the POS path mapping does not reactivate POS; the current Roadmap keeps POS paused. For a future module without an explicit canonical-path mapping, stop and resolve the path before treating a document as governing authority.
 
 ### During Work
 
