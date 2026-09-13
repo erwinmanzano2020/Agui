@@ -80,6 +80,17 @@ Codex must not:
 - solve future problems early;
 - override tenancy, security, authorization, or identity rules.
 
+## Required PR Notes for Migration / RPC / Identity Changes
+
+When a change touches migrations, RPCs, or identity flows, its PR description or implementation handoff must explicitly record:
+
+1. **Migration disclosure:** state whether migrations were added or modified, or explicitly state that no migrations changed.
+2. **RPC compatibility:** confirm compatibility with canonical RPC signatures, including the applicable overload count and argument order or callable shape; identify intentional signature changes explicitly.
+3. **Identity handling:** state whether identity lookup, insert, normalization, reuse, conflict handling, or related guardrails changed. When identity surfaces were in scope but identity behavior did not change, state that explicitly.
+4. **PostgREST schema-cache handling:** state whether schema-cache invalidation or reload is required and, where applicable, record the use or requirement of `NOTIFY pgrst, 'reload schema';`.
+
+Lower-level implementation details remain governed by `agui-starter/docs/db-api-access-guidelines.md` and applicable migration instructions. Those documents may refine implementation requirements within their scope but may not override these principles.
+
 ## Documentation Is Part of the Feature
 
 Behavior, assumptions, and limitations must be documented in the appropriate canonical repository location. A change is incomplete when its operation, boundaries, or known constraints cannot be recovered from durable project documentation.
