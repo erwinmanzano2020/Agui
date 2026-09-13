@@ -30,9 +30,11 @@ where relevant.
 Current execution follows owner-approved DEC-017 while preserving GAP-024's internal
 A → B → C → D → E order: Gate A establishes canonical durable evidence/revision/lineage
 authority, authorization projection, and protected branch-aware and house-global read
-foundations; the first Gate-B subdivision establishes the minimum non-bypassable
-producer/write command and privilege-transition foundation; the separate Historical
-Daily DTR Write P1 then consumes those foundations in its own bounded PR during Gate B;
+foundations; the first Gate-B subdivision establishes the non-bypassable
+producer/write command and contains every database principal capable of raw-mutating
+P1-covered attendance through command migration or database-enforced disjoint authority;
+the separate Historical Daily DTR Write P1 then consumes those foundations in its own
+bounded PR during Gate B;
 remaining producer compatibility and deterministic backfill/rebuild verification finish
 Gate B; and Gate C may begin only after P1 and every required active producer are
 compatible and verified, followed by Gates D and E.

@@ -297,11 +297,15 @@ establishes the canonical durable evidence/revision/lineage authority, authoriza
 projection, and protected read boundaries. P1 must consume that authority and must not
 build a competing stable fact/revision/lineage source.
 
-Gate B next establishes the minimum compatible, non-bypassable producer/write command
-and privilege-transition foundation P1 requires. Only after that foundation is safely
-callable does P1 execute as a separate bounded PR during the Gate-B sequence. Remaining
-Gate-B producer compatibility, deterministic backfill/rebuild, and verification then
-complete. Gate C remains blocked until P1 and all other required active producers are
+Gate B next establishes the non-bypassable pre-P1 containment foundation. P1 may execute
+as a separate bounded PR during Gate B only after every authenticated, service-role,
+kiosk, bulk/import, manual/admin, background, repair, replay/sync, or other database
+principal capable of mutating P1-covered canonical attendance has migrated to the
+canonical command or is proven database-enforced as disjoint from that state. Safe P1
+adapter routing alone is insufficient. If this repository/database proof is absent, P1
+must remain disabled and fail closed. Remaining Gate-B work may follow only for already
+command-compatible/disjoint writers and broader rebuild/cutover preparation. Gate C
+remains blocked until P1 and all other required active producers are
 compatible and verified. This amendment does not fold P1 into Gate A, reorder GAP-024's
 A → B → C → D → E gates, or authorize runtime.
 

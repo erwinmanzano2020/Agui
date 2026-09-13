@@ -12,8 +12,9 @@
   Authorization Security Correction was subsequently implemented through PR
   #492/#493, subject to the production-like/manual verification recorded below.
   PR #503 subsequently merged the decision-ready GAP-024 plan. Owner-approved DEC-017
-  now sequences Gate A, the minimum Gate-B writer foundation, separate Historical DTR
-  P1 during Gate B, remaining Gate B, then Gates C–E; DEC-018 defines the narrow initial
+  now sequences Gate A, the Gate-B pre-P1 containment of every raw principal able to reach
+  P1-covered attendance, separate Historical DTR P1 during Gate B, remaining Gate B,
+  then Gates C–E; DEC-018 defines the narrow initial
   owner/manager remediation-case identity. Each future runtime slice requires its own
   bounded Codex task after this governance correction merges. This is not broad HR
   runtime authorization: HR-2 feature expansion, HR-4 product workflow, payroll
@@ -30,7 +31,8 @@ identity only for the initial DEC-014 owner/manager missing-fact path.
 
 After this governance correction merges and a separate bounded task is authorized, Gate A
 is the next runtime foundation. Gate B follows and may be subdivided: first establish the
-minimum non-bypassable producer/write and privilege-transition foundation, then implement
+non-bypassable command plus containment of every principal able to raw-mutate
+P1-covered state, then implement
 Historical DTR P1 in its own bounded PR during Gate B, then complete remaining producer
 compatibility and deterministic verification. Gate C cannot start until P1 and every
 required active producer are compatible and no writer creates raw-only or
@@ -131,8 +133,8 @@ only that case's retries, and changed candidate/base state requires re-adjudicat
 P1 must fail closed for
 unsafe, missing/malformed/out-of-scope provenance, UNATTRIBUTED, CONFLICT, zero-scope, or
 cross-house targets without metadata leakage. It requires a separate bounded runtime
-Codex task/PR. Under DEC-017 it runs during Gate B only after Gate A and its minimum
-required Gate-B writer foundation are safely
+Codex task/PR. Under DEC-017 it runs during Gate B only after Gate A and Gate-B database proof that every
+bypass-capable principal over P1-covered state is contained and the command is safely
 callable; it must not be bundled into Gate A. Gate C waits for P1 and all other required
 active producers.
 

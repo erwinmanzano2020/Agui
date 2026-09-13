@@ -209,19 +209,40 @@ raw-access revocation.
 Under owner-approved **DEC-017 (2026-09-13)**, Gate B is intentionally subdividable in
 this sequence:
 
-1. **Gate-B foundation slice(s):** establish the minimum compatible, database-enforced,
-   non-bypassable command/writer foundation and producer-specific privilege transition
-   required by Historical DTR P1. Inventory current direct-table writers and ensure each
-   migrated writer can maintain Gate-A authority/projection without alternate direct DML.
+1. **Gate-B pre-P1 raw-mutator containment foundation:** inventory every active
+   attendance mutation principal/writer; establish the canonical database-enforced,
+   non-bypassable command; identify every principal capable of mutating P1-covered state;
+   migrate each such principal to the command or prove its authority is database-enforced
+   as disjoint; and verify no remaining principal can raw-mutate protected state. This
+   includes shared `authenticated`, `service_role`, kiosk, bulk/import, manual/admin,
+   background, offline replay/sync, and repair paths plus any writer found at the
+   implementation head.
 2. **Historical Daily DTR Write P1:** execute the already-approved P1 as a separate
-   bounded task/PR during Gate B, only after its required writer foundation is safely
-   callable. It consumes Gate-A authority and the Gate-B writer foundation; it is not
-   folded into Gate A.
-3. **Remaining Gate B:** complete every remaining active producer migration,
-   deterministic backfill/rebuild, replay/idempotency handling, and verification.
+   bounded task/PR during Gate B only after repository/database proof establishes that
+   every bypass-capable principal over P1-covered state is contained. It consumes Gate-A
+   authority and the Gate-B writer foundation; it is not folded into Gate A.
+3. **Remaining Gate B:** complete deterministic backfill/rebuild, replay/idempotency,
+   later cutover preparation, and producer work only for writers already command-compatible
+   or provably database-disjoint from P1-covered state.
 
-Writer-side bypass containment for each migrated producer is required during Gate B; it
-is not Gate E's final broad raw/base-access revocation, which remains last.
+Application convention, route/UI discipline, or trusted server code is not containment.
+Because multiple application producers share `authenticated`, one producer is not
+contained while that PostgreSQL role retains unrestricted DML reaching the same state;
+shared raw DML must be removed/bounded after its dependent authenticated writers migrate,
+or a database-enforced disjoint authority must differentiate write domains. Because
+`service_role` bypasses RLS, service-backed bulk and kiosk paths require command migration
+or equivalent database-enforced disjointness; ordinary RLS and trusted code are
+insufficient.
+
+P1-covered state means every canonical attendance fact whose values, lineage, revision,
+attribution, projection, or finalization can affect or be affected by P1—not merely rows
+created by P1. No raw principal may overwrite, delete/recreate, replace segments, mutate
+without CAS, reattribute without provenance, create a competing projection-invisible
+fact, invalidate lineage, or silently supersede such state.
+
+This pre-P1 scoped write-integrity containment is not Gate E's final broad raw/base-access
+cutover and revocation, which remains last after all consumer, producer, rollback, and
+operational cutover requirements are complete.
 
 ### GAP-024 Gate C — canonical Daily DTR facts-only cutover
 
@@ -306,6 +327,13 @@ Future Gate-B tasks must prove:
 - replay, duplicate, retry, and concurrent behavior cannot create divergent projection
   state or grant stale branch visibility;
 - a raw-only write cannot silently bypass the projection;
+- authenticated direct PostgREST `INSERT`, `UPDATE`, and `DELETE` cannot bypass the
+  canonical contract for P1-covered state;
+- service-role bulk cannot raw-delete/reinsert protected attendance, kiosk cannot raw
+  open/close it, and admin/service/background/repair/replay paths cannot bypass;
+- any intentionally remaining raw writer is proven database-disjoint from P1-covered
+  state rather than separated by application convention;
+- CAS/revision and correction lineage remain authoritative for every producer;
 - projection rebuild reproduces the same current authority;
 - insufficient provenance produces a fail-closed state;
 - the canonical Daily DTR reader can see a newly valid fact immediately after its
@@ -323,8 +351,10 @@ Gate A is the next runtime foundation after this governance correction is merged
 separately tasked. Historical DTR P1 must not independently recreate Gate-A durable
 evidence/revision/lineage authority, authorization projection, or protected read
 boundaries. Gate B then begins with the minimum non-bypassable producer/write foundation
-needed by P1. P1 remains a separate bounded PR executed during Gate B after that
-foundation is safely callable. Remaining Gate-B compatibility and verification follows.
+needed by P1. P1 remains a separate bounded PR executed during Gate B only after every
+database principal capable of reaching P1-covered attendance is command-migrated or
+provably database-disjoint and no bypass remains. Remaining Gate-B compatibility and
+verification follows only for already-compatible/disjoint producers and broader work.
 Gate C remains blocked until P1 and every other required active attendance producer are
 compatible and verified and no producer can create raw-only or projection-invisible
 attendance. Gates D and E remain unchanged.

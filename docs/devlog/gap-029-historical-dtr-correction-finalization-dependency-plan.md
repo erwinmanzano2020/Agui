@@ -90,6 +90,14 @@ Additional relevant evidence:
   outcomes, current-branch allow/deny, and direct insert/update order. They do not cover
   immutable correction history, stale finalization, location activation, explicit
   create provenance, logical duplicate races, or HR-4 approval handoff.
+- Active raw mutators found in the repository include: authenticated Daily DTR action
+  insert/update; browser-direct `payroll/dtr-today` insert/update; browser-direct legacy
+  `payroll/dtr-bulk/page2` per-day delete/insert; the service-role bulk API per-day
+  delete/insert; and service-backed kiosk repository open/close insert/update used by
+  online and sync HTTP flows. Current migrations also grant authenticated direct
+  `INSERT`/`UPDATE`/`DELETE` and grant `service_role` all table privileges. No dedicated
+  attendance repair/background SQL mutator was found, but Gate B must re-inventory all
+  application, SQL, replay/sync, admin, and operational paths at its implementation head.
 - Repository evidence proves code and migrations, not live deployment parity. No claim
   is made about a live Supabase schema, policy, grant, schema cache, or production data.
 
@@ -197,19 +205,33 @@ and idempotency enforcement, least privileges, narrow `EXECUTE` grants, and sani
 returns. Another mechanism is acceptable only if repository evidence proves the same
 non-bypass guarantee. `SECURITY INVOKER` alone is insufficient.
 
-A migrated canonical attendance writer must not possess an alternate direct-table
-mutation capability capable of bypassing the command contract. Because authenticated
-currently has direct `INSERT`, `UPDATE`, and `DELETE` on `dtr_segments`, Gate B must
-inventory every kiosk, manual/admin, bulk/import, correction, service/background, replay,
-and repair writer and migrate privileges producer by producer. For each migrated writer,
-direct bypass ceases, the canonical command is mandatory, and direct PostgREST/table-DML
-tests prove revision, lineage, provenance, authorization, projection maintenance, and
-finalization cannot be bypassed. Do not globally revoke privileges in a way that silently
-breaks unmigrated active producers.
+Before P1, direct bypass must be impossible for P1-covered attendance state across every
+database principal capable of reaching it. Protected state is not limited to P1-created
+rows: it includes every canonical attendance fact whose values, lineage, revision,
+attribution, projection, or finalization can affect or be affected by P1. No raw writer
+may overwrite, delete/recreate, replace segments, mutate without CAS, reattribute without
+provenance, create competing projection-invisible facts, invalidate lineage, or silently
+supersede that state.
 
-This writer-side containment is distinct from Gate E's final broad raw/base-access
-revocation, which remains last. Gate B needs enough containment to ensure each active
-migrated writer cannot create raw-only or projection-invisible attendance.
+For every capable principal, either the writer uses the canonical command and cannot
+perform bypassing table DML, or the database provably enforces a disjoint write domain
+that cannot affect protected state. Application convention, route/UI discipline, or a
+trusted-code promise is insufficient. Because multiple producers share `authenticated`,
+producer-by-producer application migration is not enough while that PostgreSQL role
+retains unrestricted `INSERT`/`UPDATE`/`DELETE` reaching protected rows. Gate B must
+remove/bound shared raw DML after all dependent authenticated writers migrate or establish
+a safe database-enforced domain distinction.
+
+`service_role` bypasses RLS. Therefore service-backed bulk delete/reinsert, kiosk
+open/close, admin/background, repair, and replay/sync paths capable of reaching protected
+state must use the command or be structurally database-disjoint before P1; ordinary RLS
+and trusted server code do not prove containment. Do not revoke globally in a way that
+silently breaks dependencies, but do not enable P1 until every overlapping principal is
+contained.
+
+This pre-P1 scoped write-integrity containment is distinct from Gate E's final broad
+raw/base-access revocation. Gate E remains last after all readers, consumers, producers,
+rollback behavior, and operational cutover are complete.
 
 Conceptual P1 commands remain proposed—not implemented or signature-frozen:
 
@@ -256,8 +278,9 @@ correction/remediation records.
 
 ## 9. Recommended smallest safe design
 
-Follow DEC-017: Gate A → minimum Gate-B producer/write foundation → separate Historical
-DTR P1 during Gate B → finish remaining Gate B → Gate C → Gate D → Gate E. P1-specific
+Follow DEC-017: Gate A → Gate-B containment of every raw principal able to reach
+P1-covered state → separate Historical DTR P1 during Gate B → finish remaining Gate B →
+Gate C → Gate D → Gate E. P1-specific
 records attach to Gate-A facts/revisions and the adapter uses the Gate-B non-bypassable
 command. It creates no stable-fact authority, authorization projection, protected reader,
 or second canonical attendance truth.
@@ -384,9 +407,11 @@ withdrawal, attachment, escalation, or multi-level workflow is outside GAP-029.
 DEC-017 supersedes the previous P1-first sequencing. GAP-024 retains internal
 A → B → C → D → E order. Gate A supplies canonical durable authority, projection, and
 protected readers. Gate B first supplies the minimum non-bypassable writer/producer and
-privilege-transition foundation. Historical DTR P1 remains a separate bounded PR during
-Gate B and consumes both foundations; remaining Gate B then completes all producers and
-verification. Gate C waits for P1 and every required active producer.
+privilege-transition foundation, including every bypass-capable principal over
+P1-covered state. Historical DTR P1 remains a separate bounded PR during Gate B and
+consumes both foundations; remaining Gate B may then cover only already-compatible or
+provably disjoint producers plus broader verification. Gate C waits for P1 and every
+required active producer.
 
 GAP-029 creates no competing authority or projection. Its future correction/provenance
 records are compatible because they attach to Gate-A fact/revision identity. P1 is not
@@ -409,8 +434,11 @@ adapter. Exit: canonical authority/read foundations exist and fail closed.
 Inventory active writers; establish the hardened non-bypassable command; define and
 begin producer-specific privilege transition; bootstrap/backfill only provable authority;
 and prove canonical writes maintain Gate-A authority/projection. It need not migrate all
-producers in the first subdivision. Exit: P1's required command and privilege containment
-are safely callable and direct bypass is impossible for its migrated writer identity.
+producers that are already database-disjoint from P1-covered state in the first
+subdivision. Exit: the command is safely callable and repository/database verification
+proves no remaining authenticated, service-role, kiosk, bulk/import, manual/admin,
+background, repair, replay/sync, or other active principal can mutate P1-covered state
+outside it; any remaining raw writer is database-enforced as disjoint.
 
 ### Step 3 — Historical Daily DTR Write P1
 
@@ -442,10 +470,10 @@ At Step 3, **Historical Daily DTR Write P1 becomes safely implementable/callable
 | Existing-fact integrity | Historical path cannot issue a destructive direct update; before/base, proposal, corrected/current, reason, actor, and timestamps remain traceable; pending/rejected do not alter active state; finalization revalidates and alone activates; stale cannot finalize. |
 | Existing-fact scope | Branch-limited correction only for a currently visible `ATTRIBUTED` fact in `allowedBranchIds`; current assignment grants nothing; hidden other-branch, `UNATTRIBUTED`, `CONFLICT`, zero scope, and cross-House deny; owner/manager breadth works without bypass; denial exposes no metadata. |
 | Location | Branch-limited actor cannot directly relocate; initial non-payroll location finalizer is owner/manager-only; target branch gains visibility only after successful finalization; old attribution remains audit history; payroll-impacting location cannot finalize or become payroll-ready without exact HR-4 approval. |
-| Owner/manager create | Only legitimate house-wide owner/manager; explicit actual-attendance branch and reason mandatory; no current-assignment substitution; employee/branch same-House; deterministic operation/fact identity prevents retry duplicate; existing association routes to correction/conflict; provenance is durable; result follows GAP-025. |
+| Owner/manager create | Only legitimate house-wide owner/manager; explicit actual-attendance branch and reason mandatory; no current-assignment substitution; employee/branch same-House; DEC-018 adjudication establishes remediation/manual-observation identity while operation identity deduplicates only that case's retries; selected existing attendance routes to correction/conflict; changed base becomes stale; provenance is durable; result follows GAP-025. |
 | Reliability | Identical retry/idempotency and payload-mismatch behavior; concurrent proposals have one winner; stale proposal remains audit; candidate change after DEC-018 adjudication makes the case stale rather than creating; HR-4 decision race serializes; injected failures roll back active state and lineage atomically. |
 | No-leak/UI | Hidden/absent/wrong-House/wrong-branch outcomes, counts, error bodies, redirects, controls, cache revalidation, logs, and practical timing do not form an oracle; limited users never receive source/evidence/correction/audit/approval metadata; no missing-fact control or DEC-012/013 path exists. |
-| DB/API parity | Reset applies cleanly; constraints/triggers/RLS/grants/function owner/search path are inspected; authenticated and owner/manager/branch-limited production-like calls match repository tests; direct table privileges cannot bypass the canonical command; schema cache is reloaded. |
+| DB/API parity | Reset applies cleanly; constraints/triggers/RLS/grants/function owner/search path are inspected; direct authenticated PostgREST `INSERT`/`UPDATE`/`DELETE` deny bypass; service-role bulk cannot delete/reinsert, kiosk cannot open/close, and admin/background/repair/replay cannot mutate protected state outside the command; any remaining raw writer is database-proven disjoint; CAS/lineage govern every producer; no projection-invisible competing fact; schema cache reload is verified. |
 
 Tests must also prove same-logical-observation time changes retain identity but still add
 lineage; changing observation membership never inherits attribution mechanically; a
@@ -495,8 +523,9 @@ schema-cache/direct-PostgREST bypass verification. This PR executes no SQL or re
   breaking kiosk, bulk/import, service/background, replay, or repair writers. Gate E's
   final broad revocation remains last.
 
-**Owner decisions required: none for this correction.** DEC-017 settles sequencing and
-DEC-018 settles initial owner/manager manual-remediation identity. Universal kiosk,
+**No new owner semantic decision is required.** This is the security interpretation
+necessary to make already-approved DEC-017 non-bypassable; it is not DEC-019. DEC-018
+remains unchanged and settles initial owner/manager manual-remediation identity. Universal kiosk,
 bulk/import, and general event identity remain intentionally unselected. Exact
 Gate-A/Gate-B physical names, signatures, ownership, locks, privilege rollout, and bounded
 error encoding remain future implementation details requiring separate authorization.
@@ -528,7 +557,8 @@ implementation.
 - **Expected Hosted Base SHA:** Base `develop`; exact hosted base pending independent verification
 - **Local Completion SHA:** Pending until this documentation commit is created; report in local handoff
 - **Hosted Head SHA:** Pending — not yet independently verified
-- **Local Starting Head:** `2c46bc6b955d5414fafc74fd63b3a60f4330166b`
+- **Original DEC-017/DEC-018 Correction Start:** `2c46bc6b955d5414fafc74fd63b3a60f4330166b`
+- **Fresh P1 Correction Starting Head:** `35f4c160e4125a0b0dbb5220b02495076ec41806`
 - **Last Owner-Supplied Hosted PR Head:** `8d8047e877461724a0211626d2c55d5a47602c48`; pending local independent verification
 - **Canonical Documents Read:** `AGENTS.md`; `docs/hr/AGENTS.md`;
   `agui-development-operating-principles.md`;
@@ -549,9 +579,11 @@ implementation.
   HR-2/HR-4 ownership
 - **New Decisions Proposed:** None; owner-approved DEC-017 and DEC-018 applied
 - **Risks / Gaps:** Gate-A/Gate-B runtime absent; HR-4 callable absent; deployment parity
-  unknown; producer-specific direct-DML containment must not break unmigrated producers
-- **Tests / Checks:** documentation scope/diff, whitespace, relative links, protected-file,
-  phase/posture, destructive-overwrite, current-assignment, and DEC-014 checks; exact results in handoff
+  unknown; shared authenticated and service-role raw DML plus browser, bulk, kiosk, and
+  operational mutators must be command-migrated or database-disjoint before P1
+- **Tests / Checks:** documentation scope/diff, relative links, sequencing, protected
+  state, shared-role/service-role containment, all-mutator inventory, database-disjoint
+  enforcement, Gate-E distinction, DEC-018 preservation, phase/posture, and non-authorization
 - **Known Limitations:** hosted PR/head/diff/reviews/CI and Project Control update remain pending;
   no runtime, database, or production-like verification performed
 - **Project Control Tabs To Update:** HR phase/status; gates/risks; decisions/approvals;
