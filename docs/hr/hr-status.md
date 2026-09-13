@@ -3,7 +3,8 @@
 ## Current authority and posture
 
 - **Last audited:** 2026-08-28 UTC; GAP-025 contract canonicalized 2026-09-06 UTC;
-  GAP-024 implementation governance approved 2026-09-10 UTC.
+  GAP-024 implementation governance approved 2026-09-10 UTC; GAP-029 bounded
+  dependency planning/design owner-authorized 2026-09-13 UTC.
 - **Active phase:** HR is the sole active development phase; POS remains paused
   at merged PR #488.
 - **Current checkpoint source:** [HR Current-State Audit After Phase Re-entry](../devlog/hr-current-state-audit-2026-08-28.md).
@@ -16,6 +17,23 @@
   bounded Codex task after this governance approval merges. This is not broad HR
   runtime authorization: HR-2 feature expansion, HR-4 product workflow, payroll
   expansion, and all unrelated implementation remain gated.
+
+## 2026-09-13 — GAP-029 dependency-planning checkpoint
+
+**Status: owner-authorized planning/design only; implementation not authorized.** An
+exact-`develop` re-audit confirmed that the separately approved Historical Daily DTR
+Write P1 still lacks safely callable correction/finalization and owner/manager
+missing-fact provenance infrastructure. GAP-029 therefore designs the minimum dependency
+in the [GAP-029 plan](../devlog/gap-029-historical-dtr-correction-finalization-dependency-plan.md).
+
+The planning result does not authorize runtime, schema, migration, RPC, RLS/grant,
+API/repository/UI, test, or generated-type implementation. Historical Daily DTR Write P1
+remains runtime-blocked until the dependency design is reviewed, separately
+implementation-authorized, implemented, verified, and safely callable. GAP-024 Gate A
+remains queued behind the separate P1 path and is not implemented or resequenced by this
+planning gate. General HR feature work remains gated. HR remains the sole active phase;
+POS remains paused at merged PR #488. The next action is review of the GAP-029 design,
+not implementation.
 
 This is the canonical execution snapshot. The
 [`HR Master Plan`](./hr-master-plan.md) remains canonical for HR scope, frozen
