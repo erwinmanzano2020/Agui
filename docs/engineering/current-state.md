@@ -1,5 +1,9 @@
 # Current State (Engineering Handoff)
 
+> Architecture context: [Agui Platform Architecture](agui-platform-architecture.md)
+> distinguishes the current integrated platform from its intended bounded-module
+> and multi-surface direction; it grants no implementation or phase authority.
+
 ## 1. Frozen Foundations
 "Frozen" means schema + contracts + semantics are stable. Changes require a dedicated migration task and explicit approval.
 
