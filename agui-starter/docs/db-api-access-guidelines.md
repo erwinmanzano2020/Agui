@@ -1,6 +1,18 @@
 # DB & API Access Guidelines (reference copy)
 
-Canvas documentation remains the source of truth. This file keeps a working copy alongside the codebase so contributors have the access rules and guardrails in one place. Treat this as the operational spec; see `agui-dev-process-codex-guidelines.md` for contributor-facing requirements and the Data Access Plan template.
+Repository governing documents are canonical project truth, and higher governing authority wins on conflict. This file is subordinate reference guidance, not independent authority. Contributor process requirements and the Data Access Plan template live in [`agui-dev-process-codex-guidelines.md`](agui-dev-process-codex-guidelines.md). The Agui Project Control Center is an operational mirror/index and is not DB/API authority.
+
+## Migration-backed database functions
+
+- Any database function or RPC that the UI or another RPC depends on must be defined through committed migrations.
+- Manual or environment-only SQL fixes are not an acceptable durable implementation because they create environment drift and can disappear on reset or rebuild.
+- When adding or updating a PostgREST-facing function or RPC, include `notify pgrst, 'reload schema';` when PostgREST is involved so its schema cache remains current.
+- Prefer idempotent migration definitions such as `create or replace`, together with appropriate guards where applicable, so preview, reset, and re-run behavior remains safe.
+
+## Reliability and safety
+
+- Prefer immutable, deterministic helpers, including masking helpers, for data displayed in HR, Finance, and Identity surfaces.
+- Handle unavailable dependent RPCs gracefully. Where it is safe and applicable, keep linked/unlinked status visible while reporting the dependency failure.
 
 ## Split-client pattern
 - UI-facing routes must use the authenticated Supabase client so RLS policies govern reads and writes.

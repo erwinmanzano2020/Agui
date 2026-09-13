@@ -1,7 +1,7 @@
 # Agui Roadmap Plan
 
 ## Source of Truth
-- Development Operating Principles: [agui-development-operating-principles.md](./agui-development-operating-principles.md)
+- Development Operating Principles: [`../../agui-development-operating-principles.md`](../../agui-development-operating-principles.md)
 - HR execution snapshot: [`docs/hr/hr-status.md`](../../docs/hr/hr-status.md)
 - HR frozen contracts: [`docs/hr/hr-master-plan.md`](../../docs/hr/hr-master-plan.md)
 - HR execution-aligned plan: [`docs/hr/hr-master-plan-expanded.md`](../../docs/hr/hr-master-plan-expanded.md)

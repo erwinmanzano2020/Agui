@@ -36,7 +36,8 @@ Phase transition note:
 - POS subsequently became active and progressed through merged PR #488.
 - By explicit owner decision, POS is paused after PR #488 and HR is reactivated as the sole active development phase for end-to-end MVP completion.
 - The preserved POS checkpoint is POS-F3 Slice 12 Tender Intent runtime. POS code and frozen contracts must remain untouched unless a future explicit Roadmap/phase decision reactivates POS.
-- The first permitted HR task after the governance transition is a documentation/read-only current-state audit; the transition itself authorizes no HR runtime implementation.
+- The documentation/read-only HR current-state audit was the first permitted task after the governance transition and is retained as historical transition evidence.
+- HR runtime is not broadly reopened. Only specifically authorized, bounded work may proceed; Foundation Security Correction work remains controlled by its dedicated approval records.
 
 ### Hard rules
 - Only the active phase may be worked on.
@@ -128,6 +129,8 @@ A change is not complete unless:
 - assumptions are stated
 - limitations are known
 - phase alignment is preserved
+
+For contributor process and the deterministic repository-to-Project-Control bootstrap, follow both `agui-starter/docs/agui-dev-process-codex-guidelines.md` and `docs/agui/project-control-sync-protocol.md`.
 
 ---
 
