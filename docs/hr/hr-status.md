@@ -20,6 +20,18 @@
   runtime authorization: HR-2 feature expansion, HR-4 product workflow, payroll
   expansion, and all unrelated implementation remain gated.
 
+## 2026-09-13 — GAP-024 Gate A local implementation checkpoint
+
+**Status: Gate A exists in the bounded local PR; hosted verification and merge remain
+pending.** The additive canonical attendance fact/evidence/revision/lineage authority,
+distinct employee candidate/evidence generation, rebuildable authorization projection,
+and protected branch-aware and owner/manager House-global readers are implemented in
+[`Gate-A implementation record`](../devlog/gap-024-gate-a-implementation.md). No
+production consumer is cut over, no production backfill is performed, no writer is
+migrated, and no existing `dtr_segments` access is revoked. Historical DTR P1 does not
+exist yet and GAP-024 remains open. Gate B remains next only after Gate A is independently
+hosted, reviewed, and merged; Gate B has not started.
+
 ## 2026-09-13 — GAP-029 planning and DEC-017/DEC-018 correction checkpoint
 
 **Status: PR #509 is the independently verified hosted documentation/governance
