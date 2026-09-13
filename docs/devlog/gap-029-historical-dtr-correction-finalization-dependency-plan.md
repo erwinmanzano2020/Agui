@@ -16,7 +16,7 @@ from clean local branch `work` at `2c46bc6b955d5414fafc74fd63b3a60f4330166b`, wh
 parent is that expected base and whose latest commit is the existing GAP-029 PR work. The
 owner-side hosted verification subsequently confirmed open, unmerged, mergeable PR #509
 against `develop`, with seven files and hosted head
-`b143986cb45eed0da7ed887b468fe64a0c377b2b` before this correction. A new hosted head
+`56824deb70d583e6da1473e1ee0c42681cdec387` before this correction. A new hosted head
 for the local correction remains pending independent observation; it is not inferred from
 the local SHA. No newer local governing conflict exists within the authorized scope.
 
@@ -58,7 +58,8 @@ The exact-develop audit confirms all four triggering observations:
 1. `updateDtrSegmentAction` validates times, resolves a target, then calls
    `.from("dtr_segments").update(...)`; this overwrites `time_in`, `time_out`, and
    `status` on the canonical row. It captures no reason, before image, proposal,
-   actor/timestamp lineage, evidence revision, payroll-impact classification, approval,
+   actor/timestamp lineage, either fact/value revision or semantic evidence-basis
+   tracking, payroll-impact classification, approval,
    or finalization state. The update action tests explicitly expect target resolution
    followed by this update and a successful “saved” result.
 2. `resolveDtrSegmentWriteTargetForHouseWithAccess` loads the target segment, then the
@@ -73,7 +74,8 @@ The exact-develop audit confirms all four triggering observations:
    logical fact and route to correction/conflict semantics.
 4. The current `dtr_segments` migration has raw segment values, `source`, raw `status`,
    and `created_at`, plus an employee/House trigger and broad historical table policies.
-   It has no stable logical-fact ID, evidence revision, correction/provenance relation,
+   It has no stable logical-fact ID, fact/value revision, semantic evidence-basis token,
+   correction/provenance relation,
    finalization metadata, HR-4 approval reference, or active historical attribution.
    Generated `db.types.ts` mirrors that absence. The foundation freeze explicitly says
    no correction/audit system and no approval workflow are implemented.
@@ -130,7 +132,8 @@ approved P1 is therefore runtime-blocked. Reusing the present resolver plus dire
 
 The dependency needs a narrowly scoped target resolver, but not the GAP-024 Daily DTR
 reader architecture: inside one non-enumerating transactional command it may resolve one
-supplied fact ID, its current authoritative attribution/evidence revision, and the
+supplied fact ID, its current canonical fact/value revision and semantic attribution/
+evidence-basis fingerprint as applicable, and the
 minimum employee/House/branch facts needed to decide the mutation. It must never return
 protected evidence or use a broad exact-target cross-branch search for branch-limited
 actors. If the repository cannot establish that internal current state before Option D,
@@ -184,17 +187,39 @@ reused. The generated approval-shaped type found elsewhere is not a DTR approval
 
 ### A. Consume Gate-A authority; add only P1-specific correction records
 
-Gate A—not GAP-029—must first establish stable logical attendance-fact identity, exact
-canonical evidence revision/lineage, current authorization projection, and protected
+Gate A—not GAP-029—must first establish stable logical attendance-fact identity, distinct
+canonical fact/value and semantic evidence-basis versioning/lineage, current authorization projection, and protected
 branch-aware and house-global readers. GAP-029 must not duplicate those structures or
 create a competing attendance truth.
 
 P1 may add the minimum HR-2 correction/provenance records required by the frozen contract:
-Gate-A fact ID and expected revision, immutable base/proposed snapshots, reason, actor and
-time, value/location/payroll-impact classification, state, optional exact HR-4 decision
+Gate-A fact ID and only the fact/value revision, semantic evidence-basis fingerprint, and
+employee candidate-generation dependencies required by that proposal; immutable
+base/proposed snapshots; reason; actor/time; value/location/payroll-impact classification;
+state; optional exact HR-4 decision
 reference, finalizer/result metadata, and DEC-018 remediation/manual-observation identity.
 Every record attaches to canonical Gate-A authority; it neither owns another active fact
 revision nor duplicates the projection.
+
+The design preserves three independent conceptual staleness dimensions without freezing
+physical columns or tables:
+
+1. **Canonical fact/value revision** tracks representation and attendance values. It is
+   the CAS/lost-update and immutable-lineage base for value/time proposals. A value change
+   may advance it while location evidence semantics remain unchanged.
+2. **Semantic evidence-basis revision/fingerprint** tracks GAP-025 attribution/location
+   inputs: integrity-valid branch facts, applicable evidence lanes, logical-observation
+   membership, IN/OUT roles and pairing, fact association, replay canonicalization,
+   integrity/validity, attribution adjudication, and facts producing `UNATTRIBUTED` or
+   `CONFLICT`. Only a material change to this basis stales a proposal that depends on it.
+3. **House + employee attendance candidate-generation** tracks DEC-018 remediation
+   candidate-universe staleness. A time/date-bucket change may advance it even when the
+   semantic location evidence basis remains unchanged.
+
+A proposal binds only to dimensions its semantics require: value/time uses its fact/value
+base; location/attribution uses its semantic evidence basis; combined value + location
+uses both; DEC-018 uses complete candidate resolution and employee candidate-generation,
+plus any specific fact/value or evidence dependency when it selects an existing fact.
 
 ### B. Non-bypassable Gate-B command foundation
 
@@ -314,20 +339,26 @@ or second canonical attendance truth.
 ## 11. Correction / finalization lifecycle
 
 1. **Resolve proposal eligibility:** House/capability first; exact fact and current
-   GAP-025 visibility next; snapshot values, observation membership, attribution, and
-   exact evidence revision inside the transaction.
+   GAP-025 visibility next; snapshot values and required fact/value revision, observation
+   membership/attribution and required semantic evidence-basis fingerprint, plus employee
+   candidate-generation only where remediation semantics require it.
 2. **Classify proposal:** value/time, location, and payroll impact are independent flags.
    Require reason and idempotency key; store immutable base and proposed snapshots.
 3. **Pending:** active representation/attribution does not change. HR-2 owns this record.
    If payroll-impacting, associate only a valid HR-4 decision reference.
 4. **Rejected:** preserve immutable proposal/decision lineage; active state does not
    change. HR-4 rejection is not rewritten as HR-2 authority.
-5. **Finalize:** lock; revalidate actor authority, exact semantic/evidence revision,
-   target branch, impact, and current required HR-4 approval. Non-payroll location
+5. **Finalize:** lock and separately revalidate actor authority, every fact/value revision
+   the proposal depends on, any semantic evidence basis required for attribution/location,
+   target branch/provenance, DEC-018 employee candidate-generation when applicable,
+   payroll impact, and the exact current HR-4 approval. An unrelated revision change does
+   not stale the proposal. Non-payroll location
    finalization is owner/manager-only. Approval never skips this step.
-6. **Success:** append finalization metadata, atomically activate corrected values and
-   any corrected branch, increment evidence revision, preserve prior state as historical,
-   and make old-base competitors stale/non-finalizable.
+6. **Success:** append finalization metadata and atomically activate allowed changes.
+   Advance fact/value revision for applicable value mutation; update semantic
+   evidence-basis only when governing evidence materially changes; advance employee
+   candidate-generation when remediation candidates can change; and stale only proposals
+   whose required dependency bases no longer match. Preserve prior state as history.
 7. **Failure/stale:** no canonical change. Preserve a safe audit result where doing so
    cannot leak to an unauthorized caller; never retry as a direct update.
 
@@ -436,15 +467,20 @@ The minimum handoff is an opaque, House-consistent approval decision reference p
 correction/fact/revision it authorizes. At finalization HR-2 verifies that HR-4 currently
 reports the required approved decision for that exact immutable proposal/base; it does
 not copy an `approved` boolean supplied by the client. An approval changed/revoked or
-superseded before the lock/check completes blocks finalization. Full HR-4 requester,
+superseded before the lock/check completes blocks finalization. Unchanged location
+evidence never implies payroll approval remains valid: a changed value/payload, payroll
+impact, approval relevance, or payroll-ready base requires exact HR-4 revalidation and
+may stale that approval. Full HR-4 requester,
 withdrawal, attachment, escalation, or multi-level workflow is outside GAP-029.
 
 ## 14. Concurrency, idempotency, and staleness
 
-- Serialize finalization per stable fact with a row/advisory lock and compare-and-swap
-  the exact evidence revision. Two same-base proposals may coexist; exactly one can
-  activate, and the other becomes stale after the first revision change. Never use
-  latest-write-wins.
+- Serialize finalization per stable fact and compare only required dependencies. A
+  successful value correction may stale competing value proposals bound to the replaced
+  fact/value revision. A value-only correction that preserves semantic evidence basis
+  does not automatically stale location proposals. Location finalization that changes the
+  governing attribution/evidence basis stales proposals bound to the superseded basis.
+  Never use latest-write-wins.
 - Proposal and create commands require unique operation/idempotency keys scoped to House,
   actor/command, and immutable request fingerprint. Identical retry returns the original
   bounded result; key reuse with different payload fails.
@@ -469,6 +505,14 @@ withdrawal, attachment, escalation, or multi-level workflow is outside GAP-029.
   validate its generation, acquire/revalidate a specific fact where applicable, mutate,
   then atomically advance the generation. Any alternative must prove no deadlock cycle,
   no stale candidate commit, no cross-day race, and no per-fact CAS bypass.
+- Example: location proposal A → B binds to semantic basis `E7`. A time/duration/day-
+  bucket correction preserves logical observations, roles, pairing, fact association,
+  branch evidence, integrity, lane applicability, and location semantics. Fact/value
+  revision may advance `V12 → V13`, and candidate-generation may advance, while semantic
+  basis remains `E7`; the location proposal is not automatically stale and still
+  revalidates `E7` plus all other rules. If observation membership, pairing, lane, branch
+  evidence, integrity, conflict facts, association, or attribution adjudication changes
+  `E7 → E8`, the `E7` location proposal becomes stale/non-finalizable.
 - HR-4 decision is read and validated within the finalization transaction/locking
   protocol. A decision transition racing finalization has a deterministic serialization
   order; only the state visible under the locked validation may authorize commit.
@@ -546,6 +590,8 @@ At Step 3, **Historical Daily DTR Write P1 becomes safely implementable/callable
 | Owner/manager create | Only legitimate house-wide owner/manager; explicit actual-attendance branch and reason mandatory; no current-assignment substitution; employee/branch same-House; distinct-new is unavailable unless authoritative resolution returns every plausible same-observation fact or deterministically excludes every omission; selected existing attendance routes to correction/conflict; DEC-018 adjudication establishes remediation/manual-observation identity while operation identity deduplicates only that case's retries; changed generation becomes stale; provenance is durable; result follows GAP-025. |
 | Reliability | Cross-date cases for one employee at generation `N` cannot both commit; exactly one may advance to `N+1`, while the other becomes stale. Corrections entering or leaving a candidate range and relevant same-day changes advance the shared employee generation. Existing-fact correction satisfies both per-fact CAS and shared generation. Re-adjudication permits genuine additional same-day/different-day, consecutive-day, overnight, or cross-midnight attendance. No employee/day, date/time, timestamp, reporting-bucket, one-fact-per-day, or cross-day-merge uniqueness shortcut. Shared validation, mutation, lineage, Gate-A maintenance, and generation advance commit or roll back atomically. |
 | Candidate completeness | A wrong-date same-observation fact outside the displayed range is returned or deterministically excluded; incomplete resolution disables distinct-new and creates nothing; complete resolution plus explicit distinct-new plus unchanged employee generation may create; changed generation requires re-adjudication; nearby legitimate facts are not collapsed; no date/timestamp uniqueness. |
+| Revision separation | Value-only correction may advance `V12 → V13` while semantic basis `E7` remains equivalent and an `E7` location proposal remains eligible for ordinary revalidation; a material GAP-025 input change advances `E7 → E8` and stales the `E7` proposal; a value proposal fails when its required value CAS changes; a combined proposal validates both bases; candidate-generation may advance independently when coverage changes. |
+| HR-4 exact approval | A payroll-impacting proposal cannot reuse approval when the immutable proposal/value/evidence base actually approved is no longer the one finalized, even if location evidence is unchanged. |
 | No-leak/UI | Hidden/absent/wrong-House/wrong-branch outcomes, counts, error bodies, redirects, controls, cache revalidation, logs, and practical timing do not form an oracle; limited users never receive source/evidence/correction/audit/approval metadata; no missing-fact control or DEC-012/013 path exists. |
 | DB/API parity | Reset applies cleanly; constraints/triggers/RLS/grants/function owner/search path are inspected; direct authenticated PostgREST `INSERT`/`UPDATE`/`DELETE` deny bypass; service-role bulk cannot delete/reinsert, kiosk cannot open/close, and admin/background/repair/replay cannot mutate protected state outside the command; any remaining raw writer is database-proven disjoint; CAS/lineage govern every producer; no projection-invisible competing fact; schema cache reload is verified. |
 
@@ -606,7 +652,8 @@ schema-cache/direct-PostgREST bypass verification. This PR executes no SQL or re
   breaking kiosk, bulk/import, service/background, replay, or repair writers. Gate E's
   final broad revocation remains last.
 
-**No new owner semantic decision is required.** This is the security interpretation
+**No new owner semantic decision is required.** Separating revision dependencies restores
+frozen GAP-025 semantics and introduces no DEC-019. This is also the security interpretation
 necessary to make already-approved DEC-017 non-bypassable; it is not DEC-019. DEC-018
 remains unchanged and settles initial owner/manager manual-remediation identity. Its
 explicit genuinely-distinct determination inherently requires complete canonical
@@ -645,10 +692,10 @@ implementation.
 - **Expected Hosted Base SHA:** `f989588ae5408bbd13ec17a99160b15a1ea9538b`
 - **Hosted State at Verification:** open; merged false; mergeable true; seven changed files
 - **Local Completion SHA:** Pending until this documentation commit is created; report in local handoff
-- **Previously Observed Hosted Head SHA:** `b143986cb45eed0da7ed887b468fe64a0c377b2b`
+- **Previously Observed Hosted Head SHA:** `56824deb70d583e6da1473e1ee0c42681cdec387`
 - **New Post-Correction Hosted Head SHA:** Pending — not yet independently verified after hosting
-- **Hosted Review Evidence:** unresolved `discussion_r3998737152` and
-  `discussion_r3998737158` independently observed before this correction
+- **Hosted Review Evidence:** unresolved `discussion_r3998772378` independently observed
+  before this correction
 - **Post-Correction Hosted Diff / CI / Final Review / Merge State:** Pending — requires
   independent re-verification after hosting
 - **Original DEC-017/DEC-018 Correction Start:** `2c46bc6b955d5414fafc74fd63b3a60f4330166b`
@@ -656,6 +703,7 @@ implementation.
 - **Shared-Serialization Correction Starting Head:** `8eb2777dd9a6962079da74e13d7d6d399ed6df8f`
 - **Cross-Day Candidate-State Correction Starting Head:** `4bead8c22656114d5a4121634de431671ac86009`
 - **Candidate-Completeness Correction Starting Head:** `4cf5d37f1fe6898924006fcac9eae8d7b423156c`
+- **Revision-Separation Correction Starting Head:** `afe17e5288922fd31792b1e18175f5b5b5dc3767`
 - **Canonical Documents Read:** `AGENTS.md`; `docs/hr/AGENTS.md`;
   `agui-development-operating-principles.md`;
   `agui-starter/docs/agui-dev-process-codex-guidelines.md`;
@@ -694,7 +742,7 @@ implementation.
   then resolved under explicit scope expansion; no further current canonical contradiction found
 
 This payload combines independently supplied hosted evidence through head
-`b143986cb45eed0da7ed887b468fe64a0c377b2b` with a newer local correction. It does not
+`56824deb70d583e6da1473e1ee0c42681cdec387` with a newer local correction. It does not
 infer that local completion is hosted. The explicitly pending post-correction fields must
 be independently re-verified, and the payload does not itself update the Agui Project
 Control Center.

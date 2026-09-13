@@ -135,7 +135,8 @@ Owner/manager missing-fact creation must retain all of the following:
 6. actor identity;
 7. historical attendance context;
 8. a non-empty valid manual-creation reason;
-9. a DEC-018 remediation case that records the House-visible candidate/base revision and
+9. a DEC-018 remediation case that records the House + employee attendance
+   candidate-generation observed after complete authoritative candidate resolution and
    explicit owner/manager adjudication of existing fact versus genuinely distinct new
    observation;
 10. for a distinct-new decision, durable manual observation/remediation-case identity and
@@ -269,10 +270,12 @@ Owner/manager missing-fact tests must prove:
 - explicit actual-attendance provenance is required and current assignment cannot
   substitute for it;
 - same-House employee and branch validation is enforced;
-- reason, actor, context, DEC-018 remediation/manual-observation identity, base revision,
+- reason, actor, context, DEC-018 remediation/manual-observation identity, shared
+  House + employee candidate-generation,
   explicit adjudication, and durable audit/provenance binding are retained;
 - operation/idempotency identity deduplicates retries of that case only; employee/date/time
-  never supplies logical uniqueness, and changed candidate/base state requires re-adjudication;
+  never supplies logical uniqueness, and a changed shared employee candidate-generation
+  requires re-adjudication;
 - an existing logical fact routes to correction/conflict handling rather than duplicate
   creation;
 - house-wide authorization does not bypass correction lineage or finalization;
@@ -376,6 +379,23 @@ prove no deadlock, stale commit, cross-day race, or CAS bypass. Shared-base vali
 per-fact CAS, fact/correction mutation, lineage, Gate-A authority/projection maintenance,
 and generation advance commit atomically or all roll back. No mutate-then-bump, eventual
 invalidation, insert-then-detect, or latest-write-wins is allowed.
+
+P1 must preserve three distinct conceptual bases without selecting physical storage:
+canonical fact/value revision for value CAS and lineage; semantic evidence-basis
+fingerprint for GAP-025 attribution/location; and House + employee candidate-generation
+for DEC-018 remediation staleness. Each proposal binds only to the bases it requires.
+Value/time proposals stale when their required value base changes; location proposals
+stale only on material required semantic-basis change, not unrelated value revision;
+combined proposals validate both. Candidate-generation may advance for a time/date-bucket
+change even when semantic location basis remains unchanged.
+
+A location proposal bound to `E7` therefore is not automatically stale when a value-only
+correction advances `V12 → V13` while preserving observations, roles, pairing,
+association, branch evidence, integrity, lanes, and location semantics. It becomes stale
+when a material evidence change advances `E7 → E8`. Payroll-impacting finalization still
+requires the exact HR-4 approval for the immutable proposal/base actually approved; an
+unchanged location basis does not preserve approval after relevant payload/value/payroll
+impact changes.
 
 Complete candidate resolution and shared generation are both mandatory. The resolver
 establishes what existing facts could already represent the claim; the employee-wide

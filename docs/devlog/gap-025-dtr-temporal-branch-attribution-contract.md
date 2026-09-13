@@ -995,7 +995,8 @@ identity. An operation/idempotency key proves retry identity for that same case 
 cannot establish attendance identity across independent cases. Employee/day,
 employee/date/time, approximate timestamp matching, or absence of an exact match never
 becomes automatic uniqueness. Multiple legitimate same-day segments remain valid. A
-material candidate/base revision change makes the case stale and requires re-adjudication.
+material change to the shared House + employee attendance candidate-generation makes the
+case stale and requires re-adjudication.
 
 Enforcement of that unchanged DEC-018 rule requires a shared **House + employee
 attendance-mutation domain**, or a database mechanism proven equally conservative, even
@@ -1020,6 +1021,13 @@ timestamp correction may move calendar/reporting buckets while preserving logica
 identity through deterministic observation lineage, not date. Physical lock ordering,
 table, column, generation, or RPC design remains unselected, but future implementation
 must prove deterministic deadlock-free ordering and atomic invalidation.
+
+Candidate-generation invalidation is independent from semantic location evidence-basis
+invalidation. A time/value/date-bucket change may advance remediation generation while
+preserving the same semantic basis; that stales an affected DEC-018 case but does not by
+itself stale a location proposal bound to the unchanged semantic basis. Conversely, a
+material GAP-025 evidence-basis change stales dependent location proposals according to
+Section 9 even if described through a different physical revision mechanism.
 
 This completeness rule does not alter fact identity. Proposed work date, adjacent-date
 windows, and exact/approximate timestamps remain search hints rather than semantic
