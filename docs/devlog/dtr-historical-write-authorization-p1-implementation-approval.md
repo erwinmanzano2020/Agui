@@ -335,19 +335,36 @@ If candidate/base attendance state materially changes before creation/finalizati
 case is stale and requires explicit re-adjudication against the new base. Latest-write-wins
 is prohibited.
 
-Every potentially colliding distinct-new create must serialize on a shared candidate-set
-domain even when no fact exists yet: at minimum House + employee + work date, or a future
-database mechanism proven equivalently conservative. Under that guard the command reloads
-the candidate set and compares its shared generation/version/fingerprint with the case's
-adjudicated base. A per-fact revision cannot provide this guarantee before a fact exists.
-If the set changed, the case creates nothing and requires re-adjudication. If unchanged,
-creation, provenance binding, Gate-A projection/revision maintenance, and candidate-set
-generation advance commit atomically before releasing the guard, or all roll back.
+Every canonical attendance mutation capable of changing the remediation candidate
+universe must serialize in a shared **House + employee attendance-mutation domain**, or a
+future database mechanism proven equally conservative, even when no fact exists yet and
+across all dates/day buckets. The case retains that shared employee generation/base.
+Candidate display may remain date-bounded; broad mutation versioning neither authorizes
+broad UI enumeration nor weakens no-leak rules.
 
-This serialization does not make employee/day or any exact/approximate timestamp unique.
-For two independent distinct-new cases at generation `N`, A may commit and advance the
-set to `N+1`; B must then become stale. If B is truly another legitimate same-day segment,
-the owner may re-adjudicate B against `N+1` and again select distinct-new.
+Distinct-new creation participates. Existing-fact correction/finalization also
+participates whenever timestamps, work date, reporting bucket, values, observation
+membership, or other changes can enter, leave, or materially alter candidate facts. Such
+correction requires both per-fact revision/CAS and shared employee generation validation;
+per-fact CAS alone cannot prevent stale cross-case or cross-day adjudication.
+
+For same-employee cases proposing Sept 5 and Sept 6 at generation `N`, both use the same
+shared domain; one commit advances `N` to `N+1`, and the other creates nothing and becomes
+stale. Likewise, a correction moving a logically identical Sept 5 fact into a pending
+Sept 6 case's bucket must validate per-fact CAS, advance the shared generation, maintain
+Gate-A state atomically, and stale the pending case. Moving a fact out or materially
+changing same-day candidates does the same.
+
+This serialization does not make an employee, employee/day, date/time, exact/approximate
+timestamp, or reporting bucket unique. It permits multiple same-day facts, consecutive-day
+and overnight attendance, cross-midnight correction, and multiple legitimate employee
+facts. After re-adjudication at `N+1`, a genuinely separate observation may be created.
+
+Future implementation must define deterministic serialization/fact-lock ordering and
+prove no deadlock, stale commit, cross-day race, or CAS bypass. Shared-base validation,
+per-fact CAS, fact/correction mutation, lineage, Gate-A authority/projection maintenance,
+and generation advance commit atomically or all roll back. No mutate-then-bump, eventual
+invalidation, insert-then-detect, or latest-write-wins is allowed.
 
 This is the minimum integrity lifecycle, not a generalized case-management product. It
 selects no requester inbox, attachment, withdrawal, escalation, kiosk, bulk/import, or

@@ -44,8 +44,8 @@ UI, repository, generated-type, test, or database work is authorized by PR #509.
 General HR feature work remains gated. HR remains the sole active phase; POS remains
 paused at merged PR #488. Owner-side verification observed PR #509 open, unmerged,
 mergeable, based on `develop`, at hosted head
-`40836a9e92809892387a582f4e3ac52d2389d2a3` before this correction, with unresolved
-threads `discussion_r3998654701` and `discussion_r3998654707`. The newest local
+`6497a264c3429c88b0076f73aa525c5c2bb6f5a3` before this correction, with unresolved
+thread `discussion_r3998686230`. The newest local
 correction is not thereby hosted or reviewed; its hosted head, diff, checks, and review
 state remain pending re-verification. After hosting, the next action is a fresh Codex
 review of PR #509, not implementation.

@@ -997,16 +997,25 @@ employee/date/time, approximate timestamp matching, or absence of an exact match
 becomes automatic uniqueness. Multiple legitimate same-day segments remain valid. A
 material candidate/base revision change makes the case stale and requires re-adjudication.
 
-Enforcement of that unchanged DEC-018 rule requires a shared candidate-set serialization
-domain for potentially colliding creates even before a fact exists: at minimum House +
-employee + work date, or a database mechanism proven equivalently conservative. Each case
-retains the shared candidate-set generation/version/fingerprint it adjudicated. Creation
-reloads and compares the set under the guard; one commit advances the generation, making
-another case on the former generation stale. A stale case creates nothing until
-re-adjudicated. This is concurrency control, not attendance uniqueness: multiple genuine
-same-day segments remain allowed after explicit re-adjudication, and employee/day or
-exact/approximate timestamps never become a uniqueness key. Physical lock, table, column,
-or RPC design remains unselected.
+Enforcement of that unchanged DEC-018 rule requires a shared **House + employee
+attendance-mutation domain**, or a database mechanism proven equally conservative, even
+before a fact exists and across date/reporting buckets. Each case retains the shared
+employee generation/version/fingerprint it adjudicated. Any canonical create, removal,
+replacement, timestamp/date-bucket move, relevant correction finalization, or other
+candidate-universe mutation advances that generation atomically with fact/lineage and
+Gate-A maintenance. Existing-fact correction may require both per-fact CAS and shared
+generation validation; a per-fact revision alone is insufficient for remediation
+staleness across buckets.
+
+This is concurrency control, not attendance or employee uniqueness. Candidate display may
+remain narrowly date-bounded without authorizing broad enumeration. Multiple genuine
+same-day, consecutive-day, overnight, and cross-midnight facts remain allowed after
+explicit re-adjudication; employee/day, employee/date/time, exact/approximate timestamp,
+and reporting bucket never become uniqueness keys. GAP-025's existing rule remains:
+timestamp correction may move calendar/reporting buckets while preserving logical fact
+identity through deterministic observation lineage, not date. Physical lock ordering,
+table, column, generation, or RPC design remains unselected, but future implementation
+must prove deterministic deadlock-free ordering and atomic invalidation.
 
 DEC-018 does not select kiosk duplicate/replay identity, general event identity, or
 bulk/import identity; kiosk remains unselected unless separately approved and bulk/import

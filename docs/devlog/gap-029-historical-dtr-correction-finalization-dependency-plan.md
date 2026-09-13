@@ -16,7 +16,7 @@ from clean local branch `work` at `2c46bc6b955d5414fafc74fd63b3a60f4330166b`, wh
 parent is that expected base and whose latest commit is the existing GAP-029 PR work. The
 owner-side hosted verification subsequently confirmed open, unmerged, mergeable PR #509
 against `develop`, with seven files and hosted head
-`40836a9e92809892387a582f4e3ac52d2389d2a3` before this correction. A new hosted head
+`6497a264c3429c88b0076f73aa525c5c2bb6f5a3` before this correction. A new hosted head
 for the local correction remains pending independent observation; it is not inferred from
 the local SHA. No newer local governing conflict exists within the authorized scope.
 
@@ -360,21 +360,37 @@ not interchangeable: a fresh request UUID does not establish that a second case 
 observation and does not match two independent submissions. Employee/day,
 employee/date/time, approximate timestamps, or absence of a match is never uniqueness.
 
-At create/finalize time, every potentially colliding canonical create must enter one
-shared candidate-set serialization domain. The minimum conceptual domain is House +
-employee + work date, or a database mechanism proven equivalently conservative. This is
-a lock/serialization scope, not attendance uniqueness; multiple legitimate facts and
-segments for the same employee/work date remain allowed.
+Every canonical candidate-universe mutation must participate in one conservative shared
+**House + employee attendance-mutation domain**, or a database mechanism proven equally
+conservative. Its generation spans every date/day bucket for that employee. It is a
+concurrency and stale-adjudication scope—not attendance identity, employee uniqueness,
+one record per employee, or one fact per day.
 
-Under that guard, the command reloads the authoritative candidate set and compares its
-shared revision/generation/version/fingerprint with the case's adjudicated base. A
-per-fact revision is insufficient when no fact exists. If the candidate set materially
-changed, the case is stale, creates nothing, and requires owner/manager re-adjudication.
-If unchanged, normal DEC-018 validation may continue. Successful creation atomically
-binds the fact and provenance, maintains Gate-A projection/revision state, and advances
-the shared candidate-set generation before releasing the guard; every part commits or
-rolls back together. No latest-write-wins, insert-then-detect, or timestamp uniqueness is
-permitted.
+The candidate display may remain narrowly bounded to the proposed date, adjacent relevant
+dates, facts selected by the canonical remediation reader, or another permitted minimum
+view. Employee-wide mutation versioning does not authorize broad historical UI
+enumeration or weaken no-leak/minimum-disclosure rules.
+
+A case retains the shared employee attendance-generation/base token observed during
+adjudication. Under the shared guard, the command reloads the authoritative candidate
+universe and compares its generation/version/fingerprint with that base. A per-fact
+revision is insufficient when no fact exists or when another fact moves across buckets.
+If the universe materially changed, the case is stale, creates nothing, and requires
+owner/manager re-adjudication. If unchanged, normal DEC-018 validation may continue.
+
+The shared generation advances for every canonical operation capable of changing the
+relevant candidate universe: create; delete/remove; replacement; work-date/day-bucket
+move; timestamp change affecting membership; separately permitted split/merge; correction
+finalization entering or leaving a candidate range; or any other material candidate-fact
+change. Distinct-new creation participates. Existing-fact correction/finalization also
+participates whenever it can affect candidate membership or relevant values, using both
+its required per-fact revision/CAS and the shared employee generation.
+
+A participating mutation atomically validates the shared base and applicable per-fact
+CAS, mutates the fact, records correction/provenance lineage, maintains Gate-A
+authority/projection, and advances the shared generation; all commit or all roll back.
+Never mutate then bump later, rely on eventual invalidation, insert then detect, use
+latest-write-wins, or infer timestamp uniqueness.
 
 This narrow case lifecycle is not general case management and selects no branch-limited,
 DEC-012/013, kiosk, bulk/import, schedule, attachment, notification, or escalation flow.
@@ -404,13 +420,25 @@ withdrawal, attachment, escalation, or multi-level workflow is outside GAP-029.
   bounded result; key reuse with different payload fails.
 - Finalize retry is idempotent: the same correction already finalized to the same
   revision returns its prior safe result; it does not create another revision.
-- Missing-fact creation uses the shared House + employee + work-date candidate-set guard
-  (or a proven conservative equivalent), not independent case IDs or a nonexistent fact
-  lock. Two distinct-new cases adjudicated at generation `N` serialize: A may commit and
-  atomically advance the set to `N+1`; B then observes `N+1`, creates nothing, becomes
-  stale, and requires re-adjudication. If B is genuinely another same-day observation,
-  the owner may adjudicate it distinct-new against `N+1` and later create it. Therefore
-  serialization is not uniqueness.
+- Every relevant create/correction mutation uses the shared House + employee
+  attendance-mutation domain, not date-scoped locks, independent case IDs, or only a
+  nonexistent fact lock. Cases A (Sept 5) and B (Sept 6) for the same possible observation,
+  both adjudicated at generation `N`, serialize in the same domain: A may commit and
+  advance to `N+1`; B then creates nothing, becomes stale, and requires re-adjudication.
+  If B is genuinely separate, it may be adjudicated again and created. Serialization is
+  not uniqueness.
+- Cross-day correction participates too. With House H / Employee E at `N`, a pending
+  Sept 6 case is invalidated when finalization moves the same logical observation from a
+  Sept 5 fact into Sept 6: the operation validates its per-fact CAS under the shared
+  domain, commits correction/lineage and Gate-A maintenance, and advances `N` to `N+1`.
+  The pending case expecting `N` creates nothing and requires re-adjudication. Moving a
+  fact out of its displayed range or making another relevant same-day change advances the
+  same generation as well.
+- Future implementation must define deterministic lock ordering without freezing a
+  physical primitive here: conceptually acquire House + employee mutation serialization,
+  validate its generation, acquire/revalidate a specific fact where applicable, mutate,
+  then atomically advance the generation. Any alternative must prove no deadlock cycle,
+  no stale candidate commit, no cross-day race, and no per-fact CAS bypass.
 - HR-4 decision is read and validated within the finalization transaction/locking
   protocol. A decision transition racing finalization has a deterministic serialization
   order; only the state visible under the locked validation may authorize commit.
@@ -486,7 +514,7 @@ At Step 3, **Historical Daily DTR Write P1 becomes safely implementable/callable
 | Existing-fact scope | Branch-limited correction only for a currently visible `ATTRIBUTED` fact in `allowedBranchIds`; current assignment grants nothing; hidden other-branch, `UNATTRIBUTED`, `CONFLICT`, zero scope, and cross-House deny; owner/manager breadth works without bypass; denial exposes no metadata. |
 | Location | Branch-limited actor cannot directly relocate; initial non-payroll location finalizer is owner/manager-only; target branch gains visibility only after successful finalization; old attribution remains audit history; payroll-impacting location cannot finalize or become payroll-ready without exact HR-4 approval. |
 | Owner/manager create | Only legitimate house-wide owner/manager; explicit actual-attendance branch and reason mandatory; no current-assignment substitution; employee/branch same-House; DEC-018 adjudication establishes remediation/manual-observation identity while operation identity deduplicates only that case's retries; selected existing attendance routes to correction/conflict; changed base becomes stale; provenance is durable; result follows GAP-025. |
-| Reliability | Identical retry/idempotency and payload-mismatch behavior; concurrent proposals have one winner; two independent distinct-new cases at candidate-set generation `N` share the House + employee + work-date guard, exactly one may commit at `N`, and the other becomes stale; after re-adjudication at `N+1`, another legitimate same-day observation remains creatable; no employee/day or timestamp uniqueness; HR-4 decision races serialize; candidate-set check, fact/provenance creation, projection/revision maintenance, and generation advance commit or roll back atomically. |
+| Reliability | Cross-date cases for one employee at generation `N` cannot both commit; exactly one may advance to `N+1`, while the other becomes stale. Corrections entering or leaving a candidate range and relevant same-day changes advance the shared employee generation. Existing-fact correction satisfies both per-fact CAS and shared generation. Re-adjudication permits genuine additional same-day/different-day, consecutive-day, overnight, or cross-midnight attendance. No employee/day, date/time, timestamp, reporting-bucket, one-fact-per-day, or cross-day-merge uniqueness shortcut. Shared validation, mutation, lineage, Gate-A maintenance, and generation advance commit or roll back atomically. |
 | No-leak/UI | Hidden/absent/wrong-House/wrong-branch outcomes, counts, error bodies, redirects, controls, cache revalidation, logs, and practical timing do not form an oracle; limited users never receive source/evidence/correction/audit/approval metadata; no missing-fact control or DEC-012/013 path exists. |
 | DB/API parity | Reset applies cleanly; constraints/triggers/RLS/grants/function owner/search path are inspected; direct authenticated PostgREST `INSERT`/`UPDATE`/`DELETE` deny bypass; service-role bulk cannot delete/reinsert, kiosk cannot open/close, and admin/background/repair/replay cannot mutate protected state outside the command; any remaining raw writer is database-proven disjoint; CAS/lineage govern every producer; no projection-invisible competing fact; schema cache reload is verified. |
 
@@ -527,6 +555,10 @@ schema-cache/direct-PostgREST bypass verification. This PR executes no SQL or re
 
 - Deployment parity remains unknown; future implementation must inspect actual migrated
   schema and production-like RLS/grants rather than infer them from repository files.
+- A work-date-only candidate guard is insufficient because value correction may preserve
+  logical fact identity while moving timestamps/calendar/reporting buckets. All relevant
+  candidate-universe mutations need the shared employee domain plus deterministic future
+  lock ordering; the physical generation/lock representation remains unselected.
 - Existing segments lack universal deterministic observation identity and attribution.
   Bootstrap must mark ambiguity/unattributed state honestly; it cannot fabricate branch
   from assignment. Rows that cannot be safely bound remain fail-closed.
@@ -573,15 +605,16 @@ implementation.
 - **Base Branch:** `develop`
 - **Hosted State at Verification:** open; merged false; mergeable true; seven changed files
 - **Local Completion SHA:** Pending until this documentation commit is created; report in local handoff
-- **Previously Observed Hosted Head SHA:** `40836a9e92809892387a582f4e3ac52d2389d2a3`
+- **Previously Observed Hosted Head SHA:** `6497a264c3429c88b0076f73aa525c5c2bb6f5a3`
 - **New Post-Correction Hosted Head SHA:** Pending — not yet independently verified after hosting
-- **Hosted Review Evidence:** unresolved `discussion_r3998654701` and
-  `discussion_r3998654707` independently observed before this correction
+- **Hosted Review Evidence:** unresolved `discussion_r3998686230` independently observed
+  before this correction
 - **Post-Correction Hosted Diff / CI / Final Review / Merge State:** Pending — requires
   independent re-verification after hosting
 - **Original DEC-017/DEC-018 Correction Start:** `2c46bc6b955d5414fafc74fd63b3a60f4330166b`
 - **Fresh P1 Correction Starting Head:** `35f4c160e4125a0b0dbb5220b02495076ec41806`
 - **Shared-Serialization Correction Starting Head:** `8eb2777dd9a6962079da74e13d7d6d399ed6df8f`
+- **Cross-Day Candidate-State Correction Starting Head:** `4bead8c22656114d5a4121634de431671ac86009`
 - **Canonical Documents Read:** `AGENTS.md`; `docs/hr/AGENTS.md`;
   `agui-development-operating-principles.md`;
   `agui-starter/docs/agui-dev-process-codex-guidelines.md`;
@@ -604,8 +637,9 @@ implementation.
   unknown; shared authenticated and service-role raw DML plus browser, bulk, kiosk, and
   operational mutators must be command-migrated or database-disjoint before P1
 - **Tests / Checks:** documentation scope/diff, relative links, sequencing, protected
-  state, shared-role/service-role containment, all-mutator inventory, database-disjoint
-  enforcement, Gate-E distinction, DEC-018 preservation, phase/posture, and non-authorization
+  state, employee-wide candidate generation, cross-date cases, correction bucket moves,
+  dual CAS/generation atomicity, lock ordering, DEC-017/raw-mutator preservation,
+  hosted-evidence separation, phase/posture, and non-authorization
 - **Known Limitations:** the new hosted head/diff/checks/final review/merge state and
   Project Control update remain pending; no runtime, database, or production-like
   verification performed
@@ -619,7 +653,7 @@ implementation.
   then resolved under explicit scope expansion; no further current canonical contradiction found
 
 This payload combines independently supplied hosted evidence through head
-`40836a9e92809892387a582f4e3ac52d2389d2a3` with a newer local correction. It does not
+`6497a264c3429c88b0076f73aa525c5c2bb6f5a3` with a newer local correction. It does not
 infer that local completion is hosted. The explicitly pending post-correction fields must
 be independently re-verified, and the payload does not itself update the Agui Project
 Control Center.
