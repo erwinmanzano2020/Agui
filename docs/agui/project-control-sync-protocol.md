@@ -68,7 +68,7 @@ If authorized work introduces or discovers behavior, a limitation, workaround, r
 
 ## 7. Completion Handoff
 
-For material work, produce a **Control Center Sync Payload** containing:
+For material work completed locally, produce a **staged/pre-host Control Center Sync Payload** containing the following fields:
 
 - Project / Phase
 - Gate / Slice
@@ -95,7 +95,9 @@ For material work, produce a **Control Center Sync Payload** containing:
 - Scope Deviations
 - Stop Conditions Encountered
 
-The payload is a handoff record; it does not itself update the Project Control Center. A local SHA is local evidence only. A hosted head SHA requires independent hosted verification, and Codex must not claim verification it did not perform.
+Populate every field knowable from local and canonical evidence. When hosted PR facts are unavailable, explicitly mark `PR Number / URL` and `Hosted Head SHA` as **Pending — not yet independently verified**. Do not guess those values, infer them from a local SHA, or represent them as verified facts. Other hosted-only facts must likewise remain explicitly pending until independently observed.
+
+The staged payload is sufficient for the local completion handoff, but it is not the finalized hosted payload. The payload does not itself update the Project Control Center. A local SHA is local evidence only and does not prove any hosted state.
 
 ## 8. Hosted Verification Procedure
 
@@ -108,6 +110,8 @@ After a PR is hosted and before any merge recommendation:
 5. Review material findings and unresolved threads without resolving or dismissing them without authority.
 6. Verify CI/check results and merge state.
 7. Record only independently observed hosted facts in the sync payload.
+
+After completing the applicable steps, replace pending hosted fields only with the independently observed GitHub facts. The Control Center Sync Payload becomes final only when all applicable hosted verification is complete; until then it remains staged or partially verified.
 
 Opening a PR, requesting review, resolving threads, and merging are distinct actions. Owner-controlled review and merge are preserved.
 

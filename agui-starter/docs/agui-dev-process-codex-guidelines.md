@@ -70,11 +70,11 @@ Verify:
 - documentation alignment;
 - applicable checks and their actual results;
 - absence of hidden scope expansion; and
-- a complete Control Center Sync Payload for material work.
+- for material work, a staged/pre-host Control Center Sync Payload complete for every locally knowable field, with unavailable hosted-only fields explicitly pending as defined by the sync protocol.
 
 ### After Hosting
 
-Independently verify the exact hosted head, diff, reviews, and CI/checks before recommending merge. A local SHA is local evidence only; it is not proof of hosted state. Review and merge remain owner-controlled.
+Finalize the sync payload using an independently verified PR Number / URL, Hosted Head SHA, hosted diff, reviews, CI/checks, and other applicable hosted facts. A local SHA is local evidence only; it is not proof of hosted state. Do not recommend merge before applicable hosted verification is complete. Review and merge remain owner-controlled.
 
 ## DB/API Access Rules
 
