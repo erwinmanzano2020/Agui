@@ -16,7 +16,7 @@ from clean local branch `work` at `2c46bc6b955d5414fafc74fd63b3a60f4330166b`, wh
 parent is that expected base and whose latest commit is the existing GAP-029 PR work. The
 owner-side hosted verification subsequently confirmed open, unmerged, mergeable PR #509
 against `develop`, with seven files and hosted head
-`6497a264c3429c88b0076f73aa525c5c2bb6f5a3` before this correction. A new hosted head
+`b143986cb45eed0da7ed887b468fe64a0c377b2b` before this correction. A new hosted head
 for the local correction remains pending independent observation; it is not inferred from
 the local SHA. No newer local governing conflict exists within the authorized scope.
 
@@ -342,12 +342,26 @@ candidate-set base/generation sufficient for stale detection. Because this actor
 legitimate House-wide attendance visibility, the protected house-global reader may return
 applicable candidate facts for explicit adjudication.
 
+Before **distinct new** is available, the canonical remediation resolver must establish
+complete authoritative candidate coverage for the claimed observation. It must either
+consider and make available every canonical fact that could plausibly represent that
+observation under approved identity/lineage rules, or deterministically prove in canonical
+server/database logic that each omitted fact cannot represent it. Proposed date, adjacent
+dates, employee/day, and exact/approximate timestamps are search hints only—not proof of
+completeness or identity.
+
+Inability to establish complete coverage is a dependency failure, not evidence of a new
+observation: distinct-new remains unavailable, no fact is created, no absence is inferred,
+and remediation stays unresolved until the resolver is safely callable. No date-window
+fallback is permitted.
+
 ### Explicit adjudication
 
 - **Existing — “same attendance / belongs to an existing fact”:** create no new fact;
   bind the case to the selected canonical fact and enter correction/conflict semantics.
-- **Distinct new — “genuinely separate missing attendance observation”:** the adjudicated
-  case becomes the durable manual-observation/remediation identity eligible for creation.
+- **Distinct new — “genuinely separate missing attendance observation”:** available only
+  after complete authoritative candidate resolution; the adjudicated case then becomes
+  the durable manual-observation/remediation identity eligible for creation.
 
 The system cannot infer distinct-new because no timestamp-exact match exists. Multiple
 same-day segments remain valid.
@@ -366,10 +380,13 @@ conservative. Its generation spans every date/day bucket for that employee. It i
 concurrency and stale-adjudication scope—not attendance identity, employee uniqueness,
 one record per employee, or one fact per day.
 
-The candidate display may remain narrowly bounded to the proposed date, adjacent relevant
-dates, facts selected by the canonical remediation reader, or another permitted minimum
-view. Employee-wide mutation versioning does not authorize broad historical UI
-enumeration or weaken no-leak/minimum-disclosure rules.
+Presentation may remain minimal and bounded, and the resolver may inspect broader
+House-visible employee attendance internally. But every omitted fact must be
+deterministically excluded as a plausible same-observation candidate; otherwise
+distinct-new is unavailable. A plausible omitted candidate must be presented with enough
+minimum information for explicit adjudication. Complete authority does not require a
+giant history UI and does not authorize cross-House access, branch-limited exposure,
+unnecessary enumeration, or weakened minimum-disclosure/no-leak rules.
 
 A case retains the shared employee attendance-generation/base token observed during
 adjudication. Under the shared guard, the command reloads the authoritative candidate
@@ -391,6 +408,19 @@ CAS, mutates the fact, records correction/provenance lineage, maintains Gate-A
 authority/projection, and advances the shared generation; all commit or all roll back.
 Never mutate then bump later, rely on eventual invalidation, insert then detect, use
 latest-write-wins, or infer timestamp uniqueness.
+
+Candidate resolution and shared generation answer different questions and both are
+required. The resolver answers which existing facts could represent the claimed
+observation; the generation answers whether the authoritative universe changed after
+that complete adjudication. Completeness without generation is race-prone. Generation
+without completeness can preserve an omission while remaining unchanged.
+
+Example: a same-observation fact is stored under Sept 3 because its date/timestamp is
+wrong, while the owner claims missing Sept 6 attendance. A Sept 6/adjacent-date resolver
+could omit the Sept 3 fact, and the employee generation would still be unchanged because
+the fact predated adjudication. Unchanged generation therefore does not prove candidate
+completeness. The resolver must surface the Sept 3 fact as a candidate or deterministically
+prove it cannot be the claimed observation before distinct-new becomes eligible.
 
 This narrow case lifecycle is not general case management and selects no branch-limited,
 DEC-012/013, kiosk, bulk/import, schedule, attachment, notification, or escalation flow.
@@ -513,8 +543,9 @@ At Step 3, **Historical Daily DTR Write P1 becomes safely implementable/callable
 | Existing-fact integrity | Historical path cannot issue a destructive direct update; before/base, proposal, corrected/current, reason, actor, and timestamps remain traceable; pending/rejected do not alter active state; finalization revalidates and alone activates; stale cannot finalize. |
 | Existing-fact scope | Branch-limited correction only for a currently visible `ATTRIBUTED` fact in `allowedBranchIds`; current assignment grants nothing; hidden other-branch, `UNATTRIBUTED`, `CONFLICT`, zero scope, and cross-House deny; owner/manager breadth works without bypass; denial exposes no metadata. |
 | Location | Branch-limited actor cannot directly relocate; initial non-payroll location finalizer is owner/manager-only; target branch gains visibility only after successful finalization; old attribution remains audit history; payroll-impacting location cannot finalize or become payroll-ready without exact HR-4 approval. |
-| Owner/manager create | Only legitimate house-wide owner/manager; explicit actual-attendance branch and reason mandatory; no current-assignment substitution; employee/branch same-House; DEC-018 adjudication establishes remediation/manual-observation identity while operation identity deduplicates only that case's retries; selected existing attendance routes to correction/conflict; changed base becomes stale; provenance is durable; result follows GAP-025. |
+| Owner/manager create | Only legitimate house-wide owner/manager; explicit actual-attendance branch and reason mandatory; no current-assignment substitution; employee/branch same-House; distinct-new is unavailable unless authoritative resolution returns every plausible same-observation fact or deterministically excludes every omission; selected existing attendance routes to correction/conflict; DEC-018 adjudication establishes remediation/manual-observation identity while operation identity deduplicates only that case's retries; changed generation becomes stale; provenance is durable; result follows GAP-025. |
 | Reliability | Cross-date cases for one employee at generation `N` cannot both commit; exactly one may advance to `N+1`, while the other becomes stale. Corrections entering or leaving a candidate range and relevant same-day changes advance the shared employee generation. Existing-fact correction satisfies both per-fact CAS and shared generation. Re-adjudication permits genuine additional same-day/different-day, consecutive-day, overnight, or cross-midnight attendance. No employee/day, date/time, timestamp, reporting-bucket, one-fact-per-day, or cross-day-merge uniqueness shortcut. Shared validation, mutation, lineage, Gate-A maintenance, and generation advance commit or roll back atomically. |
+| Candidate completeness | A wrong-date same-observation fact outside the displayed range is returned or deterministically excluded; incomplete resolution disables distinct-new and creates nothing; complete resolution plus explicit distinct-new plus unchanged employee generation may create; changed generation requires re-adjudication; nearby legitimate facts are not collapsed; no date/timestamp uniqueness. |
 | No-leak/UI | Hidden/absent/wrong-House/wrong-branch outcomes, counts, error bodies, redirects, controls, cache revalidation, logs, and practical timing do not form an oracle; limited users never receive source/evidence/correction/audit/approval metadata; no missing-fact control or DEC-012/013 path exists. |
 | DB/API parity | Reset applies cleanly; constraints/triggers/RLS/grants/function owner/search path are inspected; direct authenticated PostgREST `INSERT`/`UPDATE`/`DELETE` deny bypass; service-role bulk cannot delete/reinsert, kiosk cannot open/close, and admin/background/repair/replay cannot mutate protected state outside the command; any remaining raw writer is database-proven disjoint; CAS/lineage govern every producer; no projection-invisible competing fact; schema cache reload is verified. |
 
@@ -559,6 +590,11 @@ schema-cache/direct-PostgREST bypass verification. This PR executes no SQL or re
   logical fact identity while moving timestamps/calendar/reporting buckets. All relevant
   candidate-universe mutations need the shared employee domain plus deterministic future
   lock ordering; the physical generation/lock representation remains unselected.
+- Generation alone cannot reveal a candidate omitted before the base was captured.
+  Distinct-new therefore also depends on complete canonical candidate resolution; a
+  static date window is not sufficient unless canonical logic can prove every omitted
+  fact cannot be the same observation. The physical resolution algorithm remains
+  unselected.
 - Existing segments lack universal deterministic observation identity and attribution.
   Bootstrap must mark ambiguity/unattributed state honestly; it cannot fabricate branch
   from assignment. Rows that cannot be safely bound remain fail-closed.
@@ -572,7 +608,10 @@ schema-cache/direct-PostgREST bypass verification. This PR executes no SQL or re
 
 **No new owner semantic decision is required.** This is the security interpretation
 necessary to make already-approved DEC-017 non-bypassable; it is not DEC-019. DEC-018
-remains unchanged and settles initial owner/manager manual-remediation identity. Universal kiosk,
+remains unchanged and settles initial owner/manager manual-remediation identity. Its
+explicit genuinely-distinct determination inherently requires complete canonical
+candidate evidence; allowing distinct-new from knowingly incomplete evidence would
+contradict DEC-018 rather than implement it. Universal kiosk,
 bulk/import, and general event identity remain intentionally unselected. Exact
 Gate-A/Gate-B physical names, signatures, ownership, locks, privilege rollout, and bounded
 error encoding remain future implementation details requiring separate authorization.
@@ -603,18 +642,20 @@ implementation.
 - **PR Number / URL:** [PR #509](https://github.com/erwinmanzano2020/Agui/pull/509) —
   independently verified in `erwinmanzano2020/Agui`
 - **Base Branch:** `develop`
+- **Expected Hosted Base SHA:** `f989588ae5408bbd13ec17a99160b15a1ea9538b`
 - **Hosted State at Verification:** open; merged false; mergeable true; seven changed files
 - **Local Completion SHA:** Pending until this documentation commit is created; report in local handoff
-- **Previously Observed Hosted Head SHA:** `6497a264c3429c88b0076f73aa525c5c2bb6f5a3`
+- **Previously Observed Hosted Head SHA:** `b143986cb45eed0da7ed887b468fe64a0c377b2b`
 - **New Post-Correction Hosted Head SHA:** Pending — not yet independently verified after hosting
-- **Hosted Review Evidence:** unresolved `discussion_r3998686230` independently observed
-  before this correction
+- **Hosted Review Evidence:** unresolved `discussion_r3998737152` and
+  `discussion_r3998737158` independently observed before this correction
 - **Post-Correction Hosted Diff / CI / Final Review / Merge State:** Pending — requires
   independent re-verification after hosting
 - **Original DEC-017/DEC-018 Correction Start:** `2c46bc6b955d5414fafc74fd63b3a60f4330166b`
 - **Fresh P1 Correction Starting Head:** `35f4c160e4125a0b0dbb5220b02495076ec41806`
 - **Shared-Serialization Correction Starting Head:** `8eb2777dd9a6962079da74e13d7d6d399ed6df8f`
 - **Cross-Day Candidate-State Correction Starting Head:** `4bead8c22656114d5a4121634de431671ac86009`
+- **Candidate-Completeness Correction Starting Head:** `4cf5d37f1fe6898924006fcac9eae8d7b423156c`
 - **Canonical Documents Read:** `AGENTS.md`; `docs/hr/AGENTS.md`;
   `agui-development-operating-principles.md`;
   `agui-starter/docs/agui-dev-process-codex-guidelines.md`;
@@ -653,7 +694,7 @@ implementation.
   then resolved under explicit scope expansion; no further current canonical contradiction found
 
 This payload combines independently supplied hosted evidence through head
-`6497a264c3429c88b0076f73aa525c5c2bb6f5a3` with a newer local correction. It does not
+`b143986cb45eed0da7ed887b468fe64a0c377b2b` with a newer local correction. It does not
 infer that local completion is hosted. The explicitly pending post-correction fields must
 be independently re-verified, and the payload does not itself update the Agui Project
 Control Center.

@@ -1008,7 +1008,11 @@ generation validation; a per-fact revision alone is insufficient for remediation
 staleness across buckets.
 
 This is concurrency control, not attendance or employee uniqueness. Candidate display may
-remain narrowly date-bounded without authorizing broad enumeration. Multiple genuine
+remain narrowly bounded without authorizing broad enumeration only when authoritative
+resolution has considered every plausibly same-observation fact and canonical logic
+deterministically excludes every omitted fact. An omitted plausible fact makes
+distinct-new unavailable; an unchanged generation cannot prove that an earlier candidate
+view was complete. Multiple genuine
 same-day, consecutive-day, overnight, and cross-midnight facts remain allowed after
 explicit re-adjudication; employee/day, employee/date/time, exact/approximate timestamp,
 and reporting bucket never become uniqueness keys. GAP-025's existing rule remains:
@@ -1016,6 +1020,13 @@ timestamp correction may move calendar/reporting buckets while preserving logica
 identity through deterministic observation lineage, not date. Physical lock ordering,
 table, column, generation, or RPC design remains unselected, but future implementation
 must prove deterministic deadlock-free ordering and atomic invalidation.
+
+This completeness rule does not alter fact identity. Proposed work date, adjacent-date
+windows, and exact/approximate timestamps remain search hints rather than semantic
+completeness. A wrong-date fact outside the displayed range must be surfaced or
+deterministically excluded if it could be the same observation. The resolver may inspect
+broader House-visible canonical state while presenting only the minimum facts needed for
+owner/manager adjudication; it must not expose cross-House or branch-limited data.
 
 DEC-018 does not select kiosk duplicate/replay identity, general event identity, or
 bulk/import identity; kiosk remains unselected unless separately approved and bulk/import

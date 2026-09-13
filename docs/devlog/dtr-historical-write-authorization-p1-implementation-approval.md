@@ -318,11 +318,20 @@ reason, actor, durable case identity, and shared candidate-set base/generation. 
 actor has legitimate house-wide attendance visibility, applicable House-visible
 candidate facts may be evaluated.
 
+Before distinct-new adjudication is eligible, the canonical resolver must establish
+complete authoritative candidate coverage: every fact that could plausibly be the claimed
+observation under approved identity/lineage rules is made available, or every omitted
+fact is deterministically excluded by canonical server/database logic. A bounded display
+is acceptable only under that condition. Date windows and exact/approximate timestamps
+are hints, never completeness or identity. If complete resolution is unavailable,
+distinct-new fails closed, no creation occurs, and remediation remains unresolved.
+
 The actor must explicitly adjudicate either:
 
 1. **Existing fact:** the intended attendance is the same attendance or belongs to a
    selected existing fact; create nothing and enter correction/conflict semantics; or
-2. **Distinct new:** the intended attendance is a genuinely separate missing observation;
+2. **Distinct new:** after complete authoritative candidate resolution, the intended
+   attendance is a genuinely separate missing observation;
    the adjudicated case receives durable manual-observation/remediation-case identity and
    may proceed through canonical creation/finalization.
 
@@ -339,8 +348,10 @@ Every canonical attendance mutation capable of changing the remediation candidat
 universe must serialize in a shared **House + employee attendance-mutation domain**, or a
 future database mechanism proven equally conservative, even when no fact exists yet and
 across all dates/day buckets. The case retains that shared employee generation/base.
-Candidate display may remain date-bounded; broad mutation versioning neither authorizes
-broad UI enumeration nor weakens no-leak rules.
+Candidate display may remain date-bounded only when canonical resolution has considered
+all plausible same-observation facts and deterministically excludes every omission;
+broad mutation versioning neither authorizes broad UI enumeration nor weakens no-leak
+rules.
 
 Distinct-new creation participates. Existing-fact correction/finalization also
 participates whenever timestamps, work date, reporting bucket, values, observation
@@ -365,6 +376,13 @@ prove no deadlock, stale commit, cross-day race, or CAS bypass. Shared-base vali
 per-fact CAS, fact/correction mutation, lineage, Gate-A authority/projection maintenance,
 and generation advance commit atomically or all roll back. No mutate-then-bump, eventual
 invalidation, insert-then-detect, or latest-write-wins is allowed.
+
+Complete candidate resolution and shared generation are both mandatory. The resolver
+establishes what existing facts could already represent the claim; the employee-wide
+generation detects changes after that adjudication. An unchanged generation cannot cure
+an earlier omission. For example, a same-observation fact incorrectly stored on Sept 3
+must be surfaced or deterministically excluded before an owner claiming Sept 6 attendance
+may choose distinct-new, even if the fact existed before the captured generation.
 
 This is the minimum integrity lifecycle, not a generalized case-management product. It
 selects no requester inbox, attachment, withdrawal, escalation, kiosk, bulk/import, or
