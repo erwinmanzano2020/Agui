@@ -314,6 +314,12 @@ remains blocked until P1 and all other required active producers are
 compatible and verified. This amendment does not fold P1 into Gate A, reorder GAP-024's
 A → B → C → D → E gates, or authorize runtime.
 
+That Gate-B prerequisite may include separately authorized scoped revocation, removal,
+constraint, or database-bounding of direct mutation authority over P1-covered state—for
+example, bounding shared `authenticated` DML after every dependent writer migrates, or
+containing an overlapping `service_role` writer. It does not perform Gate E's final broad
+raw/base-access security cutover, migrate all readers, or imply Gate-E completion.
+
 ## 4.1 DEC-018 owner/manager missing-fact identity amendment
 
 **Owner-approved 2026-09-13; narrow to the initial DEC-014 path.** Before canonical

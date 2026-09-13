@@ -16,7 +16,7 @@ from clean local branch `work` at `2c46bc6b955d5414fafc74fd63b3a60f4330166b`, wh
 parent is that expected base and whose latest commit is the existing GAP-029 PR work. The
 owner-side hosted verification subsequently confirmed open, unmerged, mergeable PR #509
 against `develop`, with seven files and hosted head
-`daca2934203040bbebc39ad52862cf8028be3b23` before this correction. A new hosted head
+`95c36c1a53a3c1a964afb1c4015ac6b42668a3d4` before this correction. A new hosted head
 for the local correction remains pending independent observation; it is not inferred from
 the local SHA. No newer local governing conflict exists within the authorized scope.
 
@@ -243,11 +243,13 @@ non-bypass guarantee. `SECURITY INVOKER` alone is insufficient.
 
 Before P1, direct bypass must be impossible for P1-covered attendance state across every
 database principal capable of reaching it. Protected state is not limited to P1-created
-rows: it includes every canonical attendance fact whose values, lineage, revision,
-attribution, projection, or finalization can affect or be affected by P1. No raw writer
-may overwrite, delete/recreate, replace segments, mutate without CAS, reattribute without
-provenance, create competing projection-invisible facts, invalidate lineage, or silently
-supersede that state.
+rows: it includes canonical facts; integrity-eligible associated or unassociated
+observations/evidence; lineage/revision, association/pairing/canonicalization, semantic
+evidence-basis, candidate/evidence-generation, projection, and finalization state that can
+affect or be affected by P1. No raw writer may overwrite, delete/recreate, replace
+segments, mutate without CAS, reattribute without provenance, create competing
+projection-invisible facts, invalidate lineage, bypass evidence-generation maintenance,
+or silently supersede that state.
 
 For every capable principal, either the writer uses the canonical command and cannot
 perform bypassing table DML, or the database provably enforces a disjoint write domain
@@ -256,7 +258,8 @@ trusted-code promise is insufficient. Because multiple producers share `authenti
 producer-by-producer application migration is not enough while that PostgreSQL role
 retains unrestricted `INSERT`/`UPDATE`/`DELETE` reaching protected rows. Gate B must
 remove/bound shared raw DML after all dependent authenticated writers migrate or establish
-a safe database-enforced domain distinction.
+a safe database-enforced domain distinction. This is permitted and required **scoped
+mutation-authority containment**, not the final broad Gate-E cutover.
 
 `service_role` bypasses RLS. Therefore service-backed bulk delete/reinsert, kiosk
 open/close, admin/background, repair, and replay/sync paths capable of reaching protected
@@ -265,9 +268,26 @@ and trusted server code do not prove containment. Do not revoke globally in a wa
 silently breaks dependencies, but do not enable P1 until every overlapping principal is
 contained.
 
-This pre-P1 scoped write-integrity containment is distinct from Gate E's final broad
-raw/base-access revocation. Gate E remains last after all readers, consumers, producers,
+Gate-B scoped containment may revoke direct table `INSERT`, `UPDATE`, or `DELETE`; narrow
+DML grants/policies; require the hardened command; migrate a service-role writer; or
+database-bound a provably disjoint mutation domain. It must prevent raw delete/reinsert
+and bypass of fact/value CAS, semantic evidence-basis maintenance, lineage/provenance,
+attribution, candidate/evidence generation, projection, and correction/finalization.
+Each change requires a separately authorized implementation slice; this PR performs none.
+
+This pre-P1 scoped write-integrity containment is distinct from Gate E's **final broad
+raw/base-access security cutover**. Gate B does not automatically retire every raw/base
+read, legacy read consumer, unrelated permission, proven-disjoint domain, diagnostic
+path, or system-wide interface. Gate E remains last after all readers, consumers,
+producer dispositions, payroll/payslip parity, repair/operations, deployed grants/RLS,
 rollback behavior, and operational cutover are complete.
+
+Example: once Daily DTR and every other authenticated producer needing overlapping DML
+have migrated, Gate B may remove/bound `authenticated` direct `UPDATE` over P1-covered
+attendance and mandate the command. Raw read consumers, payroll-reader cutover, and
+repair/runbook read disposition can remain for Gates D/E. A remaining raw writer need not
+be revoked solely for P1 only when database enforcement and tests prove it cannot touch
+P1-covered facts, evidence, attribution, correction/finalization, or remediation state.
 
 Conceptual P1 commands remain proposed—not implemented or signature-frozen:
 
@@ -574,8 +594,9 @@ required active producer.
 
 GAP-029 creates no competing authority or projection. Its future correction/provenance
 records are compatible because they attach to Gate-A fact/revision identity. P1 is not
-folded into Gate A or promoted to a new GAP-024 gate. Gate E's final broad revocation
-remains distinct from per-writer bypass containment required during Gate B.
+folded into Gate A or promoted to a new GAP-024 gate. Gate E's final broad raw/base-access
+security cutover remains distinct from scoped mutation-authority containment required
+during Gate B; P1 readiness does not imply Gate-E completion.
 
 ## 16. Proposed future implementation sequence
 
@@ -636,7 +657,9 @@ At Step 3, **Historical Daily DTR Write P1 becomes safely implementable/callable
 | Revision separation | Value-only correction may advance `V12 → V13` while semantic basis `E7` remains equivalent and an `E7` location proposal remains eligible for ordinary revalidation; a material GAP-025 input change advances `E7 → E8` and stales the `E7` proposal; a value proposal fails when its required value CAS changes; a combined proposal validates both bases; candidate/evidence generation may advance independently when coverage changes. |
 | HR-4 exact approval | A payroll-impacting proposal cannot reuse approval when the immutable proposal/value/evidence base actually approved is no longer the one finalized, even if location evidence is unchanged. |
 | No-leak/UI | Hidden/absent/wrong-House/wrong-branch outcomes, counts, error bodies, redirects, controls, cache revalidation, logs, and practical timing do not form an oracle; limited users never receive source/evidence/correction/audit/approval metadata; no missing-fact control or DEC-012/013 path exists. |
-| DB/API parity | Reset applies cleanly; constraints/triggers/RLS/grants/function owner/search path are inspected; direct authenticated PostgREST `INSERT`/`UPDATE`/`DELETE` deny bypass; service-role bulk cannot delete/reinsert, kiosk cannot open/close, and admin/background/repair/replay cannot mutate protected state outside the command; any remaining raw writer is database-proven disjoint; CAS/lineage govern every producer; no projection-invisible competing fact; schema cache reload is verified. |
+| Pre-P1 write containment | Direct authenticated PostgREST `INSERT`/`UPDATE`/`DELETE` cannot bypass protected state; overlapping `service_role`, bulk, kiosk, admin/background/repair/replay paths cannot bypass; any remaining raw writer is database-proven disjoint; protected facts/evidence cannot mutate without CAS, evidence/lineage, projection, and candidate/evidence maintenance; command-only mutation works. |
+| Gate-E cutover | Separately prove every residual raw/base reader and producer has migrated/retired disposition, obsolete grants/interfaces are removed, operational/repair paths are migrated, payroll/payslip and no-leak parity pass, deployed RLS/grants are correct, and rollback cannot restore insecure access. Gate-B verification is not Gate-E completion. |
+| DB/API parity | Reset applies cleanly; constraints/triggers/RLS/grants/function owner/search path are inspected; any database-disjoint claim is tested; schema cache reload is verified. |
 
 Tests must also prove same-logical-observation time changes retain identity but still add
 lineage; changing observation membership never inherits attribution mechanically; a
@@ -693,9 +716,9 @@ schema-cache/direct-PostgREST bypass verification. This PR executes no SQL or re
   if separately authorized, but cannot finalize until a safely callable HR-4 decision for
   the exact proposal/base exists. The P1 must expose no bypass.
 - Removing direct-table bypass may affect active producers. Gate B must inventory
-  grants/policies and transition privileges producer by producer without silently
-  breaking kiosk, bulk/import, service/background, replay, or repair writers. Gate E's
-  final broad revocation remains last.
+  grants/policies and perform only required scoped mutation-authority transition without
+  silently breaking kiosk, bulk/import, service/background, replay, or repair writers.
+  Gate E's final broad raw/base-access security cutover remains last.
 
 **No new owner semantic decision is required.** Separating revision dependencies restores
 frozen GAP-025 semantics and introduces no DEC-019. This is also the security interpretation
@@ -738,9 +761,9 @@ implementation.
 - **Expected Hosted Base SHA:** `f989588ae5408bbd13ec17a99160b15a1ea9538b`
 - **Hosted State at Verification:** open; merged false; mergeable true; seven changed files
 - **Local Completion SHA:** Pending until this documentation commit is created; report in local handoff
-- **Previously Observed Hosted Head SHA:** `daca2934203040bbebc39ad52862cf8028be3b23`
+- **Previously Observed Hosted Head SHA:** `95c36c1a53a3c1a964afb1c4015ac6b42668a3d4`
 - **New Post-Correction Hosted Head SHA:** Pending — not yet independently verified after hosting
-- **Hosted Review Evidence:** unresolved `discussion_r3998828739` independently observed
+- **Hosted Review Evidence:** unresolved `discussion_r3998908926` independently observed
   before this correction
 - **Post-Correction Hosted Diff / CI / Final Review / Merge State:** Pending — requires
   independent re-verification after hosting
@@ -751,6 +774,7 @@ implementation.
 - **Candidate-Completeness Correction Starting Head:** `4cf5d37f1fe6898924006fcac9eae8d7b423156c`
 - **Revision-Separation Correction Starting Head:** `afe17e5288922fd31792b1e18175f5b5b5dc3767`
 - **Unresolved-Evidence Coverage Correction Starting Head:** `6d1bf93962909367faab8ea9c87c8398ae56aeba`
+- **Gate-B/Gate-E Reconciliation Starting Head:** `f4a4a7175d105bbe9c232a0e813deff3d168ed46`
 - **Canonical Documents Read:** `AGENTS.md`; `docs/hr/AGENTS.md`;
   `agui-development-operating-principles.md`;
   `agui-starter/docs/agui-dev-process-codex-guidelines.md`;
@@ -789,7 +813,7 @@ implementation.
   then resolved under explicit scope expansion; no further current canonical contradiction found
 
 This payload combines independently supplied hosted evidence through head
-`daca2934203040bbebc39ad52862cf8028be3b23` with a newer local correction. It does not
+`95c36c1a53a3c1a964afb1c4015ac6b42668a3d4` with a newer local correction. It does not
 infer that local completion is hosted. The explicitly pending post-correction fields must
 be independently re-verified, and the payload does not itself update the Agui Project
 Control Center.

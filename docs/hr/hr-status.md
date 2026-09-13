@@ -44,9 +44,9 @@ UI, repository, generated-type, test, or database work is authorized by PR #509.
 General HR feature work remains gated. HR remains the sole active phase; POS remains
 paused at merged PR #488. Owner-side verification observed PR #509 open, unmerged,
 mergeable, based on `develop`, at hosted head
-`daca2934203040bbebc39ad52862cf8028be3b23` before this correction, with expected hosted
+`95c36c1a53a3c1a964afb1c4015ac6b42668a3d4` before this correction, with expected hosted
 base `f989588ae5408bbd13ec17a99160b15a1ea9538b` and unresolved thread
-`discussion_r3998828739`. The newest local
+`discussion_r3998908926`. The newest local
 correction is not thereby hosted or reviewed; its hosted head, diff, checks, and review
 state remain pending re-verification. After hosting, the next action is a fresh Codex
 review of PR #509, not implementation.
@@ -67,7 +67,7 @@ not stabilize the daily DTR page's branch-limited read path. That page still use
 house-wide access and house/date reads without a complete approved branch-limited
 visibility path; production-like authorization/RLS verification also remains
 outstanding. GAP-024 planning is complete and Option D is approved, but no GAP-024
-runtime, migration, consumer cutover, no-leak verification, or raw-access revocation
+runtime, migration, consumer cutover, no-leak verification, or final broad raw/base-access cutover
 has occurred. `dtr_segments` has derived, not directly stored, branch scope, so
 segment enforcement remains unimplemented until bounded approved gates satisfy the
 GAP-025 temporal attribution contract. The monthly
@@ -104,8 +104,9 @@ closed and canonical. The owner resolved the plan's four decisions on 2026-09-10
    finalization/payroll-ready use; and
 4. Option D—durable evidence/revision/lineage authority, a rebuildable current
    authorization projection, and canonical authorized read boundaries—is approved for
-   staged Foundation Security Correction implementation, with raw/base access revocation
-   last.
+   staged Foundation Security Correction implementation, with the final broad
+   raw/base-access security cutover last; this does not prohibit DEC-017's earlier scoped
+   Gate-B mutation-authority containment.
 
 The
 [`GAP-024 Implementation Approval`](../devlog/gap-024-daily-dtr-branch-enforcement-implementation-approval.md)
@@ -114,8 +115,8 @@ Gate A authority/projection plus canonical branch-aware and house-global read-bo
 foundation; Gate B deterministic ingest/backfill/rebuild, interface validation, and
 ongoing canonical authority/projection maintenance by every active attendance producer;
 Gate C Daily DTR facts-only cutover using those already-established canonical readers;
-Gate D migration of every live read consumer; and Gate E final security cutover/raw-
-access revocation. Gate C must not cut over while any live producer can create raw-only
+Gate D migration of every live read consumer; and Gate E final broad raw/base-access
+security cutover. Gate C must not cut over while any live producer can create raw-only
 or projection-incompatible attendance. A component's writer compatibility may therefore
 be required in Gate B even when its unrelated reader migrates later in Gate D. A gate may
 be subdivided, but order and semantics cannot change.
@@ -555,7 +556,7 @@ GAP-025 contract. That historical block was valid then but is superseded as curr
 execution guidance by the 2026-09-10 GAP-024 implementation-governance approval recorded
 above, which supplies the required bounded gate. GAP-024 itself remains **OPEN and
 unimplemented** until its authorized runtime, migration, consumer-cutover, no-leak
-verification, and final raw-access revocation requirements are complete. GAP-026 remains
+verification, and final broad raw/base-access cutover requirements are complete. GAP-026 remains
 separately unauthorized unless independently approved.
 
 No GAP-024 or GAP-026 runtime, schema, migration, RLS/grant, RPC, API/UI, test,
