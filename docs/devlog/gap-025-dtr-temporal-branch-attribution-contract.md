@@ -997,6 +997,17 @@ employee/date/time, approximate timestamp matching, or absence of an exact match
 becomes automatic uniqueness. Multiple legitimate same-day segments remain valid. A
 material candidate/base revision change makes the case stale and requires re-adjudication.
 
+Enforcement of that unchanged DEC-018 rule requires a shared candidate-set serialization
+domain for potentially colliding creates even before a fact exists: at minimum House +
+employee + work date, or a database mechanism proven equivalently conservative. Each case
+retains the shared candidate-set generation/version/fingerprint it adjudicated. Creation
+reloads and compares the set under the guard; one commit advances the generation, making
+another case on the former generation stale. A stale case creates nothing until
+re-adjudicated. This is concurrency control, not attendance uniqueness: multiple genuine
+same-day segments remain allowed after explicit re-adjudication, and employee/day or
+exact/approximate timestamps never become a uniqueness key. Physical lock, table, column,
+or RPC design remains unselected.
+
 DEC-018 does not select kiosk duplicate/replay identity, general event identity, or
 bulk/import identity; kiosk remains unselected unless separately approved and bulk/import
 remains separately gated. It does not alter `ATTRIBUTED`, `UNATTRIBUTED`, `CONFLICT`,

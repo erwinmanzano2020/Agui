@@ -314,7 +314,7 @@ A → B → C → D → E gates, or authorize runtime.
 **Owner-approved 2026-09-13; narrow to the initial DEC-014 path.** Before canonical
 creation, a legitimate house-wide owner/manager starts a remediation case containing the
 House, employee, proposed values/context, explicit asserted actual-attendance branch,
-reason, actor, durable case identity, and candidate/base attendance revision. Because the
+reason, actor, durable case identity, and shared candidate-set base/generation. Because the
 actor has legitimate house-wide attendance visibility, applicable House-visible
 candidate facts may be evaluated.
 
@@ -334,6 +334,20 @@ attendance identity across independent cases nor makes a fresh request a new obs
 If candidate/base attendance state materially changes before creation/finalization, the
 case is stale and requires explicit re-adjudication against the new base. Latest-write-wins
 is prohibited.
+
+Every potentially colliding distinct-new create must serialize on a shared candidate-set
+domain even when no fact exists yet: at minimum House + employee + work date, or a future
+database mechanism proven equivalently conservative. Under that guard the command reloads
+the candidate set and compares its shared generation/version/fingerprint with the case's
+adjudicated base. A per-fact revision cannot provide this guarantee before a fact exists.
+If the set changed, the case creates nothing and requires re-adjudication. If unchanged,
+creation, provenance binding, Gate-A projection/revision maintenance, and candidate-set
+generation advance commit atomically before releasing the guard, or all roll back.
+
+This serialization does not make employee/day or any exact/approximate timestamp unique.
+For two independent distinct-new cases at generation `N`, A may commit and advance the
+set to `N+1`; B must then become stale. If B is truly another legitimate same-day segment,
+the owner may re-adjudicate B against `N+1` and again select distinct-new.
 
 This is the minimum integrity lifecycle, not a generalized case-management product. It
 selects no requester inbox, attachment, withdrawal, escalation, kiosk, bulk/import, or

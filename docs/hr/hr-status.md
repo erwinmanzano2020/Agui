@@ -22,9 +22,11 @@
 
 ## 2026-09-13 — GAP-029 planning and DEC-017/DEC-018 correction checkpoint
 
-**Status: PR #509 documentation/governance only; implementation not authorized.** The
-exact-base audit confirmed the Historical Daily DTR P1 dependencies. The owner then
-approved DEC-017 and DEC-018 to resolve PR #509 review findings. DEC-017 supersedes the
+**Status: PR #509 is the independently verified hosted documentation/governance
+correction stream; implementation not authorized.** The exact-base audit confirmed the
+Historical Daily DTR P1 dependencies. The owner approved DEC-017 and DEC-018 as durable
+repository decisions; those decisions also address previously verified review findings
+in the hosted PR stream. DEC-017 supersedes the
 previous P1-first sequence without changing GAP-024's internal A → B → C → D → E order.
 DEC-018 establishes explicit remediation-case adjudication and durable manual-observation
 identity only for the initial DEC-014 owner/manager missing-fact path.
@@ -40,8 +42,13 @@ projection-invisible attendance. No Gate A, Gate B, P1, migration, RPC, grant/RL
 UI, repository, generated-type, test, or database work is authorized by PR #509.
 
 General HR feature work remains gated. HR remains the sole active phase; POS remains
-paused at merged PR #488. After this correction is hosted, the next action is a fresh
-Codex review of PR #509, not implementation.
+paused at merged PR #488. Owner-side verification observed PR #509 open, unmerged,
+mergeable, based on `develop`, at hosted head
+`40836a9e92809892387a582f4e3ac52d2389d2a3` before this correction, with unresolved
+threads `discussion_r3998654701` and `discussion_r3998654707`. The newest local
+correction is not thereby hosted or reviewed; its hosted head, diff, checks, and review
+state remain pending re-verification. After hosting, the next action is a fresh Codex
+review of PR #509, not implementation.
 
 This is the canonical execution snapshot. The
 [`HR Master Plan`](./hr-master-plan.md) remains canonical for HR scope, frozen

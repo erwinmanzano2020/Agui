@@ -14,10 +14,11 @@ The original plan audited the expected base
 `f989588ae5408bbd13ec17a99160b15a1ea9538b`. This DEC-017/DEC-018 correction started
 from clean local branch `work` at `2c46bc6b955d5414fafc74fd63b3a60f4330166b`, whose
 parent is that expected base and whose latest commit is the existing GAP-029 PR work. The
-owner supplied `8d8047e877461724a0211626d2c55d5a47602c48` as the last independently
-verified hosted PR #509 head. This checkout exposes no remote, so that hosted head and
-its relationship to the locally reconstituted commit cannot be independently reconciled
-here. No newer local governing conflict exists after the authorized seven-file alignment.
+owner-side hosted verification subsequently confirmed open, unmerged, mergeable PR #509
+against `develop`, with seven files and hosted head
+`40836a9e92809892387a582f4e3ac52d2389d2a3` before this correction. A new hosted head
+for the local correction remains pending independent observation; it is not inferred from
+the local SHA. No newer local governing conflict exists within the authorized scope.
 
 **Corrected answer:** GAP-029 creates no parallel attendance authority. GAP-024 Gate A
 supplies canonical durable evidence/revision/lineage authority, authorization projection,
@@ -336,8 +337,8 @@ or second canonical attendance truth.
 
 A legitimate house-wide owner/manager initiates a DEC-018 remediation case containing
 House, employee, proposed attendance values/context, explicit asserted actual-attendance
-branch, creation/remediation reason, actor, durable case identity, and Gate-A
-candidate/base revision sufficient for stale detection. Because this actor already has
+branch, creation/remediation reason, actor, durable case identity, and the shared
+candidate-set base/generation sufficient for stale detection. Because this actor already has
 legitimate House-wide attendance visibility, the protected house-global reader may return
 applicable candidate facts for explicit adjudication.
 
@@ -359,11 +360,21 @@ not interchangeable: a fresh request UUID does not establish that a second case 
 observation and does not match two independent submissions. Employee/day,
 employee/date/time, approximate timestamps, or absence of a match is never uniqueness.
 
-At create/finalize time, the non-bypassable command locks and compares the case's Gate-A
-candidate/base revision. A material change makes the case stale; it cannot create and the
-owner/manager must re-adjudicate against the new base. Successful commit atomically binds
-manual provenance and current representation to Gate-A authority; rollback leaves no
-orphan fact/provenance. Latest-write-wins is prohibited.
+At create/finalize time, every potentially colliding canonical create must enter one
+shared candidate-set serialization domain. The minimum conceptual domain is House +
+employee + work date, or a database mechanism proven equivalently conservative. This is
+a lock/serialization scope, not attendance uniqueness; multiple legitimate facts and
+segments for the same employee/work date remain allowed.
+
+Under that guard, the command reloads the authoritative candidate set and compares its
+shared revision/generation/version/fingerprint with the case's adjudicated base. A
+per-fact revision is insufficient when no fact exists. If the candidate set materially
+changed, the case is stale, creates nothing, and requires owner/manager re-adjudication.
+If unchanged, normal DEC-018 validation may continue. Successful creation atomically
+binds the fact and provenance, maintains Gate-A projection/revision state, and advances
+the shared candidate-set generation before releasing the guard; every part commits or
+rolls back together. No latest-write-wins, insert-then-detect, or timestamp uniqueness is
+permitted.
 
 This narrow case lifecycle is not general case management and selects no branch-limited,
 DEC-012/013, kiosk, bulk/import, schedule, attachment, notification, or escalation flow.
@@ -393,9 +404,13 @@ withdrawal, attachment, escalation, or multi-level workflow is outside GAP-029.
   bounded result; key reuse with different payload fails.
 - Finalize retry is idempotent: the same correction already finalized to the same
   revision returns its prior safe result; it does not create another revision.
-- Missing-fact creation locks/uniquely claims its logical operation/observation before
-  inserting. A racing existing association wins or is detected; the losing create does
-  not duplicate and enters owner-visible correction/conflict handling.
+- Missing-fact creation uses the shared House + employee + work-date candidate-set guard
+  (or a proven conservative equivalent), not independent case IDs or a nonexistent fact
+  lock. Two distinct-new cases adjudicated at generation `N` serialize: A may commit and
+  atomically advance the set to `N+1`; B then observes `N+1`, creates nothing, becomes
+  stale, and requires re-adjudication. If B is genuinely another same-day observation,
+  the owner may adjudicate it distinct-new against `N+1` and later create it. Therefore
+  serialization is not uniqueness.
 - HR-4 decision is read and validated within the finalization transaction/locking
   protocol. A decision transition racing finalization has a deterministic serialization
   order; only the state visible under the locked validation may authorize commit.
@@ -471,7 +486,7 @@ At Step 3, **Historical Daily DTR Write P1 becomes safely implementable/callable
 | Existing-fact scope | Branch-limited correction only for a currently visible `ATTRIBUTED` fact in `allowedBranchIds`; current assignment grants nothing; hidden other-branch, `UNATTRIBUTED`, `CONFLICT`, zero scope, and cross-House deny; owner/manager breadth works without bypass; denial exposes no metadata. |
 | Location | Branch-limited actor cannot directly relocate; initial non-payroll location finalizer is owner/manager-only; target branch gains visibility only after successful finalization; old attribution remains audit history; payroll-impacting location cannot finalize or become payroll-ready without exact HR-4 approval. |
 | Owner/manager create | Only legitimate house-wide owner/manager; explicit actual-attendance branch and reason mandatory; no current-assignment substitution; employee/branch same-House; DEC-018 adjudication establishes remediation/manual-observation identity while operation identity deduplicates only that case's retries; selected existing attendance routes to correction/conflict; changed base becomes stale; provenance is durable; result follows GAP-025. |
-| Reliability | Identical retry/idempotency and payload-mismatch behavior; concurrent proposals have one winner; stale proposal remains audit; candidate change after DEC-018 adjudication makes the case stale rather than creating; HR-4 decision race serializes; injected failures roll back active state and lineage atomically. |
+| Reliability | Identical retry/idempotency and payload-mismatch behavior; concurrent proposals have one winner; two independent distinct-new cases at candidate-set generation `N` share the House + employee + work-date guard, exactly one may commit at `N`, and the other becomes stale; after re-adjudication at `N+1`, another legitimate same-day observation remains creatable; no employee/day or timestamp uniqueness; HR-4 decision races serialize; candidate-set check, fact/provenance creation, projection/revision maintenance, and generation advance commit or roll back atomically. |
 | No-leak/UI | Hidden/absent/wrong-House/wrong-branch outcomes, counts, error bodies, redirects, controls, cache revalidation, logs, and practical timing do not form an oracle; limited users never receive source/evidence/correction/audit/approval metadata; no missing-fact control or DEC-012/013 path exists. |
 | DB/API parity | Reset applies cleanly; constraints/triggers/RLS/grants/function owner/search path are inspected; direct authenticated PostgREST `INSERT`/`UPDATE`/`DELETE` deny bypass; service-role bulk cannot delete/reinsert, kiosk cannot open/close, and admin/background/repair/replay cannot mutate protected state outside the command; any remaining raw writer is database-proven disjoint; CAS/lineage govern every producer; no projection-invisible competing fact; schema cache reload is verified. |
 
@@ -546,20 +561,27 @@ remains the sole active phase; general HR work remains gated; POS remains paused
 this correction is hosted, the next action is **fresh Codex review of PR #509**, not
 implementation.
 
-## Staged / pre-host Control Center Sync Payload
+## Partially hosted-verified Control Center Sync Payload
 
 - **Project / Phase:** Agui / HR — sole active phase; POS paused at merged PR #488
 - **Gate / Slice:** GAP-029 historical DTR correction/finalization dependency planning gate
 - **Work Class:** Documentation-only Foundation Security Correction design
-- **Status:** DEC-017/DEC-018 governance correction complete locally; fresh review required; implementation not authorized
-- **PR Number / URL:** Pending — not yet independently verified
+- **Status:** Partially hosted-verified / new correction pending re-verification;
+  implementation not authorized
+- **PR Number / URL:** [PR #509](https://github.com/erwinmanzano2020/Agui/pull/509) —
+  independently verified in `erwinmanzano2020/Agui`
 - **Base Branch:** `develop`
-- **Expected Hosted Base SHA:** Base `develop`; exact hosted base pending independent verification
+- **Hosted State at Verification:** open; merged false; mergeable true; seven changed files
 - **Local Completion SHA:** Pending until this documentation commit is created; report in local handoff
-- **Hosted Head SHA:** Pending — not yet independently verified
+- **Previously Observed Hosted Head SHA:** `40836a9e92809892387a582f4e3ac52d2389d2a3`
+- **New Post-Correction Hosted Head SHA:** Pending — not yet independently verified after hosting
+- **Hosted Review Evidence:** unresolved `discussion_r3998654701` and
+  `discussion_r3998654707` independently observed before this correction
+- **Post-Correction Hosted Diff / CI / Final Review / Merge State:** Pending — requires
+  independent re-verification after hosting
 - **Original DEC-017/DEC-018 Correction Start:** `2c46bc6b955d5414fafc74fd63b3a60f4330166b`
 - **Fresh P1 Correction Starting Head:** `35f4c160e4125a0b0dbb5220b02495076ec41806`
-- **Last Owner-Supplied Hosted PR Head:** `8d8047e877461724a0211626d2c55d5a47602c48`; pending local independent verification
+- **Shared-Serialization Correction Starting Head:** `8eb2777dd9a6962079da74e13d7d6d399ed6df8f`
 - **Canonical Documents Read:** `AGENTS.md`; `docs/hr/AGENTS.md`;
   `agui-development-operating-principles.md`;
   `agui-starter/docs/agui-dev-process-codex-guidelines.md`;
@@ -584,8 +606,9 @@ implementation.
 - **Tests / Checks:** documentation scope/diff, relative links, sequencing, protected
   state, shared-role/service-role containment, all-mutator inventory, database-disjoint
   enforcement, Gate-E distinction, DEC-018 preservation, phase/posture, and non-authorization
-- **Known Limitations:** hosted PR/head/diff/reviews/CI and Project Control update remain pending;
-  no runtime, database, or production-like verification performed
+- **Known Limitations:** the new hosted head/diff/checks/final review/merge state and
+  Project Control update remain pending; no runtime, database, or production-like
+  verification performed
 - **Project Control Tabs To Update:** HR phase/status; gates/risks; decisions/approvals;
   PR tracker after independently hosted
 - **Suggested Project Control Status:** PR #509 governance correction ready for fresh review; Gate A next only after merge and separate task; implementation not authorized
@@ -595,6 +618,8 @@ implementation.
 - **Stop Conditions Encountered:** Prior unauthorized-file contradiction was stopped and
   then resolved under explicit scope expansion; no further current canonical contradiction found
 
-This payload is staged local evidence only. Hosted-only fields remain pending until
-independently verified, and the payload does not itself update the Agui Project Control
-Center.
+This payload combines independently supplied hosted evidence through head
+`40836a9e92809892387a582f4e3ac52d2389d2a3` with a newer local correction. It does not
+infer that local completion is hosted. The explicitly pending post-correction fields must
+be independently re-verified, and the payload does not itself update the Agui Project
+Control Center.
