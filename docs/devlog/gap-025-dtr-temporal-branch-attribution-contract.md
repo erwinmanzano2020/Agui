@@ -979,6 +979,30 @@ GAP-024 remains **OPEN and unimplemented**. After that governance approval merge
 separately bounded runtime tasks may proceed only through its approved gates and the
 Roadmap. This GAP-025 contract itself authorizes no runtime implementation.
 
+## 12. DEC-018 narrow manual-remediation identity addendum
+
+**Owner-approved 2026-09-13; later addendum.** GAP-025 intentionally selected no
+universal physical duplicate/replay/logical-observation identity mechanism. DEC-018 now
+selects one narrow mechanism only for the initial DEC-014 owner/manager manual
+missing-fact remediation path: explicit remediation-case adjudication plus durable manual
+observation/remediation-case identity.
+
+A legitimate house-wide owner/manager evaluates applicable House-visible candidate facts
+and explicitly decides whether the intended attendance belongs to an existing fact
+(which enters correction/conflict semantics) or is a genuinely distinct missing
+observation. Only the latter adjudication establishes the durable manual observation/case
+identity. An operation/idempotency key proves retry identity for that same case only; it
+cannot establish attendance identity across independent cases. Employee/day,
+employee/date/time, approximate timestamp matching, or absence of an exact match never
+becomes automatic uniqueness. Multiple legitimate same-day segments remain valid. A
+material candidate/base revision change makes the case stale and requires re-adjudication.
+
+DEC-018 does not select kiosk duplicate/replay identity, general event identity, or
+bulk/import identity; kiosk remains unselected unless separately approved and bulk/import
+remains separately gated. It does not alter `ATTRIBUTED`, `UNATTRIBUTED`, `CONFLICT`,
+source-lane sufficiency, temporal attribution, House tenancy, or branch-restriction rules.
+It creates no general case-management product and authorizes no implementation.
+
 ## Preserved historical evidence audit
 
 ### Governing material reviewed and hierarchy reconciliation
