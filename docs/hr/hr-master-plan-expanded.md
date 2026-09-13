@@ -27,13 +27,21 @@ and the closed
 [`GAP-025 semantic contract`](../devlog/gap-025-dtr-temporal-branch-attribution-contract.md)
 where relevant.
 
-After the governing PR #504 approval merges, runtime authority is narrowly limited
-to the separate Historical Daily DTR Write P1 as the recommended first urgent
-correction and then the ordered GAP-024 Foundation Security Correction Gates A–E.
-Every runtime slice requires its own bounded Codex task and PR aligned to the
-applicable approval record. The P1 remains separate from GAP-024 Gate A. GAP-024
-remains **OPEN and unimplemented**; production-like verification and the existing
-HR-2, HR-4, and payroll-readiness gaps remain outstanding as recorded in HR Status.
+Current execution follows owner-approved DEC-017 while preserving GAP-024's internal
+A → B → C → D → E order: Gate A establishes canonical durable evidence/revision/lineage
+authority, authorization projection, and protected branch-aware and house-global read
+foundations; the first Gate-B subdivision establishes the minimum non-bypassable
+producer/write command and privilege-transition foundation; the separate Historical
+Daily DTR Write P1 then consumes those foundations in its own bounded PR during Gate B;
+remaining producer compatibility and deterministic backfill/rebuild verification finish
+Gate B; and Gate C may begin only after P1 and every required active producer are
+compatible and verified, followed by Gates D and E.
+
+Historical DTR P1 is not a new GAP-024 gate and is not folded into Gate A. Every runtime
+slice requires its own bounded Codex task and applicable implementation approval. This
+document independently authorizes no implementation. GAP-024 remains **OPEN and
+unimplemented**; production-like verification and the existing HR-2, HR-4, and
+payroll-readiness gaps remain outstanding as recorded in HR Status.
 
 This is not broad HR runtime authorization. This expanded plan does not authorize
 general HR runtime, HR-2 feature expansion or the full correction product, HR-4

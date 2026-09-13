@@ -10,20 +10,21 @@ owner/manager missing-fact provenance dependency needed before the separately ap
 can be implemented. It is decision-ready implementation planning, not runtime or
 implementation authorization.
 
-The repository was clean on branch `work` at
-`f989588ae5408bbd13ec17a99160b15a1ea9538b`, the expected `develop` SHA at task
-issuance. This checkout exposes no local `develop` ref and no Git remote, so a distinct
-hosted/current `develop` head cannot be independently queried here; the checked-out base
-itself exactly matches the issued SHA. The canonical bootstrap and current runtime,
-schema, generated-type, and test surfaces were re-read at that exact base. No newer
-governing change or material conflict is present in the available repository evidence.
+The original plan audited the expected base
+`f989588ae5408bbd13ec17a99160b15a1ea9538b`. This DEC-017/DEC-018 correction started
+from clean local branch `work` at `2c46bc6b955d5414fafc74fd63b3a60f4330166b`, whose
+parent is that expected base and whose latest commit is the existing GAP-029 PR work. The
+owner supplied `8d8047e877461724a0211626d2c55d5a47602c48` as the last independently
+verified hosted PR #509 head. This checkout exposes no remote, so that hosted head and
+its relationship to the locally reconstituted commit cannot be independently reconciled
+here. No newer local governing conflict exists after the authorized seven-file alignment.
 
-**Answer in one sentence:** add one narrow HR-2 attendance-lineage store and one
-database-transactional command boundary that records immutable proposals/provenance,
-locks and revalidates a stable logical fact plus its exact evidence revision, and alone
-may atomically activate a correction or create an explicitly attributed owner/manager
-historical fact; keep raw reads and ordinary direct writes unavailable to the P1, and
-consume only an opaque HR-4 approval reference when payroll impact requires it.
+**Corrected answer:** GAP-029 creates no parallel attendance authority. GAP-024 Gate A
+supplies canonical durable evidence/revision/lineage authority, authorization projection,
+and protected readers; the first Gate-B subdivision supplies the database-enforced,
+non-bypassable producer/write foundation; Historical DTR P1 then consumes both through a
+separate bounded correction/create adapter during Gate B, including only its required
+HR-2 correction/provenance records and opaque HR-4 approval handoff.
 
 ## 2. Authority and canonical sources
 
@@ -113,9 +114,9 @@ provenance, and post-create GAP-025 classification. DEC-012/DEC-013 remain defer
 
 There is no safely callable repository primitive that both preserves correction lineage
 and atomically finalizes against the current semantic/evidence base. There is likewise no
-owner/manager historical-create primitive that binds explicit location provenance and
-reason to a deterministic logical attendance fact while preventing retry/race duplicates.
-The approved P1 is therefore runtime-blocked. Reusing the present resolver plus direct
+owner/manager remediation-case primitive that binds explicit adjudication, location,
+reason, and durable manual-observation identity to canonical Gate-A authority. The
+approved P1 is therefore runtime-blocked. Reusing the present resolver plus direct
 `dtr_segments` update/insert would violate the frozen contract.
 
 The dependency needs a narrowly scoped target resolver, but not the GAP-024 Daily DTR
@@ -153,6 +154,9 @@ Reusable, with limits:
   revalidate database authority and must not trust caller-serialized access.
 - The `dtr_segments` employee/House trigger and foreign keys are useful defense in depth
   for same-House linkage. They do not establish historical branch or correction lineage.
+  Current repository migrations grant authenticated callers direct `INSERT`, `UPDATE`,
+  and `DELETE` on `dtr_segments`; those privileges can bypass a callable unless each
+  migrated producer undergoes an explicit Gate-B command/privilege transition.
 - Authenticated Supabase server clients, normalized Manila timestamp validation, generic
   denial messages, and existing DTR action/repository test seams can be retained.
 - `hr_kiosk_events`/`clock_events` and their event metadata can be evidence inputs only
@@ -169,137 +173,94 @@ reused. The generated approval-shaped type found elsewhere is not a DTR approval
 
 ## 7. Minimum required dependency
 
-### A. Stable attendance fact and immutable correction record
+### A. Consume Gate-A authority; add only P1-specific correction records
 
-The future migration should introduce the minimum concepts (names remain implementation
-choices):
+Gate A—not GAP-029—must first establish stable logical attendance-fact identity, exact
+canonical evidence revision/lineage, current authorization projection, and protected
+branch-aware and house-global readers. GAP-029 must not duplicate those structures or
+create a competing attendance truth.
 
-1. **Stable logical attendance fact identity**, House-owned and independent of a
-   replaceable `dtr_segments.id`, with an integer/opaque monotonically changed
-   `evidence_revision` and one active canonical segment representation. Existing rows
-   need deterministic, collision-checked bootstrap identities without inventing branch
-   provenance.
-2. **Append-only correction/provenance record** containing House and fact IDs, immutable
-   base snapshot and exact expected evidence revision, proposed value snapshot,
-   correction/creation reason, actor entity/user attribution supported by current auth,
-   creation time, value/location/payroll-impact classifications, state, optional HR-4
-   decision reference, and finalizer/time/result metadata. Original evidence and every
-   superseded proposal remain traceable.
-3. **Explicit provenance for administrative creation/location**, including asserted
-   actual-attendance branch, assertion kind (`AUTHORIZED_EXPLICIT_CAPTURE` semantics),
-   actor, context, reason, logical operation identity, and current/superseded status.
-   This provenance belongs to the lineage; it must not be flattened into current
-   `employee.branch_id`.
-4. **Constraints/indexes** for House-consistent references, one current representation
-   per logical fact, immutable lineage, unique client operation/idempotency identity in
-   its House/command scope, and deterministic observation/fact association. Multiple
-   legitimate employee/day segments remain possible.
+P1 may add the minimum HR-2 correction/provenance records required by the frozen contract:
+Gate-A fact ID and expected revision, immutable base/proposed snapshots, reason, actor and
+time, value/location/payroll-impact classification, state, optional exact HR-4 decision
+reference, finalizer/result metadata, and DEC-018 remediation/manual-observation identity.
+Every record attaches to canonical Gate-A authority; it neither owns another active fact
+revision nor duplicates the projection.
 
-The correction relation is the audit/command ledger, not a competing active attendance
-table. `dtr_segments` remains the current raw representation until later Option D
-migration; the stable fact/revision record controls which representation is current.
+### B. Non-bypassable Gate-B command foundation
 
-### B. One authoritative transactional boundary
+Before P1, Gate B must establish a migration-backed, database-enforced command boundary.
+The expected default is a hardened `SECURITY DEFINER` callable with fixed `search_path`,
+safe non-login ownership, explicit authenticated-actor resolution, database-side
+House/HR authorization and branch restriction, revision/CAS checks, provenance/lineage
+and idempotency enforcement, least privileges, narrow `EXECUTE` grants, and sanitized
+returns. Another mechanism is acceptable only if repository evidence proves the same
+non-bypass guarantee. `SECURITY INVOKER` alone is insufficient.
 
-A migration-backed `SECURITY INVOKER` RPC (or a narrowly justified definer function with
-explicit auth, fixed `search_path`, least grants, and equivalent tests) is recommended
-because application-layer sequences cannot atomically lock, compare, append lineage, and
-mutate canonical state. There is no existing signature to reuse. Proposed—not
-implemented—commands are conceptually:
+A migrated canonical attendance writer must not possess an alternate direct-table
+mutation capability capable of bypassing the command contract. Because authenticated
+currently has direct `INSERT`, `UPDATE`, and `DELETE` on `dtr_segments`, Gate B must
+inventory every kiosk, manual/admin, bulk/import, correction, service/background, replay,
+and repair writer and migrate privileges producer by producer. For each migrated writer,
+direct bypass ceases, the canonical command is mandatory, and direct PostgREST/table-DML
+tests prove revision, lineage, provenance, authorization, projection maintenance, and
+finalization cannot be bypassed. Do not globally revoke privileges in a way that silently
+breaks unmigrated active producers.
 
-- `hr_propose_dtr_correction(house, fact, expected_revision, proposed_values, reason,
-  idempotency_key)`;
-- `hr_finalize_dtr_correction(house, correction, expected_revision)`; and
-- `hr_create_historical_dtr_fact(house, employee, values, asserted_branch, reason,
-  historical_context, idempotency_key)`.
+This writer-side containment is distinct from Gate E's final broad raw/base-access
+revocation, which remains last. Gate B needs enough containment to ensure each active
+migrated writer cannot create raw-only or projection-invisible attendance.
 
-Exact names, SQL argument types, overload count, and order must be frozen in the future
-implementation authorization/migration. Splitting proposal from finalization preserves
-pending/rejected semantics. The create command may atomically record and finalize an
-initial fact because DEC-014 limits it to house-wide owner/manager and all required
-provenance is present; it must still use the same lineage/revision machinery.
+Conceptual P1 commands remain proposed—not implemented or signature-frozen:
 
-The finalizer must lock the logical fact and correction, re-resolve authenticated actor,
-House/HR authority, current GAP-025 classification, active branch, exact evidence
-revision and semantic base, target-branch House ownership, payroll-impact classification,
-and the current HR-4 decision reference if required. It then atomically appends the
-finalization result, updates only the active representation/evidence frame, increments
-the revision, and makes competing old-base proposals stale. Any failed check rolls back
-canonical change while retaining or deterministically recording the safe audit outcome.
-No application `.update()` fallback exists.
+- propose correction against a Gate-A fact and expected revision;
+- finalize correction after locked revalidation; and
+- adjudicate/finalize an owner/manager DEC-018 remediation case.
 
-### C. Owner/manager historical missing-fact provenance
+### C. DEC-018 owner/manager missing-fact provenance
 
-The create command must:
+A case contains House, employee, proposed values/context, explicit asserted
+actual-attendance branch, reason, actor, durable case identity, and Gate-A
+candidate/base-state revision. The house-wide actor explicitly adjudicates **existing**
+(selected fact enters correction/conflict; no create) or **distinct new** (the case becomes
+the durable manual-observation identity eligible for creation). An operation/idempotency
+key deduplicates retries against that identity only. It cannot correlate independent cases
+or prove a new observation. Employee/day, employee/date/time, approximate timestamps, and
+absence of an exact match are never automatic uniqueness. A material candidate/base
+change makes the case stale and requires re-adjudication.
 
-1. authenticate and prove requested-House HR-write plus legitimate house-wide
-   owner/manager authority before inspecting target attendance;
-2. validate employee and explicitly asserted actual-attendance branch belong to that
-   House; never derive the assertion from assignment or UI context;
-3. validate times/context and require a non-empty reason;
-4. use a caller-generated operation UUID/idempotency key plus a server-created stable
-   logical fact ID and explicit logical-observation membership; retries of the same
-   operation return the same bounded result;
-5. under the same lock/transaction, detect the same logical operation/observation or an
-   already-associated fact. A match cannot insert another fact; it returns the same
-   result for retry or routes house-wide handling to correction/conflict semantics;
-6. append creation provenance and create current representation atomically; and
-7. classify the resulting fact under GAP-025. Only a valid complete explicit lane can
-   yield `ATTRIBUTED`; conflicting valid evidence remains `CONFLICT` rather than being
-   overwritten.
+### D. Read/write separation
 
-An idempotency key prevents duplicate submission/retry, but is not evidence of attendance
-and does not make employee/date unique. A genuinely different manual segment needs a new
-logical operation/observation identity. The future API must make that distinction
-explicit rather than guessing from timestamps.
-
-### D. Minimum command-side read capability
-
-The transaction needs only an internal exact-ID resolver for one supplied logical fact:
-House ownership, active representation, exact evidence revision, GAP-025 classification,
-active attributed branch, and approval reference. Its public result is success or a
-uniform bounded denial/conflict/stale category appropriate to the actor—not raw evidence,
-counts, source branches, correction history, or hidden existence.
-
-For a branch-limited proposal, the fact must first be visible through the same canonical
-GAP-025 decision used by ordinary authorization. Until such a trustworthy decision is
-safely callable, the branch-limited command fails closed. This plan does not authorize a
-Daily DTR list, roster/no-record projection, generalized reader, or any Option D Gate A
-surface.
+P1 consumes Gate-A protected readers and exact authority/revision; it creates no reader or
+projection. Branch-limited correction begins only from an already-visible canonical
+`ATTRIBUTED` fact. Owner/manager candidate evaluation uses the Gate-A house-global
+boundary. Public results remain sanitized and non-enumerating.
 
 ## 8. Design options
 
-| Criterion | Option 1 — patch `dtr_segments` plus generic audit | Option 2 — narrow HR-2 fact/revision + correction ledger and RPC (**recommended**) | Option 3 — implement Option D authority/projection first |
+| Criterion | Patch/direct DML plus audit | Parallel GAP-029 fact/revision authority | Gate A + Gate-B writer foundation + bounded P1 adapter (**recommended**) |
 |---|---|---|---|
-| Correctness/audit | Weak: mutable row plus detached before/after audit can diverge and lacks stable fact/evidence identity. | Strong: immutable base/proposal/finalization lineage is bound to one stable fact. | Strong if fully implemented. |
-| Authorization/no leak | App sequencing and generic audit policies leave race/oracle risk. | Exact command-side resolver and sanitized outcomes are narrowly testable. | Strong eventually, but exposes a much larger read/security surface. |
-| Transaction/concurrency/stale handling | Poor unless it grows into Option 2; audit and update can split. | Row lock/CAS revision and unique idempotency constraints give one atomic winner. | Strong but carries Gate A/B complexity. |
-| GAP-025 attribution | A branch column snapshot can silently become false/current-assignment-like provenance. | Current evidence frame and explicit provenance preserve classification and historical attribution. | Native long-term fit. |
-| HR-2 / HR-4 boundary | Generic status risks embedding approval in HR-2. | HR-2 stores only impact/state plus opaque HR-4 reference; finalizer verifies HR-4 authority. | Can preserve boundary but would require broader HR-4 integration choices. |
-| Migration/test burden | Apparently small, but unsafe or converges on Option 2. | Moderate and bounded to one domain/command seam. | Largest; includes projection, rebuild, readers, and producer integration. |
-| Future reuse | Low; likely throwaway audit. | Reusable for later HR-2 correction and compatible as Option D lineage input. | Highest, but violates requested sequencing/scope. |
-| Rollback/recovery | Detached audit makes reconciliation ambiguous. | Fail-closed commands; append-only lineage supports deterministic repair/retry. | Requires Gate A/B rebuild/runbook surface. |
-| Second source-of-truth risk | High. | Low if ledger records lineage and only one active representation exists. | Low in final architecture, high during an unauthorized partial cutover. |
+| Integrity | Detached audit can diverge and direct DML bypasses checks. | Can model revisions but duplicates approved Option D authority. | P1 lineage binds to one canonical Gate-A fact/revision. |
+| Authorization/no leak | App sequencing and broad table DML are unsafe. | Risks a second projection/reader and mismatched policy. | Protected Gate-A reads plus non-bypassable Gate-B commands. |
+| Concurrency/staleness | Weak; latest-write races remain. | Technically possible but two revision authorities can disagree. | Gate-A revision CAS and locked command give one winner. |
+| DEC-018 identity | Timestamp matching would be unsafe. | Could add identity but unnecessarily owns the fact. | Explicit case adjudication establishes only manual observation identity. |
+| Coupling/future reuse | Throwaway and unsafe. | Competes with Option D. | Directly consumes approved architecture; no migration later between authorities. |
+| Burden | Superficially low, actually non-compliant. | Duplicates Gate A and expands scope. | Smallest safe sequencing, though it correctly waits for Gate A/B. |
 
-**Option 1 is rejected** because it cannot meet atomicity, stale-base, and provenance
-requirements without becoming Option 2, and a generic audit row does not govern active
-state. **Option 3 is rejected for this dependency gate** because it stealth-resequences
-GAP-024 and bundles durable projection/read architecture not needed to make the one P1
-command safe. Option 2 is the smallest compliant foundation and can later feed Option D
-without claiming that compatibility as Gate A implementation.
+The direct-DML option is rejected because audit cannot prevent bypass or provide atomic
+stale-base finalization. The parallel-authority option previously recommended by this
+plan is withdrawn under DEC-017 because it would duplicate Gate A. The corrected option
+is the smallest safe design even though it moves P1 later: Gate A provides authority,
+Gate B provides mandatory writer enforcement, and P1 adds only its adapter and HR-2
+correction/remediation records.
 
 ## 9. Recommended smallest safe design
 
-Adopt Option 2 as two future Foundation Security Correction slices: first the stable
-fact/revision plus append-only lineage and transactional proposal/finalization commands;
-then the owner/manager explicit-provenance create command and P1 adapter. Keep the
-command-side exact resolver private and return sanitized command results. Revoke/avoid
-direct historical update/insert capability through the P1 path; canonical mutation is
-possible only inside the command transaction.
-
-This recommendation intentionally does not add generalized approval workflow, correction
-inbox/UI, attachments, requester withdrawal, escalation, multi-level approval, period
-evaluation, or a durable branch projection.
+Follow DEC-017: Gate A → minimum Gate-B producer/write foundation → separate Historical
+DTR P1 during Gate B → finish remaining Gate B → Gate C → Gate D → Gate E. P1-specific
+records attach to Gate-A facts/revisions and the adapter uses the Gate-B non-bypassable
+command. It creates no stable-fact authority, authorization projection, protected reader,
+or second canonical attendance truth.
 
 ## 10. Authorization / tenancy / no-leak model
 
@@ -348,17 +309,41 @@ evaluation, or a durable branch projection.
 
 ## 12. Owner/manager missing-fact provenance lifecycle
 
-The owner/manager UI must require deliberate selection/confirmation of actual-attendance
-branch and a non-empty creation reason. Prefill may be displayed but cannot count as the
-assertion. The server validates House-wide authority, employee House, branch House,
-timestamps/context, and operation identity. In one transaction it locks the logical
-operation/observation association, handles an idempotent retry, rejects/routes any
-already-associated fact to correction/conflict semantics, writes immutable explicit
-capture provenance, creates the representation, and computes unchanged GAP-025
-classification. Rollback leaves neither an orphan segment nor orphan provenance.
+### Case creation and candidate base
 
-No branch-limited create, transferred-target lookup, opaque submission, bulk/import,
-schedule inference, or missing-attendance reporting workflow is introduced.
+A legitimate house-wide owner/manager initiates a DEC-018 remediation case containing
+House, employee, proposed attendance values/context, explicit asserted actual-attendance
+branch, creation/remediation reason, actor, durable case identity, and Gate-A
+candidate/base revision sufficient for stale detection. Because this actor already has
+legitimate House-wide attendance visibility, the protected house-global reader may return
+applicable candidate facts for explicit adjudication.
+
+### Explicit adjudication
+
+- **Existing — “same attendance / belongs to an existing fact”:** create no new fact;
+  bind the case to the selected canonical fact and enter correction/conflict semantics.
+- **Distinct new — “genuinely separate missing attendance observation”:** the adjudicated
+  case becomes the durable manual-observation/remediation identity eligible for creation.
+
+The system cannot infer distinct-new because no timestamp-exact match exists. Multiple
+same-day segments remain valid.
+
+### Identity and staleness
+
+Remediation/manual-observation identity names the adjudicated real-world observation.
+Operation/idempotency identity names only a retrying command against that case. They are
+not interchangeable: a fresh request UUID does not establish that a second case is a new
+observation and does not match two independent submissions. Employee/day,
+employee/date/time, approximate timestamps, or absence of a match is never uniqueness.
+
+At create/finalize time, the non-bypassable command locks and compares the case's Gate-A
+candidate/base revision. A material change makes the case stale; it cannot create and the
+owner/manager must re-adjudicate against the new base. Successful commit atomically binds
+manual provenance and current representation to Gate-A authority; rollback leaves no
+orphan fact/provenance. Latest-write-wins is prohibited.
+
+This narrow case lifecycle is not general case management and selects no branch-limited,
+DEC-012/013, kiosk, bulk/import, schedule, attachment, notification, or escalation flow.
 
 ## 13. HR-2 / HR-4 separation
 
@@ -396,81 +381,59 @@ withdrawal, attachment, escalation, or multi-level workflow is outside GAP-029.
 
 ## 15. Relationship to GAP-024
 
-GAP-029 exists only to unblock the separately approved Historical DTR Write P1. GAP-024
-remains a distinct stream, and Gate A is not implemented or authorized here. Option D's
-durable authority/projection/read-boundary architecture and Gate A–E order remain
-unchanged.
+DEC-017 supersedes the previous P1-first sequencing. GAP-024 retains internal
+A → B → C → D → E order. Gate A supplies canonical durable authority, projection, and
+protected readers. Gate B first supplies the minimum non-bypassable writer/producer and
+privilege-transition foundation. Historical DTR P1 remains a separate bounded PR during
+Gate B and consumes both foundations; remaining Gate B then completes all producers and
+verification. Gate C waits for P1 and every required active producer.
 
-The GAP-029 ledger must not become a competing active attendance truth: it records stable
-identity, revision, provenance, and correction lineage around the one canonical current
-representation. Later Option D may consume/migrate that lineage into its durable
-authority and rebuildable projection, and GAP-029 commands should use compatible stable
-IDs/revisions. That is compatibility only—not an Option D schema selection, projection,
-reader, rebuild, producer cutover, or Gate A/B completion claim.
+GAP-029 creates no competing authority or projection. Its future correction/provenance
+records are compatible because they attach to Gate-A fact/revision identity. P1 is not
+folded into Gate A or promoted to a new GAP-024 gate. Gate E's final broad revocation
+remains distinct from per-writer bypass containment required during Gate B.
 
-If implementation proves no trustworthy exact GAP-025 classification can exist without
-a subset of Option D authority, stop P1 implementation. Seek a separate owner-approved
-sequencing amendment identifying that exact subset rather than duplicating Gate A inside
-GAP-029. GAP-024 Gate A remains queued after the separate P1 path unless such an explicit
-governance decision changes it.
+## 16. Proposed future implementation sequence
 
-## 16. Proposed future implementation slices
+No step is authorized by this documentation PR. Every step requires its own applicable
+approval and bounded task/PR.
 
-Neither slice is authorized by this plan.
+### Step 1 — GAP-024 Gate A
 
-### Slice 1 — HR-2 lineage and safe existing-fact finalization foundation
+Establish canonical durable evidence/revision/lineage authority, authorization
+projection, protected branch-aware reader, and protected house-global reader. No P1
+adapter. Exit: canonical authority/read foundations exist and fail closed.
 
-- **Purpose:** create stable fact/evidence revision, immutable correction records, exact
-  private resolver, proposal/finalization transaction, and direct-write containment.
-- **Likely surfaces:** one or more new `supabase/migrations/*gap_029*` files;
-  `agui-starter/src/lib/db.types.ts`; a narrow new HR DTR correction server repository;
-  existing HR access integration; focused migration/RPC/repository tests and docs. The
-  Daily DTR page/actions/forms need not change in this slice and must keep unsafe editing
-  fail-closed/disabled.
-- **Migration/RPC:** required; migration-backed transactional proposal and finalization
-  callable(s), constraints, indexes, RLS/grants, schema reload, bootstrap/backfill and
-  rollback/recovery verification.
-- **Authorization/tenancy:** House-first, exact fact, branch-limited current GAP-025
-  visibility; owner/manager breadth preserved; no raw audit visibility for limited users.
-- **Identity:** actor references existing authenticated entity/user contracts only; no
-  lookup, normalization, reuse, insert, merge, or conflict-contract change.
-- **Correction/audit:** append-only snapshots, exact base revision, impact flags,
-  HR-4-reference slot, finalization/supersession history.
-- **Tests:** migration constraints; RLS/grants; command allow/deny/no-leak; immutable
-  history; two-proposal winner; stale/retry/rollback; value and location rules; approval
-  revalidation seam; production-like reset and authenticated PostgREST verification.
-- **Rollback/fail closed:** migration rollback/restore plan must preserve existing raw
-  rows; absent RPC or unbootstrapped fact disables historical mutation. No fallback.
-- **Prerequisite:** review and owner acceptance of this GAP-029 design, then separate
-  bounded implementation authorization.
-- **Exit:** every existing fact has collision-checked stable identity/revision or is
-  explicitly unbootstrapped/fail-closed; commands alone can safely propose/finalize; no
-  P1 UI is enabled.
+### Step 2 — GAP-024 Gate B minimum producer/write foundation
 
-### Slice 2 — DEC-014 provenance create plus Historical DTR P1 adapter
+Inventory active writers; establish the hardened non-bypassable command; define and
+begin producer-specific privilege transition; bootstrap/backfill only provable authority;
+and prove canonical writes maintain Gate-A authority/projection. It need not migrate all
+producers in the first subdivision. Exit: P1's required command and privilege containment
+are safely callable and direct bypass is impossible for its migrated writer identity.
 
-- **Purpose:** add atomic owner/manager historical create and connect Daily DTR historical
-  correction/create to the safe commands with explicit fields and sanitized outcomes.
-- **Likely surfaces:** follow-up migration if create provenance/command was not shipped in
-  Slice 1; `dtr-segments-server.ts` or replacement correction repository;
-  `app/company/[slug]/hr/dtr/actions.ts`, `DtrSegmentForms.tsx`, and `page.tsx`; action,
-  server, UI, RPC/integration tests; generated types and bounded documentation.
-- **Migration/RPC:** the transactional create RPC is required; no app-layer multi-call
-  substitute. Existing-fact proposal/finalize RPCs are consumed, not bypassed.
-- **Authorization/tenancy:** owner/manager-only missing creation; branch-limited visible
-  `ATTRIBUTED` correction; same-House explicit branch; uniform denials; DEC-012/013 absent.
-- **Identity:** no identity-contract change; existing target/actor IDs only.
-- **Correction/audit:** required reason, explicit provenance/context, deterministic
-  operation and stable fact identity, duplicate routing, immutable lineage.
-- **Tests:** the full Section 17 matrix plus UI absence/presence, payload sanitization,
-  route revalidation/cache behavior, and production-like authenticated/RLS smoke checks.
-- **Rollback/fail closed:** disable new controls/adapters while retaining lineage; RPC
-  unavailable or unsafe classification returns bounded failure and never calls legacy
-  direct insert/update.
-- **Prerequisite:** Slice 1 exit criteria and separate Slice 2/P1 authorization.
-- **Exit:** **Historical Daily DTR Write P1 becomes safely implementable/callable.**
+### Step 3 — Historical Daily DTR Write P1
 
-GAP-024 Gate A is not part of either slice.
+In a separate bounded PR during Gate B, consume Gate A and the required Gate-B command.
+Implement only already-visible branch-limited canonical correction, DEC-014 owner/manager
+missing-fact remediation, DEC-018 case adjudication/manual identity, HR-2 lineage and
+finalization, and exact HR-4 approval handoff. Exit: P1 is safe, verified, and cannot
+bypass canonical authority.
+
+### Step 4 — complete remaining Gate B
+
+Migrate every remaining active attendance producer and privilege path; complete
+deterministic backfill/rebuild, replay/idempotency, projection consistency, direct-DML
+bypass, and production-like verification. Exit: all required producers are compatible,
+canonical state is rebuildable, and no known writer creates raw-only/invisible facts.
+
+### Step 5 — Gate C, then Gates D and E
+
+Gate C may start only after P1 and every required active producer pass Gate B and no
+known bypass remains. Daily DTR cutover then proceeds under its frozen facts-only rules;
+Gates D and E follow unchanged, with final broad raw/base-access revocation last.
+
+At Step 3, **Historical Daily DTR Write P1 becomes safely implementable/callable.**
 
 ## 17. Future verification matrix
 
@@ -480,7 +443,7 @@ GAP-024 Gate A is not part of either slice.
 | Existing-fact scope | Branch-limited correction only for a currently visible `ATTRIBUTED` fact in `allowedBranchIds`; current assignment grants nothing; hidden other-branch, `UNATTRIBUTED`, `CONFLICT`, zero scope, and cross-House deny; owner/manager breadth works without bypass; denial exposes no metadata. |
 | Location | Branch-limited actor cannot directly relocate; initial non-payroll location finalizer is owner/manager-only; target branch gains visibility only after successful finalization; old attribution remains audit history; payroll-impacting location cannot finalize or become payroll-ready without exact HR-4 approval. |
 | Owner/manager create | Only legitimate house-wide owner/manager; explicit actual-attendance branch and reason mandatory; no current-assignment substitution; employee/branch same-House; deterministic operation/fact identity prevents retry duplicate; existing association routes to correction/conflict; provenance is durable; result follows GAP-025. |
-| Reliability | Identical retry/idempotency and payload-mismatch behavior; concurrent proposals have one winner; stale proposal remains audit; create-versus-existing race cannot duplicate; HR-4 decision race serializes; injected failures roll back active state and lineage atomically. |
+| Reliability | Identical retry/idempotency and payload-mismatch behavior; concurrent proposals have one winner; stale proposal remains audit; candidate change after DEC-018 adjudication makes the case stale rather than creating; HR-4 decision race serializes; injected failures roll back active state and lineage atomically. |
 | No-leak/UI | Hidden/absent/wrong-House/wrong-branch outcomes, counts, error bodies, redirects, controls, cache revalidation, logs, and practical timing do not form an oracle; limited users never receive source/evidence/correction/audit/approval metadata; no missing-fact control or DEC-012/013 path exists. |
 | DB/API parity | Reset applies cleanly; constraints/triggers/RLS/grants/function owner/search path are inspected; authenticated and owner/manager/branch-limited production-like calls match repository tests; direct table privileges cannot bypass the canonical command; schema cache is reloaded. |
 
@@ -492,33 +455,30 @@ missing dependency fails closed; and no “latest write wins” behavior exists.
 
 ### Migrations
 
-No migration is added or modified by this documentation PR. The recommended future
-design requires a migration for stable identity/revision, correction/provenance storage,
-constraints/indexes, callable functions, RLS/grants, and safe existing-row bootstrap.
-Future work must update generated types and provide verification/rollback SQL; this plan
-does neither.
+No migration changes in this documentation PR. Gate A requires its separately approved
+authority/projection migration; Gate B requires command, grants/privilege transition,
+producer compatibility, generated types, and verification migrations as applicable; P1
+may require correction/remediation records attached to Gate-A facts.
 
 ### RPC / callable boundary
 
-A future canonical transactional RPC boundary is recommended. No existing DTR
-correction/finalization RPC signature or overload exists to reuse. The conceptual
-commands in Section 7 are proposals only; their exact names, signatures, overload count,
-argument order, privileges, and return/error shape are **not implemented or frozen by
-this document** and must be explicit in the separately authorized migration review.
+No RPC is implemented or signature-frozen. The future default is a hardened
+`SECURITY DEFINER` callable with fixed `search_path`, safe ownership, explicit auth and
+database-side actor/House/capability/branch checks, CAS revision, provenance/lineage,
+idempotency, least privilege, narrow `EXECUTE`, and sanitized return. `SECURITY INVOKER`
+is not sufficient as the sole boundary while direct table DML exists. Each migrated
+producer must lose bypass capability without prematurely breaking unmigrated producers.
 
 ### Identity
 
-The plan changes no identity lookup, insertion, normalization, reuse, ambiguity,
-conflict, or merge behavior. Actor attribution and employee targeting reference existing
-identities only; phone/email are not used as uniqueness evidence and no auto-merge is
-introduced.
+No platform identity lookup/insertion/normalization/reuse/conflict behavior changes.
+DEC-018 adds narrow remediation/manual-observation identity, not person uniqueness;
+phone/email remain weak and no auto-merge exists.
 
 ### PostgREST
 
-The future migration/callable design would require `NOTIFY pgrst, 'reload schema';` and
-independent schema-cache verification because new/changed PostgREST-callable functions
-and relations are expected. This documentation PR performs no reload, SQL, database
-operation, or live Supabase change.
+Future callable/grant changes require `NOTIFY pgrst, 'reload schema';` and independent
+schema-cache/direct-PostgREST bypass verification. This PR executes no SQL or reload.
 
 ## 19. Risks / unknowns / owner decisions
 
@@ -530,17 +490,16 @@ operation, or live Supabase change.
 - HR-4 DTR approval runtime is absent. Payroll-impacting proposals may be recorded only
   if separately authorized, but cannot finalize until a safely callable HR-4 decision for
   the exact proposal/base exists. The P1 must expose no bypass.
-- Removing direct table write bypass may affect other active producers. Slice 1 must
-  inventory grants/policies and contain the historical P1 path without silently breaking
-  kiosk/bulk/payroll or pre-implementing GAP-024 producer migration.
+- Removing direct-table bypass may affect active producers. Gate B must inventory
+  grants/policies and transition privileges producer by producer without silently
+  breaking kiosk, bulk/import, service/background, replay, or repair writers. Gate E's
+  final broad revocation remains last.
 
-**Owner decisions required: none for the minimum design.** Frozen contracts already
-settle authority, lineage, location finalization, HR-4 ownership, DEC-014, and stale-base
-semantics. Exact table/RPC names, snapshots versus normalized child rows, lock primitive,
-and bounded error encoding are implementation mechanisms to be proposed in the future
-authorization; they do not add business semantics. If implementation cannot define
-deterministic logical observation association for legacy/manual rows without inventing a
-new product rule, it must stop and raise that concrete choice rather than infer one.
+**Owner decisions required: none for this correction.** DEC-017 settles sequencing and
+DEC-018 settles initial owner/manager manual-remediation identity. Universal kiosk,
+bulk/import, and general event identity remain intentionally unselected. Exact
+Gate-A/Gate-B physical names, signatures, ownership, locks, privilege rollout, and bounded
+error encoding remain future implementation details requiring separate authorization.
 
 ## 20. Explicit non-authorization statement
 
@@ -551,23 +510,26 @@ creation, Historical DTR Write P1, GAP-024 Gate A, GAP-026, full HR-2 correction
 HR-4 product workflow, payroll expansion, POS, Operations, Finance, native/offline, or
 Telegram/Mini App work.
 
-Historical DTR Write P1 remains blocked until this design is reviewed, its implementation
-is separately owner-authorized, the dependency is implemented and verified, and its
-commands are safely callable. GAP-024 Gate A remains queued behind that separate P1 path.
-HR remains the sole active phase; general HR work remains gated; POS remains paused.
-The next action is **review of the GAP-029 design**, not implementation.
+Historical DTR Write P1 remains blocked until Gate A and its required Gate-B writer
+foundation are separately tasked, implemented, and verified. P1 then remains a separate
+bounded PR during Gate B; Gate C waits for P1 and every required active producer. HR
+remains the sole active phase; general HR work remains gated; POS remains paused. After
+this correction is hosted, the next action is **fresh Codex review of PR #509**, not
+implementation.
 
 ## Staged / pre-host Control Center Sync Payload
 
 - **Project / Phase:** Agui / HR — sole active phase; POS paused at merged PR #488
 - **Gate / Slice:** GAP-029 historical DTR correction/finalization dependency planning gate
 - **Work Class:** Documentation-only Foundation Security Correction design
-- **Status:** Local planning complete; review required; implementation not authorized
+- **Status:** DEC-017/DEC-018 governance correction complete locally; fresh review required; implementation not authorized
 - **PR Number / URL:** Pending — not yet independently verified
 - **Base Branch:** `develop`
-- **Expected Hosted Base SHA:** `f989588ae5408bbd13ec17a99160b15a1ea9538b`
+- **Expected Hosted Base SHA:** Base `develop`; exact hosted base pending independent verification
 - **Local Completion SHA:** Pending until this documentation commit is created; report in local handoff
 - **Hosted Head SHA:** Pending — not yet independently verified
+- **Local Starting Head:** `2c46bc6b955d5414fafc74fd63b3a60f4330166b`
+- **Last Owner-Supplied Hosted PR Head:** `8d8047e877461724a0211626d2c55d5a47602c48`; pending local independent verification
 - **Canonical Documents Read:** `AGENTS.md`; `docs/hr/AGENTS.md`;
   `agui-development-operating-principles.md`;
   `agui-starter/docs/agui-dev-process-codex-guidelines.md`;
@@ -576,28 +538,30 @@ The next action is **review of the GAP-029 design**, not implementation.
   `docs/hr/hr-status.md`; P1 approval; GAP-024 approval/plan; GAP-025 contract;
   HR-2/HR-4 detailed plans; HR-2 foundation freeze; DB/API guidance; applicable source
   AGENTS and authorization/branch-scope evidence
-- **Canonical Documents Changed:** this GAP-029 plan; `docs/hr/hr-status.md`
+- **Canonical Documents Changed:** this GAP-029 plan; HR Status; GAP-024 approval; P1
+  approval; Roadmap; GAP-025 contract; expanded HR plan
 - **Runtime / Code Surfaces Changed:** None
 - **Database / Migration Surfaces:** None changed; future migration and transactional RPC recommended
 - **Authorization / Tenancy / Identity Impact:** Documentation preserves House-first,
   branch-restriction-only, no-leak, owner/manager breadth, and DEC-014; no identity change
-- **Owner Decisions Applied:** 2026-09-13 GAP-029 planning authority; P1 frozen semantics;
-  GAP-025; DEC-014; HR-2/HR-4 ownership; GAP-024 sequencing
-- **New Decisions Proposed:** Option 2 implementation mechanism recommended; no new business-semantic decision
-- **Risks / Gaps:** runtime dependency absent; legacy evidence ambiguity; HR-4 callable absent;
-  deployment parity unknown; direct-write containment must not break other producers
+- **Owner Decisions Applied:** 2026-09-13 GAP-029 planning authority; DEC-017 sequencing;
+  DEC-018 narrow remediation identity; P1 frozen semantics; GAP-025; DEC-014;
+  HR-2/HR-4 ownership
+- **New Decisions Proposed:** None; owner-approved DEC-017 and DEC-018 applied
+- **Risks / Gaps:** Gate-A/Gate-B runtime absent; HR-4 callable absent; deployment parity
+  unknown; producer-specific direct-DML containment must not break unmigrated producers
 - **Tests / Checks:** documentation scope/diff, whitespace, relative links, protected-file,
   phase/posture, destructive-overwrite, current-assignment, and DEC-014 checks; exact results in handoff
 - **Known Limitations:** hosted PR/head/diff/reviews/CI and Project Control update remain pending;
   no runtime, database, or production-like verification performed
 - **Project Control Tabs To Update:** HR phase/status; gates/risks; decisions/approvals;
   PR tracker after independently hosted
-- **Suggested Project Control Status:** GAP-029 design ready for review; P1 blocked; implementation not authorized
-- **Next Authorized Action:** Review the GAP-029 design
-- **Scope Deviations:** None
-- **Stop Conditions Encountered:** None; checked-out base matched the expected SHA. This
-  environment has no local `develop` ref or remote, so independently hosted/current
-  `develop` verification remains pending.
+- **Suggested Project Control Status:** PR #509 governance correction ready for fresh review; Gate A next only after merge and separate task; implementation not authorized
+- **Next Authorized Action:** Fresh Codex review of PR #509
+- **Scope Deviations:** Owner-authorized expansion from six to seven Markdown files adds
+  only `docs/hr/hr-master-plan-expanded.md` sequencing alignment
+- **Stop Conditions Encountered:** Prior unauthorized-file contradiction was stopped and
+  then resolved under explicit scope expansion; no further current canonical contradiction found
 
 This payload is staged local evidence only. Hosted-only fields remain pending until
 independently verified, and the payload does not itself update the Agui Project Control

@@ -30,11 +30,12 @@
 - Historical posture: HR was treated as undergoing stabilization rather than awaiting feature completion; this is evidence for the audit, not a current completeness determination
 
 ## Current Execution Focus
-- implement no runtime in the governance approval itself; after it merges, prioritize the
-  separately approved historical Daily DTR write-authorization P1, then proceed in order
-  through the approved GAP-024 Foundation Security Correction gates
-- require a separate bounded Codex task/PR for every runtime slice; do not combine the
-  historical-write P1 with GAP-024 Gate A
+- implement no runtime in this governance correction; after it merges and each slice is
+  separately tasked, follow DEC-017: GAP-024 Gate A → the minimum Gate-B producer/write
+  foundation → the separate historical Daily DTR write-authorization P1 during Gate B →
+  completion of remaining Gate B → Gate C → Gate D → Gate E
+- preserve GAP-024's internal A → B → C → D → E order; the P1 remains a separate bounded
+  Codex task/PR during Gate B and must not be folded into Gate A to reduce PR count
 - preserve scope-first/no-leak, tenancy, identity, and frozen-contract guardrails during HR re-entry
 - do not infer end-to-end HR completeness from the historical stability checkpoint
 - keep general HR feature development gated: HR-2 feature expansion, HR-4 product

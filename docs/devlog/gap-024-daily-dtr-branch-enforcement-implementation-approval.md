@@ -206,6 +206,23 @@ Gate B may be subdivided into bounded producer-compatibility slices. It does not
 final Daily DTR cutover, unrelated read-consumer migration, all-consumer migration, or
 raw-access revocation.
 
+Under owner-approved **DEC-017 (2026-09-13)**, Gate B is intentionally subdividable in
+this sequence:
+
+1. **Gate-B foundation slice(s):** establish the minimum compatible, database-enforced,
+   non-bypassable command/writer foundation and producer-specific privilege transition
+   required by Historical DTR P1. Inventory current direct-table writers and ensure each
+   migrated writer can maintain Gate-A authority/projection without alternate direct DML.
+2. **Historical Daily DTR Write P1:** execute the already-approved P1 as a separate
+   bounded task/PR during Gate B, only after its required writer foundation is safely
+   callable. It consumes Gate-A authority and the Gate-B writer foundation; it is not
+   folded into Gate A.
+3. **Remaining Gate B:** complete every remaining active producer migration,
+   deterministic backfill/rebuild, replay/idempotency handling, and verification.
+
+Writer-side bypass containment for each migrated producer is required during Gate B; it
+is not Gate E's final broad raw/base-access revocation, which remains last.
+
 ### GAP-024 Gate C — canonical Daily DTR facts-only cutover
 
 Using the canonical read boundaries already established in Gate A and validated through
@@ -228,12 +245,12 @@ creation/remediation remains available only under the separate P1 and is not mov
 GAP-024. Final legitimate visibility remains governed by ordinary GAP-025 authorization.
 
 Gate C may begin only after evidence proves that the Gate-A readers exist, required
-authority/projection state is populated and rebuildable, every live producer remaining
-active during Gate C continuously maintains that state, newly committed legitimate
-attendance is immediately canonically readable without a later migration, invalid or
-ambiguous new writes fail closed, and no known producer can create projection-invisible
-attendance. If any live producer remains capable of raw-only or projection-incompatible
-mutation, **Gate C must not cut over**.
+authority/projection state is populated and rebuildable, Historical Daily DTR P1 is
+compatible and verified, every other required active producer continuously maintains
+that state, newly committed legitimate attendance is immediately canonically readable,
+invalid or ambiguous new writes fail closed, and no known producer can create raw-only
+or projection-invisible attendance. If P1 or any required producer remains incompatible
+or bypass-capable, **Gate C must not cut over**.
 
 Raw/base access is not revoked yet.
 
@@ -297,15 +314,22 @@ Future Gate-B tasks must prove:
   facts; and
 - legitimate owner/manager house-global behavior remains preserved.
 
-## 6. First runtime priority and separation rule
+## 6. DEC-017 sequencing and separation amendment
 
-The recommended first runtime PR after this governance approval merges is the separately
-approved historical Daily DTR write-authorization P1 correction. It is an already
-identified, independently bounded authorization risk. It must receive its own Codex task
-and PR and must not be combined with Gate A merely to reduce PR count.
+**Owner-approved 2026-09-13.** This amendment supersedes the former P1-first priority
+statement without changing GAP-024's frozen A → B → C → D → E gate order.
 
-After that separate correction, work proceeds through Gates A–E in order. This priority
-statement does not implement or broaden either stream.
+Gate A is the next runtime foundation after this governance correction is merged and
+separately tasked. Historical DTR P1 must not independently recreate Gate-A durable
+evidence/revision/lineage authority, authorization projection, or protected read
+boundaries. Gate B then begins with the minimum non-bypassable producer/write foundation
+needed by P1. P1 remains a separate bounded PR executed during Gate B after that
+foundation is safely callable. Remaining Gate-B compatibility and verification follows.
+Gate C remains blocked until P1 and every other required active attendance producer are
+compatible and verified and no producer can create raw-only or projection-invisible
+attendance. Gates D and E remain unchanged.
+
+This sequencing amendment implements no runtime and broadens neither stream.
 
 ## 7. Frozen architecture and product boundaries
 

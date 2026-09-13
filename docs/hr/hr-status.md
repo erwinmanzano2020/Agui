@@ -11,29 +11,35 @@
 - **Execution boundary:** the audit is complete and the dependency-first HR
   Authorization Security Correction was subsequently implemented through PR
   #492/#493, subject to the production-like/manual verification recorded below.
-  PR #503 subsequently merged the decision-ready GAP-024 plan. The owner has now
-  approved only the separate historical Daily DTR write P1 and the ordered GAP-024
-  Foundation Security Correction gates. Each future runtime slice requires its own
-  bounded Codex task after this governance approval merges. This is not broad HR
+  PR #503 subsequently merged the decision-ready GAP-024 plan. Owner-approved DEC-017
+  now sequences Gate A, the minimum Gate-B writer foundation, separate Historical DTR
+  P1 during Gate B, remaining Gate B, then Gates C–E; DEC-018 defines the narrow initial
+  owner/manager remediation-case identity. Each future runtime slice requires its own
+  bounded Codex task after this governance correction merges. This is not broad HR
   runtime authorization: HR-2 feature expansion, HR-4 product workflow, payroll
   expansion, and all unrelated implementation remain gated.
 
-## 2026-09-13 — GAP-029 dependency-planning checkpoint
+## 2026-09-13 — GAP-029 planning and DEC-017/DEC-018 correction checkpoint
 
-**Status: owner-authorized planning/design only; implementation not authorized.** An
-exact-`develop` re-audit confirmed that the separately approved Historical Daily DTR
-Write P1 still lacks safely callable correction/finalization and owner/manager
-missing-fact provenance infrastructure. GAP-029 therefore designs the minimum dependency
-in the [GAP-029 plan](../devlog/gap-029-historical-dtr-correction-finalization-dependency-plan.md).
+**Status: PR #509 documentation/governance only; implementation not authorized.** The
+exact-base audit confirmed the Historical Daily DTR P1 dependencies. The owner then
+approved DEC-017 and DEC-018 to resolve PR #509 review findings. DEC-017 supersedes the
+previous P1-first sequence without changing GAP-024's internal A → B → C → D → E order.
+DEC-018 establishes explicit remediation-case adjudication and durable manual-observation
+identity only for the initial DEC-014 owner/manager missing-fact path.
 
-The planning result does not authorize runtime, schema, migration, RPC, RLS/grant,
-API/repository/UI, test, or generated-type implementation. Historical Daily DTR Write P1
-remains runtime-blocked until the dependency design is reviewed, separately
-implementation-authorized, implemented, verified, and safely callable. GAP-024 Gate A
-remains queued behind the separate P1 path and is not implemented or resequenced by this
-planning gate. General HR feature work remains gated. HR remains the sole active phase;
-POS remains paused at merged PR #488. The next action is review of the GAP-029 design,
-not implementation.
+After this governance correction merges and a separate bounded task is authorized, Gate A
+is the next runtime foundation. Gate B follows and may be subdivided: first establish the
+minimum non-bypassable producer/write and privilege-transition foundation, then implement
+Historical DTR P1 in its own bounded PR during Gate B, then complete remaining producer
+compatibility and deterministic verification. Gate C cannot start until P1 and every
+required active producer are compatible and no writer creates raw-only or
+projection-invisible attendance. No Gate A, Gate B, P1, migration, RPC, grant/RLS, API,
+UI, repository, generated-type, test, or database work is authorized by PR #509.
+
+General HR feature work remains gated. HR remains the sole active phase; POS remains
+paused at merged PR #488. After this correction is hosted, the next action is a fresh
+Codex review of PR #509, not implementation.
 
 This is the canonical execution snapshot. The
 [`HR Master Plan`](./hr-master-plan.md) remains canonical for HR scope, frozen
@@ -107,8 +113,8 @@ Payroll/payslip, browser-direct, kiosk, bulk, service/admin/background, repair
 script/runbook, and every other active consumer must have an approved migrated/retired
 disposition before revocation.
 
-The historical Daily DTR write-authorization P1 is separately owner-approved as the
-recommended first urgent runtime correction and is frozen in its own
+The historical Daily DTR write-authorization P1 remains separately owner-approved and
+frozen in its own
 [`Implementation Approval`](../devlog/dtr-historical-write-authorization-p1-implementation-approval.md).
 It must reject current `employee.branch_id` or current assignment as independent proof
 of authority over a historical attendance fact, preserve house-first authorization and
@@ -119,10 +125,16 @@ semantics rather than destructively overwrite canonical attendance state. If the
 correction/finalization dependency is unavailable, the edit must fail closed. Under
 DEC-014, only legitimate house-wide owners/managers may create missing historical facts,
 and they require an explicit, authorized, same-house actual-attendance assertion as
-durable manual provenance. The P1 must fail closed for
+durable manual provenance. Under DEC-018, explicit existing-versus-distinct-new
+adjudication establishes durable manual-observation identity; request UUIDs deduplicate
+only that case's retries, and changed candidate/base state requires re-adjudication. The
+P1 must fail closed for
 unsafe, missing/malformed/out-of-scope provenance, UNATTRIBUTED, CONFLICT, zero-scope, or
 cross-house targets without metadata leakage. It requires a separate bounded runtime
-Codex task/PR and must not be bundled into Option D Gate A.
+Codex task/PR. Under DEC-017 it runs during Gate B only after Gate A and its minimum
+required Gate-B writer foundation are safely
+callable; it must not be bundled into Gate A. Gate C waits for P1 and all other required
+active producers.
 
 **DEC-012 approved 2026-09-11 — Option A, narrow no-leak exact-target resolution;
 future/deferred for branch-limited missing-fact runtime.** The approved future design

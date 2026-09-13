@@ -115,11 +115,13 @@ employee/date/branch combination is not visible-fact correction authority, and n
 may imply that a fact is absent, hidden in another branch, conflicting, or in need of
 remediation. The initial P1 does not select a missing-attendance reporting UX.
 
-A house-wide owner/manager may inspect whether the logical fact exists because that actor
-already has legitimate house-wide attendance visibility. If no fact exists, the actor may
-create a new historical fact under the approved provenance rules. If a fact exists, the
-operation must enter applicable correction/conflict semantics rather than create a
-duplicate. House-wide breadth is authorization, not permission to bypass evidence
+A house-wide owner/manager may inspect applicable candidate facts because that actor
+already has legitimate house-wide attendance visibility. Under DEC-018, the actor must
+explicitly adjudicate the intended observation as belonging to a selected existing fact
+or as genuinely distinct new attendance; only the distinct-new decision may create under
+the approved provenance rules. The existing decision enters correction/conflict
+semantics. Absence of an exact timestamp match cannot decide this. House-wide breadth is
+authorization, not permission to bypass evidence
 integrity, correction lineage, finalization, or audit requirements; destructive overwrite
 remains prohibited.
 
@@ -133,8 +135,11 @@ Owner/manager missing-fact creation must retain all of the following:
 6. actor identity;
 7. historical attendance context;
 8. a non-empty valid manual-creation reason;
-9. deterministic logical fact/evidence identity;
-10. durable binding of provenance and audit context to the resulting lineage;
+9. a DEC-018 remediation case that records the House-visible candidate/base revision and
+   explicit owner/manager adjudication of existing fact versus genuinely distinct new
+   observation;
+10. for a distinct-new decision, durable manual observation/remediation-case identity and
+    provenance/audit binding to the resulting lineage;
 11. no silent inference from current employee assignment, request/UI context, schedule,
     viewer/operator branch, or device branch; and
 12. classification of any resulting fact under unchanged GAP-025 semantics.
@@ -264,8 +269,10 @@ Owner/manager missing-fact tests must prove:
 - explicit actual-attendance provenance is required and current assignment cannot
   substitute for it;
 - same-House employee and branch validation is enforced;
-- reason, actor, context, deterministic identity, and durable audit/provenance binding are
-  retained;
+- reason, actor, context, DEC-018 remediation/manual-observation identity, base revision,
+  explicit adjudication, and durable audit/provenance binding are retained;
+- operation/idempotency identity deduplicates retries of that case only; employee/date/time
+  never supplies logical uniqueness, and changed candidate/base state requires re-adjudication;
 - an existing logical fact routes to correction/conflict handling rather than duplicate
   creation;
 - house-wide authorization does not bypass correction lineage or finalization;
@@ -282,17 +289,52 @@ in the initial P1.
 
 These are future implementation requirements. This documentation approval adds no tests.
 
-## 4. Separation from GAP-024 Option D
+## 4. DEC-017 sequencing amendment
 
-This P1 is independently bounded and must receive a separate future Codex task and PR.
-It is the recommended first runtime priority after the governance approval merges, but
-it must not be bundled into GAP-024 Gate A or any other Option D read/projection slice to
-reduce PR count.
+**Owner-approved 2026-09-13.** This P1 remains an independently bounded correction with
+its own future task and PR, but it no longer executes before GAP-024 Gate A. Gate A first
+establishes the canonical durable evidence/revision/lineage authority, authorization
+projection, and protected read boundaries. P1 must consume that authority and must not
+build a competing stable fact/revision/lineage source.
 
-After the separate P1 correction, the ordered GAP-024 Option D gates may proceed under
-their own
-[Implementation Approval](./gap-024-daily-dtr-branch-enforcement-implementation-approval.md).
-This P1 authorization neither implements nor accelerates those gates.
+Gate B next establishes the minimum compatible, non-bypassable producer/write command
+and privilege-transition foundation P1 requires. Only after that foundation is safely
+callable does P1 execute as a separate bounded PR during the Gate-B sequence. Remaining
+Gate-B producer compatibility, deterministic backfill/rebuild, and verification then
+complete. Gate C remains blocked until P1 and all other required active producers are
+compatible and verified. This amendment does not fold P1 into Gate A, reorder GAP-024's
+A → B → C → D → E gates, or authorize runtime.
+
+## 4.1 DEC-018 owner/manager missing-fact identity amendment
+
+**Owner-approved 2026-09-13; narrow to the initial DEC-014 path.** Before canonical
+creation, a legitimate house-wide owner/manager starts a remediation case containing the
+House, employee, proposed values/context, explicit asserted actual-attendance branch,
+reason, actor, durable case identity, and candidate/base attendance revision. Because the
+actor has legitimate house-wide attendance visibility, applicable House-visible
+candidate facts may be evaluated.
+
+The actor must explicitly adjudicate either:
+
+1. **Existing fact:** the intended attendance is the same attendance or belongs to a
+   selected existing fact; create nothing and enter correction/conflict semantics; or
+2. **Distinct new:** the intended attendance is a genuinely separate missing observation;
+   the adjudicated case receives durable manual-observation/remediation-case identity and
+   may proceed through canonical creation/finalization.
+
+The system must not infer distinct-new from absence of an exact timestamp match.
+Employee/day, employee/date/time, approximate timestamps, or any other timestamp match
+is never automatic logical-observation uniqueness. An operation/idempotency key identifies
+only a retry against the same remediation/manual-observation identity; it neither proves
+attendance identity across independent cases nor makes a fresh request a new observation.
+If candidate/base attendance state materially changes before creation/finalization, the
+case is stale and requires explicit re-adjudication against the new base. Latest-write-wins
+is prohibited.
+
+This is the minimum integrity lifecycle, not a generalized case-management product. It
+selects no requester inbox, attachment, withdrawal, escalation, kiosk, bulk/import, or
+universal event-identity mechanism. DEC-014 remains controlling, and DEC-012/DEC-013
+remain deferred.
 
 ## 5. Non-change and risk statement
 
