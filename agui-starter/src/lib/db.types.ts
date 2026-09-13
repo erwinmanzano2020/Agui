@@ -286,14 +286,18 @@ export type HrAttendanceEvidenceRow = {
   evidence_kind: "LOGICAL_IN" | "LOGICAL_OUT" | "EXPLICIT_BRANCH";
   branch_id: string | null; integrity_state: "ESTABLISHED" | "UNRESOLVED" | "INVALID";
   sufficiency_state: "SUFFICIENT" | "INSUFFICIENT" | "UNRESOLVED";
-  is_integrity_eligible: boolean; is_current: boolean; semantic_revision: number;
+  is_integrity_eligible: boolean; semantic_revision: number;
   supersedes_evidence_id: string | null; source_reference: string | null; recorded_at: string;
 };
-export type HrAttendanceEvidenceInsert = Omit<HrAttendanceEvidenceRow, "id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "is_current" | "semantic_revision" | "supersedes_evidence_id" | "source_reference" | "recorded_at"> & Partial<Pick<HrAttendanceEvidenceRow, "id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "is_current" | "semantic_revision" | "supersedes_evidence_id" | "source_reference" | "recorded_at">>;
+export type HrAttendanceEvidenceInsert = Omit<HrAttendanceEvidenceRow, "id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "semantic_revision" | "supersedes_evidence_id" | "source_reference" | "recorded_at"> & Partial<Pick<HrAttendanceEvidenceRow, "id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "semantic_revision" | "supersedes_evidence_id" | "source_reference" | "recorded_at">>;
 export type HrAttendanceEvidenceUpdate = Partial<HrAttendanceEvidenceInsert>;
 
-export type HrAttendanceFactEvidenceRow = { house_id: string; fact_id: string; evidence_id: string; employee_id: string; is_current_governing: boolean; associated_at: string; disassociated_at: string | null };
-export type HrAttendanceFactEvidenceInsert = Omit<HrAttendanceFactEvidenceRow, "is_current_governing" | "associated_at" | "disassociated_at"> & Partial<Pick<HrAttendanceFactEvidenceRow, "is_current_governing" | "associated_at" | "disassociated_at">>;
+export type HrAttendanceEvidenceFrameRow = { house_id: string; fact_id: string; employee_id: string; evidence_basis_revision: number; predecessor_revision: number | null; is_sealed: boolean; sealed_at: string | null; created_at: string };
+export type HrAttendanceEvidenceFrameInsert = Omit<HrAttendanceEvidenceFrameRow, "predecessor_revision" | "is_sealed" | "sealed_at" | "created_at"> & Partial<Pick<HrAttendanceEvidenceFrameRow, "predecessor_revision" | "is_sealed" | "sealed_at" | "created_at">>;
+export type HrAttendanceEvidenceFrameUpdate = Partial<HrAttendanceEvidenceFrameInsert>;
+
+export type HrAttendanceFactEvidenceRow = { house_id: string; fact_id: string; evidence_basis_revision: number; evidence_id: string; employee_id: string; created_at: string };
+export type HrAttendanceFactEvidenceInsert = Omit<HrAttendanceFactEvidenceRow, "created_at"> & Partial<Pick<HrAttendanceFactEvidenceRow, "created_at">>;
 export type HrAttendanceFactEvidenceUpdate = Partial<HrAttendanceFactEvidenceInsert>;
 
 export type HrAttendanceEmployeeGenerationRow = { house_id: string; employee_id: string; candidate_evidence_generation: number; updated_at: string };
@@ -1629,6 +1633,7 @@ export interface Database {
       hr_attendance_facts: TableDefinition<HrAttendanceFactRow, HrAttendanceFactInsert, HrAttendanceFactUpdate>;
       hr_attendance_fact_revisions: TableDefinition<HrAttendanceFactRevisionRow, HrAttendanceFactRevisionInsert, HrAttendanceFactRevisionUpdate>;
       hr_attendance_evidence: TableDefinition<HrAttendanceEvidenceRow, HrAttendanceEvidenceInsert, HrAttendanceEvidenceUpdate>;
+      hr_attendance_evidence_frames: TableDefinition<HrAttendanceEvidenceFrameRow, HrAttendanceEvidenceFrameInsert, HrAttendanceEvidenceFrameUpdate>;
       hr_attendance_fact_evidence: TableDefinition<HrAttendanceFactEvidenceRow, HrAttendanceFactEvidenceInsert, HrAttendanceFactEvidenceUpdate>;
       hr_attendance_employee_generations: TableDefinition<HrAttendanceEmployeeGenerationRow, HrAttendanceEmployeeGenerationInsert, HrAttendanceEmployeeGenerationUpdate>;
       hr_attendance_authorization_projection: TableDefinition<HrAttendanceAuthorizationProjectionRow, HrAttendanceAuthorizationProjectionInsert, HrAttendanceAuthorizationProjectionUpdate>;
@@ -1762,8 +1767,8 @@ export interface Database {
       current_entity_id: FunctionDefinition<Record<string, never>, string | null>;
       next_hr_reference_code: FunctionDefinition<{ target_year: number }, string>;
       hr_rebuild_attendance_authorization_projection: FunctionDefinition<{ p_house_id: string }, number>;
-      hr_read_canonical_attendance_branch_scoped: FunctionDefinition<{ p_house_id: string }, Array<{ fact_id: string; employee_id: string; value_revision: number; work_date: string; time_in: string | null; time_out: string | null; hours_worked: number | null; overtime_minutes: number; status: string; active_branch_id: string }>>;
-      hr_read_canonical_attendance_house_global: FunctionDefinition<{ p_house_id: string }, Array<{ fact_id: string; employee_id: string; value_revision: number; work_date: string; time_in: string | null; time_out: string | null; hours_worked: number | null; overtime_minutes: number; status: string; attribution_state: "ATTRIBUTED" | "UNATTRIBUTED" | "CONFLICT"; active_branch_id: string | null }>>;
+      hr_read_canonical_attendance_branch_scoped: FunctionDefinition<{ p_house_id: string; p_start_date: string; p_end_date: string; p_employee_id?: string | null; p_limit?: number; p_offset?: number }, Array<{ fact_id: string; employee_id: string; work_date: string; time_in: string | null; time_out: string | null; hours_worked: number | null; overtime_minutes: number; status: string; active_branch_id: string }>>;
+      hr_read_canonical_attendance_house_global: FunctionDefinition<{ p_house_id: string; p_start_date: string; p_end_date: string; p_employee_id?: string | null; p_limit?: number; p_offset?: number }, Array<{ fact_id: string; employee_id: string; work_date: string; time_in: string | null; time_out: string | null; hours_worked: number | null; overtime_minutes: number; status: string; attribution_state: "ATTRIBUTED" | "UNATTRIBUTED" | "CONFLICT"; active_branch_id: string | null }>>;
     };
   };
 }
