@@ -3,19 +3,53 @@
 ## Current authority and posture
 
 - **Last audited:** 2026-08-28 UTC; GAP-025 contract canonicalized 2026-09-06 UTC;
-  GAP-024 implementation governance approved 2026-09-10 UTC.
+  GAP-024 implementation governance approved 2026-09-10 UTC; GAP-029 bounded
+  dependency planning/design owner-authorized 2026-09-13 UTC.
 - **Active phase:** HR is the sole active development phase; POS remains paused
   at merged PR #488.
 - **Current checkpoint source:** [HR Current-State Audit After Phase Re-entry](../devlog/hr-current-state-audit-2026-08-28.md).
 - **Execution boundary:** the audit is complete and the dependency-first HR
   Authorization Security Correction was subsequently implemented through PR
   #492/#493, subject to the production-like/manual verification recorded below.
-  PR #503 subsequently merged the decision-ready GAP-024 plan. The owner has now
-  approved only the separate historical Daily DTR write P1 and the ordered GAP-024
-  Foundation Security Correction gates. Each future runtime slice requires its own
-  bounded Codex task after this governance approval merges. This is not broad HR
+  PR #503 subsequently merged the decision-ready GAP-024 plan. Owner-approved DEC-017
+  now sequences Gate A, the Gate-B pre-P1 containment of every raw principal able to reach
+  P1-covered attendance, separate Historical DTR P1 during Gate B, remaining Gate B,
+  then Gates C–E; DEC-018 defines the narrow initial
+  owner/manager remediation-case identity. Each future runtime slice requires its own
+  bounded Codex task after this governance correction merges. This is not broad HR
   runtime authorization: HR-2 feature expansion, HR-4 product workflow, payroll
   expansion, and all unrelated implementation remain gated.
+
+## 2026-09-13 — GAP-029 planning and DEC-017/DEC-018 correction checkpoint
+
+**Status: PR #509 is the independently verified hosted documentation/governance
+correction stream; implementation not authorized.** The exact-base audit confirmed the
+Historical Daily DTR P1 dependencies. The owner approved DEC-017 and DEC-018 as durable
+repository decisions; those decisions also address previously verified review findings
+in the hosted PR stream. DEC-017 supersedes the
+previous P1-first sequence without changing GAP-024's internal A → B → C → D → E order.
+DEC-018 establishes explicit remediation-case adjudication and durable manual-observation
+identity only for the initial DEC-014 owner/manager missing-fact path.
+
+After this governance correction merges and a separate bounded task is authorized, Gate A
+is the next runtime foundation. Gate B follows and may be subdivided: first establish the
+non-bypassable command plus containment of every principal able to raw-mutate
+P1-covered state, then implement
+Historical DTR P1 in its own bounded PR during Gate B, then complete remaining producer
+compatibility and deterministic verification. Gate C cannot start until P1 and every
+required active producer are compatible and no writer creates raw-only or
+projection-invisible attendance. No Gate A, Gate B, P1, migration, RPC, grant/RLS, API,
+UI, repository, generated-type, test, or database work is authorized by PR #509.
+
+General HR feature work remains gated. HR remains the sole active phase; POS remains
+paused at merged PR #488. Owner-side verification observed PR #509 open, unmerged,
+mergeable, based on `develop`, at hosted head
+`95c36c1a53a3c1a964afb1c4015ac6b42668a3d4` before this correction, with expected hosted
+base `f989588ae5408bbd13ec17a99160b15a1ea9538b` and unresolved thread
+`discussion_r3998908926`. The newest local
+correction is not thereby hosted or reviewed; its hosted head, diff, checks, and review
+state remain pending re-verification. After hosting, the next action is a fresh Codex
+review of PR #509, not implementation.
 
 This is the canonical execution snapshot. The
 [`HR Master Plan`](./hr-master-plan.md) remains canonical for HR scope, frozen
@@ -33,7 +67,7 @@ not stabilize the daily DTR page's branch-limited read path. That page still use
 house-wide access and house/date reads without a complete approved branch-limited
 visibility path; production-like authorization/RLS verification also remains
 outstanding. GAP-024 planning is complete and Option D is approved, but no GAP-024
-runtime, migration, consumer cutover, no-leak verification, or raw-access revocation
+runtime, migration, consumer cutover, no-leak verification, or final broad raw/base-access cutover
 has occurred. `dtr_segments` has derived, not directly stored, branch scope, so
 segment enforcement remains unimplemented until bounded approved gates satisfy the
 GAP-025 temporal attribution contract. The monthly
@@ -70,8 +104,9 @@ closed and canonical. The owner resolved the plan's four decisions on 2026-09-10
    finalization/payroll-ready use; and
 4. Option D—durable evidence/revision/lineage authority, a rebuildable current
    authorization projection, and canonical authorized read boundaries—is approved for
-   staged Foundation Security Correction implementation, with raw/base access revocation
-   last.
+   staged Foundation Security Correction implementation, with the final broad
+   raw/base-access security cutover last; this does not prohibit DEC-017's earlier scoped
+   Gate-B mutation-authority containment.
 
 The
 [`GAP-024 Implementation Approval`](../devlog/gap-024-daily-dtr-branch-enforcement-implementation-approval.md)
@@ -80,8 +115,8 @@ Gate A authority/projection plus canonical branch-aware and house-global read-bo
 foundation; Gate B deterministic ingest/backfill/rebuild, interface validation, and
 ongoing canonical authority/projection maintenance by every active attendance producer;
 Gate C Daily DTR facts-only cutover using those already-established canonical readers;
-Gate D migration of every live read consumer; and Gate E final security cutover/raw-
-access revocation. Gate C must not cut over while any live producer can create raw-only
+Gate D migration of every live read consumer; and Gate E final broad raw/base-access
+security cutover. Gate C must not cut over while any live producer can create raw-only
 or projection-incompatible attendance. A component's writer compatibility may therefore
 be required in Gate B even when its unrelated reader migrates later in Gate D. A gate may
 be subdivided, but order and semantics cannot change.
@@ -89,8 +124,8 @@ Payroll/payslip, browser-direct, kiosk, bulk, service/admin/background, repair
 script/runbook, and every other active consumer must have an approved migrated/retired
 disposition before revocation.
 
-The historical Daily DTR write-authorization P1 is separately owner-approved as the
-recommended first urgent runtime correction and is frozen in its own
+The historical Daily DTR write-authorization P1 remains separately owner-approved and
+frozen in its own
 [`Implementation Approval`](../devlog/dtr-historical-write-authorization-p1-implementation-approval.md).
 It must reject current `employee.branch_id` or current assignment as independent proof
 of authority over a historical attendance fact, preserve house-first authorization and
@@ -101,10 +136,16 @@ semantics rather than destructively overwrite canonical attendance state. If the
 correction/finalization dependency is unavailable, the edit must fail closed. Under
 DEC-014, only legitimate house-wide owners/managers may create missing historical facts,
 and they require an explicit, authorized, same-house actual-attendance assertion as
-durable manual provenance. The P1 must fail closed for
+durable manual provenance. Under DEC-018, explicit existing-versus-distinct-new
+adjudication establishes durable manual-observation identity; request UUIDs deduplicate
+only that case's retries, and changed candidate/base state requires re-adjudication. The
+P1 must fail closed for
 unsafe, missing/malformed/out-of-scope provenance, UNATTRIBUTED, CONFLICT, zero-scope, or
 cross-house targets without metadata leakage. It requires a separate bounded runtime
-Codex task/PR and must not be bundled into Option D Gate A.
+Codex task/PR. Under DEC-017 it runs during Gate B only after Gate A and Gate-B database proof that every
+bypass-capable principal over P1-covered state is contained and the command is safely
+callable; it must not be bundled into Gate A. Gate C waits for P1 and all other required
+active producers.
 
 **DEC-012 approved 2026-09-11 — Option A, narrow no-leak exact-target resolution;
 future/deferred for branch-limited missing-fact runtime.** The approved future design
@@ -515,7 +556,7 @@ GAP-025 contract. That historical block was valid then but is superseded as curr
 execution guidance by the 2026-09-10 GAP-024 implementation-governance approval recorded
 above, which supplies the required bounded gate. GAP-024 itself remains **OPEN and
 unimplemented** until its authorized runtime, migration, consumer-cutover, no-leak
-verification, and final raw-access revocation requirements are complete. GAP-026 remains
+verification, and final broad raw/base-access cutover requirements are complete. GAP-026 remains
 separately unauthorized unless independently approved.
 
 No GAP-024 or GAP-026 runtime, schema, migration, RLS/grant, RPC, API/UI, test,

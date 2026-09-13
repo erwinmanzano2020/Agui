@@ -115,11 +115,14 @@ employee/date/branch combination is not visible-fact correction authority, and n
 may imply that a fact is absent, hidden in another branch, conflicting, or in need of
 remediation. The initial P1 does not select a missing-attendance reporting UX.
 
-A house-wide owner/manager may inspect whether the logical fact exists because that actor
-already has legitimate house-wide attendance visibility. If no fact exists, the actor may
-create a new historical fact under the approved provenance rules. If a fact exists, the
-operation must enter applicable correction/conflict semantics rather than create a
-duplicate. House-wide breadth is authorization, not permission to bypass evidence
+A house-wide owner/manager may receive minimum safe summaries of applicable canonical
+facts and unresolved Gate-A observations/evidence because that actor already has
+legitimate house-wide attendance visibility. Under DEC-018, the actor must explicitly
+adjudicate the intended observation as belonging to selected existing/related attendance
+state or as genuinely distinct new attendance; only the distinct-new decision may create
+under the approved provenance rules. Existing/related state enters correction/conflict or
+canonical unresolved-evidence handling. Absence of an exact timestamp match cannot decide this. House-wide breadth is
+authorization, not permission to bypass evidence
 integrity, correction lineage, finalization, or audit requirements; destructive overwrite
 remains prohibited.
 
@@ -133,8 +136,13 @@ Owner/manager missing-fact creation must retain all of the following:
 6. actor identity;
 7. historical attendance context;
 8. a non-empty valid manual-creation reason;
-9. deterministic logical fact/evidence identity;
-10. durable binding of provenance and audit context to the resulting lineage;
+9. a DEC-018 remediation case that records the House + employee attendance
+   candidate/evidence generation observed after complete authoritative resolution of
+   canonical facts plus eligible unresolved observations/evidence, and explicit
+   owner/manager adjudication of existing/related attendance versus genuinely distinct
+   new observation;
+10. for a distinct-new decision, durable manual observation/remediation-case identity and
+    provenance/audit binding to the resulting lineage;
 11. no silent inference from current employee assignment, request/UI context, schedule,
     viewer/operator branch, or device branch; and
 12. classification of any resulting fact under unchanged GAP-025 semantics.
@@ -264,8 +272,12 @@ Owner/manager missing-fact tests must prove:
 - explicit actual-attendance provenance is required and current assignment cannot
   substitute for it;
 - same-House employee and branch validation is enforced;
-- reason, actor, context, deterministic identity, and durable audit/provenance binding are
-  retained;
+- reason, actor, context, DEC-018 remediation/manual-observation identity, shared
+  House + employee candidate/evidence generation,
+  explicit adjudication, and durable audit/provenance binding are retained;
+- operation/idempotency identity deduplicates retries of that case only; employee/date/time
+  never supplies logical uniqueness, and a changed shared employee candidate/evidence generation
+  requires re-adjudication;
 - an existing logical fact routes to correction/conflict handling rather than duplicate
   creation;
 - house-wide authorization does not bypass correction lineage or finalization;
@@ -282,17 +294,146 @@ in the initial P1.
 
 These are future implementation requirements. This documentation approval adds no tests.
 
-## 4. Separation from GAP-024 Option D
+## 4. DEC-017 sequencing amendment
 
-This P1 is independently bounded and must receive a separate future Codex task and PR.
-It is the recommended first runtime priority after the governance approval merges, but
-it must not be bundled into GAP-024 Gate A or any other Option D read/projection slice to
-reduce PR count.
+**Owner-approved 2026-09-13.** This P1 remains an independently bounded correction with
+its own future task and PR, but it no longer executes before GAP-024 Gate A. Gate A first
+establishes the canonical durable evidence/revision/lineage authority, authorization
+projection, and protected read boundaries. P1 must consume that authority and must not
+build a competing stable fact/revision/lineage source.
 
-After the separate P1 correction, the ordered GAP-024 Option D gates may proceed under
-their own
-[Implementation Approval](./gap-024-daily-dtr-branch-enforcement-implementation-approval.md).
-This P1 authorization neither implements nor accelerates those gates.
+Gate B next establishes the non-bypassable pre-P1 containment foundation. P1 may execute
+as a separate bounded PR during Gate B only after every authenticated, service-role,
+kiosk, bulk/import, manual/admin, background, repair, replay/sync, or other database
+principal capable of mutating P1-covered canonical attendance has migrated to the
+canonical command or is proven database-enforced as disjoint from that state. Safe P1
+adapter routing alone is insufficient. If this repository/database proof is absent, P1
+must remain disabled and fail closed. Remaining Gate-B work may follow only for already
+command-compatible/disjoint writers and broader rebuild/cutover preparation. Gate C
+remains blocked until P1 and all other required active producers are
+compatible and verified. This amendment does not fold P1 into Gate A, reorder GAP-024's
+A → B → C → D → E gates, or authorize runtime.
+
+That Gate-B prerequisite may include separately authorized scoped revocation, removal,
+constraint, or database-bounding of direct mutation authority over P1-covered state—for
+example, bounding shared `authenticated` DML after every dependent writer migrates, or
+containing an overlapping `service_role` writer. It does not perform Gate E's final broad
+raw/base-access security cutover, migrate all readers, or imply Gate-E completion.
+
+## 4.1 DEC-018 owner/manager missing-fact identity amendment
+
+**Owner-approved 2026-09-13; narrow to the initial DEC-014 path.** Before canonical
+creation, a legitimate house-wide owner/manager starts a remediation case containing the
+House, employee, proposed values/context, explicit asserted actual-attendance branch,
+reason, actor, durable case identity, and shared candidate-set base/generation. Because the
+actor has legitimate house-wide attendance visibility, applicable same-House canonical
+facts and unresolved Gate-A observations/evidence may be evaluated through minimum safe
+summaries.
+
+Before distinct-new adjudication is eligible, the canonical resolver must establish
+complete authoritative candidate/evidence coverage: every canonical fact, associated or
+unassociated integrity-eligible observation, unresolved-but-still-semantic item,
+late/replayed evidence, pairing/membership/canonicalization state, or other Gate-A item
+capable of representing or changing the claim is surfaced through a minimum safe summary
+or deterministically excluded by canonical server/database logic. Permanently invalid
+evidence may be excluded only through that canonical determination; raw-row existence
+alone neither makes evidence authoritative nor permits it to be ignored. A bounded
+display is acceptable only under those conditions. Date windows and exact/approximate
+timestamps are hints, never completeness or identity. If complete resolution is
+unavailable, distinct-new fails closed, no creation occurs, and remediation remains unresolved.
+
+The actor must explicitly adjudicate either:
+
+1. **Existing fact:** the intended attendance is the same attendance or belongs to a
+   selected existing fact; create nothing and enter correction/conflict semantics; or
+2. **Distinct new:** after complete authoritative candidate resolution, the intended
+   attendance is a genuinely separate missing observation;
+   the adjudicated case receives durable manual-observation/remediation-case identity and
+   may proceed through canonical creation/finalization.
+
+The system must not infer distinct-new from absence of an exact timestamp match.
+Employee/day, employee/date/time, approximate timestamps, or any other timestamp match
+is never automatic logical-observation uniqueness. An operation/idempotency key identifies
+only a retry against the same remediation/manual-observation identity; it neither proves
+attendance identity across independent cases nor makes a fresh request a new observation.
+If candidate/base attendance state materially changes before creation/finalization, the
+case is stale and requires explicit re-adjudication against the new base. Latest-write-wins
+is prohibited.
+
+Every authoritative fact or evidence mutation capable of changing the remediation
+candidate/evidence universe must serialize in a shared **House + employee
+attendance-mutation domain**, or a
+future database mechanism proven equally conservative, even when no fact exists yet and
+across all dates/day buckets. The case retains that shared employee generation/base.
+Candidate display may remain date-bounded only when canonical resolution has considered
+all plausible same-observation facts and unresolved observations/evidence and
+deterministically excludes every omission;
+broad mutation versioning neither authorizes broad UI enumeration nor weakens no-leak
+rules.
+
+Distinct-new creation participates. Existing-fact correction/finalization also
+participates whenever timestamps, work date, reporting bucket, values, observation
+membership, or other changes can enter, leave, or materially alter candidate/evidence
+coverage. Observation arrival, late/replay ingestion, integrity transitions,
+association/disassociation, IN/OUT pairing, duplicate/replay canonicalization, fact
+materialization, and evidence affecting `UNATTRIBUTED`/`CONFLICT` also advance the shared
+generation when relevant, even without a fact-row mutation. Such
+correction requires both per-fact revision/CAS and shared employee generation validation;
+per-fact CAS alone cannot prevent stale cross-case or cross-day adjudication.
+
+For same-employee cases proposing Sept 5 and Sept 6 at generation `N`, both use the same
+shared domain; one commit advances `N` to `N+1`, and the other creates nothing and becomes
+stale. Likewise, a correction moving a logically identical Sept 5 fact into a pending
+Sept 6 case's bucket must validate per-fact CAS, advance the shared generation, maintain
+Gate-A state atomically, and stale the pending case. Moving a fact out or materially
+changing same-day candidates does the same.
+
+This serialization does not make an employee, employee/day, date/time, exact/approximate
+timestamp, or reporting bucket unique. It permits multiple same-day facts, consecutive-day
+and overnight attendance, cross-midnight correction, and multiple legitimate employee
+facts. After re-adjudication at `N+1`, a genuinely separate observation may be created.
+
+Future implementation must define deterministic serialization/fact-lock ordering and
+prove no deadlock, stale commit, cross-day race, or CAS bypass. Shared-base validation,
+per-fact CAS, fact/correction mutation, lineage, Gate-A authority/projection maintenance,
+and generation advance commit atomically or all roll back. No mutate-then-bump, eventual
+invalidation, insert-then-detect, or latest-write-wins is allowed.
+
+P1 must preserve three distinct conceptual bases without selecting physical storage:
+canonical fact/value revision for value CAS and lineage; semantic evidence-basis
+fingerprint for GAP-025 attribution/location; and House + employee candidate/evidence generation
+for DEC-018 remediation staleness. Each proposal binds only to the bases it requires.
+Value/time proposals stale when their required value base changes; location proposals
+stale only on material required semantic-basis change, not unrelated value revision;
+combined proposals validate both. Candidate-generation may advance for a time/date-bucket
+change even when semantic location basis remains unchanged.
+
+A location proposal bound to `E7` therefore is not automatically stale when a value-only
+correction advances `V12 → V13` while preserving observations, roles, pairing,
+association, branch evidence, integrity, lanes, and location semantics. It becomes stale
+when a material evidence change advances `E7 → E8`. Payroll-impacting finalization still
+requires the exact HR-4 approval for the immutable proposal/base actually approved; an
+unchanged location basis does not preserve approval after relevant payload/value/payroll
+impact changes.
+
+Complete candidate/evidence resolution and shared generation are both mandatory. The resolver
+establishes what existing facts or eligible unresolved observations/evidence could
+already represent or affect the claim; the employee-wide
+generation detects changes after that adjudication. An unchanged generation cannot cure
+an earlier omission. For example, a same-observation fact incorrectly stored on Sept 3
+must be surfaced or deterministically excluded before an owner claiming Sept 6 attendance
+may choose distinct-new, even if the fact existed before the captured generation.
+
+Likewise, pre-existing unresolved observation `O1` cannot be ignored merely because no
+fact represents it: it must be safely summarized, deterministically excluded, or block
+distinct-new. Relevant late/replayed `O2`, validity changes, association changes, or
+canonicalization changes after adjudication advance the generation and make the pending
+case stale before creation.
+
+This is the minimum integrity lifecycle, not a generalized case-management product. It
+selects no requester inbox, attachment, withdrawal, escalation, kiosk, bulk/import, or
+universal event-identity mechanism. DEC-014 remains controlling, and DEC-012/DEC-013
+remain deferred.
 
 ## 5. Non-change and risk statement
 

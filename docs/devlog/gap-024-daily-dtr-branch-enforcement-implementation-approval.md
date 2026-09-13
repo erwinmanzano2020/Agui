@@ -18,7 +18,7 @@ merges, future bounded Codex tasks may implement only the ordered Foundation Sec
 Correction gates below.
 
 GAP-024 remains **OPEN and unimplemented**. It cannot close until its runtime, migration,
-consumer cutover, no-leak verification, and final raw-access revocation requirements are
+consumer cutover, no-leak verification, and final broad raw/base-access security-cutover requirements are
 satisfied. General HR runtime is not reopened.
 
 ## 2. Authority review
@@ -127,10 +127,12 @@ created here.
 > + rebuildable current authorization projection
 > + canonical authorized read boundaries
 
-It must preserve GAP-025 exactly, and raw/base access revocation is last. It must not use
+It must preserve GAP-025 exactly, and the final broad raw/base-access security cutover is
+last. This does not prohibit the earlier scoped mutation-authority containment required
+by DEC-017. It must not use
 `employees.branch_id` historical filtering, current-device branch inference, request
 `branchId` as provenance, application-only filtering while a raw bypass remains, one
-giant destructive migration, or revocation before every consumer migrates.
+giant destructive migration, or final broad revocation before every consumer migrates.
 
 ## 4. Approved architecture
 
@@ -141,7 +143,8 @@ Option D is conceptually frozen as:
 - a canonical branch-aware attendance read boundary;
 - a distinct authorized house-global attendance-consumption boundary;
 - interface selection from resolved actor authority, never caller convenience; and
-- elimination of raw/base-table bypass only at the final controlled cutover.
+- final broad elimination of residual raw/base-table access only at the final controlled
+  cutover, while permitting required earlier scoped write-integrity containment.
 
 This architecture adds no GAP-025 semantics. Kiosk provenance remains event-time.
 Manual/admin provenance must be explicit and authorized. Bulk/import is not provenance
@@ -203,8 +206,73 @@ historical provenance; House and branch boundaries and correction/finalization s
 remain enforced.
 
 Gate B may be subdivided into bounded producer-compatibility slices. It does not perform
-final Daily DTR cutover, unrelated read-consumer migration, all-consumer migration, or
-raw-access revocation.
+the final Daily DTR cutover, unrelated or all-consumer read migration, or the **final
+broad raw/base-access security cutover** reserved for Gate E. Gate B may and, where
+DEC-017 requires it, must perform **scoped mutation-authority containment** over
+P1-covered attendance: remove, revoke, constrain, or database-bound direct DML as needed
+to make the canonical command non-bypassable. Every such implementation remains a
+separately authorized bounded slice.
+
+Under owner-approved **DEC-017 (2026-09-13)**, Gate B is intentionally subdividable in
+this sequence:
+
+1. **Gate-B pre-P1 raw-mutator containment foundation:** inventory every active
+   attendance mutation principal/writer; establish the canonical database-enforced,
+   non-bypassable command; identify every principal capable of mutating P1-covered state;
+   migrate each such principal to the command or prove its authority is database-enforced
+   as disjoint; and verify no remaining principal can raw-mutate protected state. This
+   includes shared `authenticated`, `service_role`, kiosk, bulk/import, manual/admin,
+   background, offline replay/sync, and repair paths plus any writer found at the
+   implementation head. Gate-A readiness must also prove its protected authority can
+   resolve canonical facts and unresolved observations/evidence capable of changing
+   DEC-018 attendance truth; Gate-B containment must cover principals that can mutate
+   either part of that authoritative remediation universe.
+2. **Historical Daily DTR Write P1:** execute the already-approved P1 as a separate
+   bounded task/PR during Gate B only after repository/database proof establishes that
+   every bypass-capable principal over P1-covered state is contained. It consumes Gate-A
+   authority and the Gate-B writer foundation; it is not folded into Gate A.
+3. **Remaining Gate B:** complete deterministic backfill/rebuild, replay/idempotency,
+   later cutover preparation, and producer work only for writers already command-compatible
+   or provably database-disjoint from P1-covered state.
+
+Application convention, route/UI discipline, or trusted server code is not containment.
+Because multiple application producers share `authenticated`, one producer is not
+contained while that PostgreSQL role retains unrestricted DML reaching the same state;
+shared raw DML must be removed/bounded after its dependent authenticated writers migrate,
+or a database-enforced disjoint authority must differentiate write domains. Because
+`service_role` bypasses RLS, service-backed bulk and kiosk paths require command migration
+or equivalent database-enforced disjointness; ordinary RLS and trusted code are
+insufficient.
+
+P1-covered state means every canonical attendance fact and every integrity-eligible or
+unresolved-but-still-semantic Gate-A observation/evidence item whose values, lineage,
+revision, association, pairing, canonicalization, attribution, projection, or
+finalization can affect or be affected by P1—not merely rows created by P1. No raw
+principal may overwrite, delete/recreate, replace segments, mutate without CAS,
+reattribute without provenance, create a competing projection-invisible fact, invalidate
+lineage, alter remediation coverage invisibly, or silently supersede such state.
+
+This pre-P1 scoped write-integrity containment is not Gate E's final broad raw/base-access
+cutover and revocation, which remains last after all consumer, producer, rollback, and
+operational cutover requirements are complete.
+
+Scoped Gate-B containment may include revoking direct `INSERT`/`UPDATE`/`DELETE`,
+narrowing DML grants or policies, requiring the hardened command, migrating service-role
+writers, or database-enforcing a disjoint mutation domain. It must prevent raw
+delete/reinsert replacement and bypass of fact/value CAS, semantic evidence-basis,
+lineage/provenance, attribution, candidate/evidence generation, projection, and
+correction/finalization maintenance. It does not automatically retire every raw/base
+read, legacy read consumer, unrelated table permission, database-disjoint domain,
+diagnostic path, or system-wide legacy interface; those retain separately gated
+disposition culminating in Gate E.
+
+Example: after every authenticated producer needing overlapping DML has migrated, Gate B
+may remove or bound `authenticated` direct `UPDATE` authority over P1-covered
+`dtr_segments` and require the command. Direct/raw readers, payroll consumers, and
+repair/runbook read paths may still await Gate D/Gate E disposition. Conversely, a raw
+writer may remain before P1 only when database enforcement and tests prove its domain
+cannot touch P1-covered facts, evidence, attribution, correction/finalization, or the
+DEC-018 remediation universe; application convention is insufficient.
 
 ### GAP-024 Gate C — canonical Daily DTR facts-only cutover
 
@@ -228,14 +296,15 @@ creation/remediation remains available only under the separate P1 and is not mov
 GAP-024. Final legitimate visibility remains governed by ordinary GAP-025 authorization.
 
 Gate C may begin only after evidence proves that the Gate-A readers exist, required
-authority/projection state is populated and rebuildable, every live producer remaining
-active during Gate C continuously maintains that state, newly committed legitimate
-attendance is immediately canonically readable without a later migration, invalid or
-ambiguous new writes fail closed, and no known producer can create projection-invisible
-attendance. If any live producer remains capable of raw-only or projection-incompatible
-mutation, **Gate C must not cut over**.
+authority/projection state is populated and rebuildable, Historical Daily DTR P1 is
+compatible and verified, every other required active producer continuously maintains
+that state, newly committed legitimate attendance is immediately canonically readable,
+invalid or ambiguous new writes fail closed, and no known producer can create raw-only
+or projection-invisible attendance. If P1 or any required producer remains incompatible
+or bypass-capable, **Gate C must not cut over**.
 
-Raw/base access is not revoked yet.
+The final broad raw/base-access security cutover has not occurred. This does not undo or
+delay Gate-B scoped mutation-authority containment already required for P1 integrity.
 
 ### GAP-024 Gate D — migrate all consumers
 
@@ -256,8 +325,9 @@ Migrate every live consumer according to resolved authority, including:
 
 Branch-limited callers use branch-aware canonical facts. Legitimate house-global callers
 use the house-global canonical interface. A house-wide result must never be fetched and
-then filtered afterward for a branch-limited user. Raw access is not revoked in this
-gate.
+then filtered afterward for a branch-limited user. Gate D does not perform the final
+broad residual raw/base-access cutover, though required Gate-B scoped write containment
+remains in force.
 
 Gate D remains the broad read-consumer migration/disposition gate. Producer-side write
 compatibility required to prevent projection drift before Gate C belongs in Gate B and
@@ -265,19 +335,26 @@ must not be deferred merely because the same component also has a reader listed 
 D. A component's writer may require Gate-B compatibility while its unrelated reader
 migrates in Gate D.
 
-### GAP-024 Gate E — final security cutover and raw-access revocation
+### GAP-024 Gate E — final broad raw/base-access security cutover
 
 This gate is **LAST**. It is permitted only after:
 
 - every live consumer has an approved migrated or retired disposition;
+- every producer has a complete migrated, retired, or database-disjoint disposition and
+  no obsolete writer remains;
 - branch-limited no-leak tests pass;
 - payroll and payslip parity passes;
 - kiosk, bulk, and service boundaries are verified;
-- repair and runbook procedures are migrated or retired;
+- repair and runbook procedures are migrated or retired and operational access is safe;
 - deployed RLS, grants, and interfaces are verified; and
 - rollback cannot restore insecure raw house-wide access.
 
-Only then may raw access be revoked or bounded, followed by post-revocation verification.
+Only Gate E performs the final broad retirement, revocation, or bounding of residual
+raw/base reads, legacy direct consumers, remaining base-table interfaces, leftover
+producer/admin/repair/operational access, and obsolete grants, followed by
+post-cutover verification. Rollback must not restore insecure access. This does not
+prohibit Gate-B scoped mutation-authority containment already required to make
+P1-covered writes non-bypassable; Gate-B readiness is not Gate-E completion.
 
 ### Required producer compatibility verification
 
@@ -288,7 +365,17 @@ Future Gate-B tasks must prove:
 - correction/finalization and every other active writer maintain the same contract;
 - replay, duplicate, retry, and concurrent behavior cannot create divergent projection
   state or grant stale branch visibility;
+- unresolved/late evidence, association/disassociation, integrity transitions, and
+  duplicate/replay canonicalization cannot bypass DEC-018 candidate/evidence coverage or
+  its shared generation;
 - a raw-only write cannot silently bypass the projection;
+- authenticated direct PostgREST `INSERT`, `UPDATE`, and `DELETE` cannot bypass the
+  canonical contract for P1-covered state;
+- service-role bulk cannot raw-delete/reinsert protected attendance, kiosk cannot raw
+  open/close it, and admin/service/background/repair/replay paths cannot bypass;
+- any intentionally remaining raw writer is proven database-disjoint from P1-covered
+  state rather than separated by application convention;
+- CAS/revision and correction lineage remain authoritative for every producer;
 - projection rebuild reproduces the same current authority;
 - insufficient provenance produces a fail-closed state;
 - the canonical Daily DTR reader can see a newly valid fact immediately after its
@@ -297,15 +384,24 @@ Future Gate-B tasks must prove:
   facts; and
 - legitimate owner/manager house-global behavior remains preserved.
 
-## 6. First runtime priority and separation rule
+## 6. DEC-017 sequencing and separation amendment
 
-The recommended first runtime PR after this governance approval merges is the separately
-approved historical Daily DTR write-authorization P1 correction. It is an already
-identified, independently bounded authorization risk. It must receive its own Codex task
-and PR and must not be combined with Gate A merely to reduce PR count.
+**Owner-approved 2026-09-13.** This amendment supersedes the former P1-first priority
+statement without changing GAP-024's frozen A → B → C → D → E gate order.
 
-After that separate correction, work proceeds through Gates A–E in order. This priority
-statement does not implement or broaden either stream.
+Gate A is the next runtime foundation after this governance correction is merged and
+separately tasked. Historical DTR P1 must not independently recreate Gate-A durable
+evidence/revision/lineage authority, authorization projection, or protected read
+boundaries. Gate B then begins with the minimum non-bypassable producer/write foundation
+needed by P1. P1 remains a separate bounded PR executed during Gate B only after every
+database principal capable of reaching P1-covered attendance is command-migrated or
+provably database-disjoint and no bypass remains. Remaining Gate-B compatibility and
+verification follows only for already-compatible/disjoint producers and broader work.
+Gate C remains blocked until P1 and every other required active attendance producer are
+compatible and verified and no producer can create raw-only or projection-invisible
+attendance. Gates D and E remain unchanged.
+
+This sequencing amendment implements no runtime and broadens neither stream.
 
 ## 7. Frozen architecture and product boundaries
 
@@ -330,7 +426,8 @@ statement does not implement or broaden either stream.
   Finance artifact or behavior changes in this approval.
 - **Risk checked:** house-first tenancy, branch restriction, facts-only visibility,
   fail-closed classifications, audit non-disclosure, HR-2/HR-4 separation, consumer
-  parity, and last-only raw revocation remain mandatory.
+  parity, and last-only final broad raw/base-access cutover remain mandatory; required
+  scoped Gate-B write containment is preserved.
 - **Future verification:** each implementation gate must add its bounded automated
   coverage and production-like/manual verification; Gate E cannot proceed without the
   full pre-cutover and no-leak evidence listed above.
