@@ -987,31 +987,40 @@ selects one narrow mechanism only for the initial DEC-014 owner/manager manual
 missing-fact remediation path: explicit remediation-case adjudication plus durable manual
 observation/remediation-case identity.
 
-A legitimate house-wide owner/manager evaluates applicable House-visible candidate facts
-and explicitly decides whether the intended attendance belongs to an existing fact
-(which enters correction/conflict semantics) or is a genuinely distinct missing
-observation. Only the latter adjudication establishes the durable manual observation/case
+A legitimate house-wide owner/manager evaluates the authoritative same-House attendance
+candidate/evidence universe: canonical facts plus integrity-eligible associated or
+unassociated observations, unresolved-but-still-semantic evidence, late/replayed
+evidence, and pairing/membership/canonicalization state capable under GAP-025 of
+representing or changing the claimed observation. The actor explicitly decides whether
+the intended attendance belongs to existing/related attendance state (which enters
+correction/conflict or canonical unresolved-evidence handling) or is a genuinely distinct
+missing observation. Only the latter adjudication establishes the durable manual observation/case
 identity. An operation/idempotency key proves retry identity for that same case only; it
 cannot establish attendance identity across independent cases. Employee/day,
 employee/date/time, approximate timestamp matching, or absence of an exact match never
 becomes automatic uniqueness. Multiple legitimate same-day segments remain valid. A
-material change to the shared House + employee attendance candidate-generation makes the
+material change to the shared House + employee attendance candidate/evidence generation makes the
 case stale and requires re-adjudication.
 
 Enforcement of that unchanged DEC-018 rule requires a shared **House + employee
 attendance-mutation domain**, or a database mechanism proven equally conservative, even
 before a fact exists and across date/reporting buckets. Each case retains the shared
-employee generation/version/fingerprint it adjudicated. Any canonical create, removal,
-replacement, timestamp/date-bucket move, relevant correction finalization, or other
-candidate-universe mutation advances that generation atomically with fact/lineage and
-Gate-A maintenance. Existing-fact correction may require both per-fact CAS and shared
+employee generation/version/fingerprint it adjudicated. Any relevant canonical fact
+create/removal/replacement, timestamp/date-bucket move, observation arrival or late/replay
+ingestion, evidence-integrity transition, association/disassociation, membership or
+IN/OUT pairing change, duplicate/replay canonicalization, fact materialization, or
+evidence transition affecting `UNATTRIBUTED`/`CONFLICT` advances that generation
+atomically with evidence/fact lineage and Gate-A maintenance. Generation advancement is
+not limited to fact-row mutation. Existing-fact correction may require both per-fact CAS and shared
 generation validation; a per-fact revision alone is insufficient for remediation
 staleness across buckets.
 
 This is concurrency control, not attendance or employee uniqueness. Candidate display may
 remain narrowly bounded without authorizing broad enumeration only when authoritative
-resolution has considered every plausibly same-observation fact and canonical logic
-deterministically excludes every omitted fact. An omitted plausible fact makes
+resolution has considered every plausibly same-observation fact or unresolved
+observation/evidence item and canonical logic deterministically excludes every omission.
+Permanently invalid evidence may be excluded only by canonical determination; raw garbage
+is not attendance merely because a row exists. An omitted plausible item makes
 distinct-new unavailable; an unchanged generation cannot prove that an earlier candidate
 view was complete. Multiple genuine
 same-day, consecutive-day, overnight, and cross-midnight facts remain allowed after
@@ -1022,18 +1031,26 @@ identity through deterministic observation lineage, not date. Physical lock orde
 table, column, generation, or RPC design remains unselected, but future implementation
 must prove deterministic deadlock-free ordering and atomic invalidation.
 
-Candidate-generation invalidation is independent from semantic location evidence-basis
-invalidation. A time/value/date-bucket change may advance remediation generation while
+Candidate/evidence-generation invalidation is independent from semantic location
+evidence-basis invalidation. A time/value/date-bucket or relevant unresolved-evidence
+change may advance remediation generation while
 preserving the same semantic basis; that stales an affected DEC-018 case but does not by
 itself stale a location proposal bound to the unchanged semantic basis. Conversely, a
 material GAP-025 evidence-basis change stales dependent location proposals according to
 Section 9 even if described through a different physical revision mechanism.
 
+An unresolved observation may have no fact/value revision; no fake fact is required or
+permitted merely to version it. Pre-existing plausible evidence must be safely summarized,
+deterministically excluded, or block distinct-new. A relevant late/replayed observation,
+validity transition, association change, or canonicalization change after adjudication
+advances candidate/evidence generation and makes the case stale.
+
 This completeness rule does not alter fact identity. Proposed work date, adjacent-date
 windows, and exact/approximate timestamps remain search hints rather than semantic
 completeness. A wrong-date fact outside the displayed range must be surfaced or
 deterministically excluded if it could be the same observation. The resolver may inspect
-broader House-visible canonical state while presenting only the minimum facts needed for
+broader House-visible canonical state while presenting only the minimum fact/evidence
+summaries needed for
 owner/manager adjudication; it must not expose cross-House or branch-limited data.
 
 DEC-018 does not select kiosk duplicate/replay identity, general event identity, or

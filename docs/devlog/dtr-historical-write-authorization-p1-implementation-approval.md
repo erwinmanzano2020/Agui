@@ -115,12 +115,13 @@ employee/date/branch combination is not visible-fact correction authority, and n
 may imply that a fact is absent, hidden in another branch, conflicting, or in need of
 remediation. The initial P1 does not select a missing-attendance reporting UX.
 
-A house-wide owner/manager may inspect applicable candidate facts because that actor
-already has legitimate house-wide attendance visibility. Under DEC-018, the actor must
-explicitly adjudicate the intended observation as belonging to a selected existing fact
-or as genuinely distinct new attendance; only the distinct-new decision may create under
-the approved provenance rules. The existing decision enters correction/conflict
-semantics. Absence of an exact timestamp match cannot decide this. House-wide breadth is
+A house-wide owner/manager may receive minimum safe summaries of applicable canonical
+facts and unresolved Gate-A observations/evidence because that actor already has
+legitimate house-wide attendance visibility. Under DEC-018, the actor must explicitly
+adjudicate the intended observation as belonging to selected existing/related attendance
+state or as genuinely distinct new attendance; only the distinct-new decision may create
+under the approved provenance rules. Existing/related state enters correction/conflict or
+canonical unresolved-evidence handling. Absence of an exact timestamp match cannot decide this. House-wide breadth is
 authorization, not permission to bypass evidence
 integrity, correction lineage, finalization, or audit requirements; destructive overwrite
 remains prohibited.
@@ -136,9 +137,10 @@ Owner/manager missing-fact creation must retain all of the following:
 7. historical attendance context;
 8. a non-empty valid manual-creation reason;
 9. a DEC-018 remediation case that records the House + employee attendance
-   candidate-generation observed after complete authoritative candidate resolution and
-   explicit owner/manager adjudication of existing fact versus genuinely distinct new
-   observation;
+   candidate/evidence generation observed after complete authoritative resolution of
+   canonical facts plus eligible unresolved observations/evidence, and explicit
+   owner/manager adjudication of existing/related attendance versus genuinely distinct
+   new observation;
 10. for a distinct-new decision, durable manual observation/remediation-case identity and
     provenance/audit binding to the resulting lineage;
 11. no silent inference from current employee assignment, request/UI context, schedule,
@@ -271,10 +273,10 @@ Owner/manager missing-fact tests must prove:
   substitute for it;
 - same-House employee and branch validation is enforced;
 - reason, actor, context, DEC-018 remediation/manual-observation identity, shared
-  House + employee candidate-generation,
+  House + employee candidate/evidence generation,
   explicit adjudication, and durable audit/provenance binding are retained;
 - operation/idempotency identity deduplicates retries of that case only; employee/date/time
-  never supplies logical uniqueness, and a changed shared employee candidate-generation
+  never supplies logical uniqueness, and a changed shared employee candidate/evidence generation
   requires re-adjudication;
 - an existing logical fact routes to correction/conflict handling rather than duplicate
   creation;
@@ -318,16 +320,21 @@ A → B → C → D → E gates, or authorize runtime.
 creation, a legitimate house-wide owner/manager starts a remediation case containing the
 House, employee, proposed values/context, explicit asserted actual-attendance branch,
 reason, actor, durable case identity, and shared candidate-set base/generation. Because the
-actor has legitimate house-wide attendance visibility, applicable House-visible
-candidate facts may be evaluated.
+actor has legitimate house-wide attendance visibility, applicable same-House canonical
+facts and unresolved Gate-A observations/evidence may be evaluated through minimum safe
+summaries.
 
 Before distinct-new adjudication is eligible, the canonical resolver must establish
-complete authoritative candidate coverage: every fact that could plausibly be the claimed
-observation under approved identity/lineage rules is made available, or every omitted
-fact is deterministically excluded by canonical server/database logic. A bounded display
-is acceptable only under that condition. Date windows and exact/approximate timestamps
-are hints, never completeness or identity. If complete resolution is unavailable,
-distinct-new fails closed, no creation occurs, and remediation remains unresolved.
+complete authoritative candidate/evidence coverage: every canonical fact, associated or
+unassociated integrity-eligible observation, unresolved-but-still-semantic item,
+late/replayed evidence, pairing/membership/canonicalization state, or other Gate-A item
+capable of representing or changing the claim is surfaced through a minimum safe summary
+or deterministically excluded by canonical server/database logic. Permanently invalid
+evidence may be excluded only through that canonical determination; raw-row existence
+alone neither makes evidence authoritative nor permits it to be ignored. A bounded
+display is acceptable only under those conditions. Date windows and exact/approximate
+timestamps are hints, never completeness or identity. If complete resolution is
+unavailable, distinct-new fails closed, no creation occurs, and remediation remains unresolved.
 
 The actor must explicitly adjudicate either:
 
@@ -347,18 +354,24 @@ If candidate/base attendance state materially changes before creation/finalizati
 case is stale and requires explicit re-adjudication against the new base. Latest-write-wins
 is prohibited.
 
-Every canonical attendance mutation capable of changing the remediation candidate
-universe must serialize in a shared **House + employee attendance-mutation domain**, or a
+Every authoritative fact or evidence mutation capable of changing the remediation
+candidate/evidence universe must serialize in a shared **House + employee
+attendance-mutation domain**, or a
 future database mechanism proven equally conservative, even when no fact exists yet and
 across all dates/day buckets. The case retains that shared employee generation/base.
 Candidate display may remain date-bounded only when canonical resolution has considered
-all plausible same-observation facts and deterministically excludes every omission;
+all plausible same-observation facts and unresolved observations/evidence and
+deterministically excludes every omission;
 broad mutation versioning neither authorizes broad UI enumeration nor weakens no-leak
 rules.
 
 Distinct-new creation participates. Existing-fact correction/finalization also
 participates whenever timestamps, work date, reporting bucket, values, observation
-membership, or other changes can enter, leave, or materially alter candidate facts. Such
+membership, or other changes can enter, leave, or materially alter candidate/evidence
+coverage. Observation arrival, late/replay ingestion, integrity transitions,
+association/disassociation, IN/OUT pairing, duplicate/replay canonicalization, fact
+materialization, and evidence affecting `UNATTRIBUTED`/`CONFLICT` also advance the shared
+generation when relevant, even without a fact-row mutation. Such
 correction requires both per-fact revision/CAS and shared employee generation validation;
 per-fact CAS alone cannot prevent stale cross-case or cross-day adjudication.
 
@@ -382,7 +395,7 @@ invalidation, insert-then-detect, or latest-write-wins is allowed.
 
 P1 must preserve three distinct conceptual bases without selecting physical storage:
 canonical fact/value revision for value CAS and lineage; semantic evidence-basis
-fingerprint for GAP-025 attribution/location; and House + employee candidate-generation
+fingerprint for GAP-025 attribution/location; and House + employee candidate/evidence generation
 for DEC-018 remediation staleness. Each proposal binds only to the bases it requires.
 Value/time proposals stale when their required value base changes; location proposals
 stale only on material required semantic-basis change, not unrelated value revision;
@@ -397,12 +410,19 @@ requires the exact HR-4 approval for the immutable proposal/base actually approv
 unchanged location basis does not preserve approval after relevant payload/value/payroll
 impact changes.
 
-Complete candidate resolution and shared generation are both mandatory. The resolver
-establishes what existing facts could already represent the claim; the employee-wide
+Complete candidate/evidence resolution and shared generation are both mandatory. The resolver
+establishes what existing facts or eligible unresolved observations/evidence could
+already represent or affect the claim; the employee-wide
 generation detects changes after that adjudication. An unchanged generation cannot cure
 an earlier omission. For example, a same-observation fact incorrectly stored on Sept 3
 must be surfaced or deterministically excluded before an owner claiming Sept 6 attendance
 may choose distinct-new, even if the fact existed before the captured generation.
+
+Likewise, pre-existing unresolved observation `O1` cannot be ignored merely because no
+fact represents it: it must be safely summarized, deterministically excluded, or block
+distinct-new. Relevant late/replayed `O2`, validity changes, association changes, or
+canonicalization changes after adjudication advance the generation and make the pending
+case stale before creation.
 
 This is the minimum integrity lifecycle, not a generalized case-management product. It
 selects no requester inbox, attachment, withdrawal, escalation, kiosk, bulk/import, or

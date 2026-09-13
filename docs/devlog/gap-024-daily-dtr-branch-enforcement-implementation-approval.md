@@ -216,7 +216,10 @@ this sequence:
    as disjoint; and verify no remaining principal can raw-mutate protected state. This
    includes shared `authenticated`, `service_role`, kiosk, bulk/import, manual/admin,
    background, offline replay/sync, and repair paths plus any writer found at the
-   implementation head.
+   implementation head. Gate-A readiness must also prove its protected authority can
+   resolve canonical facts and unresolved observations/evidence capable of changing
+   DEC-018 attendance truth; Gate-B containment must cover principals that can mutate
+   either part of that authoritative remediation universe.
 2. **Historical Daily DTR Write P1:** execute the already-approved P1 as a separate
    bounded task/PR during Gate B only after repository/database proof establishes that
    every bypass-capable principal over P1-covered state is contained. It consumes Gate-A
@@ -234,11 +237,13 @@ or a database-enforced disjoint authority must differentiate write domains. Beca
 or equivalent database-enforced disjointness; ordinary RLS and trusted code are
 insufficient.
 
-P1-covered state means every canonical attendance fact whose values, lineage, revision,
-attribution, projection, or finalization can affect or be affected by P1—not merely rows
-created by P1. No raw principal may overwrite, delete/recreate, replace segments, mutate
-without CAS, reattribute without provenance, create a competing projection-invisible
-fact, invalidate lineage, or silently supersede such state.
+P1-covered state means every canonical attendance fact and every integrity-eligible or
+unresolved-but-still-semantic Gate-A observation/evidence item whose values, lineage,
+revision, association, pairing, canonicalization, attribution, projection, or
+finalization can affect or be affected by P1—not merely rows created by P1. No raw
+principal may overwrite, delete/recreate, replace segments, mutate without CAS,
+reattribute without provenance, create a competing projection-invisible fact, invalidate
+lineage, alter remediation coverage invisibly, or silently supersede such state.
 
 This pre-P1 scoped write-integrity containment is not Gate E's final broad raw/base-access
 cutover and revocation, which remains last after all consumer, producer, rollback, and
@@ -326,6 +331,9 @@ Future Gate-B tasks must prove:
 - correction/finalization and every other active writer maintain the same contract;
 - replay, duplicate, retry, and concurrent behavior cannot create divergent projection
   state or grant stale branch visibility;
+- unresolved/late evidence, association/disassociation, integrity transitions, and
+  duplicate/replay canonicalization cannot bypass DEC-018 candidate/evidence coverage or
+  its shared generation;
 - a raw-only write cannot silently bypass the projection;
 - authenticated direct PostgREST `INSERT`, `UPDATE`, and `DELETE` cannot bypass the
   canonical contract for P1-covered state;
