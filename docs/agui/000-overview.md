@@ -1,5 +1,8 @@
 # Agui Overview
 
+> Platform boundary: see the canonical [Agui Platform Architecture](../engineering/agui-platform-architecture.md)
+> for the one-platform, bounded-module, multi-surface model and its non-authorization limits.
+
 ## TL;DR
 - **Mission**: Ship an "Open-World RPG ERP" that lets franchise-ready retail teams level up their back-office and loyalty flows by making real data feel like an adventure HUD rather than spreadsheets.【F:docs/agui/001-vision.md†L124-L135】【F:docs/agui/001-vision.md†L424-L493】
 - **Primary users**: Merchant guild owners and managers (e.g., Vangie Variety Store), frontline staff encoding time & attendance, and operators issuing loyalty passes across alliances, guilds, and houses.【F:docs/agui/001-vision.md†L124-L148】【F:docs/agui/001-vision.md†L424-L493】
