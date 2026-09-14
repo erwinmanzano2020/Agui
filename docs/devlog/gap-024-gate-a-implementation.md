@@ -62,7 +62,11 @@ The corrected additive migration creates eight direct-access-protected tables:
    history for that root. Root/successor, reverse-order, and sibling-successor races thus
    share one lock even when explicit provenance has `observation_id = null`; the winner's
    fact becomes permanent for the lineage, while same-fact successive-basis reuse remains
-   valid. Observation-backed evidence retains its additional observation-wide lock/check.
+   valid. After taking that common lock, the guard permits at most one member of the
+   lineage in a given House + fact + evidence-basis frame. A later basis may contain the
+   lineage's later revision, so prior frames remain immutable, exact, and reconstructible;
+   distinct lineages may coexist in one frame. Observation-backed evidence retains its
+   additional observation-wide lock/check.
 7. `hr_attendance_employee_generations` reserves the distinct House + employee
    candidate/evidence concurrency generation required by DEC-018. Gate A stores this
    independent domain; Gate B commands must define and verify atomic producer advancement.
@@ -116,8 +120,11 @@ history and fingerprint material but cannot manufacture `CONFLICT` or attributio
 Sufficient `MANUAL_ADMIN` and `BULK_IMPORT` explicit provenance must carry a nonblank
 authorization namespace and immutable authorization/adjudication reference plus assertion
 time. Manual/admin evidence additionally carries an asserting entity and House role; an
-insert guard locks and verifies that exact role in the evidence House at assertion time
-without preventing later legitimate role revocation. Bulk transport alone is never provenance; its
+insert guard locks and verifies that exact role in the evidence House whenever the row
+otherwise has the complete conflict-applicability shape—even when its sufficiency state is
+not `SUFFICIENT`. Incomplete/non-applicable manual audit history remains representable and
+non-authoritative. No rebuild or reader revalidates the actor's current role, so later
+legitimate role revocation does not erase assertion-time authority. Bulk transport alone is never provenance; its
 trusted workflow/producer namespace and authorization reference are required. These are
 structural audit prerequisites only—Gate B's future canonical command must verify current
 authorization, and raw `service_role` insertion is not deemed trustworthy by itself.
@@ -236,9 +243,9 @@ source-observation identity.**
 
 The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, row-lock, and concurrency executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-Owner-side evidence confirms hosted head `3031b80a3a6fd823231c73aad84e3f9419ce12b2`
-passed Preflight run `34805563321` (run number 657). The explicit-provenance conflict-
-applicability correction has only static/local verification at this checkpoint; its
+Owner-side evidence confirms hosted head `1b8a759294dbf86cfa6d40dcb584278ebd31e960`
+passed Preflight run `34806883085` (run number 658). The one-lineage-member-per-frame and
+all-applicable-manual-authority corrections have only static/local verification at this checkpoint; their
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.

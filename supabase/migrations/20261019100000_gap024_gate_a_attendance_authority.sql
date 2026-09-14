@@ -292,7 +292,15 @@ begin
   if new.lane = 'MANUAL_ADMIN'
     and new.evidence_kind = 'EXPLICIT_BRANCH'
     and new.integrity_state = 'ESTABLISHED'
-    and new.sufficiency_state = 'SUFFICIENT' then
+    and new.is_integrity_eligible
+    and new.branch_id is not null
+    and new.authorization_namespace is not null
+    and length(btrim(new.authorization_namespace)) > 0
+    and new.authorization_reference is not null
+    and length(btrim(new.authorization_reference)) > 0
+    and new.asserted_at is not null
+    and new.asserted_by_entity_id is not null
+    and new.asserted_by_house_role is not null then
     perform 1 from public.house_roles hr
       where hr.house_id = new.house_id
         and hr.entity_id = new.asserted_by_entity_id
@@ -341,6 +349,24 @@ begin
     for update;
   if not found then
     raise exception 'Evidence membership requires a valid immutable lineage root'
+      using errcode = '23514';
+  end if;
+
+  -- A sealed-basis candidate is one current semantic set: after the common root
+  -- lock, reject any second revision or sibling from this lineage in this frame.
+  if exists (
+    select 1
+    from public.hr_attendance_fact_evidence frame_member
+    join public.hr_attendance_evidence frame_evidence
+      on frame_evidence.house_id = frame_member.house_id
+      and frame_evidence.id = frame_member.evidence_id
+    where frame_member.house_id = new.house_id
+      and frame_member.fact_id = new.fact_id
+      and frame_member.evidence_basis_revision = new.evidence_basis_revision
+      and frame_evidence.lineage_root_evidence_id = v_lineage_root_evidence_id
+      and frame_member.evidence_id <> new.evidence_id
+  ) then
+    raise exception 'An evidence frame may contain only one member of a semantic lineage'
       using errcode = '23514';
   end if;
 

@@ -130,6 +130,32 @@ test("every evidence supersession lineage inherits one root and one stable fact 
   assert.doesNotMatch(sql, /unique\s*\(house_id, lineage_root_evidence_id\)/i);
 });
 
+test("one evidence frame admits at most one member of a lineage while later bases remain exact", () => {
+  const members = new Map<string, Set<string>>();
+  const add = (basis: number, root: string) => {
+    const key = `House|Fact|${basis}`;
+    const roots = members.get(key) ?? new Set<string>();
+    if (roots.has(root)) return false;
+    roots.add(root);
+    members.set(key, roots);
+    return true;
+  };
+  assert.equal(add(1, "L1"), true); // root E1
+  assert.equal(add(1, "L1"), false); // successor or deep successor
+  assert.equal(add(1, "L1"), false); // sibling successor
+  assert.equal(add(2, "L1"), true); // later basis may use current successor
+  assert.equal(add(1, "L2"), true); // distinct lineage in same frame
+  assert.deepEqual([...members.get("House|Fact|1")!].sort(), ["L1", "L2"]);
+
+  const guard = functionSql("hr_guard_attendance_frame_membership_insert", "hr_guard_attendance_fact_revision_segment_insert");
+  const rootLock = guard.indexOf("from public.hr_attendance_evidence lineage_root");
+  const sameFrameCheck = guard.indexOf("from public.hr_attendance_fact_evidence frame_member");
+  assert.ok(rootLock >= 0 && rootLock < sameFrameCheck, "common lineage root must lock before same-frame inspection");
+  assert.match(guard, /frame_member\.house_id = new\.house_id[\s\S]*frame_member\.fact_id = new\.fact_id[\s\S]*frame_member\.evidence_basis_revision = new\.evidence_basis_revision[\s\S]*frame_evidence\.lineage_root_evidence_id = v_lineage_root_evidence_id/i);
+  assert.match(guard, /only one member of a semantic lineage/i);
+  assert.doesNotMatch(sql, /unique\s*\(house_id, lineage_root_evidence_id\)/i);
+});
+
 test("DEC-019 stores one namespaced stable observation chain with immutable occurrence time", () => {
   const observations = new Map<string, { occurredAt: string; recordedAt: string }>();
   const insert = (house: string, namespace: string, sourceId: string, occurredAt: string, recordedAt: string) => {
@@ -185,6 +211,31 @@ test("sufficient explicit provenance requires durable authorization audit", () =
   assert.match(rebuild, /explicit_lane_sufficient/i);
   assert.match(rebuild, /e\.authorization_namespace is not null[\s\S]*e\.authorization_reference is not null[\s\S]*e\.asserted_at is not null[\s\S]*e\.lane <> 'MANUAL_ADMIN'[\s\S]*e\.asserted_by_entity_id is not null[\s\S]*e\.asserted_by_house_role is not null/i);
   assert.match(rebuild, /when established_branch_count > 1 then 'CONFLICT'/i);
+});
+
+test("all otherwise conflict-applicable manual evidence validates exact-House role at assertion time", () => {
+  const guard = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
+  const manualCondition = guard.slice(guard.indexOf("if new.lane = 'MANUAL_ADMIN'"), guard.indexOf("perform 1 from public.house_roles"));
+  for (const prerequisite of [
+    /new\.evidence_kind = 'EXPLICIT_BRANCH'/,
+    /new\.integrity_state = 'ESTABLISHED'/,
+    /new\.is_integrity_eligible/,
+    /new\.branch_id is not null/,
+    /length\(btrim\(new\.authorization_namespace\)\) > 0/,
+    /length\(btrim\(new\.authorization_reference\)\) > 0/,
+    /new\.asserted_at is not null/,
+    /new\.asserted_by_entity_id is not null/,
+    /new\.asserted_by_house_role is not null/,
+  ]) assert.match(manualCondition, prerequisite);
+  assert.doesNotMatch(manualCondition, /sufficiency_state/i);
+  assert.match(guard, /hr\.house_id = new\.house_id[\s\S]*hr\.entity_id = new\.asserted_by_entity_id[\s\S]*hr\.role = new\.asserted_by_house_role[\s\S]*for key share/i);
+
+  const completeButInsufficient = { completeAudit: true, sufficient: false, roleExistsInHouse: true };
+  assert.equal(completeButInsufficient.completeAudit && completeButInsufficient.roleExistsInHouse, true);
+  assert.equal(completeButInsufficient.sufficient, false);
+  const malformedHistory = { completeAudit: false, roleLookupRequired: false, conflictApplicable: false };
+  assert.equal(malformedHistory.roleLookupRequired, false);
+  assert.equal(malformedHistory.conflictApplicable, false);
 });
 
 test("conflict aggregation excludes unaudited explicit rows without collapsing applicability into sufficiency", () => {

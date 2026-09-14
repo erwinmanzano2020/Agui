@@ -42,11 +42,15 @@ House/work-date-selective revision index. Owner-approved DEC-019 now adds immuta
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
 serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `3031b80a3a6fd823231c73aad84e3f9419ce12b2` passed Preflight run
-`34805563321` (run 657). The current local correction gives every append-only evidence
+head `1b8a759294dbf86cfa6d40dcb584278ebd31e960` passed Preflight run
+`34806883085` (run 658). The current local correction gives every append-only evidence
 supersession family an immutable lineage root and serializes all root/successor/sibling
 first bindings on that root, so null-observation explicit provenance cannot split across
-facts while same-fact successive-basis reuse remains valid. Conflict detection now uses
+facts while same-fact successive-basis reuse remains valid. Each frame now permits only
+one current member per lineage while later immutable frames may carry later revisions.
+Every otherwise conflict-applicable manual assertion now receives exact-House role
+validation at assertion time regardless of independent sufficiency, without view-time
+role revalidation or rejection of incomplete non-authoritative history. Conflict detection uses
 one canonical applicable-branch predicate: unaudited explicit rows remain history but do
 not manufacture disagreement, while authorized applicable disagreement still precedes
 independent sufficiency. The correction remains in progress, and post-correction hosted
