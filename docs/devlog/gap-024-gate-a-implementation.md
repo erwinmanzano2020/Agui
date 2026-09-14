@@ -24,17 +24,20 @@ PR is independently hosted, reviewed, and merged.
 The corrected additive migration creates seven direct-access-protected tables:
 
 1. `hr_attendance_facts` supplies stable logical fact identity, employee/House ownership,
-   current value revision, distinct evidence-basis revision, and semantic completion mode.
-2. `hr_attendance_fact_revisions` stores immutable-shaped value snapshots and explicit
-   predecessor revision plus an optional physical `dtr_segments` reference. A logical
-   fact therefore does not equal a mutable physical segment ID.
+   current value revision, and the current semantic evidence-basis revision pointer.
+2. `hr_attendance_fact_revisions` stores append-only value snapshots, the fact employee,
+   explicit predecessor revision, and an optional physical `dtr_segments` reference. Its
+   composite keys require the fact, revision, and segment to have the same House and
+   employee, so employee A's fact cannot reference employee B's segment even within one
+   House. A logical fact therefore does not equal a mutable physical segment ID.
 3. `hr_attendance_evidence` stores House/employee-owned canonical logical evidence for
    kiosk, manual/admin, and compliant bulk/import lanes. Evidence may remain unresolved
    and unassociated without a fake fact. It stores semantic revision separately from
    fact/value revision. Gate A does not copy kiosk JSON metadata or select a duplicate/
    replay identity rule.
 4. `hr_attendance_evidence_frames` identifies each semantic evidence-basis revision,
-   links it to its predecessor, and seals it before it can govern current projection state.
+   snapshots its classifier-authoritative completion mode, links it to its predecessor,
+   and seals it before it can govern current projection state.
 5. `hr_attendance_fact_evidence` stores the immutable exact evidence membership of each
    frame. Composite foreign keys enforce the same House and employee on both sides.
    Membership rows cannot be updated/deleted, and a row lock prevents inserts after sealing.
@@ -54,11 +57,15 @@ A historical basis `N` therefore remains exactly reconstructible after basis `N+
 sealed: the frame and its membership are append-only, while a fact points at its current
 sealed basis. Evidence rows are also append-only; changed semantics require a distinct
 successor row, so an old frame never resolves through newly mutated evidence meaning.
+An `OPEN → COMPLETED` change creates basis `N+1` even with identical membership because
+completion mode is part of the existing semantic basis, not a fourth revision concept.
 
 The deterministic `hr_rebuild_attendance_authorization_projection(uuid)` function
 replaces one House's projection from canonical current authority and joins only the sealed
-frame equal to each fact's current `evidence_basis_revision`. It collects established,
-integrity-eligible branch facts first, gives disagreement `CONFLICT` precedence, then
+frame equal to each fact's current `evidence_basis_revision`, reads completion mode from
+that frame, and includes the mode in the projection fingerprint. Both readers recompute
+the same mode-inclusive fingerprint, so a projection from basis N fails closed after the
+fact advances to N+1. It collects established, integrity-eligible branch facts first, gives disagreement `CONFLICT` precedence, then
 accepts independently sufficient explicit provenance or exact canonical kiosk logical-
 observation cardinality, and otherwise emits `UNATTRIBUTED`. It never consults employee,
 viewer, request, operator, device, schedule, import, or latest-write branch context.
@@ -78,9 +85,11 @@ nulls last, then fact ID. The optional employee filter can only narrow and must 
 an employee in the requested House.
 
 It separately proves exact-House membership, resolves feature read capability through the
-canonical flattened `entity_policies` effective-policy surface (including direct grants),
-and derives branch scope only from House-scoped policy assignments for the requested
-House. Each parsed branch is validated against `branches(house_id, id)`. A platform/direct
+canonical flattened `entity_policies` surface. It accepts globally effective direct grants
+only when represented by `scope = PLATFORM` plus `role_slug = direct`, and accepts
+role-derived House feature permission only when `scope_ref` equals the requested House.
+Requested-House membership remains separate, and branch scope is derived only from
+House-scoped policy assignments for the requested House. Each parsed branch is validated against `branches(house_id, id)`. A platform/direct
 feature grant supplies neither House membership nor branch scope.
 
 The DTO includes permitted fact ID, employee ID, attendance values/status, and active
@@ -132,12 +141,14 @@ representable without inventing premature producer transaction semantics.
 
 ## Data Access Plan
 
-- New objects: the seven tables, three callable Gate-A functions, and three non-callable trigger helper functions listed above; no view. Three append-only/sealing guard triggers protect evidence frames and semantics.
+- New objects: the seven tables, three callable Gate-A functions, and three non-callable trigger helper functions listed above; no view. Four append-only/sealing guard triggers protect fact revisions, evidence frames, membership, and evidence semantics.
 - Authenticated client: no direct table access; execute on the two sanitized readers only.
 - Service role: execute on rebuild only; no existing service-backed path is switched.
 - House enforcement: trusted actor membership/role checks in readers and composite
   House foreign keys in storage.
-- Feature authorization: canonical flattened effective policies include valid direct grants.
+- Feature authorization: canonical flattened effective policies accept direct PLATFORM
+  grants and only requested-House role-derived feature grants; another House's role grant
+  cannot combine with requested-House membership and branch scope.
 - House enforcement: House membership remains a separate mandatory check.
 - Branch enforcement: only requested-House policy assignment is parsed and joined to
   `branches(house_id, id)`; feature capability and caller input never supply scope.
@@ -161,7 +172,7 @@ or E work; identity behavior change; or POS/Operations/Finance/Growth work.
 
 The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, or RPCs. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-The hosted workflow details could not be queried because this checkout has no remote or GitHub credentials. Independently reproducing the exact Preflight sequence identified the Gate-A-related failure in **Run node tests (compiled)**: the migration contract test resolved its SQL path from a working directory assumption that differs between focused and full-suite execution. The visible workspace-settings `42501` log belongs to a passing fallback test and was not treated as failure. The path resolver now supports both runner working directories, and the full `npm test` command passes locally.
+For reviewed hosted head `93b040afc522f0f93ac9673ec0ada514224ffb8c`, Preflight run `34789823619` / job `103811865833` is owner-reported red. Hosted logs remain unavailable because this checkout has no remote or GitHub credentials; `gh run view ... --log-failed` failed at authentication. Independently reproducing the exact Preflight `npm test` step found the current Gate-A failure: `no production source imports a Gate-A reader` raised `ENOENT` while scanning `.test-dist/src`. The earlier migration-file path was already fixed, but the test's application-source scan retained the same focused-runner working-directory assumption. The source resolver now supports both `agui-starter` and `.test-dist` execution, and the full suite passes locally. The workspace-settings `42501` diagnostic remains an expected passing fallback test and was not modified. A corrected hosted rerun remains pending independent observation.
 
 ## Control Center Sync Payload — staged/pre-host
 

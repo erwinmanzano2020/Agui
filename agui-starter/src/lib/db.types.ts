@@ -266,14 +266,13 @@ export type DtrSegmentUpdate = Partial<DtrSegmentInsert>;
 export type HrAttendanceFactRow = {
   id: string; house_id: string; employee_id: string; is_active: boolean;
   current_value_revision: number; evidence_basis_revision: number;
-  semantic_completion_mode: "OPEN" | "COMPLETED" | "UNRESOLVED";
   created_at: string; updated_at: string;
 };
-export type HrAttendanceFactInsert = Omit<HrAttendanceFactRow, "id" | "is_active" | "current_value_revision" | "evidence_basis_revision" | "semantic_completion_mode" | "created_at" | "updated_at"> & Partial<Pick<HrAttendanceFactRow, "id" | "is_active" | "current_value_revision" | "evidence_basis_revision" | "semantic_completion_mode" | "created_at" | "updated_at">>;
+export type HrAttendanceFactInsert = Omit<HrAttendanceFactRow, "id" | "is_active" | "current_value_revision" | "evidence_basis_revision" | "created_at" | "updated_at"> & Partial<Pick<HrAttendanceFactRow, "id" | "is_active" | "current_value_revision" | "evidence_basis_revision" | "created_at" | "updated_at">>;
 export type HrAttendanceFactUpdate = Partial<HrAttendanceFactInsert>;
 
 export type HrAttendanceFactRevisionRow = {
-  house_id: string; fact_id: string; revision: number; predecessor_revision: number | null;
+  house_id: string; fact_id: string; employee_id: string; revision: number; predecessor_revision: number | null;
   dtr_segment_id: string | null; work_date: string; time_in: string | null; time_out: string | null;
   hours_worked: number | null; overtime_minutes: number; source: string; status: string; recorded_at: string;
 };
@@ -292,7 +291,7 @@ export type HrAttendanceEvidenceRow = {
 export type HrAttendanceEvidenceInsert = Omit<HrAttendanceEvidenceRow, "id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "semantic_revision" | "supersedes_evidence_id" | "source_reference" | "recorded_at"> & Partial<Pick<HrAttendanceEvidenceRow, "id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "semantic_revision" | "supersedes_evidence_id" | "source_reference" | "recorded_at">>;
 export type HrAttendanceEvidenceUpdate = Partial<HrAttendanceEvidenceInsert>;
 
-export type HrAttendanceEvidenceFrameRow = { house_id: string; fact_id: string; employee_id: string; evidence_basis_revision: number; predecessor_revision: number | null; is_sealed: boolean; sealed_at: string | null; created_at: string };
+export type HrAttendanceEvidenceFrameRow = { house_id: string; fact_id: string; employee_id: string; evidence_basis_revision: number; predecessor_revision: number | null; semantic_completion_mode: "OPEN" | "COMPLETED" | "UNRESOLVED"; is_sealed: boolean; sealed_at: string | null; created_at: string };
 export type HrAttendanceEvidenceFrameInsert = Omit<HrAttendanceEvidenceFrameRow, "predecessor_revision" | "is_sealed" | "sealed_at" | "created_at"> & Partial<Pick<HrAttendanceEvidenceFrameRow, "predecessor_revision" | "is_sealed" | "sealed_at" | "created_at">>;
 export type HrAttendanceEvidenceFrameUpdate = Partial<HrAttendanceEvidenceFrameInsert>;
 

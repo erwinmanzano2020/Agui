@@ -24,15 +24,17 @@
 
 **Status: Gate A exists in the bounded local PR; hosted verification and merge remain
 pending.** The additive canonical attendance fact/evidence/revision/lineage authority,
-distinct employee candidate/evidence generation, immutable sealed membership frames per
-semantic evidence-basis revision, rebuildable authorization projection, and bounded,
+distinct employee candidate/evidence generation, append-only same-employee fact revisions,
+immutable sealed membership frames with completion mode per semantic evidence-basis revision,
+mode-inclusive projection fingerprints, rebuildable authorization projection, and bounded,
 revision-sanitized branch-aware and owner/manager House-global readers are implemented in
 [`Gate-A implementation record`](../devlog/gap-024-gate-a-implementation.md). No
 production consumer is cut over, no production backfill is performed, no writer is
 migrated, and no existing `dtr_segments` access is revoked. Feature read grants use the
-existing flattened effective-policy surface while House membership and requested-House
-branch scope remain separate checks. Static contract tests pass, but migration/RLS/RPC
-executable verification remains outstanding. Historical DTR P1 does not exist yet and GAP-024 remains open. Gate B remains next only after Gate A is independently
+existing flattened effective-policy surface: globally effective direct grants and only
+requested-House role-derived feature grants are accepted, while House membership and
+requested-House branch scope remain separate checks. Static contract tests pass locally; the compiled-suite source-path failure was corrected, but
+hosted Preflight rerun and migration/RLS/RPC executable verification remain outstanding. Historical DTR P1 does not exist yet and GAP-024 remains open. Gate B remains next only after Gate A is independently
 hosted, reviewed, and merged; Gate B has not started.
 
 ## 2026-09-13 — GAP-029 planning and DEC-017/DEC-018 correction checkpoint

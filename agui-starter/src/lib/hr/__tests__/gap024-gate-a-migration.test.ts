@@ -52,6 +52,45 @@ test("superseding evidence cannot change semantics referenced by an old frame", 
   assert.match(sql, /hr_attendance_evidence_no_self_supersession/i);
 });
 
+test("fact revisions structurally bind facts and optional segments to the same employee", () => {
+  assert.match(sql, /create unique index[^;]+dtr_segments \(house_id, id, employee_id\)/i);
+  assert.match(sql, /create table public\.hr_attendance_fact_revisions \([\s\S]*employee_id uuid not null/i);
+  assert.match(sql, /foreign key \(house_id, fact_id, employee_id\)\s+references public\.hr_attendance_facts\(house_id, id, employee_id\)/i);
+  assert.match(sql, /foreign key \(house_id, dtr_segment_id, employee_id\)\s+references public\.dtr_segments\(house_id, id, employee_id\)/i);
+  assert.match(sql, /dtr_segment_id uuid,/i);
+});
+
+test("fact revision snapshots are append-only while later revisions remain insertable", () => {
+  assert.match(sql, /hr_attendance_fact_revisions_immutable\s+before update or delete on public\.hr_attendance_fact_revisions/i);
+  assert.match(sql, /predecessor_revision = revision - 1/i);
+  assert.doesNotMatch(sql, /before insert on public\.hr_attendance_fact_revisions/i);
+  assert.doesNotMatch(sql, /unique[^;]*(?:work_date|time_in)/i);
+});
+
+test("completion mode is immutable semantic evidence-frame authority", () => {
+  const modes = new Map<number, Readonly<{ evidence: string[]; mode: string }>>([
+    [7, Object.freeze({ evidence: ["A", "B"], mode: "OPEN" })],
+    [8, Object.freeze({ evidence: ["A", "B"], mode: "COMPLETED" })],
+  ]);
+  assert.equal(modes.get(7)!.mode, "OPEN");
+  assert.equal(modes.get(8)!.mode, "COMPLETED");
+  assert.match(sql, /create table public\.hr_attendance_evidence_frames[\s\S]*semantic_completion_mode text not null/i);
+  assert.doesNotMatch(sql.slice(sql.indexOf("create table public.hr_attendance_facts"), sql.indexOf("create table public.hr_attendance_fact_revisions")), /semantic_completion_mode/i);
+  assert.match(sql, /new\.semantic_completion_mode <> old\.semantic_completion_mode/i);
+});
+
+test("completion mode changes fingerprints and stale projections fail reader drift validation", () => {
+  const fingerprint = (mode: string, ids: string[]) => `${mode}|${ids.join("|")}`;
+  assert.notEqual(fingerprint("OPEN", ["A", "B"]), fingerprint("COMPLETED", ["A", "B"]));
+  const rebuild = functionSql("hr_rebuild_attendance_authorization_projection", "hr_read_canonical_attendance_branch_scoped");
+  assert.match(rebuild, /md5\(semantic_completion_mode \|\| '\|' \|\| coalesce\(string_agg/i);
+  for (const reader of [functionSql("hr_read_canonical_attendance_branch_scoped", "hr_read_canonical_attendance_house_global"), functionSql("hr_read_canonical_attendance_house_global")]) {
+    assert.match(reader, /ef\.semantic_completion_mode \|\| '\|' \|\| coalesce/i);
+    assert.match(reader, /ef\.evidence_basis_revision = f\.evidence_basis_revision and ef\.is_sealed/i);
+    assert.match(reader, /f\.evidence_basis_revision = p\.evidence_basis_revision/i);
+  }
+});
+
 test("both readers require date bounds and enforce capped deterministic pagination", () => {
   for (const name of ["hr_read_canonical_attendance_branch_scoped", "hr_read_canonical_attendance_house_global"]) {
     const body = functionSql(name);
@@ -89,10 +128,18 @@ test("effective direct feature grants are honored without manufacturing House or
   const branch = functionSql("hr_read_canonical_attendance_branch_scoped", "hr_read_canonical_attendance_house_global");
   const featureBlock = branch.slice(branch.indexOf("effective_feature_read"), branch.indexOf("allowed_branches"));
   assert.match(featureBlock, /from public\.entity_policies ep[\s\S]*ep\.policy_key in \('tiles\.hr\.read', 'tiles\.payroll\.read'\)/i);
-  assert.doesNotMatch(featureBlock, /ep\.scope_ref|ep\.scope =/i);
+  assert.match(featureBlock, /ep\.scope = 'PLATFORM' and ep\.role_slug = 'direct'/i);
+  assert.match(featureBlock, /ep\.scope = 'HOUSE' and ep\.scope_ref = p_house_id/i);
   assert.match(branch, /from public\.house_roles hr[\s\S]*hr\.house_id = p_house_id/i);
   assert.match(branch, /ep\.scope = 'HOUSE' and ep\.scope_ref = p_house_id/i);
   assert.match(branch, /join public\.branches b on b\.house_id = p_house_id and b\.id = parsed\.id/i);
+});
+
+test("wrong-House role feature grants cannot combine with requested-House membership", () => {
+  const branch = functionSql("hr_read_canonical_attendance_branch_scoped", "hr_read_canonical_attendance_house_global");
+  const featureBlock = branch.slice(branch.indexOf("effective_feature_read"), branch.indexOf("allowed_branches"));
+  assert.match(featureBlock, /\(ep\.scope = 'PLATFORM' and ep\.role_slug = 'direct'\)\s+or \(ep\.scope = 'HOUSE' and ep\.scope_ref = p_house_id\)/i);
+  assert.doesNotMatch(featureBlock, /ep\.scope = 'HOUSE'\s*\)/i);
 });
 
 test("zero or cross-House branch scope returns no branch rows", () => {
@@ -136,6 +183,8 @@ test("no production source imports a Gate-A reader", () => {
       else if (/\.(?:ts|tsx)$/.test(entry.name) && !path.endsWith("db.types.ts") && !path.endsWith("gap024-gate-a-migration.test.ts") && /hr_read_canonical_attendance_(?:branch_scoped|house_global)/.test(readFileSync(path, "utf8"))) references.push(path);
     }
   };
-  walk(resolve(process.cwd(), "src"));
+  const sourceRoot = [resolve(process.cwd(), "src"), resolve(process.cwd(), "../src")].find(existsSync);
+  assert.ok(sourceRoot, "application source must be resolvable in focused and full-suite runners");
+  walk(sourceRoot);
   assert.deepEqual(references, []);
 });
