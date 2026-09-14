@@ -75,7 +75,8 @@ test("kiosk lane requires an exact reconciled set without vetoing a sufficient e
 
 test("canonical evidence serializes first binding and can recur only for the same fact", () => {
   const guard = functionSql("hr_guard_attendance_frame_membership_insert", "hr_rebuild_attendance_authorization_projection");
-  assert.match(guard, /from public\.hr_attendance_evidence e[\s\S]*e\.house_id = new\.house_id[\s\S]*e\.id = new\.evidence_id[\s\S]*e\.employee_id = new\.employee_id[\s\S]*for update/i);
+  assert.match(guard, /from public\.hr_attendance_evidence e[\s\S]*e\.house_id = new\.house_id[\s\S]*e\.id = new\.evidence_id[\s\S]*e\.employee_id = new\.employee_id/i);
+  assert.match(guard, /from public\.hr_attendance_evidence evidence_member[\s\S]*evidence_member\.id = new\.evidence_id[\s\S]*for update/i);
   assert.match(guard, /from public\.hr_attendance_fact_evidence existing[\s\S]*existing\.evidence_id = new\.evidence_id[\s\S]*existing\.fact_id <> new\.fact_id/i);
   assert.match(guard, /from public\.hr_attendance_evidence_frames ef[\s\S]*and not ef\.is_sealed[\s\S]*for update/i);
   assert.doesNotMatch(sql, /unique\s*\(house_id, evidence_id\)/i);
@@ -186,6 +187,45 @@ test("DEC-019 stores one namespaced stable observation chain with immutable occu
   ]) {
     assert.match(body, /source_namespace[\s\S]*source_observation_id[\s\S]*extract\(epoch from (?:o\.)?occurred_at\)/i);
   }
+});
+
+test("each DEC-019 observation owns one explicitly superseded semantic evidence lineage", () => {
+  type Evidence = { id: string; observation: string | null; supersedes: string | null; root: string };
+  const evidence: Evidence[] = [];
+  const insert = (id: string, observation: string | null, supersedes: string | null, selectedRoot?: string) => {
+    const priorForObservation = observation ? evidence.filter((row) => row.observation === observation) : [];
+    if (priorForObservation.length > 0 && !supersedes) return false;
+    const predecessor = supersedes ? evidence.find((row) => row.id === supersedes) : undefined;
+    if (supersedes && (!predecessor || predecessor.observation !== observation)) return false;
+    const root = predecessor?.root ?? id;
+    if (selectedRoot && selectedRoot !== root) return false;
+    if (priorForObservation.some((row) => row.root !== root)) return false;
+    evidence.push({ id, observation, supersedes, root });
+    return true;
+  };
+  assert.equal(insert("E1", "O1", null), true);
+  assert.equal(insert("E2", "O1", "E1"), true);
+  assert.equal(evidence.at(-1)!.root, "E1");
+  assert.equal(insert("E3", "O1", null), false);
+  assert.equal(insert("E3", "O1", "E2", "other-root"), false);
+  assert.equal(insert("Other", "O2", null), true);
+  assert.equal(insert("E4", "O1", "Other"), false);
+  assert.equal(insert("Manual-root", null, null), true);
+  assert.equal(insert("Manual-successor", null, "Manual-root"), true);
+
+  const guard = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
+  const observationLock = guard.indexOf("from public.hr_attendance_observations observation");
+  const observationHistory = guard.indexOf("from public.hr_attendance_evidence existing");
+  const rootDecision = guard.indexOf("if new.supersedes_evidence_id is not null");
+  assert.ok(observationLock >= 0 && observationLock < observationHistory && observationHistory < rootDecision,
+    "stable observation must lock before history and root/successor decision");
+  assert.match(guard, /observation\.house_id = new\.house_id[\s\S]*observation\.id = new\.observation_id[\s\S]*observation\.employee_id = new\.employee_id[\s\S]*for update/i);
+  assert.match(guard, /v_observation_has_evidence and new\.supersedes_evidence_id is null[\s\S]*Later observation evidence must explicitly supersede/i);
+  assert.match(guard, /v_predecessor_observation_id is distinct from new\.observation_id/i);
+  assert.match(guard, /new\.lineage_root_evidence_id <> v_observation_lineage_root_id/i);
+  assert.match(sql, /unique index hr_attendance_evidence_observation_semantic_revision_unique_idx/i);
+  assert.match(sql, /only one member of a semantic lineage/i);
+  assert.match(sql, /historical_evidence\.lineage_root_evidence_id = v_lineage_root_evidence_id/i);
 });
 
 test("kiosk authority requires a trustworthy stable observation identity and occurrence time", () => {

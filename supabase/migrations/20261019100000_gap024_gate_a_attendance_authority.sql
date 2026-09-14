@@ -257,7 +257,49 @@ as $function$
 declare
   v_predecessor_observation_id uuid;
   v_predecessor_lineage_root_id uuid;
+  v_observation_lineage_root_id uuid;
+  v_observation_has_evidence boolean := false;
 begin
+  if new.observation_id is not null then
+    -- DEC-019 observation identity is the common serialization target for deciding
+    -- whether this is the observation's first evidence root or an explicit successor.
+    perform 1 from public.hr_attendance_observations observation
+      where observation.house_id = new.house_id
+        and observation.id = new.observation_id
+        and observation.employee_id = new.employee_id
+      for update;
+    if not found then
+      raise exception 'Observation-backed evidence requires matching House and employee ownership'
+        using errcode = '23503';
+    end if;
+
+    select existing.lineage_root_evidence_id
+      into v_observation_lineage_root_id
+    from public.hr_attendance_evidence existing
+      where existing.house_id = new.house_id
+        and existing.observation_id = new.observation_id
+        and existing.employee_id = new.employee_id
+      order by existing.recorded_at, existing.id
+      limit 1;
+    v_observation_has_evidence := found;
+
+    if v_observation_has_evidence and exists (
+      select 1 from public.hr_attendance_evidence inconsistent
+      where inconsistent.house_id = new.house_id
+        and inconsistent.observation_id = new.observation_id
+        and inconsistent.employee_id = new.employee_id
+        and inconsistent.lineage_root_evidence_id <> v_observation_lineage_root_id
+    ) then
+      raise exception 'A canonical observation may own only one semantic evidence lineage'
+        using errcode = '23514';
+    end if;
+
+    if v_observation_has_evidence and new.supersedes_evidence_id is null then
+      raise exception 'Later observation evidence must explicitly supersede its same-observation predecessor'
+        using errcode = '23514';
+    end if;
+  end if;
+
   if new.supersedes_evidence_id is not null then
     select predecessor.observation_id, predecessor.lineage_root_evidence_id
       into v_predecessor_observation_id, v_predecessor_lineage_root_id
@@ -278,6 +320,11 @@ begin
       new.lineage_root_evidence_id := v_predecessor_lineage_root_id;
     elsif new.lineage_root_evidence_id <> v_predecessor_lineage_root_id then
       raise exception 'Semantic evidence successor cannot select another lineage root'
+        using errcode = '23514';
+    end if;
+    if v_observation_has_evidence
+      and new.lineage_root_evidence_id <> v_observation_lineage_root_id then
+      raise exception 'Observation evidence must inherit its established lineage root'
         using errcode = '23514';
     end if;
   else
@@ -324,19 +371,34 @@ declare
   v_observation_id uuid;
   v_lineage_root_evidence_id uuid;
 begin
-  -- The canonical evidence row is the stable serialization target for the first
-  -- evidence-to-fact association. Concurrent attempts for different facts cannot
-  -- both pass: the waiter rechecks immutable membership history after acquiring
-  -- this row lock.
+  -- Resolve immutable lock keys first. Observation-backed membership follows the
+  -- same observation -> evidence -> lineage-root order as evidence insertion.
   select e.observation_id, e.lineage_root_evidence_id
     into v_observation_id, v_lineage_root_evidence_id
   from public.hr_attendance_evidence e
     where e.house_id = new.house_id and e.id = new.evidence_id
-      and e.employee_id = new.employee_id
-    for update;
+      and e.employee_id = new.employee_id;
   if not found then
     raise exception 'Evidence membership requires matching House and employee ownership'
       using errcode = '23503';
+  end if;
+
+  if v_observation_id is not null then
+    perform 1 from public.hr_attendance_observations o
+      where o.house_id = new.house_id and o.id = v_observation_id
+        and o.employee_id = new.employee_id
+      for update;
+  end if;
+
+  perform 1 from public.hr_attendance_evidence evidence_member
+    where evidence_member.house_id = new.house_id
+      and evidence_member.id = new.evidence_id
+      and evidence_member.employee_id = new.employee_id
+      and evidence_member.lineage_root_evidence_id = v_lineage_root_evidence_id
+    for update;
+  if not found then
+    raise exception 'Evidence membership authority changed while acquiring its lock'
+      using errcode = '55000';
   end if;
 
   -- Every supersession-family member shares and locks this immutable root before
@@ -368,15 +430,6 @@ begin
   ) then
     raise exception 'An evidence frame may contain only one member of a semantic lineage'
       using errcode = '23514';
-  end if;
-
-  -- Observation-backed semantic successors serialize on the stable observation as
-  -- well, ensuring the whole real-world observation chain binds to one fact.
-  if v_observation_id is not null then
-    perform 1 from public.hr_attendance_observations o
-      where o.house_id = new.house_id and o.id = v_observation_id
-        and o.employee_id = new.employee_id
-      for update;
   end if;
 
   if exists (

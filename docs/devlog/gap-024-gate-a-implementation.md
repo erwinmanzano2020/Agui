@@ -27,7 +27,10 @@ The corrected additive migration creates eight direct-access-protected tables:
    House + immutable producer namespace + opaque source observation ID. It retains the
    immutable original `occurred_at` separately from canonical-ingestion `recorded_at`.
    Replays reuse this row; equal employee/date/time/value data under different source
-   identities is never collapsed.
+   identities is never collapsed. The stable observation row is also the concurrency
+   serialization authority for creating its one semantic evidence lineage: first
+   evidence may self-root, while every later observation-backed revision must explicitly
+   supersede evidence from that same observation and inherit its established lineage root.
 2. `hr_attendance_facts` supplies stable logical fact identity, employee/House ownership,
    current value revision, and the current semantic evidence-basis revision pointer.
 3. `hr_attendance_fact_revisions` stores append-only value snapshots, the fact employee,
@@ -47,14 +50,18 @@ The corrected additive migration creates eight direct-access-protected tables:
    attendance-fact, authorization-case, employee/date, and timestamp identity; it is not
    a fourth business revision.
    Established/sufficient kiosk evidence requires an observation; unresolved evidence may
-   omit it. Gate A does not copy kiosk JSON metadata or map any active producer.
+   omit it. Observation-backed later evidence cannot silently create another root. This
+   observation-specific rule does not apply to null-observation manual/admin or bulk/import
+   provenance, which retains generic self-root and explicit-successor behavior. Gate A does
+   not copy kiosk JSON metadata or map any active producer.
 5. `hr_attendance_evidence_frames` identifies each semantic evidence-basis revision,
    snapshots its classifier-authoritative completion mode, links it to its predecessor,
    and seals it before it can govern current projection state.
 6. `hr_attendance_fact_evidence` stores the immutable exact evidence membership of each
    frame. Composite foreign keys enforce the same House and employee on both sides.
    Membership rows cannot be updated/deleted, and a row lock prevents inserts after sealing.
-   Its insert guard first locks the canonical evidence row, then rejects any prior
+   Its insert guard resolves the immutable evidence lock keys, follows observation →
+   evidence → lineage-root lock order for observation-backed rows, then rejects any prior
    membership for a different fact. This serializes concurrent first associations and
    binds one evidence identity to one stable logical fact while allowing that evidence
    to recur in later basis revisions of the same fact. The guard additionally resolves
@@ -243,9 +250,9 @@ source-observation identity.**
 
 The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, row-lock, and concurrency executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-Owner-side evidence confirms hosted head `1b8a759294dbf86cfa6d40dcb584278ebd31e960`
-passed Preflight run `34806883085` (run number 658). The one-lineage-member-per-frame and
-all-applicable-manual-authority corrections have only static/local verification at this checkpoint; their
+Owner-side evidence confirms hosted head `b0268992e75d4b81847548402ef5d3b5d9aca504`
+passed Preflight run `34808360379` (run number 659). The one-semantic-lineage-per-DEC-019-
+observation correction has only static/local verification at this checkpoint; its
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.
