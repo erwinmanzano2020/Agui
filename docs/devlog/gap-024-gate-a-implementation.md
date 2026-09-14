@@ -41,6 +41,10 @@ The corrected additive migration creates seven direct-access-protected tables:
 5. `hr_attendance_fact_evidence` stores the immutable exact evidence membership of each
    frame. Composite foreign keys enforce the same House and employee on both sides.
    Membership rows cannot be updated/deleted, and a row lock prevents inserts after sealing.
+   Its insert guard first locks the canonical evidence row, then rejects any prior
+   membership for a different fact. This serializes concurrent first associations and
+   binds one evidence identity to one stable logical fact while allowing that evidence
+   to recur in later basis revisions of the same fact.
 6. `hr_attendance_employee_generations` reserves the distinct House + employee
    candidate/evidence concurrency generation required by DEC-018. Gate A stores this
    independent domain; Gate B commands must define and verify atomic producer advancement.
@@ -71,6 +75,20 @@ observation cardinality, and otherwise emits `UNATTRIBUTED`. It never consults e
 viewer, request, operator, device, schedule, import, or latest-write branch context.
 Repeated rebuilds produce equivalent semantic state and fingerprints; `rebuilt_at` is
 operational rebuild time, not a fourth business revision.
+
+The kiosk lane counts as reconciled only when every current governing kiosk observation
+is established, integrity-eligible, branch-bearing, and sufficient, with exactly the
+mode-required logical cardinality (OPEN: one IN and no OUT; COMPLETED: one IN and one
+OUT). Invalid, unresolved, ineligible, or otherwise unreconciled kiosk observations make
+that lane insufficient. They do not veto an independently sufficient, agreeing explicit
+manual/admin or bulk/import provenance lane; established integrity-valid branch
+disagreement still becomes `CONFLICT` before any lane sufficiency decision.
+
+`hr_attendance_fact_revisions_house_work_date_idx` is a B-tree over `(house_id,
+work_date, time_in, fact_id, revision)`. It supplies both bounded readers with a
+House/date-selective path aligned to their deterministic work-date/time-in/fact order;
+the projection remains free of duplicated attendance values. No executable `EXPLAIN`
+was available in the contributor environment.
 
 ## Protected readers and security
 
@@ -172,7 +190,12 @@ or E work; identity behavior change; or POS/Operations/Finance/Growth work.
 
 The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, or RPCs. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-For reviewed hosted head `93b040afc522f0f93ac9673ec0ada514224ffb8c`, Preflight run `34789823619` / job `103811865833` is owner-reported red. Hosted logs remain unavailable because this checkout has no remote or GitHub credentials; `gh run view ... --log-failed` failed at authentication. Independently reproducing the exact Preflight `npm test` step found the current Gate-A failure: `no production source imports a Gate-A reader` raised `ENOENT` while scanning `.test-dist/src`. The earlier migration-file path was already fixed, but the test's application-source scan retained the same focused-runner working-directory assumption. The source resolver now supports both `agui-starter` and `.test-dist` execution, and the full suite passes locally. The workspace-settings `42501` diagnostic remains an expected passing fallback test and was not modified. A corrected hosted rerun remains pending independent observation.
+Owner-side evidence confirms hosted head `aa2bae1fd8256acb703fde5df12259e6f79be02f`
+passed Preflight run `34796516821`. The new kiosk reconciliation, evidence-binding, and
+read-index corrections have only static/local verification at this checkpoint; their
+post-correction hosted head and checks remain pending independent observation. The
+workspace-settings `42501` diagnostic remains an expected passing fallback test and was
+not modified.
 
 ## Control Center Sync Payload — staged/pre-host
 

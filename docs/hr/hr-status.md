@@ -33,8 +33,15 @@ production consumer is cut over, no production backfill is performed, no writer 
 migrated, and no existing `dtr_segments` access is revoked. Feature read grants use the
 existing flattened effective-policy surface: globally effective direct grants and only
 requested-House role-derived feature grants are accepted, while House membership and
-requested-House branch scope remain separate checks. Static contract tests pass locally; the compiled-suite source-path failure was corrected, but
-hosted Preflight rerun and migration/RLS/RPC executable verification remain outstanding. Historical DTR P1 does not exist yet and GAP-024 remains open. Gate B remains next only after Gate A is independently
+requested-House branch scope remain separate checks. Canonical kiosk classification now
+fails its kiosk lane closed for invalid or unreconciled governing observations without
+vetoing independently sufficient agreeing explicit provenance. Evidence membership is
+serialized on its canonical evidence row, permanently binding it to one stable fact while
+allowing reuse across that fact's later evidence bases, and bounded readers have a
+House/work-date-selective revision index. Hosted starting head
+`aa2bae1fd8256acb703fde5df12259e6f79be02f` passed Preflight run `34796516821`;
+post-correction hosted verification and migration/RLS/RPC executable verification remain
+outstanding. Historical DTR P1 does not exist yet and GAP-024 remains open. Gate B remains next only after Gate A is independently
 hosted, reviewed, and merged; Gate B has not started.
 
 ## 2026-09-13 — GAP-029 planning and DEC-017/DEC-018 correction checkpoint

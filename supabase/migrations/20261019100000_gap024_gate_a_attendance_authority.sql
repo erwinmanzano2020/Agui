@@ -192,6 +192,29 @@ language plpgsql
 set search_path = pg_catalog, public
 as $function$
 begin
+  -- The canonical evidence row is the stable serialization target for the first
+  -- evidence-to-fact association. Concurrent attempts for different facts cannot
+  -- both pass: the waiter rechecks immutable membership history after acquiring
+  -- this row lock.
+  perform 1 from public.hr_attendance_evidence e
+    where e.house_id = new.house_id and e.id = new.evidence_id
+      and e.employee_id = new.employee_id
+    for update;
+  if not found then
+    raise exception 'Evidence membership requires matching House and employee ownership'
+      using errcode = '23503';
+  end if;
+
+  if exists (
+    select 1 from public.hr_attendance_fact_evidence existing
+    where existing.house_id = new.house_id
+      and existing.evidence_id = new.evidence_id
+      and existing.fact_id <> new.fact_id
+  ) then
+    raise exception 'Canonical evidence is already bound to another attendance fact'
+      using errcode = '23514';
+  end if;
+
   perform 1 from public.hr_attendance_evidence_frames ef
     where ef.house_id = new.house_id and ef.fact_id = new.fact_id
       and ef.employee_id = new.employee_id
@@ -264,6 +287,8 @@ create index hr_attendance_facts_house_employee_idx
 create index hr_attendance_fact_revisions_segment_idx
   on public.hr_attendance_fact_revisions (house_id, dtr_segment_id)
   where dtr_segment_id is not null;
+create index hr_attendance_fact_revisions_house_work_date_idx
+  on public.hr_attendance_fact_revisions (house_id, work_date, time_in, fact_id, revision);
 create index hr_attendance_evidence_unresolved_idx
   on public.hr_attendance_evidence (house_id, employee_id, recorded_at)
   where is_integrity_eligible and integrity_state = 'UNRESOLVED';
@@ -343,8 +368,13 @@ begin
           and integrity_state = 'ESTABLISHED' and is_integrity_eligible
       ) as kiosk_out_count,
       count(*) filter (
-        where lane = 'KIOSK' and integrity_state = 'UNRESOLVED' and is_integrity_eligible
-      ) as kiosk_unresolved_count,
+        where lane = 'KIOSK' and not (
+          integrity_state = 'ESTABLISHED'
+          and is_integrity_eligible
+          and branch_id is not null
+          and sufficiency_state = 'SUFFICIENT'
+        )
+      ) as kiosk_unreconciled_count,
       bool_or(
         lane in ('MANUAL_ADMIN', 'BULK_IMPORT')
         and evidence_kind = 'EXPLICIT_BRANCH'
@@ -369,8 +399,8 @@ begin
         when established_branch_count > 1 then 'CONFLICT'
         when established_branch_count = 1 and (
           coalesce(explicit_lane_sufficient, false)
-          or (semantic_completion_mode = 'OPEN' and kiosk_in_count = 1 and kiosk_out_count = 0 and kiosk_unresolved_count = 0)
-          or (semantic_completion_mode = 'COMPLETED' and kiosk_in_count = 1 and kiosk_out_count = 1 and kiosk_unresolved_count = 0)
+          or (semantic_completion_mode = 'OPEN' and kiosk_in_count = 1 and kiosk_out_count = 0 and kiosk_unreconciled_count = 0)
+          or (semantic_completion_mode = 'COMPLETED' and kiosk_in_count = 1 and kiosk_out_count = 1 and kiosk_unreconciled_count = 0)
         ) then 'ATTRIBUTED'
         else 'UNATTRIBUTED'
       end as classification

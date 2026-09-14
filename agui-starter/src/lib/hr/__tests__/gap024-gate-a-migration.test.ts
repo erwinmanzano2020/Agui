@@ -42,6 +42,52 @@ test("rebuild selects only the sealed current evidence-basis frame", () => {
   assert.doesNotMatch(rebuild, /delete from public\.hr_attendance_(?:evidence_frames|fact_evidence)/i);
 });
 
+test("kiosk lane requires an exact reconciled set without vetoing a sufficient explicit lane", () => {
+  type Observation = { kind: "IN" | "OUT"; state: "ESTABLISHED" | "UNRESOLVED" | "INVALID"; eligible: boolean; sufficient: boolean; branch?: string };
+  const classify = (mode: "OPEN" | "COMPLETED", observations: Observation[], explicitBranch?: string) => {
+    const establishedBranches = new Set(observations.filter((o) => o.state === "ESTABLISHED" && o.eligible && o.branch).map((o) => o.branch!));
+    if (explicitBranch) establishedBranches.add(explicitBranch);
+    if (establishedBranches.size > 1) return "CONFLICT";
+    const valid = observations.filter((o) => o.state === "ESTABLISHED" && o.eligible && o.sufficient && o.branch);
+    const unreconciled = observations.some((o) => !(o.state === "ESTABLISHED" && o.eligible && o.sufficient && o.branch));
+    const kioskSufficient = !unreconciled
+      && valid.filter((o) => o.kind === "IN").length === 1
+      && valid.filter((o) => o.kind === "OUT").length === (mode === "COMPLETED" ? 1 : 0);
+    return establishedBranches.size === 1 && (kioskSufficient || Boolean(explicitBranch)) ? "ATTRIBUTED" : "UNATTRIBUTED";
+  };
+  const validIn = { kind: "IN", state: "ESTABLISHED", eligible: true, sufficient: true, branch: "A" } as const;
+  const validOut = { kind: "OUT", state: "ESTABLISHED", eligible: true, sufficient: true, branch: "A" } as const;
+  assert.equal(classify("OPEN", [validIn]), "ATTRIBUTED");
+  assert.equal(classify("OPEN", [validIn, { ...validOut, state: "INVALID" }]), "UNATTRIBUTED");
+  assert.equal(classify("OPEN", [validIn, { ...validOut, state: "UNRESOLVED" }]), "UNATTRIBUTED");
+  assert.equal(classify("OPEN", [validIn, { ...validOut, eligible: false }]), "UNATTRIBUTED");
+  assert.equal(classify("COMPLETED", [validIn, validOut]), "ATTRIBUTED");
+  assert.equal(classify("COMPLETED", [validIn, { ...validOut, state: "INVALID" }]), "UNATTRIBUTED");
+  assert.equal(classify("OPEN", [validIn, { ...validOut, state: "INVALID" }], "A"), "ATTRIBUTED");
+  assert.equal(classify("COMPLETED", [validIn, { ...validOut, branch: "B" }]), "CONFLICT");
+
+  const rebuild = functionSql("hr_rebuild_attendance_authorization_projection", "hr_read_canonical_attendance_branch_scoped");
+  assert.match(rebuild, /lane = 'KIOSK' and not \([\s\S]*integrity_state = 'ESTABLISHED'[\s\S]*is_integrity_eligible[\s\S]*branch_id is not null[\s\S]*sufficiency_state = 'SUFFICIENT'[\s\S]*\) as kiosk_unreconciled_count/i);
+  assert.match(rebuild, /when established_branch_count > 1 then 'CONFLICT'/i);
+  assert.match(rebuild, /coalesce\(explicit_lane_sufficient, false\)\s+or[\s\S]*kiosk_unreconciled_count = 0/i);
+  assert.doesNotMatch(rebuild, /kiosk_unresolved_count/i);
+});
+
+test("canonical evidence serializes first binding and can recur only for the same fact", () => {
+  const guard = functionSql("hr_guard_attendance_frame_membership_insert", "hr_rebuild_attendance_authorization_projection");
+  assert.match(guard, /from public\.hr_attendance_evidence e[\s\S]*e\.house_id = new\.house_id[\s\S]*e\.id = new\.evidence_id[\s\S]*e\.employee_id = new\.employee_id[\s\S]*for update/i);
+  assert.match(guard, /from public\.hr_attendance_fact_evidence existing[\s\S]*existing\.evidence_id = new\.evidence_id[\s\S]*existing\.fact_id <> new\.fact_id/i);
+  assert.match(guard, /from public\.hr_attendance_evidence_frames ef[\s\S]*and not ef\.is_sealed[\s\S]*for update/i);
+  assert.doesNotMatch(sql, /unique\s*\(house_id, evidence_id\)/i);
+  assert.match(sql, /primary key \(house_id, fact_id, evidence_basis_revision, evidence_id\)/i);
+  assert.match(sql, /foreign key \(house_id, evidence_id, employee_id\)/i);
+});
+
+test("canonical bounded reads have a House and work-date selective revision index", () => {
+  assert.match(sql, /create index hr_attendance_fact_revisions_house_work_date_idx\s+on public\.hr_attendance_fact_revisions \(house_id, work_date, time_in, fact_id, revision\)/i);
+  assert.doesNotMatch(sql, /alter table public\.hr_attendance_authorization_projection[\s\S]*add[^;]*work_date/i);
+});
+
 test("superseding evidence cannot change semantics referenced by an old frame", () => {
   const oldEvidence = Object.freeze({ id: "B", branch: "old" });
   const successor = Object.freeze({ id: "C", branch: "new", supersedes: oldEvidence.id });
