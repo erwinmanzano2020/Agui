@@ -83,6 +83,72 @@ test("canonical evidence serializes first binding and can recur only for the sam
   assert.match(sql, /foreign key \(house_id, evidence_id, employee_id\)/i);
 });
 
+test("DEC-019 stores one namespaced stable observation chain with immutable occurrence time", () => {
+  const observations = new Map<string, { occurredAt: string; recordedAt: string }>();
+  const insert = (house: string, namespace: string, sourceId: string, occurredAt: string, recordedAt: string) => {
+    const key = `${house}|${namespace}|${sourceId}`;
+    if (!observations.has(key)) observations.set(key, { occurredAt, recordedAt });
+    return observations.get(key)!;
+  };
+  const first = insert("H", "offline-source-A", "opaque-1", "2026-01-01T08:00:00Z", "2026-01-02T09:00:00Z");
+  assert.strictEqual(insert("H", "offline-source-A", "opaque-1", first.occurredAt, "2026-01-03T09:00:00Z"), first);
+  assert.notStrictEqual(insert("H", "offline-source-B", "opaque-1", first.occurredAt, first.recordedAt), first);
+  assert.notStrictEqual(insert("H", "offline-source-A", "opaque-2", first.occurredAt, first.recordedAt), first);
+  assert.notEqual(first.occurredAt, first.recordedAt);
+
+  assert.match(sql, /create table public\.hr_attendance_observations/i);
+  assert.match(sql, /unique \(house_id, source_namespace, source_observation_id\)/i);
+  assert.match(sql, /occurred_at timestamptz not null[\s\S]*recorded_at timestamptz not null default now\(\)/i);
+  assert.match(sql, /hr_attendance_observations_immutable\s+before update or delete/i);
+  assert.match(sql, /foreign key \(house_id, observation_id, employee_id\)/i);
+  assert.match(sql, /foreign key \(house_id, supersedes_evidence_id, employee_id, observation_id\)/i);
+  assert.match(sql, /unique index hr_attendance_evidence_observation_semantic_revision_unique_idx/i);
+  const evidenceGuard = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
+  assert.match(evidenceGuard, /predecessor\.observation_id is not distinct from new\.observation_id/i);
+  assert.doesNotMatch(sql, /unique[^;]*(?:employee_id, work_date|employee_id, occurred_at|occurred_at, employee_id)/i);
+  for (const body of [
+    functionSql("hr_rebuild_attendance_authorization_projection", "hr_read_canonical_attendance_branch_scoped"),
+    functionSql("hr_read_canonical_attendance_branch_scoped", "hr_read_canonical_attendance_house_global"),
+    functionSql("hr_read_canonical_attendance_house_global"),
+  ]) {
+    assert.match(body, /source_namespace[\s\S]*source_observation_id[\s\S]*extract\(epoch from (?:o\.)?occurred_at\)/i);
+  }
+});
+
+test("kiosk authority requires a trustworthy stable observation identity and occurrence time", () => {
+  assert.match(sql, /constraint hr_attendance_evidence_kiosk_observation_authority_check check[\s\S]*lane <> 'KIOSK'[\s\S]*integrity_state <> 'ESTABLISHED'[\s\S]*sufficiency_state <> 'SUFFICIENT'[\s\S]*observation_id is not null/i);
+  assert.match(sql, /source_namespace text not null/i);
+  assert.match(sql, /source_observation_id text not null/i);
+  assert.match(sql, /occurred_at timestamptz not null/i);
+  assert.doesNotMatch(sql, /clientEventId|client_event_id/i);
+});
+
+test("sufficient explicit provenance requires durable authorization audit", () => {
+  const eligible = (lane: "MANUAL_ADMIN" | "BULK_IMPORT", actor: string | null, namespace: string | null, reference: string | null, assertedAt: string | null) =>
+    Boolean(namespace?.trim() && reference?.trim() && assertedAt && (lane !== "MANUAL_ADMIN" || actor));
+  assert.equal(eligible("MANUAL_ADMIN", "entity-A", "admin-command", "case-1", "2026-01-01T00:00:00Z"), true);
+  assert.equal(eligible("MANUAL_ADMIN", null, "admin-command", "case-1", "2026-01-01T00:00:00Z"), false);
+  assert.equal(eligible("BULK_IMPORT", null, "trusted-import", "authorization-1", "2026-01-01T00:00:00Z"), true);
+  assert.equal(eligible("BULK_IMPORT", null, null, null, "2026-01-01T00:00:00Z"), false);
+  assert.match(sql, /constraint hr_attendance_evidence_explicit_audit_check check[\s\S]*lane in \('MANUAL_ADMIN', 'BULK_IMPORT'\)[\s\S]*authorization_namespace is not null[\s\S]*authorization_reference is not null[\s\S]*asserted_at is not null[\s\S]*lane <> 'MANUAL_ADMIN' or asserted_by_entity_id is not null/i);
+  assert.match(sql, /foreign key \(asserted_by_entity_id\)\s+references public\.entities\(id\)/i);
+  const auditGuard = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
+  assert.match(auditGuard, /from public\.house_roles hr[\s\S]*hr\.house_id = new\.house_id[\s\S]*hr\.entity_id = new\.asserted_by_entity_id[\s\S]*hr\.role = new\.asserted_by_house_role[\s\S]*for key share/i);
+  const rebuild = functionSql("hr_rebuild_attendance_authorization_projection", "hr_read_canonical_attendance_branch_scoped");
+  assert.match(rebuild, /explicit_lane_sufficient/i);
+  assert.match(rebuild, /authorization_namespace is not null[\s\S]*authorization_reference is not null[\s\S]*asserted_at is not null[\s\S]*lane <> 'MANUAL_ADMIN' or asserted_by_entity_id is not null/i);
+  assert.match(rebuild, /when established_branch_count > 1 then 'CONFLICT'/i);
+});
+
+test("physical segments serialize first binding and recur only on the same stable fact", () => {
+  const guard = functionSql("hr_guard_attendance_fact_revision_segment_insert", "hr_rebuild_attendance_authorization_projection");
+  assert.match(guard, /if new\.dtr_segment_id is null then[\s\S]*return new/i);
+  assert.match(guard, /from public\.dtr_segments s[\s\S]*s\.house_id = new\.house_id[\s\S]*s\.id = new\.dtr_segment_id[\s\S]*s\.employee_id = new\.employee_id[\s\S]*for update/i);
+  assert.match(guard, /from public\.hr_attendance_fact_revisions existing[\s\S]*existing\.dtr_segment_id = new\.dtr_segment_id[\s\S]*existing\.fact_id <> new\.fact_id/i);
+  assert.match(sql, /hr_attendance_fact_revision_segment_insert_guard\s+before insert on public\.hr_attendance_fact_revisions/i);
+  assert.doesNotMatch(sql, /unique\s*\(house_id, dtr_segment_id\)/i);
+});
+
 test("canonical bounded reads have a House and work-date selective revision index", () => {
   assert.match(sql, /create index hr_attendance_fact_revisions_house_work_date_idx\s+on public\.hr_attendance_fact_revisions \(house_id, work_date, time_in, fact_id, revision\)/i);
   assert.doesNotMatch(sql, /alter table public\.hr_attendance_authorization_projection[\s\S]*add[^;]*work_date/i);
@@ -109,7 +175,7 @@ test("fact revisions structurally bind facts and optional segments to the same e
 test("fact revision snapshots are append-only while later revisions remain insertable", () => {
   assert.match(sql, /hr_attendance_fact_revisions_immutable\s+before update or delete on public\.hr_attendance_fact_revisions/i);
   assert.match(sql, /predecessor_revision = revision - 1/i);
-  assert.doesNotMatch(sql, /before insert on public\.hr_attendance_fact_revisions/i);
+  assert.match(sql, /existing\.fact_id <> new\.fact_id/i);
   assert.doesNotMatch(sql, /unique[^;]*(?:work_date|time_in)/i);
 });
 
@@ -213,7 +279,7 @@ test("branch no-leak classification and projection drift checks remain enforced"
 });
 
 test("all authority tables remain direct-access denied", () => {
-  for (const table of ["hr_attendance_facts", "hr_attendance_fact_revisions", "hr_attendance_evidence", "hr_attendance_evidence_frames", "hr_attendance_fact_evidence", "hr_attendance_employee_generations", "hr_attendance_authorization_projection"]) {
+  for (const table of ["hr_attendance_observations", "hr_attendance_facts", "hr_attendance_fact_revisions", "hr_attendance_evidence", "hr_attendance_evidence_frames", "hr_attendance_fact_evidence", "hr_attendance_employee_generations", "hr_attendance_authorization_projection"]) {
     assert.match(sql, new RegExp(`alter table public\\.${table} enable row level security`, "i"));
     assert.match(sql, new RegExp(`revoke all on table public\\.${table} from public, anon, authenticated`, "i"));
   }

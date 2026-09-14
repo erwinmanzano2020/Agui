@@ -21,34 +21,42 @@ PR is independently hosted, reviewed, and merged.
 
 ## Physical architecture
 
-The corrected additive migration creates seven direct-access-protected tables:
+The corrected additive migration creates eight direct-access-protected tables:
 
-1. `hr_attendance_facts` supplies stable logical fact identity, employee/House ownership,
+1. `hr_attendance_observations` supplies DEC-019 stable real-world source identity per
+   House + immutable producer namespace + opaque source observation ID. It retains the
+   immutable original `occurred_at` separately from canonical-ingestion `recorded_at`.
+   Replays reuse this row; equal employee/date/time/value data under different source
+   identities is never collapsed.
+2. `hr_attendance_facts` supplies stable logical fact identity, employee/House ownership,
    current value revision, and the current semantic evidence-basis revision pointer.
-2. `hr_attendance_fact_revisions` stores append-only value snapshots, the fact employee,
+3. `hr_attendance_fact_revisions` stores append-only value snapshots, the fact employee,
    explicit predecessor revision, and an optional physical `dtr_segments` reference. Its
    composite keys require the fact, revision, and segment to have the same House and
    employee, so employee A's fact cannot reference employee B's segment even within one
-   House. A logical fact therefore does not equal a mutable physical segment ID.
-3. `hr_attendance_evidence` stores House/employee-owned canonical logical evidence for
+   House. Its insert guard locks the physical segment and rejects immutable history for a
+   different fact, while allowing that segment in later revisions of the same fact. A
+   logical fact therefore does not equal a mutable physical segment ID.
+4. `hr_attendance_evidence` stores House/employee-owned append-only semantic revisions for
    kiosk, manual/admin, and compliant bulk/import lanes. Evidence may remain unresolved
    and unassociated without a fake fact. It stores semantic revision separately from
-   fact/value revision. Gate A does not copy kiosk JSON metadata or select a duplicate/
-   replay identity rule.
-4. `hr_attendance_evidence_frames` identifies each semantic evidence-basis revision,
+   fact/value revision. Observation-backed successors retain the stable observation ID.
+   Established/sufficient kiosk evidence requires an observation; unresolved evidence may
+   omit it. Gate A does not copy kiosk JSON metadata or map any active producer.
+5. `hr_attendance_evidence_frames` identifies each semantic evidence-basis revision,
    snapshots its classifier-authoritative completion mode, links it to its predecessor,
    and seals it before it can govern current projection state.
-5. `hr_attendance_fact_evidence` stores the immutable exact evidence membership of each
+6. `hr_attendance_fact_evidence` stores the immutable exact evidence membership of each
    frame. Composite foreign keys enforce the same House and employee on both sides.
    Membership rows cannot be updated/deleted, and a row lock prevents inserts after sealing.
    Its insert guard first locks the canonical evidence row, then rejects any prior
    membership for a different fact. This serializes concurrent first associations and
    binds one evidence identity to one stable logical fact while allowing that evidence
    to recur in later basis revisions of the same fact.
-6. `hr_attendance_employee_generations` reserves the distinct House + employee
+7. `hr_attendance_employee_generations` reserves the distinct House + employee
    candidate/evidence concurrency generation required by DEC-018. Gate A stores this
    independent domain; Gate B commands must define and verify atomic producer advancement.
-7. `hr_attendance_authorization_projection` stores rebuild output: current fact and
+8. `hr_attendance_authorization_projection` stores rebuild output: current fact and
    evidence revisions, semantic fingerprint, classification, active branch only for
    `ATTRIBUTED`, and governing canonical evidence identities.
 
@@ -83,6 +91,15 @@ OUT). Invalid, unresolved, ineligible, or otherwise unreconciled kiosk observati
 that lane insufficient. They do not veto an independently sufficient, agreeing explicit
 manual/admin or bulk/import provenance lane; established integrity-valid branch
 disagreement still becomes `CONFLICT` before any lane sufficiency decision.
+
+Sufficient `MANUAL_ADMIN` and `BULK_IMPORT` explicit provenance must carry a nonblank
+authorization namespace and immutable authorization/adjudication reference plus assertion
+time. Manual/admin evidence additionally carries an asserting entity and House role; an
+insert guard locks and verifies that exact role in the evidence House at assertion time
+without preventing later legitimate role revocation. Bulk transport alone is never provenance; its
+trusted workflow/producer namespace and authorization reference are required. These are
+structural audit prerequisites only—Gate B's future canonical command must verify current
+authorization, and raw `service_role` insertion is not deemed trustworthy by itself.
 
 `hr_attendance_fact_revisions_house_work_date_idx` is a B-tree over `(house_id,
 work_date, time_in, fact_id, revision)`. It supplies both bounded readers with a
@@ -127,7 +144,7 @@ omits internal revisions, fingerprints, generations, evidence, and correction au
 
 ### RLS, grants, and service role
 
-RLS is enabled on all seven new tables. They intentionally have no authenticated policies,
+RLS is enabled on all eight new tables. They intentionally have no authenticated policies,
 and all direct privileges are revoked from `public`, `anon`, and `authenticated`.
 Authenticated access exists only through the two sanitized reader RPCs. The internal
 rebuild function is revoked from those roles and executable only by `service_role`;
@@ -141,8 +158,11 @@ required for the corrected pre-merge function signatures and table/type metadata
 ## Classification and representational limits
 
 Canonical kiosk evidence rows represent logical observations only after a later approved
-producer can establish them. Gate A neither imports `hr_kiosk_events.metadata.segmentId`
-nor decides physical duplicate/replay collapse. Manual/admin and bulk/import explicit
+producer supplies DEC-019's namespaced opaque source identity and original occurrence
+time. The stable observation chain can have multiple append-only semantic evidence
+revisions without becoming multiple real-world actions. Gate A neither imports
+`hr_kiosk_events.metadata.segmentId`, designates `clientEventId` as universal identity,
+nor maps a producer. Manual/admin and bulk/import explicit
 provenance can be represented, but no creation/import workflow populates it here. Bulk is
 still transport, not provenance.
 
@@ -159,7 +179,10 @@ representable without inventing premature producer transaction semantics.
 
 ## Data Access Plan
 
-- New objects: the seven tables, three callable Gate-A functions, and three non-callable trigger helper functions listed above; no view. Four append-only/sealing guard triggers protect fact revisions, evidence frames, membership, and evidence semantics.
+- New objects: the eight tables, three callable Gate-A functions, and five non-callable
+  trigger helper functions listed above; no view. Append-only/sealing and serialized
+  insert guards protect observations, fact revisions/segment binding, evidence frames,
+  membership/fact binding, and evidence semantics.
 - Authenticated client: no direct table access; execute on the two sanitized readers only.
 - Service role: execute on rebuild only; no existing service-backed path is switched.
 - House enforcement: trusted actor membership/role checks in readers and composite
@@ -184,16 +207,19 @@ payroll, payslip, overtime, kiosk, bulk, browser, repair, or background cutover;
 bulk mutation change; existing base DTR grant revocation; Gate-B containment; Gate C, D,
 or E work; identity behavior change; or POS/Operations/Finance/Growth work.
 
-**Identity lookup/insert/normalization/reuse/conflict semantics were unchanged.**
+**Shared person/entity identity lookup, insertion, normalization, reuse, and conflict
+semantics were unchanged. DEC-019 adds only the explicitly approved canonical attendance
+source-observation identity.**
 
 ## Verification boundary
 
 The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, or RPCs. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-Owner-side evidence confirms hosted head `aa2bae1fd8256acb703fde5df12259e6f79be02f`
-passed Preflight run `34796516821`. The new kiosk reconciliation, evidence-binding, and
-read-index corrections have only static/local verification at this checkpoint; their
-post-correction hosted head and checks remain pending independent observation. The
+Owner-side evidence confirms hosted head `05d6f4b36dcd0931776c87ce385a087d6a2d1d67`
+passed Preflight run `34798251431` (run number 655). DEC-019 observation identity,
+explicit-provenance audit, and segment-binding corrections have only static/local
+verification at this checkpoint; their post-correction hosted head and checks remain
+pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.
 
@@ -211,13 +237,14 @@ not modified.
 - **Canonical Documents Read:** root and scoped `AGENTS.md`; Operating Principles;
   development, DB access, and Roadmap guidance; HR Master Plan/status; GAP-024 approval
   and plan; GAP-025 contract; GAP-029 dependency plan; Historical DTR P1 approval; sync protocol
-- **Canonical Documents Changed:** `docs/hr/hr-status.md`; this implementation record
+- **Canonical Documents Changed:** GAP-025 DEC-019 addendum; `docs/hr/hr-status.md`; this implementation record
 - **Runtime / Code Surfaces Changed:** generated DB type subset and focused migration-contract test
-- **Database / Migration Surfaces:** one corrected additive Gate-A migration; seven tables; three callable functions; three trigger helpers
+- **Database / Migration Surfaces:** one corrected additive Gate-A migration; eight tables; three callable functions; five trigger helpers
 - **Authorization / Tenancy / Identity Impact:** new deny-direct canonical storage and two
   actor-derived readers; House and branch checks added; identity behavior unchanged
 - **Owner Decisions Applied:** Option D, facts-only branch visibility, owner/manager global
-  visibility, GAP-025 order, three distinct revision/generation concepts, Gate-A-only scope
+  visibility, GAP-025 order, DEC-019 source-observation identity, three distinct
+  revision/generation concepts, Gate-A-only scope
 - **New Decisions Proposed:** None
 - **Risks / Gaps:** live producer compatibility/backfill and raw-mutator containment remain Gate B
 - **Tests / Checks:** static migration-contract verification recorded in PR/local handoff; executable DB verification and hosted CI pending

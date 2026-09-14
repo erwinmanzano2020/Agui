@@ -8,6 +8,24 @@ create unique index if not exists employees_house_id_id_unique_idx
 create unique index if not exists dtr_segments_house_id_id_employee_id_unique_idx
   on public.dtr_segments (house_id, id, employee_id);
 
+-- DEC-019 stable real-world observation identity. Semantic evidence revisions point
+-- to this immutable authority; retries reuse its House + namespace + opaque identity.
+create table public.hr_attendance_observations (
+  id uuid primary key default gen_random_uuid(),
+  house_id uuid not null references public.houses(id) on delete cascade,
+  employee_id uuid not null,
+  source_namespace text not null check (length(btrim(source_namespace)) > 0),
+  source_observation_id text not null check (length(btrim(source_observation_id)) > 0),
+  occurred_at timestamptz not null,
+  recorded_at timestamptz not null default now(),
+  constraint hr_attendance_observations_source_identity_unique
+    unique (house_id, source_namespace, source_observation_id),
+  constraint hr_attendance_observations_house_id_id_employee_unique
+    unique (house_id, id, employee_id),
+  constraint hr_attendance_observations_house_employee_fk foreign key (house_id, employee_id)
+    references public.employees(house_id, id) on delete restrict
+);
+
 create table public.hr_attendance_facts (
   id uuid primary key default gen_random_uuid(),
   house_id uuid not null references public.houses(id) on delete cascade,
@@ -62,6 +80,7 @@ create table public.hr_attendance_evidence (
   id uuid primary key default gen_random_uuid(),
   house_id uuid not null references public.houses(id) on delete cascade,
   employee_id uuid not null,
+  observation_id uuid,
   lane text not null check (lane in ('KIOSK', 'MANUAL_ADMIN', 'BULK_IMPORT')),
   evidence_kind text not null check (evidence_kind in ('LOGICAL_IN', 'LOGICAL_OUT', 'EXPLICIT_BRANCH')),
   branch_id uuid,
@@ -72,18 +91,32 @@ create table public.hr_attendance_evidence (
   is_integrity_eligible boolean not null default true,
   semantic_revision bigint not null default 1 check (semantic_revision > 0),
   supersedes_evidence_id uuid,
+  asserted_by_entity_id uuid,
+  asserted_by_house_role text,
+  authorization_namespace text,
+  authorization_reference text,
+  asserted_at timestamptz,
   source_reference text,
   recorded_at timestamptz not null default now(),
   constraint hr_attendance_evidence_house_id_id_unique unique (house_id, id),
   constraint hr_attendance_evidence_house_id_id_employee_unique unique (house_id, id, employee_id),
   constraint hr_attendance_evidence_house_id_id_employee_revision_unique
     unique (house_id, id, employee_id, semantic_revision),
+  constraint hr_attendance_evidence_house_id_id_employee_observation_unique
+    unique (house_id, id, employee_id, observation_id),
   constraint hr_attendance_evidence_house_employee_fk foreign key (house_id, employee_id)
     references public.employees(house_id, id) on delete restrict,
   constraint hr_attendance_evidence_house_branch_fk foreign key (house_id, branch_id)
     references public.branches(house_id, id) on delete restrict,
+  constraint hr_attendance_evidence_observation_fk foreign key (house_id, observation_id, employee_id)
+    references public.hr_attendance_observations(house_id, id, employee_id) on delete restrict,
+  constraint hr_attendance_evidence_asserting_entity_fk foreign key (asserted_by_entity_id)
+    references public.entities(id) on delete restrict,
   constraint hr_attendance_evidence_supersedes_fk foreign key (house_id, supersedes_evidence_id, employee_id)
     references public.hr_attendance_evidence(house_id, id, employee_id) on delete restrict,
+  constraint hr_attendance_evidence_supersedes_observation_fk
+    foreign key (house_id, supersedes_evidence_id, employee_id, observation_id)
+    references public.hr_attendance_evidence(house_id, id, employee_id, observation_id) on delete restrict,
   constraint hr_attendance_evidence_kind_lane_check check (
     (lane = 'KIOSK' and evidence_kind in ('LOGICAL_IN', 'LOGICAL_OUT'))
     or (lane in ('MANUAL_ADMIN', 'BULK_IMPORT') and evidence_kind = 'EXPLICIT_BRANCH')
@@ -95,8 +128,34 @@ create table public.hr_attendance_evidence (
     sufficiency_state <> 'SUFFICIENT'
     or (integrity_state = 'ESTABLISHED' and is_integrity_eligible and branch_id is not null)
   ),
+  constraint hr_attendance_evidence_kiosk_observation_authority_check check (
+    lane <> 'KIOSK'
+    or (integrity_state <> 'ESTABLISHED' and sufficiency_state <> 'SUFFICIENT')
+    or observation_id is not null
+  ),
+  constraint hr_attendance_evidence_asserting_actor_shape check (
+    (asserted_by_entity_id is null and asserted_by_house_role is null)
+    or (asserted_by_entity_id is not null and asserted_by_house_role is not null)
+  ),
+  constraint hr_attendance_evidence_explicit_audit_check check (
+    not (
+      lane in ('MANUAL_ADMIN', 'BULK_IMPORT')
+      and evidence_kind = 'EXPLICIT_BRANCH'
+      and integrity_state = 'ESTABLISHED'
+      and sufficiency_state = 'SUFFICIENT'
+    ) or (
+      authorization_namespace is not null and length(btrim(authorization_namespace)) > 0
+      and authorization_reference is not null and length(btrim(authorization_reference)) > 0
+      and asserted_at is not null
+      and (lane <> 'MANUAL_ADMIN' or asserted_by_entity_id is not null)
+    )
+  ),
   constraint hr_attendance_evidence_no_self_supersession check (supersedes_evidence_id is distinct from id)
 );
+
+create unique index hr_attendance_evidence_observation_semantic_revision_unique_idx
+  on public.hr_attendance_evidence (house_id, observation_id, semantic_revision)
+  where observation_id is not null;
 
 create table public.hr_attendance_evidence_frames (
   house_id uuid not null,
@@ -186,17 +245,57 @@ begin
 end
 $function$;
 
-create or replace function public.hr_guard_attendance_frame_membership_insert()
+create or replace function public.hr_guard_attendance_evidence_insert()
 returns trigger
 language plpgsql
 set search_path = pg_catalog, public
 as $function$
 begin
+  if new.supersedes_evidence_id is not null then
+    perform 1 from public.hr_attendance_evidence predecessor
+      where predecessor.house_id = new.house_id
+        and predecessor.id = new.supersedes_evidence_id
+        and predecessor.employee_id = new.employee_id
+        and predecessor.observation_id is not distinct from new.observation_id
+      for key share;
+    if not found then
+      raise exception 'Semantic evidence supersession must preserve stable observation identity'
+        using errcode = '23514';
+    end if;
+  end if;
+
+  if new.lane = 'MANUAL_ADMIN'
+    and new.evidence_kind = 'EXPLICIT_BRANCH'
+    and new.integrity_state = 'ESTABLISHED'
+    and new.sufficiency_state = 'SUFFICIENT' then
+    perform 1 from public.house_roles hr
+      where hr.house_id = new.house_id
+        and hr.entity_id = new.asserted_by_entity_id
+        and hr.role = new.asserted_by_house_role
+      for key share;
+    if not found then
+      raise exception 'Manual attendance provenance requires exact-House actor authority'
+        using errcode = '23514';
+    end if;
+  end if;
+  return new;
+end
+$function$;
+
+create or replace function public.hr_guard_attendance_frame_membership_insert()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public
+as $function$
+declare
+  v_observation_id uuid;
+begin
   -- The canonical evidence row is the stable serialization target for the first
   -- evidence-to-fact association. Concurrent attempts for different facts cannot
   -- both pass: the waiter rechecks immutable membership history after acquiring
   -- this row lock.
-  perform 1 from public.hr_attendance_evidence e
+  select e.observation_id into v_observation_id
+  from public.hr_attendance_evidence e
     where e.house_id = new.house_id and e.id = new.evidence_id
       and e.employee_id = new.employee_id
     for update;
@@ -205,10 +304,26 @@ begin
       using errcode = '23503';
   end if;
 
+  -- Observation-backed semantic successors serialize on the stable observation as
+  -- well, ensuring the whole real-world observation chain binds to one fact.
+  if v_observation_id is not null then
+    perform 1 from public.hr_attendance_observations o
+      where o.house_id = new.house_id and o.id = v_observation_id
+        and o.employee_id = new.employee_id
+      for update;
+  end if;
+
   if exists (
-    select 1 from public.hr_attendance_fact_evidence existing
+    select 1
+    from public.hr_attendance_fact_evidence existing
+    join public.hr_attendance_evidence historical_evidence
+      on historical_evidence.house_id = existing.house_id
+      and historical_evidence.id = existing.evidence_id
     where existing.house_id = new.house_id
-      and existing.evidence_id = new.evidence_id
+      and (
+        existing.evidence_id = new.evidence_id
+        or (v_observation_id is not null and historical_evidence.observation_id = v_observation_id)
+      )
       and existing.fact_id <> new.fact_id
   ) then
     raise exception 'Canonical evidence is already bound to another attendance fact'
@@ -229,12 +344,54 @@ begin
 end
 $function$;
 
+create or replace function public.hr_guard_attendance_fact_revision_segment_insert()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public
+as $function$
+begin
+  if new.dtr_segment_id is null then
+    return new;
+  end if;
+
+  -- The physical segment is the serialization target for concurrent first bindings.
+  perform 1 from public.dtr_segments s
+    where s.house_id = new.house_id and s.id = new.dtr_segment_id
+      and s.employee_id = new.employee_id
+    for update;
+  if not found then
+    raise exception 'Segment lineage requires matching House and employee ownership'
+      using errcode = '23503';
+  end if;
+
+  if exists (
+    select 1 from public.hr_attendance_fact_revisions existing
+    where existing.house_id = new.house_id
+      and existing.dtr_segment_id = new.dtr_segment_id
+      and existing.fact_id <> new.fact_id
+  ) then
+    raise exception 'Physical attendance segment is already bound to another fact'
+      using errcode = '23514';
+  end if;
+  return new;
+end
+$function$;
+
+create trigger hr_attendance_observations_immutable
+before update or delete on public.hr_attendance_observations
+for each row execute function public.hr_reject_attendance_history_mutation();
 create trigger hr_attendance_evidence_immutable
 before update or delete on public.hr_attendance_evidence
 for each row execute function public.hr_reject_attendance_history_mutation();
+create trigger hr_attendance_evidence_insert_guard
+before insert on public.hr_attendance_evidence
+for each row execute function public.hr_guard_attendance_evidence_insert();
 create trigger hr_attendance_fact_revisions_immutable
 before update or delete on public.hr_attendance_fact_revisions
 for each row execute function public.hr_reject_attendance_history_mutation();
+create trigger hr_attendance_fact_revision_segment_insert_guard
+before insert on public.hr_attendance_fact_revisions
+for each row execute function public.hr_guard_attendance_fact_revision_segment_insert();
 create trigger hr_attendance_evidence_frames_immutable
 before update or delete on public.hr_attendance_evidence_frames
 for each row execute function public.hr_guard_attendance_evidence_frame();
@@ -331,7 +488,15 @@ begin
       e.integrity_state,
       e.sufficiency_state,
       e.is_integrity_eligible,
-      e.semantic_revision
+      e.semantic_revision,
+      o.source_namespace,
+      o.source_observation_id,
+      o.occurred_at,
+      e.asserted_by_entity_id,
+      e.asserted_by_house_role,
+      e.authorization_namespace,
+      e.authorization_reference,
+      e.asserted_at
     from public.hr_attendance_facts f
     join public.hr_attendance_evidence_frames ef
       on ef.house_id = f.house_id and ef.fact_id = f.id
@@ -344,6 +509,9 @@ begin
       and a.evidence_basis_revision = ef.evidence_basis_revision
     left join public.hr_attendance_evidence e
       on e.house_id = a.house_id and e.id = a.evidence_id
+    left join public.hr_attendance_observations o
+      on o.house_id = e.house_id and o.id = e.observation_id
+      and o.employee_id = e.employee_id
     where f.house_id = p_house_id and f.is_active
   ), aggregate_frame as (
     select
@@ -381,13 +549,21 @@ begin
         and integrity_state = 'ESTABLISHED'
         and is_integrity_eligible
         and sufficiency_state = 'SUFFICIENT'
+        and branch_id is not null
+        and authorization_namespace is not null
+        and authorization_reference is not null
+        and asserted_at is not null
+        and (lane <> 'MANUAL_ADMIN' or asserted_by_entity_id is not null)
       ) as explicit_lane_sufficient,
       coalesce(array_agg(evidence_id order by evidence_id) filter (where evidence_id is not null), '{}'::uuid[]) as evidence_ids,
       md5(semantic_completion_mode || '|' || coalesce(string_agg(
-        coalesce(evidence_id::text, '') || ':' || coalesce(lane, '') || ':' ||
-        coalesce(evidence_kind, '') || ':' || coalesce(branch_id::text, '') || ':' ||
-        coalesce(integrity_state, '') || ':' || coalesce(sufficiency_state, '') || ':' ||
-        coalesce(is_integrity_eligible::text, '') || ':' || coalesce(semantic_revision::text, ''),
+        jsonb_build_array(
+          evidence_id, lane, evidence_kind, branch_id, integrity_state,
+          sufficiency_state, is_integrity_eligible, semantic_revision,
+          source_namespace, source_observation_id, extract(epoch from occurred_at),
+          asserted_by_entity_id, asserted_by_house_role, authorization_namespace,
+          authorization_reference, extract(epoch from asserted_at)
+        )::text,
         '|' order by evidence_id
       ) filter (where evidence_id is not null), '')) as basis_fingerprint
     from evidence_frame
@@ -517,14 +693,21 @@ begin
     and p.evidence_basis_fingerprint = md5((
       select ef.semantic_completion_mode || '|' || coalesce((
         select string_agg(
-          e.id::text || ':' || e.lane || ':' || e.evidence_kind || ':' ||
-          coalesce(e.branch_id::text, '') || ':' || e.integrity_state || ':' ||
-          e.sufficiency_state || ':' || e.is_integrity_eligible::text || ':' || e.semantic_revision::text,
+          jsonb_build_array(
+            e.id, e.lane, e.evidence_kind, e.branch_id, e.integrity_state,
+            e.sufficiency_state, e.is_integrity_eligible, e.semantic_revision,
+            o.source_namespace, o.source_observation_id, extract(epoch from o.occurred_at),
+            e.asserted_by_entity_id, e.asserted_by_house_role, e.authorization_namespace,
+            e.authorization_reference, extract(epoch from e.asserted_at)
+          )::text,
           '|' order by e.id
         )
         from public.hr_attendance_fact_evidence a
         join public.hr_attendance_evidence e
           on e.house_id = a.house_id and e.id = a.evidence_id
+        left join public.hr_attendance_observations o
+          on o.house_id = e.house_id and o.id = e.observation_id
+          and o.employee_id = e.employee_id
         where a.house_id = f.house_id and a.fact_id = f.id
           and a.evidence_basis_revision = f.evidence_basis_revision
       ), '')
@@ -594,14 +777,21 @@ begin
     and p.evidence_basis_fingerprint = md5((
       select ef.semantic_completion_mode || '|' || coalesce((
         select string_agg(
-          e.id::text || ':' || e.lane || ':' || e.evidence_kind || ':' ||
-          coalesce(e.branch_id::text, '') || ':' || e.integrity_state || ':' ||
-          e.sufficiency_state || ':' || e.is_integrity_eligible::text || ':' || e.semantic_revision::text,
+          jsonb_build_array(
+            e.id, e.lane, e.evidence_kind, e.branch_id, e.integrity_state,
+            e.sufficiency_state, e.is_integrity_eligible, e.semantic_revision,
+            o.source_namespace, o.source_observation_id, extract(epoch from o.occurred_at),
+            e.asserted_by_entity_id, e.asserted_by_house_role, e.authorization_namespace,
+            e.authorization_reference, extract(epoch from e.asserted_at)
+          )::text,
           '|' order by e.id
         )
         from public.hr_attendance_fact_evidence a
         join public.hr_attendance_evidence e
           on e.house_id = a.house_id and e.id = a.evidence_id
+        left join public.hr_attendance_observations o
+          on o.house_id = e.house_id and o.id = e.observation_id
+          and o.employee_id = e.employee_id
         where a.house_id = f.house_id and a.fact_id = f.id
           and a.evidence_basis_revision = f.evidence_basis_revision
       ), '')
@@ -614,6 +804,7 @@ begin
 end
 $function$;
 
+alter table public.hr_attendance_observations enable row level security;
 alter table public.hr_attendance_facts enable row level security;
 alter table public.hr_attendance_fact_revisions enable row level security;
 alter table public.hr_attendance_evidence enable row level security;
@@ -622,6 +813,7 @@ alter table public.hr_attendance_fact_evidence enable row level security;
 alter table public.hr_attendance_employee_generations enable row level security;
 alter table public.hr_attendance_authorization_projection enable row level security;
 
+revoke all on table public.hr_attendance_observations from public, anon, authenticated;
 revoke all on table public.hr_attendance_facts from public, anon, authenticated;
 revoke all on table public.hr_attendance_fact_revisions from public, anon, authenticated;
 revoke all on table public.hr_attendance_evidence from public, anon, authenticated;
@@ -634,7 +826,9 @@ revoke all on function public.hr_rebuild_attendance_authorization_projection(uui
 grant execute on function public.hr_rebuild_attendance_authorization_projection(uuid) to service_role;
 revoke all on function public.hr_reject_attendance_history_mutation() from public, anon, authenticated;
 revoke all on function public.hr_guard_attendance_evidence_frame() from public, anon, authenticated;
+revoke all on function public.hr_guard_attendance_evidence_insert() from public, anon, authenticated;
 revoke all on function public.hr_guard_attendance_frame_membership_insert() from public, anon, authenticated;
+revoke all on function public.hr_guard_attendance_fact_revision_segment_insert() from public, anon, authenticated;
 revoke all on function public.hr_read_canonical_attendance_branch_scoped(uuid, date, date, uuid, integer, integer) from public, anon;
 grant execute on function public.hr_read_canonical_attendance_branch_scoped(uuid, date, date, uuid, integer, integer) to authenticated;
 revoke all on function public.hr_read_canonical_attendance_house_global(uuid, date, date, uuid, integer, integer) from public, anon;

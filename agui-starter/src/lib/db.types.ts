@@ -271,6 +271,13 @@ export type HrAttendanceFactRow = {
 export type HrAttendanceFactInsert = Omit<HrAttendanceFactRow, "id" | "is_active" | "current_value_revision" | "evidence_basis_revision" | "created_at" | "updated_at"> & Partial<Pick<HrAttendanceFactRow, "id" | "is_active" | "current_value_revision" | "evidence_basis_revision" | "created_at" | "updated_at">>;
 export type HrAttendanceFactUpdate = Partial<HrAttendanceFactInsert>;
 
+export type HrAttendanceObservationRow = {
+  id: string; house_id: string; employee_id: string; source_namespace: string;
+  source_observation_id: string; occurred_at: string; recorded_at: string;
+};
+export type HrAttendanceObservationInsert = Omit<HrAttendanceObservationRow, "id" | "recorded_at"> & Partial<Pick<HrAttendanceObservationRow, "id" | "recorded_at">>;
+export type HrAttendanceObservationUpdate = Partial<HrAttendanceObservationInsert>;
+
 export type HrAttendanceFactRevisionRow = {
   house_id: string; fact_id: string; employee_id: string; revision: number; predecessor_revision: number | null;
   dtr_segment_id: string | null; work_date: string; time_in: string | null; time_out: string | null;
@@ -280,15 +287,18 @@ export type HrAttendanceFactRevisionInsert = Omit<HrAttendanceFactRevisionRow, "
 export type HrAttendanceFactRevisionUpdate = Partial<HrAttendanceFactRevisionInsert>;
 
 export type HrAttendanceEvidenceRow = {
-  id: string; house_id: string; employee_id: string;
+  id: string; house_id: string; employee_id: string; observation_id: string | null;
   lane: "KIOSK" | "MANUAL_ADMIN" | "BULK_IMPORT";
   evidence_kind: "LOGICAL_IN" | "LOGICAL_OUT" | "EXPLICIT_BRANCH";
   branch_id: string | null; integrity_state: "ESTABLISHED" | "UNRESOLVED" | "INVALID";
   sufficiency_state: "SUFFICIENT" | "INSUFFICIENT" | "UNRESOLVED";
   is_integrity_eligible: boolean; semantic_revision: number;
-  supersedes_evidence_id: string | null; source_reference: string | null; recorded_at: string;
+  supersedes_evidence_id: string | null; asserted_by_entity_id: string | null;
+  asserted_by_house_role: string | null; authorization_namespace: string | null;
+  authorization_reference: string | null; asserted_at: string | null;
+  source_reference: string | null; recorded_at: string;
 };
-export type HrAttendanceEvidenceInsert = Omit<HrAttendanceEvidenceRow, "id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "semantic_revision" | "supersedes_evidence_id" | "source_reference" | "recorded_at"> & Partial<Pick<HrAttendanceEvidenceRow, "id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "semantic_revision" | "supersedes_evidence_id" | "source_reference" | "recorded_at">>;
+export type HrAttendanceEvidenceInsert = Omit<HrAttendanceEvidenceRow, "id" | "observation_id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "semantic_revision" | "supersedes_evidence_id" | "asserted_by_entity_id" | "asserted_by_house_role" | "authorization_namespace" | "authorization_reference" | "asserted_at" | "source_reference" | "recorded_at"> & Partial<Pick<HrAttendanceEvidenceRow, "id" | "observation_id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "semantic_revision" | "supersedes_evidence_id" | "asserted_by_entity_id" | "asserted_by_house_role" | "authorization_namespace" | "authorization_reference" | "asserted_at" | "source_reference" | "recorded_at">>;
 export type HrAttendanceEvidenceUpdate = Partial<HrAttendanceEvidenceInsert>;
 
 export type HrAttendanceEvidenceFrameRow = { house_id: string; fact_id: string; employee_id: string; evidence_basis_revision: number; predecessor_revision: number | null; semantic_completion_mode: "OPEN" | "COMPLETED" | "UNRESOLVED"; is_sealed: boolean; sealed_at: string | null; created_at: string };
@@ -1629,6 +1639,7 @@ export interface Database {
       >;
       employees: TableDefinition<EmployeeRow, EmployeeInsert, EmployeeUpdate>;
       dtr_segments: TableDefinition<DtrSegmentRow, DtrSegmentInsert, DtrSegmentUpdate>;
+      hr_attendance_observations: TableDefinition<HrAttendanceObservationRow, HrAttendanceObservationInsert, HrAttendanceObservationUpdate>;
       hr_attendance_facts: TableDefinition<HrAttendanceFactRow, HrAttendanceFactInsert, HrAttendanceFactUpdate>;
       hr_attendance_fact_revisions: TableDefinition<HrAttendanceFactRevisionRow, HrAttendanceFactRevisionInsert, HrAttendanceFactRevisionUpdate>;
       hr_attendance_evidence: TableDefinition<HrAttendanceEvidenceRow, HrAttendanceEvidenceInsert, HrAttendanceEvidenceUpdate>;

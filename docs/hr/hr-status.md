@@ -20,7 +20,7 @@
   runtime authorization: HR-2 feature expansion, HR-4 product workflow, payroll
   expansion, and all unrelated implementation remain gated.
 
-## 2026-09-13 — GAP-024 Gate A local implementation checkpoint
+## 2026-09-14 — GAP-024 Gate A local implementation checkpoint
 
 **Status: Gate A exists in the bounded local PR; hosted verification and merge remain
 pending.** The additive canonical attendance fact/evidence/revision/lineage authority,
@@ -38,10 +38,14 @@ fails its kiosk lane closed for invalid or unreconciled governing observations w
 vetoing independently sufficient agreeing explicit provenance. Evidence membership is
 serialized on its canonical evidence row, permanently binding it to one stable fact while
 allowing reuse across that fact's later evidence bases, and bounded readers have a
-House/work-date-selective revision index. Hosted starting head
-`aa2bae1fd8256acb703fde5df12259e6f79be02f` passed Preflight run `34796516821`;
-post-correction hosted verification and migration/RLS/RPC executable verification remain
-outstanding. Historical DTR P1 does not exist yet and GAP-024 remains open. Gate B remains next only after Gate A is independently
+House/work-date-selective revision index. Owner-approved DEC-019 now adds immutable,
+namespaced source-observation identity and original occurrence time without migrating a
+producer. This PR correction also requires auditable sufficient explicit provenance and
+serializes each physical segment's permanent binding to one stable fact. Hosted starting
+head `05d6f4b36dcd0931776c87ce385a087d6a2d1d67` passed Preflight run
+`34798251431` (run 655); the correction remains in progress, and post-correction hosted
+verification plus migration/RLS/RPC executable verification remain outstanding.
+Historical DTR P1 remains unauthorized and unimplemented, and GAP-024 remains open. Gate B remains next only after Gate A is independently
 hosted, reviewed, and merged; Gate B has not started.
 
 ## 2026-09-13 — GAP-029 planning and DEC-017/DEC-018 correction checkpoint
