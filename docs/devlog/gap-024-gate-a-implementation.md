@@ -41,6 +41,11 @@ The corrected additive migration creates eight direct-access-protected tables:
    kiosk, manual/admin, and compliant bulk/import lanes. Evidence may remain unresolved
    and unassociated without a fake fact. It stores semantic revision separately from
    fact/value revision. Observation-backed successors retain the stable observation ID.
+   Every root and successor also carries immutable `lineage_root_evidence_id`: roots
+   identify themselves, while successors inherit the predecessor's root under an insert
+   guard. This physical semantic-lineage authority is distinct from DEC-019 observation,
+   attendance-fact, authorization-case, employee/date, and timestamp identity; it is not
+   a fourth business revision.
    Established/sufficient kiosk evidence requires an observation; unresolved evidence may
    omit it. Gate A does not copy kiosk JSON metadata or map any active producer.
 5. `hr_attendance_evidence_frames` identifies each semantic evidence-basis revision,
@@ -52,7 +57,12 @@ The corrected additive migration creates eight direct-access-protected tables:
    Its insert guard first locks the canonical evidence row, then rejects any prior
    membership for a different fact. This serializes concurrent first associations and
    binds one evidence identity to one stable logical fact while allowing that evidence
-   to recur in later basis revisions of the same fact.
+   to recur in later basis revisions of the same fact. The guard additionally resolves
+   and locks the immutable lineage-root evidence row before checking all membership
+   history for that root. Root/successor, reverse-order, and sibling-successor races thus
+   share one lock even when explicit provenance has `observation_id = null`; the winner's
+   fact becomes permanent for the lineage, while same-fact successive-basis reuse remains
+   valid. Observation-backed evidence retains its additional observation-wide lock/check.
 7. `hr_attendance_employee_generations` reserves the distinct House + employee
    candidate/evidence concurrency generation required by DEC-018. Gate A stores this
    independent domain; Gate B commands must define and verify atomic producer advancement.
@@ -213,13 +223,12 @@ source-observation identity.**
 
 ## Verification boundary
 
-The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, or RPCs. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
+The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, row-lock, and concurrency executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-Owner-side evidence confirms hosted head `05d6f4b36dcd0931776c87ce385a087d6a2d1d67`
-passed Preflight run `34798251431` (run number 655). DEC-019 observation identity,
-explicit-provenance audit, and segment-binding corrections have only static/local
-verification at this checkpoint; their post-correction hosted head and checks remain
-pending independent observation. The
+Owner-side evidence confirms hosted head `e8ee1a92dedcdab60f884c2d08314475203ed290`
+passed Preflight run `34804526215` (run number 656). The whole-supersession-lineage
+stable-fact correction has only static/local verification at this checkpoint; its
+post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.
 
@@ -229,7 +238,7 @@ not modified.
 - **Gate / Slice:** GAP-024 Gate A
 - **Work Class:** Foundation Security Correction runtime
 - **Status:** Local implementation complete; hosted verification pending
-- **PR Number / URL:** Pending — not yet independently verified
+- **PR Number / URL:** PR #510 / hosted URL pending contributor access
 - **Base Branch:** `develop`
 - **Expected Hosted Base SHA:** `5e06c21a0c96514e45c336af77d0cccf2d3c0420`
 - **Local Completion SHA:** Recorded in the post-commit completion handoff

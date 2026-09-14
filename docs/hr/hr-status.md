@@ -42,8 +42,12 @@ House/work-date-selective revision index. Owner-approved DEC-019 now adds immuta
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
 serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `05d6f4b36dcd0931776c87ce385a087d6a2d1d67` passed Preflight run
-`34798251431` (run 655); the correction remains in progress, and post-correction hosted
+head `e8ee1a92dedcdab60f884c2d08314475203ed290` passed Preflight run
+`34804526215` (run 656). The current local correction gives every append-only evidence
+supersession family an immutable lineage root and serializes all root/successor/sibling
+first bindings on that root, so null-observation explicit provenance cannot split across
+facts while same-fact successive-basis reuse remains valid. The correction remains in
+progress, and post-correction hosted
 verification plus migration/RLS/RPC executable verification remain outstanding.
 Historical DTR P1 remains unauthorized and unimplemented, and GAP-024 remains open. Gate B remains next only after Gate A is independently
 hosted, reviewed, and merged; Gate B has not started.

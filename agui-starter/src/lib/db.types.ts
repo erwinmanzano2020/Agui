@@ -293,12 +293,13 @@ export type HrAttendanceEvidenceRow = {
   branch_id: string | null; integrity_state: "ESTABLISHED" | "UNRESOLVED" | "INVALID";
   sufficiency_state: "SUFFICIENT" | "INSUFFICIENT" | "UNRESOLVED";
   is_integrity_eligible: boolean; semantic_revision: number;
-  supersedes_evidence_id: string | null; asserted_by_entity_id: string | null;
+  supersedes_evidence_id: string | null; lineage_root_evidence_id: string;
+  asserted_by_entity_id: string | null;
   asserted_by_house_role: string | null; authorization_namespace: string | null;
   authorization_reference: string | null; asserted_at: string | null;
   source_reference: string | null; recorded_at: string;
 };
-export type HrAttendanceEvidenceInsert = Omit<HrAttendanceEvidenceRow, "id" | "observation_id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "semantic_revision" | "supersedes_evidence_id" | "asserted_by_entity_id" | "asserted_by_house_role" | "authorization_namespace" | "authorization_reference" | "asserted_at" | "source_reference" | "recorded_at"> & Partial<Pick<HrAttendanceEvidenceRow, "id" | "observation_id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "semantic_revision" | "supersedes_evidence_id" | "asserted_by_entity_id" | "asserted_by_house_role" | "authorization_namespace" | "authorization_reference" | "asserted_at" | "source_reference" | "recorded_at">>;
+export type HrAttendanceEvidenceInsert = Omit<HrAttendanceEvidenceRow, "id" | "observation_id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "semantic_revision" | "supersedes_evidence_id" | "lineage_root_evidence_id" | "asserted_by_entity_id" | "asserted_by_house_role" | "authorization_namespace" | "authorization_reference" | "asserted_at" | "source_reference" | "recorded_at"> & Partial<Pick<HrAttendanceEvidenceRow, "id" | "observation_id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "semantic_revision" | "supersedes_evidence_id" | "lineage_root_evidence_id" | "asserted_by_entity_id" | "asserted_by_house_role" | "authorization_namespace" | "authorization_reference" | "asserted_at" | "source_reference" | "recorded_at">>;
 export type HrAttendanceEvidenceUpdate = Partial<HrAttendanceEvidenceInsert>;
 
 export type HrAttendanceEvidenceFrameRow = { house_id: string; fact_id: string; employee_id: string; evidence_basis_revision: number; predecessor_revision: number | null; semantic_completion_mode: "OPEN" | "COMPLETED" | "UNRESOLVED"; is_sealed: boolean; sealed_at: string | null; created_at: string };

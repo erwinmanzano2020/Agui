@@ -83,6 +83,53 @@ test("canonical evidence serializes first binding and can recur only for the sam
   assert.match(sql, /foreign key \(house_id, evidence_id, employee_id\)/i);
 });
 
+test("every evidence supersession lineage inherits one root and one stable fact binding", () => {
+  const lineage = new Map<string, string>();
+  const predecessor = new Map<string, string | null>();
+  const add = (id: string, supersedes: string | null) => {
+    predecessor.set(id, supersedes);
+    lineage.set(id, supersedes ? lineage.get(supersedes)! : id);
+  };
+  add("E1", null);
+  add("E2", "E1");
+  add("E3", "E2");
+  add("E2-sibling", "E1");
+  assert.equal(lineage.get("E1"), "E1");
+  assert.equal(lineage.get("E2"), "E1");
+  assert.equal(lineage.get("E3"), "E1");
+  assert.equal(lineage.get("E2-sibling"), "E1");
+
+  const factByRoot = new Map<string, string>();
+  const bind = (evidence: string, fact: string) => {
+    const root = lineage.get(evidence)!;
+    const existing = factByRoot.get(root);
+    if (existing && existing !== fact) return false;
+    factByRoot.set(root, fact);
+    return true;
+  };
+  assert.equal(bind("E2", "Fact-A"), true); // successor may bind first
+  assert.equal(bind("E1", "Fact-B"), false); // reverse-order root attempt
+  assert.equal(bind("E2-sibling", "Fact-B"), false);
+  assert.equal(bind("E1", "Fact-A"), true);
+  assert.equal(bind("E3", "Fact-A"), true);
+
+  const evidenceGuard = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
+  assert.match(sql, /lineage_root_evidence_id uuid not null/i);
+  assert.match(sql, /foreign key \(house_id, lineage_root_evidence_id, employee_id\)/i);
+  assert.match(evidenceGuard, /new\.lineage_root_evidence_id := new\.id/i);
+  assert.match(evidenceGuard, /new\.lineage_root_evidence_id := v_predecessor_lineage_root_id/i);
+  assert.match(evidenceGuard, /new\.lineage_root_evidence_id <> v_predecessor_lineage_root_id/i);
+
+  const membershipGuard = functionSql("hr_guard_attendance_frame_membership_insert", "hr_guard_attendance_fact_revision_segment_insert");
+  const rootLock = membershipGuard.indexOf("from public.hr_attendance_evidence lineage_root");
+  const historyCheck = membershipGuard.indexOf("from public.hr_attendance_fact_evidence existing");
+  assert.ok(rootLock >= 0 && rootLock < historyCheck, "lineage root must lock before immutable membership history is checked");
+  assert.match(membershipGuard, /lineage_root\.id = v_lineage_root_evidence_id[\s\S]*for update/i);
+  assert.match(membershipGuard, /historical_evidence\.lineage_root_evidence_id = v_lineage_root_evidence_id/i);
+  assert.match(membershipGuard, /historical_evidence\.observation_id = v_observation_id/i);
+  assert.doesNotMatch(sql, /unique\s*\(house_id, lineage_root_evidence_id\)/i);
+});
+
 test("DEC-019 stores one namespaced stable observation chain with immutable occurrence time", () => {
   const observations = new Map<string, { occurredAt: string; recordedAt: string }>();
   const insert = (house: string, namespace: string, sourceId: string, occurredAt: string, recordedAt: string) => {
@@ -104,7 +151,7 @@ test("DEC-019 stores one namespaced stable observation chain with immutable occu
   assert.match(sql, /foreign key \(house_id, supersedes_evidence_id, employee_id, observation_id\)/i);
   assert.match(sql, /unique index hr_attendance_evidence_observation_semantic_revision_unique_idx/i);
   const evidenceGuard = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
-  assert.match(evidenceGuard, /predecessor\.observation_id is not distinct from new\.observation_id/i);
+  assert.match(evidenceGuard, /v_predecessor_observation_id is distinct from new\.observation_id[\s\S]*preserve stable observation identity/i);
   assert.doesNotMatch(sql, /unique[^;]*(?:employee_id, work_date|employee_id, occurred_at|occurred_at, employee_id)/i);
   for (const body of [
     functionSql("hr_rebuild_attendance_authorization_projection", "hr_read_canonical_attendance_branch_scoped"),

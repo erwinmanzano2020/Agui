@@ -91,6 +91,7 @@ create table public.hr_attendance_evidence (
   is_integrity_eligible boolean not null default true,
   semantic_revision bigint not null default 1 check (semantic_revision > 0),
   supersedes_evidence_id uuid,
+  lineage_root_evidence_id uuid not null,
   asserted_by_entity_id uuid,
   asserted_by_house_role text,
   authorization_namespace text,
@@ -113,6 +114,9 @@ create table public.hr_attendance_evidence (
   constraint hr_attendance_evidence_asserting_entity_fk foreign key (asserted_by_entity_id)
     references public.entities(id) on delete restrict,
   constraint hr_attendance_evidence_supersedes_fk foreign key (house_id, supersedes_evidence_id, employee_id)
+    references public.hr_attendance_evidence(house_id, id, employee_id) on delete restrict,
+  constraint hr_attendance_evidence_lineage_root_fk
+    foreign key (house_id, lineage_root_evidence_id, employee_id)
     references public.hr_attendance_evidence(house_id, id, employee_id) on delete restrict,
   constraint hr_attendance_evidence_supersedes_observation_fk
     foreign key (house_id, supersedes_evidence_id, employee_id, observation_id)
@@ -250,16 +254,37 @@ returns trigger
 language plpgsql
 set search_path = pg_catalog, public
 as $function$
+declare
+  v_predecessor_observation_id uuid;
+  v_predecessor_lineage_root_id uuid;
 begin
   if new.supersedes_evidence_id is not null then
-    perform 1 from public.hr_attendance_evidence predecessor
+    select predecessor.observation_id, predecessor.lineage_root_evidence_id
+      into v_predecessor_observation_id, v_predecessor_lineage_root_id
+    from public.hr_attendance_evidence predecessor
       where predecessor.house_id = new.house_id
         and predecessor.id = new.supersedes_evidence_id
         and predecessor.employee_id = new.employee_id
-        and predecessor.observation_id is not distinct from new.observation_id
-      for key share;
+      for update;
     if not found then
+      raise exception 'Semantic evidence supersession requires a matching predecessor'
+        using errcode = '23514';
+    end if;
+    if v_predecessor_observation_id is distinct from new.observation_id then
       raise exception 'Semantic evidence supersession must preserve stable observation identity'
+        using errcode = '23514';
+    end if;
+    if new.lineage_root_evidence_id is null then
+      new.lineage_root_evidence_id := v_predecessor_lineage_root_id;
+    elsif new.lineage_root_evidence_id <> v_predecessor_lineage_root_id then
+      raise exception 'Semantic evidence successor cannot select another lineage root'
+        using errcode = '23514';
+    end if;
+  else
+    if new.lineage_root_evidence_id is null then
+      new.lineage_root_evidence_id := new.id;
+    elsif new.lineage_root_evidence_id <> new.id then
+      raise exception 'Root evidence must identify itself as its lineage root'
         using errcode = '23514';
     end if;
   end if;
@@ -289,12 +314,14 @@ set search_path = pg_catalog, public
 as $function$
 declare
   v_observation_id uuid;
+  v_lineage_root_evidence_id uuid;
 begin
   -- The canonical evidence row is the stable serialization target for the first
   -- evidence-to-fact association. Concurrent attempts for different facts cannot
   -- both pass: the waiter rechecks immutable membership history after acquiring
   -- this row lock.
-  select e.observation_id into v_observation_id
+  select e.observation_id, e.lineage_root_evidence_id
+    into v_observation_id, v_lineage_root_evidence_id
   from public.hr_attendance_evidence e
     where e.house_id = new.house_id and e.id = new.evidence_id
       and e.employee_id = new.employee_id
@@ -302,6 +329,19 @@ begin
   if not found then
     raise exception 'Evidence membership requires matching House and employee ownership'
       using errcode = '23503';
+  end if;
+
+  -- Every supersession-family member shares and locks this immutable root before
+  -- membership history is checked, including explicit evidence with no observation.
+  perform 1 from public.hr_attendance_evidence lineage_root
+    where lineage_root.house_id = new.house_id
+      and lineage_root.id = v_lineage_root_evidence_id
+      and lineage_root.employee_id = new.employee_id
+      and lineage_root.lineage_root_evidence_id = lineage_root.id
+    for update;
+  if not found then
+    raise exception 'Evidence membership requires a valid immutable lineage root'
+      using errcode = '23514';
   end if;
 
   -- Observation-backed semantic successors serialize on the stable observation as
@@ -322,6 +362,7 @@ begin
     where existing.house_id = new.house_id
       and (
         existing.evidence_id = new.evidence_id
+        or historical_evidence.lineage_root_evidence_id = v_lineage_root_evidence_id
         or (v_observation_id is not null and historical_evidence.observation_id = v_observation_id)
       )
       and existing.fact_id <> new.fact_id
