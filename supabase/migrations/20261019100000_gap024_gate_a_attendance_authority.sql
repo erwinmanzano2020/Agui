@@ -537,7 +537,30 @@ begin
       e.asserted_by_house_role,
       e.authorization_namespace,
       e.authorization_reference,
-      e.asserted_at
+      e.asserted_at,
+      case
+        when e.integrity_state = 'ESTABLISHED'
+          and e.is_integrity_eligible
+          and e.branch_id is not null
+          and (
+            (e.lane = 'KIOSK' and e.evidence_kind in ('LOGICAL_IN', 'LOGICAL_OUT'))
+            or (
+              e.lane in ('MANUAL_ADMIN', 'BULK_IMPORT')
+              and e.evidence_kind = 'EXPLICIT_BRANCH'
+              and e.authorization_namespace is not null
+              and length(btrim(e.authorization_namespace)) > 0
+              and e.authorization_reference is not null
+              and length(btrim(e.authorization_reference)) > 0
+              and e.asserted_at is not null
+              and (
+                e.lane <> 'MANUAL_ADMIN'
+                or (e.asserted_by_entity_id is not null and e.asserted_by_house_role is not null)
+              )
+            )
+          )
+        then true
+        else false
+      end as conflict_branch_applicable
     from public.hr_attendance_facts f
     join public.hr_attendance_evidence_frames ef
       on ef.house_id = f.house_id and ef.fact_id = f.id
@@ -563,10 +586,10 @@ begin
       evidence_basis_revision,
       semantic_completion_mode,
       count(distinct branch_id) filter (
-        where integrity_state = 'ESTABLISHED' and is_integrity_eligible and branch_id is not null
+        where conflict_branch_applicable
       ) as established_branch_count,
       (array_agg(distinct branch_id order by branch_id) filter (
-        where integrity_state = 'ESTABLISHED' and is_integrity_eligible and branch_id is not null
+        where conflict_branch_applicable
       ))[1] as agreed_branch_id,
       count(*) filter (
         where lane = 'KIOSK' and evidence_kind = 'LOGICAL_IN'
@@ -585,16 +608,9 @@ begin
         )
       ) as kiosk_unreconciled_count,
       bool_or(
-        lane in ('MANUAL_ADMIN', 'BULK_IMPORT')
-        and evidence_kind = 'EXPLICIT_BRANCH'
-        and integrity_state = 'ESTABLISHED'
-        and is_integrity_eligible
+        conflict_branch_applicable
+        and lane in ('MANUAL_ADMIN', 'BULK_IMPORT')
         and sufficiency_state = 'SUFFICIENT'
-        and branch_id is not null
-        and authorization_namespace is not null
-        and authorization_reference is not null
-        and asserted_at is not null
-        and (lane <> 'MANUAL_ADMIN' or asserted_by_entity_id is not null)
       ) as explicit_lane_sufficient,
       coalesce(array_agg(evidence_id order by evidence_id) filter (where evidence_id is not null), '{}'::uuid[]) as evidence_ids,
       md5(semantic_completion_mode || '|' || coalesce(string_agg(

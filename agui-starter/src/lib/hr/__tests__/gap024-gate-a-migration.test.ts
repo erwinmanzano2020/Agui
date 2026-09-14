@@ -183,8 +183,47 @@ test("sufficient explicit provenance requires durable authorization audit", () =
   assert.match(auditGuard, /from public\.house_roles hr[\s\S]*hr\.house_id = new\.house_id[\s\S]*hr\.entity_id = new\.asserted_by_entity_id[\s\S]*hr\.role = new\.asserted_by_house_role[\s\S]*for key share/i);
   const rebuild = functionSql("hr_rebuild_attendance_authorization_projection", "hr_read_canonical_attendance_branch_scoped");
   assert.match(rebuild, /explicit_lane_sufficient/i);
-  assert.match(rebuild, /authorization_namespace is not null[\s\S]*authorization_reference is not null[\s\S]*asserted_at is not null[\s\S]*lane <> 'MANUAL_ADMIN' or asserted_by_entity_id is not null/i);
+  assert.match(rebuild, /e\.authorization_namespace is not null[\s\S]*e\.authorization_reference is not null[\s\S]*e\.asserted_at is not null[\s\S]*e\.lane <> 'MANUAL_ADMIN'[\s\S]*e\.asserted_by_entity_id is not null[\s\S]*e\.asserted_by_house_role is not null/i);
   assert.match(rebuild, /when established_branch_count > 1 then 'CONFLICT'/i);
+});
+
+test("conflict aggregation excludes unaudited explicit rows without collapsing applicability into sufficiency", () => {
+  type BranchEvidence = {
+    lane: "KIOSK" | "MANUAL_ADMIN" | "BULK_IMPORT";
+    branch: string;
+    established: boolean;
+    eligible: boolean;
+    audited: boolean;
+    sufficient: boolean;
+  };
+  const classify = (rows: BranchEvidence[], kioskSufficient: boolean) => {
+    const applicable = rows.filter((row) => row.established && row.eligible && (
+      row.lane === "KIOSK" || row.audited
+    ));
+    const branches = new Set(applicable.map((row) => row.branch));
+    if (branches.size > 1) return "CONFLICT";
+    const explicitSufficient = applicable.some((row) => row.lane !== "KIOSK" && row.sufficient);
+    return branches.size === 1 && (kioskSufficient || explicitSufficient) ? "ATTRIBUTED" : "UNATTRIBUTED";
+  };
+  const kioskA = { lane: "KIOSK", branch: "A", established: true, eligible: true, audited: false, sufficient: true } as const;
+  const explicit = (lane: "MANUAL_ADMIN" | "BULK_IMPORT", branch: string, audited: boolean, sufficient: boolean): BranchEvidence =>
+    ({ lane, branch, established: true, eligible: true, audited, sufficient });
+
+  assert.equal(classify([kioskA, explicit("MANUAL_ADMIN", "B", false, false)], true), "ATTRIBUTED");
+  assert.equal(classify([kioskA, explicit("BULK_IMPORT", "B", false, false)], true), "ATTRIBUTED");
+  assert.equal(classify([kioskA, explicit("MANUAL_ADMIN", "B", true, false)], true), "CONFLICT");
+  assert.equal(classify([kioskA, explicit("MANUAL_ADMIN", "A", true, false)], true), "ATTRIBUTED");
+  assert.equal(classify([explicit("MANUAL_ADMIN", "B", false, false)], false), "UNATTRIBUTED");
+  assert.equal(classify([explicit("MANUAL_ADMIN", "A", true, false), explicit("BULK_IMPORT", "B", true, false)], false), "CONFLICT");
+
+  const rebuild = functionSql("hr_rebuild_attendance_authorization_projection", "hr_read_canonical_attendance_branch_scoped");
+  const aggregate = rebuild.slice(rebuild.indexOf("aggregate_frame as"), rebuild.indexOf("classified as"));
+  assert.match(rebuild, /end as conflict_branch_applicable/i);
+  assert.equal((aggregate.match(/where conflict_branch_applicable/g) ?? []).length, 2);
+  assert.match(aggregate, /count\(distinct branch_id\) filter \(\s*where conflict_branch_applicable\s*\) as established_branch_count/i);
+  assert.match(aggregate, /array_agg\(distinct branch_id order by branch_id\) filter \(\s*where conflict_branch_applicable\s*\)/i);
+  assert.match(aggregate, /conflict_branch_applicable\s+and lane in \('MANUAL_ADMIN', 'BULK_IMPORT'\)\s+and sufficiency_state = 'SUFFICIENT'[\s\S]*as explicit_lane_sufficient/i);
+  assert.match(rebuild, /coalesce\(array_agg\(evidence_id[\s\S]*as evidence_ids/i);
 });
 
 test("physical segments serialize first binding and recur only on the same stable fact", () => {

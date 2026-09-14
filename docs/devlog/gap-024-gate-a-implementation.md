@@ -102,6 +102,17 @@ that lane insufficient. They do not veto an independently sufficient, agreeing e
 manual/admin or bulk/import provenance lane; established integrity-valid branch
 disagreement still becomes `CONFLICT` before any lane sufficiency decision.
 
+Disagreement aggregation uses one per-evidence `conflict_branch_applicable` predicate for
+both the distinct established-branch count and the agreed branch selection. Kiosk logical
+observations participate when individually established, integrity-eligible, and
+branch-bearing; whole-lane kiosk cardinality remains a later independent-sufficiency
+question. Manual/admin and bulk/import explicit rows participate only when their durable
+authorization namespace/reference, assertion time, and required manual actor/role audit
+shape make the lane applicable. Applicability does not require the row itself to be
+independently sufficient, so valid applicable disagreement retains precedence. Conversely,
+unaudited, unauthorized, malformed, or transport-only explicit rows may remain immutable
+history and fingerprint material but cannot manufacture `CONFLICT` or attribution.
+
 Sufficient `MANUAL_ADMIN` and `BULK_IMPORT` explicit provenance must carry a nonblank
 authorization namespace and immutable authorization/adjudication reference plus assertion
 time. Manual/admin evidence additionally carries an asserting entity and House role; an
@@ -223,11 +234,11 @@ source-observation identity.**
 
 ## Verification boundary
 
-The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, row-lock, and concurrency executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
+The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, row-lock, and concurrency executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-Owner-side evidence confirms hosted head `e8ee1a92dedcdab60f884c2d08314475203ed290`
-passed Preflight run `34804526215` (run number 656). The whole-supersession-lineage
-stable-fact correction has only static/local verification at this checkpoint; its
+Owner-side evidence confirms hosted head `3031b80a3a6fd823231c73aad84e3f9419ce12b2`
+passed Preflight run `34805563321` (run number 657). The explicit-provenance conflict-
+applicability correction has only static/local verification at this checkpoint; its
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.
