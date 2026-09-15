@@ -128,6 +128,40 @@ test("kiosk lane requires an exact reconciled set without vetoing a sufficient e
   assert.doesNotMatch(rebuild, /kiosk_unresolved_count/i);
 });
 
+test("kiosk completion mode reconciles the exact current fact revision without vetoing explicit provenance", () => {
+  type Mode = "OPEN" | "COMPLETED";
+  const classify = ({ mode, timeOut, status, ins, outs, explicit, conflict }: {
+    mode: Mode; timeOut: string | null; status: string; ins: number; outs: number;
+    explicit?: boolean; conflict?: boolean;
+  }) => {
+    if (conflict) return "CONFLICT";
+    const completionConsistent = mode === "OPEN"
+      ? timeOut === null && status.toLowerCase() !== "closed"
+      : timeOut !== null || status.toLowerCase() === "closed";
+    const kioskSufficient = completionConsistent && ins === 1
+      && outs === (mode === "COMPLETED" ? 1 : 0);
+    return explicit || kioskSufficient ? "ATTRIBUTED" : "UNATTRIBUTED";
+  };
+
+  assert.equal(classify({ mode: "OPEN", timeOut: null, status: "open", ins: 1, outs: 0 }), "ATTRIBUTED");
+  assert.equal(classify({ mode: "OPEN", timeOut: "2026-01-01T09:00:00Z", status: "open", ins: 1, outs: 0 }), "UNATTRIBUTED");
+  assert.equal(classify({ mode: "OPEN", timeOut: "2026-01-01T09:00:00Z", status: "open", ins: 1, outs: 0, explicit: true }), "ATTRIBUTED");
+  assert.equal(classify({ mode: "COMPLETED", timeOut: "2026-01-01T09:00:00Z", status: "closed", ins: 1, outs: 1 }), "ATTRIBUTED");
+  assert.equal(classify({ mode: "COMPLETED", timeOut: "2026-01-01T09:00:00Z", status: "closed", ins: 1, outs: 0 }), "UNATTRIBUTED");
+  assert.equal(classify({ mode: "OPEN", timeOut: null, status: "corrected", ins: 1, outs: 0 }), "ATTRIBUTED");
+  assert.equal(classify({ mode: "OPEN", timeOut: "2026-01-01T09:00:00Z", status: "corrected", ins: 1, outs: 0 }), "UNATTRIBUTED");
+  assert.equal(classify({ mode: "OPEN", timeOut: "2026-01-01T09:00:00Z", status: "open", ins: 1, outs: 0, conflict: true }), "CONFLICT");
+
+  const rebuild = functionSql("hr_rebuild_attendance_authorization_projection", "hr_read_canonical_attendance_branch_scoped");
+  assert.match(rebuild, /join public\.hr_attendance_fact_revisions current_revision[\s\S]*current_revision\.house_id = f\.house_id[\s\S]*current_revision\.fact_id = f\.id[\s\S]*current_revision\.employee_id = f\.employee_id[\s\S]*current_revision\.revision = f\.current_value_revision/i);
+  assert.match(rebuild, /when ef\.semantic_completion_mode = 'OPEN'[\s\S]*current_revision\.time_out is null[\s\S]*lower\(current_revision\.status\) <> 'closed'/i);
+  assert.match(rebuild, /when ef\.semantic_completion_mode = 'COMPLETED'[\s\S]*current_revision\.time_out is not null[\s\S]*lower\(current_revision\.status\) = 'closed'/i);
+  assert.match(rebuild, /end as kiosk_completion_consistent/i);
+  assert.match(rebuild, /coalesce\(explicit_lane_sufficient, false\)\s+or \(kiosk_completion_consistent and/i);
+  assert.match(rebuild, /when established_branch_count > 1 then 'CONFLICT'[\s\S]*coalesce\(explicit_lane_sufficient, false\)[\s\S]*kiosk_completion_consistent/i);
+  assert.doesNotMatch(rebuild, /lower\(current_revision\.status\) = 'corrected'/i);
+});
+
 test("canonical evidence serializes first binding and can recur only for the same fact", () => {
   const guard = functionSql("hr_guard_attendance_frame_membership_insert", "hr_rebuild_attendance_authorization_projection");
   assert.match(guard, /from public\.hr_attendance_evidence e[\s\S]*e\.house_id = new\.house_id[\s\S]*e\.id = new\.evidence_id[\s\S]*e\.employee_id = new\.employee_id/i);

@@ -719,6 +719,15 @@ begin
       f.current_value_revision,
       f.evidence_basis_revision,
       ef.semantic_completion_mode,
+      case
+        when ef.semantic_completion_mode = 'OPEN'
+          then current_revision.time_out is null
+            and lower(current_revision.status) <> 'closed'
+        when ef.semantic_completion_mode = 'COMPLETED'
+          then current_revision.time_out is not null
+            or lower(current_revision.status) = 'closed'
+        else false
+      end as kiosk_completion_consistent,
       e.id as evidence_id,
       e.lane,
       e.evidence_kind,
@@ -764,6 +773,11 @@ begin
       and ef.employee_id = f.employee_id
       and ef.evidence_basis_revision = f.evidence_basis_revision
       and ef.is_sealed
+    join public.hr_attendance_fact_revisions current_revision
+      on current_revision.house_id = f.house_id
+      and current_revision.fact_id = f.id
+      and current_revision.employee_id = f.employee_id
+      and current_revision.revision = f.current_value_revision
     left join public.hr_attendance_fact_evidence a
       on a.house_id = ef.house_id and a.fact_id = ef.fact_id
       and a.employee_id = ef.employee_id
@@ -782,6 +796,7 @@ begin
       current_value_revision,
       evidence_basis_revision,
       semantic_completion_mode,
+      kiosk_completion_consistent,
       count(distinct branch_id) filter (
         where conflict_branch_applicable
       ) as established_branch_count,
@@ -822,15 +837,17 @@ begin
       ) filter (where evidence_id is not null), '')) as basis_fingerprint
     from evidence_frame
     group by house_id, fact_id, employee_id, current_value_revision,
-      evidence_basis_revision, semantic_completion_mode
+      evidence_basis_revision, semantic_completion_mode, kiosk_completion_consistent
   ), classified as (
     select *,
       case
         when established_branch_count > 1 then 'CONFLICT'
         when established_branch_count = 1 and (
           coalesce(explicit_lane_sufficient, false)
-          or (semantic_completion_mode = 'OPEN' and kiosk_in_count = 1 and kiosk_out_count = 0 and kiosk_unreconciled_count = 0)
-          or (semantic_completion_mode = 'COMPLETED' and kiosk_in_count = 1 and kiosk_out_count = 1 and kiosk_unreconciled_count = 0)
+          or (kiosk_completion_consistent and (
+            (semantic_completion_mode = 'OPEN' and kiosk_in_count = 1 and kiosk_out_count = 0 and kiosk_unreconciled_count = 0)
+            or (semantic_completion_mode = 'COMPLETED' and kiosk_in_count = 1 and kiosk_out_count = 1 and kiosk_unreconciled_count = 0)
+          ))
         ) then 'ATTRIBUTED'
         else 'UNATTRIBUTED'
       end as classification

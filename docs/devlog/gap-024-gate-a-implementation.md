@@ -126,6 +126,18 @@ viewer, request, operator, device, schedule, import, or latest-write branch cont
 Repeated rebuilds produce equivalent semantic state and fingerprints; `rebuilt_at` is
 operational rebuild time, not a fourth business revision.
 
+The rebuild also joins the exact immutable value row identified by the fact's
+`current_value_revision`, matching House, fact, and employee. Kiosk sufficiency requires
+that current value row to reconcile with the frame's completion mode: `OPEN` requires no
+current `time_out` and cannot be supported by `status = 'closed'`; `COMPLETED` requires a
+non-null current `time_out` or the existing closed lifecycle signal. A non-null
+`time_out` therefore cannot be downshifted by `status = 'open'` or an `OPEN` frame, while
+`status = 'corrected'` alone selects neither mode. This consistency check gates only the
+kiosk lane. Conflict remains first, and an independently sufficient agreeing explicit
+lane may still attribute a fact whose kiosk frame/value combination is inconsistent.
+Fact/value authority and semantic-frame authority remain distinct and are reconciled by
+classification; no fourth revision or duplicated frame value is introduced.
+
 The kiosk lane counts as reconciled only when every current governing kiosk observation
 is established, integrity-eligible, branch-bearing, and sufficient, with exactly the
 mode-required logical cardinality (OPEN: one IN and no OUT; COMPLETED: one IN and one
@@ -271,9 +283,9 @@ source-observation identity.**
 
 The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, row-lock, and concurrency executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-Owner-side evidence confirms hosted head `6451ba0dcd4eb71c1d86c40720c1e2ba8075f649`
-passed Preflight run `34813153337` (run number 660). The forward-only current-authority
-correction has only static/local verification at this checkpoint; its
+Owner-side evidence confirms hosted head `a5193b3103c88f81fec9d09c2b0996acdd123c74`
+passed Preflight run `34915701821` (run number 661). The current-revision completion-mode
+consistency correction has only static/local verification at this checkpoint; its
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.
