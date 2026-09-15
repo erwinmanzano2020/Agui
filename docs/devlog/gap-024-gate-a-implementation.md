@@ -104,6 +104,12 @@ a descendant may advance, but an ancestor rollback or sibling-path switch cannot
 current. Earlier sealed frames remain immutable and reconstructible audit history; they
 are not destructive rollback controls. No timestamp, insertion order, UUID,
 `semantic_revision` maximum, employee/date, or latest-write heuristic selects authority.
+The same guard treats `is_active` as a one-way retirement/tombstone control: active facts
+may remain active or retire, and retired facts may remain retired, but `false → true` is
+rejected even when another authority pointer also advances. This flag is not attendance
+status, and `open`, `closed`, or `corrected` value status never controls it. Gate A does
+not define a restoration workflow; any future legitimate replacement/restoration
+semantics require separate authorization rather than resurrection of stale authority.
 
 This storage guard does not implement Gate B's expected-revision compare-and-swap command,
 candidate/evidence-generation checks, producer retry protocol, or canonical writer.
@@ -125,6 +131,16 @@ observation cardinality, and otherwise emits `UNATTRIBUTED`. It never consults e
 viewer, request, operator, device, schedule, import, or latest-write branch context.
 Repeated rebuilds produce equivalent semantic state and fingerprints; `rebuilt_at` is
 operational rebuild time, not a fourth business revision.
+
+Projection replacement is serialized per House before its `DELETE`/recompute/`INSERT`
+sequence by `pg_advisory_xact_lock(hashtextextended('gap024.attendance_projection:' ||
+p_house_id::text, 0))`. PostgreSQL's fixed-seed extended text hash deterministically maps
+the namespaced House UUID to the bigint transaction-advisory namespace: same-House calls
+wait on the same lock until transaction end, while different Houses normally remain
+independent. The unavoidable theoretical 64-bit collision can only cause conservative
+cross-House waiting, not mixed data or authorization. This is operational rebuild
+serialization, not a business revision, general attendance mutation lock, Gate-B writer
+containment mechanism, or RPC signature change.
 
 The rebuild also joins the exact immutable value row identified by the fact's
 `current_value_revision`, matching House, fact, and employee. Kiosk sufficiency requires
@@ -283,9 +299,9 @@ source-observation identity.**
 
 The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, row-lock, and concurrency executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-Owner-side evidence confirms hosted head `a5193b3103c88f81fec9d09c2b0996acdd123c74`
-passed Preflight run `34915701821` (run number 661). The current-revision completion-mode
-consistency correction has only static/local verification at this checkpoint; its
+Owner-side evidence confirms hosted head `f62e4eeef93dba0c535694f478d591d1f9d06a42`
+passed Preflight run `34930496146` (run number 662). The active-state and per-House rebuild
+serialization corrections have only static/local verification at this checkpoint; their
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.

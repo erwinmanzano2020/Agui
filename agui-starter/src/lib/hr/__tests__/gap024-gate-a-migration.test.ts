@@ -61,6 +61,25 @@ test("current fact pointers advance only through their explicit append-only pred
   assert.match(sql, /hr_attendance_facts_activation_guard\s+before update on public\.hr_attendance_facts/i);
 });
 
+test("fact active state permits retirement but never resurrection", () => {
+  const transitionAllowed = (oldActive: boolean, newActive: boolean) => oldActive || !newActive;
+  assert.equal(transitionAllowed(true, true), true);
+  assert.equal(transitionAllowed(true, false), true);
+  assert.equal(transitionAllowed(false, false), true);
+  assert.equal(transitionAllowed(false, true), false);
+  assert.equal(transitionAllowed(false, true) && 3 > 2, false);
+  assert.equal(transitionAllowed(false, true) && 4 > 3, false);
+
+  const guard = functionSql("hr_guard_attendance_fact_activation", "hr_rebuild_attendance_authorization_projection");
+  const resurrectionCheck = guard.indexOf("if not old.is_active and new.is_active");
+  const valueAdvanceCheck = guard.indexOf("if new.current_value_revision > old.current_value_revision");
+  const evidenceAdvanceCheck = guard.indexOf("if new.evidence_basis_revision > old.evidence_basis_revision");
+  assert.ok(resurrectionCheck >= 0 && resurrectionCheck < valueAdvanceCheck && resurrectionCheck < evidenceAdvanceCheck);
+  assert.match(guard, /Retired canonical attendance facts cannot be reactivated/i);
+  assert.match(guard, /new\.id is distinct from old\.id[\s\S]*new\.house_id is distinct from old\.house_id[\s\S]*new\.employee_id is distinct from old\.employee_id/i);
+  assert.doesNotMatch(guard, /status\s*=.*is_active|is_active\s*=.*status/i);
+});
+
 test("current evidence authority follows supersession forward and cannot reactivate ancestors or siblings", () => {
   const predecessor = new Map<string, string | null>([
     ["E1", null], ["E2a", "E1"], ["E2b", "E1"], ["E3", "E2a"],
@@ -95,6 +114,18 @@ test("Gate A does not invent manual or bulk producer retry identity", () => {
   assert.doesNotMatch(sql, /unique\s*\([^)]*(?:source_reference|authorization_reference)/i);
   assert.doesNotMatch(sql, /manual_(?:case|producer)_namespace|bulk_(?:row|producer)_namespace/i);
   assert.doesNotMatch(sql, /unique\s*\([^)]*(?:work_date|recorded_at)/i);
+});
+
+test("projection rebuilds serialize per House before deterministic replacement", () => {
+  const rebuild = functionSql("hr_rebuild_attendance_authorization_projection", "hr_read_canonical_attendance_branch_scoped");
+  const lock = rebuild.indexOf("pg_catalog.pg_advisory_xact_lock");
+  const deletion = rebuild.indexOf("delete from public.hr_attendance_authorization_projection");
+  const insertion = rebuild.indexOf("insert into public.hr_attendance_authorization_projection");
+  assert.ok(lock >= 0 && lock < deletion && deletion < insertion, "per-House transaction lock must precede DELETE/rebuild/INSERT");
+  assert.match(rebuild, /hr_rebuild_attendance_authorization_projection\(p_house_id uuid\)/i);
+  assert.match(rebuild, /pg_catalog\.pg_advisory_xact_lock\(\s*pg_catalog\.hashtextextended\('gap024\.attendance_projection:' \|\| p_house_id::text, 0\)/i);
+  assert.doesNotMatch(rebuild, /pg_advisory_lock\s*\(/i);
+  assert.doesNotMatch(sql, /create table public\.[^;]*(?:projection|rebuild)[^;]*lock/i);
 });
 
 test("kiosk lane requires an exact reconciled set without vetoing a sufficient explicit lane", () => {

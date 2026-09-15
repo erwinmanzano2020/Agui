@@ -514,6 +514,11 @@ begin
       using errcode = '55000';
   end if;
 
+  if not old.is_active and new.is_active then
+    raise exception 'Retired canonical attendance facts cannot be reactivated'
+      using errcode = '55000';
+  end if;
+
   if new.current_value_revision < old.current_value_revision then
     raise exception 'Current attendance value revision cannot move backward'
       using errcode = '55000';
@@ -707,6 +712,15 @@ begin
   if p_house_id is null or not exists (select 1 from public.houses h where h.id = p_house_id) then
     raise exception 'Invalid attendance projection scope' using errcode = '22023';
   end if;
+
+  -- A fixed-seed PostgreSQL extended hash maps each House UUID into the bigint
+  -- transaction-advisory namespace. Same-House rebuilds therefore share a lock until
+  -- transaction end; different UUIDs normally remain independent. A theoretical
+  -- 64-bit collision only causes conservative cross-House waiting, never mixed data.
+  -- This lock serializes projection replacement only, not attendance writers.
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended('gap024.attendance_projection:' || p_house_id::text, 0)
+  );
 
   delete from public.hr_attendance_authorization_projection p
   where p.house_id = p_house_id;

@@ -42,8 +42,8 @@ House/work-date-selective revision index. Owner-approved DEC-019 now adds immuta
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
 serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `a5193b3103c88f81fec9d09c2b0996acdd123c74` passed Preflight run
-`34915701821` (run 661). The current local correction gives every append-only evidence
+head `f62e4eeef93dba0c535694f478d591d1f9d06a42` passed Preflight run
+`34930496146` (run 662). The current local correction gives every append-only evidence
 supersession family an immutable lineage root and serializes all root/successor/sibling
 first bindings on that root, so null-observation explicit provenance cannot split across
 facts while same-fact successive-basis reuse remains valid. Each frame now permits only
@@ -72,6 +72,14 @@ frame mode before allowing kiosk sufficiency. `OPEN` cannot override a non-null
 `time_out` or closed lifecycle signal; corrected status alone selects neither mode.
 This inconsistency fails only the kiosk lane, preserving conflict-first classification
 and independently sufficient agreeing explicit provenance.
+Fact `is_active` is now a one-way retirement/tombstone control: `true → false` remains
+available, but `false → true` cannot resurrect stale authority, regardless of pointer
+advancement. It remains distinct from immutable revision status, and no restoration
+workflow is introduced. Projection rebuilds now acquire a deterministic transaction-
+scoped advisory lock derived from the requested House UUID before replacing that House's
+projection. The lock serializes same-House rebuilds without becoming a business revision,
+general writer lock, or Gate-B containment mechanism; different Houses normally remain
+independent.
 The correction remains in progress, and post-correction hosted
 verification plus migration/RLS/RPC executable verification remain outstanding.
 Historical DTR P1 remains unauthorized and unimplemented, and GAP-024 remains open. Gate B remains next only after Gate A is independently
