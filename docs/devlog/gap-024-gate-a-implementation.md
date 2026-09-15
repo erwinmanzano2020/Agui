@@ -104,6 +104,14 @@ a descendant may advance, but an ancestor rollback or sibling-path switch cannot
 current. Earlier sealed frames remain immutable and reconstructible audit history; they
 are not destructive rollback controls. No timestamp, insertion order, UUID,
 `semantic_revision` maximum, employee/date, or latest-write heuristic selects authority.
+When a target frame first introduces a lineage that has never governed the fact, its
+explicitly selected member must itself be unsuperseded at activation time. The guard
+locks all such selected evidence rows in deterministic lineage-root/evidence-ID order
+before checking for a direct successor. Successor insertion already locks that same row
+as its predecessor, so activation either establishes the still-current member first or
+observes the committed successor and rejects historical evidence. This leaf check does
+not choose a successor, ban physical sibling leaves, or replace the existing ancestry-
+path rule after a lineage has governed; frame membership remains explicit authority.
 The same guard treats `is_active` as a one-way retirement/tombstone control: active facts
 may remain active or retire, and retired facts may remain retired, but `false → true` is
 rejected even when another authority pointer also advances. This flag is not attendance
@@ -299,9 +307,9 @@ source-observation identity.**
 
 The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, row-lock, and concurrency executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-Owner-side evidence confirms hosted head `f62e4eeef93dba0c535694f478d591d1f9d06a42`
-passed Preflight run `34930496146` (run number 662). The active-state and per-House rebuild
-serialization corrections have only static/local verification at this checkpoint; their
+Owner-side evidence confirms hosted head `e2f7af9c93b669131537a615eaadfecfd2b64edf`
+passed Preflight run `34940144185` (run number 663). The newly introduced lineage
+currentness correction has only static/local verification at this checkpoint; its
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.

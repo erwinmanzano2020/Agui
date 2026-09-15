@@ -42,8 +42,8 @@ House/work-date-selective revision index. Owner-approved DEC-019 now adds immuta
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
 serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `f62e4eeef93dba0c535694f478d591d1f9d06a42` passed Preflight run
-`34930496146` (run 662). The current local correction gives every append-only evidence
+head `e2f7af9c93b669131537a615eaadfecfd2b64edf` passed Preflight run
+`34940144185` (run 663). The current local correction gives every append-only evidence
 supersession family an immutable lineage root and serializes all root/successor/sibling
 first bindings on that root, so null-observation explicit provenance cannot split across
 facts while same-fact successive-basis reuse remains valid. Each frame now permits only
@@ -80,6 +80,13 @@ scoped advisory lock derived from the requested House UUID before replacing that
 projection. The lock serializes same-House rebuilds without becoming a business revision,
 general writer lock, or Gate-B containment mechanism; different Houses normally remain
 independent.
+When a frame first introduces an evidence lineage to a fact, activation now locks its
+selected member in deterministic lineage/evidence order and rejects it if that member
+already has a direct successor. Successor insertion locks the same predecessor row, so
+the decision serializes with concurrent evidence append. Superseded rows remain immutable
+history, sibling leaves remain representable, and the existing ancestry-path rule still
+governs lineages that previously entered current authority. No timestamp, latest-write,
+UUID-currentness, or maximum-revision selector and no Gate-B writer behavior is added.
 The correction remains in progress, and post-correction hosted
 verification plus migration/RLS/RPC executable verification remain outstanding.
 Historical DTR P1 remains unauthorized and unimplemented, and GAP-024 remains open. Gate B remains next only after Gate A is independently

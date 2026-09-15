@@ -556,6 +556,67 @@ begin
         using errcode = '55000';
     end if;
 
+    -- A lineage that has never governed this fact may enter current authority only
+    -- through a member that is not already superseded. Lock each selected member in
+    -- immutable lineage/id order before checking for successors. Evidence-successor
+    -- insertion locks this same row as its predecessor, so activation and append race
+    -- safely without timestamp, UUID, or maximum-revision selection.
+    perform 1
+    from public.hr_attendance_fact_evidence target_membership
+    join public.hr_attendance_evidence target_evidence
+      on target_evidence.house_id = target_membership.house_id
+      and target_evidence.id = target_membership.evidence_id
+      and target_evidence.employee_id = old.employee_id
+    where target_membership.house_id = old.house_id
+      and target_membership.fact_id = old.id
+      and target_membership.evidence_basis_revision = new.evidence_basis_revision
+      and not exists (
+        select 1
+        from public.hr_attendance_fact_evidence prior_membership
+        join public.hr_attendance_evidence prior_evidence
+          on prior_evidence.house_id = prior_membership.house_id
+          and prior_evidence.id = prior_membership.evidence_id
+          and prior_evidence.employee_id = old.employee_id
+        where prior_membership.house_id = old.house_id
+          and prior_membership.fact_id = old.id
+          and prior_membership.evidence_basis_revision <= old.evidence_basis_revision
+          and prior_evidence.lineage_root_evidence_id = target_evidence.lineage_root_evidence_id
+      )
+    order by target_evidence.lineage_root_evidence_id, target_evidence.id
+    for update of target_evidence;
+
+    if exists (
+      select 1
+      from public.hr_attendance_fact_evidence target_membership
+      join public.hr_attendance_evidence target_evidence
+        on target_evidence.house_id = target_membership.house_id
+        and target_evidence.id = target_membership.evidence_id
+        and target_evidence.employee_id = old.employee_id
+      join public.hr_attendance_evidence successor
+        on successor.house_id = target_evidence.house_id
+        and successor.employee_id = target_evidence.employee_id
+        and successor.lineage_root_evidence_id = target_evidence.lineage_root_evidence_id
+        and successor.supersedes_evidence_id = target_evidence.id
+      where target_membership.house_id = old.house_id
+        and target_membership.fact_id = old.id
+        and target_membership.evidence_basis_revision = new.evidence_basis_revision
+        and not exists (
+          select 1
+          from public.hr_attendance_fact_evidence prior_membership
+          join public.hr_attendance_evidence prior_evidence
+            on prior_evidence.house_id = prior_membership.house_id
+            and prior_evidence.id = prior_membership.evidence_id
+            and prior_evidence.employee_id = old.employee_id
+          where prior_membership.house_id = old.house_id
+            and prior_membership.fact_id = old.id
+            and prior_membership.evidence_basis_revision <= old.evidence_basis_revision
+            and prior_evidence.lineage_root_evidence_id = target_evidence.lineage_root_evidence_id
+        )
+    ) then
+      raise exception 'Newly introduced current evidence must be an unsuperseded lineage member'
+        using errcode = '55000';
+    end if;
+
     -- Starting at each target member and walking explicit supersession links toward
     -- its root is the only authority comparison. Every previously governing member
     -- of that lineage must be on this ancestry path; timestamps, UUID order, and

@@ -106,8 +106,38 @@ test("current evidence authority follows supersession forward and cannot reactiv
   assert.match(guard, /permitted_path\.ancestor_evidence_id = prior\.evidence_id/i);
   assert.match(guard, /cannot regress or switch supersession paths/i);
   const executableGuard = guard.slice(0, guard.indexOf("$function$;")).replace(/--.*$/gm, "");
-  assert.doesNotMatch(executableGuard, /max\s*\(|recorded_at|order by|latest/i);
+  assert.doesNotMatch(executableGuard, /max\s*\([^)]*semantic_revision|recorded_at|created_at|occurred_at|order by[^\n]*(?:semantic_revision|recorded_at|created_at|occurred_at)|latest_write/i);
   assert.match(sql, /hr_attendance_evidence_frames_immutable\s+before update or delete/i);
+});
+
+test("a newly introduced lineage can govern only through an unsuperseded selected member", () => {
+  const successors = new Map<string, string[]>([
+    ["E1", ["E2"]], ["E2", ["E3"]], ["E3", []],
+    ["SiblingRoot", ["E2a", "E2b"]], ["E2a", []], ["E2b", []],
+    ["LeafRoot", []],
+  ]);
+  const mayFirstGovern = (selected: string) => (successors.get(selected) ?? []).length === 0;
+  assert.equal(mayFirstGovern("LeafRoot"), true);
+  assert.equal(mayFirstGovern("E1"), false);
+  assert.equal(mayFirstGovern("E2"), false);
+  assert.equal(mayFirstGovern("E3"), true);
+  assert.equal(mayFirstGovern("E2a"), true);
+  assert.equal(mayFirstGovern("E2b"), true);
+
+  const activation = functionSql("hr_guard_attendance_fact_activation", "hr_rebuild_attendance_authorization_projection");
+  const targetLock = activation.indexOf("order by target_evidence.lineage_root_evidence_id, target_evidence.id");
+  const successorCheck = activation.indexOf("join public.hr_attendance_evidence successor");
+  assert.ok(targetLock >= 0 && targetLock < successorCheck, "new target evidence must lock before its successor check");
+  assert.match(activation, /order by target_evidence\.lineage_root_evidence_id, target_evidence\.id\s+for update of target_evidence/i);
+  assert.match(activation, /successor\.house_id = target_evidence\.house_id[\s\S]*successor\.employee_id = target_evidence\.employee_id[\s\S]*successor\.lineage_root_evidence_id = target_evidence\.lineage_root_evidence_id[\s\S]*successor\.supersedes_evidence_id = target_evidence\.id/i);
+  assert.match(activation, /Newly introduced current evidence must be an unsuperseded lineage member/i);
+  assert.match(activation, /with recursive target_ancestry as/i);
+  assert.match(activation, /cannot regress or switch supersession paths/i);
+
+  const evidenceInsert = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
+  assert.match(evidenceInsert, /predecessor\.id = new\.supersedes_evidence_id[\s\S]*for update/i);
+  const executableActivation = activation.slice(0, activation.indexOf("$function$;")).replace(/--.*$/gm, "");
+  assert.doesNotMatch(executableActivation, /max\s*\([^)]*semantic_revision|recorded_at|created_at|occurred_at|order by[^\n]*semantic_revision|latest_write/i);
 });
 
 test("Gate A does not invent manual or bulk producer retry identity", () => {
