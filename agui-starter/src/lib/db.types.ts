@@ -263,6 +263,61 @@ export type DtrSegmentInsert = {
 
 export type DtrSegmentUpdate = Partial<DtrSegmentInsert>;
 
+export type HrAttendanceFactRow = {
+  id: string; house_id: string; employee_id: string; is_active: boolean;
+  current_value_revision: number; evidence_basis_revision: number;
+  created_at: string; updated_at: string;
+};
+export type HrAttendanceFactInsert = Omit<HrAttendanceFactRow, "id" | "is_active" | "current_value_revision" | "evidence_basis_revision" | "created_at" | "updated_at"> & Partial<Pick<HrAttendanceFactRow, "id" | "is_active" | "current_value_revision" | "evidence_basis_revision" | "created_at" | "updated_at">>;
+export type HrAttendanceFactUpdate = Partial<HrAttendanceFactInsert>;
+
+export type HrAttendanceObservationRow = {
+  id: string; house_id: string; employee_id: string; source_namespace: string;
+  source_observation_id: string; occurred_at: string; recorded_at: string;
+};
+export type HrAttendanceObservationInsert = Omit<HrAttendanceObservationRow, "id" | "recorded_at"> & Partial<Pick<HrAttendanceObservationRow, "id" | "recorded_at">>;
+export type HrAttendanceObservationUpdate = Partial<HrAttendanceObservationInsert>;
+
+export type HrAttendanceFactRevisionRow = {
+  house_id: string; fact_id: string; employee_id: string; revision: number; predecessor_revision: number | null;
+  dtr_segment_id: string | null; work_date: string; time_in: string | null; time_out: string | null;
+  hours_worked: number | null; overtime_minutes: number; source: string; status: string; recorded_at: string;
+};
+export type HrAttendanceFactRevisionInsert = Omit<HrAttendanceFactRevisionRow, "predecessor_revision" | "dtr_segment_id" | "time_in" | "time_out" | "hours_worked" | "overtime_minutes" | "recorded_at"> & Partial<Pick<HrAttendanceFactRevisionRow, "predecessor_revision" | "dtr_segment_id" | "time_in" | "time_out" | "hours_worked" | "overtime_minutes" | "recorded_at">>;
+export type HrAttendanceFactRevisionUpdate = Partial<HrAttendanceFactRevisionInsert>;
+
+export type HrAttendanceEvidenceRow = {
+  id: string; house_id: string; employee_id: string; observation_id: string | null;
+  lane: "KIOSK" | "MANUAL_ADMIN" | "BULK_IMPORT";
+  evidence_kind: "LOGICAL_IN" | "LOGICAL_OUT" | "EXPLICIT_BRANCH";
+  branch_id: string | null; integrity_state: "ESTABLISHED" | "UNRESOLVED" | "INVALID";
+  sufficiency_state: "SUFFICIENT" | "INSUFFICIENT" | "UNRESOLVED";
+  is_integrity_eligible: boolean; semantic_revision: number;
+  supersedes_evidence_id: string | null; lineage_root_evidence_id: string;
+  asserted_by_entity_id: string | null;
+  asserted_by_house_role: string | null; authorization_namespace: string | null;
+  authorization_reference: string | null; asserted_at: string | null;
+  source_reference: string | null; recorded_at: string;
+};
+export type HrAttendanceEvidenceInsert = Omit<HrAttendanceEvidenceRow, "id" | "observation_id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "semantic_revision" | "supersedes_evidence_id" | "lineage_root_evidence_id" | "asserted_by_entity_id" | "asserted_by_house_role" | "authorization_namespace" | "authorization_reference" | "asserted_at" | "source_reference" | "recorded_at"> & Partial<Pick<HrAttendanceEvidenceRow, "id" | "observation_id" | "branch_id" | "integrity_state" | "sufficiency_state" | "is_integrity_eligible" | "semantic_revision" | "supersedes_evidence_id" | "lineage_root_evidence_id" | "asserted_by_entity_id" | "asserted_by_house_role" | "authorization_namespace" | "authorization_reference" | "asserted_at" | "source_reference" | "recorded_at">>;
+export type HrAttendanceEvidenceUpdate = Partial<HrAttendanceEvidenceInsert>;
+
+export type HrAttendanceEvidenceFrameRow = { house_id: string; fact_id: string; employee_id: string; evidence_basis_revision: number; predecessor_revision: number | null; semantic_completion_mode: "OPEN" | "COMPLETED" | "UNRESOLVED"; is_sealed: boolean; sealed_at: string | null; created_at: string };
+export type HrAttendanceEvidenceFrameInsert = Omit<HrAttendanceEvidenceFrameRow, "predecessor_revision" | "is_sealed" | "sealed_at" | "created_at"> & Partial<Pick<HrAttendanceEvidenceFrameRow, "predecessor_revision" | "is_sealed" | "sealed_at" | "created_at">>;
+export type HrAttendanceEvidenceFrameUpdate = Partial<HrAttendanceEvidenceFrameInsert>;
+
+export type HrAttendanceFactEvidenceRow = { house_id: string; fact_id: string; evidence_basis_revision: number; evidence_id: string; employee_id: string; created_at: string };
+export type HrAttendanceFactEvidenceInsert = Omit<HrAttendanceFactEvidenceRow, "created_at"> & Partial<Pick<HrAttendanceFactEvidenceRow, "created_at">>;
+export type HrAttendanceFactEvidenceUpdate = Partial<HrAttendanceFactEvidenceInsert>;
+
+export type HrAttendanceEmployeeGenerationRow = { house_id: string; employee_id: string; candidate_evidence_generation: number; updated_at: string };
+export type HrAttendanceEmployeeGenerationInsert = Omit<HrAttendanceEmployeeGenerationRow, "candidate_evidence_generation" | "updated_at"> & Partial<Pick<HrAttendanceEmployeeGenerationRow, "candidate_evidence_generation" | "updated_at">>;
+export type HrAttendanceEmployeeGenerationUpdate = Partial<HrAttendanceEmployeeGenerationInsert>;
+
+export type HrAttendanceAuthorizationProjectionRow = { house_id: string; fact_id: string; employee_id: string; value_revision: number; evidence_basis_revision: number; evidence_basis_fingerprint: string; attribution_state: "ATTRIBUTED" | "UNATTRIBUTED" | "CONFLICT"; active_branch_id: string | null; governing_evidence_ids: string[]; rebuilt_at: string };
+export type HrAttendanceAuthorizationProjectionInsert = Omit<HrAttendanceAuthorizationProjectionRow, "governing_evidence_ids" | "rebuilt_at"> & Partial<Pick<HrAttendanceAuthorizationProjectionRow, "governing_evidence_ids" | "rebuilt_at">>;
+export type HrAttendanceAuthorizationProjectionUpdate = Partial<HrAttendanceAuthorizationProjectionInsert>;
+
 export type HrScheduleTemplateRow = {
   id: string;
   house_id: string;
@@ -1585,6 +1640,14 @@ export interface Database {
       >;
       employees: TableDefinition<EmployeeRow, EmployeeInsert, EmployeeUpdate>;
       dtr_segments: TableDefinition<DtrSegmentRow, DtrSegmentInsert, DtrSegmentUpdate>;
+      hr_attendance_observations: TableDefinition<HrAttendanceObservationRow, HrAttendanceObservationInsert, HrAttendanceObservationUpdate>;
+      hr_attendance_facts: TableDefinition<HrAttendanceFactRow, HrAttendanceFactInsert, HrAttendanceFactUpdate>;
+      hr_attendance_fact_revisions: TableDefinition<HrAttendanceFactRevisionRow, HrAttendanceFactRevisionInsert, HrAttendanceFactRevisionUpdate>;
+      hr_attendance_evidence: TableDefinition<HrAttendanceEvidenceRow, HrAttendanceEvidenceInsert, HrAttendanceEvidenceUpdate>;
+      hr_attendance_evidence_frames: TableDefinition<HrAttendanceEvidenceFrameRow, HrAttendanceEvidenceFrameInsert, HrAttendanceEvidenceFrameUpdate>;
+      hr_attendance_fact_evidence: TableDefinition<HrAttendanceFactEvidenceRow, HrAttendanceFactEvidenceInsert, HrAttendanceFactEvidenceUpdate>;
+      hr_attendance_employee_generations: TableDefinition<HrAttendanceEmployeeGenerationRow, HrAttendanceEmployeeGenerationInsert, HrAttendanceEmployeeGenerationUpdate>;
+      hr_attendance_authorization_projection: TableDefinition<HrAttendanceAuthorizationProjectionRow, HrAttendanceAuthorizationProjectionInsert, HrAttendanceAuthorizationProjectionUpdate>;
       hr_schedule_templates: TableDefinition<
         HrScheduleTemplateRow,
         HrScheduleTemplateInsert,
@@ -1714,6 +1777,9 @@ export interface Database {
       >;
       current_entity_id: FunctionDefinition<Record<string, never>, string | null>;
       next_hr_reference_code: FunctionDefinition<{ target_year: number }, string>;
+      hr_rebuild_attendance_authorization_projection: FunctionDefinition<{ p_house_id: string }, number>;
+      hr_read_canonical_attendance_branch_scoped: FunctionDefinition<{ p_house_id: string; p_start_date: string; p_end_date: string; p_employee_id?: string | null; p_limit?: number; p_offset?: number }, Array<{ fact_id: string; employee_id: string; work_date: string; time_in: string | null; time_out: string | null; hours_worked: number | null; overtime_minutes: number; status: string; active_branch_id: string }>>;
+      hr_read_canonical_attendance_house_global: FunctionDefinition<{ p_house_id: string; p_start_date: string; p_end_date: string; p_employee_id?: string | null; p_limit?: number; p_offset?: number }, Array<{ fact_id: string; employee_id: string; work_date: string; time_in: string | null; time_out: string | null; hours_worked: number | null; overtime_minutes: number; status: string; attribution_state: "ATTRIBUTED" | "UNATTRIBUTED" | "CONFLICT"; active_branch_id: string | null }>>;
     };
   };
 }
