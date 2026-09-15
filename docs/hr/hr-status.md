@@ -42,8 +42,8 @@ House/work-date-selective revision index. Owner-approved DEC-019 now adds immuta
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
 serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `e2f7af9c93b669131537a615eaadfecfd2b64edf` passed Preflight run
-`34940144185` (run 663). The current local correction gives every append-only evidence
+head `3dfe8530c4b01b0d16e39d51d02998418d5ce447` passed Preflight run
+`34946173797` (run 664). The current local correction gives every append-only evidence
 supersession family an immutable lineage root and serializes all root/successor/sibling
 first bindings on that root, so null-observation explicit provenance cannot split across
 facts while same-fact successive-basis reuse remains valid. Each frame now permits only
@@ -87,6 +87,28 @@ the decision serializes with concurrent evidence append. Superseded rows remain 
 history, sibling leaves remain representable, and the existing ancestry-path rule still
 governs lineages that previously entered current authority. No timestamp, latest-write,
 UUID-currentness, or maximum-revision selector and no Gate-B writer behavior is added.
+
+**DEC-020 policy resolved; Gate-B pre-population enforcement remains open.** The owner
+approved DEC-020 on 2026-09-15: protected historical HR records retention-protect the
+employee row, canonical attendance is definitely protected, and offboarding uses
+`employees.status = 'inactive'`. Protected canonical attendance/evidence/audit and
+payroll history must not cascade away on employee deletion. Hard deletion remains only
+for genuinely empty or mistaken employees with no protected dependency, while rehire
+continues under existing inactive-row identity rules without selecting one universal
+workflow. Employee lifecycle `employees.status` remains distinct from attendance-authority
+`hr_attendance_facts.is_active`.
+
+The runtime prerequisite is not implemented in PR #510. Existing
+`deleteEmployeeForHouse(...)` still directly hard-deletes `employees`; it does not yet
+provide deterministic protected-history eligibility or the operator-facing instruction
+to mark the employee inactive instead, and legacy `dtr_segments.employee_id` still
+cascades on employee deletion. No employee runtime is changed here. Gate B remains
+hard-blocked from its first production canonical attendance create, backfill, or producer
+migration until a separate bounded lifecycle task verifies deterministic rejection for
+protected employees, inactive/offboarding handling, eligible empty-record deletion, and
+non-cascading protected-history retention. The complete protected-dependency inventory
+remains open for that task; this semantic P2 is resolved, but its enforcement gap is not.
+
 The correction remains in progress, and post-correction hosted
 verification plus migration/RLS/RPC executable verification remain outstanding.
 Historical DTR P1 remains unauthorized and unimplemented, and GAP-024 remains open. Gate B remains next only after Gate A is independently

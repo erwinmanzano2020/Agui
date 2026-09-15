@@ -269,6 +269,44 @@ Gate A does not automatically advance the employee generation because live produ
 canonical commands are Gate-B scope. The separate durable row makes the distinction
 representable without inventing premature producer transaction semantics.
 
+## DEC-020 — employee historical-record retention boundary
+
+**Owner-approved: 2026-09-15.** Once an employee has protected historical HR records,
+the employee row is retention-protected and must not be hard-deleted. Canonical
+attendance, evidence, correction/audit lineage, and attendance-linked payroll history are
+definitely protected history and must never cascade away merely because an employee row
+is deleted. Gate A's `ON DELETE RESTRICT`-style employee references for canonical
+historical attendance authority are therefore intentional retention enforcement, not an
+accidental migration incompatibility.
+
+Employee offboarding is represented by `employees.status = 'inactive'`, preserving the
+employee identity and protected history. Rehire continues under Agui's existing inactive-
+row identity and deduplication rules: a future authorized workflow may reactivate an
+inactive employee or create a new active row when those governing rules permit it, but
+DEC-020 selects no universal rehire implementation. Employee lifecycle
+`employees.status` is separate from attendance authority
+`hr_attendance_facts.is_active`; neither field controls or synchronizes the other.
+
+Hard delete remains available only for a genuinely erroneous or empty employee record
+with no protected historical dependency. A future delete operation that encounters
+protected history must return a deterministic business outcome such as “This employee
+has historical records. Mark the employee inactive instead.” A raw foreign-key failure
+is not the intended operator experience. The complete inventory of protected HR
+dependency tables and the exact delete/offboarding UX remain implementation details for
+a separate bounded employee-lifecycle enforcement task; DEC-020 establishes that
+canonical attendance is protected without prematurely selecting that complete inventory.
+
+This PR does not implement that employee lifecycle runtime. The existing
+`deleteEmployeeForHouse(...)` path still directly hard-deletes `employees`, and legacy
+`dtr_segments.employee_id` still uses `ON DELETE CASCADE`; no application, action, UI,
+RPC, schema, or migration correction for those existing surfaces is included here. Gate A
+also creates no production canonical attendance. **Gate B must not create, backfill, or
+migrate production canonical attendance until the separate employee-lifecycle task has
+implemented and verified protected-history delete eligibility, deterministic hard-delete
+rejection, operator-facing inactive/offboarding handling, safe deletion of genuinely
+empty/mistaken rows, and non-cascading retention of canonical history.** This is a
+mandatory Gate-B pre-population prerequisite, not optional cleanup.
+
 ## Data Access Plan
 
 - New objects: the eight tables, three callable Gate-A functions, and six non-callable
@@ -307,9 +345,9 @@ source-observation identity.**
 
 The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, row-lock, and concurrency executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-Owner-side evidence confirms hosted head `e2f7af9c93b669131537a615eaadfecfd2b64edf`
-passed Preflight run `34940144185` (run number 663). The newly introduced lineage
-currentness correction has only static/local verification at this checkpoint; its
+Owner-side evidence confirms hosted head `3dfe8530c4b01b0d16e39d51d02998418d5ce447`
+passed Preflight run `34946173797` (run number 664). The DEC-020 documentation correction
+has only local source validation at this checkpoint; its
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.
