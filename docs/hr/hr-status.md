@@ -42,8 +42,8 @@ House/work-date-selective revision index. Owner-approved DEC-019 now adds immuta
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
 serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `b0268992e75d4b81847548402ef5d3b5d9aca504` passed Preflight run
-`34808360379` (run 659). The current local correction gives every append-only evidence
+head `6451ba0dcd4eb71c1d86c40720c1e2ba8075f649` passed Preflight run
+`34813153337` (run 660). The current local correction gives every append-only evidence
 supersession family an immutable lineage root and serializes all root/successor/sibling
 first bindings on that root, so null-observation explicit provenance cannot split across
 facts while same-fact successive-basis reuse remains valid. Each frame now permits only
@@ -57,7 +57,16 @@ independent sufficiency. Each DEC-019 observation now serializes evidence insert
 stable observation row: its first evidence establishes the single lineage root, and every
 later observation-backed revision must explicitly supersede within and inherit that same
 lineage. Null-observation explicit provenance remains outside this observation-specific
-rule. The correction remains in progress, and post-correction hosted
+rule. Current value and evidence-basis authority is database-guarded against pointer
+rollback. Advances require the explicit next value predecessor or next sealed evidence
+frame, and target evidence may remain unchanged or advance through its explicit
+supersession path but cannot reactivate an ancestor or switch sideways to a sibling.
+Historical frames remain immutable audit history. Gate A does not select retry identity
+for `MANUAL_ADMIN` or `BULK_IMPORT`: generated UUIDs and batch/workflow authorization
+references are not treated as per-result identity, and a separately bounded Gate-B task
+must choose deterministic producer retry semantics before either producer migrates.
+Expected-revision compare-and-swap and the canonical writer likewise remain Gate B.
+The correction remains in progress, and post-correction hosted
 verification plus migration/RLS/RPC executable verification remain outstanding.
 Historical DTR P1 remains unauthorized and unimplemented, and GAP-024 remains open. Gate B remains next only after Gate A is independently
 hosted, reviewed, and merged; Gate B has not started.

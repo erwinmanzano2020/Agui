@@ -497,6 +497,121 @@ begin
 end
 $function$;
 
+-- Current-authority pointers advance one append-only step at a time. Historical
+-- revisions and sealed frames remain immutable audit records, but they cannot be
+-- reactivated to roll current authority backward or sideways across an evidence
+-- supersession lineage.
+create or replace function public.hr_guard_attendance_fact_activation()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public
+as $function$
+begin
+  if new.id is distinct from old.id
+    or new.house_id is distinct from old.house_id
+    or new.employee_id is distinct from old.employee_id then
+    raise exception 'Canonical attendance fact identity and ownership are immutable'
+      using errcode = '55000';
+  end if;
+
+  if new.current_value_revision < old.current_value_revision then
+    raise exception 'Current attendance value revision cannot move backward'
+      using errcode = '55000';
+  end if;
+  if new.evidence_basis_revision < old.evidence_basis_revision then
+    raise exception 'Current attendance evidence basis cannot move backward'
+      using errcode = '55000';
+  end if;
+
+  if new.current_value_revision > old.current_value_revision then
+    perform 1
+    from public.hr_attendance_fact_revisions target_revision
+    where target_revision.house_id = old.house_id
+      and target_revision.fact_id = old.id
+      and target_revision.employee_id = old.employee_id
+      and target_revision.revision = new.current_value_revision
+      and target_revision.predecessor_revision = old.current_value_revision;
+    if not found then
+      raise exception 'Current attendance value revision must advance through its explicit predecessor'
+        using errcode = '55000';
+    end if;
+  end if;
+
+  if new.evidence_basis_revision > old.evidence_basis_revision then
+    perform 1
+    from public.hr_attendance_evidence_frames target_frame
+    where target_frame.house_id = old.house_id
+      and target_frame.fact_id = old.id
+      and target_frame.employee_id = old.employee_id
+      and target_frame.evidence_basis_revision = new.evidence_basis_revision
+      and target_frame.predecessor_revision = old.evidence_basis_revision
+      and target_frame.is_sealed;
+    if not found then
+      raise exception 'Current attendance evidence basis requires its next sealed frame'
+        using errcode = '55000';
+    end if;
+
+    -- Starting at each target member and walking explicit supersession links toward
+    -- its root is the only authority comparison. Every previously governing member
+    -- of that lineage must be on this ancestry path; timestamps, UUID order, and
+    -- semantic revision maxima do not select authority.
+    if exists (
+      with recursive target_ancestry as (
+        select target_evidence.lineage_root_evidence_id,
+          target_evidence.id as target_evidence_id,
+          target_evidence.id as ancestor_evidence_id,
+          target_evidence.supersedes_evidence_id
+        from public.hr_attendance_fact_evidence target_membership
+        join public.hr_attendance_evidence target_evidence
+          on target_evidence.house_id = target_membership.house_id
+          and target_evidence.id = target_membership.evidence_id
+          and target_evidence.employee_id = old.employee_id
+        where target_membership.house_id = old.house_id
+          and target_membership.fact_id = old.id
+          and target_membership.evidence_basis_revision = new.evidence_basis_revision
+        union all
+        select ancestry.lineage_root_evidence_id,
+          ancestry.target_evidence_id,
+          predecessor.id,
+          predecessor.supersedes_evidence_id
+        from target_ancestry ancestry
+        join public.hr_attendance_evidence predecessor
+          on predecessor.house_id = old.house_id
+          and predecessor.id = ancestry.supersedes_evidence_id
+          and predecessor.employee_id = old.employee_id
+      ), prior_governing_members as (
+        select prior_evidence.lineage_root_evidence_id,
+          prior_evidence.id as evidence_id
+        from public.hr_attendance_fact_evidence prior_membership
+        join public.hr_attendance_evidence prior_evidence
+          on prior_evidence.house_id = prior_membership.house_id
+          and prior_evidence.id = prior_membership.evidence_id
+          and prior_evidence.employee_id = old.employee_id
+        where prior_membership.house_id = old.house_id
+          and prior_membership.fact_id = old.id
+          and prior_membership.evidence_basis_revision <= old.evidence_basis_revision
+      )
+      select 1
+      from prior_governing_members prior
+      where exists (
+        select 1 from target_ancestry target_lineage
+        where target_lineage.lineage_root_evidence_id = prior.lineage_root_evidence_id
+      )
+      and not exists (
+        select 1 from target_ancestry permitted_path
+        where permitted_path.lineage_root_evidence_id = prior.lineage_root_evidence_id
+          and permitted_path.ancestor_evidence_id = prior.evidence_id
+      )
+    ) then
+      raise exception 'Current evidence authority cannot regress or switch supersession paths'
+        using errcode = '55000';
+    end if;
+  end if;
+
+  return new;
+end
+$function$;
+
 create trigger hr_attendance_observations_immutable
 before update or delete on public.hr_attendance_observations
 for each row execute function public.hr_reject_attendance_history_mutation();
@@ -521,6 +636,9 @@ for each row execute function public.hr_guard_attendance_frame_membership_insert
 create trigger hr_attendance_fact_evidence_immutable
 before update or delete on public.hr_attendance_fact_evidence
 for each row execute function public.hr_reject_attendance_history_mutation();
+create trigger hr_attendance_facts_activation_guard
+before update on public.hr_attendance_facts
+for each row execute function public.hr_guard_attendance_fact_activation();
 
 -- Distinct DEC-018 concurrency domain. Gate A stores the generation separately
 -- from fact/value and evidence-basis revisions; Gate B owns atomic producer use.
@@ -965,6 +1083,7 @@ revoke all on function public.hr_guard_attendance_evidence_frame() from public, 
 revoke all on function public.hr_guard_attendance_evidence_insert() from public, anon, authenticated;
 revoke all on function public.hr_guard_attendance_frame_membership_insert() from public, anon, authenticated;
 revoke all on function public.hr_guard_attendance_fact_revision_segment_insert() from public, anon, authenticated;
+revoke all on function public.hr_guard_attendance_fact_activation() from public, anon, authenticated;
 revoke all on function public.hr_read_canonical_attendance_branch_scoped(uuid, date, date, uuid, integer, integer) from public, anon;
 grant execute on function public.hr_read_canonical_attendance_branch_scoped(uuid, date, date, uuid, integer, integer) to authenticated;
 revoke all on function public.hr_read_canonical_attendance_house_global(uuid, date, date, uuid, integer, integer) from public, anon;

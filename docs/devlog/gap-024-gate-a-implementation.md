@@ -93,6 +93,27 @@ successor row, so an old frame never resolves through newly mutated evidence mea
 An `OPEN → COMPLETED` change creates basis `N+1` even with identical membership because
 completion mode is part of the existing semantic basis, not a fourth revision concept.
 
+Current authority is forward-only. A fact activation guard keeps House, fact, and
+employee identity stable; rejects decreases to `current_value_revision` or
+`evidence_basis_revision`; and permits an advance only to the next append-only value
+revision or next sealed evidence frame whose explicit predecessor is the current pointer.
+For every lineage selected by the target basis, the guard walks
+`supersedes_evidence_id` from the target member toward its root and requires every prior
+governing member of that lineage to remain on that path. The same member may remain, and
+a descendant may advance, but an ancestor rollback or sibling-path switch cannot become
+current. Earlier sealed frames remain immutable and reconstructible audit history; they
+are not destructive rollback controls. No timestamp, insertion order, UUID,
+`semantic_revision` maximum, employee/date, or latest-write heuristic selects authority.
+
+This storage guard does not implement Gate B's expected-revision compare-and-swap command,
+candidate/evidence-generation checks, producer retry protocol, or canonical writer.
+`MANUAL_ADMIN` and `BULK_IMPORT` rows provide durable provenance/audit representation in
+Gate A, not a complete producer idempotency contract. Before either producer is migrated
+in Gate B, a separate bounded task must choose deterministic per-result retry identity;
+generated fact/evidence UUIDs are not retry identities, and a batch/workflow authorization
+reference is not assumed to identify one attendance result. DEC-019 remains limited to
+its approved kiosk/offline observation domain.
+
 The deterministic `hr_rebuild_attendance_authorization_projection(uuid)` function
 replaces one House's projection from canonical current authority and joins only the sealed
 frame equal to each fact's current `evidence_basis_revision`, reads completion mode from
@@ -214,7 +235,7 @@ representable without inventing premature producer transaction semantics.
 
 ## Data Access Plan
 
-- New objects: the eight tables, three callable Gate-A functions, and five non-callable
+- New objects: the eight tables, three callable Gate-A functions, and six non-callable
   trigger helper functions listed above; no view. Append-only/sealing and serialized
   insert guards protect observations, fact revisions/segment binding, evidence frames,
   membership/fact binding, and evidence semantics.
@@ -250,9 +271,9 @@ source-observation identity.**
 
 The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, row-lock, and concurrency executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-Owner-side evidence confirms hosted head `b0268992e75d4b81847548402ef5d3b5d9aca504`
-passed Preflight run `34808360379` (run number 659). The one-semantic-lineage-per-DEC-019-
-observation correction has only static/local verification at this checkpoint; its
+Owner-side evidence confirms hosted head `6451ba0dcd4eb71c1d86c40720c1e2ba8075f649`
+passed Preflight run `34813153337` (run number 660). The forward-only current-authority
+correction has only static/local verification at this checkpoint; its
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.
@@ -273,14 +294,15 @@ not modified.
   and plan; GAP-025 contract; GAP-029 dependency plan; Historical DTR P1 approval; sync protocol
 - **Canonical Documents Changed:** GAP-025 DEC-019 addendum; `docs/hr/hr-status.md`; this implementation record
 - **Runtime / Code Surfaces Changed:** generated DB type subset and focused migration-contract test
-- **Database / Migration Surfaces:** one corrected additive Gate-A migration; eight tables; three callable functions; five trigger helpers
+- **Database / Migration Surfaces:** one corrected additive Gate-A migration; eight tables; three callable functions; six trigger helpers
 - **Authorization / Tenancy / Identity Impact:** new deny-direct canonical storage and two
   actor-derived readers; House and branch checks added; identity behavior unchanged
 - **Owner Decisions Applied:** Option D, facts-only branch visibility, owner/manager global
   visibility, GAP-025 order, DEC-019 source-observation identity, three distinct
   revision/generation concepts, Gate-A-only scope
 - **New Decisions Proposed:** None
-- **Risks / Gaps:** live producer compatibility/backfill and raw-mutator containment remain Gate B
+- **Risks / Gaps:** live producer compatibility/backfill, raw-mutator containment, and
+  deterministic per-result retry identity for manual/admin and bulk/import producers remain Gate B
 - **Tests / Checks:** static migration-contract verification recorded in PR/local handoff; executable DB verification and hosted CI pending
 - **Known Limitations:** migration/RLS/RPC executable verification remains outstanding because no local Supabase/PostgreSQL/Docker runtime is available; static tests are not database execution; no production population or adoption
 - **Project Control Tabs To Update:** HR phase/gates, PR tracker, risks/limitations

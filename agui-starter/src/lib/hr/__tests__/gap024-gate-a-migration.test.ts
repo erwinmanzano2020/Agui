@@ -42,6 +42,61 @@ test("rebuild selects only the sealed current evidence-basis frame", () => {
   assert.doesNotMatch(rebuild, /delete from public\.hr_attendance_(?:evidence_frames|fact_evidence)/i);
 });
 
+test("current fact pointers advance only through their explicit append-only predecessors", () => {
+  const guard = functionSql("hr_guard_attendance_fact_activation", "hr_rebuild_attendance_authorization_projection");
+  const activate = (currentValue: number, nextValue: number, currentBasis: number, nextBasis: number, sealed = true) =>
+    nextValue >= currentValue && nextBasis >= currentBasis
+      && (nextValue === currentValue || nextValue === currentValue + 1)
+      && (nextBasis === currentBasis || (nextBasis === currentBasis + 1 && sealed));
+  assert.equal(activate(1, 2, 1, 1), true);
+  assert.equal(activate(2, 1, 1, 1), false);
+  assert.equal(activate(2, 3, 1, 2), true);
+  assert.equal(activate(2, 3, 2, 1), false);
+  assert.equal(activate(2, 3, 1, 2, false), false);
+
+  assert.match(guard, /new\.current_value_revision < old\.current_value_revision[\s\S]*cannot move backward/i);
+  assert.match(guard, /new\.evidence_basis_revision < old\.evidence_basis_revision[\s\S]*cannot move backward/i);
+  assert.match(guard, /target_revision\.revision = new\.current_value_revision[\s\S]*target_revision\.predecessor_revision = old\.current_value_revision/i);
+  assert.match(guard, /target_frame\.evidence_basis_revision = new\.evidence_basis_revision[\s\S]*target_frame\.predecessor_revision = old\.evidence_basis_revision[\s\S]*target_frame\.is_sealed/i);
+  assert.match(sql, /hr_attendance_facts_activation_guard\s+before update on public\.hr_attendance_facts/i);
+});
+
+test("current evidence authority follows supersession forward and cannot reactivate ancestors or siblings", () => {
+  const predecessor = new Map<string, string | null>([
+    ["E1", null], ["E2a", "E1"], ["E2b", "E1"], ["E3", "E2a"],
+    ["Other1", null], ["Other2", "Other1"],
+  ]);
+  const descendsFrom = (candidate: string, prior: string) => {
+    let cursor: string | null | undefined = candidate;
+    while (cursor) {
+      if (cursor === prior) return true;
+      cursor = predecessor.get(cursor);
+    }
+    return false;
+  };
+  assert.equal(descendsFrom("E2a", "E1"), true);
+  assert.equal(descendsFrom("E1", "E2a"), false);
+  assert.equal(descendsFrom("E3", "E2a"), true);
+  assert.equal(descendsFrom("E2b", "E2a"), false);
+  assert.equal(descendsFrom("Other2", "Other1"), true);
+
+  const guard = functionSql("hr_guard_attendance_fact_activation", "hr_rebuild_attendance_authorization_projection");
+  assert.match(guard, /with recursive target_ancestry as/i);
+  assert.match(guard, /predecessor\.id = ancestry\.supersedes_evidence_id/i);
+  assert.match(guard, /prior_membership\.evidence_basis_revision <= old\.evidence_basis_revision/i);
+  assert.match(guard, /permitted_path\.ancestor_evidence_id = prior\.evidence_id/i);
+  assert.match(guard, /cannot regress or switch supersession paths/i);
+  const executableGuard = guard.slice(0, guard.indexOf("$function$;")).replace(/--.*$/gm, "");
+  assert.doesNotMatch(executableGuard, /max\s*\(|recorded_at|order by|latest/i);
+  assert.match(sql, /hr_attendance_evidence_frames_immutable\s+before update or delete/i);
+});
+
+test("Gate A does not invent manual or bulk producer retry identity", () => {
+  assert.doesNotMatch(sql, /unique\s*\([^)]*(?:source_reference|authorization_reference)/i);
+  assert.doesNotMatch(sql, /manual_(?:case|producer)_namespace|bulk_(?:row|producer)_namespace/i);
+  assert.doesNotMatch(sql, /unique\s*\([^)]*(?:work_date|recorded_at)/i);
+});
+
 test("kiosk lane requires an exact reconciled set without vetoing a sufficient explicit lane", () => {
   type Observation = { kind: "IN" | "OUT"; state: "ESTABLISHED" | "UNRESOLVED" | "INVALID"; eligible: boolean; sufficient: boolean; branch?: string };
   const classify = (mode: "OPEN" | "COMPLETED", observations: Observation[], explicitBranch?: string) => {
