@@ -31,9 +31,11 @@ revision-sanitized branch-aware and owner/manager House-global readers are imple
 [`Gate-A implementation record`](../devlog/gap-024-gate-a-implementation.md). No
 production consumer is cut over, no production backfill is performed, no writer is
 migrated, and no existing `dtr_segments` access is revoked. Feature read grants use the
-existing flattened effective-policy surface: globally effective direct grants and only
-requested-House role-derived feature grants are accepted, while House membership and
-requested-House branch scope remain separate checks. Canonical kiosk classification now
+existing flattened effective-policy surface: PLATFORM feature grants are globally
+effective whether role-derived or direct, while HOUSE feature grants count only for the
+requested House. Exact requested-House membership remains mandatory and branch scope
+still derives only from requested-House HOUSE policies; PLATFORM capability supplies
+neither membership nor branch scope. Canonical kiosk classification now
 fails its kiosk lane closed for invalid or unreconciled governing observations without
 vetoing independently sufficient agreeing explicit provenance. Evidence membership is
 serialized on its canonical evidence row, permanently binding it to one stable fact while
@@ -42,8 +44,8 @@ House/work-date-selective revision index. Owner-approved DEC-019 now adds immuta
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
   serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `641a2cdd4529e890224053275952aabe622d7072` passed Preflight run
-`35175858341` (run 667). The current local correction gives every append-only evidence
+head `29d37f69a8295305237a7ee191da06f6cdadf963` passed Preflight run
+`35177968145` (run 668). The current local correction gives every append-only evidence
 supersession family an immutable lineage root and serializes all root/successor/sibling
 first bindings on that root, so null-observation explicit provenance cannot split across
 facts while same-fact successive-basis reuse remains valid. Each frame now permits only

@@ -231,13 +231,15 @@ and offset must be non-negative. Results are ordered by work date, time-in ascen
 nulls last, then fact ID. The optional employee filter can only narrow and must resolve to
 an employee in the requested House.
 
-It separately proves exact-House membership, resolves feature read capability through the
-canonical flattened `entity_policies` surface. It accepts globally effective direct grants
-only when represented by `scope = PLATFORM` plus `role_slug = direct`, and accepts
-role-derived House feature permission only when `scope_ref` equals the requested House.
-Requested-House membership remains separate, and branch scope is derived only from
-House-scoped policy assignments for the requested House. Each parsed branch is validated against `branches(house_id, id)`. A platform/direct
-feature grant supplies neither House membership nor branch scope.
+It separately proves exact-House membership and resolves feature read capability through
+the canonical flattened `entity_policies` surface. Every `scope = PLATFORM` feature row
+is globally effective capability whether role-derived or direct; a `scope = HOUSE`
+feature row counts only when `scope_ref` equals the requested House. Requested-House
+membership remains separately mandatory, and branch restriction is derived only from
+House-scoped policy assignments for that requested House. Each parsed branch is validated
+against `branches(house_id, id)`. PLATFORM capability supplies neither House membership
+nor branch scope. This matches existing HR effective-policy semantics rather than adding
+role-specific authorization.
 
 The DTO includes permitted fact ID, employee ID, attendance values/status, and active
 branch only. It omits value revision, evidence-basis revision/fingerprint, employee
@@ -363,10 +365,10 @@ source-observation identity.**
 
 ## Verification boundary
 
-The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, lifecycle-status constraint, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, supersession, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
+The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, lifecycle-status constraint, reader authorization, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, supersession, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-Owner-side evidence confirms hosted head `641a2cdd4529e890224053275952aabe622d7072`
-passed Preflight run `35175858341` (run number 667). The lifecycle-status fail-closed
+Owner-side evidence confirms hosted head `29d37f69a8295305237a7ee191da06f6cdadf963`
+passed Preflight run `35177968145` (run number 668). The effective PLATFORM-policy
 correction has only static/local verification at this checkpoint; its
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was

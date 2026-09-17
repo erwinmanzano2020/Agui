@@ -626,21 +626,40 @@ test("both consumption DTOs omit internal revision metadata", () => {
   assert.match(globalShape, /attribution_state text/i);
 });
 
-test("effective direct feature grants are honored without manufacturing House or branch scope", () => {
+test("effective PLATFORM feature grants are honored independently of their role source", () => {
+  type Policy = { scope: "PLATFORM" | "HOUSE" | "GUILD"; scopeRef?: string; roleSlug: string };
+  const requestedHouse = "House-A";
+  const featureAllowed = (policy: Policy) => policy.scope === "PLATFORM"
+    || (policy.scope === "HOUSE" && policy.scopeRef === requestedHouse);
+  const branchRowsVisible = (policy: Policy, hasMembership: boolean, branchHouse?: string) =>
+    featureAllowed(policy) && hasMembership && branchHouse === requestedHouse;
+
+  assert.equal(branchRowsVisible({ scope: "PLATFORM", roleSlug: "direct" }, true, requestedHouse), true);
+  assert.equal(branchRowsVisible({ scope: "PLATFORM", roleSlug: "game_master" }, true, requestedHouse), true);
+  assert.equal(branchRowsVisible({ scope: "PLATFORM", roleSlug: "arbitrary_platform_role" }, true, requestedHouse), true);
+  assert.equal(branchRowsVisible({ scope: "HOUSE", scopeRef: requestedHouse, roleSlug: "house_staff" }, true, requestedHouse), true);
+  assert.equal(branchRowsVisible({ scope: "HOUSE", scopeRef: "House-B", roleSlug: "house_staff" }, true, requestedHouse), false);
+  assert.equal(branchRowsVisible({ scope: "GUILD", scopeRef: "Guild-A", roleSlug: "guild_role" }, true, requestedHouse), false);
+  assert.equal(branchRowsVisible({ scope: "PLATFORM", roleSlug: "game_master" }, false, requestedHouse), false);
+  assert.equal(branchRowsVisible({ scope: "PLATFORM", roleSlug: "game_master" }, true), false);
+  assert.equal(branchRowsVisible({ scope: "PLATFORM", roleSlug: "game_master" }, true, "House-B"), false);
+
   const branch = functionSql("hr_read_canonical_attendance_branch_scoped", "hr_read_canonical_attendance_house_global");
   const featureBlock = branch.slice(branch.indexOf("effective_feature_read"), branch.indexOf("allowed_branches"));
   assert.match(featureBlock, /from public\.entity_policies ep[\s\S]*ep\.policy_key in \('tiles\.hr\.read', 'tiles\.payroll\.read'\)/i);
-  assert.match(featureBlock, /ep\.scope = 'PLATFORM' and ep\.role_slug = 'direct'/i);
+  assert.match(featureBlock, /ep\.scope = 'PLATFORM'\s+or \(ep\.scope = 'HOUSE' and ep\.scope_ref = p_house_id\)/i);
+  assert.doesNotMatch(featureBlock, /role_slug|scope = 'GUILD'/i);
   assert.match(featureBlock, /ep\.scope = 'HOUSE' and ep\.scope_ref = p_house_id/i);
   assert.match(branch, /from public\.house_roles hr[\s\S]*hr\.house_id = p_house_id/i);
-  assert.match(branch, /ep\.scope = 'HOUSE' and ep\.scope_ref = p_house_id/i);
+  const branchBlock = branch.slice(branch.indexOf("allowed_branches"));
+  assert.match(branchBlock, /ep\.scope = 'HOUSE' and ep\.scope_ref = p_house_id/i);
   assert.match(branch, /join public\.branches b on b\.house_id = p_house_id and b\.id = parsed\.id/i);
 });
 
 test("wrong-House role feature grants cannot combine with requested-House membership", () => {
   const branch = functionSql("hr_read_canonical_attendance_branch_scoped", "hr_read_canonical_attendance_house_global");
   const featureBlock = branch.slice(branch.indexOf("effective_feature_read"), branch.indexOf("allowed_branches"));
-  assert.match(featureBlock, /\(ep\.scope = 'PLATFORM' and ep\.role_slug = 'direct'\)\s+or \(ep\.scope = 'HOUSE' and ep\.scope_ref = p_house_id\)/i);
+  assert.match(featureBlock, /ep\.scope = 'PLATFORM'\s+or \(ep\.scope = 'HOUSE' and ep\.scope_ref = p_house_id\)/i);
   assert.doesNotMatch(featureBlock, /ep\.scope = 'HOUSE'\s*\)/i);
 });
 

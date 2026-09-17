@@ -1053,13 +1053,14 @@ begin
     select hm.entity_id
     from house_membership hm
     where exists (
-      -- entity_policies is the canonical flattened effective-policy surface and
-      -- includes both role-derived policies and direct PLATFORM-scoped grants.
+      -- entity_policies is the canonical flattened effective-policy surface. Every
+      -- PLATFORM row is globally effective capability, whether role-derived or direct;
+      -- requested-House membership and branch restriction remain separate requirements.
       select 1 from public.entity_policies ep
       where ep.entity_id = hm.entity_id
         and ep.policy_key in ('tiles.hr.read', 'tiles.payroll.read')
         and (
-          (ep.scope = 'PLATFORM' and ep.role_slug = 'direct')
+          ep.scope = 'PLATFORM'
           or (ep.scope = 'HOUSE' and ep.scope_ref = p_house_id)
         )
     )
