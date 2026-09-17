@@ -375,7 +375,8 @@ begin
       raise exception 'Semantic evidence supersession must preserve stable observation identity'
         using errcode = '23514';
     end if;
-    if v_predecessor_observation_id is not null and v_predecessor_lane = 'KIOSK'
+    if v_predecessor_observation_id is not null
+      and (v_predecessor_lane = 'KIOSK' or new.lane = 'KIOSK')
       and (
         new.lane is distinct from v_predecessor_lane
         or new.evidence_kind is distinct from v_predecessor_evidence_kind

@@ -54,8 +54,10 @@ The corrected additive migration creates eight direct-access-protected tables:
    observation-specific rule does not apply to null-observation manual/admin or bulk/import
    provenance, which retains generic self-root and explicit-successor behavior. Gate A does
    not copy kiosk JSON metadata or map any active producer.
-   Observation-backed `KIOSK` successors also preserve the locked predecessor's immutable
-   lane, logical `LOGICAL_IN`/`LOGICAL_OUT` role, and event-time branch (including null).
+   Observation-backed supersession cannot cross into or out of `KIOSK` while redefining
+   the locked predecessor's immutable lane, logical `LOGICAL_IN`/`LOGICAL_OUT` role, or
+   event-time branch (including null). The symmetric rule applies whenever either the
+   predecessor or successor is `KIOSK`.
    Integrity eligibility/state and sufficiency may evolve through append-only revisions
    without rewriting the real-world action. A genuine actual-location correction belongs
    to separately authorized explicit correction/adjudication provenance, not a kiosk
@@ -372,11 +374,11 @@ source-observation identity.**
 
 ## Verification boundary
 
-The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, lifecycle-status constraint, reader authorization, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, supersession, kiosk-successor semantic invariants, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
+The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, lifecycle-status constraint, reader authorization, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, supersession, symmetric kiosk-transition semantic invariants, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
 Owner-side evidence confirms the pre-correction hosted head
-`03f4cdbaaef054c91b4ab50dd141762d462c95a7` passed Preflight run `35185245074`
-(run number 669). The kiosk-successor semantic-invariant correction has only static/local
+`e5a0cfbdc4d6f4e8b27b1d60c6a83c51de22dc9f` passed Preflight run `35187726613`
+(run number 670). The symmetric kiosk-transition correction has only static/local
 verification at this checkpoint; its
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was

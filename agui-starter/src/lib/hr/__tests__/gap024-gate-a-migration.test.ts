@@ -448,7 +448,7 @@ test("observation-backed kiosk successors preserve lane, logical role, and event
     integrity: "UNRESOLVED" | "ESTABLISHED"; sufficiency: "INSUFFICIENT" | "SUFFICIENT";
   };
   const maySupersede = (prior: Evidence, next: Evidence) => prior.observation === next.observation
-    && (prior.observation === null || prior.lane !== "KIOSK"
+    && (prior.observation === null || (prior.lane !== "KIOSK" && next.lane !== "KIOSK")
       || (next.lane === prior.lane && next.kind === prior.kind && next.branch === prior.branch));
   const kioskInA: Evidence = { observation: "O1", lane: "KIOSK", kind: "LOGICAL_IN", branch: "A", integrity: "UNRESOLVED", sufficiency: "INSUFFICIENT" };
   const kioskOutA: Evidence = { ...kioskInA, kind: "LOGICAL_OUT" };
@@ -458,16 +458,24 @@ test("observation-backed kiosk successors preserve lane, logical role, and event
   assert.equal(maySupersede(kioskOutA, kioskInA), false);
   assert.equal(maySupersede(kioskInA, { ...kioskInA, branch: "B" }), false);
   assert.equal(maySupersede(kioskInA, { ...kioskInA, lane: "MANUAL_ADMIN", kind: "EXPLICIT_BRANCH" }), false);
+  const observedManual: Evidence = { ...kioskInA, lane: "MANUAL_ADMIN", kind: "EXPLICIT_BRANCH" };
+  const observedBulk: Evidence = { ...kioskInA, lane: "BULK_IMPORT", kind: "EXPLICIT_BRANCH" };
+  assert.equal(maySupersede(observedManual, { ...kioskInA }), false);
+  assert.equal(maySupersede(observedManual, { ...kioskInA, branch: "B" }), false);
+  assert.equal(maySupersede(observedBulk, { ...kioskOutA }), false);
+  assert.equal(maySupersede(observedBulk, { ...kioskOutA, branch: "B" }), false);
   assert.equal(maySupersede(kioskInA, { ...kioskInA, integrity: "ESTABLISHED" }), true);
   assert.equal(maySupersede(kioskInA, { ...kioskInA, sufficiency: "SUFFICIENT" }), true);
   assert.equal(maySupersede(kioskInA, { ...kioskInA, observation: "O2", branch: "B" }), false);
   assert.deepEqual([kioskInA, { ...kioskInA, observation: "O2", branch: "B" }].map((row) => row.branch), ["A", "B"]);
   const manual: Evidence = { observation: null, lane: "MANUAL_ADMIN", kind: "EXPLICIT_BRANCH", branch: "A", integrity: "UNRESOLVED", sufficiency: "INSUFFICIENT" };
   assert.equal(maySupersede(manual, { ...manual, branch: "B" }), true);
+  const bulk: Evidence = { ...manual, lane: "BULK_IMPORT" };
+  assert.equal(maySupersede(bulk, { ...bulk, branch: "B" }), true);
 
   const guard = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
   assert.match(guard, /select predecessor\.observation_id, predecessor\.lineage_root_evidence_id,[\s\S]*predecessor\.lane, predecessor\.evidence_kind, predecessor\.branch_id[\s\S]*for update/i);
-  assert.match(guard, /v_predecessor_observation_id is not null and v_predecessor_lane = 'KIOSK'/i);
+  assert.match(guard, /v_predecessor_observation_id is not null\s+and \(v_predecessor_lane = 'KIOSK' or new\.lane = 'KIOSK'\)/i);
   assert.match(guard, /new\.lane is distinct from v_predecessor_lane/i);
   assert.match(guard, /new\.evidence_kind is distinct from v_predecessor_evidence_kind/i);
   assert.match(guard, /new\.branch_id is distinct from v_predecessor_branch_id/i);
