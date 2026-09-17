@@ -140,7 +140,7 @@ test("a newly introduced lineage can govern only through an unsuperseded selecte
 
   const activation = functionSql("hr_guard_attendance_fact_activation", "hr_rebuild_attendance_authorization_projection");
   const targetLock = activation.indexOf("order by target_evidence.lineage_root_evidence_id, target_evidence.id");
-  const successorCheck = activation.indexOf("join public.hr_attendance_evidence successor");
+  const successorCheck = activation.indexOf("join public.hr_attendance_evidence successor", targetLock);
   assert.ok(targetLock >= 0 && targetLock < successorCheck, "new target evidence must lock before its successor check");
   assert.match(activation, /order by target_evidence\.lineage_root_evidence_id, target_evidence\.id\s+for update of target_evidence/i);
   assert.match(activation, /successor\.house_id = target_evidence\.house_id[\s\S]*successor\.employee_id = target_evidence\.employee_id[\s\S]*successor\.lineage_root_evidence_id = target_evidence\.lineage_root_evidence_id[\s\S]*successor\.supersedes_evidence_id = target_evidence\.id/i);
@@ -152,6 +152,45 @@ test("a newly introduced lineage can govern only through an unsuperseded selecte
   assert.match(evidenceInsert, /predecessor\.id = new\.supersedes_evidence_id[\s\S]*for update/i);
   const executableActivation = activation.slice(0, activation.indexOf("$function$;")).replace(/--.*$/gm, "");
   assert.doesNotMatch(executableActivation, /max\s*\([^)]*semantic_revision|recorded_at|created_at|occurred_at|order by[^\n]*semantic_revision|latest_write/i);
+});
+
+test("omitting a governing lineage establishes a serialized retirement boundary", () => {
+  const successor = new Map<string, string | null>([["E1", null], ["E2", "E1"]]);
+  const mayRetire = (member: string) => ![...successor.values()].includes(member);
+  const descendsStrictly = (selected: string, retiredMember: string) => {
+    let cursor = successor.get(selected);
+    while (cursor) {
+      if (cursor === retiredMember) return true;
+      cursor = successor.get(cursor);
+    }
+    return false;
+  };
+  const mayReenter = (retiredMember: string, selected: string) =>
+    descendsStrictly(selected, retiredMember) && mayRetire(selected);
+
+  assert.equal(mayRetire("E1"), false); // committed E2 blocks omission
+  successor.delete("E2");
+  assert.equal(mayRetire("E1"), true); // retirement may win before successor append
+  assert.equal(mayReenter("E1", "E1"), false);
+  successor.set("E2", "E1");
+  assert.equal(mayReenter("E1", "E2"), true);
+  successor.set("E3", "E2");
+  assert.equal(mayReenter("E1", "E2"), false); // selected descendant must itself be a leaf
+  assert.equal(mayReenter("E1", "E3"), true);
+
+  const activation = functionSql("hr_guard_attendance_fact_activation", "hr_rebuild_attendance_authorization_projection");
+  const retirementLock = activation.indexOf("order by current_evidence.lineage_root_evidence_id, current_evidence.id");
+  const retirementSuccessorCheck = activation.indexOf("join public.hr_attendance_evidence successor", retirementLock);
+  assert.ok(retirementLock >= 0 && retirementLock < retirementSuccessorCheck,
+    "omitted governing evidence must lock before successor inspection");
+  assert.match(activation, /current_membership\.evidence_basis_revision = old\.evidence_basis_revision[\s\S]*not exists \([\s\S]*target_membership\.evidence_basis_revision = new\.evidence_basis_revision[\s\S]*order by current_evidence\.lineage_root_evidence_id, current_evidence\.id\s+for update of current_evidence/i);
+  assert.match(activation, /successor\.supersedes_evidence_id = current_evidence\.id[\s\S]*cannot retire after its governing member was superseded/i);
+  assert.match(activation, /prior_membership\.evidence_basis_revision < old\.evidence_basis_revision[\s\S]*prior_membership\.evidence_id = target_evidence\.id[\s\S]*must re-enter through a strict successor/i);
+  assert.match(activation, /with recursive target_ancestry as/i);
+  assert.match(activation, /Newly introduced current evidence must be an unsuperseded lineage member/i);
+
+  const evidenceInsert = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
+  assert.match(evidenceInsert, /predecessor\.id = new\.supersedes_evidence_id[\s\S]*for update/i);
 });
 
 test("sealing the current first frame rejects selected evidence already superseded", () => {

@@ -123,6 +123,13 @@ as its predecessor, so activation either establishes the still-current member fi
 observes the committed successor and rejects historical evidence. This leaf check does
 not choose a successor, ban physical sibling leaves, or replace the existing ancestry-
 path rule after a lineage has governed; frame membership remains explicit authority.
+Omitting a lineage from the next basis is its serialized retirement boundary. The guard
+locks each omitted governing member in `lineage_root_evidence_id, id` order and rejects
+the omission if that member already has a committed successor; successor insertion locks
+the same predecessor row. A lineage absent from the immediately current basis cannot
+re-enter through its retired member, ancestor, or sibling. A strict descendant appended
+after retirement may re-enter only when it is the explicitly selected unsuperseded leaf,
+with the existing ancestry-path validation still required.
 The initial current frame has no later fact-pointer update, so its one-way seal transition
 also validates current evidence. The frame guard locks the exact House/fact/employee fact,
 checks that the frame is the fact's current basis, then locks explicitly selected evidence
@@ -374,7 +381,7 @@ source-observation identity.**
 
 ## Verification boundary
 
-The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, lifecycle-status constraint, reader authorization, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, supersession, symmetric kiosk-transition semantic invariants, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
+The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, lifecycle-status constraint, reader authorization, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, lineage-retirement, supersession, symmetric kiosk-transition semantic invariants, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
 Owner-side evidence confirms the pre-correction hosted head
 `e5a0cfbdc4d6f4e8b27b1d60c6a83c51de22dc9f` passed Preflight run `35187726613`

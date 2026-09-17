@@ -92,6 +92,11 @@ the decision serializes with concurrent evidence append. Superseded rows remain 
 history, sibling leaves remain representable, and the existing ancestry-path rule still
 governs lineages that previously entered current authority. No timestamp, latest-write,
 UUID-currentness, or maximum-revision selector and no Gate-B writer behavior is added.
+Omitting a currently governing lineage now establishes a serialized retirement boundary:
+the omitted member locks before a direct-successor check, so committed newer evidence
+blocks retirement while a later append follows the completed boundary. A retired lineage
+cannot re-enter through the same historical member; only an explicitly selected strict
+descendant that is itself unsuperseded may return under the existing ancestry checks.
 Initial fact authority is now fixed at value revision 1 and evidence basis 1, so INSERT
 cannot skip the explicit predecessor sequence. When the fact's current first frame is
 sealed, the frame guard locks selected evidence in deterministic lineage-root/evidence-ID

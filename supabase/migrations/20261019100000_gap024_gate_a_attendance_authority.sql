@@ -633,6 +633,105 @@ begin
         using errcode = '55000';
     end if;
 
+    -- Omitting a currently governing lineage is its retirement boundary. Lock the
+    -- omitted member in the same deterministic order used for activation and successor
+    -- insertion, then reject retirement if a successor already exists. If retirement
+    -- wins the lock, a later successor is post-retirement evidence and may re-enter only
+    -- as a strict, unsuperseded descendant in a later basis.
+    perform 1
+    from public.hr_attendance_fact_evidence current_membership
+    join public.hr_attendance_evidence current_evidence
+      on current_evidence.house_id = current_membership.house_id
+      and current_evidence.id = current_membership.evidence_id
+      and current_evidence.employee_id = old.employee_id
+    where current_membership.house_id = old.house_id
+      and current_membership.fact_id = old.id
+      and current_membership.evidence_basis_revision = old.evidence_basis_revision
+      and not exists (
+        select 1
+        from public.hr_attendance_fact_evidence target_membership
+        join public.hr_attendance_evidence target_evidence
+          on target_evidence.house_id = target_membership.house_id
+          and target_evidence.id = target_membership.evidence_id
+          and target_evidence.employee_id = old.employee_id
+        where target_membership.house_id = old.house_id
+          and target_membership.fact_id = old.id
+          and target_membership.evidence_basis_revision = new.evidence_basis_revision
+          and target_evidence.lineage_root_evidence_id = current_evidence.lineage_root_evidence_id
+      )
+    order by current_evidence.lineage_root_evidence_id, current_evidence.id
+    for update of current_evidence;
+
+    if exists (
+      select 1
+      from public.hr_attendance_fact_evidence current_membership
+      join public.hr_attendance_evidence current_evidence
+        on current_evidence.house_id = current_membership.house_id
+        and current_evidence.id = current_membership.evidence_id
+        and current_evidence.employee_id = old.employee_id
+      join public.hr_attendance_evidence successor
+        on successor.house_id = current_evidence.house_id
+        and successor.employee_id = current_evidence.employee_id
+        and successor.lineage_root_evidence_id = current_evidence.lineage_root_evidence_id
+        and successor.supersedes_evidence_id = current_evidence.id
+      where current_membership.house_id = old.house_id
+        and current_membership.fact_id = old.id
+        and current_membership.evidence_basis_revision = old.evidence_basis_revision
+        and not exists (
+          select 1
+          from public.hr_attendance_fact_evidence target_membership
+          join public.hr_attendance_evidence target_evidence
+            on target_evidence.house_id = target_membership.house_id
+            and target_evidence.id = target_membership.evidence_id
+            and target_evidence.employee_id = old.employee_id
+          where target_membership.house_id = old.house_id
+            and target_membership.fact_id = old.id
+            and target_membership.evidence_basis_revision = new.evidence_basis_revision
+            and target_evidence.lineage_root_evidence_id = current_evidence.lineage_root_evidence_id
+        )
+    ) then
+      raise exception 'Current evidence lineage cannot retire after its governing member was superseded'
+        using errcode = '55000';
+    end if;
+
+    -- A lineage absent from the immediately current basis was already retired. It may
+    -- return only through a strict descendant, never by reselecting a member that
+    -- governed before its retirement boundary.
+    if exists (
+      select 1
+      from public.hr_attendance_fact_evidence target_membership
+      join public.hr_attendance_evidence target_evidence
+        on target_evidence.house_id = target_membership.house_id
+        and target_evidence.id = target_membership.evidence_id
+        and target_evidence.employee_id = old.employee_id
+      where target_membership.house_id = old.house_id
+        and target_membership.fact_id = old.id
+        and target_membership.evidence_basis_revision = new.evidence_basis_revision
+        and not exists (
+          select 1
+          from public.hr_attendance_fact_evidence current_membership
+          join public.hr_attendance_evidence current_evidence
+            on current_evidence.house_id = current_membership.house_id
+            and current_evidence.id = current_membership.evidence_id
+            and current_evidence.employee_id = old.employee_id
+          where current_membership.house_id = old.house_id
+            and current_membership.fact_id = old.id
+            and current_membership.evidence_basis_revision = old.evidence_basis_revision
+            and current_evidence.lineage_root_evidence_id = target_evidence.lineage_root_evidence_id
+        )
+        and exists (
+          select 1
+          from public.hr_attendance_fact_evidence prior_membership
+          where prior_membership.house_id = old.house_id
+            and prior_membership.fact_id = old.id
+            and prior_membership.evidence_basis_revision < old.evidence_basis_revision
+            and prior_membership.evidence_id = target_evidence.id
+        )
+    ) then
+      raise exception 'Retired evidence lineage must re-enter through a strict successor'
+        using errcode = '55000';
+    end if;
+
     -- A lineage that has never governed this fact may enter current authority only
     -- through a member that is not already superseded. Lock each selected member in
     -- immutable lineage/id order before checking for successors. Evidence-successor
