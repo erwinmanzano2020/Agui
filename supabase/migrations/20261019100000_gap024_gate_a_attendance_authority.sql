@@ -311,6 +311,9 @@ as $function$
 declare
   v_predecessor_observation_id uuid;
   v_predecessor_lineage_root_id uuid;
+  v_predecessor_lane text;
+  v_predecessor_evidence_kind text;
+  v_predecessor_branch_id uuid;
   v_observation_lineage_root_id uuid;
   v_observation_has_evidence boolean := false;
 begin
@@ -355,8 +358,10 @@ begin
   end if;
 
   if new.supersedes_evidence_id is not null then
-    select predecessor.observation_id, predecessor.lineage_root_evidence_id
-      into v_predecessor_observation_id, v_predecessor_lineage_root_id
+    select predecessor.observation_id, predecessor.lineage_root_evidence_id,
+      predecessor.lane, predecessor.evidence_kind, predecessor.branch_id
+      into v_predecessor_observation_id, v_predecessor_lineage_root_id,
+        v_predecessor_lane, v_predecessor_evidence_kind, v_predecessor_branch_id
     from public.hr_attendance_evidence predecessor
       where predecessor.house_id = new.house_id
         and predecessor.id = new.supersedes_evidence_id
@@ -368,6 +373,15 @@ begin
     end if;
     if v_predecessor_observation_id is distinct from new.observation_id then
       raise exception 'Semantic evidence supersession must preserve stable observation identity'
+        using errcode = '23514';
+    end if;
+    if v_predecessor_observation_id is not null and v_predecessor_lane = 'KIOSK'
+      and (
+        new.lane is distinct from v_predecessor_lane
+        or new.evidence_kind is distinct from v_predecessor_evidence_kind
+        or new.branch_id is distinct from v_predecessor_branch_id
+      ) then
+      raise exception 'Kiosk evidence successors must preserve observation lane, logical role, and branch'
         using errcode = '23514';
     end if;
     if new.lineage_root_evidence_id is null then

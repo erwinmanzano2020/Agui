@@ -54,6 +54,12 @@ The corrected additive migration creates eight direct-access-protected tables:
    observation-specific rule does not apply to null-observation manual/admin or bulk/import
    provenance, which retains generic self-root and explicit-successor behavior. Gate A does
    not copy kiosk JSON metadata or map any active producer.
+   Observation-backed `KIOSK` successors also preserve the locked predecessor's immutable
+   lane, logical `LOGICAL_IN`/`LOGICAL_OUT` role, and event-time branch (including null).
+   Integrity eligibility/state and sufficiency may evolve through append-only revisions
+   without rewriting the real-world action. A genuine actual-location correction belongs
+   to separately authorized explicit correction/adjudication provenance, not a kiosk
+   successor branch rewrite; Gate A introduces no correction workflow or Gate-B command.
 5. `hr_attendance_evidence_frames` identifies each semantic evidence-basis revision,
    snapshots its classifier-authoritative completion mode, links it to its predecessor,
    and seals it before it can govern current projection state.
@@ -339,9 +345,10 @@ mandatory Gate-B pre-population prerequisite, not optional cleanup.
 - Service role: execute on rebuild only; no existing service-backed path is switched.
 - House enforcement: trusted actor membership/role checks in readers and composite
   House foreign keys in storage.
-- Feature authorization: canonical flattened effective policies accept direct PLATFORM
-  grants and only requested-House role-derived feature grants; another House's role grant
-  cannot combine with requested-House membership and branch scope.
+- Feature authorization: canonical flattened effective policies accept every PLATFORM
+  feature grant, whether role-derived or direct, and accept HOUSE feature grants only for
+  the requested House; another House's role grant cannot combine with requested-House
+  membership and branch scope.
 - House enforcement: House membership remains a separate mandatory check.
 - Branch enforcement: only requested-House policy assignment is parsed and joined to
   `branches(house_id, id)`; feature capability and caller input never supply scope.
@@ -365,11 +372,12 @@ source-observation identity.**
 
 ## Verification boundary
 
-The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, lifecycle-status constraint, reader authorization, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, supersession, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
+The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, lifecycle-status constraint, reader authorization, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, supersession, kiosk-successor semantic invariants, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-Owner-side evidence confirms hosted head `29d37f69a8295305237a7ee191da06f6cdadf963`
-passed Preflight run `35177968145` (run number 668). The effective PLATFORM-policy
-correction has only static/local verification at this checkpoint; its
+Owner-side evidence confirms the pre-correction hosted head
+`03f4cdbaaef054c91b4ab50dd141762d462c95a7` passed Preflight run `35185245074`
+(run number 669). The kiosk-successor semantic-invariant correction has only static/local
+verification at this checkpoint; its
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.
