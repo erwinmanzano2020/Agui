@@ -230,6 +230,8 @@ returns trigger
 language plpgsql
 set search_path = pg_catalog, public
 as $function$
+declare
+  v_current_evidence_basis_revision bigint;
 begin
   if tg_op = 'DELETE' then
     raise exception 'Canonical attendance evidence frames are immutable'
@@ -244,6 +246,58 @@ begin
     or new.created_at <> old.created_at then
     raise exception 'Only one-way evidence frame sealing is permitted'
       using errcode = '55000';
+  end if;
+
+  -- Sealing the fact's current frame is the initial authority transition: unlike a
+  -- later basis activation, it need not be accompanied by an UPDATE of the fact.
+  -- Lock the owning fact before deciding whether this is its current basis.
+  select fact.evidence_basis_revision
+  into v_current_evidence_basis_revision
+  from public.hr_attendance_facts fact
+  where fact.house_id = new.house_id
+    and fact.id = new.fact_id
+    and fact.employee_id = new.employee_id
+  for update;
+  if not found then
+    raise exception 'Evidence frame requires matching House, fact, and employee ownership'
+      using errcode = '23503';
+  end if;
+
+  if v_current_evidence_basis_revision = new.evidence_basis_revision then
+    -- Serialize each explicitly selected member with successor insertion, which locks
+    -- the same row as its predecessor. Stable lineage/id ordering avoids heuristic
+    -- currentness and gives multiple selected rows a deterministic lock order.
+    perform 1
+    from public.hr_attendance_fact_evidence membership
+    join public.hr_attendance_evidence selected_evidence
+      on selected_evidence.house_id = membership.house_id
+      and selected_evidence.id = membership.evidence_id
+      and selected_evidence.employee_id = new.employee_id
+    where membership.house_id = new.house_id
+      and membership.fact_id = new.fact_id
+      and membership.evidence_basis_revision = new.evidence_basis_revision
+    order by selected_evidence.lineage_root_evidence_id, selected_evidence.id
+    for update of selected_evidence;
+
+    if exists (
+      select 1
+      from public.hr_attendance_fact_evidence membership
+      join public.hr_attendance_evidence selected_evidence
+        on selected_evidence.house_id = membership.house_id
+        and selected_evidence.id = membership.evidence_id
+        and selected_evidence.employee_id = new.employee_id
+      join public.hr_attendance_evidence successor
+        on successor.house_id = selected_evidence.house_id
+        and successor.employee_id = selected_evidence.employee_id
+        and successor.lineage_root_evidence_id = selected_evidence.lineage_root_evidence_id
+        and successor.supersedes_evidence_id = selected_evidence.id
+      where membership.house_id = new.house_id
+        and membership.fact_id = new.fact_id
+        and membership.evidence_basis_revision = new.evidence_basis_revision
+    ) then
+      raise exception 'Current evidence frame cannot seal with superseded selected evidence'
+        using errcode = '55000';
+    end if;
   end if;
   return new;
 end
@@ -507,6 +561,14 @@ language plpgsql
 set search_path = pg_catalog, public
 as $function$
 begin
+  if tg_op = 'INSERT' then
+    if new.current_value_revision <> 1 or new.evidence_basis_revision <> 1 then
+      raise exception 'Canonical attendance facts must begin at value revision and evidence basis 1'
+        using errcode = '55000';
+    end if;
+    return new;
+  end if;
+
   if new.id is distinct from old.id
     or new.house_id is distinct from old.house_id
     or new.employee_id is distinct from old.employee_id then
@@ -703,7 +765,7 @@ create trigger hr_attendance_fact_evidence_immutable
 before update or delete on public.hr_attendance_fact_evidence
 for each row execute function public.hr_reject_attendance_history_mutation();
 create trigger hr_attendance_facts_activation_guard
-before update on public.hr_attendance_facts
+before insert or update on public.hr_attendance_facts
 for each row execute function public.hr_guard_attendance_fact_activation();
 
 -- Distinct DEC-018 concurrency domain. Gate A stores the generation separately

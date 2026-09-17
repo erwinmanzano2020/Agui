@@ -97,6 +97,9 @@ Current authority is forward-only. A fact activation guard keeps House, fact, an
 employee identity stable; rejects decreases to `current_value_revision` or
 `evidence_basis_revision`; and permits an advance only to the next append-only value
 revision or next sealed evidence frame whose explicit predecessor is the current pointer.
+The same database guard requires every newly inserted fact to begin with
+`current_value_revision = 1` and `evidence_basis_revision = 1`; callers cannot bypass
+the predecessor sequence by inserting initial pointers at 2 or later.
 For every lineage selected by the target basis, the guard walks
 `supersedes_evidence_id` from the target member toward its root and requires every prior
 governing member of that lineage to remain on that path. The same member may remain, and
@@ -112,6 +115,16 @@ as its predecessor, so activation either establishes the still-current member fi
 observes the committed successor and rejects historical evidence. This leaf check does
 not choose a successor, ban physical sibling leaves, or replace the existing ancestry-
 path rule after a lineage has governed; frame membership remains explicit authority.
+The initial current frame has no later fact-pointer update, so its one-way seal transition
+also validates current evidence. The frame guard locks the exact House/fact/employee fact,
+checks that the frame is the fact's current basis, then locks explicitly selected evidence
+in `lineage_root_evidence_id, id` order before testing for direct successors. An already-
+superseded member cannot first become governing through that seal. Successor insertion
+locks the same selected row as its predecessor, so sealing and append serialize at the
+authority transition. A noncurrent future frame may still be sealed as immutable
+preparation; its later pointer activation remains subject to the complete predecessor and
+ancestry-path guard. No latest-write, maximum-revision, UUID, or timestamp heuristic is
+introduced.
 The same guard treats `is_active` as a one-way retirement/tombstone control: active facts
 may remain active or retire, and retired facts may remain retired, but `false → true` is
 rejected even when another authority pointer also advances. This flag is not attendance
@@ -346,10 +359,10 @@ source-observation identity.**
 
 ## Verification boundary
 
-The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, row-lock, and concurrency executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
+The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, supersession, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-Owner-side evidence confirms hosted head `f789bff645c871f2d21a5251264543d61af0fee3`
-passed Preflight run `34952727215` (run number 665). The evidence-established completion
+Owner-side evidence confirms hosted head `72bb6ea40ab393d49b93a4f54b3a08a6a7f73c04`
+passed Preflight run `35173007144` (run number 666). The initial-current-authority
 correction has only static/local verification at this checkpoint; its
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was

@@ -41,9 +41,9 @@ allowing reuse across that fact's later evidence bases, and bounded readers have
 House/work-date-selective revision index. Owner-approved DEC-019 now adds immutable,
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
-serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `f789bff645c871f2d21a5251264543d61af0fee3` passed Preflight run
-`34952727215` (run 665). The current local correction gives every append-only evidence
+  serializes each physical segment's permanent binding to one stable fact. Hosted starting
+head `72bb6ea40ab393d49b93a4f54b3a08a6a7f73c04` passed Preflight run
+`35173007144` (run 666). The current local correction gives every append-only evidence
 supersession family an immutable lineage root and serializes all root/successor/sibling
 first bindings on that root, so null-observation explicit provenance cannot split across
 facts while same-fact successive-basis reuse remains valid. Each frame now permits only
@@ -90,6 +90,15 @@ the decision serializes with concurrent evidence append. Superseded rows remain 
 history, sibling leaves remain representable, and the existing ancestry-path rule still
 governs lineages that previously entered current authority. No timestamp, latest-write,
 UUID-currentness, or maximum-revision selector and no Gate-B writer behavior is added.
+Initial fact authority is now fixed at value revision 1 and evidence basis 1, so INSERT
+cannot skip the explicit predecessor sequence. When the fact's current first frame is
+sealed, the frame guard locks selected evidence in deterministic lineage-root/evidence-ID
+order before rejecting any member with a committed direct successor; evidence-successor
+insertion locks that same predecessor. This closes the initial seal path without replacing
+the later fact-update activation guard. Sealing a noncurrent future frame remains
+preparation, and its later pointer transition still enforces the existing next-frame and
+ancestry-path rules. No timestamp, latest-write, UUID, or maximum-semantic-revision
+currentness rule is introduced.
 
 **DEC-020 policy resolved; Gate-B pre-population enforcement remains open.** The owner
 approved DEC-020 on 2026-09-15: protected historical HR records retention-protect the

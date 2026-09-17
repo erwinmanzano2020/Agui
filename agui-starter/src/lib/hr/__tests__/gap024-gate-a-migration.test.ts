@@ -58,7 +58,21 @@ test("current fact pointers advance only through their explicit append-only pred
   assert.match(guard, /new\.evidence_basis_revision < old\.evidence_basis_revision[\s\S]*cannot move backward/i);
   assert.match(guard, /target_revision\.revision = new\.current_value_revision[\s\S]*target_revision\.predecessor_revision = old\.current_value_revision/i);
   assert.match(guard, /target_frame\.evidence_basis_revision = new\.evidence_basis_revision[\s\S]*target_frame\.predecessor_revision = old\.evidence_basis_revision[\s\S]*target_frame\.is_sealed/i);
-  assert.match(sql, /hr_attendance_facts_activation_guard\s+before update on public\.hr_attendance_facts/i);
+  assert.match(sql, /hr_attendance_facts_activation_guard\s+before insert or update on public\.hr_attendance_facts/i);
+});
+
+test("new facts begin current authority at value revision and evidence basis one", () => {
+  const mayInsert = (valueRevision: number, evidenceBasisRevision: number) =>
+    valueRevision === 1 && evidenceBasisRevision === 1;
+  assert.equal(mayInsert(1, 1), true);
+  assert.equal(mayInsert(2, 1), false);
+  assert.equal(mayInsert(1, 2), false);
+  assert.equal(mayInsert(2, 2), false);
+
+  const guard = functionSql("hr_guard_attendance_fact_activation", "hr_rebuild_attendance_authorization_projection");
+  assert.match(guard, /if tg_op = 'INSERT' then[\s\S]*new\.current_value_revision <> 1 or new\.evidence_basis_revision <> 1[\s\S]*must begin at value revision and evidence basis 1[\s\S]*return new/i);
+  assert.match(guard, /if new\.current_value_revision > old\.current_value_revision[\s\S]*explicit predecessor/i);
+  assert.match(guard, /if new\.evidence_basis_revision > old\.evidence_basis_revision[\s\S]*next sealed frame/i);
 });
 
 test("fact active state permits retirement but never resurrection", () => {
@@ -138,6 +152,39 @@ test("a newly introduced lineage can govern only through an unsuperseded selecte
   assert.match(evidenceInsert, /predecessor\.id = new\.supersedes_evidence_id[\s\S]*for update/i);
   const executableActivation = activation.slice(0, activation.indexOf("$function$;")).replace(/--.*$/gm, "");
   assert.doesNotMatch(executableActivation, /max\s*\([^)]*semantic_revision|recorded_at|created_at|occurred_at|order by[^\n]*semantic_revision|latest_write/i);
+});
+
+test("sealing the current first frame rejects selected evidence already superseded", () => {
+  const successors = new Map<string, string[]>([
+    ["E1", ["E2"]], ["E2", ["E3"]], ["E3", []],
+    ["SiblingRoot", ["E2a", "E2b"]], ["E2a", []], ["E2b", []],
+    ["LeafRoot", []],
+  ]);
+  const maySealCurrentFrame = (selected: string) => (successors.get(selected) ?? []).length === 0;
+  assert.equal(maySealCurrentFrame("LeafRoot"), true);
+  assert.equal(maySealCurrentFrame("E1"), false);
+  assert.equal(maySealCurrentFrame("E2"), false);
+  assert.equal(maySealCurrentFrame("E3"), true);
+  assert.equal(maySealCurrentFrame("E2a"), true);
+
+  const frameGuard = functionSql("hr_guard_attendance_evidence_frame", "hr_guard_attendance_evidence_insert");
+  assert.match(frameGuard, /fact\.house_id = new\.house_id[\s\S]*fact\.id = new\.fact_id[\s\S]*fact\.employee_id = new\.employee_id[\s\S]*for update/i);
+  assert.match(frameGuard, /if v_current_evidence_basis_revision = new\.evidence_basis_revision then/i);
+  const selectedLock = frameGuard.indexOf("order by selected_evidence.lineage_root_evidence_id, selected_evidence.id");
+  const successorCheck = frameGuard.indexOf("join public.hr_attendance_evidence successor");
+  assert.ok(selectedLock >= 0 && selectedLock < successorCheck, "current-frame evidence must lock before successor inspection");
+  assert.match(frameGuard, /order by selected_evidence\.lineage_root_evidence_id, selected_evidence\.id\s+for update of selected_evidence/i);
+  assert.match(frameGuard, /successor\.house_id = selected_evidence\.house_id[\s\S]*successor\.employee_id = selected_evidence\.employee_id[\s\S]*successor\.lineage_root_evidence_id = selected_evidence\.lineage_root_evidence_id[\s\S]*successor\.supersedes_evidence_id = selected_evidence\.id/i);
+  assert.match(frameGuard, /Current evidence frame cannot seal with superseded selected evidence/i);
+
+  const evidenceInsert = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
+  assert.match(evidenceInsert, /predecessor\.id = new\.supersedes_evidence_id[\s\S]*for update/i);
+  const activation = functionSql("hr_guard_attendance_fact_activation", "hr_rebuild_attendance_authorization_projection");
+  assert.match(activation, /target_frame\.predecessor_revision = old\.evidence_basis_revision[\s\S]*target_frame\.is_sealed/i);
+  assert.match(activation, /with recursive target_ancestry as/i);
+
+  const executableFrameGuard = frameGuard.slice(0, frameGuard.indexOf("$function$;")).replace(/--.*$/gm, "");
+  assert.doesNotMatch(executableFrameGuard, /max\s*\([^)]*semantic_revision|order by[^\n]*(?:semantic_revision|recorded_at|created_at|occurred_at)|latest_write/i);
 });
 
 test("Gate A does not invent manual or bulk producer retry identity", () => {
