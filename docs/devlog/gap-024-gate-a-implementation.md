@@ -164,15 +164,19 @@ serialization, not a business revision, general attendance mutation lock, Gate-B
 containment mechanism, or RPC signature change.
 
 The rebuild also joins the exact immutable value row identified by the fact's
-`current_value_revision`, matching House, fact, and employee. Kiosk sufficiency requires
-that current value row not contradict an `OPEN` frame: `OPEN` requires no current
-`time_out` and cannot be supported by `status = 'closed'`. A sealed `COMPLETED` frame is
-not positively gated by `time_out` or status because current governing evidence or an
-auditable correction lineage may establish completion independently. It must still pass
+`current_value_revision`, matching House, fact, and employee. Canonical fact revisions
+constrain lifecycle status to the existing `open`, `closed`, and `corrected` vocabulary;
+unknown lifecycle status is unreconciled and fails kiosk sufficiency closed. `OPEN`
+requires a null current `time_out` and a positively known open-compatible status of
+`open` or `corrected`. A sealed `COMPLETED` frame accepts any known canonical lifecycle
+status and is not positively gated by `time_out` or `status = 'closed'`, because current
+governing evidence or an auditable correction lineage may establish completion
+independently. It must still pass
 the exact kiosk gate—one valid IN, one valid OUT, no unreconciled observation, and no
 applicable branch disagreement—so `COMPLETED` is not automatically sufficient. Thus
-`status = 'open'` cannot downshift evidence-established completion, while
-`status = 'corrected'` alone selects neither mode. This consistency check gates only the
+`status = 'open'` cannot downshift evidence-established completion, while status never
+selects the frame mode and `status = 'corrected'` remains orthogonal. This lifecycle-
+validity check gates only the
 kiosk lane. Conflict remains first, and an independently sufficient agreeing explicit
 lane may still attribute a fact whose kiosk evidence is insufficient.
 Fact/value authority and semantic-frame authority remain distinct and are reconciled by
@@ -359,10 +363,10 @@ source-observation identity.**
 
 ## Verification boundary
 
-The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, supersession, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
+The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, lifecycle-status constraint, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, supersession, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-Owner-side evidence confirms hosted head `72bb6ea40ab393d49b93a4f54b3a08a6a7f73c04`
-passed Preflight run `35173007144` (run number 666). The initial-current-authority
+Owner-side evidence confirms hosted head `641a2cdd4529e890224053275952aabe622d7072`
+passed Preflight run `35175858341` (run number 667). The lifecycle-status fail-closed
 correction has only static/local verification at this checkpoint; its
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was

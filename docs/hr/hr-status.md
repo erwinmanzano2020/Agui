@@ -42,8 +42,8 @@ House/work-date-selective revision index. Owner-approved DEC-019 now adds immuta
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
   serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `72bb6ea40ab393d49b93a4f54b3a08a6a7f73c04` passed Preflight run
-`35173007144` (run 666). The current local correction gives every append-only evidence
+head `641a2cdd4529e890224053275952aabe622d7072` passed Preflight run
+`35175858341` (run 667). The current local correction gives every append-only evidence
 supersession family an immutable lineage root and serializes all root/successor/sibling
 first bindings on that root, so null-observation explicit provenance cannot split across
 facts while same-fact successive-basis reuse remains valid. Each frame now permits only
@@ -99,6 +99,13 @@ the later fact-update activation guard. Sealing a noncurrent future frame remain
 preparation, and its later pointer transition still enforces the existing next-frame and
 ancestry-path rules. No timestamp, latest-write, UUID, or maximum-semantic-revision
 currentness rule is introduced.
+Canonical fact revisions now constrain lifecycle status to `open`, `closed`, or
+`corrected`, and classification independently treats unknown status as unreconciled.
+`OPEN` requires null `time_out` plus positively known `open` or `corrected` lifecycle;
+`COMPLETED` permits any known canonical status but still depends on its sealed semantic
+mode and exact governing IN/OUT evidence rather than status or `time_out` as positive
+completion proof. Status never selects completion mode. Conflict-first ordering and the
+independently sufficient explicit-provenance fallback remain unchanged.
 
 **DEC-020 policy resolved; Gate-B pre-population enforcement remains open.** The owner
 approved DEC-020 on 2026-09-15: protected historical HR records retention-protect the

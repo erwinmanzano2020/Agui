@@ -281,7 +281,7 @@ export type HrAttendanceObservationUpdate = Partial<HrAttendanceObservationInser
 export type HrAttendanceFactRevisionRow = {
   house_id: string; fact_id: string; employee_id: string; revision: number; predecessor_revision: number | null;
   dtr_segment_id: string | null; work_date: string; time_in: string | null; time_out: string | null;
-  hours_worked: number | null; overtime_minutes: number; source: string; status: string; recorded_at: string;
+  hours_worked: number | null; overtime_minutes: number; source: string; status: "open" | "closed" | "corrected"; recorded_at: string;
 };
 export type HrAttendanceFactRevisionInsert = Omit<HrAttendanceFactRevisionRow, "predecessor_revision" | "dtr_segment_id" | "time_in" | "time_out" | "hours_worked" | "overtime_minutes" | "recorded_at"> & Partial<Pick<HrAttendanceFactRevisionRow, "predecessor_revision" | "dtr_segment_id" | "time_in" | "time_out" | "hours_worked" | "overtime_minutes" | "recorded_at">>;
 export type HrAttendanceFactRevisionUpdate = Partial<HrAttendanceFactRevisionInsert>;

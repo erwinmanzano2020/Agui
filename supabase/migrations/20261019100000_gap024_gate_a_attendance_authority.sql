@@ -54,7 +54,7 @@ create table public.hr_attendance_fact_revisions (
   hours_worked numeric,
   overtime_minutes integer not null default 0,
   source text not null,
-  status text not null,
+  status text not null check (status in ('open', 'closed', 'corrected')),
   recorded_at timestamptz not null default now(),
   primary key (house_id, fact_id, revision),
   constraint hr_attendance_fact_revisions_fact_fk foreign key (house_id, fact_id, employee_id)
@@ -859,9 +859,9 @@ begin
       case
         when ef.semantic_completion_mode = 'OPEN'
           then current_revision.time_out is null
-            and lower(current_revision.status) <> 'closed'
+            and lower(current_revision.status) in ('open', 'corrected')
         when ef.semantic_completion_mode = 'COMPLETED'
-          then true
+          then lower(current_revision.status) in ('open', 'closed', 'corrected')
         else false
       end as kiosk_completion_consistent,
       e.id as evidence_id,
