@@ -799,8 +799,7 @@ begin
           then current_revision.time_out is null
             and lower(current_revision.status) <> 'closed'
         when ef.semantic_completion_mode = 'COMPLETED'
-          then current_revision.time_out is not null
-            or lower(current_revision.status) = 'closed'
+          then true
         else false
       end as kiosk_completion_consistent,
       e.id as evidence_id,

@@ -189,8 +189,8 @@ test("kiosk lane requires an exact reconciled set without vetoing a sufficient e
   assert.doesNotMatch(rebuild, /kiosk_unresolved_count/i);
 });
 
-test("kiosk completion mode reconciles the exact current fact revision without vetoing explicit provenance", () => {
-  type Mode = "OPEN" | "COMPLETED";
+test("kiosk completion mode recognizes exact governing evidence without vetoing explicit provenance", () => {
+  type Mode = "OPEN" | "COMPLETED" | "UNRESOLVED";
   const classify = ({ mode, timeOut, status, ins, outs, explicit, conflict }: {
     mode: Mode; timeOut: string | null; status: string; ins: number; outs: number;
     explicit?: boolean; conflict?: boolean;
@@ -198,7 +198,7 @@ test("kiosk completion mode reconciles the exact current fact revision without v
     if (conflict) return "CONFLICT";
     const completionConsistent = mode === "OPEN"
       ? timeOut === null && status.toLowerCase() !== "closed"
-      : timeOut !== null || status.toLowerCase() === "closed";
+      : mode === "COMPLETED";
     const kioskSufficient = completionConsistent && ins === 1
       && outs === (mode === "COMPLETED" ? 1 : 0);
     return explicit || kioskSufficient ? "ATTRIBUTED" : "UNATTRIBUTED";
@@ -206,20 +206,27 @@ test("kiosk completion mode reconciles the exact current fact revision without v
 
   assert.equal(classify({ mode: "OPEN", timeOut: null, status: "open", ins: 1, outs: 0 }), "ATTRIBUTED");
   assert.equal(classify({ mode: "OPEN", timeOut: "2026-01-01T09:00:00Z", status: "open", ins: 1, outs: 0 }), "UNATTRIBUTED");
-  assert.equal(classify({ mode: "OPEN", timeOut: "2026-01-01T09:00:00Z", status: "open", ins: 1, outs: 0, explicit: true }), "ATTRIBUTED");
-  assert.equal(classify({ mode: "COMPLETED", timeOut: "2026-01-01T09:00:00Z", status: "closed", ins: 1, outs: 1 }), "ATTRIBUTED");
+  assert.equal(classify({ mode: "OPEN", timeOut: null, status: "closed", ins: 1, outs: 0 }), "UNATTRIBUTED");
+  assert.equal(classify({ mode: "COMPLETED", timeOut: null, status: "corrected", ins: 1, outs: 1 }), "ATTRIBUTED");
+  assert.equal(classify({ mode: "COMPLETED", timeOut: null, status: "open", ins: 1, outs: 1 }), "ATTRIBUTED");
+  assert.equal(classify({ mode: "COMPLETED", timeOut: null, status: "corrected", ins: 1, outs: 0 }), "UNATTRIBUTED");
   assert.equal(classify({ mode: "COMPLETED", timeOut: "2026-01-01T09:00:00Z", status: "closed", ins: 1, outs: 0 }), "UNATTRIBUTED");
+  assert.equal(classify({ mode: "COMPLETED", timeOut: "2026-01-01T09:00:00Z", status: "closed", ins: 1, outs: 1 }), "ATTRIBUTED");
   assert.equal(classify({ mode: "OPEN", timeOut: null, status: "corrected", ins: 1, outs: 0 }), "ATTRIBUTED");
   assert.equal(classify({ mode: "OPEN", timeOut: "2026-01-01T09:00:00Z", status: "corrected", ins: 1, outs: 0 }), "UNATTRIBUTED");
-  assert.equal(classify({ mode: "OPEN", timeOut: "2026-01-01T09:00:00Z", status: "open", ins: 1, outs: 0, conflict: true }), "CONFLICT");
+  assert.equal(classify({ mode: "COMPLETED", timeOut: null, status: "corrected", ins: 1, outs: 1, conflict: true }), "CONFLICT");
+  assert.equal(classify({ mode: "COMPLETED", timeOut: null, status: "corrected", ins: 1, outs: 0, explicit: true }), "ATTRIBUTED");
+  assert.equal(classify({ mode: "UNRESOLVED", timeOut: null, status: "corrected", ins: 1, outs: 1 }), "UNATTRIBUTED");
 
   const rebuild = functionSql("hr_rebuild_attendance_authorization_projection", "hr_read_canonical_attendance_branch_scoped");
   assert.match(rebuild, /join public\.hr_attendance_fact_revisions current_revision[\s\S]*current_revision\.house_id = f\.house_id[\s\S]*current_revision\.fact_id = f\.id[\s\S]*current_revision\.employee_id = f\.employee_id[\s\S]*current_revision\.revision = f\.current_value_revision/i);
   assert.match(rebuild, /when ef\.semantic_completion_mode = 'OPEN'[\s\S]*current_revision\.time_out is null[\s\S]*lower\(current_revision\.status\) <> 'closed'/i);
-  assert.match(rebuild, /when ef\.semantic_completion_mode = 'COMPLETED'[\s\S]*current_revision\.time_out is not null[\s\S]*lower\(current_revision\.status\) = 'closed'/i);
+  assert.match(rebuild, /when ef\.semantic_completion_mode = 'COMPLETED'\s+then true/i);
+  assert.doesNotMatch(rebuild, /when ef\.semantic_completion_mode = 'COMPLETED'[\s\S]{0,160}current_revision\.(?:time_out|status)/i);
   assert.match(rebuild, /end as kiosk_completion_consistent/i);
   assert.match(rebuild, /coalesce\(explicit_lane_sufficient, false\)\s+or \(kiosk_completion_consistent and/i);
   assert.match(rebuild, /when established_branch_count > 1 then 'CONFLICT'[\s\S]*coalesce\(explicit_lane_sufficient, false\)[\s\S]*kiosk_completion_consistent/i);
+  assert.match(rebuild, /semantic_completion_mode = 'COMPLETED' and kiosk_in_count = 1 and kiosk_out_count = 1 and kiosk_unreconciled_count = 0/i);
   assert.doesNotMatch(rebuild, /lower\(current_revision\.status\) = 'corrected'/i);
 });
 

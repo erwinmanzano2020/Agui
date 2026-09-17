@@ -42,8 +42,8 @@ House/work-date-selective revision index. Owner-approved DEC-019 now adds immuta
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
 serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `3dfe8530c4b01b0d16e39d51d02998418d5ce447` passed Preflight run
-`34946173797` (run 664). The current local correction gives every append-only evidence
+head `f789bff645c871f2d21a5251264543d61af0fee3` passed Preflight run
+`34952727215` (run 665). The current local correction gives every append-only evidence
 supersession family an immutable lineage root and serializes all root/successor/sibling
 first bindings on that root, so null-observation explicit provenance cannot split across
 facts while same-fact successive-basis reuse remains valid. Each frame now permits only
@@ -69,8 +69,11 @@ Expected-revision compare-and-swap and the canonical writer likewise remain Gate
 The projection rebuild now joins the exact current fact revision by House, fact,
 employee, and `current_value_revision`, and reconciles its completion signals with the
 frame mode before allowing kiosk sufficiency. `OPEN` cannot override a non-null
-`time_out` or closed lifecycle signal; corrected status alone selects neither mode.
-This inconsistency fails only the kiosk lane, preserving conflict-first classification
+`time_out` or closed lifecycle signal. A sealed `COMPLETED` frame is no longer positively
+gated on `time_out` or closed status: current exact IN/OUT evidence may establish
+completion even when value status is `open` or `corrected`, while missing, invalid,
+unresolved, or excess kiosk observations remain insufficient. Corrected status alone
+selects neither mode. Kiosk insufficiency still preserves conflict-first classification
 and independently sufficient agreeing explicit provenance.
 Fact `is_active` is now a one-way retirement/tombstone control: `true → false` remains
 available, but `false → true` cannot resurrect stale authority, regardless of pointer

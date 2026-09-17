@@ -152,13 +152,16 @@ containment mechanism, or RPC signature change.
 
 The rebuild also joins the exact immutable value row identified by the fact's
 `current_value_revision`, matching House, fact, and employee. Kiosk sufficiency requires
-that current value row to reconcile with the frame's completion mode: `OPEN` requires no
-current `time_out` and cannot be supported by `status = 'closed'`; `COMPLETED` requires a
-non-null current `time_out` or the existing closed lifecycle signal. A non-null
-`time_out` therefore cannot be downshifted by `status = 'open'` or an `OPEN` frame, while
+that current value row not contradict an `OPEN` frame: `OPEN` requires no current
+`time_out` and cannot be supported by `status = 'closed'`. A sealed `COMPLETED` frame is
+not positively gated by `time_out` or status because current governing evidence or an
+auditable correction lineage may establish completion independently. It must still pass
+the exact kiosk gate—one valid IN, one valid OUT, no unreconciled observation, and no
+applicable branch disagreement—so `COMPLETED` is not automatically sufficient. Thus
+`status = 'open'` cannot downshift evidence-established completion, while
 `status = 'corrected'` alone selects neither mode. This consistency check gates only the
 kiosk lane. Conflict remains first, and an independently sufficient agreeing explicit
-lane may still attribute a fact whose kiosk frame/value combination is inconsistent.
+lane may still attribute a fact whose kiosk evidence is insufficient.
 Fact/value authority and semantic-frame authority remain distinct and are reconciled by
 classification; no fourth revision or duplicated frame value is introduced.
 
@@ -345,9 +348,9 @@ source-observation identity.**
 
 The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, row-lock, and concurrency executable verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
-Owner-side evidence confirms hosted head `3dfe8530c4b01b0d16e39d51d02998418d5ce447`
-passed Preflight run `34946173797` (run number 664). The DEC-020 documentation correction
-has only local source validation at this checkpoint; its
+Owner-side evidence confirms hosted head `f789bff645c871f2d21a5251264543d61af0fee3`
+passed Preflight run `34952727215` (run number 665). The evidence-established completion
+correction has only static/local verification at this checkpoint; its
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.
