@@ -144,7 +144,7 @@ test("a newly introduced lineage can govern only through an unsuperseded selecte
   assert.ok(targetLock >= 0 && targetLock < successorCheck, "new target evidence must lock before its successor check");
   assert.match(activation, /order by target_evidence\.lineage_root_evidence_id, target_evidence\.id\s+for update of target_evidence/i);
   assert.match(activation, /successor\.house_id = target_evidence\.house_id[\s\S]*successor\.employee_id = target_evidence\.employee_id[\s\S]*successor\.lineage_root_evidence_id = target_evidence\.lineage_root_evidence_id[\s\S]*successor\.supersedes_evidence_id = target_evidence\.id/i);
-  assert.match(activation, /Newly introduced current evidence must be an unsuperseded lineage member/i);
+  assert.match(activation, /current_membership\.evidence_basis_revision = old\.evidence_basis_revision[\s\S]*Entering current evidence must be an unsuperseded lineage member/i);
   assert.match(activation, /with recursive target_ancestry as/i);
   assert.match(activation, /cannot regress or switch supersession paths/i);
 
@@ -167,6 +167,10 @@ test("omitting a governing lineage establishes a serialized retirement boundary"
   };
   const mayReenter = (retiredMember: string, selected: string) =>
     descendsStrictly(selected, retiredMember) && mayRetire(selected);
+  const isEntering = (oldRoots: Set<string>, targetRoot: string) => !oldRoots.has(targetRoot);
+
+  assert.equal(isEntering(new Set(["L1"]), "L1"), false); // continuous E1 or E1 -> E2
+  assert.equal(isEntering(new Set(), "L1"), true); // first-ever or retired re-entry
 
   assert.equal(mayRetire("E1"), false); // committed E2 blocks omission
   successor.delete("E2");
@@ -187,7 +191,7 @@ test("omitting a governing lineage establishes a serialized retirement boundary"
   assert.match(activation, /successor\.supersedes_evidence_id = current_evidence\.id[\s\S]*cannot retire after its governing member was superseded/i);
   assert.match(activation, /prior_membership\.evidence_basis_revision < old\.evidence_basis_revision[\s\S]*prior_membership\.evidence_id = target_evidence\.id[\s\S]*must re-enter through a strict successor/i);
   assert.match(activation, /with recursive target_ancestry as/i);
-  assert.match(activation, /Newly introduced current evidence must be an unsuperseded lineage member/i);
+  assert.match(activation, /Entering current evidence must be an unsuperseded lineage member/i);
 
   const evidenceInsert = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
   assert.match(evidenceInsert, /predecessor\.id = new\.supersedes_evidence_id[\s\S]*for update/i);
@@ -753,11 +757,24 @@ test("zero or cross-House branch scope returns no branch rows", () => {
 });
 
 test("owner and manager global authority remains exact-House and separate", () => {
+  const accepted = new Set(["house_owner", "business_owner", "house_manager", "business_admin", "business_manager"]);
+  const authorized = (role: string, roleHouse: string, requestedHouse = "House-A") =>
+    roleHouse === requestedHouse && accepted.has(role.trim().toLowerCase());
+  for (const role of [
+    "house_owner", "HOUSE_OWNER", "business_owner", "BUSINESS_OWNER",
+    "house_manager", "HOUSE_MANAGER", "business_admin", "BUSINESS_ADMIN",
+    "business_manager", "BUSINESS_MANAGER",
+  ]) assert.equal(authorized(role, "House-A"), true, role);
+  for (const role of ["house_staff", "business_staff", "cashier", "game_master", "gm", "arbitrary"])
+    assert.equal(authorized(role, "House-A"), false, role);
+  assert.equal(authorized("BUSINESS_OWNER", "House-B"), false);
+  assert.equal(authorized("BUSINESS_MANAGER", "House-B"), false);
+
   const global = functionSql("hr_read_canonical_attendance_house_global");
   assert.match(global, /hr\.house_id = p_house_id/i);
   assert.match(global, /hr\.entity_id = public\.current_entity_id\(\)/i);
-  assert.match(global, /hr\.role in \('house_owner', 'house_manager'\)/i);
-  assert.doesNotMatch(global, /entity_policies|current_entity_is_gm/i);
+  assert.match(global, /lower\(btrim\(hr\.role\)\) in \(\s*'house_owner', 'business_owner', 'house_manager',\s*'business_admin', 'business_manager'\s*\)/i);
+  assert.doesNotMatch(global, /entity_policies|current_entity_is_gm|scope = 'PLATFORM'|allowed_branches/i);
 });
 
 test("branch no-leak classification and projection drift checks remain enforced", () => {

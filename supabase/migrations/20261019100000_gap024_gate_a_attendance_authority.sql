@@ -732,11 +732,10 @@ begin
         using errcode = '55000';
     end if;
 
-    -- A lineage that has never governed this fact may enter current authority only
-    -- through a member that is not already superseded. Lock each selected member in
-    -- immutable lineage/id order before checking for successors. Evidence-successor
-    -- insertion locks this same row as its predecessor, so activation and append race
-    -- safely without timestamp, UUID, or maximum-revision selection.
+    -- Every lineage entering relative to the immediately current basis—whether first-ever
+    -- or returning after retirement—must select an unsuperseded leaf. Lock each selected
+    -- member in immutable lineage/id order before checking for successors. Continuous
+    -- lineages remain governed by the ancestry-path rule below.
     perform 1
     from public.hr_attendance_fact_evidence target_membership
     join public.hr_attendance_evidence target_evidence
@@ -748,15 +747,15 @@ begin
       and target_membership.evidence_basis_revision = new.evidence_basis_revision
       and not exists (
         select 1
-        from public.hr_attendance_fact_evidence prior_membership
-        join public.hr_attendance_evidence prior_evidence
-          on prior_evidence.house_id = prior_membership.house_id
-          and prior_evidence.id = prior_membership.evidence_id
-          and prior_evidence.employee_id = old.employee_id
-        where prior_membership.house_id = old.house_id
-          and prior_membership.fact_id = old.id
-          and prior_membership.evidence_basis_revision <= old.evidence_basis_revision
-          and prior_evidence.lineage_root_evidence_id = target_evidence.lineage_root_evidence_id
+        from public.hr_attendance_fact_evidence current_membership
+        join public.hr_attendance_evidence current_evidence
+          on current_evidence.house_id = current_membership.house_id
+          and current_evidence.id = current_membership.evidence_id
+          and current_evidence.employee_id = old.employee_id
+        where current_membership.house_id = old.house_id
+          and current_membership.fact_id = old.id
+          and current_membership.evidence_basis_revision = old.evidence_basis_revision
+          and current_evidence.lineage_root_evidence_id = target_evidence.lineage_root_evidence_id
       )
     order by target_evidence.lineage_root_evidence_id, target_evidence.id
     for update of target_evidence;
@@ -778,18 +777,18 @@ begin
         and target_membership.evidence_basis_revision = new.evidence_basis_revision
         and not exists (
           select 1
-          from public.hr_attendance_fact_evidence prior_membership
-          join public.hr_attendance_evidence prior_evidence
-            on prior_evidence.house_id = prior_membership.house_id
-            and prior_evidence.id = prior_membership.evidence_id
-            and prior_evidence.employee_id = old.employee_id
-          where prior_membership.house_id = old.house_id
-            and prior_membership.fact_id = old.id
-            and prior_membership.evidence_basis_revision <= old.evidence_basis_revision
-            and prior_evidence.lineage_root_evidence_id = target_evidence.lineage_root_evidence_id
+          from public.hr_attendance_fact_evidence current_membership
+          join public.hr_attendance_evidence current_evidence
+            on current_evidence.house_id = current_membership.house_id
+            and current_evidence.id = current_membership.evidence_id
+            and current_evidence.employee_id = old.employee_id
+          where current_membership.house_id = old.house_id
+            and current_membership.fact_id = old.id
+            and current_membership.evidence_basis_revision = old.evidence_basis_revision
+            and current_evidence.lineage_root_evidence_id = target_evidence.lineage_root_evidence_id
         )
     ) then
-      raise exception 'Newly introduced current evidence must be an unsuperseded lineage member'
+      raise exception 'Entering current evidence must be an unsuperseded lineage member'
         using errcode = '55000';
     end if;
 
@@ -1161,7 +1160,10 @@ begin
       and not exists (
         select 1 from public.house_roles hr
         where hr.house_id = p_house_id and hr.entity_id = a.entity_id
-          and hr.role in ('house_owner', 'house_manager')
+          and lower(btrim(hr.role)) in (
+            'house_owner', 'business_owner', 'house_manager',
+            'business_admin', 'business_manager'
+          )
       )
   ), effective_feature_read as (
     select hm.entity_id
@@ -1291,7 +1293,10 @@ begin
       select 1 from public.house_roles hr
       where hr.house_id = p_house_id
         and hr.entity_id = public.current_entity_id()
-        and hr.role in ('house_owner', 'house_manager')
+        and lower(btrim(hr.role)) in (
+          'house_owner', 'business_owner', 'house_manager',
+          'business_admin', 'business_manager'
+        )
     )
     and p.attribution_state in ('ATTRIBUTED', 'UNATTRIBUTED', 'CONFLICT')
     and ((p.attribution_state = 'ATTRIBUTED' and p.active_branch_id is not null)

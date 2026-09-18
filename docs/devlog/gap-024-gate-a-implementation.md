@@ -115,14 +115,13 @@ a descendant may advance, but an ancestor rollback or sibling-path switch cannot
 current. Earlier sealed frames remain immutable and reconstructible audit history; they
 are not destructive rollback controls. No timestamp, insertion order, UUID,
 `semantic_revision` maximum, employee/date, or latest-write heuristic selects authority.
-When a target frame first introduces a lineage that has never governed the fact, its
-explicitly selected member must itself be unsuperseded at activation time. The guard
-locks all such selected evidence rows in deterministic lineage-root/evidence-ID order
-before checking for a direct successor. Successor insertion already locks that same row
-as its predecessor, so activation either establishes the still-current member first or
-observes the committed successor and rejects historical evidence. This leaf check does
-not choose a successor, ban physical sibling leaves, or replace the existing ancestry-
-path rule after a lineage has governed; frame membership remains explicit authority.
+Every lineage entering relative to the immediately current basis must select an
+unsuperseded target leaf. This covers both first-ever introduction and re-entry after
+retirement; re-entry additionally must satisfy the strict-descendant rule. The guard locks
+all entering target members in deterministic lineage-root/evidence-ID order before direct-
+successor inspection, serializing with successor insertion on the same predecessor row.
+Continuous lineages remain governed by the existing ancestry-path rule rather than this
+entry gate. No latest-write, timestamp, UUID, or maximum-revision heuristic is used.
 Omitting a lineage from the next basis is its serialized retirement boundary. The guard
 locks each omitted governing member in `lineage_root_evidence_id, id` order and rejects
 the omission if that member already has a committed successor; successor insertion locks
@@ -268,7 +267,11 @@ return no rows.
 p_end_date date, p_employee_id uuid default null, p_limit integer default 100,
 p_offset integer default 0)` is one distinct PostgREST-facing overload with identical
 range, page, employee-narrowing, and deterministic-order rules. It independently requires
-`house_owner` or `house_manager` in the exact requested House. Its consumption DTO also
+an exact requested-House role normalized with `lower(btrim(role))` to one established
+owner/manager alias: `house_owner`, `business_owner`, `house_manager`, `business_admin`,
+or `business_manager`. Case variants are therefore compatible. PLATFORM, game-master,
+staff, cashier, and arbitrary roles gain no House-global authority, and no policy or
+branch-derived bypass exists. Its consumption DTO also
 omits internal revisions, fingerprints, generations, evidence, and correction audit.
 
 ### RLS, grants, and service role
@@ -381,11 +384,11 @@ source-observation identity.**
 
 ## Verification boundary
 
-The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, lifecycle-status constraint, reader authorization, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, lineage-retirement, supersession, symmetric kiosk-transition semantic invariants, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
+The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, lifecycle-status constraint, reader authorization including normalized House-role aliases, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, retirement/re-entry leaf currentness, supersession, symmetric kiosk-transition semantics, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
 Owner-side evidence confirms the pre-correction hosted head
-`e5a0cfbdc4d6f4e8b27b1d60c6a83c51de22dc9f` passed Preflight run `35187726613`
-(run number 670). The symmetric kiosk-transition correction has only static/local
+`6449d2b0c64564295d3fb1011863d086d27af7e0` passed Preflight run `35202054155`
+(run number 672). The entering-leaf and House-role-alias corrections have only static/local
 verification at this checkpoint; its
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was

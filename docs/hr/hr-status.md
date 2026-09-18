@@ -44,8 +44,8 @@ House/work-date-selective revision index. Owner-approved DEC-019 now adds immuta
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
   serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `e5a0cfbdc4d6f4e8b27b1d60c6a83c51de22dc9f` passed Preflight run
-`35187726613` (run 670). The current local correction gives every append-only evidence
+head `6449d2b0c64564295d3fb1011863d086d27af7e0` passed Preflight run
+`35202054155` (run 672). The current local correction gives every append-only evidence
 supersession family an immutable lineage root and serializes all root/successor/sibling
 first bindings on that root, so null-observation explicit provenance cannot split across
 facts while same-fact successive-basis reuse remains valid. Each frame now permits only
@@ -85,18 +85,22 @@ scoped advisory lock derived from the requested House UUID before replacing that
 projection. The lock serializes same-House rebuilds without becoming a business revision,
 general writer lock, or Gate-B containment mechanism; different Houses normally remain
 independent.
-When a frame first introduces an evidence lineage to a fact, activation now locks its
-selected member in deterministic lineage/evidence order and rejects it if that member
-already has a direct successor. Successor insertion locks the same predecessor row, so
-the decision serializes with concurrent evidence append. Superseded rows remain immutable
-history, sibling leaves remain representable, and the existing ancestry-path rule still
-governs lineages that previously entered current authority. No timestamp, latest-write,
-UUID-currentness, or maximum-revision selector and no Gate-B writer behavior is added.
+Every lineage entering relative to the immediately current basis—first-ever or returning
+after retirement—now locks its selected target member in deterministic lineage/evidence
+order and must select an unsuperseded leaf. Retired re-entry additionally requires the
+existing strict-descendant rule; continuous lineages remain governed by ancestry rather
+than the entry gate. No timestamp, latest-write, UUID-currentness, or maximum-revision
+selector and no Gate-B writer behavior is added.
 Omitting a currently governing lineage now establishes a serialized retirement boundary:
 the omitted member locks before a direct-successor check, so committed newer evidence
 blocks retirement while a later append follows the completed boundary. A retired lineage
 cannot re-enter through the same historical member; only an explicitly selected strict
 descendant that is itself unsuperseded may return under the existing ancestry checks.
+The House-global reader now normalizes stored exact-House roles and accepts only the
+established aliases `house_owner`, `business_owner`, `house_manager`, `business_admin`,
+and `business_manager`, including case/whitespace variants. PLATFORM, game-master, staff,
+cashier, and arbitrary roles remain excluded; no policy or branch-derived global bypass
+is added.
 Initial fact authority is now fixed at value revision 1 and evidence basis 1, so INSERT
 cannot skip the explicit predecessor sequence. When the fact's current first frame is
 sealed, the frame guard locks selected evidence in deterministic lineage-root/evidence-ID
