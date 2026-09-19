@@ -44,8 +44,10 @@ House/work-date-selective revision index. Owner-approved DEC-019 now adds immuta
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
   serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `6449d2b0c64564295d3fb1011863d086d27af7e0` passed Preflight run
-`35202054155` (run 672). The current local correction gives every append-only evidence
+head `7c99b04950e2aecd23220a85802340eeb33e602d` passed Preflight run
+`35302710364` (run 673). The House-global function schema comment now matches the existing
+normalized exact-House owner/manager alias predicate without changing runtime authorization.
+The current local correction gives every append-only evidence
 supersession family an immutable lineage root and serializes all root/successor/sibling
 first bindings on that root, so null-observation explicit provenance cannot split across
 facts while same-fact successive-basis reuse remains valid. Each frame now permits only

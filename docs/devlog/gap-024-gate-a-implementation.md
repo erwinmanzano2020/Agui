@@ -387,9 +387,9 @@ source-observation identity.**
 The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, lifecycle-status constraint, reader authorization including normalized House-role aliases, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, retirement/re-entry leaf currentness, supersession, symmetric kiosk-transition semantics, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
 Owner-side evidence confirms the pre-correction hosted head
-`6449d2b0c64564295d3fb1011863d086d27af7e0` passed Preflight run `35202054155`
-(run number 672). The entering-leaf and House-role-alias corrections have only static/local
-verification at this checkpoint; its
+`7c99b04950e2aecd23220a85802340eeb33e602d` passed Preflight run `35302710364`
+(run number 673). The House-global schema-comment alignment is documentation-only and has
+only static/local verification at this checkpoint; its
 post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.

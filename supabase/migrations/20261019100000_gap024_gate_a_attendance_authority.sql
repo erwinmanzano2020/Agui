@@ -1365,7 +1365,7 @@ grant execute on function public.hr_read_canonical_attendance_house_global(uuid,
 comment on function public.hr_read_canonical_attendance_branch_scoped(uuid, date, date, uuid, integer, integer) is
   'GAP-024 Gate A sanitized facts-only branch reader; branch authorization is derived from the authenticated actor.';
 comment on function public.hr_read_canonical_attendance_house_global(uuid, date, date, uuid, integer, integer) is
-  'GAP-024 Gate A sanitized house-global reader restricted to house_owner/house_manager membership.';
+  'GAP-024 Gate A sanitized house-global reader restricted to established normalized exact-House owner/manager aliases.';
 
 notify pgrst, 'reload schema';
 commit;

@@ -775,6 +775,8 @@ test("owner and manager global authority remains exact-House and separate", () =
   assert.match(global, /hr\.entity_id = public\.current_entity_id\(\)/i);
   assert.match(global, /lower\(btrim\(hr\.role\)\) in \(\s*'house_owner', 'business_owner', 'house_manager',\s*'business_admin', 'business_manager'\s*\)/i);
   assert.doesNotMatch(global, /entity_policies|current_entity_is_gm|scope = 'PLATFORM'|allowed_branches/i);
+  assert.match(sql, /comment on function public\.hr_read_canonical_attendance_house_global\(uuid, date, date, uuid, integer, integer\) is\s+'GAP-024 Gate A sanitized house-global reader restricted to established normalized exact-House owner\/manager aliases\.'/i);
+  assert.doesNotMatch(sql, /house-global reader restricted to house_owner\/house_manager membership/i);
 });
 
 test("branch no-leak classification and projection drift checks remain enforced", () => {
