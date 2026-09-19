@@ -44,9 +44,17 @@ House/work-date-selective revision index. Owner-approved DEC-019 now adds immuta
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
   serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `7c99b04950e2aecd23220a85802340eeb33e602d` passed Preflight run
-`35302710364` (run 673). The House-global function schema comment now matches the existing
+head `2215d35e1b7488900f22eae9ef705ad6a6908481` passed Preflight run
+`35413660138` (run 674), with Vercel Ready. The House-global function schema comment now matches the existing
 normalized exact-House owner/manager alias predicate without changing runtime authorization.
+The existing Gate-A migration now gives every immutable semantic evidence revision a
+constrained `integrity_reason_class`: `VALID`, `MISSING_INTEGRITY_PROOF`,
+`MALFORMED_LINKAGE`, `DUPLICATE_REPLAY_AMBIGUITY`, `CARDINALITY_UNRECONCILED`, or
+`INVALID_PROVENANCE`. A fail-closed CHECK binds those reasons to compatible
+`ESTABLISHED`, `UNRESOLVED`, or `INVALID` states. Reason interpretation may advance only
+through an append-only successor; `source_reference` remains separate. This changes no
+classifier, authorization, identity, reader DTO, or RPC signature, performs no backfill
+or producer migration, and leaves the PostgREST reload in place.
 The current local correction gives every append-only evidence
 supersession family an immutable lineage root and serializes all root/successor/sibling
 first bindings on that root, so null-observation explicit provenance cannot split across

@@ -86,6 +86,15 @@ create table public.hr_attendance_evidence (
   branch_id uuid,
   integrity_state text not null default 'UNRESOLVED'
     check (integrity_state in ('ESTABLISHED', 'UNRESOLVED', 'INVALID')),
+  integrity_reason_class text not null default 'MISSING_INTEGRITY_PROOF'
+    check (integrity_reason_class in (
+      'VALID',
+      'MISSING_INTEGRITY_PROOF',
+      'MALFORMED_LINKAGE',
+      'DUPLICATE_REPLAY_AMBIGUITY',
+      'CARDINALITY_UNRECONCILED',
+      'INVALID_PROVENANCE'
+    )),
   sufficiency_state text not null default 'UNRESOLVED'
     check (sufficiency_state in ('SUFFICIENT', 'INSUFFICIENT', 'UNRESOLVED')),
   is_integrity_eligible boolean not null default true,
@@ -127,6 +136,26 @@ create table public.hr_attendance_evidence (
   ),
   constraint hr_attendance_evidence_established_branch_check check (
     integrity_state <> 'ESTABLISHED' or branch_id is not null
+  ),
+  constraint hr_attendance_evidence_integrity_reason_consistency_check check (
+    (integrity_state = 'ESTABLISHED' and integrity_reason_class = 'VALID')
+    or (
+      integrity_state = 'UNRESOLVED'
+      and integrity_reason_class in (
+        'MISSING_INTEGRITY_PROOF',
+        'DUPLICATE_REPLAY_AMBIGUITY',
+        'CARDINALITY_UNRECONCILED'
+      )
+    )
+    or (
+      integrity_state = 'INVALID'
+      and integrity_reason_class in (
+        'MALFORMED_LINKAGE',
+        'DUPLICATE_REPLAY_AMBIGUITY',
+        'CARDINALITY_UNRECONCILED',
+        'INVALID_PROVENANCE'
+      )
+    )
   ),
   constraint hr_attendance_evidence_sufficient_check check (
     sufficiency_state <> 'SUFFICIENT'
@@ -982,6 +1011,7 @@ begin
       e.evidence_kind,
       e.branch_id,
       e.integrity_state,
+      e.integrity_reason_class,
       e.sufficiency_state,
       e.is_integrity_eligible,
       e.semantic_revision,
@@ -1076,7 +1106,7 @@ begin
       coalesce(array_agg(evidence_id order by evidence_id) filter (where evidence_id is not null), '{}'::uuid[]) as evidence_ids,
       md5(semantic_completion_mode || '|' || coalesce(string_agg(
         jsonb_build_array(
-          evidence_id, lane, evidence_kind, branch_id, integrity_state,
+          evidence_id, lane, evidence_kind, branch_id, integrity_state, integrity_reason_class,
           sufficiency_state, is_integrity_eligible, semantic_revision,
           source_namespace, source_observation_id, extract(epoch from occurred_at),
           asserted_by_entity_id, asserted_by_house_role, authorization_namespace,
@@ -1218,7 +1248,7 @@ begin
       select ef.semantic_completion_mode || '|' || coalesce((
         select string_agg(
           jsonb_build_array(
-            e.id, e.lane, e.evidence_kind, e.branch_id, e.integrity_state,
+            e.id, e.lane, e.evidence_kind, e.branch_id, e.integrity_state, e.integrity_reason_class,
             e.sufficiency_state, e.is_integrity_eligible, e.semantic_revision,
             o.source_namespace, o.source_observation_id, extract(epoch from o.occurred_at),
             e.asserted_by_entity_id, e.asserted_by_house_role, e.authorization_namespace,
@@ -1305,7 +1335,7 @@ begin
       select ef.semantic_completion_mode || '|' || coalesce((
         select string_agg(
           jsonb_build_array(
-            e.id, e.lane, e.evidence_kind, e.branch_id, e.integrity_state,
+            e.id, e.lane, e.evidence_kind, e.branch_id, e.integrity_state, e.integrity_reason_class,
             e.sufficiency_state, e.is_integrity_eligible, e.semantic_revision,
             o.source_namespace, o.source_observation_id, extract(epoch from o.occurred_at),
             e.asserted_by_entity_id, e.asserted_by_house_role, e.authorization_namespace,

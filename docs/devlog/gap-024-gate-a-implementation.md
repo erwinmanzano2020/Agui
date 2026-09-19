@@ -43,7 +43,14 @@ The corrected additive migration creates eight direct-access-protected tables:
 4. `hr_attendance_evidence` stores House/employee-owned append-only semantic revisions for
    kiosk, manual/admin, and compliant bulk/import lanes. Evidence may remain unresolved
    and unassociated without a fake fact. It stores semantic revision separately from
-   fact/value revision. Observation-backed successors retain the stable observation ID.
+   fact/value revision. Each immutable revision also stores a constrained
+   `integrity_reason_class`: `VALID`, `MISSING_INTEGRITY_PROOF`, `MALFORMED_LINKAGE`,
+   `DUPLICATE_REPLAY_AMBIGUITY`, `CARDINALITY_UNRECONCILED`, or `INVALID_PROVENANCE`.
+   A fail-closed state/reason constraint permits `VALID` only with `ESTABLISHED`, missing
+   proof only with `UNRESOLVED`, and malformed linkage or invalid provenance only with
+   `INVALID`; ambiguity/cardinality classes may describe either unresolved or invalid
+   disposition. `source_reference` remains a separate source pointer, not a reason class.
+   Observation-backed successors retain the stable observation ID.
    Every root and successor also carries immutable `lineage_root_evidence_id`: roots
    identify themselves, while successors inherit the predecessor's root under an insert
    guard. This physical semantic-lineage authority is distinct from DEC-019 observation,
@@ -58,8 +65,8 @@ The corrected additive migration creates eight direct-access-protected tables:
    the locked predecessor's immutable lane, logical `LOGICAL_IN`/`LOGICAL_OUT` role, or
    event-time branch (including null). The symmetric rule applies whenever either the
    predecessor or successor is `KIOSK`.
-   Integrity eligibility/state and sufficiency may evolve through append-only revisions
-   without rewriting the real-world action. A genuine actual-location correction belongs
+   Integrity eligibility/state, reason class, and sufficiency may evolve through a new
+   append-only successor without rewriting its predecessor or the real-world action. A genuine actual-location correction belongs
    to separately authorized explicit correction/adjudication provenance, not a kiosk
    successor branch rewrite; Gate A introduces no correction workflow or Gate-B command.
 5. `hr_attendance_evidence_frames` identifies each semantic evidence-basis revision,
@@ -372,7 +379,9 @@ mandatory Gate-B pre-population prerequisite, not optional cleanup.
 
 ## Explicit non-changes
 
-There is no production backfill; writer or producer migration; canonical write command;
+The existing Gate-A migration is modified in place to add durable reason-class storage;
+no new migration or RPC signature is introduced, and the PostgREST reload remains. There
+is no production backfill; writer or producer migration; canonical write command;
 Historical DTR P1; missing-fact create; correction/finalization or HR-4 flow; Daily DTR,
 payroll, payslip, overtime, kiosk, bulk, browser, repair, or background cutover; kiosk or
 bulk mutation change; existing base DTR grant revocation; Gate-B containment; Gate C, D,
@@ -384,13 +393,13 @@ source-observation identity.**
 
 ## Verification boundary
 
-The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, classifier, lifecycle-status constraint, reader authorization including normalized House-role aliases, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, retirement/re-entry leaf currentness, supersession, symmetric kiosk-transition semantics, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
+The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, CHECK constraints, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, integrity reason-class constraints, classifier, lifecycle-status constraint, reader authorization including normalized House-role aliases, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, retirement/re-entry leaf currentness, supersession, symmetric kiosk-transition semantics, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
 Owner-side evidence confirms the pre-correction hosted head
-`7c99b04950e2aecd23220a85802340eeb33e602d` passed Preflight run `35302710364`
-(run number 673). The House-global schema-comment alignment is documentation-only and has
-only static/local verification at this checkpoint; its
-post-correction hosted head and checks remain pending independent observation. The
+`2215d35e1b7488900f22eae9ef705ad6a6908481` passed Preflight run `35413660138`
+(run number 674), with Vercel Ready and the House-global schema-comment correction hosted.
+The integrity reason-class correction has only static/local verification at this
+checkpoint; its post-correction hosted head and checks remain pending independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.
 

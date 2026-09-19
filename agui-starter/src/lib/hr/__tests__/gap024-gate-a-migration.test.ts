@@ -21,6 +21,57 @@ function returnShape(body: string) {
   return body.slice(body.indexOf("returns table ("), body.indexOf(")\nlanguage", body.indexOf("returns table (")));
 }
 
+test("evidence revisions persist a constrained integrity reason class", () => {
+  const evidenceTable = sql.slice(
+    sql.indexOf("create table public.hr_attendance_evidence ("),
+    sql.indexOf("create unique index hr_attendance_evidence_observation_semantic_revision_unique_idx"),
+  );
+  const vocabulary = [
+    "VALID",
+    "MISSING_INTEGRITY_PROOF",
+    "MALFORMED_LINKAGE",
+    "DUPLICATE_REPLAY_AMBIGUITY",
+    "CARDINALITY_UNRECONCILED",
+    "INVALID_PROVENANCE",
+  ] as const;
+  const stateAllowsReason = (state: "ESTABLISHED" | "UNRESOLVED" | "INVALID", reason: typeof vocabulary[number]) =>
+    state === "ESTABLISHED" ? reason === "VALID"
+      : state === "UNRESOLVED"
+        ? ["MISSING_INTEGRITY_PROOF", "DUPLICATE_REPLAY_AMBIGUITY", "CARDINALITY_UNRECONCILED"].includes(reason)
+        : ["MALFORMED_LINKAGE", "DUPLICATE_REPLAY_AMBIGUITY", "CARDINALITY_UNRECONCILED", "INVALID_PROVENANCE"].includes(reason);
+
+  assert.equal(stateAllowsReason("ESTABLISHED", "VALID"), true);
+  assert.equal(stateAllowsReason("ESTABLISHED", "MALFORMED_LINKAGE"), false);
+  assert.equal(stateAllowsReason("UNRESOLVED", "MISSING_INTEGRITY_PROOF"), true);
+  assert.equal(stateAllowsReason("UNRESOLVED", "DUPLICATE_REPLAY_AMBIGUITY"), true);
+  assert.equal(stateAllowsReason("INVALID", "MALFORMED_LINKAGE"), true);
+  assert.equal(stateAllowsReason("INVALID", "INVALID_PROVENANCE"), true);
+  assert.equal(stateAllowsReason("INVALID", "VALID"), false);
+
+  assert.match(evidenceTable, /integrity_reason_class text not null default 'MISSING_INTEGRITY_PROOF'/i);
+  for (const reason of vocabulary) assert.match(evidenceTable, new RegExp(`'${reason}'`, "i"));
+  assert.match(evidenceTable, /constraint hr_attendance_evidence_integrity_reason_consistency_check check/i);
+  assert.match(evidenceTable, /integrity_state = 'ESTABLISHED' and integrity_reason_class = 'VALID'/i);
+  assert.match(evidenceTable, /integrity_state = 'UNRESOLVED'[\s\S]*integrity_reason_class in \([\s\S]*'MISSING_INTEGRITY_PROOF'[\s\S]*'DUPLICATE_REPLAY_AMBIGUITY'[\s\S]*'CARDINALITY_UNRECONCILED'/i);
+  assert.match(evidenceTable, /integrity_state = 'INVALID'[\s\S]*integrity_reason_class in \([\s\S]*'MALFORMED_LINKAGE'[\s\S]*'INVALID_PROVENANCE'/i);
+  assert.match(evidenceTable, /integrity_reason_class[\s\S]*source_reference text/i);
+  assert.doesNotMatch(evidenceTable, /source_reference[^,\n]*integrity_reason|integrity_reason[^,\n]*source_reference/i);
+
+  // A changed interpretation is a new immutable successor row; it does not rewrite
+  // or constrain the predecessor's reason class.
+  const revisions = Object.freeze([
+    Object.freeze({ id: "E1", supersedes: null, state: "UNRESOLVED", reason: "MISSING_INTEGRITY_PROOF" }),
+    Object.freeze({ id: "E2", supersedes: "E1", state: "ESTABLISHED", reason: "VALID" }),
+  ]);
+  assert.deepEqual(revisions.map(({ state, reason }) => [state, reason]), [
+    ["UNRESOLVED", "MISSING_INTEGRITY_PROOF"],
+    ["ESTABLISHED", "VALID"],
+  ]);
+  const evidenceGuard = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
+  assert.doesNotMatch(evidenceGuard, /new\.integrity_reason_class is distinct from v_predecessor/i);
+  assert.match(sql, /hr_attendance_evidence_immutable[\s\S]*before update or delete on public\.hr_attendance_evidence/i);
+});
+
 test("basis N and N+1 retain different exact immutable evidence sets", () => {
   const frames = new Map<number, ReadonlySet<string>>([[7, new Set(["A", "B"])], [8, new Set(["A", "C"])]]);
   assert.deepEqual([...frames.get(7)!].sort(), ["A", "B"]);
@@ -707,7 +758,7 @@ test("employee filter only narrows to an employee owned by the requested House",
 test("both consumption DTOs omit internal revision metadata", () => {
   const branchShape = returnShape(functionSql("hr_read_canonical_attendance_branch_scoped"));
   const globalShape = returnShape(functionSql("hr_read_canonical_attendance_house_global"));
-  for (const shape of [branchShape, globalShape]) assert.doesNotMatch(shape, /value_revision|evidence_basis|fingerprint|generation|evidence_id/i);
+  for (const shape of [branchShape, globalShape]) assert.doesNotMatch(shape, /value_revision|evidence_basis|fingerprint|generation|evidence_id|integrity_reason_class/i);
   assert.match(branchShape, /active_branch_id uuid/i);
   assert.match(globalShape, /attribution_state text/i);
 });
