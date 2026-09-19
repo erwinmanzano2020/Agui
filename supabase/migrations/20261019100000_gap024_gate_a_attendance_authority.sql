@@ -138,7 +138,11 @@ create table public.hr_attendance_evidence (
     integrity_state <> 'ESTABLISHED' or branch_id is not null
   ),
   constraint hr_attendance_evidence_integrity_reason_consistency_check check (
-    (integrity_state = 'ESTABLISHED' and integrity_reason_class = 'VALID')
+    (
+      integrity_state = 'ESTABLISHED'
+      and integrity_reason_class = 'VALID'
+      and is_integrity_eligible
+    )
     or (
       integrity_state = 'UNRESOLVED'
       and integrity_reason_class in (
@@ -449,7 +453,21 @@ begin
     perform 1 from public.house_roles hr
       where hr.house_id = new.house_id
         and hr.entity_id = new.asserted_by_entity_id
-        and hr.role = new.asserted_by_house_role
+        and case
+          when lower(btrim(hr.role)) in ('house_owner', 'business_owner') then 'OWNER'
+          when lower(btrim(hr.role)) in (
+            'house_manager', 'business_admin', 'business_manager'
+          ) then 'MANAGER'
+          else null
+        end = case
+          when lower(btrim(new.asserted_by_house_role)) in (
+            'house_owner', 'business_owner'
+          ) then 'OWNER'
+          when lower(btrim(new.asserted_by_house_role)) in (
+            'house_manager', 'business_admin', 'business_manager'
+          ) then 'MANAGER'
+          else null
+        end
       for key share;
     if not found then
       raise exception 'Manual attendance provenance requires exact-House actor authority'

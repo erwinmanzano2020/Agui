@@ -46,7 +46,8 @@ The corrected additive migration creates eight direct-access-protected tables:
    fact/value revision. Each immutable revision also stores a constrained
    `integrity_reason_class`: `VALID`, `MISSING_INTEGRITY_PROOF`, `MALFORMED_LINKAGE`,
    `DUPLICATE_REPLAY_AMBIGUITY`, `CARDINALITY_UNRECONCILED`, or `INVALID_PROVENANCE`.
-   A fail-closed state/reason constraint permits `VALID` only with `ESTABLISHED`, missing
+   A fail-closed state/reason/applicability constraint permits `VALID` only with
+   `ESTABLISHED` and `is_integrity_eligible = true`, missing
    proof only with `UNRESOLVED`, and malformed linkage or invalid provenance only with
    `INVALID`; ambiguity/cardinality classes may describe either unresolved or invalid
    disposition. `source_reference` remains a separate source pointer, not a reason class.
@@ -69,6 +70,14 @@ The corrected additive migration creates eight direct-access-protected tables:
    append-only successor without rewriting its predecessor or the real-world action. A genuine actual-location correction belongs
    to separately authorized explicit correction/adjudication provenance, not a kiosk
    successor branch rewrite; Gate A introduces no correction workflow or Gate-B command.
+   Otherwise conflict-applicable `MANUAL_ADMIN` provenance is accepted only when the
+   asserted actor actually holds an exact-House owner- or manager-family role matching
+   the asserted role's normalized authority class. Owner aliases are `house_owner` and
+   `business_owner`; manager aliases are `house_manager`, `business_admin`, and
+   `business_manager`. Case and surrounding whitespace normalize, but owner and manager
+   claims do not substitute for one another, and staff, cashier, GM, arbitrary, policy,
+   PLATFORM, or GUILD authority is not accepted. This check remains independent of
+   sufficiency because an applicable insufficient assertion can participate in conflict.
 5. `hr_attendance_evidence_frames` identifies each semantic evidence-basis revision,
    snapshots its classifier-authoritative completion mode, links it to its predecessor,
    and seals it before it can govern current projection state.
@@ -396,10 +405,11 @@ source-observation identity.**
 The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, CHECK constraints, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, integrity reason-class constraints, classifier, lifecycle-status constraint, reader authorization including normalized House-role aliases, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, retirement/re-entry leaf currentness, supersession, symmetric kiosk-transition semantics, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
 Owner-side evidence confirms the pre-correction hosted head
-`2215d35e1b7488900f22eae9ef705ad6a6908481` passed Preflight run `35413660138`
-(run number 674), with Vercel Ready and the House-global schema-comment correction hosted.
-The integrity reason-class correction has only static/local verification at this
-checkpoint; its post-correction hosted head and checks remain pending independent observation. The
+`6432d1cb8fb898b78c645553e207ce7817c08c78` passed Preflight run `35416781691`
+(run number 675), with Vercel Ready and the integrity reason-class correction hosted.
+The applicability binding and manual-authority correction has only static/local
+verification at this checkpoint; its post-correction hosted head and checks remain pending
+independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.
 

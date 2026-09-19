@@ -34,24 +34,26 @@ test("evidence revisions persist a constrained integrity reason class", () => {
     "CARDINALITY_UNRECONCILED",
     "INVALID_PROVENANCE",
   ] as const;
-  const stateAllowsReason = (state: "ESTABLISHED" | "UNRESOLVED" | "INVALID", reason: typeof vocabulary[number]) =>
-    state === "ESTABLISHED" ? reason === "VALID"
+  const stateAllowsReason = (state: "ESTABLISHED" | "UNRESOLVED" | "INVALID", reason: typeof vocabulary[number], eligible: boolean) =>
+    state === "ESTABLISHED" ? reason === "VALID" && eligible
       : state === "UNRESOLVED"
         ? ["MISSING_INTEGRITY_PROOF", "DUPLICATE_REPLAY_AMBIGUITY", "CARDINALITY_UNRECONCILED"].includes(reason)
         : ["MALFORMED_LINKAGE", "DUPLICATE_REPLAY_AMBIGUITY", "CARDINALITY_UNRECONCILED", "INVALID_PROVENANCE"].includes(reason);
 
-  assert.equal(stateAllowsReason("ESTABLISHED", "VALID"), true);
-  assert.equal(stateAllowsReason("ESTABLISHED", "MALFORMED_LINKAGE"), false);
-  assert.equal(stateAllowsReason("UNRESOLVED", "MISSING_INTEGRITY_PROOF"), true);
-  assert.equal(stateAllowsReason("UNRESOLVED", "DUPLICATE_REPLAY_AMBIGUITY"), true);
-  assert.equal(stateAllowsReason("INVALID", "MALFORMED_LINKAGE"), true);
-  assert.equal(stateAllowsReason("INVALID", "INVALID_PROVENANCE"), true);
-  assert.equal(stateAllowsReason("INVALID", "VALID"), false);
+  assert.equal(stateAllowsReason("ESTABLISHED", "VALID", true), true);
+  assert.equal(stateAllowsReason("ESTABLISHED", "VALID", false), false);
+  assert.equal(stateAllowsReason("ESTABLISHED", "MALFORMED_LINKAGE", true), false);
+  assert.equal(stateAllowsReason("UNRESOLVED", "VALID", true), false);
+  assert.equal(stateAllowsReason("INVALID", "VALID", true), false);
+  assert.equal(stateAllowsReason("UNRESOLVED", "MISSING_INTEGRITY_PROOF", false), true);
+  assert.equal(stateAllowsReason("UNRESOLVED", "DUPLICATE_REPLAY_AMBIGUITY", true), true);
+  assert.equal(stateAllowsReason("INVALID", "MALFORMED_LINKAGE", false), true);
+  assert.equal(stateAllowsReason("INVALID", "INVALID_PROVENANCE", true), true);
 
   assert.match(evidenceTable, /integrity_reason_class text not null default 'MISSING_INTEGRITY_PROOF'/i);
   for (const reason of vocabulary) assert.match(evidenceTable, new RegExp(`'${reason}'`, "i"));
   assert.match(evidenceTable, /constraint hr_attendance_evidence_integrity_reason_consistency_check check/i);
-  assert.match(evidenceTable, /integrity_state = 'ESTABLISHED' and integrity_reason_class = 'VALID'/i);
+  assert.match(evidenceTable, /integrity_state = 'ESTABLISHED'[\s\S]*and integrity_reason_class = 'VALID'[\s\S]*and is_integrity_eligible/i);
   assert.match(evidenceTable, /integrity_state = 'UNRESOLVED'[\s\S]*integrity_reason_class in \([\s\S]*'MISSING_INTEGRITY_PROOF'[\s\S]*'DUPLICATE_REPLAY_AMBIGUITY'[\s\S]*'CARDINALITY_UNRECONCILED'/i);
   assert.match(evidenceTable, /integrity_state = 'INVALID'[\s\S]*integrity_reason_class in \([\s\S]*'MALFORMED_LINKAGE'[\s\S]*'INVALID_PROVENANCE'/i);
   assert.match(evidenceTable, /integrity_reason_class[\s\S]*source_reference text/i);
@@ -60,12 +62,12 @@ test("evidence revisions persist a constrained integrity reason class", () => {
   // A changed interpretation is a new immutable successor row; it does not rewrite
   // or constrain the predecessor's reason class.
   const revisions = Object.freeze([
-    Object.freeze({ id: "E1", supersedes: null, state: "UNRESOLVED", reason: "MISSING_INTEGRITY_PROOF" }),
-    Object.freeze({ id: "E2", supersedes: "E1", state: "ESTABLISHED", reason: "VALID" }),
+    Object.freeze({ id: "E1", supersedes: null, state: "UNRESOLVED", reason: "MISSING_INTEGRITY_PROOF", eligible: false }),
+    Object.freeze({ id: "E2", supersedes: "E1", state: "ESTABLISHED", reason: "VALID", eligible: true }),
   ]);
-  assert.deepEqual(revisions.map(({ state, reason }) => [state, reason]), [
-    ["UNRESOLVED", "MISSING_INTEGRITY_PROOF"],
-    ["ESTABLISHED", "VALID"],
+  assert.deepEqual(revisions.map(({ state, reason, eligible }) => [state, reason, eligible]), [
+    ["UNRESOLVED", "MISSING_INTEGRITY_PROOF", false],
+    ["ESTABLISHED", "VALID", true],
   ]);
   const evidenceGuard = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
   assert.doesNotMatch(evidenceGuard, /new\.integrity_reason_class is distinct from v_predecessor/i);
@@ -596,7 +598,7 @@ test("sufficient explicit provenance requires durable authorization audit", () =
   assert.match(sql, /constraint hr_attendance_evidence_explicit_audit_check check[\s\S]*lane in \('MANUAL_ADMIN', 'BULK_IMPORT'\)[\s\S]*authorization_namespace is not null[\s\S]*authorization_reference is not null[\s\S]*asserted_at is not null[\s\S]*lane <> 'MANUAL_ADMIN' or asserted_by_entity_id is not null/i);
   assert.match(sql, /foreign key \(asserted_by_entity_id\)\s+references public\.entities\(id\)/i);
   const auditGuard = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
-  assert.match(auditGuard, /from public\.house_roles hr[\s\S]*hr\.house_id = new\.house_id[\s\S]*hr\.entity_id = new\.asserted_by_entity_id[\s\S]*hr\.role = new\.asserted_by_house_role[\s\S]*for key share/i);
+  assert.match(auditGuard, /from public\.house_roles hr[\s\S]*hr\.house_id = new\.house_id[\s\S]*hr\.entity_id = new\.asserted_by_entity_id[\s\S]*lower\(btrim\(hr\.role\)\)[\s\S]*lower\(btrim\(new\.asserted_by_house_role\)\)[\s\S]*for key share/i);
   const rebuild = functionSql("hr_rebuild_attendance_authorization_projection", "hr_read_canonical_attendance_branch_scoped");
   assert.match(rebuild, /explicit_lane_sufficient/i);
   assert.match(rebuild, /e\.authorization_namespace is not null[\s\S]*e\.authorization_reference is not null[\s\S]*e\.asserted_at is not null[\s\S]*e\.lane <> 'MANUAL_ADMIN'[\s\S]*e\.asserted_by_entity_id is not null[\s\S]*e\.asserted_by_house_role is not null/i);
@@ -604,6 +606,29 @@ test("sufficient explicit provenance requires durable authorization audit", () =
 });
 
 test("all otherwise conflict-applicable manual evidence validates exact-House role at assertion time", () => {
+  type AuthorityClass = "OWNER" | "MANAGER";
+  const normalizeAuthority = (role: string): AuthorityClass | null => {
+    const normalized = role.trim().toLowerCase();
+    if (["house_owner", "business_owner"].includes(normalized)) return "OWNER";
+    if (["house_manager", "business_admin", "business_manager"].includes(normalized)) return "MANAGER";
+    return null;
+  };
+  const authorized = (storedRole: string, storedHouse: string, assertedRole: string, evidenceHouse = "House-A") => {
+    const storedClass = normalizeAuthority(storedRole);
+    const assertedClass = normalizeAuthority(assertedRole);
+    return storedHouse === evidenceHouse && storedClass !== null && storedClass === assertedClass;
+  };
+  for (const role of ["house_owner", "HOUSE_OWNER", "business_owner", "BUSINESS_OWNER"])
+    assert.equal(authorized(role, "House-A", " house_owner "), true, role);
+  for (const role of ["house_manager", "HOUSE_MANAGER", "business_admin", "BUSINESS_ADMIN", "business_manager", "BUSINESS_MANAGER"])
+    assert.equal(authorized(role, "House-A", " HOUSE_MANAGER "), true, role);
+  for (const role of ["house_staff", "business_staff", "cashier", "game_master", "gm", "arbitrary"])
+    assert.equal(authorized(role, "House-A", role), false, role);
+  assert.equal(authorized("BUSINESS_OWNER", "House-B", "house_owner"), false);
+  assert.equal(authorized("house_staff", "House-A", "house_owner"), false);
+  assert.equal(authorized("house_owner", "House-A", "house_manager"), false);
+  assert.equal(authorized("business_admin", "House-A", "house_owner"), false);
+
   const guard = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
   const manualCondition = guard.slice(guard.indexOf("if new.lane = 'MANUAL_ADMIN'"), guard.indexOf("perform 1 from public.house_roles"));
   for (const prerequisite of [
@@ -618,7 +643,12 @@ test("all otherwise conflict-applicable manual evidence validates exact-House ro
     /new\.asserted_by_house_role is not null/,
   ]) assert.match(manualCondition, prerequisite);
   assert.doesNotMatch(manualCondition, /sufficiency_state/i);
-  assert.match(guard, /hr\.house_id = new\.house_id[\s\S]*hr\.entity_id = new\.asserted_by_entity_id[\s\S]*hr\.role = new\.asserted_by_house_role[\s\S]*for key share/i);
+  assert.match(guard, /hr\.house_id = new\.house_id[\s\S]*hr\.entity_id = new\.asserted_by_entity_id/i);
+  assert.match(guard, /lower\(btrim\(hr\.role\)\) in \('house_owner', 'business_owner'\) then 'OWNER'/i);
+  assert.match(guard, /lower\(btrim\(hr\.role\)\) in \(\s*'house_manager', 'business_admin', 'business_manager'\s*\) then 'MANAGER'/i);
+  assert.match(guard, /lower\(btrim\(new\.asserted_by_house_role\)\) in \([\s\S]*'house_owner', 'business_owner'[\s\S]*then 'OWNER'/i);
+  assert.match(guard, /lower\(btrim\(new\.asserted_by_house_role\)\) in \([\s\S]*'house_manager', 'business_admin', 'business_manager'[\s\S]*then 'MANAGER'/i);
+  assert.doesNotMatch(guard, /entity_policies|scope = 'PLATFORM'|scope = 'GUILD'|current_entity_is_gm/i);
 
   const completeButInsufficient = { completeAudit: true, sufficient: false, roleExistsInHouse: true };
   assert.equal(completeButInsufficient.completeAudit && completeButInsufficient.roleExistsInHouse, true);

@@ -44,17 +44,25 @@ House/work-date-selective revision index. Owner-approved DEC-019 now adds immuta
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
   serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `2215d35e1b7488900f22eae9ef705ad6a6908481` passed Preflight run
-`35413660138` (run 674), with Vercel Ready. The House-global function schema comment now matches the existing
+head `6432d1cb8fb898b78c645553e207ce7817c08c78` passed Preflight run
+`35416781691` (run 675), with Vercel Ready. The House-global function schema comment now matches the existing
 normalized exact-House owner/manager alias predicate without changing runtime authorization.
 The existing Gate-A migration now gives every immutable semantic evidence revision a
 constrained `integrity_reason_class`: `VALID`, `MISSING_INTEGRITY_PROOF`,
 `MALFORMED_LINKAGE`, `DUPLICATE_REPLAY_AMBIGUITY`, `CARDINALITY_UNRECONCILED`, or
 `INVALID_PROVENANCE`. A fail-closed CHECK binds those reasons to compatible
-`ESTABLISHED`, `UNRESOLVED`, or `INVALID` states. Reason interpretation may advance only
-through an append-only successor; `source_reference` remains separate. This changes no
-classifier, authorization, identity, reader DTO, or RPC signature, performs no backfill
-or producer migration, and leaves the PostgREST reload in place.
+`ESTABLISHED`, `UNRESOLVED`, or `INVALID` states and requires every `ESTABLISHED` +
+`VALID` revision to be integrity-eligible. Reason interpretation may advance only
+through an append-only successor; `source_reference` remains separate. The reason
+constraint changes no classifier, identity, reader DTO, or RPC signature, performs no
+backfill or producer migration, and leaves the PostgREST reload in place. The separate
+manual-evidence correction intentionally strengthens assertion-time authorization only.
+Otherwise conflict-applicable `MANUAL_ADMIN` evidence now verifies that the asserted actor
+holds an exact-House owner- or manager-family role matching the asserted role's normalized
+authority class. The accepted aliases are `house_owner`/`business_owner` and
+`house_manager`/`business_admin`/`business_manager`; owner and manager families cannot
+substitute for each other, and staff, cashier, GM, arbitrary, policy, PLATFORM, and GUILD
+authority remain excluded. This assertion-time check remains independent of sufficiency.
 The current local correction gives every append-only evidence
 supersession family an immutable lineage root and serializes all root/successor/sibling
 first bindings on that root, so null-observation explicit provenance cannot split across
