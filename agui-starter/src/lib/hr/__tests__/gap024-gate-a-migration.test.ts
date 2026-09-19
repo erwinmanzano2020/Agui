@@ -588,14 +588,40 @@ test("kiosk authority requires a trustworthy stable observation identity and occ
   assert.doesNotMatch(sql, /clientEventId|client_event_id/i);
 });
 
-test("sufficient explicit provenance requires durable authorization audit", () => {
-  const eligible = (lane: "MANUAL_ADMIN" | "BULK_IMPORT", actor: string | null, namespace: string | null, reference: string | null, assertedAt: string | null) =>
-    Boolean(namespace?.trim() && reference?.trim() && assertedAt && (lane !== "MANUAL_ADMIN" || actor));
-  assert.equal(eligible("MANUAL_ADMIN", "entity-A", "admin-command", "case-1", "2026-01-01T00:00:00Z"), true);
-  assert.equal(eligible("MANUAL_ADMIN", null, "admin-command", "case-1", "2026-01-01T00:00:00Z"), false);
-  assert.equal(eligible("BULK_IMPORT", null, "trusted-import", "authorization-1", "2026-01-01T00:00:00Z"), true);
-  assert.equal(eligible("BULK_IMPORT", null, null, null, "2026-01-01T00:00:00Z"), false);
-  assert.match(sql, /constraint hr_attendance_evidence_explicit_audit_check check[\s\S]*lane in \('MANUAL_ADMIN', 'BULK_IMPORT'\)[\s\S]*authorization_namespace is not null[\s\S]*authorization_reference is not null[\s\S]*asserted_at is not null[\s\S]*lane <> 'MANUAL_ADMIN' or asserted_by_entity_id is not null/i);
+test("established valid explicit provenance requires applicability audit independent of sufficiency", () => {
+  type ExplicitEvidence = {
+    lane: "MANUAL_ADMIN" | "BULK_IMPORT"; state: "ESTABLISHED" | "UNRESOLVED" | "INVALID";
+    reason: "VALID" | "MISSING_INTEGRITY_PROOF" | "INVALID_PROVENANCE"; eligible: boolean;
+    sufficient: boolean; namespace: string | null; reference: string | null; assertedAt: string | null;
+    actor: string | null; role: string | null;
+  };
+  const auditComplete = (row: ExplicitEvidence) => Boolean(
+    row.namespace?.trim() && row.reference?.trim() && row.assertedAt
+      && (row.lane !== "MANUAL_ADMIN" || (row.actor && row.role)),
+  );
+  const mayStore = (row: ExplicitEvidence) =>
+    !(row.state === "ESTABLISHED" && row.reason === "VALID" && row.eligible) || auditComplete(row);
+  const manualComplete: ExplicitEvidence = {
+    lane: "MANUAL_ADMIN", state: "ESTABLISHED", reason: "VALID", eligible: true,
+    sufficient: false, namespace: "admin-command", reference: "case-1",
+    assertedAt: "2026-01-01T00:00:00Z", actor: "entity-A", role: "house_owner",
+  };
+  const bulkComplete: ExplicitEvidence = {
+    ...manualComplete, lane: "BULK_IMPORT", namespace: "trusted-import",
+    reference: "authorization-1", actor: null, role: null,
+  };
+  assert.equal(mayStore({ ...manualComplete, namespace: null, reference: null, assertedAt: null, actor: null, role: null }), false);
+  assert.equal(mayStore({ ...bulkComplete, namespace: null, reference: null, assertedAt: null }), false);
+  assert.equal(mayStore(manualComplete), true);
+  assert.equal(mayStore({ ...manualComplete, sufficient: true }), true);
+  assert.equal(mayStore(bulkComplete), true);
+  assert.equal(mayStore({ ...bulkComplete, sufficient: true }), true);
+  assert.equal(mayStore({ ...manualComplete, state: "UNRESOLVED", reason: "MISSING_INTEGRITY_PROOF", eligible: false, namespace: null, reference: null, assertedAt: null, actor: null, role: null }), true);
+  assert.equal(mayStore({ ...manualComplete, state: "INVALID", reason: "INVALID_PROVENANCE", eligible: false, namespace: null, reference: null, assertedAt: null, actor: null, role: null }), true);
+
+  const evidenceTable = sql.slice(sql.indexOf("create table public.hr_attendance_evidence ("), sql.indexOf("create unique index hr_attendance_evidence_observation_semantic_revision_unique_idx"));
+  assert.match(evidenceTable, /constraint hr_attendance_evidence_explicit_audit_check check[\s\S]*integrity_state = 'ESTABLISHED'[\s\S]*integrity_reason_class = 'VALID'[\s\S]*is_integrity_eligible[\s\S]*authorization_namespace is not null[\s\S]*authorization_reference is not null[\s\S]*asserted_at is not null[\s\S]*asserted_by_entity_id is not null and asserted_by_house_role is not null/i);
+  assert.doesNotMatch(evidenceTable.slice(evidenceTable.indexOf("constraint hr_attendance_evidence_explicit_audit_check")), /sufficiency_state = 'SUFFICIENT'/i);
   assert.match(sql, /foreign key \(asserted_by_entity_id\)\s+references public\.entities\(id\)/i);
   const auditGuard = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
   assert.match(auditGuard, /from public\.house_roles hr[\s\S]*hr\.house_id = new\.house_id[\s\S]*hr\.entity_id = new\.asserted_by_entity_id[\s\S]*lower\(btrim\(hr\.role\)\)[\s\S]*lower\(btrim\(new\.asserted_by_house_role\)\)[\s\S]*for key share/i);

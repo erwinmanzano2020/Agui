@@ -78,6 +78,13 @@ The corrected additive migration creates eight direct-access-protected tables:
    claims do not substitute for one another, and staff, cashier, GM, arbitrary, policy,
    PLATFORM, or GUILD authority is not accepted. This check remains independent of
    sufficiency because an applicable insufficient assertion can participate in conflict.
+   More generally, every `MANUAL_ADMIN` or `BULK_IMPORT` explicit revision claiming
+   `ESTABLISHED` + `VALID` + integrity-eligible must carry nonblank authorization namespace
+   and reference plus `asserted_at`, regardless of sufficiency. Manual evidence additionally
+   requires its asserted actor and role before the exact-House authority-family guard runs.
+   Complete but `INSUFFICIENT` explicit evidence therefore remains applicable for conflict;
+   incomplete history remains representable only under the existing unresolved/invalid
+   state and reason classes rather than claiming valid applicability.
 5. `hr_attendance_evidence_frames` identifies each semantic evidence-basis revision,
    snapshots its classifier-authoritative completion mode, links it to its predecessor,
    and seals it before it can govern current projection state.
@@ -405,9 +412,9 @@ source-observation identity.**
 The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, CHECK constraints, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, integrity reason-class constraints, classifier, lifecycle-status constraint, reader authorization including normalized House-role aliases, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, retirement/re-entry leaf currentness, supersession, symmetric kiosk-transition semantics, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
 Owner-side evidence confirms the pre-correction hosted head
-`6432d1cb8fb898b78c645553e207ce7817c08c78` passed Preflight run `35416781691`
-(run number 675), with Vercel Ready and the integrity reason-class correction hosted.
-The applicability binding and manual-authority correction has only static/local
+`064c42f2c242c8a8b97f20401dfadf3b58eda2f5` passed Preflight run `35418215106`
+(run number 676), with Vercel Ready and the reason/applicability plus manual-authority
+corrections hosted. The explicit-provenance applicability correction has only static/local
 verification at this checkpoint; its post-correction hosted head and checks remain pending
 independent observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was

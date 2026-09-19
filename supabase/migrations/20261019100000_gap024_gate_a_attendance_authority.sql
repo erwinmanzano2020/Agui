@@ -179,12 +179,16 @@ create table public.hr_attendance_evidence (
       lane in ('MANUAL_ADMIN', 'BULK_IMPORT')
       and evidence_kind = 'EXPLICIT_BRANCH'
       and integrity_state = 'ESTABLISHED'
-      and sufficiency_state = 'SUFFICIENT'
+      and integrity_reason_class = 'VALID'
+      and is_integrity_eligible
     ) or (
       authorization_namespace is not null and length(btrim(authorization_namespace)) > 0
       and authorization_reference is not null and length(btrim(authorization_reference)) > 0
       and asserted_at is not null
-      and (lane <> 'MANUAL_ADMIN' or asserted_by_entity_id is not null)
+      and (
+        lane <> 'MANUAL_ADMIN'
+        or (asserted_by_entity_id is not null and asserted_by_house_role is not null)
+      )
     )
   ),
   constraint hr_attendance_evidence_no_self_supersession check (supersedes_evidence_id is distinct from id)

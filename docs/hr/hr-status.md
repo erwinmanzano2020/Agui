@@ -44,8 +44,8 @@ House/work-date-selective revision index. Owner-approved DEC-019 now adds immuta
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
   serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `6432d1cb8fb898b78c645553e207ce7817c08c78` passed Preflight run
-`35416781691` (run 675), with Vercel Ready. The House-global function schema comment now matches the existing
+head `064c42f2c242c8a8b97f20401dfadf3b58eda2f5` passed Preflight run
+`35418215106` (run 676), with Vercel Ready. The House-global function schema comment now matches the existing
 normalized exact-House owner/manager alias predicate without changing runtime authorization.
 The existing Gate-A migration now gives every immutable semantic evidence revision a
 constrained `integrity_reason_class`: `VALID`, `MISSING_INTEGRITY_PROOF`,
@@ -63,6 +63,13 @@ authority class. The accepted aliases are `house_owner`/`business_owner` and
 `house_manager`/`business_admin`/`business_manager`; owner and manager families cannot
 substitute for each other, and staff, cashier, GM, arbitrary, policy, PLATFORM, and GUILD
 authority remain excluded. This assertion-time check remains independent of sufficiency.
+Every `MANUAL_ADMIN` or `BULK_IMPORT` explicit revision claiming `ESTABLISHED` + `VALID` +
+integrity-eligible must now have its lane-specific applicability provenance even when it is
+`INSUFFICIENT`: both lanes require nonblank authorization namespace/reference and
+`asserted_at`, while manual evidence also requires its asserted actor and role before the
+existing authority-family guard runs. Complete-but-insufficient evidence remains applicable
+for conflict; incomplete history remains representable as unresolved or invalid with the
+existing reason vocabulary.
 The current local correction gives every append-only evidence
 supersession family an immutable lineage root and serializes all root/successor/sibling
 first bindings on that root, so null-observation explicit provenance cannot split across
