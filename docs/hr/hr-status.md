@@ -20,6 +20,161 @@
   runtime authorization: HR-2 feature expansion, HR-4 product workflow, payroll
   expansion, and all unrelated implementation remain gated.
 
+## 2026-09-14 — GAP-024 Gate A local implementation checkpoint
+
+**Status: Gate A exists in the bounded local PR; hosted verification and merge remain
+pending.** The additive canonical attendance fact/evidence/revision/lineage authority,
+distinct employee candidate/evidence generation, append-only same-employee fact revisions,
+immutable sealed membership frames with completion mode per semantic evidence-basis revision,
+mode-inclusive projection fingerprints, rebuildable authorization projection, and bounded,
+revision-sanitized branch-aware and owner/manager House-global readers are implemented in
+[`Gate-A implementation record`](../devlog/gap-024-gate-a-implementation.md). No
+production consumer is cut over, no production backfill is performed, no writer is
+migrated, and no existing `dtr_segments` access is revoked. Feature read grants use the
+existing flattened effective-policy surface: PLATFORM feature grants are globally
+effective whether role-derived or direct, while HOUSE feature grants count only for the
+requested House. Exact requested-House membership remains mandatory and branch scope
+still derives only from requested-House HOUSE policies; PLATFORM capability supplies
+neither membership nor branch scope. Canonical kiosk classification now
+fails its kiosk lane closed for invalid or unreconciled governing observations without
+vetoing independently sufficient agreeing explicit provenance. Evidence membership is
+serialized on its canonical evidence row, permanently binding it to one stable fact while
+allowing reuse across that fact's later evidence bases, and bounded readers have a
+House/work-date-selective revision index. Owner-approved DEC-019 now adds immutable,
+namespaced source-observation identity and original occurrence time without migrating a
+producer. This PR correction also requires auditable sufficient explicit provenance and
+  serializes each physical segment's permanent binding to one stable fact. Hosted starting
+head `064c42f2c242c8a8b97f20401dfadf3b58eda2f5` passed Preflight run
+`35418215106` (run 676), with Vercel Ready. The House-global function schema comment now matches the existing
+normalized exact-House owner/manager alias predicate without changing runtime authorization.
+The existing Gate-A migration now gives every immutable semantic evidence revision a
+constrained `integrity_reason_class`: `VALID`, `MISSING_INTEGRITY_PROOF`,
+`MALFORMED_LINKAGE`, `DUPLICATE_REPLAY_AMBIGUITY`, `CARDINALITY_UNRECONCILED`, or
+`INVALID_PROVENANCE`. A fail-closed CHECK binds those reasons to compatible
+`ESTABLISHED`, `UNRESOLVED`, or `INVALID` states and requires every `ESTABLISHED` +
+`VALID` revision to be integrity-eligible. Reason interpretation may advance only
+through an append-only successor; `source_reference` remains separate. The reason
+constraint changes no classifier, identity, reader DTO, or RPC signature, performs no
+backfill or producer migration, and leaves the PostgREST reload in place. The separate
+manual-evidence correction intentionally strengthens assertion-time authorization only.
+Otherwise conflict-applicable `MANUAL_ADMIN` evidence now verifies that the asserted actor
+holds an exact-House owner- or manager-family role matching the asserted role's normalized
+authority class. The accepted aliases are `house_owner`/`business_owner` and
+`house_manager`/`business_admin`/`business_manager`; owner and manager families cannot
+substitute for each other, and staff, cashier, GM, arbitrary, policy, PLATFORM, and GUILD
+authority remain excluded. This assertion-time check remains independent of sufficiency.
+Every `MANUAL_ADMIN` or `BULK_IMPORT` explicit revision claiming `ESTABLISHED` + `VALID` +
+integrity-eligible must now have its lane-specific applicability provenance even when it is
+`INSUFFICIENT`: both lanes require nonblank authorization namespace/reference and
+`asserted_at`, while manual evidence also requires its asserted actor and role before the
+existing authority-family guard runs. Complete-but-insufficient evidence remains applicable
+for conflict; incomplete history remains representable as unresolved or invalid with the
+existing reason vocabulary.
+The current local correction gives every append-only evidence
+supersession family an immutable lineage root and serializes all root/successor/sibling
+first bindings on that root, so null-observation explicit provenance cannot split across
+facts while same-fact successive-basis reuse remains valid. Each frame now permits only
+one current member per lineage while later immutable frames may carry later revisions.
+Every otherwise conflict-applicable manual assertion now receives exact-House role
+validation at assertion time regardless of independent sufficiency, without view-time
+role revalidation or rejection of incomplete non-authoritative history. Conflict detection uses
+one canonical applicable-branch predicate: unaudited explicit rows remain history but do
+not manufacture disagreement, while authorized applicable disagreement still precedes
+independent sufficiency. Each DEC-019 observation now serializes evidence insertion on its
+stable observation row: its first evidence establishes the single lineage root, and every
+later observation-backed revision must explicitly supersede within and inherit that same
+lineage. Null-observation explicit provenance remains outside this observation-specific
+rule. Current value and evidence-basis authority is database-guarded against pointer
+rollback. Advances require the explicit next value predecessor or next sealed evidence
+frame, and target evidence may remain unchanged or advance through its explicit
+supersession path but cannot reactivate an ancestor or switch sideways to a sibling.
+Historical frames remain immutable audit history. Gate A does not select retry identity
+for `MANUAL_ADMIN` or `BULK_IMPORT`: generated UUIDs and batch/workflow authorization
+references are not treated as per-result identity, and a separately bounded Gate-B task
+must choose deterministic producer retry semantics before either producer migrates.
+Expected-revision compare-and-swap and the canonical writer likewise remain Gate B.
+The projection rebuild now joins the exact current fact revision by House, fact,
+employee, and `current_value_revision`, and reconciles its completion signals with the
+frame mode before allowing kiosk sufficiency. `OPEN` cannot override a non-null
+`time_out` or closed lifecycle signal. A sealed `COMPLETED` frame is no longer positively
+gated on `time_out` or closed status: current exact IN/OUT evidence may establish
+completion even when value status is `open` or `corrected`, while missing, invalid,
+unresolved, or excess kiosk observations remain insufficient. Corrected status alone
+selects neither mode. Kiosk insufficiency still preserves conflict-first classification
+and independently sufficient agreeing explicit provenance.
+Fact `is_active` is now a one-way retirement/tombstone control: `true → false` remains
+available, but `false → true` cannot resurrect stale authority, regardless of pointer
+advancement. It remains distinct from immutable revision status, and no restoration
+workflow is introduced. Projection rebuilds now acquire a deterministic transaction-
+scoped advisory lock derived from the requested House UUID before replacing that House's
+projection. The lock serializes same-House rebuilds without becoming a business revision,
+general writer lock, or Gate-B containment mechanism; different Houses normally remain
+independent.
+Every lineage entering relative to the immediately current basis—first-ever or returning
+after retirement—now locks its selected target member in deterministic lineage/evidence
+order and must select an unsuperseded leaf. Retired re-entry additionally requires the
+existing strict-descendant rule; continuous lineages remain governed by ancestry rather
+than the entry gate. No timestamp, latest-write, UUID-currentness, or maximum-revision
+selector and no Gate-B writer behavior is added.
+Omitting a currently governing lineage now establishes a serialized retirement boundary:
+the omitted member locks before a direct-successor check, so committed newer evidence
+blocks retirement while a later append follows the completed boundary. A retired lineage
+cannot re-enter through the same historical member; only an explicitly selected strict
+descendant that is itself unsuperseded may return under the existing ancestry checks.
+The House-global reader now normalizes stored exact-House roles and accepts only the
+established aliases `house_owner`, `business_owner`, `house_manager`, `business_admin`,
+and `business_manager`, including case/whitespace variants. PLATFORM, game-master, staff,
+cashier, and arbitrary roles remain excluded; no policy or branch-derived global bypass
+is added.
+Initial fact authority is now fixed at value revision 1 and evidence basis 1, so INSERT
+cannot skip the explicit predecessor sequence. When the fact's current first frame is
+sealed, the frame guard locks selected evidence in deterministic lineage-root/evidence-ID
+order before rejecting any member with a committed direct successor; evidence-successor
+insertion locks that same predecessor. This closes the initial seal path without replacing
+the later fact-update activation guard. Sealing a noncurrent future frame remains
+preparation, and its later pointer transition still enforces the existing next-frame and
+ancestry-path rules. No timestamp, latest-write, UUID, or maximum-semantic-revision
+currentness rule is introduced.
+Canonical fact revisions now constrain lifecycle status to `open`, `closed`, or
+`corrected`, and classification independently treats unknown status as unreconciled.
+`OPEN` requires null `time_out` plus positively known `open` or `corrected` lifecycle;
+`COMPLETED` permits any known canonical status but still depends on its sealed semantic
+mode and exact governing IN/OUT evidence rather than status or `time_out` as positive
+completion proof. Status never selects completion mode. Conflict-first ordering and the
+independently sufficient explicit-provenance fallback remain unchanged.
+Observation-backed supersession now cannot cross into or out of KIOSK while redefining
+the locked predecessor's immutable lane, logical IN/OUT role, or event-time branch,
+including null branch identity. The rule is symmetric whenever either side is KIOSK. Their
+integrity and sufficiency classification may still evolve through append-only revisions.
+Actual-location correction remains separately authorized explicit provenance rather than
+a kiosk observation rewrite; no correction workflow or Gate-B command is introduced.
+
+**DEC-020 policy resolved; Gate-B pre-population enforcement remains open.** The owner
+approved DEC-020 on 2026-09-15: protected historical HR records retention-protect the
+employee row, canonical attendance is definitely protected, and offboarding uses
+`employees.status = 'inactive'`. Protected canonical attendance/evidence/audit and
+payroll history must not cascade away on employee deletion. Hard deletion remains only
+for genuinely empty or mistaken employees with no protected dependency, while rehire
+continues under existing inactive-row identity rules without selecting one universal
+workflow. Employee lifecycle `employees.status` remains distinct from attendance-authority
+`hr_attendance_facts.is_active`.
+
+The runtime prerequisite is not implemented in PR #510. Existing
+`deleteEmployeeForHouse(...)` still directly hard-deletes `employees`; it does not yet
+provide deterministic protected-history eligibility or the operator-facing instruction
+to mark the employee inactive instead, and legacy `dtr_segments.employee_id` still
+cascades on employee deletion. No employee runtime is changed here. Gate B remains
+hard-blocked from its first production canonical attendance create, backfill, or producer
+migration until a separate bounded lifecycle task verifies deterministic rejection for
+protected employees, inactive/offboarding handling, eligible empty-record deletion, and
+non-cascading protected-history retention. The complete protected-dependency inventory
+remains open for that task; this semantic P2 is resolved, but its enforcement gap is not.
+
+The correction remains in progress, and post-correction hosted
+verification plus migration/RLS/RPC executable verification remain outstanding.
+Historical DTR P1 remains unauthorized and unimplemented, and GAP-024 remains open. Gate B remains next only after Gate A is independently
+hosted, reviewed, and merged; Gate B has not started.
+
 ## 2026-09-13 — GAP-029 planning and DEC-017/DEC-018 correction checkpoint
 
 **Status: PR #509 is the independently verified hosted documentation/governance
