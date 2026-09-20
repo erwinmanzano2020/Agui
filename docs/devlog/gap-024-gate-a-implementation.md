@@ -141,10 +141,14 @@ are not destructive rollback controls. No timestamp, insertion order, UUID,
 Every lineage entering relative to the immediately current basis must select an
 unsuperseded target leaf. This covers both first-ever introduction and re-entry after
 retirement; re-entry additionally must satisfy the strict-descendant rule. The guard locks
-all entering target members in deterministic lineage-root/evidence-ID order before direct-
-successor inspection, serializing with successor insertion on the same predecessor row.
-Continuous lineages remain governed by the existing ancestry-path rule rather than this
-entry gate. No latest-write, timestamp, UUID, or maximum-revision heuristic is used.
+all entering targets in deterministic lineage-root/evidence-ID order before direct-
+successor inspection. A continuous lineage may carry forward its exact current member even
+after a successor is appended; appending evidence does not change authority. If the target
+selects a different member, that continuous advance must also select an unsuperseded leaf,
+locked in the same deterministic order. Successor insertion locks that selected row as its
+predecessor, so the advance and append serialize there. Recursive ancestry validation
+remains separately required. No latest-write, timestamp, UUID, or maximum-revision
+heuristic is used.
 Omitting a lineage from the next basis is its serialized retirement boundary. The guard
 locks each omitted governing member in `lineage_root_evidence_id, id` order and rejects
 the omission if that member already has a committed successor; successor insertion locks
@@ -412,11 +416,11 @@ source-observation identity.**
 The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, CHECK constraints, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, integrity reason-class constraints, classifier, lifecycle-status constraint, reader authorization including normalized House-role aliases, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, retirement/re-entry leaf currentness, supersession, symmetric kiosk-transition semantics, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
 
 Owner-side evidence confirms the pre-correction hosted head
-`064c42f2c242c8a8b97f20401dfadf3b58eda2f5` passed Preflight run `35418215106`
-(run number 676), with Vercel Ready and the reason/applicability plus manual-authority
-corrections hosted. The explicit-provenance applicability correction has only static/local
-verification at this checkpoint; its post-correction hosted head and checks remain pending
-independent observation. The
+`ce7a6876b2a23f604a9c2c8f4d3421a2717a24de` passed Preflight run `35422184877`
+(run number 677), with Vercel Ready and the explicit-provenance applicability correction
+hosted. The continuous-lineage target-leaf correction has only static/local verification
+at this checkpoint; its post-correction hosted head and checks remain pending independent
+observation. The
 workspace-settings `42501` diagnostic remains an expected passing fallback test and was
 not modified.
 

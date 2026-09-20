@@ -44,8 +44,8 @@ House/work-date-selective revision index. Owner-approved DEC-019 now adds immuta
 namespaced source-observation identity and original occurrence time without migrating a
 producer. This PR correction also requires auditable sufficient explicit provenance and
   serializes each physical segment's permanent binding to one stable fact. Hosted starting
-head `064c42f2c242c8a8b97f20401dfadf3b58eda2f5` passed Preflight run
-`35418215106` (run 676), with Vercel Ready. The House-global function schema comment now matches the existing
+head `ce7a6876b2a23f604a9c2c8f4d3421a2717a24de` passed Preflight run
+`35422184877` (run 677), with Vercel Ready. The House-global function schema comment now matches the existing
 normalized exact-House owner/manager alias predicate without changing runtime authorization.
 The existing Gate-A migration now gives every immutable semantic evidence revision a
 constrained `integrity_reason_class`: `VALID`, `MISSING_INTEGRITY_PROOF`,
@@ -113,8 +113,11 @@ independent.
 Every lineage entering relative to the immediately current basis—first-ever or returning
 after retirement—now locks its selected target member in deterministic lineage/evidence
 order and must select an unsuperseded leaf. Retired re-entry additionally requires the
-existing strict-descendant rule; continuous lineages remain governed by ancestry rather
-than the entry gate. No timestamp, latest-write, UUID-currentness, or maximum-revision
+existing strict-descendant rule. A continuous lineage may retain its exact current member
+even if a successor was appended, but advancing to a different member now locks that target
+in the same deterministic order and requires it to be an unsuperseded leaf. Successor
+insertion locks the same row as predecessor, while recursive ancestry remains a separate
+forward-path requirement. No timestamp, latest-write, UUID-currentness, or maximum-revision
 selector and no Gate-B writer behavior is added.
 Omitting a currently governing lineage now establishes a serialized retirement boundary:
 the omitted member locks before a direct-successor check, so committed newer evidence

@@ -783,10 +783,11 @@ begin
         using errcode = '55000';
     end if;
 
-    -- Every lineage entering relative to the immediately current basis—whether first-ever
-    -- or returning after retirement—must select an unsuperseded leaf. Lock each selected
-    -- member in immutable lineage/id order before checking for successors. Continuous
-    -- lineages remain governed by the ancestry-path rule below.
+    -- Every entering/re-entering target and every continuous-lineage target that advances
+    -- to a different member must select an unsuperseded leaf. Exact same-member
+    -- carry-forward remains valid even after a successor is appended. Lock each target
+    -- requiring leafness in immutable lineage/id order before checking for successors;
+    -- the ancestry-path rule below remains a separate requirement.
     perform 1
     from public.hr_attendance_fact_evidence target_membership
     join public.hr_attendance_evidence target_evidence
@@ -807,6 +808,7 @@ begin
           and current_membership.fact_id = old.id
           and current_membership.evidence_basis_revision = old.evidence_basis_revision
           and current_evidence.lineage_root_evidence_id = target_evidence.lineage_root_evidence_id
+          and current_evidence.id = target_evidence.id
       )
     order by target_evidence.lineage_root_evidence_id, target_evidence.id
     for update of target_evidence;
@@ -837,9 +839,10 @@ begin
             and current_membership.fact_id = old.id
             and current_membership.evidence_basis_revision = old.evidence_basis_revision
             and current_evidence.lineage_root_evidence_id = target_evidence.lineage_root_evidence_id
+            and current_evidence.id = target_evidence.id
         )
     ) then
-      raise exception 'Entering current evidence must be an unsuperseded lineage member'
+      raise exception 'Target current evidence must be an unsuperseded lineage member'
         using errcode = '55000';
     end if;
 

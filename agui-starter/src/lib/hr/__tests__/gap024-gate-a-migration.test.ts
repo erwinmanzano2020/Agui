@@ -177,7 +177,7 @@ test("current evidence authority follows supersession forward and cannot reactiv
   assert.match(sql, /hr_attendance_evidence_frames_immutable\s+before update or delete/i);
 });
 
-test("a newly introduced lineage can govern only through an unsuperseded selected member", () => {
+test("targets requiring leafness lock before successor inspection", () => {
   const successors = new Map<string, string[]>([
     ["E1", ["E2"]], ["E2", ["E3"]], ["E3", []],
     ["SiblingRoot", ["E2a", "E2b"]], ["E2a", []], ["E2b", []],
@@ -197,7 +197,7 @@ test("a newly introduced lineage can govern only through an unsuperseded selecte
   assert.ok(targetLock >= 0 && targetLock < successorCheck, "new target evidence must lock before its successor check");
   assert.match(activation, /order by target_evidence\.lineage_root_evidence_id, target_evidence\.id\s+for update of target_evidence/i);
   assert.match(activation, /successor\.house_id = target_evidence\.house_id[\s\S]*successor\.employee_id = target_evidence\.employee_id[\s\S]*successor\.lineage_root_evidence_id = target_evidence\.lineage_root_evidence_id[\s\S]*successor\.supersedes_evidence_id = target_evidence\.id/i);
-  assert.match(activation, /current_membership\.evidence_basis_revision = old\.evidence_basis_revision[\s\S]*Entering current evidence must be an unsuperseded lineage member/i);
+  assert.match(activation, /current_membership\.evidence_basis_revision = old\.evidence_basis_revision[\s\S]*current_evidence\.id = target_evidence\.id[\s\S]*Target current evidence must be an unsuperseded lineage member/i);
   assert.match(activation, /with recursive target_ancestry as/i);
   assert.match(activation, /cannot regress or switch supersession paths/i);
 
@@ -205,6 +205,42 @@ test("a newly introduced lineage can govern only through an unsuperseded selecte
   assert.match(evidenceInsert, /predecessor\.id = new\.supersedes_evidence_id[\s\S]*for update/i);
   const executableActivation = activation.slice(0, activation.indexOf("$function$;")).replace(/--.*$/gm, "");
   assert.doesNotMatch(executableActivation, /max\s*\([^)]*semantic_revision|recorded_at|created_at|occurred_at|order by[^\n]*semantic_revision|latest_write/i);
+});
+
+test("continuous lineage advances require a leaf while same-member carry-forward remains valid", () => {
+  const predecessor = new Map<string, string | null>([
+    ["E1", null], ["E2", "E1"], ["E3", "E2"],
+  ]);
+  const hasDirectSuccessor = (selected: string) => [...predecessor.values()].includes(selected);
+  const descendsFrom = (selected: string, current: string) => {
+    let cursor: string | null | undefined = selected;
+    while (cursor) {
+      if (cursor === current) return true;
+      cursor = predecessor.get(cursor);
+    }
+    return false;
+  };
+  const mayContinuouslySelect = (current: string, target: string) =>
+    target === current || (descendsFrom(target, current) && !hasDirectSuccessor(target));
+
+  assert.equal(mayContinuouslySelect("E1", "E2"), false); // E3 makes E2 stale.
+  assert.equal(mayContinuouslySelect("E1", "E3"), true); // E3 is the current leaf.
+  assert.equal(mayContinuouslySelect("E1", "E1"), true); // Appended E2 does not force advancement.
+  predecessor.delete("E3");
+  assert.equal(mayContinuouslySelect("E1", "E2"), true); // Simple E1 -> leaf E2 advance.
+
+  const activation = functionSql("hr_guard_attendance_fact_activation", "hr_rebuild_attendance_authorization_projection");
+  const targetLock = activation.indexOf("order by target_evidence.lineage_root_evidence_id, target_evidence.id");
+  const successorCheck = activation.indexOf("join public.hr_attendance_evidence successor", targetLock);
+  assert.ok(targetLock >= 0 && targetLock < successorCheck,
+    "continuous-advance target must lock before direct-successor inspection");
+  assert.match(activation, /not exists \([\s\S]*current_evidence\.lineage_root_evidence_id = target_evidence\.lineage_root_evidence_id[\s\S]*current_evidence\.id = target_evidence\.id[\s\S]*order by target_evidence\.lineage_root_evidence_id, target_evidence\.id\s+for update of target_evidence/i);
+  assert.match(activation, /successor\.house_id = target_evidence\.house_id[\s\S]*successor\.employee_id = target_evidence\.employee_id[\s\S]*successor\.lineage_root_evidence_id = target_evidence\.lineage_root_evidence_id[\s\S]*successor\.supersedes_evidence_id = target_evidence\.id/i);
+  assert.match(activation, /with recursive target_ancestry as/i);
+  assert.match(activation, /cannot regress or switch supersession paths/i);
+
+  const evidenceInsert = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
+  assert.match(evidenceInsert, /predecessor\.id = new\.supersedes_evidence_id[\s\S]*for update/i);
 });
 
 test("omitting a governing lineage establishes a serialized retirement boundary", () => {
@@ -244,7 +280,7 @@ test("omitting a governing lineage establishes a serialized retirement boundary"
   assert.match(activation, /successor\.supersedes_evidence_id = current_evidence\.id[\s\S]*cannot retire after its governing member was superseded/i);
   assert.match(activation, /prior_membership\.evidence_basis_revision < old\.evidence_basis_revision[\s\S]*prior_membership\.evidence_id = target_evidence\.id[\s\S]*must re-enter through a strict successor/i);
   assert.match(activation, /with recursive target_ancestry as/i);
-  assert.match(activation, /Entering current evidence must be an unsuperseded lineage member/i);
+  assert.match(activation, /Target current evidence must be an unsuperseded lineage member/i);
 
   const evidenceInsert = functionSql("hr_guard_attendance_evidence_insert", "hr_guard_attendance_frame_membership_insert");
   assert.match(evidenceInsert, /predecessor\.id = new\.supersedes_evidence_id[\s\S]*for update/i);
