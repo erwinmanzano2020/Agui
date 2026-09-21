@@ -81,8 +81,8 @@ begin
     join public.platform_roles pr on pr.entity_id = hm.entity_id
     cross join lateral unnest(pr.roles) assigned_role(role_key)
     join public.roles r
-      on lower(btrim(coalesce(r.slug, ''))) = lower(btrim(assigned_role.role_key))
-      or lower(btrim(r.key)) = lower(btrim(assigned_role.role_key))
+      on lower(btrim(coalesce(to_jsonb(r) ->> 'slug', ''))) = lower(btrim(assigned_role.role_key))
+      or lower(btrim(coalesce(to_jsonb(r) ->> 'key', ''))) = lower(btrim(assigned_role.role_key))
     join public.role_policies rp on rp.role_id = r.id
     join public.policies p on p.id = rp.policy_id
   ), house_policy_keys as (
@@ -96,14 +96,14 @@ begin
      and hr.entity_id = hm.entity_id
     join public.roles r
       on (
-        hr.role_id is not null
-        and r.id = hr.role_id
+        nullif(to_jsonb(hr) ->> 'role_id', '') is not null
+        and r.id = (to_jsonb(hr) ->> 'role_id')::uuid
       )
       or (
-        hr.role_id is null
+        nullif(to_jsonb(hr) ->> 'role_id', '') is null
         and (
-          lower(btrim(coalesce(r.slug, ''))) = lower(btrim(hr.role))
-          or lower(btrim(r.key)) = lower(btrim(hr.role))
+          lower(btrim(coalesce(to_jsonb(r) ->> 'slug', ''))) = lower(btrim(hr.role))
+          or lower(btrim(coalesce(to_jsonb(r) ->> 'key', ''))) = lower(btrim(hr.role))
         )
       )
     join public.role_policies rp on rp.role_id = r.id
