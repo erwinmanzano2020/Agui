@@ -1,5 +1,29 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-21 — GAP-024 Gate-A retired-fact authority-pointer freeze follow-up
+
+**Status: P2 correction implemented in PR #510; live application/runtime verification
+pending.** Fresh Codex review on exact head
+`17b06f30a9ee23be3ffcea0de2f473bfa1000e61` raised
+`discussion_r4060625886`, and independent rollback reproduction confirmed both affected
+paths: authority pointers could advance after retirement while `is_active=false`, and
+could advance in the same UPDATE that changed `is_active=true -> false`. Because
+projection rebuilds exclude inactive facts, those newly selected pairs received no
+durable classification history.
+
+The forward-only migration
+`20261019180000_gap024_gate_a_retired_fact_pointer_freeze.sql` freezes
+`current_value_revision` and `evidence_basis_revision` whenever either the old or new
+fact row is inactive. Retirement therefore tombstones only the already-current,
+already-classified pair; post-retirement pointer movement and combined retire+advance are
+rejected. Existing resurrection rejection, history precondition, predecessor, lineage,
+and branch rules remain unchanged.
+
+Next verification must prove both previously reproduced paths are rejected, while an
+ordinary retirement that keeps the exact current pair succeeds and remains historically
+consistent. Roll back all fixtures and confirm zero leftovers, then obtain a fresh
+exact-head review before any merge decision.
+
 ## 2026-09-21 — GAP-024 Gate-A activation-history trigger privilege follow-up
 
 **Status: P1 privilege correction implemented in PR #510; live application/runtime
