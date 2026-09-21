@@ -40,6 +40,19 @@ authorization policy, provenance rule, producer identity, Gate-B scope, HR-2/HR-
 workflow, or payroll behavior. It closes only the gap that allowed an activated pair to
 be skipped by multiple pointer advances between projection rebuilds.
 
+The follow-up is now applied to the restored Supabase project as
+`20260921070556_gap024_gate_a_activation_history_guard`. Controlled transaction/rollback
+verification exercised the exact skipped-pair case: after publishing (1,1), advancing to
+(2,2) succeeded; attempting to advance again to (3,3) before rebuilding (2,2) was
+rejected; rebuilding persisted (2,2), after which the (3,3) advance succeeded and its
+subsequent rebuild persisted (3,3). The history contained exactly the three governing
+pairs (1,1), (2,2), and (3,3), and rollback left zero matching fact revisions, evidence
+rows, or history rows.
+
+This executable result closes the activation/history P1 on the restored project. The
+separate true two-independent-session activation-versus-successor race remains an
+explicit verification limitation.
+
 ## 2026-09-21 — Historical projection/classification retention follow-up
 
 Fresh review identified a remaining Gate-A audit defect: the current authorization
