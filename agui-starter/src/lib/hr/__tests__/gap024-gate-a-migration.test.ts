@@ -87,6 +87,18 @@ assert.ok(
   "Gate-A activation/history privilege migration must be resolvable in focused and full-suite runners",
 );
 const activationHistoryPrivilegeSql = readFileSync(activationHistoryPrivilegeMigrationPath, "utf8");
+const retiredFactPointerFreezeMigrationRelativePath =
+  "supabase/migrations/20261019180000_gap024_gate_a_retired_fact_pointer_freeze.sql";
+const retiredFactPointerFreezeMigrationPath = [
+  resolve(process.cwd(), "..", retiredFactPointerFreezeMigrationRelativePath),
+  resolve(process.cwd(), "../..", retiredFactPointerFreezeMigrationRelativePath),
+].find(existsSync);
+assert.ok(
+  retiredFactPointerFreezeMigrationPath,
+  "Gate-A retired-fact pointer-freeze migration must be resolvable in focused and full-suite runners",
+);
+const retiredFactPointerFreezeSql = readFileSync(retiredFactPointerFreezeMigrationPath, "utf8");
+
 
 
 
@@ -1294,4 +1306,56 @@ test("activation history guard reads protected history through a narrowly scoped
     activationHistoryPrivilegeSql,
     /alter table public\.hr_attendance_authorization_history\s+disable row level security/i,
   );
+});
+
+
+test("retired facts freeze authority pointers across and after retirement", () => {
+  const fnStart = retiredFactPointerFreezeSql.indexOf(
+    "create or replace function public.hr_guard_attendance_fact_activation",
+  );
+  assert.notEqual(fnStart, -1);
+  const fn = retiredFactPointerFreezeSql.slice(fnStart);
+
+  assert.match(
+    fn,
+    /\(not old\.is_active or not new\.is_active\)[\s\S]*new\.current_value_revision is distinct from old\.current_value_revision[\s\S]*new\.evidence_basis_revision is distinct from old\.evidence_basis_revision/i,
+  );
+  assert.match(
+    fn,
+    /raise exception 'Retired canonical attendance fact authority pointers are immutable'/i,
+  );
+
+  const resurrectionIndex = fn.indexOf("if not old.is_active and new.is_active");
+  const freezeIndex = fn.indexOf("Retired canonical attendance fact authority pointers are immutable");
+  const historyIndex = fn.indexOf("from public.hr_attendance_authorization_history h");
+  assert.ok(resurrectionIndex >= 0 && freezeIndex > resurrectionIndex && historyIndex > freezeIndex);
+
+  assert.match(
+    retiredFactPointerFreezeSql,
+    /language plpgsql[\s\S]*security definer[\s\S]*set search_path = pg_catalog, public/i,
+  );
+  assert.match(
+    retiredFactPointerFreezeSql,
+    /revoke all on function public\.hr_guard_attendance_fact_activation\(\)[\s\S]*from public, anon, authenticated, service_role/i,
+  );
+});
+
+test("retirement may only tombstone the already-current authority pair", () => {
+  const retiredTransitionAllowed = (
+    oldActive: boolean,
+    newActive: boolean,
+    oldValue: number,
+    newValue: number,
+    oldBasis: number,
+    newBasis: number,
+  ) =>
+    !((!oldActive || !newActive) && (oldValue !== newValue || oldBasis !== newBasis))
+    && !(oldActive === false && newActive === true);
+
+  assert.equal(retiredTransitionAllowed(true, false, 4, 4, 6, 6), true);
+  assert.equal(retiredTransitionAllowed(false, false, 4, 5, 6, 6), false);
+  assert.equal(retiredTransitionAllowed(false, false, 4, 4, 6, 7), false);
+  assert.equal(retiredTransitionAllowed(true, false, 4, 5, 6, 6), false);
+  assert.equal(retiredTransitionAllowed(true, false, 4, 4, 6, 7), false);
+  assert.equal(retiredTransitionAllowed(false, true, 4, 4, 6, 6), false);
 });
