@@ -319,6 +319,18 @@ export type HrAttendanceAuthorizationProjectionRow = { house_id: string; fact_id
 export type HrAttendanceAuthorizationProjectionInsert = Omit<HrAttendanceAuthorizationProjectionRow, "governing_evidence_ids" | "rebuilt_at"> & Partial<Pick<HrAttendanceAuthorizationProjectionRow, "governing_evidence_ids" | "rebuilt_at">>;
 export type HrAttendanceAuthorizationProjectionUpdate = Partial<HrAttendanceAuthorizationProjectionInsert>;
 
+export type HrAttendanceAuthorizationHistoryRow = {
+  house_id: string; fact_id: string; employee_id: string;
+  value_revision: number; evidence_basis_revision: number;
+  evidence_basis_fingerprint: string;
+  attribution_state: "ATTRIBUTED" | "UNATTRIBUTED" | "CONFLICT";
+  active_branch_id: string | null; governing_evidence_ids: string[]; projected_at: string;
+};
+export type HrAttendanceAuthorizationHistoryInsert =
+  Omit<HrAttendanceAuthorizationHistoryRow, "governing_evidence_ids" | "projected_at"> &
+  Partial<Pick<HrAttendanceAuthorizationHistoryRow, "governing_evidence_ids" | "projected_at">>;
+export type HrAttendanceAuthorizationHistoryUpdate = Partial<HrAttendanceAuthorizationHistoryInsert>;
+
 export type HrScheduleTemplateRow = {
   id: string;
   house_id: string;
@@ -1649,6 +1661,7 @@ export interface Database {
       hr_attendance_fact_evidence: TableDefinition<HrAttendanceFactEvidenceRow, HrAttendanceFactEvidenceInsert, HrAttendanceFactEvidenceUpdate>;
       hr_attendance_employee_generations: TableDefinition<HrAttendanceEmployeeGenerationRow, HrAttendanceEmployeeGenerationInsert, HrAttendanceEmployeeGenerationUpdate>;
       hr_attendance_authorization_projection: TableDefinition<HrAttendanceAuthorizationProjectionRow, HrAttendanceAuthorizationProjectionInsert, HrAttendanceAuthorizationProjectionUpdate>;
+      hr_attendance_authorization_history: TableDefinition<HrAttendanceAuthorizationHistoryRow, HrAttendanceAuthorizationHistoryInsert, HrAttendanceAuthorizationHistoryUpdate>;
       hr_schedule_templates: TableDefinition<
         HrScheduleTemplateRow,
         HrScheduleTemplateInsert,
