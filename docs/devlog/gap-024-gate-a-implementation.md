@@ -9,6 +9,66 @@ consumer, backfill production data, migrate a writer, revoke existing `dtr_segme
 access, or implement Historical Daily DTR P1. Gate B remains next only after this Gate-A
 PR is independently hosted, reviewed, and merged.
 
+## 2026-09-21 — Policy-surface replay guard after live verification
+
+Controlled transaction/rollback verification against the restored Supabase project passed
+the live authorization, provenance, classifier, kiosk cardinality, and current-evidence
+cases exercised after the live-policy compatibility correction. Temporary fixtures were
+rolled back and left zero matching test rows.
+
+The verification also exposed one repository-replay edge in the first compatibility
+migration: live `entity_policies(entity_id, policy_id)` rows are direct/global grants,
+but historical ordered replay can expose the older flattened `entity_policies` view,
+where HOUSE/GUILD and PLATFORM rows share the same surface. Treating every flattened row
+as direct/global would wrongly promote historical HOUSE/GUILD capability to PLATFORM-like
+feature authority.
+
+Because both prior Gate-A migrations are already applied/tracked in the live project, PR
+#510 now adds the forward-only migration
+`20261019120000_gap024_gate_a_policy_surface_replay_guard.sql`. It preserves current
+live behavior while making the direct-policy CTE shape-aware:
+
+- on the confirmed live direct-assignment table, absence of a `scope` property means the
+  row remains a direct/global capability;
+- on the historical flattened surface, only `scope = PLATFORM` may satisfy the global
+  feature-capability lane;
+- HOUSE/GUILD rows from the historical surface are never promoted into global feature
+  capability;
+- branch scope still comes only from requested-House role-policy assignments and is
+  validated against branches in the requested House.
+
+This follow-up does not alter the public RPC signature/DTO, House membership requirement,
+owner/manager exclusion, classifier, identity semantics, RLS/grants, or Gate-B boundary.
+It exists solely to keep the already-approved authorization semantics correct on both the
+confirmed live schema and historical repository replay.
+
+Executable verification completed so far includes:
+
+- direct feature capability + requested-House branch role scope => branch row visible;
+- direct feature without branch scope => no branch rows;
+- branch scope without feature capability => no branch rows;
+- requested-House role carrying both feature capability and branch scope => visible;
+- PLATFORM role feature capability + requested-House membership/branch role => visible;
+- PLATFORM role without requested-House membership => no branch rows;
+- owner/manager house-global reader => visible while branch-scoped reader remains empty;
+- incomplete explicit provenance => rejected;
+- ordinary staff MANUAL_ADMIN provenance => rejected;
+- owner-family MANUAL_ADMIN provenance => accepted;
+- immutable evidence mutation => rejected;
+- fact creation outside revision/basis 1 => rejected;
+- stale continuous E1 -> E2 when E3 exists => rejected;
+- exact same-member carry-forward after successor append => accepted;
+- continuous E1 -> E3 current-leaf advance => accepted;
+- classifier ATTRIBUTED / CONFLICT / UNATTRIBUTED precedence scenarios => matched contract;
+- kiosk OPEN one-IN, OPEN IN+OUT, COMPLETED same-branch IN/OUT, and COMPLETED cross-branch
+  IN/OUT => matched approved classification;
+- all rollback fixtures left no test entities, facts, evidence, observations, or branches.
+
+True two-session row-lock race timing is not yet proven by these single-request transaction
+fixtures. Static SQL and trigger inspection confirm both activation and successor
+insertion lock the same selected/predecessor evidence row, but a database-capable
+multi-session harness remains the strongest remaining concurrency proof.
+
 ## 2026-09-21 — Live authorization compatibility correction
 
 The original Gate-A migration was successfully applied to the restored Supabase project and
