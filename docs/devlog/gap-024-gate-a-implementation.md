@@ -9,6 +9,35 @@ consumer, backfill production data, migrate a writer, revoke existing `dtr_segme
 access, or implement Historical Daily DTR P1. Gate B remains next only after this Gate-A
 PR is independently hosted, reviewed, and merged.
 
+## 2026-09-21 — Role-scope replay hardening
+
+A Codex re-review of the first live-policy compatibility commit surfaced two replay
+requirements. The undefined-column compatibility issue is already handled by shape-aware
+`to_jsonb(...)->>` access for optional `roles.key`, `roles.slug`, and
+`house_roles.role_id`. The remaining issue was cross-scope role resolution on the
+historical RBAC shape: identical custom role slugs are valid in different Houses, so a
+text fallback must not attach policy rows from a same-named role owned by another House.
+
+Because the earlier compatibility migrations are already applied live, PR #510 adds the
+forward-only migration `20261019130000_gap024_gate_a_role_scope_guard.sql`. Role
+resolution now remains shape-aware:
+
+- historical roles exposing `scope_ref` must be `scope = HOUSE` with
+  `scope_ref IS NULL` or exactly the requested House before contributing House policy
+  capability or branch restriction;
+- the current live role table has no `scope_ref`; exact-House membership plus globally
+  keyed role IDs/slugs are accepted only for live House/workspace-compatible role scope
+  (or legacy-null scope);
+- historical PLATFORM role resolution requires `scope = PLATFORM` with null
+  `scope_ref`; current live role resolution accepts only platform/null scope;
+- role text/ID matching, feature-capability requirements, requested-House membership,
+  owner/manager exclusion, and branch restriction remain otherwise unchanged.
+
+This correction makes no new authorization/product decision. It closes a physical
+role-schema compatibility hole while preserving the already-approved rule that PLATFORM
+capability never creates House membership or branch scope and that House branch scope is
+restriction-only.
+
 ## 2026-09-21 — Policy-surface replay guard after live verification
 
 Controlled transaction/rollback verification against the restored Supabase project passed
