@@ -9,6 +9,37 @@ consumer, backfill production data, migrate a writer, revoke existing `dtr_segme
 access, or implement Historical Daily DTR P1. Gate B remains next only after this Gate-A
 PR is independently hosted, reviewed, and merged.
 
+## 2026-09-21 — Activation/history coupling follow-up
+
+Fresh exact-head Codex review found one further P1 after the projection-history ledger was
+added: history was persisted only when the projection rebuild ran, while the fact
+activation guard could advance the current value/evidence pointers again before an
+intervening rebuild. That allowed an intermediate authority pair to have genuinely been
+current without ever receiving a durable canonical classification record.
+
+PR #510 therefore adds the forward-only migration
+`20261019160000_gap024_gate_a_activation_history_guard.sql`. The existing fact
+activation trigger now requires the **previously current** exact
+`(current_value_revision, evidence_basis_revision)` pair to already exist in
+`hr_attendance_authorization_history` before any authority pointer changes or the fact
+is retired. Ordinary updates that do not change the authority pair or active state are
+not blocked.
+
+This preserves the existing architecture rather than inventing another revision concept:
+
+- the exact value/evidence pair remains the authority identity;
+- the current projection remains one row per current fact;
+- the append-only history remains the durable classification audit;
+- a newly activated pair may become current after the prior pair has been classified,
+  but it cannot itself be superseded until a rebuild has classified/persisted it;
+- the existing forward-only value/frame, lineage-leaf, retirement, and same-House guards
+  still run after this classification-history precondition.
+
+The correction changes no public reader signature/DTO, classification semantics,
+authorization policy, provenance rule, producer identity, Gate-B scope, HR-2/HR-4
+workflow, or payroll behavior. It closes only the gap that allowed an activated pair to
+be skipped by multiple pointer advances between projection rebuilds.
+
 ## 2026-09-21 — Historical projection/classification retention follow-up
 
 Fresh review identified a remaining Gate-A audit defect: the current authorization
