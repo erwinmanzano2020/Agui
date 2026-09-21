@@ -15,10 +15,22 @@ The forward-only migration
 `pg_catalog, public` search path, and revokes direct function execution from public,
 anon, authenticated, and service_role. Direct history-table grants remain revoked.
 
-Next verification must exercise an actual update under `service_role`: direct history
-SELECT must remain unavailable while an otherwise valid authority transition succeeds
-through the trigger's owner privilege. Then rerun current-head Preflight and fresh Codex
-review before any merge decision.
+The migration is now applied to the restored Supabase project as
+`20260921085205_gap024_gate_a_activation_history_privilege`. Live catalog checks confirm
+the trigger function is SECURITY DEFINER, owned by postgres, keeps the fixed
+`pg_catalog, public` search path, and grants no direct EXECUTE to public/anon/
+authenticated/service_role. Direct authorization-history SELECT remains unavailable to
+service_role.
+
+Controlled transaction/rollback verification switched the session to service_role:
+direct history SELECT was denied, while a valid fact authority transition succeeded
+through the automatic trigger and its definer privilege. Rollback left zero matching
+fact revisions, evidence, or history rows.
+
+The trigger-privilege P1 is therefore executable-verified on the restored project. A
+fresh exact-head Codex review remains required before any merge decision. The separate
+true two-independent-session activation/successor race remains an explicit verification
+limitation.
 
 ## 2026-09-21 — GAP-024 Gate-A activation/history coupling follow-up
 
