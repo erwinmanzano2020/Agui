@@ -98,6 +98,18 @@ assert.ok(
   "Gate-A retired-fact pointer-freeze migration must be resolvable in focused and full-suite runners",
 );
 const retiredFactPointerFreezeSql = readFileSync(retiredFactPointerFreezeMigrationPath, "utf8");
+const initialActiveGuardMigrationRelativePath =
+  "supabase/migrations/20261019190000_gap024_gate_a_initial_active_guard.sql";
+const initialActiveGuardMigrationPath = [
+  resolve(process.cwd(), "..", initialActiveGuardMigrationRelativePath),
+  resolve(process.cwd(), "../..", initialActiveGuardMigrationRelativePath),
+].find(existsSync);
+assert.ok(
+  initialActiveGuardMigrationPath,
+  "Gate-A initial-active migration must be resolvable in focused and full-suite runners",
+);
+const initialActiveGuardSql = readFileSync(initialActiveGuardMigrationPath, "utf8");
+
 
 
 
@@ -1358,4 +1370,40 @@ test("retirement may only tombstone the already-current authority pair", () => {
   assert.equal(retiredTransitionAllowed(true, false, 4, 5, 6, 6), false);
   assert.equal(retiredTransitionAllowed(true, false, 4, 4, 6, 7), false);
   assert.equal(retiredTransitionAllowed(false, true, 4, 4, 6, 6), false);
+});
+
+
+test("canonical attendance facts must begin active at authority pair 1/1", () => {
+  const fnStart = initialActiveGuardSql.indexOf(
+    "create or replace function public.hr_guard_attendance_fact_activation",
+  );
+  assert.notEqual(fnStart, -1);
+  const fn = initialActiveGuardSql.slice(fnStart);
+
+  assert.match(
+    fn,
+    /if tg_op = 'INSERT' then[\s\S]*if not new\.is_active then[\s\S]*Canonical attendance facts must begin active/i,
+  );
+  assert.match(
+    fn,
+    /if new\.current_value_revision <> 1 or new\.evidence_basis_revision <> 1 then[\s\S]*Canonical attendance facts must begin at value revision and evidence basis 1/i,
+  );
+  assert.match(
+    initialActiveGuardSql,
+    /language plpgsql[\s\S]*security definer[\s\S]*set search_path = pg_catalog, public/i,
+  );
+  assert.match(
+    initialActiveGuardSql,
+    /revoke all on function public\.hr_guard_attendance_fact_activation\(\)[\s\S]*from public, anon, authenticated, service_role/i,
+  );
+});
+
+test("initial lifecycle permits only active 1/1 facts", () => {
+  const insertAllowed = (isActive: boolean, valueRevision: number, basisRevision: number) =>
+    isActive && valueRevision === 1 && basisRevision === 1;
+
+  assert.equal(insertAllowed(true, 1, 1), true);
+  assert.equal(insertAllowed(false, 1, 1), false);
+  assert.equal(insertAllowed(true, 2, 1), false);
+  assert.equal(insertAllowed(true, 1, 2), false);
 });
