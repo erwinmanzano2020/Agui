@@ -9,6 +9,30 @@ consumer, backfill production data, migrate a writer, revoke existing `dtr_segme
 access, or implement Historical Daily DTR P1. Gate B remains next only after this Gate-A
 PR is independently hosted, reviewed, and merged.
 
+## 2026-09-21 — Activation-history trigger privilege follow-up
+
+Fresh exact-head review found a privilege-boundary defect in the activation/history
+coupling fix: `hr_guard_attendance_fact_activation()` queried the protected
+`hr_attendance_authorization_history` table as the invoking role, while Gate A
+intentionally revokes direct history-table privileges from `service_role`. An intended
+service-role producer could therefore fail with table-permission denial before the
+history precondition itself was evaluated.
+
+PR #510 adds the forward-only migration
+`20261019170000_gap024_gate_a_activation_history_privilege.sql`. It changes only the
+existing trigger function privilege context:
+
+- `hr_guard_attendance_fact_activation()` becomes `SECURITY DEFINER`;
+- its fixed `search_path = pg_catalog, public` is retained explicitly;
+- direct EXECUTE is revoked from public, anon, authenticated, and service_role;
+- no direct SELECT or other history-table privilege is granted to service_role;
+- history RLS/direct-access posture remains unchanged.
+
+The trigger continues to run automatically on `hr_attendance_facts` writes and can read
+the audit table using its owner privilege, while application/service producers still
+cannot query the history table directly. No reader RPC, classifier, evidence, lineage,
+tenant, branch, identity, Gate-B, HR-2/HR-4, or payroll semantics change.
+
 ## 2026-09-21 — Activation/history coupling follow-up
 
 Fresh exact-head Codex review found one further P1 after the projection-history ledger was
