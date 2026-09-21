@@ -65,6 +65,18 @@ assert.ok(
   "Gate-A projection-history migration must be resolvable in focused and full-suite runners",
 );
 const projectionHistorySql = readFileSync(projectionHistoryMigrationPath, "utf8");
+const activationHistoryGuardMigrationRelativePath =
+  "supabase/migrations/20261019160000_gap024_gate_a_activation_history_guard.sql";
+const activationHistoryGuardMigrationPath = [
+  resolve(process.cwd(), "..", activationHistoryGuardMigrationRelativePath),
+  resolve(process.cwd(), "../..", activationHistoryGuardMigrationRelativePath),
+].find(existsSync);
+assert.ok(
+  activationHistoryGuardMigrationPath,
+  "Gate-A activation/history guard migration must be resolvable in focused and full-suite runners",
+);
+const activationHistoryGuardSql = readFileSync(activationHistoryGuardMigrationPath, "utf8");
+
 
 
 
@@ -1207,4 +1219,39 @@ test("projection history is audit-only and does not widen public reader contract
     /create or replace function public\.hr_read_canonical_attendance_(?:branch_scoped|house_global)/i,
   );
   assert.match(projectionHistorySql, /notify pgrst, 'reload schema'/i);
+});
+
+
+test("activation/history guard requires the previously current authority pair to be classified before another change", () => {
+  const fnStart = activationHistoryGuardSql.indexOf(
+    "create or replace function public.hr_guard_attendance_fact_activation",
+  );
+  assert.notEqual(fnStart, -1);
+  const fn = activationHistoryGuardSql.slice(fnStart);
+
+  assert.match(
+    fn,
+    /new\.current_value_revision is distinct from old\.current_value_revision[\s\S]*new\.evidence_basis_revision is distinct from old\.evidence_basis_revision[\s\S]*new\.is_active is distinct from old\.is_active/i,
+  );
+  assert.match(
+    fn,
+    /from public\.hr_attendance_authorization_history h[\s\S]*h\.house_id = old\.house_id[\s\S]*h\.fact_id = old\.id[\s\S]*h\.employee_id = old\.employee_id[\s\S]*h\.value_revision = old\.current_value_revision[\s\S]*h\.evidence_basis_revision = old\.evidence_basis_revision/i,
+  );
+  assert.match(
+    fn,
+    /raise exception 'Current attendance authority pair must be classified before another authority change'/i,
+  );
+
+  const historyGuardIndex = fn.indexOf("from public.hr_attendance_authorization_history h");
+  const forwardRevisionIndex = fn.indexOf("if new.current_value_revision < old.current_value_revision");
+  assert.ok(historyGuardIndex >= 0 && forwardRevisionIndex > historyGuardIndex);
+
+  assert.doesNotMatch(
+    activationHistoryGuardSql,
+    /insert\s+into\s+public\.hr_attendance_authorization_history/i,
+  );
+  assert.doesNotMatch(
+    activationHistoryGuardSql,
+    /create or replace function public\.hr_rebuild_attendance_authorization_projection/i,
+  );
 });
