@@ -9,6 +9,24 @@ consumer, backfill production data, migrate a writer, revoke existing `dtr_segme
 access, or implement Historical Daily DTR P1. Gate B remains next only after this Gate-A
 PR is independently hosted, reviewed, and merged.
 
+## 2026-09-21 — Supersession lookup performance follow-up
+
+Fresh Codex review of current head identified one bounded P2: evidence-frame sealing and
+fact activation repeatedly probe for direct successors by House, selected predecessor,
+employee, and lineage root, but the evidence table had no dedicated successor lookup
+index. PR #510 therefore adds the forward-only migration
+`20261019140000_gap024_gate_a_supersession_lookup_index.sql`.
+
+The migration adds only the partial index
+`hr_attendance_evidence_supersession_lookup_idx` on
+`(house_id, supersedes_evidence_id, employee_id, lineage_root_evidence_id)` where
+`supersedes_evidence_id is not null`. This matches the current direct-successor probes
+used by sealing/activation guards and avoids scanning root evidence rows that cannot match
+a successor lookup.
+
+No authorization, classifier, identity, lineage, locking, RPC, DTO, RLS, grant, Gate-B,
+Historical DTR P1, or producer/consumer semantics change.
+
 ## 2026-09-21 — Role-scope replay hardening
 
 A Codex re-review of the first live-policy compatibility commit surfaced two replay
