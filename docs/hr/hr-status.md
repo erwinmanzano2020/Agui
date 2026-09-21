@@ -1,5 +1,26 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-21 — GAP-024 Gate-A role-scope compatibility follow-up
+
+**Status: correction implemented in PR #510; live application/re-verification pending.**
+Codex review of the compatibility RPC identified that the historical role model permits
+same-named custom roles in multiple Houses. The shape-aware key/slug compatibility logic
+therefore also needs an explicit role-scope boundary so requested-House membership cannot
+inherit policies from another House's custom role.
+
+The forward-only migration
+`20261019130000_gap024_gate_a_role_scope_guard.sql` constrains historical House role
+resolution to `scope = HOUSE` with null/global or requested-House `scope_ref`, and
+historical PLATFORM role resolution to `scope = PLATFORM` with null `scope_ref`.
+Current live schemas without `scope_ref` retain compatibility through the exact-House
+membership row and live House/workspace/platform scope conventions. The optional
+`roles.key`, `roles.slug`, and `house_roles.role_id` fields remain accessed
+shape-safely through JSON representation.
+
+No reader signature/DTO, classifier, identity, Gate-B, Historical DTR P1, producer,
+backfill, consumer, or broader RBAC migration work is included. Apply this follow-up
+once, rerun the bounded live authorization tests, and then reassess merge readiness.
+
 ## 2026-09-21 — GAP-024 Gate-A executable verification checkpoint
 
 **Status: broad executable verification passed for bounded single-session fixtures;
