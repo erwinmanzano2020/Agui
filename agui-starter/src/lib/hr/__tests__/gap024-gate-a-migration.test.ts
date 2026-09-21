@@ -10,6 +10,24 @@ const migrationPath = [
 ].find(existsSync);
 assert.ok(migrationPath, "Gate-A migration must be resolvable in focused and full-suite runners");
 const sql = readFileSync(migrationPath, "utf8");
+const compatibilityMigrationRelativePath =
+  "supabase/migrations/20261019110000_gap024_gate_a_live_policy_compatibility.sql";
+const compatibilityMigrationPath = [
+  resolve(process.cwd(), "..", compatibilityMigrationRelativePath),
+  resolve(process.cwd(), "../..", compatibilityMigrationRelativePath),
+].find(existsSync);
+assert.ok(
+  compatibilityMigrationPath,
+  "Gate-A live-policy compatibility migration must be resolvable in focused and full-suite runners",
+);
+const compatibilitySql = readFileSync(compatibilityMigrationPath, "utf8");
+
+function compatibilityFunctionSql(name: string) {
+  const start = compatibilitySql.indexOf(`create or replace function public.${name}`);
+  assert.notEqual(start, -1);
+  return compatibilitySql.slice(start);
+}
+
 
 function functionSql(name: string, nextName?: string) {
   const start = sql.indexOf(`create or replace function public.${name}`);
@@ -952,4 +970,37 @@ test("no production source imports a Gate-A reader", () => {
   assert.ok(sourceRoot, "application source must be resolvable in focused and full-suite runners");
   walk(sourceRoot);
   assert.deepEqual(references, []);
+});
+
+
+test("live-policy compatibility migration keeps branch authorization on canonical current tables", () => {
+  const branch = compatibilityFunctionSql("hr_read_canonical_attendance_branch_scoped");
+
+  assert.match(branch, /join public\.entity_policies ep on ep\.entity_id = hm\.entity_id/i);
+  assert.match(branch, /join public\.policies p on p\.id = ep\.policy_id/i);
+  assert.doesNotMatch(branch, /ep\.policy_key|ep\.scope|ep\.scope_ref/i);
+
+  assert.match(branch, /join public\.house_roles hr[\s\S]*hr\.house_id = p_house_id[\s\S]*hr\.entity_id = hm\.entity_id/i);
+  assert.match(branch, /join public\.role_policies rp on rp\.role_id = r\.id[\s\S]*join public\.policies p on p\.id = rp\.policy_id/i);
+  assert.match(branch, /to_jsonb\(hr\)\s*->>\s*'role_id'/i);
+  assert.match(branch, /to_jsonb\(r\)\s*->>\s*'slug'/i);
+  assert.match(branch, /to_jsonb\(r\)\s*->>\s*'key'/i);
+
+  assert.match(branch, /join public\.platform_roles pr on pr\.entity_id = hm\.entity_id/i);
+  assert.match(branch, /cross join lateral unnest\(pr\.roles\)/i);
+  assert.match(branch, /effective_policy\.policy_key in \('tiles\.hr\.read', 'tiles\.payroll\.read'\)/i);
+
+  const allowedBranches = branch.slice(branch.indexOf("allowed_branches as ("));
+  assert.match(allowedBranches, /join house_policy_keys hpk on hpk\.entity_id = afr\.entity_id/i);
+  assert.doesNotMatch(allowedBranches, /join direct_policy_keys|join platform_policy_keys/i);
+  assert.match(allowedBranches, /b\.house_id = p_house_id[\s\S]*b\.id = parsed\.id/i);
+
+  assert.match(branch, /lower\(btrim\(hr\.role\)\) in \([\s\S]*'house_owner'[\s\S]*'business_owner'[\s\S]*'house_manager'[\s\S]*'business_admin'[\s\S]*'business_manager'/i);
+  assert.match(compatibilitySql, /revoke all on function public\.hr_read_canonical_attendance_branch_scoped\([\s\S]*from public, anon/i);
+  assert.match(compatibilitySql, /grant execute on function public\.hr_read_canonical_attendance_branch_scoped\([\s\S]*to authenticated/i);
+  assert.match(compatibilitySql, /notify pgrst, 'reload schema'/i);
+
+  assert.doesNotMatch(compatibilitySql, /drop\s+(?:table|view)\s+public\.entity_policies/i);
+  assert.doesNotMatch(compatibilitySql, /create\s+(?:table|view)\s+public\.entity_policies/i);
+  assert.doesNotMatch(compatibilitySql, /insert\s+into\s+public\.(?:policies|roles|role_policies|house_roles|entity_policies|platform_roles)/i);
 });
