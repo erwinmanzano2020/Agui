@@ -1,5 +1,24 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-22 — GAP-024 Gate-A initial-active lifecycle follow-up
+
+**Status: independent P2 correction implemented in PR #510; live application/runtime
+verification pending.** Independent review found that the activation trigger's INSERT
+path required authority pair (1,1) but did not require `is_active=true`. A caller could
+therefore create an already-retired canonical fact that projection rebuilds would ignore,
+leaving no corresponding current projection or authorization-history classification.
+
+The forward-only migration
+`20261019190000_gap024_gate_a_initial_active_guard.sql` now requires new canonical
+attendance facts to begin active as well as at value/evidence revision 1/1. This aligns
+creation with the established one-way lifecycle: active first, classified while active,
+then optionally retired as a tombstone of the last classified pair.
+
+Next verification must prove an explicit inactive INSERT is rejected under the intended
+producer privilege while an ordinary active (1,1) INSERT remains valid. Roll back all
+fixtures and confirm zero leftovers, then obtain a fresh exact-head review before any
+merge decision.
+
 ## 2026-09-21 — GAP-024 Gate-A retired-fact authority-pointer freeze follow-up
 
 **Status: P2 correction implemented in PR #510; live application/runtime verification
