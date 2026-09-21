@@ -21,9 +21,21 @@ RLS-protected, and receive no direct public/anon/authenticated/service-role tabl
 This is a forward-only correction because the earlier Gate-A migrations are already
 tracked live. It does not reopen Gate B, expose audit history to branch readers, change
 reader signatures/DTOs, add producer identity, alter GAP-025 classification, or implement
-HR-2/HR-4 correction workflow. Apply the migration once, verify historical-pair retention
-and append-only behavior with rollback fixtures, then obtain a fresh current-head review
-before any merge decision.
+HR-2/HR-4 correction workflow.
+
+The migration is now applied to the restored Supabase project as
+`20260921052008_gap024_gate_a_projection_history`. Controlled transaction/rollback
+verification passed: current pair (1,1) was retained after value advancement to (2,1)
+and evidence-basis advancement to (2,2); all three exact governing pairs remained
+ATTRIBUTED to the expected branch, a repeated rebuild of (2,2) remained idempotent, and
+UPDATE/DELETE attempts against history were rejected by the append-only trigger. The
+transaction rolled back cleanly with zero matching test revisions, evidence, or history
+rows left behind.
+
+The historical-projection P1 is therefore executable-verified on the restored project.
+Obtain a fresh Codex review on the resulting current head before any merge decision. The
+separate true two-independent-session activation/successor race remains an explicit
+verification limitation.
 
 ## 2026-09-21 — GAP-024 Gate-A supersession index follow-up
 
