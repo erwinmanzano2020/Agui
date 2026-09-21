@@ -19,10 +19,18 @@ already-classified pair; post-retirement pointer movement and combined retire+ad
 rejected. Existing resurrection rejection, history precondition, predecessor, lineage,
 and branch rules remain unchanged.
 
-Next verification must prove both previously reproduced paths are rejected, while an
-ordinary retirement that keeps the exact current pair succeeds and remains historically
-consistent. Roll back all fixtures and confirm zero leftovers, then obtain a fresh
-exact-head review before any merge decision.
+The migration is now applied to the restored Supabase project as
+`20260921093011_gap024_gate_a_retired_fact_pointer_freeze`. Controlled rollback
+verification passed: ordinary retirement preserving the exact (1,1) authority pair
+succeeded; post-retirement pointer advancement was rejected; combined pointer advance
+plus retirement in one UPDATE was rejected without state change; and retired-to-active
+resurrection remained rejected. Rollback left zero matching fact revisions, evidence, or
+history rows.
+
+The retired-pointer P2 is therefore executable-verified on the restored project. A fresh
+exact-head Codex review remains required before any merge decision. The separate true
+two-independent-session activation/successor race remains an explicit verification
+limitation.
 
 ## 2026-09-21 — GAP-024 Gate-A activation-history trigger privilege follow-up
 
