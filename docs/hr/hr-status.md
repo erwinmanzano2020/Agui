@@ -1,5 +1,30 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-21 — GAP-024 Gate-A historical projection retention follow-up
+
+**Status: P1 historical-classification correction implemented in PR #510; live
+application and executable verification pending.** Fresh review found that rebuilding the
+one-row-per-current-fact projection could discard the durable record of which exact
+`current_value_revision` and `evidence_basis_revision` governed together with a prior
+classification. This conflicts with the frozen requirement to retain historical
+classifications for authorized audit.
+
+PR #510 now adds
+`20261019150000_gap024_gate_a_projection_history.sql`, which creates append-only
+`hr_attendance_authorization_history` keyed by House, fact, value revision, and
+evidence-basis revision. The rebuild preserves the prior current projection before
+replacement and records the newly classified exact pair while leaving the existing
+current projection and both public readers unchanged. Historical rows retain the
+fingerprint, classification, optional active branch, and governing evidence IDs, are
+RLS-protected, and receive no direct public/anon/authenticated/service-role table grant.
+
+This is a forward-only correction because the earlier Gate-A migrations are already
+tracked live. It does not reopen Gate B, expose audit history to branch readers, change
+reader signatures/DTOs, add producer identity, alter GAP-025 classification, or implement
+HR-2/HR-4 correction workflow. Apply the migration once, verify historical-pair retention
+and append-only behavior with rollback fixtures, then obtain a fresh current-head review
+before any merge decision.
+
 ## 2026-09-21 — GAP-024 Gate-A supersession index follow-up
 
 **Status: P2 performance correction implemented; live application/verification pending.**
