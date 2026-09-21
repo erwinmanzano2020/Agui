@@ -9,6 +9,27 @@ consumer, backfill production data, migrate a writer, revoke existing `dtr_segme
 access, or implement Historical Daily DTR P1. Gate B remains next only after this Gate-A
 PR is independently hosted, reviewed, and merged.
 
+## 2026-09-22 — Initial-active fact lifecycle follow-up
+
+Independent review of exact head `94d66e25f08dd486c66df3ef90ba38798daeeabf`
+found a lifecycle hole in the INSERT branch of
+`hr_guard_attendance_fact_activation()`: new facts were required to begin at authority
+pair (1,1), but callers could explicitly insert `is_active=false`. Such a row could
+receive valid revision/frame/evidence data yet remain excluded from projection rebuilds,
+creating a retired tombstone that had never been active or canonically classified.
+
+PR #510 therefore adds the forward-only migration
+`20261019190000_gap024_gate_a_initial_active_guard.sql`. The activation trigger now
+requires every newly inserted canonical attendance fact to begin with
+`is_active=true` in addition to `current_value_revision=1` and
+`evidence_basis_revision=1`.
+
+This closes the lifecycle invariant without changing later retirement semantics:
+new facts begin active; an active fact may later retire only after its current exact pair
+has durable classification history; retirement freezes that pair; retired facts cannot
+reactivate or move authority pointers. No reader, classifier, evidence, lineage,
+authorization, Gate-B, HR-2/HR-4, or payroll semantics change.
+
 ## 2026-09-21 — Retired-fact authority-pointer freeze follow-up
 
 Dual review on exact head `17b06f30a9ee23be3ffcea0de2f473bfa1000e61`
