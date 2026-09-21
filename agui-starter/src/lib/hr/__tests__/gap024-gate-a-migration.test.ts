@@ -54,6 +54,18 @@ assert.ok(
   "Gate-A supersession lookup index migration must be resolvable in focused and full-suite runners",
 );
 const supersessionIndexSql = readFileSync(supersessionIndexMigrationPath, "utf8");
+const projectionHistoryMigrationRelativePath =
+  "supabase/migrations/20261019150000_gap024_gate_a_projection_history.sql";
+const projectionHistoryMigrationPath = [
+  resolve(process.cwd(), "..", projectionHistoryMigrationRelativePath),
+  resolve(process.cwd(), "../..", projectionHistoryMigrationRelativePath),
+].find(existsSync);
+assert.ok(
+  projectionHistoryMigrationPath,
+  "Gate-A projection-history migration must be resolvable in focused and full-suite runners",
+);
+const projectionHistorySql = readFileSync(projectionHistoryMigrationPath, "utf8");
+
 
 
 
@@ -1129,4 +1141,70 @@ test("supersession lookup index matches activation and sealing successor probes"
     frame,
     /successor\.house_id\s*=\s*selected_evidence\.house_id[\s\S]*successor\.employee_id\s*=\s*selected_evidence\.employee_id[\s\S]*successor\.lineage_root_evidence_id\s*=\s*selected_evidence\.lineage_root_evidence_id[\s\S]*successor\.supersedes_evidence_id\s*=\s*selected_evidence\.id/i,
   );
+});
+
+
+test("historical authorization projection revisions are append-only and keyed by governing pair", () => {
+  assert.match(
+    projectionHistorySql,
+    /create table public\.hr_attendance_authorization_history \([\s\S]*primary key \(house_id, fact_id, value_revision, evidence_basis_revision\)/i,
+  );
+  assert.match(
+    projectionHistorySql,
+    /foreign key \(house_id, fact_id, value_revision\)[\s\S]*references public\.hr_attendance_fact_revisions\(house_id, fact_id, revision\)/i,
+  );
+  assert.match(
+    projectionHistorySql,
+    /foreign key \(house_id, fact_id, evidence_basis_revision\)[\s\S]*references public\.hr_attendance_evidence_frames\(house_id, fact_id, evidence_basis_revision\)/i,
+  );
+  assert.match(
+    projectionHistorySql,
+    /create trigger hr_attendance_authorization_history_immutable[\s\S]*before update or delete[\s\S]*hr_reject_attendance_history_mutation/i,
+  );
+  assert.match(
+    projectionHistorySql,
+    /alter table public\.hr_attendance_authorization_history enable row level security/i,
+  );
+  assert.match(
+    projectionHistorySql,
+    /revoke all on table public\.hr_attendance_authorization_history[\s\S]*from public, anon, authenticated, service_role/i,
+  );
+});
+
+test("projection rebuild preserves prior current state before replacement and records the rebuilt pair", () => {
+  const fnStart = projectionHistorySql.indexOf(
+    "create or replace function public.hr_rebuild_attendance_authorization_projection",
+  );
+  assert.notEqual(fnStart, -1);
+  const fn = projectionHistorySql.slice(fnStart);
+
+  const preserveIndex = fn.indexOf("insert into public.hr_attendance_authorization_history");
+  const deleteIndex = fn.indexOf("delete from public.hr_attendance_authorization_projection");
+  assert.ok(preserveIndex >= 0 && deleteIndex > preserveIndex);
+
+  assert.match(
+    fn,
+    /select[\s\S]*p\.value_revision, p\.evidence_basis_revision[\s\S]*p\.attribution_state[\s\S]*from public\.hr_attendance_authorization_projection p[\s\S]*on conflict \(house_id, fact_id, value_revision, evidence_basis_revision\) do nothing/i,
+  );
+
+  const classifiedHistoryIndex = fn.indexOf("), history_write as (");
+  const currentInsertIndex = fn.indexOf("insert into public.hr_attendance_authorization_projection");
+  assert.ok(classifiedHistoryIndex >= 0 && currentInsertIndex > classifiedHistoryIndex);
+
+  assert.match(
+    fn.slice(classifiedHistoryIndex),
+    /insert into public\.hr_attendance_authorization_history[\s\S]*current_value_revision, evidence_basis_revision[\s\S]*basis_fingerprint, classification[\s\S]*evidence_ids, now\(\)[\s\S]*on conflict \(house_id, fact_id, value_revision, evidence_basis_revision\) do nothing/i,
+  );
+});
+
+test("projection history is audit-only and does not widen public reader contracts", () => {
+  assert.doesNotMatch(
+    projectionHistorySql,
+    /grant\s+(?:select|insert|update|delete|all)[\s\S]*hr_attendance_authorization_history[\s\S]*to\s+(?:anon|authenticated)/i,
+  );
+  assert.doesNotMatch(
+    projectionHistorySql,
+    /create or replace function public\.hr_read_canonical_attendance_(?:branch_scoped|house_global)/i,
+  );
+  assert.match(projectionHistorySql, /notify pgrst, 'reload schema'/i);
 });
