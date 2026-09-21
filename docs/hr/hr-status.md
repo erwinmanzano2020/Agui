@@ -1,5 +1,38 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-21 — GAP-024 Gate-A live policy compatibility correction
+
+**Status: PR #510 changes required correction implemented; executable re-verification
+pending.** The original Gate-A migration was successfully applied to the restored live
+Supabase project and is tracked as
+`20260920092652_gap024_gate_a_attendance_authority`. That execution confirmed the eight
+Gate-A authority tables and protected RPCs could be created, but the branch-scoped reader
+then failed with PostgreSQL `42703` because it referenced the historical flattened
+`entity_policies.policy_key/scope/scope_ref` contract.
+
+Read-only live inspection confirmed the current canonical authorization substrate instead
+uses key-based `public.policies`, direct `public.entity_policies(entity_id, policy_id)`,
+`public.house_roles`, `public.roles`, `public.role_policies`, and
+`public.platform_roles`. This is consistent with the existing GAP-023 live policy-shape
+record; blindly replaying the historical 20251107/20251112 RBAC migrations would not be a
+safe remediation.
+
+PR #510 therefore adds the forward-only migration
+`20261019110000_gap024_gate_a_live_policy_compatibility.sql`. It replaces only the
+branch-scoped reader implementation while preserving the six-argument RPC signature,
+sanitized DTO, exact-House membership, owner/manager exclusion, feature capability
+requirement, branch restriction, grants, and PostgREST reload. Direct and PLATFORM
+capability may satisfy feature-read capability but cannot manufacture House membership or
+branch scope; branch keys are accepted only through requested-House role-policy
+assignments and only for branches in that House.
+
+No `entity_policies` replacement/drop, historical RBAC replay, assignment seeding,
+producer/backfill work, consumer cutover, Historical DTR P1, or Gate-B work is included.
+No new owner semantic decision is required. The next step is to apply this follow-up once
+to the live Supabase project, rerun the branch/global reader authorization checks, and
+continue the remaining executable Gate-A constraint/locking/concurrency verification.
+PR #510 must not merge until that verification is green.
+
 ## Current authority and posture
 
 - **Last audited:** 2026-08-28 UTC; GAP-025 contract canonicalized 2026-09-06 UTC;
