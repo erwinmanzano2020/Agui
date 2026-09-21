@@ -21,6 +21,18 @@ assert.ok(
   "Gate-A live-policy compatibility migration must be resolvable in focused and full-suite runners",
 );
 const compatibilitySql = readFileSync(compatibilityMigrationPath, "utf8");
+const replayGuardMigrationRelativePath =
+  "supabase/migrations/20261019120000_gap024_gate_a_policy_surface_replay_guard.sql";
+const replayGuardMigrationPath = [
+  resolve(process.cwd(), "..", replayGuardMigrationRelativePath),
+  resolve(process.cwd(), "../..", replayGuardMigrationRelativePath),
+].find(existsSync);
+assert.ok(
+  replayGuardMigrationPath,
+  "Gate-A policy replay-guard migration must be resolvable in focused and full-suite runners",
+);
+const replayGuardSql = readFileSync(replayGuardMigrationPath, "utf8");
+
 
 function compatibilityFunctionSql(name: string) {
   const start = compatibilitySql.indexOf(`create or replace function public.${name}`);
@@ -1003,4 +1015,33 @@ test("live-policy compatibility migration keeps branch authorization on canonica
   assert.doesNotMatch(compatibilitySql, /drop\s+(?:table|view)\s+public\.entity_policies/i);
   assert.doesNotMatch(compatibilitySql, /create\s+(?:table|view)\s+public\.entity_policies/i);
   assert.doesNotMatch(compatibilitySql, /insert\s+into\s+public\.(?:policies|roles|role_policies|house_roles|entity_policies|platform_roles)/i);
+});
+
+
+test("policy replay guard keeps scope-less live direct grants global but historical flattened grants PLATFORM-only", () => {
+  const branchStart = replayGuardSql.indexOf("create or replace function public.hr_read_canonical_attendance_branch_scoped");
+  assert.notEqual(branchStart, -1);
+  const branch = replayGuardSql.slice(branchStart);
+
+  const directBlock = branch.slice(branch.indexOf("direct_policy_keys as ("), branch.indexOf("platform_policy_keys as ("));
+  assert.match(directBlock, /join public\.entity_policies ep on ep\.entity_id = hm\.entity_id/i);
+  assert.match(directBlock, /join public\.policies p on p\.id = ep\.policy_id/i);
+  assert.match(directBlock, /not \(to_jsonb\(ep\) \? 'scope'\)/i);
+  assert.match(directBlock, /upper\(btrim\(coalesce\(to_jsonb\(ep\) ->> 'scope', ''\)\)\) = 'PLATFORM'/i);
+  assert.doesNotMatch(directBlock, /scope_ref/i);
+
+  const allowedBranches = branch.slice(branch.indexOf("allowed_branches as ("));
+  assert.match(allowedBranches, /join house_policy_keys hpk on hpk\.entity_id = afr\.entity_id/i);
+  assert.doesNotMatch(allowedBranches, /join direct_policy_keys|join platform_policy_keys/i);
+  assert.match(allowedBranches, /b\.house_id = p_house_id[\s\S]*b\.id = parsed\.id/i);
+
+  assert.match(branch, /effective_policy\.policy_key in \('tiles\.hr\.read', 'tiles\.payroll\.read'\)/i);
+  assert.match(branch, /from public\.house_roles hr[\s\S]*hr\.house_id = p_house_id[\s\S]*hr\.entity_id = a\.entity_id/i);
+  assert.match(branch, /lower\(btrim\(hr\.role\)\) in \([\s\S]*'house_owner'[\s\S]*'business_owner'[\s\S]*'house_manager'[\s\S]*'business_admin'[\s\S]*'business_manager'/i);
+
+  assert.doesNotMatch(replayGuardSql, /drop\s+(?:table|view)\s+public\.entity_policies/i);
+  assert.doesNotMatch(replayGuardSql, /create\s+(?:table|view)\s+public\.entity_policies/i);
+  assert.match(replayGuardSql, /revoke all on function public\.hr_read_canonical_attendance_branch_scoped\([\s\S]*from public, anon/i);
+  assert.match(replayGuardSql, /grant execute on function public\.hr_read_canonical_attendance_branch_scoped\([\s\S]*to authenticated/i);
+  assert.match(replayGuardSql, /notify pgrst, 'reload schema'/i);
 });
