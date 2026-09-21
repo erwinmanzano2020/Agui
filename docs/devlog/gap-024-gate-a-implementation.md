@@ -9,6 +9,48 @@ consumer, backfill production data, migrate a writer, revoke existing `dtr_segme
 access, or implement Historical Daily DTR P1. Gate B remains next only after this Gate-A
 PR is independently hosted, reviewed, and merged.
 
+## 2026-09-21 — Historical projection/classification retention follow-up
+
+Fresh review identified a remaining Gate-A audit defect: the current authorization
+projection is intentionally one row per current fact and the rebuild replaces that row,
+but immutable fact revisions and evidence frames alone do not record which exact value
+revision and evidence-basis revision governed together with which classification at a
+historical activation point. The frozen GAP-024 contract requires prior classifications
+to remain retained for authorized audit without competing with the current frame.
+
+Because all earlier Gate-A migrations are already applied to the restored Supabase
+project, PR #510 adds the forward-only migration
+`20261019150000_gap024_gate_a_projection_history.sql`. It creates
+`hr_attendance_authorization_history` as a separate append-only audit relation keyed by
+`(house_id, fact_id, value_revision, evidence_basis_revision)`. Each row retains the
+exact fingerprint, ATTRIBUTED/UNATTRIBUTED/CONFLICT result, optional attributed branch,
+governing evidence IDs, employee, and publication timestamp for that governing pair.
+
+The current projection remains one row per current fact and remains the only surface used
+by the existing branch-scoped and House-global readers. The rebuild now:
+
+- preserves any prior current projection row into history before deleting/replacing the
+  current House projection;
+- writes the newly classified exact value/evidence pair into history in the same rebuild
+  statement before publishing the new current projection row;
+- treats duplicate rebuilds of the same exact pair idempotently through the history
+  primary key;
+- leaves historical rows append-only through the existing attendance-history mutation
+  guard;
+- enables RLS and grants no direct history-table access to public, anon,
+  authenticated, or service_role.
+
+The migration also backfills any current projection rows that happen to exist when it is
+applied. The restored live project currently has no Gate-A facts/projection rows, so no
+historical business data needs reconstruction there; the forward migration nevertheless
+handles a non-empty environment without deleting its current snapshot.
+
+No public reader signature/DTO, current classification algorithm, evidence lineage,
+identity rule, branch authorization, current projection semantics, Gate-B producer,
+backfill, consumer cutover, Historical DTR P1, or HR-2/HR-4 workflow is changed. This is
+the missing immutable audit record for already-approved Gate-A authority, not a new
+business revision concept or an ordinary branch-visible history API.
+
 ## 2026-09-21 — Supersession lookup performance follow-up
 
 Fresh Codex review of current head identified one bounded P2: evidence-frame sealing and
