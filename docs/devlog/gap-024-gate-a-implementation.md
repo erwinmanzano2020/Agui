@@ -9,6 +9,38 @@ consumer, backfill production data, migrate a writer, revoke existing `dtr_segme
 access, or implement Historical Daily DTR P1. Gate B remains next only after this Gate-A
 PR is independently hosted, reviewed, and merged.
 
+## 2026-09-21 — Retired-fact authority-pointer freeze follow-up
+
+Dual review on exact head `17b06f30a9ee23be3ffcea0de2f473bfa1000e61`
+found and independently reproduced a retirement/tombstone gap: the activation guard
+prevented `false -> true` reactivation but still allowed either authority pointer to
+advance while a fact remained inactive, and also allowed pointer advancement in the same
+UPDATE that retired an active fact. Because projection rebuilds intentionally exclude
+inactive facts, either transition could leave a retired row pointing at an authority pair
+that was never canonically classified or persisted to authorization history.
+
+PR #510 adds the forward-only migration
+`20261019180000_gap024_gate_a_retired_fact_pointer_freeze.sql`. The existing
+`hr_guard_attendance_fact_activation()` now rejects any change to
+`current_value_revision` or `evidence_basis_revision` whenever either the old or new
+row is inactive. Retirement itself remains valid only when it tombstones the exact
+already-current pair.
+
+This preserves the intended one-way lifecycle:
+
+- active fact + unchanged authority pair -> retired is allowed after the existing
+  prior-classification requirement is satisfied;
+- retired fact + unchanged authority pair -> ordinary non-authority maintenance remains
+  possible;
+- retired fact -> later value/evidence pointer is rejected;
+- active fact -> retire plus pointer advance in the same UPDATE is rejected;
+- retired -> active resurrection remains separately rejected.
+
+The function remains SECURITY DEFINER with fixed `pg_catalog, public` search path and no
+direct EXECUTE grants to public, anon, authenticated, or service_role. No public reader,
+classifier, evidence, lineage, branch, identity, Gate-B, HR-2/HR-4, or payroll semantics
+change.
+
 ## 2026-09-21 — Activation-history trigger privilege follow-up
 
 Fresh exact-head review found a privilege-boundary defect in the activation/history
