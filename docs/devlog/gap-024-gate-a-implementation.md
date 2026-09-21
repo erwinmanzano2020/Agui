@@ -30,6 +30,17 @@ has durable classification history; retirement freezes that pair; retired facts 
 reactivate or move authority pointers. No reader, classifier, evidence, lineage,
 authorization, Gate-B, HR-2/HR-4, or payroll semantics change.
 
+The migration is now applied to the restored Supabase project as
+`20260921233739_gap024_gate_a_initial_active_guard`. Controlled transaction/rollback
+verification exercised the intended producer privilege by switching the session to
+`service_role`: an explicit inactive fact INSERT at authority pair (1,1) was rejected,
+while an ordinary active (1,1) fact INSERT succeeded and preserved the required initial
+state. The transaction rolled back cleanly with no persisted fixture row.
+
+This executable result closes the initial-inactive lifecycle P2 on the restored project.
+The separate true two-independent-session activation-versus-successor race remains an
+explicit verification limitation.
+
 ## 2026-09-21 — Retired-fact authority-pointer freeze follow-up
 
 Dual review on exact head `17b06f30a9ee23be3ffcea0de2f473bfa1000e61`
