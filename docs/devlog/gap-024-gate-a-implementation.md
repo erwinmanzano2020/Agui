@@ -9,6 +9,41 @@ consumer, backfill production data, migrate a writer, revoke existing `dtr_segme
 access, or implement Historical Daily DTR P1. Gate B remains next only after this Gate-A
 PR is independently hosted, reviewed, and merged.
 
+## 2026-09-21 — Live authorization compatibility correction
+
+The original Gate-A migration was successfully applied to the restored Supabase project and
+is tracked there as `20260920092652_gap024_gate_a_attendance_authority`. Executable
+verification then exposed one pre-merge compatibility defect in the branch-scoped reader:
+the reader referenced the historical flattened `entity_policies.policy_key/scope/scope_ref`
+shape, while the confirmed current live authorization substrate uses a direct
+`entity_policies(entity_id, policy_id)` assignment table plus key-based `policies`,
+`house_roles`, `roles`, `role_policies`, and `platform_roles`.
+
+Because the original Gate-A migration is already deployed/tracked, this PR now carries the
+forward-only follow-up migration
+`20261019110000_gap024_gate_a_live_policy_compatibility.sql`. It replaces only the
+branch-scoped reader body and preserves the public RPC signature, return DTO, RLS/grant
+posture, and PostgREST reload. It does not drop or replace `entity_policies`, replay the
+historical RBAC migrations, seed policies/roles, or mutate current assignments.
+
+The corrected reader keeps the already-approved authorization semantics:
+
+- exact requested-House membership remains mandatory;
+- owner/manager aliases remain excluded from the branch-limited lane;
+- direct entity policy assignments and PLATFORM role-policy assignments may satisfy
+  feature-read capability only;
+- neither direct nor PLATFORM capability creates House membership or branch scope;
+- branch restriction is derived only from requested-House role-policy assignments;
+- parsed branch policy keys are accepted only when the branch belongs to the requested House;
+- live/replay role shape differences are handled without assuming that `roles.key` or
+  `house_roles.role_id` physically exists, using `to_jsonb(...)->>` compatibility
+  lookups while preferring an explicit `role_id` when present.
+
+The follow-up is a physical compatibility correction only. It makes no new owner/product
+decision and does not authorize Gate B, producer migration, backfill, consumer cutover,
+Historical Daily DTR P1, or broader RBAC redesign. Runtime verification of this follow-up
+and the remaining Gate-A locking/concurrency cases is still required before merge.
+
 ## Base and scope
 
 - Expected and owner-verified hosted `develop` base:
