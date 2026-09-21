@@ -1,5 +1,25 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-21 — GAP-024 Gate-A activation-history trigger privilege follow-up
+
+**Status: P1 privilege correction implemented in PR #510; live application/runtime
+verification pending.** Fresh Codex review on exact head
+`466dd9b53114b06c754fd5a09ff60fb548adc56d` raised
+`discussion_r4059956158`: the activation trigger now needs to read append-only
+authorization history, but service_role correctly has no direct history-table privilege,
+so an invoker-security trigger would fail before enforcing the intended guard.
+
+The forward-only migration
+`20261019170000_gap024_gate_a_activation_history_privilege.sql` marks only
+`hr_guard_attendance_fact_activation()` as `SECURITY DEFINER`, retains its fixed
+`pg_catalog, public` search path, and revokes direct function execution from public,
+anon, authenticated, and service_role. Direct history-table grants remain revoked.
+
+Next verification must exercise an actual update under `service_role`: direct history
+SELECT must remain unavailable while an otherwise valid authority transition succeeds
+through the trigger's owner privilege. Then rerun current-head Preflight and fresh Codex
+review before any merge decision.
+
 ## 2026-09-21 — GAP-024 Gate-A activation/history coupling follow-up
 
 **Status: P1 correction implemented in PR #510; live application and executable
