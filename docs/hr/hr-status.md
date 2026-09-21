@@ -14,10 +14,16 @@ attendance facts to begin active as well as at value/evidence revision 1/1. This
 creation with the established one-way lifecycle: active first, classified while active,
 then optionally retired as a tombstone of the last classified pair.
 
-Next verification must prove an explicit inactive INSERT is rejected under the intended
-producer privilege while an ordinary active (1,1) INSERT remains valid. Roll back all
-fixtures and confirm zero leftovers, then obtain a fresh exact-head review before any
-merge decision.
+The migration is now applied to the restored Supabase project as
+`20260921233739_gap024_gate_a_initial_active_guard`. Controlled rollback verification
+under `service_role` passed: explicit `is_active=false` creation at (1,1) was rejected,
+while ordinary active (1,1) creation succeeded with the required initial state. The
+transaction rolled back with no persisted fixture row.
+
+The initial-inactive lifecycle P2 is therefore executable-verified on the restored
+project. A fresh exact-head Codex review remains required before any merge decision. The
+separate true two-independent-session activation/successor race remains an explicit
+verification limitation.
 
 ## 2026-09-21 — GAP-024 Gate-A retired-fact authority-pointer freeze follow-up
 
