@@ -76,6 +76,18 @@ assert.ok(
   "Gate-A activation/history guard migration must be resolvable in focused and full-suite runners",
 );
 const activationHistoryGuardSql = readFileSync(activationHistoryGuardMigrationPath, "utf8");
+const activationHistoryPrivilegeMigrationRelativePath =
+  "supabase/migrations/20261019170000_gap024_gate_a_activation_history_privilege.sql";
+const activationHistoryPrivilegeMigrationPath = [
+  resolve(process.cwd(), "..", activationHistoryPrivilegeMigrationRelativePath),
+  resolve(process.cwd(), "../..", activationHistoryPrivilegeMigrationRelativePath),
+].find(existsSync);
+assert.ok(
+  activationHistoryPrivilegeMigrationPath,
+  "Gate-A activation/history privilege migration must be resolvable in focused and full-suite runners",
+);
+const activationHistoryPrivilegeSql = readFileSync(activationHistoryPrivilegeMigrationPath, "utf8");
+
 
 
 
@@ -1253,5 +1265,33 @@ test("activation/history guard requires the previously current authority pair to
   assert.doesNotMatch(
     activationHistoryGuardSql,
     /create or replace function public\.hr_rebuild_attendance_authorization_projection/i,
+  );
+});
+
+
+test("activation history guard reads protected history through a narrowly scoped security-definer trigger", () => {
+  assert.match(
+    activationHistoryPrivilegeSql,
+    /alter function public\.hr_guard_attendance_fact_activation\(\)\s+security definer;/i,
+  );
+  assert.match(
+    activationHistoryPrivilegeSql,
+    /alter function public\.hr_guard_attendance_fact_activation\(\)\s+set search_path = pg_catalog, public;/i,
+  );
+  assert.match(
+    activationHistoryPrivilegeSql,
+    /revoke all on function public\.hr_guard_attendance_fact_activation\(\)\s+from public, anon, authenticated, service_role;/i,
+  );
+  assert.doesNotMatch(
+    activationHistoryPrivilegeSql,
+    /grant\s+(?:select|insert|update|delete|all)[\s\S]*hr_attendance_authorization_history/i,
+  );
+  assert.doesNotMatch(
+    activationHistoryPrivilegeSql,
+    /grant\s+execute\s+on function public\.hr_guard_attendance_fact_activation\(\)/i,
+  );
+  assert.doesNotMatch(
+    activationHistoryPrivilegeSql,
+    /alter table public\.hr_attendance_authorization_history\s+disable row level security/i,
   );
 });
