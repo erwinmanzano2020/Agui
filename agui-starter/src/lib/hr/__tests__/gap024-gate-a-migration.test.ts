@@ -43,6 +43,18 @@ assert.ok(
   "Gate-A role-scope guard migration must be resolvable in focused and full-suite runners",
 );
 const roleScopeGuardSql = readFileSync(roleScopeGuardMigrationPath, "utf8");
+const supersessionIndexMigrationRelativePath =
+  "supabase/migrations/20261019140000_gap024_gate_a_supersession_lookup_index.sql";
+const supersessionIndexMigrationPath = [
+  resolve(process.cwd(), "..", supersessionIndexMigrationRelativePath),
+  resolve(process.cwd(), "../..", supersessionIndexMigrationRelativePath),
+].find(existsSync);
+assert.ok(
+  supersessionIndexMigrationPath,
+  "Gate-A supersession lookup index migration must be resolvable in focused and full-suite runners",
+);
+const supersessionIndexSql = readFileSync(supersessionIndexMigrationPath, "utf8");
+
 
 
 
@@ -1087,4 +1099,34 @@ test("role-scope guard prevents cross-scope and cross-House policy inheritance",
   assert.doesNotMatch(roleScopeGuardSql, /drop\s+(?:table|view)\s+public\.(?:roles|house_roles|platform_roles)/i);
   assert.doesNotMatch(roleScopeGuardSql, /insert\s+into\s+public\.(?:roles|house_roles|platform_roles)/i);
   assert.match(roleScopeGuardSql, /notify pgrst, 'reload schema'/i);
+});
+
+
+test("supersession lookup index matches activation and sealing successor probes", () => {
+  assert.match(
+    supersessionIndexSql,
+    /create index if not exists hr_attendance_evidence_supersession_lookup_idx\s+on public\.hr_attendance_evidence \(\s*house_id,\s*supersedes_evidence_id,\s*employee_id,\s*lineage_root_evidence_id\s*\)\s*where supersedes_evidence_id is not null;/is,
+  );
+
+  const activationStart = sql.indexOf("create or replace function public.hr_guard_attendance_fact_activation");
+  assert.notEqual(activationStart, -1);
+  const activation = sql.slice(
+    activationStart,
+    sql.indexOf("create or replace function", activationStart + 1),
+  );
+  assert.match(
+    activation,
+    /successor\.house_id\s*=\s*target_evidence\.house_id[\s\S]*successor\.employee_id\s*=\s*target_evidence\.employee_id[\s\S]*successor\.lineage_root_evidence_id\s*=\s*target_evidence\.lineage_root_evidence_id[\s\S]*successor\.supersedes_evidence_id\s*=\s*target_evidence\.id/i,
+  );
+
+  const frameStart = sql.indexOf("create or replace function public.hr_guard_attendance_evidence_frame");
+  assert.notEqual(frameStart, -1);
+  const frame = sql.slice(
+    frameStart,
+    sql.indexOf("create or replace function", frameStart + 1),
+  );
+  assert.match(
+    frame,
+    /successor\.house_id\s*=\s*selected_evidence\.house_id[\s\S]*successor\.employee_id\s*=\s*selected_evidence\.employee_id[\s\S]*successor\.lineage_root_evidence_id\s*=\s*selected_evidence\.lineage_root_evidence_id[\s\S]*successor\.supersedes_evidence_id\s*=\s*selected_evidence\.id/i,
+  );
 });
