@@ -33,6 +33,25 @@ the audit table using its owner privilege, while application/service producers s
 cannot query the history table directly. No reader RPC, classifier, evidence, lineage,
 tenant, branch, identity, Gate-B, HR-2/HR-4, or payroll semantics change.
 
+The migration is now applied to the restored Supabase project as
+`20260921085205_gap024_gate_a_activation_history_privilege`. Live catalog verification
+confirms the trigger function is owned by `postgres`, is `SECURITY DEFINER`, retains
+`search_path=pg_catalog, public`, and has no direct EXECUTE grant for public, anon,
+authenticated, or service_role. `service_role` still has UPDATE on
+`hr_attendance_facts` but no direct SELECT on
+`hr_attendance_authorization_history`.
+
+Controlled transaction/rollback verification then switched the SQL session to
+`service_role`. A direct SELECT from authorization history was denied as expected,
+while a valid current-value revision advance through the automatic trigger succeeded
+because the trigger could perform its protected history lookup under the function owner.
+The transaction rolled back cleanly with zero matching fact revisions, evidence rows,
+or authorization-history rows left behind.
+
+This executable result closes the trigger-privilege P1 on the restored project. The
+separate true two-independent-session activation-versus-successor race remains an
+explicit verification limitation.
+
 ## 2026-09-21 — Activation/history coupling follow-up
 
 Fresh exact-head Codex review found one further P1 after the projection-history ledger was
