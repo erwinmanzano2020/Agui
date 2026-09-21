@@ -18,11 +18,18 @@ non-authority fact updates untouched. It adds no new business revision concept a
 not change the public readers, classifier, branch authorization, evidence semantics, or
 Gate-B boundary.
 
-Next verification must prove the skipped-pair case directly: after publishing (1,1), an
-advance to (2,2) may succeed, but a further advance must fail until (2,2) is rebuilt into
-history; after that rebuild the next advance may succeed. The transaction must roll back
-with zero fixtures left behind. A fresh exact-head Codex review is required afterward
-before any merge decision.
+The migration is now applied to the restored Supabase project as
+`20260921070556_gap024_gate_a_activation_history_guard`. Controlled transaction/rollback
+verification proved the skipped-pair case directly: after publishing (1,1), the advance
+to (2,2) succeeded; a further advance to (3,3) before rebuilding (2,2) was rejected;
+after rebuilding (2,2), the advance to (3,3) succeeded and its rebuild persisted (3,3).
+Exactly three governing pairs remained in history during the fixture, and rollback left
+zero matching fact revisions, evidence, or history rows.
+
+The activation/history P1 is therefore executable-verified on the restored project. A
+fresh exact-head Codex review is still required before any merge decision. The separate
+true two-independent-session activation/successor race remains an explicit verification
+limitation.
 
 ## 2026-09-21 — GAP-024 Gate-A historical projection retention follow-up
 
