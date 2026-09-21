@@ -32,6 +32,18 @@ assert.ok(
   "Gate-A policy replay-guard migration must be resolvable in focused and full-suite runners",
 );
 const replayGuardSql = readFileSync(replayGuardMigrationPath, "utf8");
+const roleScopeGuardMigrationRelativePath =
+  "supabase/migrations/20261019130000_gap024_gate_a_role_scope_guard.sql";
+const roleScopeGuardMigrationPath = [
+  resolve(process.cwd(), "..", roleScopeGuardMigrationRelativePath),
+  resolve(process.cwd(), "../..", roleScopeGuardMigrationRelativePath),
+].find(existsSync);
+assert.ok(
+  roleScopeGuardMigrationPath,
+  "Gate-A role-scope guard migration must be resolvable in focused and full-suite runners",
+);
+const roleScopeGuardSql = readFileSync(roleScopeGuardMigrationPath, "utf8");
+
 
 
 function compatibilityFunctionSql(name: string) {
@@ -1044,4 +1056,35 @@ test("policy replay guard keeps scope-less live direct grants global but histori
   assert.match(replayGuardSql, /revoke all on function public\.hr_read_canonical_attendance_branch_scoped\([\s\S]*from public, anon/i);
   assert.match(replayGuardSql, /grant execute on function public\.hr_read_canonical_attendance_branch_scoped\([\s\S]*to authenticated/i);
   assert.match(replayGuardSql, /notify pgrst, 'reload schema'/i);
+});
+
+
+test("role-scope guard prevents cross-scope and cross-House policy inheritance", () => {
+  const branchStart = roleScopeGuardSql.indexOf("create or replace function public.hr_read_canonical_attendance_branch_scoped");
+  assert.notEqual(branchStart, -1);
+  const branch = roleScopeGuardSql.slice(branchStart);
+
+  const platformBlock = branch.slice(branch.indexOf("platform_policy_keys as ("), branch.indexOf("house_policy_keys as ("));
+  assert.match(platformBlock, /to_jsonb\(r\) \? 'scope_ref'/i);
+  assert.match(platformBlock, /upper\(btrim\(coalesce\(to_jsonb\(r\) ->> 'scope', ''\)\)\) = 'PLATFORM'/i);
+  assert.match(platformBlock, /nullif\(to_jsonb\(r\) ->> 'scope_ref', ''\) is null/i);
+  assert.match(platformBlock, /not \(to_jsonb\(r\) \? 'scope_ref'\)[\s\S]*lower\(btrim\(to_jsonb\(r\) ->> 'scope'\)\) = 'platform'/i);
+
+  const houseBlock = branch.slice(branch.indexOf("house_policy_keys as ("), branch.indexOf("effective_feature_read as ("));
+  assert.match(houseBlock, /to_jsonb\(hr\) ->> 'role_id'/i);
+  assert.match(houseBlock, /to_jsonb\(r\) ->> 'slug'/i);
+  assert.match(houseBlock, /to_jsonb\(r\) ->> 'key'/i);
+  assert.match(houseBlock, /to_jsonb\(r\) \? 'scope_ref'/i);
+  assert.match(houseBlock, /upper\(btrim\(coalesce\(to_jsonb\(r\) ->> 'scope', ''\)\)\) = 'HOUSE'/i);
+  assert.match(houseBlock, /nullif\(to_jsonb\(r\) ->> 'scope_ref', ''\) is null[\s\S]*or \(to_jsonb\(r\) ->> 'scope_ref'\)::uuid = p_house_id/i);
+  assert.match(houseBlock, /not \(to_jsonb\(r\) \? 'scope_ref'\)[\s\S]*lower\(btrim\(to_jsonb\(r\) ->> 'scope'\)\) in \('house', 'workspace'\)/i);
+
+  const allowedBranches = branch.slice(branch.indexOf("allowed_branches as ("));
+  assert.match(allowedBranches, /join house_policy_keys hpk on hpk\.entity_id = afr\.entity_id/i);
+  assert.doesNotMatch(allowedBranches, /join direct_policy_keys|join platform_policy_keys/i);
+  assert.match(allowedBranches, /b\.house_id = p_house_id[\s\S]*b\.id = parsed\.id/i);
+
+  assert.doesNotMatch(roleScopeGuardSql, /drop\s+(?:table|view)\s+public\.(?:roles|house_roles|platform_roles)/i);
+  assert.doesNotMatch(roleScopeGuardSql, /insert\s+into\s+public\.(?:roles|house_roles|platform_roles)/i);
+  assert.match(roleScopeGuardSql, /notify pgrst, 'reload schema'/i);
 });
