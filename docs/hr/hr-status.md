@@ -1,5 +1,31 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-21 — GAP-024 Gate-A executable verification checkpoint
+
+**Status: broad executable verification passed for bounded single-session fixtures;
+multi-session lock-race proof remains outstanding.** After applying the live-policy
+compatibility migration, transaction/rollback fixtures exercised the protected reader
+authorization lanes, fail-closed branch scope, explicit-provenance constraints,
+MANUAL_ADMIN authority, append-only immutability, initial fact revision guard,
+continuous-lineage currentness, classifier precedence, and kiosk cardinality semantics.
+All temporary fixtures were rolled back and verified absent afterward.
+
+One replay-only compatibility edge was found during this verification: the already-applied
+live compatibility migration correctly handles the current direct
+`entity_policies(entity_id, policy_id)` table, but on a historical ordered replay the
+older flattened `entity_policies` view can include HOUSE/GUILD rows. Those rows must not
+be promoted to global feature capability. PR #510 therefore adds the forward-only
+`20261019120000_gap024_gate_a_policy_surface_replay_guard.sql`, which keeps scope-less
+live direct assignments global while restricting historical flattened rows to
+`scope = PLATFORM` for the global feature-capability lane. Branch restriction remains
+requested-House role-policy only.
+
+No Gate-B producer/backfill/consumer work, Historical DTR P1, identity change, reader
+signature/DTO change, classifier redesign, or broader RBAC migration replay is included.
+The remaining executable gap is true multi-session concurrency proof for activation versus
+successor insertion / advisory-lock serialization; static and trigger inspection confirm
+the intended common lock rows but do not replace a two-session race harness.
+
 ## 2026-09-21 — GAP-024 Gate-A live policy compatibility correction
 
 **Status: PR #510 changes required correction implemented; executable re-verification
