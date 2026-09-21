@@ -1,5 +1,17 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-21 — GAP-024 Gate-A supersession index follow-up
+
+**Status: P2 performance correction implemented; live application/verification pending.**
+Fresh Codex review on the then-current head found no new P1 and one P2: repeated
+successor lookups in frame sealing and fact activation lacked a dedicated evidence index.
+
+PR #510 now adds
+`20261019140000_gap024_gate_a_supersession_lookup_index.sql`, a forward-only partial
+index on `(house_id, supersedes_evidence_id, employee_id, lineage_root_evidence_id)`
+for rows with non-null `supersedes_evidence_id`. The index is performance-only and
+does not change Gate-A semantics or public interfaces.
+
 ## 2026-09-21 — GAP-024 Gate-A role-scope compatibility follow-up
 
 **Status: correction implemented in PR #510; live application/re-verification pending.**
