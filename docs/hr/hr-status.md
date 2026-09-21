@@ -1,5 +1,29 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-21 — GAP-024 Gate-A activation/history coupling follow-up
+
+**Status: P1 correction implemented in PR #510; live application and executable
+verification pending.** Fresh Codex review on exact head
+`64965939e72ca883428facd87c149108ecc96af1` raised
+`discussion_r4059477584`: projection history was written only by the rebuild, so a
+service producer could advance through an intermediate current value/evidence pair and
+advance again before that pair was classified/persisted.
+
+The forward-only migration
+`20261019160000_gap024_gate_a_activation_history_guard.sql` updates the existing fact
+activation trigger so a pointer change or retirement is rejected unless the previously
+current exact value/evidence pair already exists in append-only authorization history.
+This couples authority progression to durable classification while leaving ordinary
+non-authority fact updates untouched. It adds no new business revision concept and does
+not change the public readers, classifier, branch authorization, evidence semantics, or
+Gate-B boundary.
+
+Next verification must prove the skipped-pair case directly: after publishing (1,1), an
+advance to (2,2) may succeed, but a further advance must fail until (2,2) is rebuilt into
+history; after that rebuild the next advance may succeed. The transaction must roll back
+with zero fixtures left behind. A fresh exact-head Codex review is required afterward
+before any merge decision.
+
 ## 2026-09-21 — GAP-024 Gate-A historical projection retention follow-up
 
 **Status: P1 historical-classification correction implemented in PR #510; live
