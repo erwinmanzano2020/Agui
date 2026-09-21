@@ -41,6 +41,19 @@ direct EXECUTE grants to public, anon, authenticated, or service_role. No public
 classifier, evidence, lineage, branch, identity, Gate-B, HR-2/HR-4, or payroll semantics
 change.
 
+The migration is now applied to the restored Supabase project as
+`20260921093011_gap024_gate_a_retired_fact_pointer_freeze`. Controlled
+transaction/rollback verification exercised all retirement boundaries: ordinary
+retirement with the exact already-current (1,1) pair succeeded and preserved its history;
+a later value-revision advance while the fact remained inactive was rejected; a combined
+value-revision advance plus `is_active=true -> false` retirement in one UPDATE was
+rejected without changing the row; and retired-to-active resurrection remained rejected.
+Rollback left zero matching fact revisions, evidence rows, or authorization-history rows.
+
+This executable result closes the retired-pointer P2 on the restored project. The separate
+true two-independent-session activation-versus-successor race remains an explicit
+verification limitation.
+
 ## 2026-09-21 — Activation-history trigger privilege follow-up
 
 Fresh exact-head review found a privilege-boundary defect in the activation/history
