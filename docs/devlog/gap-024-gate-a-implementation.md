@@ -51,6 +51,21 @@ backfill, consumer cutover, Historical DTR P1, or HR-2/HR-4 workflow is changed.
 the missing immutable audit record for already-approved Gate-A authority, not a new
 business revision concept or an ordinary branch-visible history API.
 
+Executable verification on the restored Supabase project then exercised the history
+contract inside one transaction and rolled every fixture back. The fixture published an
+ATTRIBUTED pair (1,1), advanced only value authority and published (2,1), then advanced
+the evidence basis with the exact same governing lineage member and published (2,2).
+All three exact pairs remained in the append-only history with the expected attributed
+branch; rebuilding (2,2) again did not add a duplicate row; attempted UPDATE and DELETE
+of a historical row were rejected by the immutable-history trigger. Post-rollback checks
+confirmed zero matching test fact revisions, evidence rows, or history rows remained.
+
+This closes the executable historical-retention P1 on the restored project. The separate
+known verification limitation remains true two-independent-session timing for the
+activation-versus-successor insertion race; the shared lock structure is statically and
+single-session verified but that race has not been exercised through an independent
+multi-session harness.
+
 ## 2026-09-21 — Supersession lookup performance follow-up
 
 Fresh Codex review of current head identified one bounded P2: evidence-frame sealing and
