@@ -1409,16 +1409,18 @@ test("initial lifecycle permits only active 1/1 facts", () => {
 });
 
 
-test("Gate-A migration chronology preserves required branch and DTR dependencies", () => {
+test("Gate-A migration chronology preserves the DTR reset and owns its branch composite key", () => {
   const migrationsDir = [resolve(process.cwd(), "../../supabase/migrations"), resolve(process.cwd(), "../supabase/migrations")].find(existsSync);
   assert.ok(migrationsDir, "migration directory must be resolvable in focused and full-suite runners");
   const names = readdirSync(migrationsDir).filter((name) => /^\d{14}_.*\.sql$/.test(name)).sort();
 
   const dtrReset = names.indexOf("20261002100000_create_dtr_segments.sql");
-  const branchCompositeKey = names.indexOf("20261018113000_pos_scope_consistency_hardening.sql");
   const gateA = names.indexOf("20261019100000_gap024_gate_a_attendance_authority.sql");
 
-  assert.ok(dtrReset >= 0 && branchCompositeKey >= 0 && gateA >= 0);
+  assert.ok(dtrReset >= 0 && gateA >= 0);
   assert.ok(dtrReset < gateA, "Gate A must run after the destructive DTR segment reset so its retained segment FK survives final replay");
-  assert.ok(branchCompositeKey < gateA, "Gate A must run after the branch composite key exists for House+branch foreign keys");
+
+  const branchKeyIndex = sql.indexOf("create unique index if not exists branches_house_id_id_unique_idx");
+  const firstBranchFk = sql.indexOf("references public.branches(house_id, id)");
+  assert.ok(branchKeyIndex >= 0 && firstBranchFk > branchKeyIndex, "Gate A must establish branches(house_id,id) uniqueness before any Gate-A composite branch FK");
 });
