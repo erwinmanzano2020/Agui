@@ -1477,7 +1477,7 @@ test("frame membership locks the unsealed frame before evidence and lineage rows
   );
 });
 
-test("frame sealing and membership share frame-before-evidence lock order", () => {
+test("frame sealing and membership share frame -> fact -> evidence lock order", () => {
   const sealingGuard = functionSql(
     "hr_guard_attendance_evidence_frame",
     "hr_guard_attendance_evidence_insert",
@@ -1487,15 +1487,32 @@ test("frame sealing and membership share frame-before-evidence lock order", () =
   );
   const membershipGuard = membershipFrameLockOrderSql.slice(membershipFnStart);
 
+  const sealingFactLock = sealingGuard.indexOf("from public.hr_attendance_facts fact");
   const sealingEvidenceLock = sealingGuard.indexOf(
     "order by selected_evidence.lineage_root_evidence_id, selected_evidence.id",
   );
-  assert.ok(sealingEvidenceLock >= 0, "sealing guard must retain deterministic selected-evidence locking");
+  assert.ok(sealingFactLock >= 0, "sealing guard must lock the owning fact");
+  assert.ok(
+    sealingEvidenceLock > sealingFactLock,
+    "sealing guard must lock the owning fact before selected evidence",
+  );
 
   const membershipFrameLock = membershipGuard.indexOf("from public.hr_attendance_evidence_frames ef");
+  const membershipFactLock = membershipGuard.indexOf("from public.hr_attendance_facts fact");
+  const membershipObservationLock = membershipGuard.indexOf("from public.hr_attendance_observations o");
   const membershipEvidenceLock = membershipGuard.indexOf("from public.hr_attendance_evidence evidence_member");
+
+  assert.ok(membershipFrameLock >= 0, "membership must lock the target frame");
   assert.ok(
-    membershipFrameLock >= 0 && membershipEvidenceLock > membershipFrameLock,
-    "membership must acquire frame before evidence so it cannot invert sealing's frame->evidence order",
+    membershipFactLock > membershipFrameLock,
+    "membership must acquire the owning fact after the frame",
+  );
+  assert.ok(
+    membershipObservationLock > membershipFactLock,
+    "membership must not acquire observation/evidence-family locks before the owning fact",
+  );
+  assert.ok(
+    membershipEvidenceLock > membershipFactLock,
+    "membership must acquire evidence after the owning fact",
   );
 });
