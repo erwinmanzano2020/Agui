@@ -9,6 +9,31 @@ consumer, backfill production data, migrate a writer, revoke existing `dtr_segme
 access, or implement Historical Daily DTR P1. Gate B remains next only after this Gate-A
 PR is independently hosted, reviewed, and merged.
 
+## 2026-09-22 — Frame-membership lock-order follow-up
+
+Fresh exact-head Codex review on `476c173ffa1644c570d502c7a96fe85fd673512c`
+raised `discussion_r4070435294` (P2): membership insertion locked observation/evidence
+rows before finally locking its target evidence frame, while concurrent frame sealing
+already holds the frame row before locking selected evidence. Those opposite
+evidence->frame and frame->evidence orders create a concrete PostgreSQL deadlock path.
+
+PR #510 adds the forward-only migration
+`20261019200000_gap024_gate_a_membership_frame_lock_order.sql`. It preserves the
+membership contract but moves the existing unsealed-frame `FOR UPDATE` lock to the
+front of `hr_guard_attendance_frame_membership_insert()`. After the frame is locked,
+the guard retains its existing observation -> evidence-member -> lineage-root ordering
+and all same-frame / prior-binding validation.
+
+Focused tests now assert that membership acquires exactly one frame lock before evidence
+resolution/locking and that sealing retains deterministic selected-evidence locking.
+This fixes lock-order consistency without changing evidence semantics, classification,
+reader contracts, authorization, or Gate-B scope.
+
+Per the runtime production boundary, this new migration is not being persistently applied
+to the restored live Supabase project merely because the repository fix is ready. Runtime
+verification for this correction therefore consists of exact SQL/static lock-order proof
+plus exact-head CI; persistent backend rollout remains a later authorized deployment step.
+
 ## 2026-09-22 — Chronological replay correction after migration-history review
 
 Fresh exact-head Codex review on `1dc1477a2b0f0be09d1cd008b3acd315f39c5c68`
