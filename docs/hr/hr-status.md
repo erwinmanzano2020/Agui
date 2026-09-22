@@ -1,5 +1,18 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-22 — GAP-024 Gate-A migration-history filename alignment
+
+**Status: repository/live migration identities aligned; no database replay performed.**
+Independent review found the Gate-A SQL filenames used `20261019...` timestamps while
+the restored Supabase project had already tracked the same migrations under their actual
+`20260920...` / `20260921...` versions. Because Supabase migration status compares
+timestamps, that mismatch could make applied Gate-A migrations appear pending to a future
+linked push.
+
+PR #510 now uses the exact tracked live migration versions for all ten Gate-A files and
+updates focused tests/docs accordingly. SQL contents are unchanged. Live migration
+history and repository filenames now match one-for-one.
+
 ## 2026-09-22 — GAP-024 Gate-A initial-active lifecycle follow-up
 
 **Status: independent P2 correction implemented in PR #510; live application/runtime
