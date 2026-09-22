@@ -10,10 +10,15 @@ of repository dependencies: the House+branch composite unique key and the later 
 `dtr_segments` reset. That made a clean chronological repository replay invalid.
 
 PR #510 restores the canonical `2026101910...2026101919` Gate-A filenames so Gate A runs
-after `20261002100000_create_dtr_segments.sql` and
-`20261018113000_pos_scope_consistency_hardening.sql`. The focused migration-contract test
-now asserts both ordering dependencies. SQL contents and the already-restored live schema
-are unchanged.
+after `20261002100000_create_dtr_segments.sql`. Gate A now creates the
+`branches(house_id,id)` composite unique key itself before its branch foreign keys,
+removing the HR migration's reliance on the paused POS hardening migration. The focused
+test asserts both the DTR-reset chronology and the in-migration branch-key ordering.
+
+Preflight #762 exposed a test-runner path bug rather than a schema defect: the compiled
+test searched one directory too shallow for the repository `supabase/migrations`
+directory. That path resolution is corrected to the repository root. No live migration
+was replayed for either correction.
 
 The restored Supabase project's migration-history table still reflects the timestamps
 assigned by the MCP when these migrations were applied (`20260920...` / `20260921...`).
