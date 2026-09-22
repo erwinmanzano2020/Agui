@@ -1410,7 +1410,7 @@ test("initial lifecycle permits only active 1/1 facts", () => {
 
 
 test("Gate-A migration chronology preserves required branch and DTR dependencies", () => {
-  const migrationsDir = [resolve(process.cwd(), "../supabase/migrations"), resolve(process.cwd(), "../../supabase/migrations")].find(existsSync);
+  const migrationsDir = [resolve(process.cwd(), "../../supabase/migrations"), resolve(process.cwd(), "../supabase/migrations")].find(existsSync);
   assert.ok(migrationsDir, "migration directory must be resolvable in focused and full-suite runners");
   const names = readdirSync(migrationsDir).filter((name) => /^\d{14}_.*\.sql$/.test(name)).sort();
 
