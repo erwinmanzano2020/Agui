@@ -1,5 +1,23 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-22 — GAP-024 Gate-A frame-membership lock-order follow-up
+
+**Status: P2 correction implemented in PR #510; exact-head CI/review pending.**
+Fresh Codex review on exact head `476c173ffa1644c570d502c7a96fe85fd673512c`
+raised `discussion_r4070435294`: membership insertion acquired evidence/lineage locks
+before its frame lock, while concurrent frame sealing holds the frame before selected
+evidence, creating an invertible lock order and concrete deadlock path.
+
+The forward-only migration
+`20261019200000_gap024_gate_a_membership_frame_lock_order.sql` moves the membership
+guard's unsealed-frame `FOR UPDATE` lock to the front, then preserves its existing
+observation/evidence/lineage ordering and validations. Focused tests assert the
+frame-before-evidence ordering and single frame-lock acquisition.
+
+The repository fix is intentionally not persistently applied to the restored live backend
+during Runtime convergence; Production/backend rollout remains separately gated. Exact
+head CI and a fresh review are required before Runtime convergence can be declared.
+
 ## 2026-09-22 — GAP-024 Gate-A chronological replay correction
 
 **Status: P1 replay-order findings fixed in PR #510; live schema unchanged.**
