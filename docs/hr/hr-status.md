@@ -8,11 +8,12 @@ raised `discussion_r4070435294`: membership insertion acquired evidence/lineage 
 before its frame lock, while concurrent frame sealing holds the frame before selected
 evidence, creating an invertible lock order and concrete deadlock path.
 
-The forward-only migration
-`20261019200000_gap024_gate_a_membership_frame_lock_order.sql` moves the membership
-guard's unsealed-frame `FOR UPDATE` lock to the front, then preserves its existing
-observation/evidence/lineage ordering and validations. Focused tests assert the
-frame-before-evidence ordering and single frame-lock acquisition.
+The canonical Gate-A migration now uses the frame-first membership guard for clean
+replay, and the forward-only
+`20261019200000_gap024_gate_a_membership_frame_lock_order.sql` provides the same
+correction for already-applied environments. The forward migration is retained so the
+base-file edit is not the sole live correction. Focused tests assert frame-before-evidence
+ordering and a single frame-lock acquisition in both paths.
 
 The repository fix is intentionally not persistently applied to the restored live backend
 during Runtime convergence; Production/backend rollout remains separately gated. Exact
