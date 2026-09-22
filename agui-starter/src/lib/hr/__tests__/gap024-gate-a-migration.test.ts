@@ -3,7 +3,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import test from "node:test";
 
-const migrationRelativePath = "supabase/migrations/20261019100000_gap024_gate_a_attendance_authority.sql";
+const migrationRelativePath = "supabase/migrations/20260920092652_gap024_gate_a_attendance_authority.sql";
 const migrationPath = [
   resolve(process.cwd(), "..", migrationRelativePath),
   resolve(process.cwd(), "../..", migrationRelativePath),
@@ -11,7 +11,7 @@ const migrationPath = [
 assert.ok(migrationPath, "Gate-A migration must be resolvable in focused and full-suite runners");
 const sql = readFileSync(migrationPath, "utf8");
 const compatibilityMigrationRelativePath =
-  "supabase/migrations/20261019110000_gap024_gate_a_live_policy_compatibility.sql";
+  "supabase/migrations/20260921002434_gap024_gate_a_live_policy_compatibility.sql";
 const compatibilityMigrationPath = [
   resolve(process.cwd(), "..", compatibilityMigrationRelativePath),
   resolve(process.cwd(), "../..", compatibilityMigrationRelativePath),
@@ -22,7 +22,7 @@ assert.ok(
 );
 const compatibilitySql = readFileSync(compatibilityMigrationPath, "utf8");
 const replayGuardMigrationRelativePath =
-  "supabase/migrations/20261019120000_gap024_gate_a_policy_surface_replay_guard.sql";
+  "supabase/migrations/20260921025850_gap024_gate_a_policy_surface_replay_guard.sql";
 const replayGuardMigrationPath = [
   resolve(process.cwd(), "..", replayGuardMigrationRelativePath),
   resolve(process.cwd(), "../..", replayGuardMigrationRelativePath),
@@ -33,7 +33,7 @@ assert.ok(
 );
 const replayGuardSql = readFileSync(replayGuardMigrationPath, "utf8");
 const roleScopeGuardMigrationRelativePath =
-  "supabase/migrations/20261019130000_gap024_gate_a_role_scope_guard.sql";
+  "supabase/migrations/20260921030235_gap024_gate_a_role_scope_guard.sql";
 const roleScopeGuardMigrationPath = [
   resolve(process.cwd(), "..", roleScopeGuardMigrationRelativePath),
   resolve(process.cwd(), "../..", roleScopeGuardMigrationRelativePath),
@@ -44,7 +44,7 @@ assert.ok(
 );
 const roleScopeGuardSql = readFileSync(roleScopeGuardMigrationPath, "utf8");
 const supersessionIndexMigrationRelativePath =
-  "supabase/migrations/20261019140000_gap024_gate_a_supersession_lookup_index.sql";
+  "supabase/migrations/20260921032619_gap024_gate_a_supersession_lookup_index.sql";
 const supersessionIndexMigrationPath = [
   resolve(process.cwd(), "..", supersessionIndexMigrationRelativePath),
   resolve(process.cwd(), "../..", supersessionIndexMigrationRelativePath),
@@ -55,7 +55,7 @@ assert.ok(
 );
 const supersessionIndexSql = readFileSync(supersessionIndexMigrationPath, "utf8");
 const projectionHistoryMigrationRelativePath =
-  "supabase/migrations/20261019150000_gap024_gate_a_projection_history.sql";
+  "supabase/migrations/20260921052008_gap024_gate_a_projection_history.sql";
 const projectionHistoryMigrationPath = [
   resolve(process.cwd(), "..", projectionHistoryMigrationRelativePath),
   resolve(process.cwd(), "../..", projectionHistoryMigrationRelativePath),
@@ -66,7 +66,7 @@ assert.ok(
 );
 const projectionHistorySql = readFileSync(projectionHistoryMigrationPath, "utf8");
 const activationHistoryGuardMigrationRelativePath =
-  "supabase/migrations/20261019160000_gap024_gate_a_activation_history_guard.sql";
+  "supabase/migrations/20260921070556_gap024_gate_a_activation_history_guard.sql";
 const activationHistoryGuardMigrationPath = [
   resolve(process.cwd(), "..", activationHistoryGuardMigrationRelativePath),
   resolve(process.cwd(), "../..", activationHistoryGuardMigrationRelativePath),
@@ -77,7 +77,7 @@ assert.ok(
 );
 const activationHistoryGuardSql = readFileSync(activationHistoryGuardMigrationPath, "utf8");
 const activationHistoryPrivilegeMigrationRelativePath =
-  "supabase/migrations/20261019170000_gap024_gate_a_activation_history_privilege.sql";
+  "supabase/migrations/20260921085205_gap024_gate_a_activation_history_privilege.sql";
 const activationHistoryPrivilegeMigrationPath = [
   resolve(process.cwd(), "..", activationHistoryPrivilegeMigrationRelativePath),
   resolve(process.cwd(), "../..", activationHistoryPrivilegeMigrationRelativePath),
@@ -88,7 +88,7 @@ assert.ok(
 );
 const activationHistoryPrivilegeSql = readFileSync(activationHistoryPrivilegeMigrationPath, "utf8");
 const retiredFactPointerFreezeMigrationRelativePath =
-  "supabase/migrations/20261019180000_gap024_gate_a_retired_fact_pointer_freeze.sql";
+  "supabase/migrations/20260921093011_gap024_gate_a_retired_fact_pointer_freeze.sql";
 const retiredFactPointerFreezeMigrationPath = [
   resolve(process.cwd(), "..", retiredFactPointerFreezeMigrationRelativePath),
   resolve(process.cwd(), "../..", retiredFactPointerFreezeMigrationRelativePath),
@@ -99,7 +99,7 @@ assert.ok(
 );
 const retiredFactPointerFreezeSql = readFileSync(retiredFactPointerFreezeMigrationPath, "utf8");
 const initialActiveGuardMigrationRelativePath =
-  "supabase/migrations/20261019190000_gap024_gate_a_initial_active_guard.sql";
+  "supabase/migrations/20260921233739_gap024_gate_a_initial_active_guard.sql";
 const initialActiveGuardMigrationPath = [
   resolve(process.cwd(), "..", initialActiveGuardMigrationRelativePath),
   resolve(process.cwd(), "../..", initialActiveGuardMigrationRelativePath),
