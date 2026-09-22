@@ -9,6 +9,34 @@ consumer, backfill production data, migrate a writer, revoke existing `dtr_segme
 access, or implement Historical Daily DTR P1. Gate B remains next only after this Gate-A
 PR is independently hosted, reviewed, and merged.
 
+## 2026-09-22 — Migration-history filename alignment follow-up
+
+Independent review found an operational migration-history mismatch: the ten Gate-A SQL
+files were still named with local future timestamps under `20261019...`, while the
+restored Supabase project had already recorded those same migrations under their actual
+applied versions from `20260920...` and `20260921...`. Supabase migration tooling
+compares migration timestamps against `supabase_migrations.schema_migrations`; leaving
+the repository filenames mismatched would make the already-applied Gate-A migrations look
+pending to a later linked `db push`, risking duplicate replay attempts.
+
+PR #510 now renames all ten Gate-A migration files to exactly match the tracked live
+versions and updates the focused migration-contract test plus Gate-A/HR documentation
+references. The SQL contents are unchanged and **no migration is reapplied**.
+
+Repository Gate-A migration stems now exactly match the restored project's tracked
+history:
+
+- `20260920092652_gap024_gate_a_attendance_authority`
+- `20260921002434_gap024_gate_a_live_policy_compatibility`
+- `20260921025850_gap024_gate_a_policy_surface_replay_guard`
+- `20260921030235_gap024_gate_a_role_scope_guard`
+- `20260921032619_gap024_gate_a_supersession_lookup_index`
+- `20260921052008_gap024_gate_a_projection_history`
+- `20260921070556_gap024_gate_a_activation_history_guard`
+- `20260921085205_gap024_gate_a_activation_history_privilege`
+- `20260921093011_gap024_gate_a_retired_fact_pointer_freeze`
+- `20260921233739_gap024_gate_a_initial_active_guard`
+
 ## 2026-09-22 — Initial-active fact lifecycle follow-up
 
 Independent review of exact head `94d66e25f08dd486c66df3ef90ba38798daeeabf`
