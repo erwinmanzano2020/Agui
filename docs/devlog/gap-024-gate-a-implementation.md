@@ -9,33 +9,29 @@ consumer, backfill production data, migrate a writer, revoke existing `dtr_segme
 access, or implement Historical Daily DTR P1. Gate B remains next only after this Gate-A
 PR is independently hosted, reviewed, and merged.
 
-## 2026-09-22 — Migration-history filename alignment follow-up
+## 2026-09-22 — Chronological replay correction after migration-history review
 
-Independent review found an operational migration-history mismatch: the ten Gate-A SQL
-files were still named with local future timestamps under `20261019...`, while the
-restored Supabase project had already recorded those same migrations under their actual
-applied versions from `20260920...` and `20260921...`. Supabase migration tooling
-compares migration timestamps against `supabase_migrations.schema_migrations`; leaving
-the repository filenames mismatched would make the already-applied Gate-A migrations look
-pending to a later linked `db push`, risking duplicate replay attempts.
+Fresh exact-head Codex review on `1dc1477a2b0f0be09d1cd008b3acd315f39c5c68`
+found two repository-replay P1s after the earlier migration-filename alignment attempt:
 
-PR #510 now renames all ten Gate-A migration files to exactly match the tracked live
-versions and updates the focused migration-contract test plus Gate-A/HR documentation
-references. The SQL contents are unchanged and **no migration is reapplied**.
+- `discussion_r4067600100`: Gate A had been moved before the only repository migration
+  that establishes the required `branches(house_id, id)` composite uniqueness.
+- `discussion_r4067600105`: Gate A had also been moved before
+  `20261002100000_create_dtr_segments.sql`, whose destructive reset drops the Gate-A
+  segment FK/index if Gate A runs first.
 
-Repository Gate-A migration stems now exactly match the restored project's tracked
-history:
+The fix is to restore the ten Gate-A files to their canonical chronological
+`20261019100000...20261019190000` names. This places Gate A after both the DTR reset and
+the POS branch-composite-key hardening migration. Focused tests now lock those two
+ordering dependencies so a future rename cannot silently reintroduce the replay defect.
 
-- `20260920092652_gap024_gate_a_attendance_authority`
-- `20260921002434_gap024_gate_a_live_policy_compatibility`
-- `20260921025850_gap024_gate_a_policy_surface_replay_guard`
-- `20260921030235_gap024_gate_a_role_scope_guard`
-- `20260921032619_gap024_gate_a_supersession_lookup_index`
-- `20260921052008_gap024_gate_a_projection_history`
-- `20260921070556_gap024_gate_a_activation_history_guard`
-- `20260921085205_gap024_gate_a_activation_history_privilege`
-- `20260921093011_gap024_gate_a_retired_fact_pointer_freeze`
-- `20260921233739_gap024_gate_a_initial_active_guard`
+No Gate-A SQL body was changed for this correction and nothing was reapplied to the live
+database. The restored project's migration-history timestamps remain the ad-hoc versions
+recorded when the MCP applied the SQL (`20260920...` / `20260921...`). Because the
+remote project had pre-existing migration-history drift before Gate A, that discrepancy is
+an environment baseline issue, not something that can be safely solved by moving
+repository migrations ahead of their dependencies. A linked `db push` remains
+disallowed until that broader migration-history baseline is separately reconciled.
 
 ## 2026-09-22 — Initial-active fact lifecycle follow-up
 
@@ -47,7 +43,7 @@ receive valid revision/frame/evidence data yet remain excluded from projection r
 creating a retired tombstone that had never been active or canonically classified.
 
 PR #510 therefore adds the forward-only migration
-`20260921233739_gap024_gate_a_initial_active_guard.sql`. The activation trigger now
+`20261019190000_gap024_gate_a_initial_active_guard.sql`. The activation trigger now
 requires every newly inserted canonical attendance fact to begin with
 `is_active=true` in addition to `current_value_revision=1` and
 `evidence_basis_revision=1`.
@@ -80,7 +76,7 @@ inactive facts, either transition could leave a retired row pointing at an autho
 that was never canonically classified or persisted to authorization history.
 
 PR #510 adds the forward-only migration
-`20260921093011_gap024_gate_a_retired_fact_pointer_freeze.sql`. The existing
+`20261019180000_gap024_gate_a_retired_fact_pointer_freeze.sql`. The existing
 `hr_guard_attendance_fact_activation()` now rejects any change to
 `current_value_revision` or `evidence_basis_revision` whenever either the old or new
 row is inactive. Retirement itself remains valid only when it tombstones the exact
@@ -124,7 +120,7 @@ service-role producer could therefore fail with table-permission denial before t
 history precondition itself was evaluated.
 
 PR #510 adds the forward-only migration
-`20260921085205_gap024_gate_a_activation_history_privilege.sql`. It changes only the
+`20261019170000_gap024_gate_a_activation_history_privilege.sql`. It changes only the
 existing trigger function privilege context:
 
 - `hr_guard_attendance_fact_activation()` becomes `SECURITY DEFINER`;
@@ -166,7 +162,7 @@ intervening rebuild. That allowed an intermediate authority pair to have genuine
 current without ever receiving a durable canonical classification record.
 
 PR #510 therefore adds the forward-only migration
-`20260921070556_gap024_gate_a_activation_history_guard.sql`. The existing fact
+`20261019160000_gap024_gate_a_activation_history_guard.sql`. The existing fact
 activation trigger now requires the **previously current** exact
 `(current_value_revision, evidence_basis_revision)` pair to already exist in
 `hr_attendance_authorization_history` before any authority pointer changes or the fact
@@ -212,7 +208,7 @@ to remain retained for authorized audit without competing with the current frame
 
 Because all earlier Gate-A migrations are already applied to the restored Supabase
 project, PR #510 adds the forward-only migration
-`20260921052008_gap024_gate_a_projection_history.sql`. It creates
+`20261019150000_gap024_gate_a_projection_history.sql`. It creates
 `hr_attendance_authorization_history` as a separate append-only audit relation keyed by
 `(house_id, fact_id, value_revision, evidence_basis_revision)`. Each row retains the
 exact fingerprint, ATTRIBUTED/UNATTRIBUTED/CONFLICT result, optional attributed branch,
@@ -264,7 +260,7 @@ Fresh Codex review of current head identified one bounded P2: evidence-frame sea
 fact activation repeatedly probe for direct successors by House, selected predecessor,
 employee, and lineage root, but the evidence table had no dedicated successor lookup
 index. PR #510 therefore adds the forward-only migration
-`20260921032619_gap024_gate_a_supersession_lookup_index.sql`.
+`20261019140000_gap024_gate_a_supersession_lookup_index.sql`.
 
 The migration adds only the partial index
 `hr_attendance_evidence_supersession_lookup_idx` on
@@ -286,7 +282,7 @@ historical RBAC shape: identical custom role slugs are valid in different Houses
 text fallback must not attach policy rows from a same-named role owned by another House.
 
 Because the earlier compatibility migrations are already applied live, PR #510 adds the
-forward-only migration `20260921030235_gap024_gate_a_role_scope_guard.sql`. Role
+forward-only migration `20261019130000_gap024_gate_a_role_scope_guard.sql`. Role
 resolution now remains shape-aware:
 
 - historical roles exposing `scope_ref` must be `scope = HOUSE` with
@@ -321,7 +317,7 @@ feature authority.
 
 Because both prior Gate-A migrations are already applied/tracked in the live project, PR
 #510 now adds the forward-only migration
-`20260921025850_gap024_gate_a_policy_surface_replay_guard.sql`. It preserves current
+`20261019120000_gap024_gate_a_policy_surface_replay_guard.sql`. It preserves current
 live behavior while making the direct-policy CTE shape-aware:
 
 - on the confirmed live direct-assignment table, absence of a `scope` property means the
@@ -377,7 +373,7 @@ shape, while the confirmed current live authorization substrate uses a direct
 
 Because the original Gate-A migration is already deployed/tracked, this PR now carries the
 forward-only follow-up migration
-`20260921002434_gap024_gate_a_live_policy_compatibility.sql`. It replaces only the
+`20261019110000_gap024_gate_a_live_policy_compatibility.sql`. It replaces only the
 branch-scoped reader body and preserves the public RPC signature, return DTO, RLS/grant
 posture, and PostgREST reload. It does not drop or replace `entity_policies`, replay the
 historical RBAC migrations, seed policies/roles, or mutate current assignments.
@@ -407,7 +403,7 @@ and the remaining Gate-A locking/concurrency cases is still required before merg
 - Local starting SHA: `5e06c21a0c96514e45c336af77d0cccf2d3c0420`.
 - Local branch: `work`.
 - Checkout remote: none; hosted-only completion fields remain pending.
-- Migration: `20260920092652_gap024_gate_a_attendance_authority.sql`; no existing
+- Migration: `20261019100000_gap024_gate_a_attendance_authority.sql`; no existing
   migration is modified.
 
 ## Physical architecture
