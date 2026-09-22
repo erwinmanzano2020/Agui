@@ -20,13 +20,19 @@ found two repository-replay P1s after the earlier migration-filename alignment a
   `20261002100000_create_dtr_segments.sql`, whose destructive reset drops the Gate-A
   segment FK/index if Gate A runs first.
 
-The fix is to restore the ten Gate-A files to their canonical chronological
-`20261019100000...20261019190000` names. This places Gate A after both the DTR reset and
-the POS branch-composite-key hardening migration. Focused tests now lock those two
-ordering dependencies so a future rename cannot silently reintroduce the replay defect.
+The fix restores the ten Gate-A files to their canonical chronological
+`20261019100000...20261019190000` names, placing Gate A after the destructive DTR reset.
+Gate A now also creates `branches_house_id_id_unique_idx` itself before any Gate-A
+House+branch composite foreign key, so HR authority no longer depends on the paused POS
+migration for that prerequisite. Focused tests lock both the DTR-reset chronology and the
+self-contained branch-key ordering.
 
-No Gate-A SQL body was changed for this correction and nothing was reapplied to the live
-database. The restored project's migration-history timestamps remain the ad-hoc versions
+Preflight #762 initially failed only because the new chronology test resolved
+`../supabase/migrations` from the compiled `.test-dist` working directory, which points
+to `agui-starter/supabase` rather than the repository root. The test now resolves
+`../../supabase/migrations` first, matching the compiled runner contract.
+
+No live Gate-A migration was reapplied for these replay/test corrections. The restored project's migration-history timestamps remain the ad-hoc versions
 recorded when the MCP applied the SQL (`20260920...` / `20260921...`). Because the
 remote project had pre-existing migration-history drift before Gate A, that discrepancy is
 an environment baseline issue, not something that can be safely solved by moving
