@@ -2,10 +2,11 @@ begin;
 
 -- GAP-024 Gate A frame-membership lock-order correction.
 --
--- Frame sealing holds the evidence-frame row before its trigger locks selected evidence.
--- Membership insertion must acquire those resources in the same order. Locking evidence
--- first and the frame last creates a concrete frame->evidence / evidence->frame deadlock.
--- Preserve all membership semantics and move only the unsealed-frame lock to the front.
+-- Frame sealing holds the evidence-frame row, then locks the owning fact, before its
+-- trigger locks selected evidence. Membership insertion must acquire those resources in
+-- the same order. Any evidence-before-fact path can deadlock with sealing's
+-- frame -> fact -> evidence order. Preserve membership semantics while aligning the
+-- serialization prefix to frame -> fact -> evidence.
 
 create or replace function public.hr_guard_attendance_frame_membership_insert()
 returns trigger
@@ -32,7 +33,21 @@ begin
       using errcode = '55000';
   end if;
 
-  -- Resolve immutable lock keys only after the frame lock. Observation-backed
+  -- Match frame sealing's serialization prefix before touching observation/evidence
+  -- rows. The owning fact is the shared authority lock used while a frame becomes
+  -- current/sealed, so membership must acquire it before any evidence-family lock.
+  perform 1
+  from public.hr_attendance_facts fact
+  where fact.house_id = new.house_id
+    and fact.id = new.fact_id
+    and fact.employee_id = new.employee_id
+  for update;
+  if not found then
+    raise exception 'Evidence membership requires matching House, fact, and employee ownership'
+      using errcode = '23503';
+  end if;
+
+  -- Resolve immutable lock keys only after frame -> fact. Observation-backed
   -- membership then follows the existing observation -> evidence -> lineage-root order
   -- used by evidence insertion.
   select e.observation_id, e.lineage_root_evidence_id
@@ -117,6 +132,6 @@ end
 $function$;
 
 comment on function public.hr_guard_attendance_frame_membership_insert() is
-  'GAP-024 Gate A membership guard: locks unsealed frame before observation/evidence/lineage rows to preserve deterministic frame->evidence lock ordering with concurrent sealing.';
+  'GAP-024 Gate A membership guard: locks unsealed frame then owning fact before observation/evidence/lineage rows to preserve deterministic frame->fact->evidence ordering with concurrent sealing.';
 
 commit;
