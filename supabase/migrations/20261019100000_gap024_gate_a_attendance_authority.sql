@@ -493,8 +493,25 @@ declare
   v_observation_id uuid;
   v_lineage_root_evidence_id uuid;
 begin
-  -- Resolve immutable lock keys first. Observation-backed membership follows the
-  -- same observation -> evidence -> lineage-root order as evidence insertion.
+  -- Lock the target frame before any evidence/lineage row. The frame-sealing UPDATE
+  -- already owns this row before its guard locks selected evidence, so membership must
+  -- follow the same frame -> evidence order to avoid a frame/evidence deadlock.
+  perform 1
+  from public.hr_attendance_evidence_frames ef
+  where ef.house_id = new.house_id
+    and ef.fact_id = new.fact_id
+    and ef.employee_id = new.employee_id
+    and ef.evidence_basis_revision = new.evidence_basis_revision
+    and not ef.is_sealed
+  for update;
+  if not found then
+    raise exception 'Evidence membership requires an unsealed matching frame'
+      using errcode = '55000';
+  end if;
+
+  -- Resolve immutable lock keys only after the frame lock. Observation-backed
+  -- membership then follows the existing observation -> evidence -> lineage-root order
+  -- used by evidence insertion.
   select e.observation_id, e.lineage_root_evidence_id
     into v_observation_id, v_lineage_root_evidence_id
   from public.hr_attendance_evidence e
@@ -572,16 +589,6 @@ begin
       using errcode = '23514';
   end if;
 
-  perform 1 from public.hr_attendance_evidence_frames ef
-    where ef.house_id = new.house_id and ef.fact_id = new.fact_id
-      and ef.employee_id = new.employee_id
-      and ef.evidence_basis_revision = new.evidence_basis_revision
-      and not ef.is_sealed
-    for update;
-  if not found then
-    raise exception 'Evidence membership requires an unsealed matching frame'
-      using errcode = '55000';
-  end if;
   return new;
 end
 $function$;
