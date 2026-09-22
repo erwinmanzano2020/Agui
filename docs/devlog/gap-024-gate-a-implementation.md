@@ -17,17 +17,22 @@ rows before finally locking its target evidence frame, while concurrent frame se
 already holds the frame row before locking selected evidence. Those opposite
 evidence->frame and frame->evidence orders create a concrete PostgreSQL deadlock path.
 
-PR #510 adds the forward-only migration
-`20261019200000_gap024_gate_a_membership_frame_lock_order.sql`. It preserves the
-membership contract but moves the existing unsealed-frame `FOR UPDATE` lock to the
-front of `hr_guard_attendance_frame_membership_insert()`. After the frame is locked,
-the guard retains its existing observation -> evidence-member -> lineage-root ordering
-and all same-frame / prior-binding validation.
+PR #510 fixes both repository replay and already-applied environments. The canonical
+Gate-A migration now contains the corrected frame-first membership guard for a clean
+replay, while the forward-only
+`20261019200000_gap024_gate_a_membership_frame_lock_order.sql` migration preserves the
+same correction path for an environment where the original Gate-A migration has already
+run. The follow-up migration remains necessary; the base backpatch is not used as the
+sole live correction.
 
-Focused tests now assert that membership acquires exactly one frame lock before evidence
-resolution/locking and that sealing retains deterministic selected-evidence locking.
-This fixes lock-order consistency without changing evidence semantics, classification,
-reader contracts, authorization, or Gate-B scope.
+In both forms, the membership contract is unchanged: the existing unsealed-frame
+`FOR UPDATE` lock is acquired first, then the guard retains its observation ->
+evidence-member -> lineage-root ordering and all same-frame / prior-binding validation.
+
+Focused tests assert the frame-first order in both the clean-replay base migration and
+the forward correction, verify exactly one frame lock, and retain deterministic sealing
+evidence locking. This fixes lock-order consistency without changing evidence semantics,
+classification, reader contracts, authorization, or Gate-B scope.
 
 Per the runtime production boundary, this new migration is not being persistently applied
 to the restored live Supabase project merely because the repository fix is ready. Runtime
