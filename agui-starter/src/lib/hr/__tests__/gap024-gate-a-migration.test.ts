@@ -109,6 +109,18 @@ assert.ok(
   "Gate-A initial-active migration must be resolvable in focused and full-suite runners",
 );
 const initialActiveGuardSql = readFileSync(initialActiveGuardMigrationPath, "utf8");
+const membershipFrameLockOrderMigrationRelativePath =
+  "supabase/migrations/20261019200000_gap024_gate_a_membership_frame_lock_order.sql";
+const membershipFrameLockOrderMigrationPath = [
+  resolve(process.cwd(), "..", membershipFrameLockOrderMigrationRelativePath),
+  resolve(process.cwd(), "../..", membershipFrameLockOrderMigrationRelativePath),
+].find(existsSync);
+assert.ok(
+  membershipFrameLockOrderMigrationPath,
+  "Gate-A membership/frame lock-order migration must be resolvable in focused and full-suite runners",
+);
+const membershipFrameLockOrderSql = readFileSync(membershipFrameLockOrderMigrationPath, "utf8");
+
 
 
 
@@ -1423,4 +1435,58 @@ test("Gate-A migration chronology preserves the DTR reset and owns its branch co
   const branchKeyIndex = sql.indexOf("create unique index if not exists branches_house_id_id_unique_idx");
   const firstBranchFk = sql.indexOf("references public.branches(house_id, id)");
   assert.ok(branchKeyIndex >= 0 && firstBranchFk > branchKeyIndex, "Gate A must establish branches(house_id,id) uniqueness before any Gate-A composite branch FK");
+});
+
+
+test("frame membership locks the unsealed frame before evidence and lineage rows", () => {
+  const fnStart = membershipFrameLockOrderSql.indexOf(
+    "create or replace function public.hr_guard_attendance_frame_membership_insert",
+  );
+  assert.notEqual(fnStart, -1);
+  const fn = membershipFrameLockOrderSql.slice(fnStart);
+
+  const frameLock = fn.indexOf("from public.hr_attendance_evidence_frames ef");
+  const evidenceResolve = fn.indexOf("from public.hr_attendance_evidence e");
+  const observationLock = fn.indexOf("from public.hr_attendance_observations o");
+  const evidenceLock = fn.indexOf("from public.hr_attendance_evidence evidence_member");
+  const lineageRootLock = fn.indexOf("from public.hr_attendance_evidence lineage_root");
+
+  assert.ok(frameLock >= 0, "membership guard must lock the target frame");
+  assert.ok(frameLock < evidenceResolve, "frame lock must precede evidence resolution");
+  assert.ok(evidenceResolve < observationLock, "observation-backed membership keeps observation ordering after frame lock");
+  assert.ok(observationLock < evidenceLock, "observation lock must precede evidence-member lock");
+  assert.ok(evidenceLock < lineageRootLock, "evidence-member lock must precede lineage-root lock");
+
+  assert.match(
+    fn,
+    /from public\.hr_attendance_evidence_frames ef[\s\S]*and not ef\.is_sealed[\s\S]*for update[\s\S]*Evidence membership requires an unsealed matching frame/i,
+  );
+  assert.equal(
+    (fn.match(/from public\.hr_attendance_evidence_frames ef/g) ?? []).length,
+    1,
+    "frame lock should be acquired once, at the front of the guard",
+  );
+});
+
+test("frame sealing and membership share frame-before-evidence lock order", () => {
+  const sealingGuard = functionSql(
+    "hr_guard_attendance_evidence_frame",
+    "hr_guard_attendance_evidence_insert",
+  );
+  const membershipFnStart = membershipFrameLockOrderSql.indexOf(
+    "create or replace function public.hr_guard_attendance_frame_membership_insert",
+  );
+  const membershipGuard = membershipFrameLockOrderSql.slice(membershipFnStart);
+
+  const sealingEvidenceLock = sealingGuard.indexOf(
+    "order by selected_evidence.lineage_root_evidence_id, selected_evidence.id",
+  );
+  assert.ok(sealingEvidenceLock >= 0, "sealing guard must retain deterministic selected-evidence locking");
+
+  const membershipFrameLock = membershipGuard.indexOf("from public.hr_attendance_evidence_frames ef");
+  const membershipEvidenceLock = membershipGuard.indexOf("from public.hr_attendance_evidence evidence_member");
+  assert.ok(
+    membershipFrameLock >= 0 && membershipEvidenceLock > membershipFrameLock,
+    "membership must acquire frame before evidence so it cannot invert sealing's frame->evidence order",
+  );
 });
