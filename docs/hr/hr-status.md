@@ -9,7 +9,7 @@ therefore create an already-retired canonical fact that projection rebuilds woul
 leaving no corresponding current projection or authorization-history classification.
 
 The forward-only migration
-`20261019190000_gap024_gate_a_initial_active_guard.sql` now requires new canonical
+`20260921233739_gap024_gate_a_initial_active_guard.sql` now requires new canonical
 attendance facts to begin active as well as at value/evidence revision 1/1. This aligns
 creation with the established one-way lifecycle: active first, classified while active,
 then optionally retired as a tombstone of the last classified pair.
@@ -37,7 +37,7 @@ projection rebuilds exclude inactive facts, those newly selected pairs received 
 durable classification history.
 
 The forward-only migration
-`20261019180000_gap024_gate_a_retired_fact_pointer_freeze.sql` freezes
+`20260921093011_gap024_gate_a_retired_fact_pointer_freeze.sql` freezes
 `current_value_revision` and `evidence_basis_revision` whenever either the old or new
 fact row is inactive. Retirement therefore tombstones only the already-current,
 already-classified pair; post-retirement pointer movement and combined retire+advance are
@@ -67,7 +67,7 @@ authorization history, but service_role correctly has no direct history-table pr
 so an invoker-security trigger would fail before enforcing the intended guard.
 
 The forward-only migration
-`20261019170000_gap024_gate_a_activation_history_privilege.sql` marks only
+`20260921085205_gap024_gate_a_activation_history_privilege.sql` marks only
 `hr_guard_attendance_fact_activation()` as `SECURITY DEFINER`, retains its fixed
 `pg_catalog, public` search path, and revokes direct function execution from public,
 anon, authenticated, and service_role. Direct history-table grants remain revoked.
@@ -99,7 +99,7 @@ service producer could advance through an intermediate current value/evidence pa
 advance again before that pair was classified/persisted.
 
 The forward-only migration
-`20261019160000_gap024_gate_a_activation_history_guard.sql` updates the existing fact
+`20260921070556_gap024_gate_a_activation_history_guard.sql` updates the existing fact
 activation trigger so a pointer change or retirement is rejected unless the previously
 current exact value/evidence pair already exists in append-only authorization history.
 This couples authority progression to durable classification while leaving ordinary
@@ -130,7 +130,7 @@ classification. This conflicts with the frozen requirement to retain historical
 classifications for authorized audit.
 
 PR #510 now adds
-`20261019150000_gap024_gate_a_projection_history.sql`, which creates append-only
+`20260921052008_gap024_gate_a_projection_history.sql`, which creates append-only
 `hr_attendance_authorization_history` keyed by House, fact, value revision, and
 evidence-basis revision. The rebuild preserves the prior current projection before
 replacement and records the newly classified exact pair while leaving the existing
@@ -164,7 +164,7 @@ Fresh Codex review on the then-current head found no new P1 and one P2: repeated
 successor lookups in frame sealing and fact activation lacked a dedicated evidence index.
 
 PR #510 now adds
-`20261019140000_gap024_gate_a_supersession_lookup_index.sql`, a forward-only partial
+`20260921032619_gap024_gate_a_supersession_lookup_index.sql`, a forward-only partial
 index on `(house_id, supersedes_evidence_id, employee_id, lineage_root_evidence_id)`
 for rows with non-null `supersedes_evidence_id`. The index is performance-only and
 does not change Gate-A semantics or public interfaces.
@@ -178,7 +178,7 @@ therefore also needs an explicit role-scope boundary so requested-House membersh
 inherit policies from another House's custom role.
 
 The forward-only migration
-`20261019130000_gap024_gate_a_role_scope_guard.sql` constrains historical House role
+`20260921030235_gap024_gate_a_role_scope_guard.sql` constrains historical House role
 resolution to `scope = HOUSE` with null/global or requested-House `scope_ref`, and
 historical PLATFORM role resolution to `scope = PLATFORM` with null `scope_ref`.
 Current live schemas without `scope_ref` retain compatibility through the exact-House
@@ -205,7 +205,7 @@ live compatibility migration correctly handles the current direct
 `entity_policies(entity_id, policy_id)` table, but on a historical ordered replay the
 older flattened `entity_policies` view can include HOUSE/GUILD rows. Those rows must not
 be promoted to global feature capability. PR #510 therefore adds the forward-only
-`20261019120000_gap024_gate_a_policy_surface_replay_guard.sql`, which keeps scope-less
+`20260921025850_gap024_gate_a_policy_surface_replay_guard.sql`, which keeps scope-less
 live direct assignments global while restricting historical flattened rows to
 `scope = PLATFORM` for the global feature-capability lane. Branch restriction remains
 requested-House role-policy only.
@@ -234,7 +234,7 @@ record; blindly replaying the historical 20251107/20251112 RBAC migrations would
 safe remediation.
 
 PR #510 therefore adds the forward-only migration
-`20261019110000_gap024_gate_a_live_policy_compatibility.sql`. It replaces only the
+`20260921002434_gap024_gate_a_live_policy_compatibility.sql`. It replaces only the
 branch-scoped reader implementation while preserving the six-argument RPC signature,
 sanitized DTO, exact-House membership, owner/manager exclusion, feature capability
 requirement, branch restriction, grants, and PostgREST reload. Direct and PLATFORM
