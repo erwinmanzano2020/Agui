@@ -1439,32 +1439,41 @@ test("Gate-A migration chronology preserves the DTR reset and owns its branch co
 
 
 test("frame membership locks the unsealed frame before evidence and lineage rows", () => {
+  const baseFn = functionSql(
+    "hr_guard_attendance_frame_membership_insert",
+    "hr_guard_attendance_fact_revision_segment_insert",
+  );
   const fnStart = membershipFrameLockOrderSql.indexOf(
     "create or replace function public.hr_guard_attendance_frame_membership_insert",
   );
   assert.notEqual(fnStart, -1);
   const fn = membershipFrameLockOrderSql.slice(fnStart);
 
-  const frameLock = fn.indexOf("from public.hr_attendance_evidence_frames ef");
-  const evidenceResolve = fn.indexOf("from public.hr_attendance_evidence e");
-  const observationLock = fn.indexOf("from public.hr_attendance_observations o");
-  const evidenceLock = fn.indexOf("from public.hr_attendance_evidence evidence_member");
-  const lineageRootLock = fn.indexOf("from public.hr_attendance_evidence lineage_root");
+  const assertFrameFirst = (body: string) => {
+    const frameLock = body.indexOf("from public.hr_attendance_evidence_frames ef");
+    const evidenceResolve = body.indexOf("from public.hr_attendance_evidence e");
+    const observationLock = body.indexOf("from public.hr_attendance_observations o");
+    const evidenceLock = body.indexOf("from public.hr_attendance_evidence evidence_member");
+    const lineageRootLock = body.indexOf("from public.hr_attendance_evidence lineage_root");
 
-  assert.ok(frameLock >= 0, "membership guard must lock the target frame");
-  assert.ok(frameLock < evidenceResolve, "frame lock must precede evidence resolution");
-  assert.ok(evidenceResolve < observationLock, "observation-backed membership keeps observation ordering after frame lock");
-  assert.ok(observationLock < evidenceLock, "observation lock must precede evidence-member lock");
-  assert.ok(evidenceLock < lineageRootLock, "evidence-member lock must precede lineage-root lock");
+    assert.ok(frameLock >= 0, "membership guard must lock the target frame");
+    assert.ok(frameLock < evidenceResolve, "frame lock must precede evidence resolution");
+    assert.ok(evidenceResolve < observationLock, "observation-backed membership keeps observation ordering after frame lock");
+    assert.ok(observationLock < evidenceLock, "observation lock must precede evidence-member lock");
+    assert.ok(evidenceLock < lineageRootLock, "evidence-member lock must precede lineage-root lock");
+    assert.equal(
+      (body.match(/from public\.hr_attendance_evidence_frames ef/g) ?? []).length,
+      1,
+      "frame lock should be acquired once, at the front of the guard",
+    );
+  };
+
+  assertFrameFirst(baseFn);
+  assertFrameFirst(fn);
 
   assert.match(
     fn,
     /from public\.hr_attendance_evidence_frames ef[\s\S]*and not ef\.is_sealed[\s\S]*for update[\s\S]*Evidence membership requires an unsealed matching frame/i,
-  );
-  assert.equal(
-    (fn.match(/from public\.hr_attendance_evidence_frames ef/g) ?? []).length,
-    1,
-    "frame lock should be acquired once, at the front of the guard",
   );
 });
 
