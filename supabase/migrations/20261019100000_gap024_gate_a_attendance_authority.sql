@@ -5,6 +5,8 @@ begin;
 
 create unique index if not exists employees_house_id_id_unique_idx
   on public.employees (house_id, id);
+create unique index if not exists branches_house_id_id_unique_idx
+  on public.branches (house_id, id);
 create unique index if not exists dtr_segments_house_id_id_employee_id_unique_idx
   on public.dtr_segments (house_id, id, employee_id);
 
