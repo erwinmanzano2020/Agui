@@ -74,15 +74,29 @@ Read-only live verification at this planning checkpoint:
 - `hr_kiosk_events`: 248 rows.
 - Every 37 current `source='system'` segment has a `clock_in`/`clock_out`
   `metadata.segmentId` relationship.
-- Exact kiosk evidence currently proves:
-  - 36 closed system rows = exactly one IN + one OUT, one branch, no null branch;
-  - 1 open system row = exactly one IN, zero OUT, one branch, no null branch;
-  - zero current system rows have cross-branch kiosk evidence.
+- Structural kiosk-event matching currently shows:
+  - 36 closed system rows = exactly one linked IN + one linked OUT, one branch, no null
+    branch;
+  - 1 open system row = exactly one linked IN, zero OUT, one branch, no null branch;
+  - zero current system rows have cross-branch linked event evidence;
+  - all 73 linked clock events match the compatibility segment timestamp, House, employee,
+    and carry branch/device context.
+- **DEC-019 identity narrows the establishable subset:** only 44/73 linked clock events
+  currently carry a non-empty opaque `metadata.clientId`, producing only 17/37 system
+  segments for which every required governing observation currently has a stable
+  source/operation identity (16 closed + 1 open). The other 20 system segments are not
+  eligible for established kiosk provenance from current evidence alone.
 - `dtr_entries`: 1035 rows and remains a separate compatibility/bulk summary surface.
 
-This evidence supports a provable kiosk bootstrap subset. It does **not** prove manual
-legacy branch provenance, so manual legacy rows must not be assigned a branch merely from
-current employee/device/request context.
+This evidence supports a **bounded candidate** kiosk bootstrap subset, not blanket
+establishment of all system rows. GAP-025 explicitly states that JSON
+`metadata.segmentId` is evidence of present behavior but is not sufficient canonical
+integrity infrastructure by itself; DEC-019 additionally requires trustworthy
+namespaced source identity and original occurrence time. Gate-B bootstrap may establish
+only rows for which the migration both creates durable canonical linkage and proves every
+governing observation satisfies that identity/integrity contract. It also does **not**
+prove manual legacy branch provenance, so manual legacy rows must not be assigned a
+branch merely from current employee/device/request context.
 
 ## 5. Current active writer / principal inventory
 
@@ -336,9 +350,12 @@ Requirements:
 - cross-branch or malformed evidence fails closed according to GAP-025;
 - current debounce behavior remains a UI/operational guard, not the idempotency authority.
 
-For current kiosk bootstrap, only the exact provable 37 system segments may receive
-established kiosk evidence. Any future row that fails the exact cardinality/linkage
-contract remains unresolved/unattributed.
+For current kiosk bootstrap, **do not assume all 37 system segments are establishable**.
+At the planning checkpoint only 17/37 have a stable opaque `clientId` on every required
+IN/OUT observation. The implementation must re-run the proof and may establish only the
+subset that satisfies the complete durable-link + DEC-019 identity + original-occurrence
+contract. Every other system row remains unresolved/UNATTRIBUTED even when its current
+JSON segment link and branch happen to agree.
 
 ### 9.2 Authenticated manual DTR create/update — must migrate in this slice
 
@@ -409,21 +426,35 @@ authenticated/service-role raw DML is revoked.
 
 ## 10. Bootstrap / backfill contract
 
-### 10.1 Kiosk-provable subset
+### 10.1 Kiosk bootstrap — durable-link proof, not JSON promotion
 
-For current `source='system'` rows:
+For current `source='system'` rows, `metadata.segmentId` may be used only to locate a
+**migration candidate**. It is not by itself sufficient provenance.
 
-- match exact `clock_in` / `clock_out` event linkage through the current
-  `metadata.segmentId` relationship only as migration evidence;
-- require same House + employee;
-- require one event-time branch;
-- OPEN = exactly one valid IN and zero OUT;
-- COMPLETED = exactly one valid IN and one valid OUT;
-- create stable kiosk observations/evidence and canonical facts;
-- classify/rebuild under Gate-A rules.
+To become established kiosk evidence, each required logical observation must pass all of:
 
-If any row violates the exact proof conditions at implementation time, it is excluded from
-established bootstrap and remains fail-closed.
+- candidate event and segment are same House + employee;
+- candidate event has event-time branch in that House;
+- event `occurred_at` exactly matches the applicable current segment boundary being
+  migrated;
+- a trustworthy non-empty opaque producer source identity exists and is unique under its
+  approved House + source namespace;
+- original occurrence time is present and immutable;
+- the migration writes a new durable canonical observation/evidence/fact relationship so
+  future classification no longer depends on the JSON segment pointer;
+- OPEN has exactly one established IN and zero OUT;
+- COMPLETED has exactly one established IN and one established OUT;
+- no established branch disagreement exists.
+
+At this planning checkpoint, 17/37 system segments satisfy the stable-ID prerequisite for
+all required observations (16 closed + 1 open); 20/37 do not. Those counts are evidence,
+not a frozen migration allowlist: implementation must re-evaluate the exact live rows.
+
+Rows that fail any requirement still receive canonical value/fact representation where
+that mapping is deterministic, but their kiosk evidence remains unresolved/insufficient
+or their frame remains unproved, so the projection is UNATTRIBUTED. No database event ID,
+row order, timestamp proximity, or `metadata.segmentId` alone may be invented as a
+replacement DEC-019 source identity.
 
 ### 10.2 Manual legacy subset
 
@@ -739,7 +770,8 @@ The future runtime slice is complete only when:
 4. authenticated raw DML over protected `dtr_segments` state is revoked;
 5. kiosk and bulk service-role flows cannot bypass canonical fact/evidence/projection;
 6. raw repair mutation is retired;
-7. provable kiosk bootstrap is canonicalized;
+7. only the DEC-019-compliant kiosk bootstrap subset is established; all other kiosk
+   legacy state remains fail-closed/UNATTRIBUTED;
 8. manual legacy state is not given invented branch provenance;
 9. canonical projection is deterministic and current;
 10. retries are idempotent and stale mutations fail;
@@ -803,8 +835,9 @@ Before this plan may converge, fresh review must specifically challenge:
   contract; implementation review may choose equivalent strongly typed parameters.
 - Supabase administrative/database-owner authority is an unavoidable break-glass boundary;
   the plan targets application/automation principals and must document this explicitly.
-- Current kiosk `metadata.segmentId` is only a bootstrap evidence bridge, not durable
-  future source identity.
+- Current kiosk `metadata.segmentId` is only a candidate-locator during migration, not
+  durable future source identity or sufficient provenance. The current planning snapshot
+  shows only 17/37 system segments with stable opaque identity on every required event.
 - Manual legacy rows remain unattributed unless approved provenance exists.
 - `dtr_entries` compatibility coupling requires careful transactional design in the
   implementation slice.
@@ -846,3 +879,16 @@ disposition through review.
 **P2 — idempotency contract lacked mismatch detection.** The durable operation identity
 is now explicitly keyed by House + producer namespace + operation ID with a request
 fingerprint; same-key/different-input replays fail closed.
+
+
+### Round 2 — material corrections
+
+**P1 — current JSON kiosk linkage was over-promoted.** GAP-025 explicitly rejects
+`metadata.segmentId` as sufficient canonical integrity infrastructure, and DEC-019
+requires a trustworthy namespaced opaque source identity plus original occurrence time.
+Live evidence shows all 73 linked clock events structurally match House/employee/timestamp
+and branch, but only 44/73 carry `clientId`; only 17/37 current system segments have a
+stable opaque identity on every required governing observation. The plan now treats the
+JSON link only as a migration candidate locator, requires creation of new durable
+canonical linkage, establishes only the DEC-019-compliant subset, and leaves the other
+system rows fail-closed/UNATTRIBUTED.
