@@ -1,5 +1,43 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-23 — GAP-024 Gate A released; Gate-B pre-P1 planning active
+
+**Status: PLANNING ONLY — Gate-B pre-P1 raw-mutator / producer-write-containment
+foundation is the current bounded planning slice. Runtime is not authorized yet.**
+
+GAP-024 Gate A completed its full release cycle:
+
+- PR #510 squash-merged as
+  `71d11b79c002dce9b65e786ecb30ecfa9abdd494`;
+- final `gap024_gate_a_membership_frame_lock_order` migration applied to the restored
+  Supabase project and verified live;
+- exact merge-SHA Vercel deployment
+  `dpl_6yn53VdTBBC9MapCdQUDq5WQFFEF` reached READY with successful GitHub Vercel status;
+- live Gate-A source-of-truth remained empty immediately after release
+  (facts/projection/history = 0/0/0).
+
+The next DEC-017 step is **not Historical Daily DTR Write P1**. The required predecessor
+is the separately bounded Gate-B pre-P1 containment foundation. Current planning artifact:
+
+`docs/devlog/gap-024-gate-b-pre-p1-containment-plan.md`
+
+The planning pass inventories authenticated, browser, service-role kiosk/bulk, and repair
+attendance writers; defines a non-bypassable canonical mutation engine with
+producer-specific wrappers; requires raw mutation privilege containment; preserves
+Gate-A source-of-truth authority; and keeps P1, Gate C, Gate D, and Gate E unauthorized.
+
+Read-only planning evidence at this checkpoint found 96 live `dtr_segments` rows
+(59 manual, 37 system). Kiosk linkage is structurally exact for all 37 system rows, but
+DEC-019 source-identity evidence exists on every required governing event for only 17/37
+current system segments. Therefore planning explicitly forbids blanket kiosk attribution:
+only a future exact-head durable-link proof may establish the qualifying subset; all
+others remain fail-closed/UNATTRIBUTED.
+
+The Agui Project Control Center is known stale at the start of this planning pass
+(still mirroring Gate A as next). It must be reconciled only after the technical planning
+artifact converges and hosted planning evidence is verified.
+
+
 ## 2026-09-23 — GAP-024 Gate-A controlled UAT checkpoint
 
 **Status: CONTROLLED UAT PASS; final exact-head release checks are green and PR #510
