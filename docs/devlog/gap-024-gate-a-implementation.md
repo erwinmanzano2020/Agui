@@ -37,6 +37,70 @@ had zero current non-outdated material review threads, was mergeable, and receiv
 fresh Codex result of “Didn't find any major issues.” No Production/backend write was
 performed for this final correction, and no manual UAT result is claimed.
 
+## 2026-09-23 — Controlled UAT / pre-release evidence
+
+**Controlled Gate-A UAT: PASS — automated/remote evidence only; no human or real-operation
+checkpoint is applicable to this slice.**
+
+Gate A is an infrastructure/security-foundation slice. Its approved boundary explicitly
+does not cut over Daily DTR, payroll, payslip, kiosk, bulk, browser, repair, or another
+normal Production consumer. Therefore Telegram/native-device, visual/touch, cashier,
+payroll, or other real operational UAT would not prove a changed Gate-A behavior and
+would exceed the approved scope.
+
+The release candidate audited before this evidence-sync change was exact head
+`2335e1e0c330e5292df10780a96086188781b068`. Automated and remote evidence:
+
+- GitHub Preflight #777 passed dependency installation, lint, typecheck, build, and the
+  compiled Node test suite.
+- The exact-head Vercel Preview deployment
+  `dpl_2uM7hCVcHPwtmYL1D4tYbhjBVDx9` was READY and mapped to
+  `2335e1e0c330e5292df10780a96086188781b068`.
+- A protected Preview fetch returned HTTP 200 for the application root/welcome route.
+- Preview runtime log inspection returned no warning/error/fatal entries for the checked
+  deployment window.
+- Full PR scope inspection found no changed Production consumer path and no feature-flag
+  or environment-toggle addition. The change surface remains generated DB types, focused
+  Gate-A migration tests, governance/docs, and Gate-A migrations.
+- The restored Supabase project is ACTIVE_HEALTHY. Read-only catalog verification found
+  the Gate-A fact and projection tables under RLS and all four checked Gate-A
+  rebuild/read/guard functions present.
+- The authoritative backend currently contains zero Gate-A facts, zero current
+  authorization projections, and zero authorization-history rows, so this UAT created no
+  business or synthetic state and had no cleanup write.
+- Migration history confirms the first ten Gate-A migrations are already present under
+  the restored project's previously recorded ad-hoc timestamps. The final
+  `gap024_gate_a_membership_frame_lock_order` migration is intentionally not applied
+  yet. Read-only function inspection confirms the live pre-release guard does not yet
+  contain the final owning-fact lock, exactly matching that expected pre-deploy baseline.
+
+The final lock-order correction itself remains verified by exact SQL/static contract
+proof plus exact-head CI rather than by a persistent backend write. This is intentional:
+applying that final migration is a Production/backend release action and remains owner
+gated. No temporary Preview flag, account, fixture, database row, deployment-protection
+exception, or other cleanup artifact was created by this UAT.
+
+Release/deployment boundary after owner approval:
+
+1. re-fetch PR #510 and verify exact-head/no-drift;
+2. squash-merge PR #510 using the repository's established merge discipline;
+3. do **not** use linked `db push` while the known migration-history baseline drift
+   remains unresolved;
+4. apply only the still-unapplied
+   `gap024_gate_a_membership_frame_lock_order` backend correction through the approved
+   controlled migration path;
+5. verify the deployed function now serializes membership as frame -> owning fact ->
+   observation/evidence/lineage and that Gate-A tables remain empty unless legitimate
+   later work populates them;
+6. verify the intended Production frontend deployment/merge state and runtime health;
+7. keep all Gate-B, consumer cutover, backfill, raw-access revocation, and feature
+   expansion unauthorized.
+
+Residual verification limitation: the final lock-order change has not been exercised in
+an isolated two-independent-session database race harness. The concrete lock inversion
+is removed structurally and regression-checked, but Production application of that
+correction remains deliberately pending owner approval.
+
 ## 2026-09-22 — Frame-membership lock-order follow-up
 
 Fresh exact-head Codex review on `476c173ffa1644c570d502c7a96fe85fd673512c`
@@ -864,18 +928,22 @@ source-observation identity.**
 
 ## Verification boundary
 
-The focused Node tests are static migration-contract checks plus conceptual immutable-frame fixtures. They do not execute PostgreSQL, RLS, grants, RPCs, triggers, foreign keys, CHECK constraints, the classifier, row locks, or concurrency. The contributor environment still has no Supabase CLI/config, PostgreSQL executable, or Docker runtime. Therefore **migration/RLS/RPC, trigger, FK, integrity reason-class constraints, classifier, lifecycle-status constraint, reader authorization including normalized House-role aliases, initial-insert authority, frame-sealing, row-lock, advisory-lock, activation, retirement/re-entry leaf currentness, supersession, symmetric kiosk-transition semantics, and concurrency executable PostgreSQL verification remains outstanding** until a database-capable hosted or contributor check proves it.
+The original local-only verification limitation has been superseded in part by the
+controlled live rollback checks recorded above and by hosted CI/Preview evidence. Gate-A
+authorization, provenance, classifier, lifecycle, history, replay, and several guard
+paths have executable evidence against the restored Supabase project, while exact-head
+Preflight/Preview cover the repository candidate.
 
-Owner-side evidence confirms the pre-correction hosted head
-`ce7a6876b2a23f604a9c2c8f4d3421a2717a24de` passed Preflight run `35422184877`
-(run number 677), with Vercel Ready and the explicit-provenance applicability correction
-hosted. The continuous-lineage target-leaf correction has only static/local verification
-at this checkpoint; its post-correction hosted head and checks remain pending independent
-observation. The
-workspace-settings `42501` diagnostic remains an expected passing fallback test and was
-not modified.
+The remaining deliberate boundary is narrower: the final
+`20261019200000_gap024_gate_a_membership_frame_lock_order.sql` correction has not been
+persistently applied to the restored backend before owner release approval, and its true
+two-independent-session deadlock timing has not been reproduced in an isolated database
+branch. Its release evidence is structural SQL lock-order proof, focused regression
+coverage, exact-head CI, exact-head Preview health, and read-only confirmation that the
+live backend is still on the expected pre-release guard. No Gate-B producer/backfill or
+Gate-C/D/E consumer behavior is claimed.
 
-## Control Center Sync Payload — staged/pre-host
+## Historical Control Center Sync Payload — staged/pre-host
 
 - **Project / Phase:** Agui / HR (sole active phase)
 - **Gate / Slice:** GAP-024 Gate A
