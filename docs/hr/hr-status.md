@@ -2,8 +2,14 @@
 
 ## 2026-09-23 — GAP-024 Gate-A controlled UAT checkpoint
 
-**Status: CONTROLLED UAT PASS; exact-head release re-check follows this documentation
-sync before owner release approval.**
+**Status: CONTROLLED UAT PASS; final exact-head release checks are green and PR #510
+is ready for explicit owner release approval.**
+
+Final documentation-synced release candidate:
+`19722bf943cf1e448312eadf57794d84548ad44e`. Preflight #778 passed all steps; matching
+Vercel deployment `dpl_Cs4FMjPQYL7MJjdwGDkHX3Kjid6P` is READY on that exact SHA;
+PR #510 remains mergeable with zero current non-outdated review threads. The changes
+after the UAT-tested candidate are documentation-only.
 
 Gate A requires no human/device or real-operation UAT because the approved slice changes
 only attendance authority/projection/read-boundary foundations and intentionally leaves
