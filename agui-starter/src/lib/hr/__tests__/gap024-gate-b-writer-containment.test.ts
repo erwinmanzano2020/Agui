@@ -47,6 +47,11 @@ test("bulk replacement is authenticated, idempotent, canonical, and atomic with 
   );
   assert.match(
     bulkSql,
+    /left join public\.hr_attendance_authorization_projection[\s\S]*canonical_fact_id is null[\s\S]*attribution_state is distinct from 'ATTRIBUTED'[\s\S]*active_branch_id[\s\S]*hr_attendance_actor_can_write_branch/i,
+  );
+  assert.match(bulkSql, /Bulk attendance predecessor is outside caller write scope/i);
+  assert.match(
+    bulkSql,
     /update public\.hr_attendance_facts[\s\S]*set is_active = false/i,
   );
   assert.match(
