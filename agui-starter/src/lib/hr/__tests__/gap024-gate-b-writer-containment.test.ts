@@ -166,6 +166,10 @@ test("cutover reconciles every row, constrains kiosk establishment, and removes 
   assert.match(cutoverSql, /metadata ->> 'clientId'/i);
   assert.match(cutoverSql, /v_unique_source_count = v_total_count/i);
   assert.match(cutoverSql, /v_device_context_count = v_total_count/i);
+  assert.match(
+    cutoverSql,
+    /hr_kiosk_devices[\s\S]*device\.house_id = event\.house_id[\s\S]*device\.branch_id = event\.branch_id[\s\S]*device\.is_active = true/i,
+  );
   assert.match(cutoverSql, /v_branch_count = 1/i);
   assert.match(cutoverSql, /v_timestamp_match_count = v_total_count/i);
   assert.match(
