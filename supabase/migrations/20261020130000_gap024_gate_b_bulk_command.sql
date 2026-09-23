@@ -155,6 +155,36 @@ begin
       raise exception 'Bulk attendance target is outside caller write scope'
         using errcode = '42501';
     end if;
+
+    -- Employee current assignment authorizes the employee target, but it does not
+    -- authorize retirement of historical attendance owned by another branch. Every
+    -- predecessor fact being replaced must independently be visible/writable through
+    -- its active canonical attribution. Legacy unbridged and fail-closed states require
+    -- House-wide authority.
+    if exists (
+      select 1
+      from public.dtr_segments segment
+      left join public.hr_attendance_authorization_projection projection
+        on projection.house_id = segment.house_id
+        and projection.fact_id = segment.canonical_fact_id
+        and projection.employee_id = segment.employee_id
+      where segment.house_id = p_house_id
+        and segment.employee_id = p_employee_id
+        and segment.work_date = p_work_date
+        and (
+          segment.canonical_fact_id is null
+          or projection.attribution_state is distinct from 'ATTRIBUTED'
+          or projection.active_branch_id is null
+          or not public.hr_attendance_actor_can_write_branch(
+            p_house_id,
+            v_entity_id,
+            projection.active_branch_id
+          )
+        )
+    ) then
+      raise exception 'Bulk attendance predecessor is outside caller write scope'
+        using errcode = '42501';
+    end if;
   end if;
 
   perform pg_catalog.pg_advisory_xact_lock(
