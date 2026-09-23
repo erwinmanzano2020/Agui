@@ -69,6 +69,11 @@ set search_path = pg_catalog, public
 as $function$
 begin
   if current_user in ('anon', 'authenticated', 'service_role') then
+    if tg_op = 'TRUNCATE' then
+      raise exception 'Raw attendance writers cannot truncate canonical compatibility state'
+        using errcode = '42501';
+    end if;
+
     if tg_op = 'INSERT' then
       if new.canonical_fact_id is not null then
         raise exception 'Raw attendance writers cannot establish canonical fact linkage'
@@ -106,6 +111,11 @@ drop trigger if exists dtr_segments_canonical_bridge_guard on public.dtr_segment
 create trigger dtr_segments_canonical_bridge_guard
 before insert or update or delete on public.dtr_segments
 for each row execute function public.hr_guard_dtr_segment_canonical_bridge();
+
+drop trigger if exists dtr_segments_canonical_truncate_guard on public.dtr_segments;
+create trigger dtr_segments_canonical_truncate_guard
+before truncate on public.dtr_segments
+for each statement execute function public.hr_guard_dtr_segment_canonical_bridge();
 
 -- Private authorization primitive used by later authenticated manual/bulk wrappers.
 -- Broad House authority follows the existing owner/manager/admin role vocabulary.
