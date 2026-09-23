@@ -244,6 +244,7 @@ export type DtrSegmentRow = {
   overtime_minutes: number;
   source: "manual" | "bulk" | "pos" | "system";
   status: "open" | "closed" | "corrected";
+  canonical_fact_id: string | null;
   created_at: string;
 };
 
@@ -258,6 +259,7 @@ export type DtrSegmentInsert = {
   overtime_minutes?: number;
   source?: DtrSegmentRow["source"];
   status?: DtrSegmentRow["status"];
+  canonical_fact_id?: string | null;
   created_at?: string;
 };
 
@@ -330,6 +332,24 @@ export type HrAttendanceAuthorizationHistoryInsert =
   Omit<HrAttendanceAuthorizationHistoryRow, "governing_evidence_ids" | "projected_at"> &
   Partial<Pick<HrAttendanceAuthorizationHistoryRow, "governing_evidence_ids" | "projected_at">>;
 export type HrAttendanceAuthorizationHistoryUpdate = Partial<HrAttendanceAuthorizationHistoryInsert>;
+
+export type HrAttendanceMutationOperationRow = {
+  house_id: string;
+  producer_namespace: string;
+  operation_id: string;
+  employee_id: string;
+  request_fingerprint: string;
+  outcome: Json | null;
+  fact_id: string | null;
+  value_revision: number | null;
+  evidence_basis_revision: number | null;
+  created_at: string;
+  completed_at: string | null;
+};
+export type HrAttendanceMutationOperationInsert =
+  Omit<HrAttendanceMutationOperationRow, "outcome" | "fact_id" | "value_revision" | "evidence_basis_revision" | "created_at" | "completed_at"> &
+  Partial<Pick<HrAttendanceMutationOperationRow, "outcome" | "fact_id" | "value_revision" | "evidence_basis_revision" | "created_at" | "completed_at">>;
+export type HrAttendanceMutationOperationUpdate = Partial<HrAttendanceMutationOperationInsert>;
 
 export type HrScheduleTemplateRow = {
   id: string;
@@ -1662,6 +1682,7 @@ export interface Database {
       hr_attendance_employee_generations: TableDefinition<HrAttendanceEmployeeGenerationRow, HrAttendanceEmployeeGenerationInsert, HrAttendanceEmployeeGenerationUpdate>;
       hr_attendance_authorization_projection: TableDefinition<HrAttendanceAuthorizationProjectionRow, HrAttendanceAuthorizationProjectionInsert, HrAttendanceAuthorizationProjectionUpdate>;
       hr_attendance_authorization_history: TableDefinition<HrAttendanceAuthorizationHistoryRow, HrAttendanceAuthorizationHistoryInsert, HrAttendanceAuthorizationHistoryUpdate>;
+      hr_attendance_mutation_operations: TableDefinition<HrAttendanceMutationOperationRow, HrAttendanceMutationOperationInsert, HrAttendanceMutationOperationUpdate>;
       hr_schedule_templates: TableDefinition<
         HrScheduleTemplateRow,
         HrScheduleTemplateInsert,
