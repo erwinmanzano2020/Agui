@@ -29,6 +29,10 @@ test("kiosk wrapper validates active exact device context and is service-role on
     wrapper,
     /from public\.hr_kiosk_devices device[\s\S]*device\.id = p_device_id[\s\S]*device\.house_id = p_house_id[\s\S]*device\.branch_id = p_branch_id[\s\S]*device\.is_active/i,
   );
+  assert.match(
+    wrapper,
+    /from public\.employees employee[\s\S]*employee\.house_id = p_house_id[\s\S]*employee\.id = p_employee_id[\s\S]*Kiosk attendance requires an employee in the device House/i,
+  );
   assert.match(wrapper, /p_producer_namespace => 'KIOSK_SCAN_V1'/i);
   assert.match(wrapper, /p_mutation_kind => 'KIOSK_SCAN'/i);
   assert.match(
