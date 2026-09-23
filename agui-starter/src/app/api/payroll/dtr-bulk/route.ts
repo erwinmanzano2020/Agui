@@ -328,7 +328,15 @@ export async function POST(req: NextRequest) {
             ["in1/out1", cell.in1, cell.out1],
             ["in2/out2", cell.in2, cell.out2],
           ] as const) {
-            if (!rawIn || !rawOut) continue;
+            const hasIn = Boolean(rawIn?.trim());
+            const hasOut = Boolean(rawOut?.trim());
+            if (!hasIn && !hasOut) continue;
+            if (!hasIn || !hasOut) {
+              return NextResponse.json(
+                { error: `Incomplete attendance segment ${day} (${label})` },
+                { status: 400 },
+              );
+            }
             const timeIn = toISO(day, rawIn);
             const timeOut = toISO(day, rawOut);
             if (!timeIn || !timeOut) {
