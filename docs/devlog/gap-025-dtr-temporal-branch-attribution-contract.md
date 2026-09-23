@@ -1059,6 +1059,29 @@ remains separately gated. It does not alter `ATTRIBUTED`, `UNATTRIBUTED`, `CONFL
 source-lane sufficiency, temporal attribution, House tenancy, or branch-restriction rules.
 It creates no general case-management product and authorizes no implementation.
 
+## 13. DEC-019 canonical kiosk/offline source-observation identity addendum
+
+**Owner-approved 2026-09-14; later addendum.** Every canonical kiosk/offline attendance
+observation that may become integrity-established or sufficient requires an immutable
+source/producer namespace, an opaque immutable source observation/idempotency identity,
+and the immutable original occurrence time of the attendance action. The occurrence time
+is distinct from later ingestion or canonical recording time.
+
+One stable observation chain exists per **House + source namespace + source observation
+identity**. A retry or replay of the same real-world action reuses that identity.
+Append-only semantic evidence supersession stays within that stable observation chain and
+does not create another real-world observation. Different source identities are not
+collapsed merely because employee, branch, date, timestamp proximity, segment, values, or
+latest-write state match. No employee/day, employee/date/time, or timestamp uniqueness is
+introduced.
+
+Evidence without a trustworthy namespaced source identity or original occurrence time may
+remain unresolved, but it cannot become established/sufficient kiosk provenance. Gate B
+owns the separately bounded mapping from each active producer to its approved namespace,
+opaque identity, occurrence time, and retry behavior. DEC-019 does not designate today's
+kiosk `clientEventId` as a universal identity, migrate a kiosk/offline producer, backfill
+existing evidence, or change any current runtime in Gate A.
+
 ## Preserved historical evidence audit
 
 ### Governing material reviewed and hierarchy reconciliation

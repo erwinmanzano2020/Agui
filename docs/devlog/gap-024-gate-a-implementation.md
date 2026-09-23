@@ -1,0 +1,988 @@
+# GAP-024 Gate A — Attendance Authority Foundation Implementation
+
+## Status
+
+**Runtime implementation converged in PR #510; ready for the controlled UAT / PR-deployment gate.**
+
+The final runtime-code head reviewed for Gate A is
+`1cc3e8e67fdb702be098f7e3088a33971bc757b0`. Exact-head GitHub Preflight run #776
+passed `npm ci`, lint, typecheck, build, and compiled Node tests; the Vercel Preview
+check passed; the PR was mergeable; no current non-outdated review thread remained; and
+the fresh Codex review on that exact runtime-code head reported no major issue.
+
+This status does **not** claim manual/physical UAT, merge, Production deployment, or
+persistent application of the final lock-order migration to the restored backend.
+Those remain separately gated. This record covers Gate A only. It does not close
+GAP-024, cut over a production consumer, backfill production data, migrate a writer,
+revoke existing `dtr_segments` access, or implement Historical Daily DTR P1. Gate B
+remains next only after this Gate-A PR passes the later owner-controlled PR/UAT/
+deployment gate and is merged.
+
+## 2026-09-23 — Final exact-head lock-order convergence
+
+Fresh review of runtime-code head
+`30acdade533c22655db4c4e25b89e0f5561c5706` found
+`discussion_r4070921025` (P2): the frame-first membership correction still acquired an
+evidence-family lock before the owning fact, while frame sealing serializes through the
+owning fact before selected evidence. That left a concrete fact/evidence lock inversion.
+
+PR #510 corrected the forward migration so membership now acquires the target unsealed
+frame, then the owning fact, then observation/evidence/lineage locks. The focused
+migration contract test explicitly proves the shared **frame -> fact -> evidence**
+serialization order against the sealing path.
+
+The resulting runtime-code head
+`1cc3e8e67fdb702be098f7e3088a33971bc757b0` passed Preflight #776 and Vercel Preview,
+had zero current non-outdated material review threads, was mergeable, and received a
+fresh Codex result of “Didn't find any major issues.” No Production/backend write was
+performed for this final correction, and no manual UAT result is claimed.
+
+## 2026-09-23 — Controlled UAT / pre-release evidence
+
+**Controlled Gate-A UAT: PASS — automated/remote evidence only; no human or real-operation
+checkpoint is applicable to this slice. Final exact-head release checks are green and
+the candidate is ready for explicit owner release approval.**
+
+Gate A is an infrastructure/security-foundation slice. Its approved boundary explicitly
+does not cut over Daily DTR, payroll, payslip, kiosk, bulk, browser, repair, or another
+normal Production consumer. Therefore Telegram/native-device, visual/touch, cashier,
+payroll, or other real operational UAT would not prove a changed Gate-A behavior and
+would exceed the approved scope.
+
+The final documentation-synced release candidate is exact head
+`19722bf943cf1e448312eadf57794d84548ad44e`. Its two changes after the tested
+`2335e1e0c330e5292df10780a96086188781b068` candidate are UAT/status documentation
+only. Final exact-head Preflight #778 completed successfully and the matching Vercel
+deployment `dpl_Cs4FMjPQYL7MJjdwGDkHX3Kjid6P` is READY on the same SHA. No current
+non-outdated review thread is open and PR #510 remains mergeable.
+
+The underlying controlled-UAT evidence was gathered on
+`2335e1e0c330e5292df10780a96086188781b068`. Automated and remote evidence:
+
+- GitHub Preflight #777 passed dependency installation, lint, typecheck, build, and the
+  compiled Node test suite.
+- The exact-head Vercel Preview deployment
+  `dpl_2uM7hCVcHPwtmYL1D4tYbhjBVDx9` was READY and mapped to
+  `2335e1e0c330e5292df10780a96086188781b068`.
+- A protected Preview fetch returned HTTP 200 for the application root/welcome route.
+- Preview runtime log inspection returned no warning/error/fatal entries for the checked
+  deployment window.
+- Full PR scope inspection found no changed Production consumer path and no feature-flag
+  or environment-toggle addition. The change surface remains generated DB types, focused
+  Gate-A migration tests, governance/docs, and Gate-A migrations.
+- The restored Supabase project is ACTIVE_HEALTHY. Read-only catalog verification found
+  the Gate-A fact and projection tables under RLS and all four checked Gate-A
+  rebuild/read/guard functions present.
+- The authoritative backend currently contains zero Gate-A facts, zero current
+  authorization projections, and zero authorization-history rows, so this UAT created no
+  business or synthetic state and had no cleanup write.
+- Migration history confirms the first ten Gate-A migrations are already present under
+  the restored project's previously recorded ad-hoc timestamps. The final
+  `gap024_gate_a_membership_frame_lock_order` migration is intentionally not applied
+  yet. Read-only function inspection confirms the live pre-release guard does not yet
+  contain the final owning-fact lock, exactly matching that expected pre-deploy baseline.
+
+The final lock-order correction itself remains verified by exact SQL/static contract
+proof plus exact-head CI rather than by a persistent backend write. This is intentional:
+applying that final migration is a Production/backend release action and remains owner
+gated. No temporary Preview flag, account, fixture, database row, deployment-protection
+exception, or other cleanup artifact was created by this UAT.
+
+Release/deployment boundary after owner approval:
+
+1. re-fetch PR #510 and verify exact-head/no-drift;
+2. squash-merge PR #510 using the repository's established merge discipline;
+3. do **not** use linked `db push` while the known migration-history baseline drift
+   remains unresolved;
+4. apply only the still-unapplied
+   `gap024_gate_a_membership_frame_lock_order` backend correction through the approved
+   controlled migration path;
+5. verify the deployed function now serializes membership as frame -> owning fact ->
+   observation/evidence/lineage and that Gate-A tables remain empty unless legitimate
+   later work populates them;
+6. verify the intended Production frontend deployment/merge state and runtime health;
+7. keep all Gate-B, consumer cutover, backfill, raw-access revocation, and feature
+   expansion unauthorized.
+
+Residual verification limitation: the final lock-order change has not been exercised in
+an isolated two-independent-session database race harness. The concrete lock inversion
+is removed structurally and regression-checked, but Production application of that
+correction remains deliberately pending owner approval.
+
+## 2026-09-22 — Frame-membership lock-order follow-up
+
+Fresh exact-head Codex review on `476c173ffa1644c570d502c7a96fe85fd673512c`
+raised `discussion_r4070435294` (P2): membership insertion locked observation/evidence
+rows before finally locking its target evidence frame, while concurrent frame sealing
+already holds the frame row before locking selected evidence. Those opposite
+evidence->frame and frame->evidence orders create a concrete PostgreSQL deadlock path.
+
+PR #510 fixes both repository replay and already-applied environments. The canonical
+Gate-A migration now contains the corrected frame-first membership guard for a clean
+replay, while the forward-only
+`20261019200000_gap024_gate_a_membership_frame_lock_order.sql` migration preserves the
+same correction path for an environment where the original Gate-A migration has already
+run. The follow-up migration remains necessary; the base backpatch is not used as the
+sole live correction.
+
+In both forms, the membership contract is unchanged: the existing unsealed-frame
+`FOR UPDATE` lock is acquired first, then the guard retains its observation ->
+evidence-member -> lineage-root ordering and all same-frame / prior-binding validation.
+
+Focused tests assert the frame-first order in both the clean-replay base migration and
+the forward correction, verify exactly one frame lock, and retain deterministic sealing
+evidence locking. This fixes lock-order consistency without changing evidence semantics,
+classification, reader contracts, authorization, or Gate-B scope.
+
+Per the runtime production boundary, this new migration is not being persistently applied
+to the restored live Supabase project merely because the repository fix is ready. Runtime
+verification for this correction therefore consists of exact SQL/static lock-order proof
+plus exact-head CI; persistent backend rollout remains a later authorized deployment step.
+
+## 2026-09-22 — Chronological replay correction after migration-history review
+
+Fresh exact-head Codex review on `1dc1477a2b0f0be09d1cd008b3acd315f39c5c68`
+found two repository-replay P1s after the earlier migration-filename alignment attempt:
+
+- `discussion_r4067600100`: Gate A had been moved before the only repository migration
+  that establishes the required `branches(house_id, id)` composite uniqueness.
+- `discussion_r4067600105`: Gate A had also been moved before
+  `20261002100000_create_dtr_segments.sql`, whose destructive reset drops the Gate-A
+  segment FK/index if Gate A runs first.
+
+The fix restores the ten Gate-A files to their canonical chronological
+`20261019100000...20261019190000` names, placing Gate A after the destructive DTR reset.
+Gate A now also creates `branches_house_id_id_unique_idx` itself before any Gate-A
+House+branch composite foreign key, so HR authority no longer depends on the paused POS
+migration for that prerequisite. Focused tests lock both the DTR-reset chronology and the
+self-contained branch-key ordering.
+
+Preflight #762 initially failed only because the new chronology test resolved
+`../supabase/migrations` from the compiled `.test-dist` working directory, which points
+to `agui-starter/supabase` rather than the repository root. The test now resolves
+`../../supabase/migrations` first, matching the compiled runner contract.
+
+No live Gate-A migration was reapplied for these replay/test corrections. The restored project's migration-history timestamps remain the ad-hoc versions
+recorded when the MCP applied the SQL (`20260920...` / `20260921...`). Because the
+remote project had pre-existing migration-history drift before Gate A, that discrepancy is
+an environment baseline issue, not something that can be safely solved by moving
+repository migrations ahead of their dependencies. A linked `db push` remains
+disallowed until that broader migration-history baseline is separately reconciled.
+
+## 2026-09-22 — Initial-active fact lifecycle follow-up
+
+Independent review of exact head `94d66e25f08dd486c66df3ef90ba38798daeeabf`
+found a lifecycle hole in the INSERT branch of
+`hr_guard_attendance_fact_activation()`: new facts were required to begin at authority
+pair (1,1), but callers could explicitly insert `is_active=false`. Such a row could
+receive valid revision/frame/evidence data yet remain excluded from projection rebuilds,
+creating a retired tombstone that had never been active or canonically classified.
+
+PR #510 therefore adds the forward-only migration
+`20261019190000_gap024_gate_a_initial_active_guard.sql`. The activation trigger now
+requires every newly inserted canonical attendance fact to begin with
+`is_active=true` in addition to `current_value_revision=1` and
+`evidence_basis_revision=1`.
+
+This closes the lifecycle invariant without changing later retirement semantics:
+new facts begin active; an active fact may later retire only after its current exact pair
+has durable classification history; retirement freezes that pair; retired facts cannot
+reactivate or move authority pointers. No reader, classifier, evidence, lineage,
+authorization, Gate-B, HR-2/HR-4, or payroll semantics change.
+
+The migration is now applied to the restored Supabase project as
+`20260921233739_gap024_gate_a_initial_active_guard`. Controlled transaction/rollback
+verification exercised the intended producer privilege by switching the session to
+`service_role`: an explicit inactive fact INSERT at authority pair (1,1) was rejected,
+while an ordinary active (1,1) fact INSERT succeeded and preserved the required initial
+state. The transaction rolled back cleanly with no persisted fixture row.
+
+This executable result closes the initial-inactive lifecycle P2 on the restored project.
+The separate true two-independent-session activation-versus-successor race remains an
+explicit verification limitation.
+
+## 2026-09-21 — Retired-fact authority-pointer freeze follow-up
+
+Dual review on exact head `17b06f30a9ee23be3ffcea0de2f473bfa1000e61`
+found and independently reproduced a retirement/tombstone gap: the activation guard
+prevented `false -> true` reactivation but still allowed either authority pointer to
+advance while a fact remained inactive, and also allowed pointer advancement in the same
+UPDATE that retired an active fact. Because projection rebuilds intentionally exclude
+inactive facts, either transition could leave a retired row pointing at an authority pair
+that was never canonically classified or persisted to authorization history.
+
+PR #510 adds the forward-only migration
+`20261019180000_gap024_gate_a_retired_fact_pointer_freeze.sql`. The existing
+`hr_guard_attendance_fact_activation()` now rejects any change to
+`current_value_revision` or `evidence_basis_revision` whenever either the old or new
+row is inactive. Retirement itself remains valid only when it tombstones the exact
+already-current pair.
+
+This preserves the intended one-way lifecycle:
+
+- active fact + unchanged authority pair -> retired is allowed after the existing
+  prior-classification requirement is satisfied;
+- retired fact + unchanged authority pair -> ordinary non-authority maintenance remains
+  possible;
+- retired fact -> later value/evidence pointer is rejected;
+- active fact -> retire plus pointer advance in the same UPDATE is rejected;
+- retired -> active resurrection remains separately rejected.
+
+The function remains SECURITY DEFINER with fixed `pg_catalog, public` search path and no
+direct EXECUTE grants to public, anon, authenticated, or service_role. No public reader,
+classifier, evidence, lineage, branch, identity, Gate-B, HR-2/HR-4, or payroll semantics
+change.
+
+The migration is now applied to the restored Supabase project as
+`20260921093011_gap024_gate_a_retired_fact_pointer_freeze`. Controlled
+transaction/rollback verification exercised all retirement boundaries: ordinary
+retirement with the exact already-current (1,1) pair succeeded and preserved its history;
+a later value-revision advance while the fact remained inactive was rejected; a combined
+value-revision advance plus `is_active=true -> false` retirement in one UPDATE was
+rejected without changing the row; and retired-to-active resurrection remained rejected.
+Rollback left zero matching fact revisions, evidence rows, or authorization-history rows.
+
+This executable result closes the retired-pointer P2 on the restored project. The separate
+true two-independent-session activation-versus-successor race remains an explicit
+verification limitation.
+
+## 2026-09-21 — Activation-history trigger privilege follow-up
+
+Fresh exact-head review found a privilege-boundary defect in the activation/history
+coupling fix: `hr_guard_attendance_fact_activation()` queried the protected
+`hr_attendance_authorization_history` table as the invoking role, while Gate A
+intentionally revokes direct history-table privileges from `service_role`. An intended
+service-role producer could therefore fail with table-permission denial before the
+history precondition itself was evaluated.
+
+PR #510 adds the forward-only migration
+`20261019170000_gap024_gate_a_activation_history_privilege.sql`. It changes only the
+existing trigger function privilege context:
+
+- `hr_guard_attendance_fact_activation()` becomes `SECURITY DEFINER`;
+- its fixed `search_path = pg_catalog, public` is retained explicitly;
+- direct EXECUTE is revoked from public, anon, authenticated, and service_role;
+- no direct SELECT or other history-table privilege is granted to service_role;
+- history RLS/direct-access posture remains unchanged.
+
+The trigger continues to run automatically on `hr_attendance_facts` writes and can read
+the audit table using its owner privilege, while application/service producers still
+cannot query the history table directly. No reader RPC, classifier, evidence, lineage,
+tenant, branch, identity, Gate-B, HR-2/HR-4, or payroll semantics change.
+
+The migration is now applied to the restored Supabase project as
+`20260921085205_gap024_gate_a_activation_history_privilege`. Live catalog verification
+confirms the trigger function is owned by `postgres`, is `SECURITY DEFINER`, retains
+`search_path=pg_catalog, public`, and has no direct EXECUTE grant for public, anon,
+authenticated, or service_role. `service_role` still has UPDATE on
+`hr_attendance_facts` but no direct SELECT on
+`hr_attendance_authorization_history`.
+
+Controlled transaction/rollback verification then switched the SQL session to
+`service_role`. A direct SELECT from authorization history was denied as expected,
+while a valid current-value revision advance through the automatic trigger succeeded
+because the trigger could perform its protected history lookup under the function owner.
+The transaction rolled back cleanly with zero matching fact revisions, evidence rows,
+or authorization-history rows left behind.
+
+This executable result closes the trigger-privilege P1 on the restored project. The
+separate true two-independent-session activation-versus-successor race remains an
+explicit verification limitation.
+
+## 2026-09-21 — Activation/history coupling follow-up
+
+Fresh exact-head Codex review found one further P1 after the projection-history ledger was
+added: history was persisted only when the projection rebuild ran, while the fact
+activation guard could advance the current value/evidence pointers again before an
+intervening rebuild. That allowed an intermediate authority pair to have genuinely been
+current without ever receiving a durable canonical classification record.
+
+PR #510 therefore adds the forward-only migration
+`20261019160000_gap024_gate_a_activation_history_guard.sql`. The existing fact
+activation trigger now requires the **previously current** exact
+`(current_value_revision, evidence_basis_revision)` pair to already exist in
+`hr_attendance_authorization_history` before any authority pointer changes or the fact
+is retired. Ordinary updates that do not change the authority pair or active state are
+not blocked.
+
+This preserves the existing architecture rather than inventing another revision concept:
+
+- the exact value/evidence pair remains the authority identity;
+- the current projection remains one row per current fact;
+- the append-only history remains the durable classification audit;
+- a newly activated pair may become current after the prior pair has been classified,
+  but it cannot itself be superseded until a rebuild has classified/persisted it;
+- the existing forward-only value/frame, lineage-leaf, retirement, and same-House guards
+  still run after this classification-history precondition.
+
+The correction changes no public reader signature/DTO, classification semantics,
+authorization policy, provenance rule, producer identity, Gate-B scope, HR-2/HR-4
+workflow, or payroll behavior. It closes only the gap that allowed an activated pair to
+be skipped by multiple pointer advances between projection rebuilds.
+
+The follow-up is now applied to the restored Supabase project as
+`20260921070556_gap024_gate_a_activation_history_guard`. Controlled transaction/rollback
+verification exercised the exact skipped-pair case: after publishing (1,1), advancing to
+(2,2) succeeded; attempting to advance again to (3,3) before rebuilding (2,2) was
+rejected; rebuilding persisted (2,2), after which the (3,3) advance succeeded and its
+subsequent rebuild persisted (3,3). The history contained exactly the three governing
+pairs (1,1), (2,2), and (3,3), and rollback left zero matching fact revisions, evidence
+rows, or history rows.
+
+This executable result closes the activation/history P1 on the restored project. The
+separate true two-independent-session activation-versus-successor race remains an
+explicit verification limitation.
+
+## 2026-09-21 — Historical projection/classification retention follow-up
+
+Fresh review identified a remaining Gate-A audit defect: the current authorization
+projection is intentionally one row per current fact and the rebuild replaces that row,
+but immutable fact revisions and evidence frames alone do not record which exact value
+revision and evidence-basis revision governed together with which classification at a
+historical activation point. The frozen GAP-024 contract requires prior classifications
+to remain retained for authorized audit without competing with the current frame.
+
+Because all earlier Gate-A migrations are already applied to the restored Supabase
+project, PR #510 adds the forward-only migration
+`20261019150000_gap024_gate_a_projection_history.sql`. It creates
+`hr_attendance_authorization_history` as a separate append-only audit relation keyed by
+`(house_id, fact_id, value_revision, evidence_basis_revision)`. Each row retains the
+exact fingerprint, ATTRIBUTED/UNATTRIBUTED/CONFLICT result, optional attributed branch,
+governing evidence IDs, employee, and publication timestamp for that governing pair.
+
+The current projection remains one row per current fact and remains the only surface used
+by the existing branch-scoped and House-global readers. The rebuild now:
+
+- preserves any prior current projection row into history before deleting/replacing the
+  current House projection;
+- writes the newly classified exact value/evidence pair into history in the same rebuild
+  statement before publishing the new current projection row;
+- treats duplicate rebuilds of the same exact pair idempotently through the history
+  primary key;
+- leaves historical rows append-only through the existing attendance-history mutation
+  guard;
+- enables RLS and grants no direct history-table access to public, anon,
+  authenticated, or service_role.
+
+The migration also backfills any current projection rows that happen to exist when it is
+applied. The restored live project currently has no Gate-A facts/projection rows, so no
+historical business data needs reconstruction there; the forward migration nevertheless
+handles a non-empty environment without deleting its current snapshot.
+
+No public reader signature/DTO, current classification algorithm, evidence lineage,
+identity rule, branch authorization, current projection semantics, Gate-B producer,
+backfill, consumer cutover, Historical DTR P1, or HR-2/HR-4 workflow is changed. This is
+the missing immutable audit record for already-approved Gate-A authority, not a new
+business revision concept or an ordinary branch-visible history API.
+
+Executable verification on the restored Supabase project then exercised the history
+contract inside one transaction and rolled every fixture back. The fixture published an
+ATTRIBUTED pair (1,1), advanced only value authority and published (2,1), then advanced
+the evidence basis with the exact same governing lineage member and published (2,2).
+All three exact pairs remained in the append-only history with the expected attributed
+branch; rebuilding (2,2) again did not add a duplicate row; attempted UPDATE and DELETE
+of a historical row were rejected by the immutable-history trigger. Post-rollback checks
+confirmed zero matching test fact revisions, evidence rows, or history rows remained.
+
+This closes the executable historical-retention P1 on the restored project. The separate
+known verification limitation remains true two-independent-session timing for the
+activation-versus-successor insertion race; the shared lock structure is statically and
+single-session verified but that race has not been exercised through an independent
+multi-session harness.
+
+## 2026-09-21 — Supersession lookup performance follow-up
+
+Fresh Codex review of current head identified one bounded P2: evidence-frame sealing and
+fact activation repeatedly probe for direct successors by House, selected predecessor,
+employee, and lineage root, but the evidence table had no dedicated successor lookup
+index. PR #510 therefore adds the forward-only migration
+`20261019140000_gap024_gate_a_supersession_lookup_index.sql`.
+
+The migration adds only the partial index
+`hr_attendance_evidence_supersession_lookup_idx` on
+`(house_id, supersedes_evidence_id, employee_id, lineage_root_evidence_id)` where
+`supersedes_evidence_id is not null`. This matches the current direct-successor probes
+used by sealing/activation guards and avoids scanning root evidence rows that cannot match
+a successor lookup.
+
+No authorization, classifier, identity, lineage, locking, RPC, DTO, RLS, grant, Gate-B,
+Historical DTR P1, or producer/consumer semantics change.
+
+## 2026-09-21 — Role-scope replay hardening
+
+A Codex re-review of the first live-policy compatibility commit surfaced two replay
+requirements. The undefined-column compatibility issue is already handled by shape-aware
+`to_jsonb(...)->>` access for optional `roles.key`, `roles.slug`, and
+`house_roles.role_id`. The remaining issue was cross-scope role resolution on the
+historical RBAC shape: identical custom role slugs are valid in different Houses, so a
+text fallback must not attach policy rows from a same-named role owned by another House.
+
+Because the earlier compatibility migrations are already applied live, PR #510 adds the
+forward-only migration `20261019130000_gap024_gate_a_role_scope_guard.sql`. Role
+resolution now remains shape-aware:
+
+- historical roles exposing `scope_ref` must be `scope = HOUSE` with
+  `scope_ref IS NULL` or exactly the requested House before contributing House policy
+  capability or branch restriction;
+- the current live role table has no `scope_ref`; exact-House membership plus globally
+  keyed role IDs/slugs are accepted only for live House/workspace-compatible role scope
+  (or legacy-null scope);
+- historical PLATFORM role resolution requires `scope = PLATFORM` with null
+  `scope_ref`; current live role resolution accepts only platform/null scope;
+- role text/ID matching, feature-capability requirements, requested-House membership,
+  owner/manager exclusion, and branch restriction remain otherwise unchanged.
+
+This correction makes no new authorization/product decision. It closes a physical
+role-schema compatibility hole while preserving the already-approved rule that PLATFORM
+capability never creates House membership or branch scope and that House branch scope is
+restriction-only.
+
+## 2026-09-21 — Policy-surface replay guard after live verification
+
+Controlled transaction/rollback verification against the restored Supabase project passed
+the live authorization, provenance, classifier, kiosk cardinality, and current-evidence
+cases exercised after the live-policy compatibility correction. Temporary fixtures were
+rolled back and left zero matching test rows.
+
+The verification also exposed one repository-replay edge in the first compatibility
+migration: live `entity_policies(entity_id, policy_id)` rows are direct/global grants,
+but historical ordered replay can expose the older flattened `entity_policies` view,
+where HOUSE/GUILD and PLATFORM rows share the same surface. Treating every flattened row
+as direct/global would wrongly promote historical HOUSE/GUILD capability to PLATFORM-like
+feature authority.
+
+Because both prior Gate-A migrations are already applied/tracked in the live project, PR
+#510 now adds the forward-only migration
+`20261019120000_gap024_gate_a_policy_surface_replay_guard.sql`. It preserves current
+live behavior while making the direct-policy CTE shape-aware:
+
+- on the confirmed live direct-assignment table, absence of a `scope` property means the
+  row remains a direct/global capability;
+- on the historical flattened surface, only `scope = PLATFORM` may satisfy the global
+  feature-capability lane;
+- HOUSE/GUILD rows from the historical surface are never promoted into global feature
+  capability;
+- branch scope still comes only from requested-House role-policy assignments and is
+  validated against branches in the requested House.
+
+This follow-up does not alter the public RPC signature/DTO, House membership requirement,
+owner/manager exclusion, classifier, identity semantics, RLS/grants, or Gate-B boundary.
+It exists solely to keep the already-approved authorization semantics correct on both the
+confirmed live schema and historical repository replay.
+
+Executable verification completed so far includes:
+
+- direct feature capability + requested-House branch role scope => branch row visible;
+- direct feature without branch scope => no branch rows;
+- branch scope without feature capability => no branch rows;
+- requested-House role carrying both feature capability and branch scope => visible;
+- PLATFORM role feature capability + requested-House membership/branch role => visible;
+- PLATFORM role without requested-House membership => no branch rows;
+- owner/manager house-global reader => visible while branch-scoped reader remains empty;
+- incomplete explicit provenance => rejected;
+- ordinary staff MANUAL_ADMIN provenance => rejected;
+- owner-family MANUAL_ADMIN provenance => accepted;
+- immutable evidence mutation => rejected;
+- fact creation outside revision/basis 1 => rejected;
+- stale continuous E1 -> E2 when E3 exists => rejected;
+- exact same-member carry-forward after successor append => accepted;
+- continuous E1 -> E3 current-leaf advance => accepted;
+- classifier ATTRIBUTED / CONFLICT / UNATTRIBUTED precedence scenarios => matched contract;
+- kiosk OPEN one-IN, OPEN IN+OUT, COMPLETED same-branch IN/OUT, and COMPLETED cross-branch
+  IN/OUT => matched approved classification;
+- all rollback fixtures left no test entities, facts, evidence, observations, or branches.
+
+True two-session row-lock race timing is not yet proven by these single-request transaction
+fixtures. Static SQL and trigger inspection confirm both activation and successor
+insertion lock the same selected/predecessor evidence row, but a database-capable
+multi-session harness remains the strongest remaining concurrency proof.
+
+## 2026-09-21 — Live authorization compatibility correction
+
+The original Gate-A migration was successfully applied to the restored Supabase project and
+is tracked there as `20260920092652_gap024_gate_a_attendance_authority`. Executable
+verification then exposed one pre-merge compatibility defect in the branch-scoped reader:
+the reader referenced the historical flattened `entity_policies.policy_key/scope/scope_ref`
+shape, while the confirmed current live authorization substrate uses a direct
+`entity_policies(entity_id, policy_id)` assignment table plus key-based `policies`,
+`house_roles`, `roles`, `role_policies`, and `platform_roles`.
+
+Because the original Gate-A migration is already deployed/tracked, this PR now carries the
+forward-only follow-up migration
+`20261019110000_gap024_gate_a_live_policy_compatibility.sql`. It replaces only the
+branch-scoped reader body and preserves the public RPC signature, return DTO, RLS/grant
+posture, and PostgREST reload. It does not drop or replace `entity_policies`, replay the
+historical RBAC migrations, seed policies/roles, or mutate current assignments.
+
+The corrected reader keeps the already-approved authorization semantics:
+
+- exact requested-House membership remains mandatory;
+- owner/manager aliases remain excluded from the branch-limited lane;
+- direct entity policy assignments and PLATFORM role-policy assignments may satisfy
+  feature-read capability only;
+- neither direct nor PLATFORM capability creates House membership or branch scope;
+- branch restriction is derived only from requested-House role-policy assignments;
+- parsed branch policy keys are accepted only when the branch belongs to the requested House;
+- live/replay role shape differences are handled without assuming that `roles.key` or
+  `house_roles.role_id` physically exists, using `to_jsonb(...)->>` compatibility
+  lookups while preferring an explicit `role_id` when present.
+
+The follow-up is a physical compatibility correction only. It makes no new owner/product
+decision and does not authorize Gate B, producer migration, backfill, consumer cutover,
+Historical Daily DTR P1, or broader RBAC redesign. Runtime verification of this follow-up
+and the remaining Gate-A locking/concurrency cases is still required before merge.
+
+## Base and scope
+
+- Expected and owner-verified hosted `develop` base:
+  `5e06c21a0c96514e45c336af77d0cccf2d3c0420`.
+- Local starting SHA: `5e06c21a0c96514e45c336af77d0cccf2d3c0420`.
+- Local branch: `work`.
+- Checkout remote: none; hosted-only completion fields remain pending.
+- Migration: `20261019100000_gap024_gate_a_attendance_authority.sql`; no existing
+  migration is modified.
+
+## Physical architecture
+
+The corrected additive migration creates eight direct-access-protected tables:
+
+1. `hr_attendance_observations` supplies DEC-019 stable real-world source identity per
+   House + immutable producer namespace + opaque source observation ID. It retains the
+   immutable original `occurred_at` separately from canonical-ingestion `recorded_at`.
+   Replays reuse this row; equal employee/date/time/value data under different source
+   identities is never collapsed. The stable observation row is also the concurrency
+   serialization authority for creating its one semantic evidence lineage: first
+   evidence may self-root, while every later observation-backed revision must explicitly
+   supersede evidence from that same observation and inherit its established lineage root.
+2. `hr_attendance_facts` supplies stable logical fact identity, employee/House ownership,
+   current value revision, and the current semantic evidence-basis revision pointer.
+3. `hr_attendance_fact_revisions` stores append-only value snapshots, the fact employee,
+   explicit predecessor revision, and an optional physical `dtr_segments` reference. Its
+   composite keys require the fact, revision, and segment to have the same House and
+   employee, so employee A's fact cannot reference employee B's segment even within one
+   House. Its insert guard locks the physical segment and rejects immutable history for a
+   different fact, while allowing that segment in later revisions of the same fact. A
+   logical fact therefore does not equal a mutable physical segment ID.
+4. `hr_attendance_evidence` stores House/employee-owned append-only semantic revisions for
+   kiosk, manual/admin, and compliant bulk/import lanes. Evidence may remain unresolved
+   and unassociated without a fake fact. It stores semantic revision separately from
+   fact/value revision. Each immutable revision also stores a constrained
+   `integrity_reason_class`: `VALID`, `MISSING_INTEGRITY_PROOF`, `MALFORMED_LINKAGE`,
+   `DUPLICATE_REPLAY_AMBIGUITY`, `CARDINALITY_UNRECONCILED`, or `INVALID_PROVENANCE`.
+   A fail-closed state/reason/applicability constraint permits `VALID` only with
+   `ESTABLISHED` and `is_integrity_eligible = true`, missing
+   proof only with `UNRESOLVED`, and malformed linkage or invalid provenance only with
+   `INVALID`; ambiguity/cardinality classes may describe either unresolved or invalid
+   disposition. `source_reference` remains a separate source pointer, not a reason class.
+   Observation-backed successors retain the stable observation ID.
+   Every root and successor also carries immutable `lineage_root_evidence_id`: roots
+   identify themselves, while successors inherit the predecessor's root under an insert
+   guard. This physical semantic-lineage authority is distinct from DEC-019 observation,
+   attendance-fact, authorization-case, employee/date, and timestamp identity; it is not
+   a fourth business revision.
+   Established/sufficient kiosk evidence requires an observation; unresolved evidence may
+   omit it. Observation-backed later evidence cannot silently create another root. This
+   observation-specific rule does not apply to null-observation manual/admin or bulk/import
+   provenance, which retains generic self-root and explicit-successor behavior. Gate A does
+   not copy kiosk JSON metadata or map any active producer.
+   Observation-backed supersession cannot cross into or out of `KIOSK` while redefining
+   the locked predecessor's immutable lane, logical `LOGICAL_IN`/`LOGICAL_OUT` role, or
+   event-time branch (including null). The symmetric rule applies whenever either the
+   predecessor or successor is `KIOSK`.
+   Integrity eligibility/state, reason class, and sufficiency may evolve through a new
+   append-only successor without rewriting its predecessor or the real-world action. A genuine actual-location correction belongs
+   to separately authorized explicit correction/adjudication provenance, not a kiosk
+   successor branch rewrite; Gate A introduces no correction workflow or Gate-B command.
+   Otherwise conflict-applicable `MANUAL_ADMIN` provenance is accepted only when the
+   asserted actor actually holds an exact-House owner- or manager-family role matching
+   the asserted role's normalized authority class. Owner aliases are `house_owner` and
+   `business_owner`; manager aliases are `house_manager`, `business_admin`, and
+   `business_manager`. Case and surrounding whitespace normalize, but owner and manager
+   claims do not substitute for one another, and staff, cashier, GM, arbitrary, policy,
+   PLATFORM, or GUILD authority is not accepted. This check remains independent of
+   sufficiency because an applicable insufficient assertion can participate in conflict.
+   More generally, every `MANUAL_ADMIN` or `BULK_IMPORT` explicit revision claiming
+   `ESTABLISHED` + `VALID` + integrity-eligible must carry nonblank authorization namespace
+   and reference plus `asserted_at`, regardless of sufficiency. Manual evidence additionally
+   requires its asserted actor and role before the exact-House authority-family guard runs.
+   Complete but `INSUFFICIENT` explicit evidence therefore remains applicable for conflict;
+   incomplete history remains representable only under the existing unresolved/invalid
+   state and reason classes rather than claiming valid applicability.
+5. `hr_attendance_evidence_frames` identifies each semantic evidence-basis revision,
+   snapshots its classifier-authoritative completion mode, links it to its predecessor,
+   and seals it before it can govern current projection state.
+6. `hr_attendance_fact_evidence` stores the immutable exact evidence membership of each
+   frame. Composite foreign keys enforce the same House and employee on both sides.
+   Membership rows cannot be updated/deleted, and a row lock prevents inserts after sealing.
+   Its insert guard resolves the immutable evidence lock keys, follows observation →
+   evidence → lineage-root lock order for observation-backed rows, then rejects any prior
+   membership for a different fact. This serializes concurrent first associations and
+   binds one evidence identity to one stable logical fact while allowing that evidence
+   to recur in later basis revisions of the same fact. The guard additionally resolves
+   and locks the immutable lineage-root evidence row before checking all membership
+   history for that root. Root/successor, reverse-order, and sibling-successor races thus
+   share one lock even when explicit provenance has `observation_id = null`; the winner's
+   fact becomes permanent for the lineage, while same-fact successive-basis reuse remains
+   valid. After taking that common lock, the guard permits at most one member of the
+   lineage in a given House + fact + evidence-basis frame. A later basis may contain the
+   lineage's later revision, so prior frames remain immutable, exact, and reconstructible;
+   distinct lineages may coexist in one frame. Observation-backed evidence retains its
+   additional observation-wide lock/check.
+7. `hr_attendance_employee_generations` reserves the distinct House + employee
+   candidate/evidence concurrency generation required by DEC-018. Gate A stores this
+   independent domain; Gate B commands must define and verify atomic producer advancement.
+8. `hr_attendance_authorization_projection` stores rebuild output: current fact and
+   evidence revisions, semantic fingerprint, classification, active branch only for
+   `ATTRIBUTED`, and governing canonical evidence identities.
+
+Composite foreign keys enforce House ownership for employees, branches, facts, evidence,
+associations, projections, and optional segment lineage. Foreign-House branch provenance
+cannot enter canonical established evidence. Invalid branch-looking raw material can be
+represented only without an established branch; it cannot manufacture conflict.
+
+A historical basis `N` therefore remains exactly reconstructible after basis `N+1` is
+sealed: the frame and its membership are append-only, while a fact points at its current
+sealed basis. Evidence rows are also append-only; changed semantics require a distinct
+successor row, so an old frame never resolves through newly mutated evidence meaning.
+An `OPEN → COMPLETED` change creates basis `N+1` even with identical membership because
+completion mode is part of the existing semantic basis, not a fourth revision concept.
+
+Current authority is forward-only. A fact activation guard keeps House, fact, and
+employee identity stable; rejects decreases to `current_value_revision` or
+`evidence_basis_revision`; and permits an advance only to the next append-only value
+revision or next sealed evidence frame whose explicit predecessor is the current pointer.
+The same database guard requires every newly inserted fact to begin with
+`current_value_revision = 1` and `evidence_basis_revision = 1`; callers cannot bypass
+the predecessor sequence by inserting initial pointers at 2 or later.
+For every lineage selected by the target basis, the guard walks
+`supersedes_evidence_id` from the target member toward its root and requires every prior
+governing member of that lineage to remain on that path. The same member may remain, and
+a descendant may advance, but an ancestor rollback or sibling-path switch cannot become
+current. Earlier sealed frames remain immutable and reconstructible audit history; they
+are not destructive rollback controls. No timestamp, insertion order, UUID,
+`semantic_revision` maximum, employee/date, or latest-write heuristic selects authority.
+Every lineage entering relative to the immediately current basis must select an
+unsuperseded target leaf. This covers both first-ever introduction and re-entry after
+retirement; re-entry additionally must satisfy the strict-descendant rule. The guard locks
+all entering targets in deterministic lineage-root/evidence-ID order before direct-
+successor inspection. A continuous lineage may carry forward its exact current member even
+after a successor is appended; appending evidence does not change authority. If the target
+selects a different member, that continuous advance must also select an unsuperseded leaf,
+locked in the same deterministic order. Successor insertion locks that selected row as its
+predecessor, so the advance and append serialize there. Recursive ancestry validation
+remains separately required. No latest-write, timestamp, UUID, or maximum-revision
+heuristic is used.
+Omitting a lineage from the next basis is its serialized retirement boundary. The guard
+locks each omitted governing member in `lineage_root_evidence_id, id` order and rejects
+the omission if that member already has a committed successor; successor insertion locks
+the same predecessor row. A lineage absent from the immediately current basis cannot
+re-enter through its retired member, ancestor, or sibling. A strict descendant appended
+after retirement may re-enter only when it is the explicitly selected unsuperseded leaf,
+with the existing ancestry-path validation still required.
+The initial current frame has no later fact-pointer update, so its one-way seal transition
+also validates current evidence. The frame guard locks the exact House/fact/employee fact,
+checks that the frame is the fact's current basis, then locks explicitly selected evidence
+in `lineage_root_evidence_id, id` order before testing for direct successors. An already-
+superseded member cannot first become governing through that seal. Successor insertion
+locks the same selected row as its predecessor, so sealing and append serialize at the
+authority transition. A noncurrent future frame may still be sealed as immutable
+preparation; its later pointer activation remains subject to the complete predecessor and
+ancestry-path guard. No latest-write, maximum-revision, UUID, or timestamp heuristic is
+introduced.
+The same guard treats `is_active` as a one-way retirement/tombstone control: active facts
+may remain active or retire, and retired facts may remain retired, but `false → true` is
+rejected even when another authority pointer also advances. This flag is not attendance
+status, and `open`, `closed`, or `corrected` value status never controls it. Gate A does
+not define a restoration workflow; any future legitimate replacement/restoration
+semantics require separate authorization rather than resurrection of stale authority.
+
+This storage guard does not implement Gate B's expected-revision compare-and-swap command,
+candidate/evidence-generation checks, producer retry protocol, or canonical writer.
+`MANUAL_ADMIN` and `BULK_IMPORT` rows provide durable provenance/audit representation in
+Gate A, not a complete producer idempotency contract. Before either producer is migrated
+in Gate B, a separate bounded task must choose deterministic per-result retry identity;
+generated fact/evidence UUIDs are not retry identities, and a batch/workflow authorization
+reference is not assumed to identify one attendance result. DEC-019 remains limited to
+its approved kiosk/offline observation domain.
+
+The deterministic `hr_rebuild_attendance_authorization_projection(uuid)` function
+replaces one House's projection from canonical current authority and joins only the sealed
+frame equal to each fact's current `evidence_basis_revision`, reads completion mode from
+that frame, and includes the mode in the projection fingerprint. Both readers recompute
+the same mode-inclusive fingerprint, so a projection from basis N fails closed after the
+fact advances to N+1. It collects established, integrity-eligible branch facts first, gives disagreement `CONFLICT` precedence, then
+accepts independently sufficient explicit provenance or exact canonical kiosk logical-
+observation cardinality, and otherwise emits `UNATTRIBUTED`. It never consults employee,
+viewer, request, operator, device, schedule, import, or latest-write branch context.
+Repeated rebuilds produce equivalent semantic state and fingerprints; `rebuilt_at` is
+operational rebuild time, not a fourth business revision.
+
+Projection replacement is serialized per House before its `DELETE`/recompute/`INSERT`
+sequence by `pg_advisory_xact_lock(hashtextextended('gap024.attendance_projection:' ||
+p_house_id::text, 0))`. PostgreSQL's fixed-seed extended text hash deterministically maps
+the namespaced House UUID to the bigint transaction-advisory namespace: same-House calls
+wait on the same lock until transaction end, while different Houses normally remain
+independent. The unavoidable theoretical 64-bit collision can only cause conservative
+cross-House waiting, not mixed data or authorization. This is operational rebuild
+serialization, not a business revision, general attendance mutation lock, Gate-B writer
+containment mechanism, or RPC signature change.
+
+The rebuild also joins the exact immutable value row identified by the fact's
+`current_value_revision`, matching House, fact, and employee. Canonical fact revisions
+constrain lifecycle status to the existing `open`, `closed`, and `corrected` vocabulary;
+unknown lifecycle status is unreconciled and fails kiosk sufficiency closed. `OPEN`
+requires a null current `time_out` and a positively known open-compatible status of
+`open` or `corrected`. A sealed `COMPLETED` frame accepts any known canonical lifecycle
+status and is not positively gated by `time_out` or `status = 'closed'`, because current
+governing evidence or an auditable correction lineage may establish completion
+independently. It must still pass
+the exact kiosk gate—one valid IN, one valid OUT, no unreconciled observation, and no
+applicable branch disagreement—so `COMPLETED` is not automatically sufficient. Thus
+`status = 'open'` cannot downshift evidence-established completion, while status never
+selects the frame mode and `status = 'corrected'` remains orthogonal. This lifecycle-
+validity check gates only the
+kiosk lane. Conflict remains first, and an independently sufficient agreeing explicit
+lane may still attribute a fact whose kiosk evidence is insufficient.
+Fact/value authority and semantic-frame authority remain distinct and are reconciled by
+classification; no fourth revision or duplicated frame value is introduced.
+
+The kiosk lane counts as reconciled only when every current governing kiosk observation
+is established, integrity-eligible, branch-bearing, and sufficient, with exactly the
+mode-required logical cardinality (OPEN: one IN and no OUT; COMPLETED: one IN and one
+OUT). Invalid, unresolved, ineligible, or otherwise unreconciled kiosk observations make
+that lane insufficient. They do not veto an independently sufficient, agreeing explicit
+manual/admin or bulk/import provenance lane; established integrity-valid branch
+disagreement still becomes `CONFLICT` before any lane sufficiency decision.
+
+Disagreement aggregation uses one per-evidence `conflict_branch_applicable` predicate for
+both the distinct established-branch count and the agreed branch selection. Kiosk logical
+observations participate when individually established, integrity-eligible, and
+branch-bearing; whole-lane kiosk cardinality remains a later independent-sufficiency
+question. Manual/admin and bulk/import explicit rows participate only when their durable
+authorization namespace/reference, assertion time, and required manual actor/role audit
+shape make the lane applicable. Applicability does not require the row itself to be
+independently sufficient, so valid applicable disagreement retains precedence. Conversely,
+unaudited, unauthorized, malformed, or transport-only explicit rows may remain immutable
+history and fingerprint material but cannot manufacture `CONFLICT` or attribution.
+
+Sufficient `MANUAL_ADMIN` and `BULK_IMPORT` explicit provenance must carry a nonblank
+authorization namespace and immutable authorization/adjudication reference plus assertion
+time. Manual/admin evidence additionally carries an asserting entity and House role; an
+insert guard locks and verifies that exact role in the evidence House whenever the row
+otherwise has the complete conflict-applicability shape—even when its sufficiency state is
+not `SUFFICIENT`. Incomplete/non-applicable manual audit history remains representable and
+non-authoritative. No rebuild or reader revalidates the actor's current role, so later
+legitimate role revocation does not erase assertion-time authority. Bulk transport alone is never provenance; its
+trusted workflow/producer namespace and authorization reference are required. These are
+structural audit prerequisites only—Gate B's future canonical command must verify current
+authorization, and raw `service_role` insertion is not deemed trustworthy by itself.
+
+`hr_attendance_fact_revisions_house_work_date_idx` is a B-tree over `(house_id,
+work_date, time_in, fact_id, revision)`. It supplies both bounded readers with a
+House/date-selective path aligned to their deterministic work-date/time-in/fact order;
+the projection remains free of duplicated attendance values. No executable `EXPLAIN`
+was available in the contributor environment.
+
+## Protected readers and security
+
+### Branch-aware RPC
+
+`hr_read_canonical_attendance_branch_scoped(p_house_id uuid, p_start_date date,
+p_end_date date, p_employee_id uuid default null, p_limit integer default 100,
+p_offset integer default 0)` is one new PostgREST-facing overload. Argument order is
+exactly as shown. Both dates are required; start must not follow end, limit must be 1–200,
+and offset must be non-negative. Results are ordered by work date, time-in ascending with
+nulls last, then fact ID. The optional employee filter can only narrow and must resolve to
+an employee in the requested House.
+
+It separately proves exact-House membership and resolves feature read capability through
+the canonical flattened `entity_policies` surface. Every `scope = PLATFORM` feature row
+is globally effective capability whether role-derived or direct; a `scope = HOUSE`
+feature row counts only when `scope_ref` equals the requested House. Requested-House
+membership remains separately mandatory, and branch restriction is derived only from
+House-scoped policy assignments for that requested House. Each parsed branch is validated
+against `branches(house_id, id)`. PLATFORM capability supplies neither House membership
+nor branch scope. This matches existing HR effective-policy semantics rather than adding
+role-specific authorization.
+
+The DTO includes permitted fact ID, employee ID, attendance values/status, and active
+branch only. It omits value revision, evidence-basis revision/fingerprint, employee
+generation, evidence IDs, correction history, source detail, and total counts. Zero scope,
+missing/drifted projection, `UNATTRIBUTED`, `CONFLICT`, other branches, and other Houses
+return no rows.
+
+### House-global RPC
+
+`hr_read_canonical_attendance_house_global(p_house_id uuid, p_start_date date,
+p_end_date date, p_employee_id uuid default null, p_limit integer default 100,
+p_offset integer default 0)` is one distinct PostgREST-facing overload with identical
+range, page, employee-narrowing, and deterministic-order rules. It independently requires
+an exact requested-House role normalized with `lower(btrim(role))` to one established
+owner/manager alias: `house_owner`, `business_owner`, `house_manager`, `business_admin`,
+or `business_manager`. Case variants are therefore compatible. PLATFORM, game-master,
+staff, cashier, and arbitrary roles gain no House-global authority, and no policy or
+branch-derived bypass exists. Its consumption DTO also
+omits internal revisions, fingerprints, generations, evidence, and correction audit.
+
+### RLS, grants, and service role
+
+RLS is enabled on all eight new tables. They intentionally have no authenticated policies,
+and all direct privileges are revoked from `public`, `anon`, and `authenticated`.
+Authenticated access exists only through the two sanitized reader RPCs. The internal
+rebuild function is revoked from those roles and executable only by `service_role`;
+service role is not used by a production consumer in this PR. As on Supabase generally,
+`service_role` can bypass RLS, so Gate B must constrain its producer usage rather than
+mistaking RLS for containment. Existing `dtr_segments` grants and policies are unchanged.
+
+The migration issues `NOTIFY pgrst, 'reload schema';`; a PostgREST schema-cache reload is
+required for the corrected pre-merge function signatures and table/type metadata.
+
+## Classification and representational limits
+
+Canonical kiosk evidence rows represent logical observations only after a later approved
+producer supplies DEC-019's namespaced opaque source identity and original occurrence
+time. The stable observation chain can have multiple append-only semantic evidence
+revisions without becoming multiple real-world actions. Gate A neither imports
+`hr_kiosk_events.metadata.segmentId`, designates `clientEventId` as universal identity,
+nor maps a producer. Manual/admin and bulk/import explicit
+provenance can be represented, but no creation/import workflow populates it here. Bulk is
+still transport, not provenance.
+
+The model keeps exactly the three approved concepts separate:
+
+- fact/value revision (`current_value_revision` and revision lineage);
+- semantic evidence-basis revision/fingerprint (`evidence_basis_revision`, evidence
+  `semantic_revision`, and projection fingerprint); and
+- House + employee candidate/evidence generation.
+
+Gate A does not automatically advance the employee generation because live producers and
+canonical commands are Gate-B scope. The separate durable row makes the distinction
+representable without inventing premature producer transaction semantics.
+
+## DEC-020 — employee historical-record retention boundary
+
+**Owner-approved: 2026-09-15.** Once an employee has protected historical HR records,
+the employee row is retention-protected and must not be hard-deleted. Canonical
+attendance, evidence, correction/audit lineage, and attendance-linked payroll history are
+definitely protected history and must never cascade away merely because an employee row
+is deleted. Gate A's `ON DELETE RESTRICT`-style employee references for canonical
+historical attendance authority are therefore intentional retention enforcement, not an
+accidental migration incompatibility.
+
+Employee offboarding is represented by `employees.status = 'inactive'`, preserving the
+employee identity and protected history. Rehire continues under Agui's existing inactive-
+row identity and deduplication rules: a future authorized workflow may reactivate an
+inactive employee or create a new active row when those governing rules permit it, but
+DEC-020 selects no universal rehire implementation. Employee lifecycle
+`employees.status` is separate from attendance authority
+`hr_attendance_facts.is_active`; neither field controls or synchronizes the other.
+
+Hard delete remains available only for a genuinely erroneous or empty employee record
+with no protected historical dependency. A future delete operation that encounters
+protected history must return a deterministic business outcome such as “This employee
+has historical records. Mark the employee inactive instead.” A raw foreign-key failure
+is not the intended operator experience. The complete inventory of protected HR
+dependency tables and the exact delete/offboarding UX remain implementation details for
+a separate bounded employee-lifecycle enforcement task; DEC-020 establishes that
+canonical attendance is protected without prematurely selecting that complete inventory.
+
+This PR does not implement that employee lifecycle runtime. The existing
+`deleteEmployeeForHouse(...)` path still directly hard-deletes `employees`, and legacy
+`dtr_segments.employee_id` still uses `ON DELETE CASCADE`; no application, action, UI,
+RPC, schema, or migration correction for those existing surfaces is included here. Gate A
+also creates no production canonical attendance. **Gate B must not create, backfill, or
+migrate production canonical attendance until the separate employee-lifecycle task has
+implemented and verified protected-history delete eligibility, deterministic hard-delete
+rejection, operator-facing inactive/offboarding handling, safe deletion of genuinely
+empty/mistaken rows, and non-cascading retention of canonical history.** This is a
+mandatory Gate-B pre-population prerequisite, not optional cleanup.
+
+## Data Access Plan
+
+- New objects: the eight tables, three callable Gate-A functions, and six non-callable
+  trigger helper functions listed above; no view. Append-only/sealing and serialized
+  insert guards protect observations, fact revisions/segment binding, evidence frames,
+  membership/fact binding, and evidence semantics.
+- Authenticated client: no direct table access; execute on the two sanitized readers only.
+- Service role: execute on rebuild only; no existing service-backed path is switched.
+- House enforcement: trusted actor membership/role checks in readers and composite
+  House foreign keys in storage.
+- Feature authorization: canonical flattened effective policies accept every PLATFORM
+  feature grant, whether role-derived or direct, and accept HOUSE feature grants only for
+  the requested House; another House's role grant cannot combine with requested-House
+  membership and branch scope.
+- House enforcement: House membership remains a separate mandatory check.
+- Branch enforcement: only requested-House policy assignment is parsed and joined to
+  `branches(house_id, id)`; feature capability and caller input never supply scope.
+- RLS/grants: RLS enabled, no permissive table policies, direct grants revoked.
+- Security mode: all three functions are `SECURITY DEFINER` with fixed safe search path;
+  rebuild is service-only and readers authorize from `current_entity_id()`.
+- No consumer is switched because Gate C/D own adoption, while Gate B first owns producer
+  compatibility, backfill, and containment.
+
+## Explicit non-changes
+
+The existing Gate-A migration is modified in place to add durable reason-class storage;
+no new migration or RPC signature is introduced, and the PostgREST reload remains. There
+is no production backfill; writer or producer migration; canonical write command;
+Historical DTR P1; missing-fact create; correction/finalization or HR-4 flow; Daily DTR,
+payroll, payslip, overtime, kiosk, bulk, browser, repair, or background cutover; kiosk or
+bulk mutation change; existing base DTR grant revocation; Gate-B containment; Gate C, D,
+or E work; identity behavior change; or POS/Operations/Finance/Growth work.
+
+**Shared person/entity identity lookup, insertion, normalization, reuse, and conflict
+semantics were unchanged. DEC-019 adds only the explicitly approved canonical attendance
+source-observation identity.**
+
+## Verification boundary
+
+The original local-only verification limitation has been superseded in part by the
+controlled live rollback checks recorded above and by hosted CI/Preview evidence. Gate-A
+authorization, provenance, classifier, lifecycle, history, replay, and several guard
+paths have executable evidence against the restored Supabase project, while exact-head
+Preflight/Preview cover the repository candidate.
+
+The remaining deliberate boundary is narrower: the final
+`20261019200000_gap024_gate_a_membership_frame_lock_order.sql` correction has not been
+persistently applied to the restored backend before owner release approval, and its true
+two-independent-session deadlock timing has not been reproduced in an isolated database
+branch. Its release evidence is structural SQL lock-order proof, focused regression
+coverage, exact-head CI, exact-head Preview health, and read-only confirmation that the
+live backend is still on the expected pre-release guard. No Gate-B producer/backfill or
+Gate-C/D/E consumer behavior is claimed.
+
+## Historical Control Center Sync Payload — staged/pre-host
+
+- **Project / Phase:** Agui / HR (sole active phase)
+- **Gate / Slice:** GAP-024 Gate A
+- **Work Class:** Foundation Security Correction runtime
+- **Status:** Local implementation complete; hosted verification pending
+- **PR Number / URL:** PR #510 / hosted URL pending contributor access
+- **Base Branch:** `develop`
+- **Expected Hosted Base SHA:** `5e06c21a0c96514e45c336af77d0cccf2d3c0420`
+- **Local Completion SHA:** Recorded in the post-commit completion handoff
+- **Hosted Head SHA:** Pending — not yet independently verified
+- **Canonical Documents Read:** root and scoped `AGENTS.md`; Operating Principles;
+  development, DB access, and Roadmap guidance; HR Master Plan/status; GAP-024 approval
+  and plan; GAP-025 contract; GAP-029 dependency plan; Historical DTR P1 approval; sync protocol
+- **Canonical Documents Changed:** GAP-025 DEC-019 addendum; `docs/hr/hr-status.md`; this implementation record
+- **Runtime / Code Surfaces Changed:** generated DB type subset and focused migration-contract test
+- **Database / Migration Surfaces:** one corrected additive Gate-A migration; eight tables; three callable functions; six trigger helpers
+- **Authorization / Tenancy / Identity Impact:** new deny-direct canonical storage and two
+  actor-derived readers; House and branch checks added; identity behavior unchanged
+- **Owner Decisions Applied:** Option D, facts-only branch visibility, owner/manager global
+  visibility, GAP-025 order, DEC-019 source-observation identity, three distinct
+  revision/generation concepts, Gate-A-only scope
+- **New Decisions Proposed:** None
+- **Risks / Gaps:** live producer compatibility/backfill, raw-mutator containment, and
+  deterministic per-result retry identity for manual/admin and bulk/import producers remain Gate B
+- **Tests / Checks:** static migration-contract verification recorded in PR/local handoff; executable DB verification and hosted CI pending
+- **Known Limitations:** migration/RLS/RPC executable verification remains outstanding because no local Supabase/PostgreSQL/Docker runtime is available; static tests are not database execution; no production population or adoption
+- **Project Control Tabs To Update:** HR phase/gates, PR tracker, risks/limitations
+- **Suggested Project Control Status:** Gate A local complete / hosted verification pending
+- **Next Authorized Action:** Independently host/review/merge Gate A; only then authorize bounded Gate-B pre-P1 work
+- **Scope Deviations:** None
+- **Stop Conditions Encountered:** Initial hosted-base verification gap, cleared by owner-supplied exact-SHA evidence
+
+> Gate A completion does not authorize Historical DTR P1. After Gate A merges, the next
+> ordered work is the separately bounded Gate-B pre-P1 producer/write-containment foundation.
