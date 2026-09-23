@@ -82,13 +82,9 @@ test("bulk replacement is authenticated, idempotent, canonical, and atomic with 
     bulkSql,
     /grant execute on function public\.hr_replace_bulk_attendance_day[\s\S]*to authenticated/i,
   );
-  assert.match(
+  assert.doesNotMatch(
     bulkSql,
-    /create or replace function public\.hr_upsert_bulk_dtr_entry_summary[\s\S]*security definer/i,
-  );
-  assert.match(
-    bulkSql,
-    /grant execute on function public\.hr_upsert_bulk_dtr_entry_summary[\s\S]*to authenticated/i,
+    /create or replace function public\.hr_upsert_bulk_dtr_entry_summary/i,
   );
 });
 
@@ -102,17 +98,26 @@ test("active bulk segment replacement no longer uses service-role raw dtr_segmen
     bulkRoute,
     /\.from\("dtr_segments"\)[\s\S]{0,80}\.(insert|update|delete)\(/i,
   );
-  assert.match(bulkRoute, /"hr_upsert_bulk_dtr_entry_summary"/i);
+  assert.doesNotMatch(bulkRoute, /hr_upsert_bulk_dtr_entry_summary/i);
+  assert.match(
+    bulkRoute,
+    /payload\.mode === "single"[\s\S]*hr_replace_bulk_attendance_day[\s\S]*for \(const empId of allowedIds\)[\s\S]*hr_replace_bulk_attendance_day/i,
+  );
   assert.doesNotMatch(
     bulkRoute,
     /service[\s\S]{0,120}\.from\("dtr_entries"\)[\s\S]{0,80}\.(insert|update|delete|upsert)\(/i,
   );
 });
 
-test("bulk operation IDs survive retry but rotate after confirmed success", () => {
+test("bulk operation IDs survive retry across single, all, and CSV writes", () => {
   assert.match(bulkClient, /saveOperationIdsRef = useRef\(new Map<string, string>\(\)\)/i);
   assert.match(bulkClient, /const existing = saveOperationIdsRef\.current\.get\(fingerprint\)/i);
   assert.match(bulkClient, /crypto\.randomUUID\(\)/i);
+  assert.match(bulkClient, /operationIds: Object\.fromEntries\([\s\S]*scopedEmployees\.flatMap/i);
+  assert.match(
+    bulkClient,
+    /operationIds: Object\.fromEntries\([\s\S]*payload\.map\(\(row\)/i,
+  );
   assert.match(
     bulkClient,
     /if \(!response\.ok\)[\s\S]*throw new Error[\s\S]*saveOperationIdsRef\.current\.clear\(\)[\s\S]*Saved!/i,
