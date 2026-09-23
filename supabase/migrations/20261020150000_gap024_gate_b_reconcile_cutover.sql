@@ -17,6 +17,7 @@ declare
   v_out_count bigint;
   v_stable_count bigint;
   v_unique_source_count bigint;
+  v_device_context_count bigint;
   v_branch_count bigint;
   v_timestamp_match_count bigint;
   v_next_basis bigint;
@@ -58,6 +59,16 @@ begin
                     nullif(btrim(event.metadata ->> 'clientId'), '')
             )
         ),
+        count(*) filter (
+          where event.device_id is not null
+            and exists (
+              select 1
+              from public.hr_kiosk_devices device
+              where device.id = event.device_id
+                and device.house_id = event.house_id
+                and device.branch_id = event.branch_id
+            )
+        ),
         count(distinct event.branch_id),
         count(*) filter (
           where (event.event_type = 'clock_in' and event.occurred_at = v_segment.time_in)
@@ -69,6 +80,7 @@ begin
         v_out_count,
         v_stable_count,
         v_unique_source_count,
+        v_device_context_count,
         v_branch_count,
         v_timestamp_match_count
       from public.hr_kiosk_events event
@@ -93,6 +105,7 @@ begin
       )
       and v_stable_count = v_total_count
       and v_unique_source_count = v_total_count
+      and v_device_context_count = v_total_count
       and v_branch_count = 1
       and v_timestamp_match_count = v_total_count then
 
@@ -161,7 +174,7 @@ begin
           'KIOSK', 'LOGICAL_IN', v_in_event.branch_id,
           'ESTABLISHED', 'VALID', 'SUFFICIENT',
           true, 1, null, v_evidence_id,
-          coalesce(v_in_event.device_id::text, v_in_event.id::text)
+          v_in_event.device_id::text
         );
 
         insert into public.hr_attendance_fact_evidence (
@@ -199,7 +212,7 @@ begin
             'KIOSK', 'LOGICAL_OUT', v_out_event.branch_id,
             'ESTABLISHED', 'VALID', 'SUFFICIENT',
             true, 1, null, v_evidence_id,
-            coalesce(v_out_event.device_id::text, v_out_event.id::text)
+            v_out_event.device_id::text
           );
 
           insert into public.hr_attendance_fact_evidence (
