@@ -89,6 +89,13 @@ test("bulk replacement is authenticated, idempotent, canonical, and atomic with 
   );
 });
 
+test("bulk API rejects partial attendance pairs before canonical replacement", () => {
+  assert.match(
+    bulkRoute,
+    /const hasIn = Boolean\(rawIn\?\.trim\(\)\)[\s\S]*const hasOut = Boolean\(rawOut\?\.trim\(\)\)[\s\S]*if \(!hasIn \|\| !hasOut\)[\s\S]*Incomplete attendance segment/i,
+  );
+});
+
 test("active bulk segment replacement no longer uses service-role raw dtr_segments DML", () => {
   assert.match(bulkRoute, /supabase\.rpc\([\s\S]*"hr_replace_bulk_attendance_day"/i);
   assert.doesNotMatch(
