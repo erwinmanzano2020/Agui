@@ -1830,6 +1830,13 @@ export interface Database {
         p_time_out?: string | null;
         p_expected_value_revision?: number | null;
       }, Json>;
+      hr_replace_bulk_attendance_day: FunctionDefinition<{
+        p_house_id: string;
+        p_employee_id: string;
+        p_work_date: string;
+        p_operation_id: string;
+        p_segments: Json;
+      }, Json>;
       hr_get_dtr_mutation_tokens: FunctionDefinition<{
         p_house_id: string;
         p_segment_ids: string[];
