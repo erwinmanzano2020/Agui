@@ -443,7 +443,15 @@ branch provenance. A later operation that intends to establish/change attendance
 location belongs to the separately governed correction/provenance path.
 
 The current UI may therefore require one bounded actual-attendance branch input for new
-manual creation. Other UI/product behavior remains unchanged.
+manual creation. That provenance selector does **not** create authorization:
+
+- branch-limited actors may select only a branch already inside their authoritative
+  allowed-branch set and still must pass the existing employee/write-target checks;
+- owner/manager house-wide actors may select any valid branch in the authorized House;
+- a selected actual-attendance branch never substitutes for House membership, feature
+  capability, or target authorization.
+
+Other UI/product behavior remains unchanged.
 
 ### 9.3 Legacy browser Daily DTR — must be migrated or retired before privilege cutover
 
@@ -680,6 +688,10 @@ Required database controls:
 - kiosk observation uniqueness uses stable producer source identity;
 - duplicate online request and offline replay return the already-applied result;
 - bulk retry deduplicates per employee/result operation, not merely per request batch;
+- bulk may retain current per-result commit semantics rather than inventing all-batch
+  atomicity. If an implementation instead processes multiple employees in one DB
+  transaction, it must acquire House+employee mutation locks in deterministic sorted key
+  order to prevent overlapping-batch deadlocks;
 - stale repair/bulk/manual updates fail rather than latest-write-win;
 - projection update/rebuild participates in the transaction or is guarded so consumers
   never observe raw-only committed attendance.
@@ -853,15 +865,23 @@ half-canonical writable state**:
 1. exact-head re-inventory and freeze writer/principal matrix;
 2. add command/private helpers/idempotency/bridge **and the transitional bridge guard**
    additively; do not enable P1;
-3. deploy/migrate kiosk to command and verify command-created rows are immediately guarded
-   from legacy raw mutation;
-4. migrate authenticated manual paths and verify;
-5. migrate/retire browser direct writers;
-6. migrate bulk to the authenticated command path and verify service-role attendance
-   write escalation is removed;
-7. migrate/retire repair writer;
-8. prove every known application writer now uses a command wrapper or is retired;
-9. enter a bounded database cutover transaction:
+3. prepare **one coordinated application-writer migration release** containing kiosk,
+   authenticated manual, legacy browser retirement/adaptation, authenticated bulk, and
+   repair disposition. Producer-specific verification may be sequential, but these must
+   not become long-lived independently deployed states while another old writer can
+   mutate the same rows raw;
+4. deploy that coordinated writer release with P1 still disabled. The transitional bridge
+   guard makes already bridged rows fail closed to any stale browser/old deployment that
+   attempts raw mutation; users may need refresh/retry rather than receiving a raw-DML
+   fallback;
+5. verify kiosk command behavior;
+6. verify authenticated manual behavior;
+7. verify browser direct writers are removed/retired;
+8. verify bulk uses the authenticated command path and service-role attendance write
+   escalation is removed;
+9. verify repair raw mutation is retired;
+10. prove every known application writer now uses a command wrapper or is retired;
+11. enter a bounded database cutover transaction:
    - acquire a table/advisory lock that prevents concurrent raw attendance writers;
    - re-inventory/reconcile every remaining NULL-bridge compatibility row;
    - backfill canonical value/fact state for every deterministically representable row;
@@ -872,13 +892,13 @@ half-canonical writable state**:
      REFERENCES/TRIGGER privileges;
    - revoke application service-role raw INSERT/UPDATE/DELETE/TRUNCATE;
    - commit the reconcile + privilege cutover atomically;
-10. prove repository/database no-bypass matrix on the post-cutover state;
-11. repeat producer regression + DB integration + real concurrency tests;
-12. rebuild/verify projection;
-13. Production release under explicit owner approval, respecting the repository's known
+12. prove repository/database no-bypass matrix on the post-cutover state;
+13. repeat producer regression + DB integration + real concurrency tests;
+14. rebuild/verify projection;
+15. Production release under explicit owner approval, respecting the repository's known
     migration-history drift and controlled migration process;
-14. verify post-deploy containment and zero new unmapped/raw-only attendance;
-15. only then mark Historical Daily DTR Write P1 as the next authorized planning/runtime
+16. verify post-deploy containment and zero new unmapped/raw-only attendance;
+17. only then mark Historical Daily DTR Write P1 as the next authorized planning/runtime
     candidate.
 
 Do not revoke raw DML before its dependent writers have migrated.
@@ -1123,3 +1143,22 @@ scans could serialize two stale decisions or different scans could both pass deb
 before one opens a fact. The plan now makes the kiosk DB wrapper resolve replay first and
 derive IN/OUT under the House+employee mutation lock; different-ID debounce is also
 revalidated inside that serialized decision.
+
+
+### Round 8 — bounded precision corrections
+
+**P2 — producer migration sequence could imply long-lived mixed writers.** Because old
+bulk/browser writers can reach the same rows that kiosk/manual commands canonicalize, the
+plan now requires one coordinated application-writer migration release. Verification may
+be staged, but a stale old writer hitting a bridged row fails closed through the
+transitional guard; raw fallback is prohibited.
+
+**P2 — multi-employee bulk locking was unspecified.** Current behavior is already
+per-result/non-atomic across a whole batch, so Gate B need not invent batch atomicity. If
+runtime chooses one transaction across multiple employees, employee mutation locks must
+be acquired in deterministic sorted order.
+
+**P2 — manual provenance selector could be mistaken for authorization.** The plan now
+states that explicit attendance branch is provenance only: branch-limited actors remain
+bounded by their authoritative allowed set plus existing target checks; house-wide actors
+remain bounded by House authority.
