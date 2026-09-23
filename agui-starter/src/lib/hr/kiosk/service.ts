@@ -6,8 +6,6 @@ import {
   toManilaTimeHHmm,
 } from "@/lib/hr/timezone";
 
-const DEBOUNCE_SECONDS = 10;
-
 type KioskDevice = { id: string; house_id: string; branch_id: string; is_active: boolean };
 type KioskEmployee = {
   id: string;
@@ -15,6 +13,9 @@ type KioskEmployee = {
   code: string | null;
   full_name: string | null;
 };
+
+// Retained as a public compatibility type for existing tests/imports. Runtime kiosk
+// mutation no longer reads or writes raw segments through the repository.
 type KioskSegment = {
   id: string;
   employee_id: string;
@@ -24,21 +25,31 @@ type KioskSegment = {
   time_out: string | null;
   status: string;
 };
-type KioskEvent = { occurred_at: string };
+
+type KioskCommandResult = {
+  action: "clock_in" | "clock_out" | "debounced";
+  segmentId: string | null;
+  factId?: string | null;
+  valueRevision?: number | null;
+  evidenceBasisRevision?: number | null;
+  employeeGeneration?: number | null;
+  workDate: string;
+  multipleOpenSegments?: boolean;
+  replayed?: boolean;
+};
 
 type KioskRepo = {
   findDeviceByTokenHash(tokenHash: string): Promise<KioskDevice | null>;
   touchDevice(deviceId: string): Promise<void>;
   findEmployeeById(employeeId: string): Promise<KioskEmployee | null>;
-  findOpenSegments(employeeId: string, limit?: number): Promise<KioskSegment[]>;
-  closeSegment(segmentId: string, timeOut: string): Promise<KioskSegment | null>;
-  createOpenSegment(input: {
+  applyAttendanceScan(input: {
     houseId: string;
+    branchId: string;
+    deviceId: string;
     employeeId: string;
-    workDate: string;
-    timeIn: string;
-  }): Promise<KioskSegment | null>;
-  findLatestEmployeeEvent(houseId: string, employeeId: string): Promise<KioskEvent | null>;
+    operationId: string;
+    occurredAt: string;
+  }): Promise<KioskCommandResult>;
   insertKioskEvent(input: {
     deviceId: string;
     houseId: string;
@@ -48,7 +59,6 @@ type KioskRepo = {
     occurredAt: string;
     metadata?: Record<string, unknown>;
   }): Promise<void>;
-  hasSyncClientEventId(houseId: string, branchId: string, clientEventId: string): Promise<boolean>;
 };
 
 export type KioskScanResult = {
@@ -83,13 +93,6 @@ function normalizeOccurredAt(occurredAt?: string): string {
     return toManilaOffsetTimestampFromDate(parsed);
   }
   throw new Error("Invalid occurredAt timestamp.");
-}
-
-function diffSeconds(a: string, b: string): number {
-  const aMs = new Date(a).getTime();
-  const bMs = new Date(b).getTime();
-  if (Number.isNaN(aMs) || Number.isNaN(bMs)) return Number.POSITIVE_INFINITY;
-  return Math.abs(aMs - bMs) / 1000;
 }
 
 export class KioskAuthError extends Error {}
@@ -182,12 +185,14 @@ export async function processKioskScan(
     throw new Error("QR token does not match kiosk house.");
   }
 
-  let employee: KioskEmployee | null = null;
   const employeeLookupStartedAt = nowMs();
+  let employee: KioskEmployee | null = null;
   try {
     employee = await repo.findEmployeeById(qrClaims.employeeId);
   } finally {
-    input.timingHooks?.onEmployeeLookupComplete?.(Math.round(nowMs() - employeeLookupStartedAt));
+    input.timingHooks?.onEmployeeLookupComplete?.(
+      Math.round(nowMs() - employeeLookupStartedAt),
+    );
   }
   if (!employee || employee.house_id !== device.house_id) {
     await trackWrite(() => repo.insertKioskEvent({
@@ -202,49 +207,42 @@ export async function processKioskScan(
     throw new Error("Employee is not available for this kiosk.");
   }
 
-  let actionDecisionMs = 0;
-  const actionDecisionStartedAt = nowMs();
-  const lastEvent = await repo.findLatestEmployeeEvent(device.house_id, employee.id);
-  actionDecisionMs += nowMs() - actionDecisionStartedAt;
-  input.timingHooks?.onActionDecisionComplete?.(Math.round(actionDecisionMs));
-  if (lastEvent && diffSeconds(lastEvent.occurred_at, occurredAt) < DEBOUNCE_SECONDS) {
-    return {
-      action: "debounced",
-      employee: { id: employee.id, code: employee.code, displayName: getDisplayName(employee) },
-      segmentId: null,
-      workDate: toManilaDate(occurredAt) ?? occurredAt.slice(0, 10),
-      time: toManilaTimeHHmm(occurredAt) ?? "",
-      offlineAccepted: Boolean(input.offlineAccepted),
-    };
-  }
-
-  const openSegmentsDecisionStartedAt = nowMs();
-  const [, openSegments] = await Promise.all([
-    trackWrite(() => repo.insertKioskEvent({
+  const operationId = input.clientId?.trim() ?? "";
+  if (!operationId) {
+    await trackWrite(() => repo.insertKioskEvent({
       houseId: device.house_id,
       branchId: device.branch_id,
       deviceId: device.id,
       employeeId: employee.id,
-      eventType: "scan",
+      eventType: "reject",
       occurredAt,
-      metadata: { clientId: input.clientId ?? null },
-    })),
-    repo.findOpenSegments(employee.id, 2),
-  ]);
-  actionDecisionMs += nowMs() - openSegmentsDecisionStartedAt;
-  input.timingHooks?.onActionDecisionComplete?.(Math.round(actionDecisionMs));
-  const latestOpen = openSegments[0] ?? null;
-  const workDate = toManilaDate(occurredAt) ?? occurredAt.slice(0, 10);
-  const metadata: Record<string, unknown> = {};
-
-  if (openSegments.length > 1) {
-    metadata.multipleOpenSegments = true;
+      metadata: { reason: "missing_client_id" },
+    }));
+    throw new KioskConflictError("Kiosk scan is missing stable operation identity.", {
+      reason: "missing_client_id",
+      employee: { id: employee.id, code: employee.code, displayName: getDisplayName(employee) },
+    });
   }
 
-  if (latestOpen) {
-    const timeInMs = latestOpen.time_in ? new Date(latestOpen.time_in).getTime() : Number.NaN;
-    const occurredAtMs = new Date(occurredAt).getTime();
-    if (!Number.isNaN(timeInMs) && occurredAtMs <= timeInMs) {
+  const commandStartedAt = nowMs();
+  let command: KioskCommandResult;
+  try {
+    command = await trackWrite(() => repo.applyAttendanceScan({
+      houseId: device.house_id,
+      branchId: device.branch_id,
+      deviceId: device.id,
+      employeeId: employee.id,
+      operationId,
+      occurredAt,
+    }));
+  } catch (error) {
+    input.timingHooks?.onActionDecisionComplete?.(
+      Math.round(nowMs() - commandStartedAt),
+    );
+    if (
+      error instanceof Error &&
+      /earlier than or equal to open attendance time_in|occurrence time/i.test(error.message)
+    ) {
       await trackWrite(() => repo.insertKioskEvent({
         houseId: device.house_id,
         branchId: device.branch_id,
@@ -254,69 +252,34 @@ export async function processKioskScan(
         occurredAt,
         metadata: {
           reason: "stale_occurred_at",
-          timeIn: latestOpen.time_in,
           occurredAt,
-          clientEventId: input.clientId ?? null,
-          segmentId: latestOpen.id,
+          clientEventId: operationId,
         },
       }));
-      throw new KioskConflictError("occurredAt is earlier than or equal to open segment time_in.", {
+      throw new KioskConflictError(error.message, {
         reason: "stale_occurred_at",
         employee: { id: employee.id, code: employee.code, displayName: getDisplayName(employee) },
-        segmentId: latestOpen.id,
-        timeIn: latestOpen.time_in,
         occurredAt,
       });
     }
-
-    const closed = await trackWrite(() => repo.closeSegment(latestOpen.id, occurredAt));
-    if (!closed) throw new Error("Failed to close open segment.");
-    await trackWrite(() => repo.insertKioskEvent({
-      houseId: device.house_id,
-      branchId: device.branch_id,
-      deviceId: device.id,
-      employeeId: employee.id,
-      eventType: "clock_out",
-      occurredAt,
-      metadata: { segmentId: closed.id, clientId: input.clientId ?? null, ...metadata },
-    }));
-    return {
-      action: "clock_out",
-      employee: { id: employee.id, code: employee.code, displayName: getDisplayName(employee) },
-      segmentId: closed.id,
-      workDate,
-      time: toManilaTimeHHmm(occurredAt) ?? "",
-      offlineAccepted: Boolean(input.offlineAccepted),
-      metadata,
-    };
+    throw error;
   }
+  input.timingHooks?.onActionDecisionComplete?.(
+    Math.round(nowMs() - commandStartedAt),
+  );
 
-  const created = await trackWrite(() => repo.createOpenSegment({
-    houseId: device.house_id,
-    employeeId: employee.id,
-    workDate,
-    timeIn: occurredAt,
-  }));
-  if (!created) throw new Error("Failed to create open segment.");
-
-  await trackWrite(() => repo.insertKioskEvent({
-    houseId: device.house_id,
-    branchId: device.branch_id,
-    deviceId: device.id,
-    employeeId: employee.id,
-    eventType: "clock_in",
-    occurredAt,
-    metadata: { segmentId: created.id, clientId: input.clientId ?? null, ...metadata },
-  }));
+  const metadata: Record<string, unknown> = {};
+  if (command.multipleOpenSegments) metadata.multipleOpenSegments = true;
+  if (command.replayed) metadata.replayed = true;
 
   return {
-    action: "clock_in",
+    action: command.action,
     employee: { id: employee.id, code: employee.code, displayName: getDisplayName(employee) },
-    segmentId: created.id,
-    workDate,
+    segmentId: command.segmentId,
+    workDate: command.workDate || toManilaDate(occurredAt) || occurredAt.slice(0, 10),
     time: toManilaTimeHHmm(occurredAt) ?? "",
     offlineAccepted: Boolean(input.offlineAccepted),
-    metadata,
+    metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
   };
 }
 
@@ -348,20 +311,25 @@ export async function processKioskSync(
   > = [];
 
   for (const event of input.events) {
-    const isDuplicate = await repo.hasSyncClientEventId(device.house_id, device.branch_id, event.clientEventId);
-    if (isDuplicate) {
-      results.push({ clientEventId: event.clientEventId, status: "duplicate" });
-      continue;
-    }
-
     try {
       const result = await processKioskScan(repo, {
         kioskToken: input.kioskToken,
+        authenticatedDevice: {
+          id: device.id,
+          houseId: device.house_id,
+          branchId: device.branch_id,
+        },
         qrToken: event.qrToken,
         occurredAt: event.occurredAt,
         clientId: event.clientEventId,
         offlineAccepted: true,
       });
+
+      if (result.metadata?.replayed === true) {
+        results.push({ clientEventId: event.clientEventId, status: "duplicate" });
+        continue;
+      }
+
       await repo.insertKioskEvent({
         houseId: device.house_id,
         branchId: device.branch_id,
@@ -395,4 +363,10 @@ export async function processKioskSync(
   return { results };
 }
 
-export type { KioskRepo, KioskDevice, KioskEmployee, KioskSegment };
+export type {
+  KioskRepo,
+  KioskDevice,
+  KioskEmployee,
+  KioskSegment,
+  KioskCommandResult,
+};
