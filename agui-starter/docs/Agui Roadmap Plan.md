@@ -33,13 +33,14 @@
 - **Gate A is released** at squash merge
   `71d11b79c002dce9b65e786ecb30ecfa9abdd494`; its final backend lock-order migration
   and merge-SHA Vercel deployment are verified.
-- current work is **PLANNING ONLY** for the separately bounded DEC-017
-  **GAP-024 Gate-B pre-P1 raw-mutator / producer-write-containment foundation**;
-  no Gate-B runtime is authorized until that plan converges and receives explicit owner
-  approval
-- follow DEC-017 sequence: completed Gate A → Gate-B pre-P1 containment → separate
-  historical Daily DTR write-authorization P1 during Gate B → completion of remaining
-  Gate B → Gate C → Gate D → Gate E
+- the separately bounded DEC-017 **GAP-024 Gate-B pre-P1 raw-mutator /
+  producer-write-containment planning contract is OWNER APPROVED** as of 2026-09-23;
+  the next authorized work is its separate bounded Runtime implementation after the
+  planning PR is merged and verified
+- follow DEC-017 sequence: completed Gate A → owner-approved Gate-B pre-P1 containment
+  Runtime → deployed/verified no-bypass proof → separate historical Daily DTR
+  write-authorization P1 during Gate B → completion of remaining Gate B → Gate C →
+  Gate D → Gate E
 - preserve GAP-024's internal A → B → C → D → E order; the P1 remains a separate bounded
   Codex task/PR during Gate B and must not be folded into the containment foundation to
   reduce PR count
