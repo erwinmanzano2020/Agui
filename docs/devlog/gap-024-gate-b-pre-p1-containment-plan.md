@@ -175,19 +175,29 @@ No parallel attendance source of truth is authorized.
 
 ### 7.1 Physical direction
 
-Implement **one migration-backed database command family** for attendance producer writes,
-with a stable public callable boundary and private helpers as needed.
+Implement **one migration-backed canonical mutation engine** with narrowly authorized
+public wrappers and private helpers.
 
-Planning name:
+Planning internal name:
 
 `hr_apply_attendance_producer_mutation(...)`
 
-The exact SQL signature may be refined during runtime implementation only if it preserves
-the frozen input/output contract below and does not add product semantics.
+The internal engine is **not granted directly to browser/application roles**. Public
+entrypoints are producer/caller-specific so a caller cannot gain authority merely by
+passing `lane='KIOSK'`, `lane='BULK_IMPORT'`, or another producer label. At minimum,
+the runtime design must separate:
 
-The command must be `SECURITY DEFINER`, fixed safe `search_path`, tenant-scoped, and
-the only callable boundary granted to migrated principals for overlapping attendance
-mutation. Raw canonical tables remain deny-direct.
+- authenticated HR/manual command entry;
+- kiosk/device command entry;
+- bulk/import command entry;
+- audited maintenance/repair entry.
+
+Equivalent strongly typed wrappers are acceptable if they share one canonical internal
+mutation engine and do not duplicate canonical business logic.
+
+Each callable function must be migration-backed, `SECURITY DEFINER` where elevation is
+required, use a fixed safe `search_path`, enforce House tenancy, and expose only its
+approved producer contract. Raw canonical tables remain deny-direct.
 
 ### 7.2 Command input contract
 
@@ -196,7 +206,8 @@ Required logical inputs:
 - `house_id`
 - `employee_id`
 - operation identity / retry key
-- producer lane / namespace
+- producer operation namespace / producer class, but **not as a trusted authority claim**;
+  the public wrapper/caller class determines which producer contract may be used;
 - producer-specific immutable source identity where available
 - mutation intent:
   - create/open
@@ -212,9 +223,13 @@ Required logical inputs:
   - source label
 - actual-attendance provenance fields when the producer legitimately has them
 - expected current canonical state:
-  - expected fact/value revision when mutating an existing canonical fact;
-  - expected employee candidate/evidence generation for operations capable of changing
-    the DEC-018 remediation universe.
+  - expected fact/value revision when a workflow is mutating from a previously observed
+    fact version;
+  - expected employee candidate/evidence generation **only for workflows whose decision
+    was made against a previously observed candidate/evidence universe** (including the
+    later P1 remediation flow). Ordinary producer ingestion such as kiosk scan/sync must
+    still serialize on and atomically advance the employee generation, but it does not
+    require the device/client to know that generation in advance.
 
 The command must not infer historical branch from current employee branch, request branch,
 UI context, or current device context except where a producer supplies a separately
@@ -241,7 +256,8 @@ other-branch state.
 One command transaction must atomically maintain all applicable pieces:
 
 1. acquire the **House + employee attendance-mutation serialization domain**;
-2. validate tenancy and producer authority;
+2. validate tenancy and the **entrypoint-specific producer contract**; never trust a
+   caller-supplied lane string to confer kiosk/manual/bulk authority;
 3. resolve operation retry identity before creating new canonical state;
 4. validate expected fact revision / employee generation;
 5. write or update the compatibility `dtr_segments` row where the current producer
@@ -249,9 +265,14 @@ One command transaction must atomically maintain all applicable pieces:
 6. create/advance canonical fact/value revision;
 7. create/advance observation/evidence/frame/membership when provenance changes;
 8. seal/activate the intended evidence frame;
-9. advance employee candidate/evidence generation whenever the mutation can change
-   DEC-018 candidate/evidence coverage;
-10. rebuild or transactionally refresh the affected House projection;
+9. lock/create the House + employee generation row and advance
+   `candidate_evidence_generation` exactly once whenever the committed mutation changes
+   DEC-018 candidate/evidence coverage; compare an expected generation only when the
+   workflow supplied one from a prior authoritative read;
+10. invoke the **existing Gate-A House rebuild/classifier** in the same transaction for
+    the initial implementation rather than duplicating classification logic. Treat
+    House-wide rebuild cost/contention as a load-test gate; any later incremental
+    per-fact classifier requires a separately reviewed equivalence proof;
 11. commit all or none.
 
 No producer may update `dtr_segments` first and "catch up" Gate-A later.
@@ -301,6 +322,10 @@ Requirements:
   `clientEventId`;
 - the future command must reject a missing producer operation/source ID for a write path
   that can retry; do not silently fall back to timestamp identity;
+- online kiosk must use the already generated per-scan UUID `clientId` as the stable
+  source/operation identity; offline replay uses required `clientEventId`. Historical
+  bootstrap may use those already-recorded opaque IDs only where present and
+  unambiguous—never database event-row order or timestamp as a substitute;
 - source observation records capture:
   - producer namespace;
   - immutable client event/source ID;
@@ -352,14 +377,19 @@ Requirements:
 - browser direct delete/insert is removed or made unreachable;
 - service-role API no longer directly delete/inserts overlapping `dtr_segments`;
 - per result, use deterministic operation identity; the request/batch authorization
-  reference is not assumed to identify one attendance fact;
+  reference is not assumed to identify one attendance fact. The bulk adapter must derive
+  or receive one stable per-result operation ID that survives retry of the same logical
+  import item;
 - legacy replacement semantics are expressed as canonical retire/replace operations,
   not raw delete/reinsert;
 - if explicit actual-attendance branch provenance is absent, new canonical state remains
   UNATTRIBUTED rather than inferring current employee branch;
-- `dtr_entries` compatibility updates occur in the same server operation only after
-  canonical attendance mutation succeeds, or are reconciled transactionally through a
-  database wrapper so partial attendance-vs-entry success cannot be reported as complete.
+- `dtr_entries` compatibility updates must be included in the same database transaction
+  as the corresponding canonical attendance replacement when the current bulk contract
+  treats them as one save. A successful canonical commit followed by a failed
+  `dtr_entries` write is not an acceptable "complete" result. If implementation proves
+  `dtr_entries` is independently derived/rebuildable instead, that disposition must be
+  documented and tested before removing it from the transaction.
 
 ### 9.5 Timezone repair — remove raw bypass
 
@@ -403,8 +433,12 @@ For these rows:
 
 - create canonical value/fact state only if the identity/replacement mapping is
   deterministically provable;
-- do **not** create established branch provenance;
-- represent absence of provenance as unresolved/UNATTRIBUTED under Gate-A semantics;
+- create a sealed current evidence frame with the correct OPEN/COMPLETED mode but **no
+  fabricated governing evidence membership** when no approved provenance exists;
+- do **not** create established branch provenance or fake MANUAL_ADMIN evidence merely to
+  satisfy storage shape;
+- the Gate-A classifier must therefore produce UNATTRIBUTED for that empty/unproved
+  frame;
 - preserve the legacy compatibility row;
 - no current employee branch backfill.
 
@@ -425,7 +459,10 @@ After bootstrap:
 
 Only after **all** authenticated write paths have migrated/retired:
 
-- revoke direct `INSERT/UPDATE/DELETE` on `dtr_segments` from `authenticated`;
+- revoke **every raw mutation-capable table privilege** from `authenticated`, including
+  `INSERT`, `UPDATE`, `DELETE`, and `TRUNCATE`; also remove unnecessary
+  `REFERENCES`/`TRIGGER` privileges so the remaining grant is intentionally bounded
+  rather than inherited from historical `GRANT ALL` posture;
 - remove write policies that are no longer reachable/needed;
 - preserve required SELECT until the later consumer-cutover gates;
 - grant only the approved canonical mutation RPC(s) needed by authenticated server
@@ -437,10 +474,18 @@ Only after **all** authenticated write paths have migrated/retired:
 
 The implementation must:
 
-- migrate kiosk and bulk writers to the command;
+- migrate kiosk and bulk writers to producer-specific command wrappers;
 - retire raw repair writes;
 - prove repository search contains no remaining overlapping service-role raw DML;
-- reduce table-level service-role DML on `dtr_segments` where technically safe.
+- revoke raw mutation-capable `dtr_segments` privileges from the application
+  `service_role` where the platform permits it, including `TRUNCATE`, while retaining
+  only privileges still required by verified read/maintenance contracts.
+
+A shared `service_role` credential is not itself a producer identity. Established kiosk
+provenance must be anchored to a verified kiosk device/source observation contract, and
+bulk/manual provenance must satisfy their own durable authorization contract. A generic
+service-role caller may not manufacture established branch evidence simply by selecting
+a producer lane.
 
 Important PostgreSQL/Supabase limitation: database superuser/owner authority cannot be
 made non-bypassable through ordinary grants/RLS. DEC-017's operational-principal proof
@@ -471,9 +516,19 @@ Required database controls:
 
 - shared House + employee mutation serialization for all operations capable of changing
   candidate/evidence coverage;
-- expected fact revision CAS for existing-fact mutations;
-- expected employee generation for mutation-universe changes;
-- unique producer operation identity / retry ledger or equivalent unique constraint;
+- deterministic lock order: acquire the House+employee mutation domain before mutable
+  fact/evidence/generation work, then retain Gate-A's established frame/fact/evidence
+  ordering inside that domain;
+- expected fact revision CAS when a workflow mutates from a previously observed existing
+  fact state;
+- expected employee generation when a decision was made against a previously observed
+  candidate/evidence universe; ordinary producer ingestion instead locks and advances the
+  current generation atomically;
+- a durable mutation-operation ledger (or equivalent database uniqueness) keyed by
+  **House + producer namespace + operation ID**, storing employee, request fingerprint,
+  outcome, and resulting fact/revision identifiers. A replay with the same key and same
+  fingerprint returns the prior outcome; the same key with different material input
+  fails closed;
 - kiosk observation uniqueness uses stable producer source identity;
 - duplicate online request and offline replay return the already-applied result;
 - bulk retry deduplicates per employee/result operation, not merely per request batch;
@@ -549,7 +604,11 @@ No product redesign is authorized.
 - command signature/types contract;
 - migration ordering / grants / RLS / PostgREST reload;
 - exact command error mapping;
-- existing UI validation and kiosk behavior regressions.
+- existing UI validation and kiosk behavior regressions;
+- privilege test proving `authenticated` cannot INSERT/UPDATE/DELETE/**TRUNCATE** raw
+  `dtr_segments` after cutover;
+- wrapper-authority tests proving an authenticated/manual caller cannot select kiosk or
+  bulk provenance by changing input labels.
 
 ### 19.2 Database integration
 
@@ -569,8 +628,11 @@ Use executable PostgreSQL/Supabase-capable tests for:
 - fact retirement + legacy row replacement;
 - atomic rollback on projection/evidence failure;
 - raw authenticated DML denied after cutover;
-- raw application `service_role` DML path absent/denied where grants permit;
-- canonical RPC callable by intended principals only;
+- raw application `service_role` DML path absent/denied where grants permit, including
+  TRUNCATE;
+- canonical internal engine not directly executable by browser/application roles;
+- producer-specific wrappers callable only by their intended principal class and unable
+  to forge another lane's established provenance;
 - no direct canonical-table grants.
 
 ### 19.3 Concurrency
@@ -749,3 +811,38 @@ Before this plan may converge, fresh review must specifically challenge:
 - Existing migration-history drift means broad linked `db push` remains unsafe until
   separately reconciled; future runtime deployment must use controlled migration
   application as Gate A did.
+
+
+## 31. Planning Review & Fix Log
+
+### Round 1 — material corrections
+
+**P1 — raw TRUNCATE bypass omitted.** Live grants include TRUNCATE for both
+`authenticated` and `service_role`. Revoking only INSERT/UPDATE/DELETE would leave a
+database-level destructive bypass outside RLS. The plan now requires revocation/testing
+of TRUNCATE and intentional cleanup of legacy REFERENCES/TRIGGER grants.
+
+**P1 — producer lane could be self-asserted.** A generic callable command accepting a
+lane/namespace as trusted authority would allow one caller class to request another
+producer's provenance semantics. The plan now uses one private canonical engine behind
+producer-specific authorized wrappers and explicitly denies lane strings as authority.
+
+**P1 — legacy manual canonicalization shape was underspecified.** Gate-A current facts
+need a sealed evidence frame, but manual legacy rows lack approved branch provenance. The
+plan now requires an empty/unproved sealed frame (correct completion mode, no fabricated
+evidence membership), yielding UNATTRIBUTED deterministically.
+
+**P2 — generation CAS was over-applied.** Kiosk ingestion cannot reasonably know a
+candidate/evidence generation before every scan. The plan now distinguishes optimistic
+workflows based on a prior universe (later P1) from ordinary producer ingestion: both
+serialize and advance generation, but only the former must supply an expected generation.
+
+**P2 — bulk compatibility atomicity was too permissive.** A canonical attendance commit
+followed by failed `dtr_entries` persistence could leave the current bulk contract
+partially saved. The plan now requires the compatibility write in the same DB transaction
+unless implementation first proves it independently rebuildable and changes that
+disposition through review.
+
+**P2 — idempotency contract lacked mismatch detection.** The durable operation identity
+is now explicitly keyed by House + producer namespace + operation ID with a request
+fingerprint; same-key/different-input replays fail closed.
