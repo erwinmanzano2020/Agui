@@ -766,6 +766,7 @@ set search_path = pg_catalog, public
 as $function$
 declare
   v_entity_id uuid;
+  v_initial_employee_id uuid;
   v_employee_id uuid;
   v_fact_id uuid;
   v_active_branch_id uuid;
@@ -779,7 +780,7 @@ begin
   end if;
 
   select segment.employee_id
-  into v_employee_id
+  into v_initial_employee_id
   from public.dtr_segments segment
   where segment.house_id = p_house_id
     and segment.id = p_segment_id;
@@ -790,7 +791,7 @@ begin
 
   perform pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtextextended(
-      'gap024.attendance_mutation:' || p_house_id::text || ':' || v_employee_id::text,
+      'gap024.attendance_mutation:' || p_house_id::text || ':' || v_initial_employee_id::text,
       0
     )
   );
@@ -799,7 +800,12 @@ begin
   into v_employee_id, v_fact_id
   from public.dtr_segments segment
   where segment.house_id = p_house_id
-    and segment.id = p_segment_id;
+    and segment.id = p_segment_id
+  for update;
+  if v_employee_id is distinct from v_initial_employee_id then
+    raise exception 'Attendance segment ownership changed during mutation'
+      using errcode = '40001';
+  end if;
   if not found then
     raise exception 'Attendance segment was not found'
       using errcode = 'P0002';
