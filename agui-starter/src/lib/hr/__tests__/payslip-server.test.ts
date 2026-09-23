@@ -125,10 +125,14 @@ class InsertMock<T extends Record<string, unknown>> {
   }
 }
 
+type TestDtrSegmentRow = Omit<DtrSegmentRow, "canonical_fact_id"> & {
+  canonical_fact_id?: string | null;
+};
+
 type MockData = {
   runs: HrPayrollRunRow[];
   items: HrPayrollRunItemRow[];
-  segments: DtrSegmentRow[];
+  segments: TestDtrSegmentRow[];
   employees: EmployeeRow[];
   deductions: HrPayrollRunDeductionRow[];
   policies: HrPayPolicyRow[];
