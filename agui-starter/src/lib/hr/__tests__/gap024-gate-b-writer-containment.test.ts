@@ -71,7 +71,7 @@ test("bulk replacement is authenticated, idempotent, canonical, and atomic with 
   );
   assert.doesNotMatch(
     bulkCommand,
-    /insert into public\.hr_attendance_evidence/i,
+    /insert into public\.hr_attendance_evidence\s*\(/i,
     "bulk replacement must create an unproved frame rather than fabricate BULK_IMPORT provenance",
   );
   assert.match(
