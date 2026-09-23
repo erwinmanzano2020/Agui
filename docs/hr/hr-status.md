@@ -33,9 +33,12 @@ current system segments. Therefore planning explicitly forbids blanket kiosk att
 only a future exact-head durable-link proof may establish the qualifying subset; all
 others remain fail-closed/UNATTRIBUTED.
 
-The Agui Project Control Center is known stale at the start of this planning pass
-(still mirroring Gate A as next). It must be reconciled only after the technical planning
-artifact converges and hosted planning evidence is verified.
+The Agui Project Control Center was stale at the start of this planning pass
+(still mirroring Gate A as next). After the technical planning contract converged, the
+operational mirror was reconciled on 2026-09-23 to show Gate A released, PR #511 as the
+current planning artifact, Historical Daily DTR Write P1 still blocked on containment,
+and no Gate-B runtime authorization. Exact hosted head/check state remains tracked through
+the PR and Sync Map and must be reverified after every planning edit.
 
 
 ## 2026-09-23 — GAP-024 Gate-A controlled UAT checkpoint
