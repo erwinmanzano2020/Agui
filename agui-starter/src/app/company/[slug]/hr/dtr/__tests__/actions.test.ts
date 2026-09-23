@@ -19,6 +19,10 @@ function buildUpdateFormData(overrides: Record<string, string | undefined> = {})
   formData.set("houseId", overrides.houseId ?? HOUSE_ID);
   formData.set("houseSlug", overrides.houseSlug ?? HOUSE_SLUG);
   formData.set("segmentId", overrides.segmentId ?? "seg-1");
+  formData.set("operationId", overrides.operationId ?? "op-update-1");
+  if (overrides.expectedValueRevision !== undefined) {
+    formData.set("expectedValueRevision", overrides.expectedValueRevision);
+  }
   formData.set("workDate", overrides.workDate ?? "2024-10-01");
   formData.set("timeIn", overrides.timeIn ?? "08:00");
   if (overrides.timeOut !== undefined) {
@@ -32,6 +36,8 @@ function buildCreateFormData(overrides: Record<string, string | undefined> = {})
   formData.set("houseId", overrides.houseId ?? HOUSE_ID);
   formData.set("houseSlug", overrides.houseSlug ?? HOUSE_SLUG);
   formData.set("employeeId", overrides.employeeId ?? "emp-1");
+  formData.set("actualBranchId", overrides.actualBranchId ?? "branch-1");
+  formData.set("operationId", overrides.operationId ?? "op-create-1");
   formData.set("workDate", overrides.workDate ?? "2024-10-01");
   formData.set("timeIn", overrides.timeIn ?? "08:00");
   if (overrides.timeOut !== undefined) {
@@ -126,9 +132,7 @@ describe("DTR action boundary mapping", () => {
   });
 
   it("updateDtrSegmentAction returns unexpected error on unknown failure", async () => {
-    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
-      buildSupabaseUpdateMock({ data: null, error: { message: "boom" } }) as never,
-    );
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
     mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true, hasWorkspaceAccess: true } as never));
     mock.method(dtrSegmentsServer, "resolveDtrSegmentWriteTargetForHouseWithAccess", async () => ({
       id: "seg-1",
@@ -136,15 +140,16 @@ describe("DTR action boundary mapping", () => {
       employee_id: "emp-1",
       employee_branch_id: "branch-1",
     }));
+    mock.method(dtrSegmentsServer, "updateDtrSegmentCanonical", async () => {
+      throw new Error("boom");
+    });
     const result = await updateDtrSegmentAction(dtrMutationInitialState, buildUpdateFormData());
     assert.equal(result.status, "error");
     assert.equal(result.message, "Unable to save changes right now.");
   });
 
   it("updateDtrSegmentAction returns success for valid update path", async () => {
-    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
-      buildSupabaseUpdateMock({ data: { id: "seg-1" }, error: null }) as never,
-    );
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
     mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true, hasWorkspaceAccess: true } as never));
     mock.method(dtrSegmentsServer, "resolveDtrSegmentWriteTargetForHouseWithAccess", async () => ({
       id: "seg-1",
@@ -152,6 +157,7 @@ describe("DTR action boundary mapping", () => {
       employee_id: "emp-1",
       employee_branch_id: "branch-1",
     }));
+    mock.method(dtrSegmentsServer, "updateDtrSegmentCanonical", async () => {});
     const result = await updateDtrSegmentAction(dtrMutationInitialState, buildUpdateFormData());
 
     assert.equal(result.status, "success");
@@ -160,14 +166,7 @@ describe("DTR action boundary mapping", () => {
 
   it("updateDtrSegmentAction resolves the write target before mutating", async () => {
     const callOrder: string[] = [];
-    mock.method(supabaseServer, "createServerSupabaseClient", async () =>
-      buildSupabaseUpdateMock(
-        { data: { id: "seg-1" }, error: null },
-        () => {
-          callOrder.push("update-segment");
-        },
-      ) as never,
-    );
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
     mock.method(hrAccess, "requireHrAccessWithBranch", async () => ({ allowed: true, hasWorkspaceAccess: true } as never));
     mock.method(dtrSegmentsServer, "resolveDtrSegmentWriteTargetForHouseWithAccess", async () => {
       callOrder.push("resolve-target");
@@ -177,6 +176,9 @@ describe("DTR action boundary mapping", () => {
         employee_id: "emp-1",
         employee_branch_id: "branch-1",
       };
+    });
+    mock.method(dtrSegmentsServer, "updateDtrSegmentCanonical", async () => {
+      callOrder.push("update-segment");
     });
 
     await updateDtrSegmentAction(dtrMutationInitialState, buildUpdateFormData());
