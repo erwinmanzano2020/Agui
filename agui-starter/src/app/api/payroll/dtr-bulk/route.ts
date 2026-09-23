@@ -39,11 +39,6 @@ const saveSchema = z.object({
 
 type DayCell = ReturnType<(typeof dayCell)["parse"]>;
 
-type EntryUpsert = Pick<
-  Database["public"]["Tables"]["dtr_entries"]["Insert"],
-  "employee_id" | "work_date" | "time_in" | "time_out" | "company_id"
->;
-
 export function hasOnlyAccessibleEmployeeIds(
   requestedIds: string[],
   employeeBranchMap: ReadonlyMap<string, string | null>,
@@ -150,42 +145,6 @@ async function loadEmployeeBranchMap(
   return map;
 }
 
-async function detectSupportedColumns(
-  service: SupabaseClient<Database>,
-  table: string,
-  columns: string[],
-): Promise<Set<string>> {
-  const supported = new Set<string>();
-  await Promise.all(
-    columns.map(async (column) => {
-      const { error } = await service.from(table).select(column).limit(0);
-      if (!error) {
-        supported.add(column);
-      }
-    }),
-  );
-  return supported;
-}
-
-function applyContextColumns(
-  row: Record<string, unknown>,
-  supported: Set<string>,
-  context: { houseId: string; branchId: string | null },
-) {
-  if (supported.has("department_id")) {
-    row.department_id = context.branchId;
-  }
-  if (supported.has("branch_id")) {
-    row.branch_id = context.branchId;
-  }
-  if (supported.has("house_id")) {
-    row.house_id = context.houseId;
-  }
-  if (supported.has("company_id")) {
-    row.company_id = context.houseId;
-  }
-}
-
 export async function POST(req: NextRequest) {
   const guard = await requireAnyFeatureAccessApi([
     AppFeature.DTR_BULK,
@@ -264,13 +223,6 @@ export async function POST(req: NextRequest) {
   if (!branchIds.length) {
     return NextResponse.json({ error: "No accessible departments" }, { status: 403 });
   }
-
-  const entryColumns = await detectSupportedColumns(service, "dtr_entries", [
-    "department_id",
-    "branch_id",
-    "house_id",
-    "company_id",
-  ]);
 
   try {
     if ((body as { action?: string }).action === "load") {
@@ -425,7 +377,6 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
       }
 
-      const rows: EntryUpsert[] = [];
       for (const empId of allowedIds) {
         const perDay = payload.grid[empId] || {};
         for (const day of payload.days) {
@@ -436,26 +387,21 @@ export async function POST(req: NextRequest) {
             out2: "",
           };
           if ((cell.in1 && cell.in1.trim()) || (cell.out1 && cell.out1.trim())) {
-            const row: Record<string, unknown> = {
-              employee_id: empId,
-              work_date: day,
-              time_in: cell.in1 ? toISO(day, cell.in1) : null,
-              time_out: cell.out1 ? toISO(day, cell.out1) : null,
-            } satisfies Partial<EntryUpsert>;
-            applyContextColumns(row, entryColumns, {
-              houseId,
-              branchId: employeeMap.get(empId) ?? null,
-            });
-            rows.push(row as EntryUpsert);
+            const timeIn = cell.in1 ? toISO(day, cell.in1) : null;
+            const timeOut = cell.out1 ? toISO(day, cell.out1) : null;
+            const { error } = await supabase.rpc(
+              "hr_upsert_bulk_dtr_entry_summary",
+              {
+                p_house_id: houseId,
+                p_employee_id: empId,
+                p_work_date: day,
+                p_time_in: timeIn,
+                p_time_out: timeOut,
+              },
+            );
+            if (error) throw new Error(error.message);
           }
         }
-      }
-
-      if (rows.length) {
-        const { error } = await service
-          .from("dtr_entries")
-          .upsert(rows, { onConflict: "employee_id,work_date" });
-        if (error) throw error;
       }
 
       return NextResponse.json({ status: "ok" });
