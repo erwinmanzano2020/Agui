@@ -55,13 +55,21 @@ begin
 
   insert into public.hr_attendance_evidence_frames (
     house_id, fact_id, employee_id, evidence_basis_revision,
-    predecessor_revision, semantic_completion_mode, is_sealed, sealed_at
+    predecessor_revision, semantic_completion_mode, is_sealed
   )
   values (
     p_house_id, v_fact_id, v_segment.employee_id, 1, null,
     case when v_segment.time_out is null then 'OPEN' else 'COMPLETED' end,
-    true, now()
+    false
   );
+
+  update public.hr_attendance_evidence_frames
+  set is_sealed = true,
+      sealed_at = now()
+  where house_id = p_house_id
+    and fact_id = v_fact_id
+    and employee_id = v_segment.employee_id
+    and evidence_basis_revision = 1;
 
   update public.dtr_segments
   set canonical_fact_id = v_fact_id
@@ -303,12 +311,20 @@ begin
     -- Bulk without explicit actual-attendance provenance is deliberately UNATTRIBUTED.
     insert into public.hr_attendance_evidence_frames (
       house_id, fact_id, employee_id, evidence_basis_revision,
-      predecessor_revision, semantic_completion_mode, is_sealed, sealed_at
+      predecessor_revision, semantic_completion_mode, is_sealed
     )
     values (
       p_house_id, v_new_fact_id, p_employee_id, 1,
-      null, 'COMPLETED', true, now()
+      null, 'COMPLETED', false
     );
+
+    update public.hr_attendance_evidence_frames
+    set is_sealed = true,
+        sealed_at = now()
+    where house_id = p_house_id
+      and fact_id = v_new_fact_id
+      and employee_id = p_employee_id
+      and evidence_basis_revision = 1;
 
     update public.dtr_segments
     set canonical_fact_id = v_new_fact_id
