@@ -38,29 +38,49 @@ export function SubmitButtonView({
   pendingLabel,
   className,
   pending,
+  disabled = false,
 }: {
   label: string;
   pendingLabel: string;
   className: string;
   pending: boolean;
+  disabled?: boolean;
 }) {
   return (
-    <button type="submit" disabled={pending} className={className}>
+    <button type="submit" disabled={pending || disabled} className={className}>
       {pending ? pendingLabel : label}
     </button>
   );
 }
 
-function SubmitButton({ label, pendingLabel, className }: { label: string; pendingLabel: string; className: string }) {
+function SubmitButton({
+  label,
+  pendingLabel,
+  className,
+  disabled = false,
+}: {
+  label: string;
+  pendingLabel: string;
+  className: string;
+  disabled?: boolean;
+}) {
   const { pending } = useFormStatus();
-  return <SubmitButtonView label={label} pendingLabel={pendingLabel} className={className} pending={pending} />;
+  return (
+    <SubmitButtonView
+      label={label}
+      pendingLabel={pendingLabel}
+      className={className}
+      pending={pending}
+      disabled={disabled}
+    />
+  );
 }
 
 function formatTimeInput(value: string | null) {
   return formatManilaTimeForUi(value);
 }
 
-function OperationIdField({ resetOnSuccess }: { resetOnSuccess: boolean }) {
+function useOperationId(resetOnSuccess: boolean) {
   const [operationId, setOperationId] = useState("");
 
   useEffect(() => {
@@ -73,7 +93,7 @@ function OperationIdField({ resetOnSuccess }: { resetOnSuccess: boolean }) {
     }
   }, [resetOnSuccess]);
 
-  return <input type="hidden" name="operationId" value={operationId} readOnly />;
+  return operationId;
 }
 
 type BaseProps = {
@@ -95,6 +115,7 @@ export function UpdateDtrSegmentForm({
   canEdit: boolean;
 }) {
   const [state, formAction] = useFormState(updateDtrSegmentAction, dtrMutationInitialState);
+  const operationId = useOperationId(state.status === "success");
 
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-3">
@@ -107,7 +128,7 @@ export function UpdateDtrSegmentForm({
         name="expectedValueRevision"
         value={expectedValueRevision ?? ""}
       />
-      <OperationIdField resetOnSuccess={state.status === "success"} />
+      <input type="hidden" name="operationId" value={operationId} readOnly />
       <label className="flex flex-col text-xs text-muted-foreground">
         Time in
         <input
@@ -139,6 +160,7 @@ export function UpdateDtrSegmentForm({
           label="Save"
           pendingLabel="Saving…"
           className="rounded-md border border-border px-3 py-1 text-xs font-medium text-foreground"
+          disabled={!operationId}
         />
       ) : (
         <span className="text-xs text-muted-foreground">Read only</span>
@@ -156,13 +178,14 @@ export function CreateDtrSegmentForm({
   branches,
 }: BaseProps & { employeeId: string; branches: BranchListItem[] }) {
   const [state, formAction] = useFormState(createDtrSegmentAction, dtrMutationInitialState);
+  const operationId = useOperationId(state.status === "success");
   return (
     <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3">
       <input type="hidden" name="houseId" value={houseId} />
       <input type="hidden" name="houseSlug" value={houseSlug} />
       <input type="hidden" name="employeeId" value={employeeId} />
       <input type="hidden" name="workDate" value={workDate} />
-      <OperationIdField resetOnSuccess={state.status === "success"} />
+      <input type="hidden" name="operationId" value={operationId} readOnly />
       <label className="flex flex-col text-xs text-muted-foreground">
         Attendance occurred at
         <select
@@ -206,6 +229,7 @@ export function CreateDtrSegmentForm({
         label="Add segment"
         pendingLabel="Adding…"
         className="rounded-md border border-border bg-foreground px-4 py-2 text-xs font-semibold text-background disabled:opacity-60"
+        disabled={!operationId}
       />
       <MutationMessage status={state.status} message={state.message} formError={state.fieldErrors.form} />
     </form>
