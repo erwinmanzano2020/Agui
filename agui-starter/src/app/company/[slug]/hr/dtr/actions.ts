@@ -8,6 +8,7 @@ import {
   DtrSegmentAccessError,
   resolveDtrEmployeeWriteTargetForHouseWithAccess,
   resolveDtrSegmentWriteTargetForHouseWithAccess,
+  updateDtrSegmentCanonical,
 } from "@/lib/hr/dtr-segments-server";
 import { assertManilaReasonableSegment, toManilaTimestamptz } from "@/lib/hr/timezone";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
@@ -21,6 +22,8 @@ const CreateSchema = z.object({
   houseId: z.string().trim().min(1, "Missing house context"),
   houseSlug: z.string().trim().min(1, "Missing workspace context"),
   employeeId: z.string().trim().min(1, "Missing employee"),
+  actualBranchId: z.string().trim().min(1, "Select the branch where attendance occurred"),
+  operationId: z.string().trim().min(1, "Missing operation identity"),
   workDate: z.string().regex(DATE_REGEX, "Invalid work date"),
   timeIn: z.string().regex(TIME_REGEX, "Invalid time in"),
   timeOut: z.string().regex(TIME_REGEX, "Invalid time out").optional(),
@@ -30,13 +33,23 @@ const UpdateSchema = z.object({
   houseId: z.string().trim().min(1, "Missing house context"),
   houseSlug: z.string().trim().min(1, "Missing workspace context"),
   segmentId: z.string().trim().min(1, "Missing segment"),
+  operationId: z.string().trim().min(1, "Missing operation identity"),
+  expectedValueRevision: z.string().regex(/^\d+$/, "Invalid revision token").optional(),
   workDate: z.string().regex(DATE_REGEX, "Invalid work date"),
   timeIn: z.string().regex(TIME_REGEX, "Invalid time in"),
   timeOut: z.string().regex(TIME_REGEX, "Invalid time out").optional(),
 });
 
 const VALIDATION_ERROR_MESSAGE = "Fix the highlighted fields and try again.";
-const HIDDEN_CONTEXT_FIELDS = new Set(["houseId", "houseSlug", "employeeId", "segmentId", "workDate"]);
+const HIDDEN_CONTEXT_FIELDS = new Set([
+  "houseId",
+  "houseSlug",
+  "employeeId",
+  "segmentId",
+  "operationId",
+  "expectedValueRevision",
+  "workDate",
+]);
 const HIDDEN_CONTEXT_MESSAGE_HINTS = [
   "Missing house context",
   "Missing workspace context",
@@ -94,6 +107,8 @@ export async function createDtrSegmentAction(
     houseId: formData.get("houseId"),
     houseSlug: formData.get("houseSlug"),
     employeeId: formData.get("employeeId"),
+    actualBranchId: formData.get("actualBranchId"),
+    operationId: formData.get("operationId"),
     workDate: formData.get("workDate"),
     timeIn: formData.get("timeIn"),
     timeOut: formData.get("timeOut") || undefined,
@@ -160,9 +175,18 @@ export async function createDtrSegmentAction(
       return NOT_FOUND_RESPONSE;
     }
 
+    if (
+      access.isBranchLimited &&
+      !access.allowedBranchIds.includes(parsed.data.actualBranchId.toLowerCase())
+    ) {
+      return FORBIDDEN_RESPONSE;
+    }
+
     await createDtrSegment(supabase, {
       houseId: parsed.data.houseId,
       employeeId: target.id,
+      actualBranchId: parsed.data.actualBranchId,
+      operationId: parsed.data.operationId,
       workDate: parsed.data.workDate,
       timeIn,
       timeOut,
@@ -189,6 +213,8 @@ export async function updateDtrSegmentAction(
     houseId: formData.get("houseId"),
     houseSlug: formData.get("houseSlug"),
     segmentId: formData.get("segmentId"),
+    operationId: formData.get("operationId"),
+    expectedValueRevision: formData.get("expectedValueRevision") || undefined,
     workDate: formData.get("workDate"),
     timeIn: formData.get("timeIn"),
     timeOut: formData.get("timeOut") || undefined,
@@ -256,26 +282,25 @@ export async function updateDtrSegmentAction(
       return NOT_FOUND_RESPONSE;
     }
 
-    const { data, error } = await supabase
-      .from("dtr_segments")
-      .update({
-        time_in: timeIn,
-        time_out: timeOut,
-        status: timeOut ? "closed" : "open",
-      })
-      .eq("id", target.id)
-      .eq("house_id", target.house_id)
-      .select("id")
-      .maybeSingle<{ id: string }>();
-
-    if (error) {
-      throw new Error(error.message);
-    }
-    if (!data) {
-      return NOT_FOUND_RESPONSE;
-    }
+    await updateDtrSegmentCanonical(supabase, {
+      houseId: target.house_id,
+      segmentId: target.id,
+      operationId: parsed.data.operationId,
+      timeIn,
+      timeOut,
+      expectedValueRevision: parsed.data.expectedValueRevision
+        ? Number(parsed.data.expectedValueRevision)
+        : null,
+    });
   } catch (error) {
     if (error instanceof DtrSegmentAccessError) {
+      if (/changed|refresh/i.test(error.message)) {
+        return {
+          status: "error",
+          message: error.message,
+          fieldErrors: {},
+        } satisfies DtrMutationState;
+      }
       return FORBIDDEN_RESPONSE;
     }
     console.error("Failed to update DTR segment", error);
