@@ -1,5 +1,41 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-23 — GAP-024 Gate-A controlled UAT checkpoint
+
+**Status: CONTROLLED UAT PASS; exact-head release re-check follows this documentation
+sync before owner release approval.**
+
+Gate A requires no human/device or real-operation UAT because the approved slice changes
+only attendance authority/projection/read-boundary foundations and intentionally leaves
+all normal Production consumers uncut-over. Automated/remote UAT on release candidate
+`2335e1e0c330e5292df10780a96086188781b068` passed:
+
+- Preflight #777: dependency install, lint, typecheck, build, compiled Node tests;
+- exact-head Vercel Preview `dpl_2uM7hCVcHPwtmYL1D4tYbhjBVDx9`: READY;
+- protected Preview root: HTTP 200;
+- checked Preview runtime logs: no warning/error/fatal entries;
+- full PR scope: no Production consumer path and no feature-flag/env-toggle change;
+- restored Supabase: ACTIVE_HEALTHY, Gate-A facts/projection RLS enabled, four checked
+  Gate-A functions present;
+- source-of-truth counts: zero Gate-A facts, zero current projections, zero
+  authorization-history rows;
+- backend migration history: the first ten Gate-A migrations are present, while the
+  final membership-frame lock-order migration remains intentionally unapplied;
+- read-only live function inspection confirms the restored backend is still on the
+  expected pre-release membership guard and therefore has not silently received the
+  owner-gated final correction.
+
+No UAT fixture, real attendance/payroll/customer/employee transaction, temporary flag,
+test account, or backend write was created, so cleanup is complete with nothing to
+delete. Production/backend state was not changed during this controlled UAT.
+
+After explicit owner release approval, the controlled sequence is: re-fetch exact state,
+squash-merge PR #510, avoid linked `db push` because of the known migration-history
+baseline drift, apply only the still-unapplied final membership-frame lock-order
+correction through the controlled migration path, then verify backend function order and
+Production deployment/runtime health. Gate B and all consumer cutover/backfill/raw-access
+revocation remain unauthorized.
+
 ## 2026-09-23 — GAP-024 Gate-A runtime convergence checkpoint
 
 **Status: PR #510 runtime implementation converged; ready for the controlled UAT /
