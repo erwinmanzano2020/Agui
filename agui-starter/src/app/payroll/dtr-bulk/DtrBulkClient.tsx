@@ -470,6 +470,22 @@ export default function DtrBulkClient() {
           employeeIds: scopedEmployees.map((e) => e.id),
           days,
           grid,
+          operationIds: Object.fromEntries(
+            scopedEmployees.flatMap((employee) =>
+              days.map((day) => {
+                const cell = grid[employee.id]?.[day] ?? {
+                  in1: "",
+                  out1: "",
+                  in2: "",
+                  out2: "",
+                };
+                return [
+                  `${employee.id}:${day}`,
+                  operationIdFor(employee.id, day, cell),
+                ];
+              }),
+            ),
+          ),
         }),
       });
       const payload = await response.json();
@@ -477,6 +493,7 @@ export default function DtrBulkClient() {
         throw new Error(payload?.error || response.statusText);
       }
 
+      saveOperationIdsRef.current.clear();
       setToast({ kind: "success", msg: "Saved!" });
     } catch (error: unknown) {
       const message = formatError(error);
@@ -592,6 +609,20 @@ export default function DtrBulkClient() {
           employeeIds: Array.from(new Set(payload.map((p) => p.employee_id))),
           days: Array.from(new Set(payload.map((p) => p.work_date))).sort(),
           grid: gridPayload,
+          operationIds: Object.fromEntries(
+            payload.map((row) => {
+              const cell = gridPayload[row.employee_id]?.[row.work_date] ?? {
+                in1: "",
+                out1: "",
+                in2: "",
+                out2: "",
+              };
+              return [
+                `${row.employee_id}:${row.work_date}`,
+                operationIdFor(row.employee_id, row.work_date, cell),
+              ];
+            }),
+          ),
         }),
       });
       const resPayload = await response.json();
@@ -599,6 +630,7 @@ export default function DtrBulkClient() {
         throw new Error(resPayload?.error || response.statusText);
       }
 
+      saveOperationIdsRef.current.clear();
       setToast({ kind: "success", msg: `Imported ${payload.length} rows` });
 
       // Reload current scope after import
