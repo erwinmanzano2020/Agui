@@ -34,22 +34,11 @@ const saveSchema = z.object({
   employeeId: z.string().optional(),
   employeeIds: z.string().array().optional(),
   grid: z.record(z.record(dayCell)).default({}),
+  operationIds: z.record(z.string()).default({}),
 });
 
 type DayCell = ReturnType<(typeof dayCell)["parse"]>;
 
-type SegmentInsert = Pick<
-  Database["public"]["Tables"]["dtr_segments"]["Insert"],
-  | "employee_id"
-  | "house_id"
-  | "work_date"
-  | "time_in"
-  | "time_out"
-  | "source"
-  | "status"
-  | "overtime_minutes"
-  | "hours_worked"
->;
 type EntryUpsert = Pick<
   Database["public"]["Tables"]["dtr_entries"]["Insert"],
   "employee_id" | "work_date" | "time_in" | "time_out" | "company_id"
@@ -276,19 +265,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No accessible departments" }, { status: 403 });
   }
 
-  const [segmentColumns, entryColumns] = await Promise.all([
-    detectSupportedColumns(service, "dtr_segments", [
-      "department_id",
-      "branch_id",
-      "house_id",
-      "company_id",
-    ]),
-    detectSupportedColumns(service, "dtr_entries", [
-      "department_id",
-      "branch_id",
-      "house_id",
-      "company_id",
-    ]),
+  const entryColumns = await detectSupportedColumns(service, "dtr_entries", [
+    "department_id",
+    "branch_id",
+    "house_id",
+    "company_id",
   ]);
 
   try {
@@ -364,18 +345,15 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        let branchId: string | null = null;
         try {
           const map = await loadEmployeeBranchMap(service, [employeeId], houseId, branchIds);
           if (!hasOnlyAccessibleEmployeeIds([employeeId], map, { allowUnassigned: !access.isBranchLimited })) {
             return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
           }
-          branchId = map.get(employeeId) ?? null;
         } catch (error) {
           console.error("[/api/payroll/dtr-bulk] failed to verify employee for save", error);
           return NextResponse.json({ error: "Failed to resolve employee" }, { status: 500 });
         }
-
 
         const perDay = payload.grid[employeeId] ?? {};
         for (const day of payload.days) {
@@ -385,87 +363,45 @@ export async function POST(req: NextRequest) {
             in2: "",
             out2: "",
           };
-
-        const del = await service
-          .from("dtr_segments")
-          .delete()
-          .eq("employee_id", employeeId)
-          .eq("work_date", day);
-          if (del.error) throw del.error;
-
-          const inserts: Array<SegmentInsert> = [];
-          if (cell.in1 && cell.out1) {
-            const s = toISO(day, cell.in1);
-            const e1 = toISO(day, cell.out1);
-            if (s && e1) {
-              const validation = assertManilaReasonableSegment(s, e1, day);
-              if (!validation.ok) {
-                throw new Error(
-                  `Invalid segment ${day} (in1/out1): ${validation.reasons.join(", ")}`,
-                );
-              }
-              const row: Record<string, unknown> = {
-                employee_id: employeeId,
-                house_id: houseId,
-                work_date: day,
-                time_in: s,
-                time_out: e1,
-                source: "manual",
-                status: "open",
-                overtime_minutes: 0,
-              };
-              applyContextColumns(row, segmentColumns, { houseId, branchId });
-              inserts.push(row as SegmentInsert);
-            }
-          }
-          if (cell.in2 && cell.out2) {
-            const s = toISO(day, cell.in2);
-            const e2 = toISO(day, cell.out2);
-            if (s && e2) {
-              const validation = assertManilaReasonableSegment(s, e2, day);
-              if (!validation.ok) {
-                throw new Error(
-                  `Invalid segment ${day} (in2/out2): ${validation.reasons.join(", ")}`,
-                );
-              }
-              const row: Record<string, unknown> = {
-                employee_id: employeeId,
-                house_id: houseId,
-                work_date: day,
-                time_in: s,
-                time_out: e2,
-                source: "manual",
-                status: "open",
-                overtime_minutes: 0,
-              };
-              applyContextColumns(row, segmentColumns, { houseId, branchId });
-              inserts.push(row as SegmentInsert);
-            }
-          }
-
-          if (inserts.length) {
-            const { error } = await service.from("dtr_segments").insert(inserts);
-            if (error) throw error;
-          }
-
-          const firstIn = inserts.length ? inserts[0].time_in : null;
-          const lastOut = inserts.length ? inserts[inserts.length - 1].time_out : null;
-          const { error: upErr } = await service
-            .from("dtr_entries")
-            .upsert(
-              (() => {
-                const row: Record<string, unknown> = {
-                  employee_id: employeeId,
-                  work_date: day,
-                  time_in: firstIn,
-                  time_out: lastOut,
-                } satisfies Partial<EntryUpsert>;
-                applyContextColumns(row, entryColumns, { houseId, branchId });
-                return row as EntryUpsert;
-              })(),
-              { onConflict: "employee_id,work_date" },
+          const operationId = payload.operationIds[day];
+          if (!operationId) {
+            return NextResponse.json(
+              { error: `Missing stable operation identity for ${day}` },
+              { status: 400 },
             );
-          if (upErr) throw upErr;
+          }
+
+          const segments: Array<{ timeIn: string; timeOut: string }> = [];
+          for (const [label, rawIn, rawOut] of [
+            ["in1/out1", cell.in1, cell.out1],
+            ["in2/out2", cell.in2, cell.out2],
+          ] as const) {
+            if (!rawIn || !rawOut) continue;
+            const timeIn = toISO(day, rawIn);
+            const timeOut = toISO(day, rawOut);
+            if (!timeIn || !timeOut) {
+              throw new Error(`Invalid segment ${day} (${label})`);
+            }
+            const validation = assertManilaReasonableSegment(timeIn, timeOut, day);
+            if (!validation.ok) {
+              throw new Error(
+                `Invalid segment ${day} (${label}): ${validation.reasons.join(", ")}`,
+              );
+            }
+            segments.push({ timeIn, timeOut });
+          }
+
+          const { error: commandError } = await supabase.rpc(
+            "hr_replace_bulk_attendance_day",
+            {
+              p_house_id: houseId,
+              p_employee_id: employeeId,
+              p_work_date: day,
+              p_operation_id: operationId,
+              p_segments: segments,
+            },
+          );
+          if (commandError) throw new Error(commandError.message);
         }
 
         return NextResponse.json({ status: "ok" });
