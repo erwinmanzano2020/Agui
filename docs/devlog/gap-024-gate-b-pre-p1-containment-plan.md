@@ -1162,3 +1162,14 @@ be acquired in deterministic sorted order.
 states that explicit attendance branch is provenance only: branch-limited actors remain
 bounded by their authoritative allowed set plus existing target checks; house-wide actors
 remain bounded by House authority.
+
+
+### Round 9 — governance reconciliation correction
+
+**P2 — repository status still described the Control Center as stale after the mirror had
+already been reconciled.** The planning workflow intentionally delayed Project Control
+updates until the technical contract converged, but the subsequent mirror write made the
+earlier "known stale / must be reconciled" sentence false. The HR status is corrected to
+record the completed planning-state synchronization while keeping exact hosted-head/check
+facts in PR/Sync Map evidence. The Dashboard next-action row and PR-queue sequence are
+also corrected so the operational mirror and repository describe the same current gate.
