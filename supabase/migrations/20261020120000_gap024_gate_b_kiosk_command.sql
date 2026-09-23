@@ -866,6 +866,16 @@ begin
       using errcode = '42501';
   end if;
 
+  perform 1
+  from public.employees employee
+  where employee.house_id = p_house_id
+    and employee.id = p_employee_id
+  for key share;
+  if not found then
+    raise exception 'Kiosk attendance requires an employee in the device House'
+      using errcode = '23503';
+  end if;
+
   v_fingerprint := md5(jsonb_build_array(
     'KIOSK_SCAN',
     p_house_id,
