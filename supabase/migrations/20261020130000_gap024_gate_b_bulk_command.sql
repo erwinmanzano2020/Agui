@@ -381,6 +381,71 @@ begin
 end
 $function$;
 
+create or replace function public.hr_upsert_bulk_dtr_entry_summary(
+  p_house_id uuid,
+  p_employee_id uuid,
+  p_work_date date,
+  p_time_in timestamptz,
+  p_time_out timestamptz
+)
+returns void
+language plpgsql
+security definer
+set search_path = pg_catalog, public
+as $function$
+declare
+  v_entity_id uuid;
+  v_employee_branch_id uuid;
+begin
+  v_entity_id := public.current_entity_id();
+  if v_entity_id is null then
+    raise exception 'Authentication required'
+      using errcode = '42501';
+  end if;
+
+  select employee.branch_id
+  into v_employee_branch_id
+  from public.employees employee
+  where employee.house_id = p_house_id
+    and employee.id = p_employee_id
+  for key share;
+  if not found then
+    raise exception 'DTR summary requires an employee in the requested House'
+      using errcode = '23503';
+  end if;
+
+  if not public.hr_attendance_actor_has_broad_write(p_house_id, v_entity_id) then
+    if v_employee_branch_id is null
+      or not public.hr_attendance_actor_can_write_branch(
+        p_house_id,
+        v_entity_id,
+        v_employee_branch_id
+      ) then
+      raise exception 'DTR summary target is outside caller write scope'
+        using errcode = '42501';
+    end if;
+  end if;
+
+  insert into public.dtr_entries (
+    employee_id, work_date, time_in, time_out
+  )
+  values (
+    p_employee_id, p_work_date, p_time_in, p_time_out
+  )
+  on conflict (employee_id, work_date)
+  do update set
+    time_in = excluded.time_in,
+    time_out = excluded.time_out;
+end
+$function$;
+
+revoke all on function public.hr_upsert_bulk_dtr_entry_summary(
+  uuid, uuid, date, timestamptz, timestamptz
+) from public, anon, authenticated, service_role;
+grant execute on function public.hr_upsert_bulk_dtr_entry_summary(
+  uuid, uuid, date, timestamptz, timestamptz
+) to authenticated;
+
 revoke all on function public.hr_attendance_bootstrap_unattributed_segment(uuid, uuid)
   from public, anon, authenticated, service_role;
 revoke all on function public.hr_replace_bulk_attendance_day(
