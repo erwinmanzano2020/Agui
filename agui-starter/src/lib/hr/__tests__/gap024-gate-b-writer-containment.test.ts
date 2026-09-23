@@ -34,7 +34,18 @@ const repairScript = repoFile(
   "agui-starter/scripts/fix-dtr-timezone.ts",
 );
 
+function sqlFunction(sql: string, functionName: string) {
+  const start = sql.toLowerCase().indexOf(
+    `create or replace function public.${functionName.toLowerCase()}`,
+  );
+  assert.ok(start >= 0, `Missing SQL function: ${functionName}`);
+  const end = sql.indexOf("$function$;", start);
+  assert.ok(end > start, `Missing SQL terminator for: ${functionName}`);
+  return sql.slice(start, end + "$function$;".length);
+}
+
 test("bulk replacement is authenticated, idempotent, canonical, and atomic with dtr_entries", () => {
+  const bulkCommand = sqlFunction(bulkSql, "hr_replace_bulk_attendance_day");
   assert.match(
     bulkSql,
     /create or replace function public\.hr_replace_bulk_attendance_day[\s\S]*security definer/i,
@@ -59,8 +70,9 @@ test("bulk replacement is authenticated, idempotent, canonical, and atomic with 
     /insert into public\.hr_attendance_evidence_frames[\s\S]*'COMPLETED'[\s\S]*true/i,
   );
   assert.doesNotMatch(
-    bulkSql,
-    /insert into public\.hr_attendance_evidence[\s\S]*BULK_IMPORT/i,
+    bulkCommand,
+    /insert into public\.hr_attendance_evidence/i,
+    "bulk replacement must create an unproved frame rather than fabricate BULK_IMPORT provenance",
   );
   assert.match(
     bulkSql,
