@@ -134,12 +134,19 @@ begin
       using errcode = '22023';
   end if;
 
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'gap024.attendance_mutation:' || p_house_id::text || ':' || p_employee_id::text,
+      0
+    )
+  );
+
   select employee.branch_id
   into v_employee_branch_id
   from public.employees employee
   where employee.house_id = p_house_id
     and employee.id = p_employee_id
-  for key share;
+  for share;
   if not found then
     raise exception 'Attendance mutation requires an employee in the requested House'
       using errcode = '23503';
@@ -186,13 +193,6 @@ begin
         using errcode = '42501';
     end if;
   end if;
-
-  perform pg_catalog.pg_advisory_xact_lock(
-    pg_catalog.hashtextextended(
-      'gap024.attendance_mutation:' || p_house_id::text || ':' || p_employee_id::text,
-      0
-    )
-  );
 
   v_fingerprint := md5(jsonb_build_array(
     'BULK_REPLACE_DAY',
