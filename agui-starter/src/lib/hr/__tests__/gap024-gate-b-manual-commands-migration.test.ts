@@ -73,13 +73,13 @@ test("legacy manual update classifies revision 1 before advancing revision 2", (
     "create or replace function public.hr_create_manual_attendance",
   );
   const legacyStart = engine.indexOf("if v_segment.canonical_fact_id is null then");
-  const revisionInsert = engine.indexOf(
-    "insert into public.hr_attendance_fact_revisions",
-    legacyStart + 1,
-  );
   const initialRebuild = engine.indexOf(
     "perform public.hr_rebuild_attendance_authorization_projection(p_house_id);",
     legacyStart,
+  );
+  const revisionInsert = engine.indexOf(
+    "insert into public.hr_attendance_fact_revisions",
+    initialRebuild + 1,
   );
   const pointerUpdate = engine.indexOf(
     "set current_value_revision = v_next_revision",
