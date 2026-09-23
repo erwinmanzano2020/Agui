@@ -127,15 +127,20 @@ head. Current confirmed writers are:
 
 These browser paths are bypass-capable while `authenticated` retains raw DML.
 
-### C. service_role bulk writer
+### C. authenticated API that escalates to service_role for bulk writes
 
 5. `agui-starter/src/app/api/payroll/dtr-bulk/route.ts`
-   - service-role client;
+   - authenticates a real user with `createServerSupabaseClient()`;
+   - resolves entity, House, feature access, and HR branch access;
+   - then escalates data reads/writes through `service_role`;
    - destructive delete + insert replacement;
    - also writes `dtr_entries`.
 
-Because `service_role` bypasses RLS, application-side checks alone cannot satisfy
-DEC-017 containment.
+Gate-B must remove the attendance-write escalation: after authorization, the route invokes
+the authenticated bulk command through the caller session. A SECURITY DEFINER wrapper may
+perform the required atomic database work while retaining `current_entity_id()` /
+requested-House authorization. The generic service credential must no longer be the bulk
+attendance mutation principal.
 
 ### D. service_role kiosk / offline replay
 
@@ -200,20 +205,27 @@ Planning internal name:
 
 The internal engine is **not granted directly to browser/application roles**. Public
 entrypoints are producer/caller-specific so a caller cannot gain authority merely by
-passing `lane='KIOSK'`, `lane='BULK_IMPORT'`, or another producer label. At minimum,
-the runtime design must separate:
+passing `lane='KIOSK'`, `lane='BULK_IMPORT'`, or another producer label. At minimum, the runtime design must separate:
 
-- authenticated HR/manual command entry;
-- kiosk/device command entry;
-- bulk/import command entry;
-- audited maintenance/repair entry.
+- authenticated HR/manual command entry — EXECUTE granted to `authenticated`;
+- authenticated bulk/import command entry — EXECUTE granted to `authenticated`;
+- kiosk/device command entry — EXECUTE granted to `service_role` only because the
+  existing kiosk API is service-backed;
+- audited maintenance/repair entry — not granted to normal application roles; callable
+  only through the approved administrative/break-glass maintenance boundary.
+
+The private canonical engine and private helpers have EXECUTE revoked from
+`PUBLIC`, `anon`, `authenticated`, and `service_role`; only the database owner
+and the narrowly granted wrappers may reach them through definer execution.
 
 Equivalent strongly typed wrappers are acceptable if they share one canonical internal
 mutation engine and do not duplicate canonical business logic.
 
 Each callable function must be migration-backed, `SECURITY DEFINER` where elevation is
-required, use a fixed safe `search_path`, enforce House tenancy, and expose only its
-approved producer contract. Raw canonical tables remain deny-direct.
+required, use a fixed safe `search_path`, enforce House tenancy, derive caller identity
+from the appropriate trusted context, and expose only its approved producer contract.
+Every migration must explicitly REVOKE default/public function EXECUTE before granting the
+intended role. Raw canonical tables remain deny-direct.
 
 ### 7.2 Command input contract
 
@@ -413,13 +425,16 @@ No client-side secret or service-role token may be introduced.
 
 ### 9.4 DTR Bulk browser + service API — must be contained before P1
 
-The two bulk implementations must converge on one server-authoritative command-backed
-write path.
+The two bulk implementations must converge on one **authenticated,
+server-authoritative** command-backed write path. The API already has an authenticated
+user session before it obtains a service client, so the future attendance write must use
+the authenticated RPC wrapper rather than `service_role`.
 
 Requirements:
 
 - browser direct delete/insert is removed or made unreachable;
-- service-role API no longer directly delete/inserts overlapping `dtr_segments`;
+- API no longer uses `service_role` for attendance mutation and no longer directly
+  delete/inserts overlapping `dtr_segments`;
 - per result, use deterministic operation identity; the request/batch authorization
   reference is not assumed to identify one attendance fact. The initiating browser/server
   flow must create stable per-save/per-result operation IDs **before** the mutation call
@@ -538,20 +553,44 @@ Only after **all** authenticated write paths have migrated/retired:
 
 `service_role` bypasses RLS, so RLS is not containment.
 
+After this slice, `service_role` must **not** remain a generic attendance mutation
+principal. Its only approved attendance mutation use is the kiosk wrapper because the
+existing kiosk API is device-token/service backed. Bulk moves to the authenticated
+wrapper; manual is authenticated; repair is administrative/break-glass.
+
 The implementation must:
 
-- migrate kiosk and bulk writers to producer-specific command wrappers;
+- migrate kiosk to the kiosk-specific command wrapper;
+- move bulk attendance mutation off service_role to the authenticated bulk wrapper;
 - retire raw repair writes;
-- prove repository search contains no remaining overlapping service-role raw DML;
+- prove repository search contains no remaining overlapping service-role raw
+  `dtr_segments` DML;
 - revoke raw mutation-capable `dtr_segments` privileges from the application
-  `service_role` where the platform permits it, including `TRUNCATE`, while retaining
-  only privileges still required by verified read/maintenance contracts.
+  `service_role`, including `INSERT`, `UPDATE`, `DELETE`, and `TRUNCATE`, while
+  retaining only verified read privileges if still required.
 
-A shared `service_role` credential is not itself a producer identity. Established kiosk
-provenance must be anchored to a verified kiosk device/source observation contract, and
-bulk/manual provenance must satisfy their own durable authorization contract. A generic
-service-role caller may not manufacture established branch evidence simply by selecting
-a producer lane.
+A shared `service_role` credential is trusted infrastructure transport, **not end-user
+business identity**. The database cannot reconstruct the kiosk token's application-side
+peppered hash verification from the JWT alone without duplicating a server secret, so
+this plan does not invent a second token authority in PostgreSQL.
+
+Instead the kiosk wrapper must:
+
+- be executable only by `service_role`;
+- require the server-verified device ID plus House/branch context;
+- re-read `hr_kiosk_devices` and require that device to be active and match the supplied
+  House + branch;
+- require stable operation/source identity and original occurrence time;
+- enforce same-House employee/fact linkage;
+- create canonical observation/evidence itself from that verified device context;
+- never treat a caller-supplied lane or branch as established merely because
+  `service_role` supplied it.
+
+The existing API continues to verify the plaintext kiosk token/pepper before invoking the
+wrapper. A stolen service-role credential remains a high-privilege infrastructure
+incident; this slice removes its **raw attendance bypass** and forces any attendance write
+through canonical invariants, but does not claim to cryptographically distinguish
+multiple application routes that share the same database role.
 
 Important PostgreSQL/Supabase limitation: database superuser/owner authority cannot be
 made non-bypassable through ordinary grants/RLS. DEC-017's operational-principal proof
@@ -574,8 +613,10 @@ for final broad raw/base-access security cutover.
   provenance as already mandated by GAP-025; this is provenance input, not authorization
   derived from current employee assignment.
 - Kiosk authorization remains device-token + House + branch device authority.
-- `service_role` alone never authorizes a business mutation; command input must carry and
-  validate the producer's approved authority/provenance context.
+- `service_role` is not end-user business identity. Kiosk token/device authentication
+  remains server-authoritative; the kiosk DB wrapper independently cross-checks the
+  active device House/branch and enforces canonical mutation invariants. Bulk/manual use
+  authenticated wrappers instead of service-role attendance mutation.
 - No identity lookup/merge/normalization semantics change.
 - No shared-device staff session behavior is introduced in this slice.
 
@@ -649,8 +690,11 @@ No product redesign is authorized.
 - Authenticated user writes terminate at a server action/route that invokes the canonical
   DB command under the caller's authenticated identity or an explicitly bounded secure
   adapter.
-- Kiosk/service routes may use service-role transport only after device/request authority
-  has been verified; actual attendance mutation occurs through the database command.
+- Kiosk routes may use service-role transport only after device-token authority has been
+  verified; actual attendance mutation occurs through the kiosk-specific database
+  wrapper, which revalidates active device/House/branch context.
+- Bulk routes must use the authenticated caller wrapper for attendance mutation even if a
+  service client remains necessary for separately audited read-only compatibility work.
 - No service-role secret reaches the client.
 
 ## 18. Data / persistence classification
@@ -763,7 +807,8 @@ The implementation must be ordered to avoid breaking live writers:
 4. migrate kiosk to command and verify;
 5. migrate authenticated manual paths and verify;
 6. migrate/retire browser direct writers;
-7. migrate bulk service path and verify;
+7. migrate bulk to the authenticated command path and verify service-role attendance
+   write escalation is removed;
 8. migrate/retire repair writer;
 9. prove repository/database no-bypass matrix;
 10. revoke authenticated raw DML;
@@ -810,7 +855,8 @@ The future runtime slice is complete only when:
    database-enforced as disjoint;
 3. browser direct attendance DML is gone;
 4. authenticated raw DML over protected `dtr_segments` state is revoked;
-5. kiosk and bulk service-role flows cannot bypass canonical fact/evidence/projection;
+5. kiosk service-role flow cannot bypass canonical fact/evidence/projection, and bulk is
+   no longer a service-role attendance mutator;
 6. raw repair mutation is retired;
 7. only the DEC-019-compliant kiosk bootstrap subset is established; all other kiosk
    legacy state remains fail-closed/UNATTRIBUTED;
@@ -964,3 +1010,20 @@ per retry is explicitly not idempotent.
 `clientId` and offline `clientEventId` (forwarded as `clientId`) as one versioned
 logical scan identity family, while requiring a new namespace for a future materially
 different producer.
+
+
+### Round 4 — material corrections
+
+**P1 — shared service_role trust was overstated.** A PostgreSQL `service_role` JWT does
+not identify which Next.js route performed application-side business authentication. The
+plan previously implied producer wrappers could fully solve that distinction in-database.
+The revised plan moves bulk attendance writes back to the already authenticated caller
+wrapper, keeps manual authenticated, reserves service_role attendance mutation for kiosk
+only, and makes repair admin-only. The kiosk wrapper cross-checks active device
+House/branch and canonical source identity while the existing server retains token/pepper
+verification. This removes the raw service-role bypass without inventing a second token
+authority or falsely claiming a compromised service credential is harmless.
+
+**P2 — function EXECUTE defaults were underspecified.** The plan now requires explicit
+REVOKE from PUBLIC/anon/authenticated/service_role on the private engine/helpers before
+role-specific wrapper grants.
