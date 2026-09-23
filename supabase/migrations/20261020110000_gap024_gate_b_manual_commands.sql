@@ -334,7 +334,7 @@ begin
   from public.employees employee
   where employee.house_id = p_house_id
     and employee.id = p_employee_id
-  for key share;
+  for share;
   if not found then
     raise exception 'Attendance mutation requires an employee in the requested House'
       using errcode = '23503';
@@ -673,6 +673,13 @@ begin
       using errcode = '42501';
   end if;
 
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'gap024.attendance_mutation:' || p_house_id::text || ':' || p_employee_id::text,
+      0
+    )
+  );
+
   if not public.hr_attendance_actor_can_write_branch(
     p_house_id,
     v_entity_id,
@@ -770,6 +777,23 @@ begin
     raise exception 'Authentication required'
       using errcode = '42501';
   end if;
+
+  select segment.employee_id
+  into v_employee_id
+  from public.dtr_segments segment
+  where segment.house_id = p_house_id
+    and segment.id = p_segment_id;
+  if not found then
+    raise exception 'Attendance segment was not found'
+      using errcode = 'P0002';
+  end if;
+
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'gap024.attendance_mutation:' || p_house_id::text || ':' || v_employee_id::text,
+      0
+    )
+  );
 
   select segment.employee_id, segment.canonical_fact_id
   into v_employee_id, v_fact_id
