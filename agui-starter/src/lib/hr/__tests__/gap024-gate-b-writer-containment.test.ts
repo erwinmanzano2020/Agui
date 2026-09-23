@@ -196,4 +196,10 @@ test("cutover reconciles every row, constrains kiosk establishment, and removes 
     cutoverSql,
     /revoke insert, update, delete, truncate, references, trigger[\s\S]*from service_role/i,
   );
+  assert.match(cutoverSql, /drop policy if exists dtr_entries_all on public\.dtr_entries/i);
+  assert.match(
+    cutoverSql,
+    /revoke insert, update, delete, truncate, references, trigger[\s\S]*dtr_entries[\s\S]*from service_role/i,
+  );
+  assert.match(cutoverSql, /Gate-B cutover left a raw dtr_entries mutation privilege/i);
 });
