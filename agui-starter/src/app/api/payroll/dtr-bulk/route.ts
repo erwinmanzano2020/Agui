@@ -386,21 +386,60 @@ export async function POST(req: NextRequest) {
             in2: "",
             out2: "",
           };
-          if ((cell.in1 && cell.in1.trim()) || (cell.out1 && cell.out1.trim())) {
-            const timeIn = cell.in1 ? toISO(day, cell.in1) : null;
-            const timeOut = cell.out1 ? toISO(day, cell.out1) : null;
-            const { error } = await supabase.rpc(
-              "hr_upsert_bulk_dtr_entry_summary",
-              {
-                p_house_id: houseId,
-                p_employee_id: empId,
-                p_work_date: day,
-                p_time_in: timeIn,
-                p_time_out: timeOut,
-              },
+          const hasAnyValue = [cell.in1, cell.out1, cell.in2, cell.out2].some(
+            (value) => Boolean(value?.trim()),
+          );
+          if (!hasAnyValue) continue;
+
+          const operationId = payload.operationIds[`${empId}:${day}`];
+          if (!operationId) {
+            return NextResponse.json(
+              { error: `Missing stable operation identity for ${empId} on ${day}` },
+              { status: 400 },
             );
-            if (error) throw new Error(error.message);
           }
+
+          const segments: Array<{ timeIn: string; timeOut: string }> = [];
+          for (const [label, rawIn, rawOut] of [
+            ["in1/out1", cell.in1, cell.out1],
+            ["in2/out2", cell.in2, cell.out2],
+          ] as const) {
+            const hasIn = Boolean(rawIn?.trim());
+            const hasOut = Boolean(rawOut?.trim());
+            if (!hasIn && !hasOut) continue;
+            if (!hasIn || !hasOut) {
+              return NextResponse.json(
+                { error: `Incomplete attendance segment ${day} (${label})` },
+                { status: 400 },
+              );
+            }
+
+            const timeIn = toISO(day, rawIn);
+            const timeOut = toISO(day, rawOut);
+            if (!timeIn || !timeOut) {
+              return NextResponse.json(
+                { error: `Invalid segment ${day} (${label})` },
+                { status: 400 },
+              );
+            }
+            const validation = assertManilaReasonableSegment(timeIn, timeOut, day);
+            if (!validation.ok) {
+              return NextResponse.json(
+                { error: `Invalid segment ${day} (${label}): ${validation.reasons.join(", ")}` },
+                { status: 400 },
+              );
+            }
+            segments.push({ timeIn, timeOut });
+          }
+
+          const { error } = await supabase.rpc("hr_replace_bulk_attendance_day", {
+            p_house_id: houseId,
+            p_employee_id: empId,
+            p_work_date: day,
+            p_operation_id: operationId,
+            p_segments: segments,
+          });
+          if (error) throw new Error(error.message);
         }
       }
 
