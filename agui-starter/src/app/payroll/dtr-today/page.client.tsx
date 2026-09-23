@@ -103,7 +103,7 @@ export default function PayrollDtrTodayPageClient() {
   // surface; raw browser INSERT/UPDATE is intentionally retired here.
 
   // Preview based on MANUAL inputs (kept)
-  async function runManualPreview(saveAfter = false) {
+  async function runManualPreview() {
     setMsg(null);
     if (!employeeId || !date || !timeIn || !timeOut) return;
     const shift = await resolveEffectiveShift(employeeId, date);
@@ -129,30 +129,10 @@ export default function PayrollDtrTodayPageClient() {
     const res = computeMinutes(date, new Date(timeInStamp), new Date(timeOutStamp), shift);
     setPreview(res);
 
-    if (saveAfter) {
-      const sb = getSupabase();
-      if (!sb) {
-        setMsg("Supabase not configured");
-        return;
-      }
-
-      await sb.from("dtr_entries").upsert(
-        {
-          employee_id: employeeId,
-          work_date: date,
-          time_in: timeInStamp,
-          time_out: timeOutStamp,
-          minutes_regular: res.regular,
-          minutes_ot: res.ot,
-        },
-        { onConflict: "employee_id,work_date" },
-      );
-      setMsg("Saved ✔ (manual)");
-    }
   }
 
   // Rollup segments → preview/save for the day
-  async function rollupSegments(saveAfter = false) {
+  async function rollupSegments() {
     setMsg(null);
     const shift = await resolveEffectiveShift(employeeId, date);
     setShiftInfo({
@@ -178,7 +158,6 @@ export default function PayrollDtrTodayPageClient() {
       // Rest Day: all OT
       const res = { regular: 0, ot: totalMins, total: totalMins };
       setPreview(res);
-      if (saveAfter) await saveRollup(res, segments);
       return;
     }
 
@@ -212,44 +191,8 @@ export default function PayrollDtrTodayPageClient() {
 
     const res = { regular, ot, total: totalMins };
     setPreview(res);
-    if (saveAfter) await saveRollup(res, segments);
   }
 
-  async function saveRollup(
-    res: { regular: number; ot: number; total: number },
-    segs: Segment[],
-  ) {
-    // Persist last segment boundaries as time_in/out for reference
-    const firstInISO =
-      segs.find((s) => !!s.time_in)?.time_in ??
-      toManilaTimestamptz(date, "00:00:00");
-    if (!firstInISO) {
-      setMsg("Invalid rollup timestamp");
-      return;
-    }
-    const lastOutISO =
-      segs.filter((s) => !!s.time_out).slice(-1)[0]?.time_out ?? firstInISO;
-
-    const sb = getSupabase();
-    if (!sb) {
-      setMsg("Supabase not configured");
-      return;
-    }
-
-    await sb.from("dtr_entries").upsert(
-      {
-        employee_id: employeeId,
-        work_date: date,
-        time_in: firstInISO,
-        time_out: lastOutISO,
-        minutes_regular: res.regular,
-        minutes_ot: res.ot,
-        notes: "rollup",
-      },
-      { onConflict: "employee_id,work_date" },
-    );
-    setMsg("Saved ✔ (rollup)");
-  }
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -321,20 +264,14 @@ export default function PayrollDtrTodayPageClient() {
         <div className="flex gap-2 mt-3">
           <button
             className="bg-card text-card-foreground border border-border rounded px-3 py-2"
-            onClick={() => rollupSegments(false)}
+            onClick={() => rollupSegments()}
           >
             Preview Rollup
-          </button>
-          <button
-            className="bg-success text-success-foreground rounded px-3 py-2"
-            onClick={() => rollupSegments(true)}
-          >
-            Save Rollup
           </button>
         </div>
       </div>
 
-      {/* Manual one-shot entry (kept for convenience) */}
+      {/* Manual one-shot preview only. Canonical writes require the HR DTR provenance flow. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
         <div>
           <div className="text-xs mb-1">Time In (manual)</div>
@@ -356,15 +293,9 @@ export default function PayrollDtrTodayPageClient() {
         </div>
         <button
           className="bg-card text-card-foreground border border-border rounded px-3 py-2"
-          onClick={() => runManualPreview(false)}
+          onClick={() => runManualPreview()}
         >
           Preview
-        </button>
-        <button
-          className="bg-success text-success-foreground rounded px-3 py-2"
-          onClick={() => runManualPreview(true)}
-        >
-          Save
         </button>
       </div>
 
