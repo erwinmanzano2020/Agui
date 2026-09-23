@@ -40,7 +40,8 @@ performed for this final correction, and no manual UAT result is claimed.
 ## 2026-09-23 — Controlled UAT / pre-release evidence
 
 **Controlled Gate-A UAT: PASS — automated/remote evidence only; no human or real-operation
-checkpoint is applicable to this slice.**
+checkpoint is applicable to this slice. Final exact-head release checks are green and
+the candidate is ready for explicit owner release approval.**
 
 Gate A is an infrastructure/security-foundation slice. Its approved boundary explicitly
 does not cut over Daily DTR, payroll, payslip, kiosk, bulk, browser, repair, or another
@@ -48,7 +49,14 @@ normal Production consumer. Therefore Telegram/native-device, visual/touch, cash
 payroll, or other real operational UAT would not prove a changed Gate-A behavior and
 would exceed the approved scope.
 
-The release candidate audited before this evidence-sync change was exact head
+The final documentation-synced release candidate is exact head
+`19722bf943cf1e448312eadf57794d84548ad44e`. Its two changes after the tested
+`2335e1e0c330e5292df10780a96086188781b068` candidate are UAT/status documentation
+only. Final exact-head Preflight #778 completed successfully and the matching Vercel
+deployment `dpl_Cs4FMjPQYL7MJjdwGDkHX3Kjid6P` is READY on the same SHA. No current
+non-outdated review thread is open and PR #510 remains mergeable.
+
+The underlying controlled-UAT evidence was gathered on
 `2335e1e0c330e5292df10780a96086188781b068`. Automated and remote evidence:
 
 - GitHub Preflight #777 passed dependency installation, lint, typecheck, build, and the
