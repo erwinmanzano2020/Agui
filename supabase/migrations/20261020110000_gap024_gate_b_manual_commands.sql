@@ -663,6 +663,7 @@ set search_path = pg_catalog, public
 as $function$
 declare
   v_entity_id uuid;
+  v_employee_branch_id uuid;
   v_actor_role text;
   v_fingerprint text;
 begin
@@ -679,6 +680,31 @@ begin
   ) then
     raise exception 'Manual attendance branch is outside caller authority'
       using errcode = '42501';
+  end if;
+
+  select employee.branch_id
+  into v_employee_branch_id
+  from public.employees employee
+  where employee.house_id = p_house_id
+    and employee.id = p_employee_id
+  for key share;
+  if not found then
+    raise exception 'Attendance mutation requires an employee in the requested House'
+      using errcode = '23503';
+  end if;
+
+  -- Actual attendance branch is provenance, not target authorization. A branch-limited
+  -- actor must independently own the employee's current write target scope.
+  if not public.hr_attendance_actor_has_broad_write(p_house_id, v_entity_id) then
+    if v_employee_branch_id is null
+      or not public.hr_attendance_actor_can_write_branch(
+        p_house_id,
+        v_entity_id,
+        v_employee_branch_id
+      ) then
+      raise exception 'Attendance employee target is outside caller write scope'
+        using errcode = '42501';
+    end if;
   end if;
 
   v_actor_role := public.hr_attendance_actor_role_label(
