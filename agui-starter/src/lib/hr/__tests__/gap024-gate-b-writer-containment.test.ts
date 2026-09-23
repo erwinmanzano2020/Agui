@@ -141,6 +141,11 @@ test("legacy browser attendance writers are retired", () => {
     dtrToday,
     /\.from\("dtr_segments"\)[\s\S]{0,80}\.(insert|update|delete)\(/i,
   );
+  assert.doesNotMatch(
+    dtrToday,
+    /\.from\("dtr_entries"\)[\s\S]{0,80}\.(insert|update|delete|upsert)\(/i,
+  );
+  assert.doesNotMatch(dtrToday, /Save Rollup|Saved ✔ \(manual\)/i);
 
   const legacyPageCandidates = [
     resolve(process.cwd(), "src/app/payroll/dtr-bulk/page2.tsx"),
