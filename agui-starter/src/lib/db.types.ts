@@ -1813,6 +1813,31 @@ export interface Database {
       current_entity_id: FunctionDefinition<Record<string, never>, string | null>;
       next_hr_reference_code: FunctionDefinition<{ target_year: number }, string>;
       hr_rebuild_attendance_authorization_projection: FunctionDefinition<{ p_house_id: string }, number>;
+      hr_create_manual_attendance: FunctionDefinition<{
+        p_house_id: string;
+        p_employee_id: string;
+        p_actual_branch_id: string;
+        p_operation_id: string;
+        p_work_date: string;
+        p_time_in: string;
+        p_time_out?: string | null;
+      }, Json>;
+      hr_update_manual_attendance: FunctionDefinition<{
+        p_house_id: string;
+        p_segment_id: string;
+        p_operation_id: string;
+        p_time_in: string;
+        p_time_out?: string | null;
+        p_expected_value_revision?: number | null;
+      }, Json>;
+      hr_get_dtr_mutation_tokens: FunctionDefinition<{
+        p_house_id: string;
+        p_segment_ids: string[];
+      }, Array<{
+        segment_id: string;
+        canonical_fact_id: string | null;
+        current_value_revision: number | null;
+      }>>;
       hr_read_canonical_attendance_branch_scoped: FunctionDefinition<{ p_house_id: string; p_start_date: string; p_end_date: string; p_employee_id?: string | null; p_limit?: number; p_offset?: number }, Array<{ fact_id: string; employee_id: string; work_date: string; time_in: string | null; time_out: string | null; hours_worked: number | null; overtime_minutes: number; status: string; active_branch_id: string }>>;
       hr_read_canonical_attendance_house_global: FunctionDefinition<{ p_house_id: string; p_start_date: string; p_end_date: string; p_employee_id?: string | null; p_limit?: number; p_offset?: number }, Array<{ fact_id: string; employee_id: string; work_date: string; time_in: string | null; time_out: string | null; hours_worked: number | null; overtime_minutes: number; status: string; attribution_state: "ATTRIBUTED" | "UNATTRIBUTED" | "CONFLICT"; active_branch_id: string | null }>>;
     };
