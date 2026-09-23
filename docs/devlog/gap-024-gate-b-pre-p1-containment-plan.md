@@ -399,10 +399,19 @@ Requirements:
   - immutable client event/source ID;
   - original `occurredAt`;
   - device-derived actual branch already validated against House;
+- the route/service does **not** authoritatively preselect `clock_in` versus
+  `clock_out`. The kiosk DB wrapper accepts a scan observation, acquires the
+  House+employee mutation lock, resolves idempotent replay first, then derives the
+  current open/close action from locked canonical state;
 - create/open and close advance canonical value/evidence atomically;
-- retries are idempotent and cannot create duplicate facts/evidence;
+- retries are idempotent and return the previously recorded outcome before debounce or a
+  new action decision;
+- debounce for **different source identities** must be enforced inside the serialized
+  kiosk mutation decision (or revalidated there) so two concurrent distinct scans cannot
+  both pass an application-side debounce and become an accidental immediate IN+OUT;
 - cross-branch or malformed evidence fails closed according to GAP-025;
-- current debounce behavior remains a UI/operational guard, not the idempotency authority.
+- client/UI debounce remains a user-experience optimization, not mutation authority or
+  idempotency.
 
 For current kiosk bootstrap, **do not assume all 37 system segments are establishable**.
 At the planning checkpoint only 17/37 have a stable opaque `clientId` on every required
@@ -763,7 +772,10 @@ Use executable PostgreSQL/Supabase-capable tests for:
 - create/open;
 - close;
 - canonical manual unresolved write;
-- kiosk retry idempotency;
+- kiosk retry idempotency returning the original result before any debounce/action
+  reclassification;
+- two distinct near-simultaneous kiosk source IDs cannot race into an unintended
+  clock-in/clock-out pair;
 - offline duplicate replay;
 - bulk per-result retry;
 - stale value revision;
@@ -791,6 +803,8 @@ Use executable PostgreSQL/Supabase-capable tests for:
 A real two-session database harness is required for:
 
 - same employee, two independent create attempts;
+- two simultaneous kiosk scans from one or multiple devices for the same employee;
+- exact kiosk retry vs a concurrent distinct kiosk scan;
 - close vs repair/update;
 - bulk replace vs kiosk late/offline replay;
 - two cross-date mutations sharing employee generation;
@@ -1098,3 +1112,14 @@ raw/canonical divergence during the rollout itself. The plan now requires a defi
 bridge guard from the moment the bridge exists, plus a locked final reconcile/backfill +
 privilege revocation transaction so no NULL-bridge/raw-only attendance slips through the
 cutover.
+
+
+### Round 7 — material correction
+
+**P1 — kiosk action selection remained outside serialization.** The current service reads
+the latest event/open segments and decides clock-in versus clock-out before raw mutation.
+If Gate B merely passed that precomputed intent into an atomic command, two simultaneous
+scans could serialize two stale decisions or different scans could both pass debounce
+before one opens a fact. The plan now makes the kiosk DB wrapper resolve replay first and
+derive IN/OUT under the House+employee mutation lock; different-ID debounce is also
+revalidated inside that serialized decision.
