@@ -201,6 +201,7 @@ export default function DtrBulkClient() {
     kind: "success" | "error";
     msg: string;
   } | null>(null);
+  const saveOperationIdsRef = useRef(new Map<string, string>());
 
   /** ===== Data state ===== */
   const [employees, setEmployees] = useState<Emp[]>([]);
@@ -405,6 +406,15 @@ export default function DtrBulkClient() {
     };
   }, [mode, selectedEmpId, scopedEmployees, days, employees]);
 
+  function operationIdFor(employeeId: string, day: string, cell: DayCell) {
+    const fingerprint = JSON.stringify([employeeId, day, cell.in1, cell.out1, cell.in2, cell.out2]);
+    const existing = saveOperationIdsRef.current.get(fingerprint);
+    if (existing) return existing;
+    const operationId = crypto.randomUUID();
+    saveOperationIdsRef.current.set(fingerprint, operationId);
+    return operationId;
+  }
+
   /** ===== Save (bulk) ===== */
   async function handleSave() {
     setSaving(true);
@@ -419,6 +429,21 @@ export default function DtrBulkClient() {
             employeeId: scopedEmployees[0].id,
             days,
             grid,
+            operationIds: Object.fromEntries(
+              days.map((day) => [
+                day,
+                operationIdFor(
+                  scopedEmployees[0].id,
+                  day,
+                  grid[scopedEmployees[0].id]?.[day] ?? {
+                    in1: "",
+                    out1: "",
+                    in2: "",
+                    out2: "",
+                  },
+                ),
+              ]),
+            ),
           }),
         });
         const payload = await response.json();
