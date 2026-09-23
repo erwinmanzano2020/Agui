@@ -12,6 +12,10 @@ import type {
 import { evaluateHrAccess } from "../access";
 import { getDailyComputedDtrForEmployee } from "../overtime-policy-server";
 
+type TestDtrSegmentRow = Omit<DtrSegmentRow, "canonical_fact_id"> & {
+  canonical_fact_id?: string | null;
+};
+
 type Filter<T> = (row: T) => boolean;
 type SortInstruction<T> = { column: keyof T; ascending: boolean };
 
@@ -83,7 +87,7 @@ class QueryMock<T extends Record<string, unknown>> {
 class SupabaseMock {
   constructor(
     private data: {
-      segments: DtrSegmentRow[];
+      segments: TestDtrSegmentRow[];
       employees: EmployeeRow[];
       assignments: HrBranchScheduleAssignmentRow[];
       templates: HrScheduleTemplateRow[];
