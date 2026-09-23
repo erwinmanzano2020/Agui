@@ -339,9 +339,15 @@ A forward reference from the mutable compatibility row to a stable canonical fac
 - raw row deletion only after canonical retirement/transition rules have been applied;
 - rebuild/backfill without rewriting immutable Gate-A history.
 
-Future implementation should avoid making new fact revisions depend on a deletable legacy
-segment foreign key when doing so would prevent the approved replacement/retirement
-semantics.
+For this containment slice, **new/backfilled canonical fact revisions must leave the
+legacy `dtr_segment_id` reference NULL**. The existing Gate-A column remains for
+compatibility/history but its `ON DELETE RESTRICT` FK must not become the ownership link
+for a row that later bulk/repair compatibility flows are allowed to replace. The
+`dtr_segments.canonical_fact_id` forward bridge is the live compatibility mapping.
+
+A later separately reviewed migration may repurpose or retire the optional legacy
+`dtr_segment_id` reference, but Gate B must not create a reverse dependency that makes
+approved compatibility-row replacement impossible.
 
 ## 9. Producer-specific migration contracts
 
@@ -528,6 +534,8 @@ For these rows:
 After bootstrap:
 
 - every migrated active compatibility row has exactly one stable canonical fact bridge;
+- no Gate-B-created/backfilled canonical revision depends on that mutable compatibility
+  row through legacy `dtr_segment_id`;
 - every canonical active fact has an exact current revision/frame;
 - projection rebuild is deterministic;
 - branch reader shows only ATTRIBUTED facts;
@@ -741,8 +749,10 @@ Use executable PostgreSQL/Supabase-capable tests for:
 - stale employee generation;
 - House mismatch;
 - invalid branch provenance;
-- compatibility-row bridge consistency;
-- fact retirement + legacy row replacement;
+- compatibility-row bridge consistency and uniqueness;
+- proof that Gate-B-created/backfilled canonical fact revisions keep legacy
+  `dtr_segment_id` NULL;
+- fact retirement + legacy row replacement without FK blockage;
 - atomic rollback on projection/evidence failure;
 - raw authenticated DML denied after cutover;
 - raw application `service_role` DML path absent/denied where grants permit, including
@@ -1027,3 +1037,14 @@ authority or falsely claiming a compromised service credential is harmless.
 **P2 — function EXECUTE defaults were underspecified.** The plan now requires explicit
 REVOKE from PUBLIC/anon/authenticated/service_role on the private engine/helpers before
 role-specific wrapper grants.
+
+
+### Round 5 — material correction
+
+**P1 — reverse legacy FK could defeat the compatibility bridge.** Gate-A
+`hr_attendance_fact_revisions.dtr_segment_id` is optional but uses
+`ON DELETE RESTRICT`. If Gate B populated it while also promising bulk compatibility
+row replacement, the canonical history itself could block the delete/recreate path. The
+plan now freezes Gate-B-created/backfilled revisions with `dtr_segment_id = NULL` and
+uses only the forward `dtr_segments.canonical_fact_id` bridge for mutable compatibility
+mapping.
