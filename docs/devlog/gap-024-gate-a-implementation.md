@@ -2,12 +2,40 @@
 
 ## Status
 
-**Local implementation complete in this bounded PR; hosted PR verification pending.**
+**Runtime implementation converged in PR #510; ready for the controlled UAT / PR-deployment gate.**
 
-This record covers Gate A only. It does not close GAP-024, cut over a production
-consumer, backfill production data, migrate a writer, revoke existing `dtr_segments`
-access, or implement Historical Daily DTR P1. Gate B remains next only after this Gate-A
-PR is independently hosted, reviewed, and merged.
+The final runtime-code head reviewed for Gate A is
+`1cc3e8e67fdb702be098f7e3088a33971bc757b0`. Exact-head GitHub Preflight run #776
+passed `npm ci`, lint, typecheck, build, and compiled Node tests; the Vercel Preview
+check passed; the PR was mergeable; no current non-outdated review thread remained; and
+the fresh Codex review on that exact runtime-code head reported no major issue.
+
+This status does **not** claim manual/physical UAT, merge, Production deployment, or
+persistent application of the final lock-order migration to the restored backend.
+Those remain separately gated. This record covers Gate A only. It does not close
+GAP-024, cut over a production consumer, backfill production data, migrate a writer,
+revoke existing `dtr_segments` access, or implement Historical Daily DTR P1. Gate B
+remains next only after this Gate-A PR passes the later owner-controlled PR/UAT/
+deployment gate and is merged.
+
+## 2026-09-23 — Final exact-head lock-order convergence
+
+Fresh review of runtime-code head
+`30acdade533c22655db4c4e25b89e0f5561c5706` found
+`discussion_r4070921025` (P2): the frame-first membership correction still acquired an
+evidence-family lock before the owning fact, while frame sealing serializes through the
+owning fact before selected evidence. That left a concrete fact/evidence lock inversion.
+
+PR #510 corrected the forward migration so membership now acquires the target unsealed
+frame, then the owning fact, then observation/evidence/lineage locks. The focused
+migration contract test explicitly proves the shared **frame -> fact -> evidence**
+serialization order against the sealing path.
+
+The resulting runtime-code head
+`1cc3e8e67fdb702be098f7e3088a33971bc757b0` passed Preflight #776 and Vercel Preview,
+had zero current non-outdated material review threads, was mergeable, and received a
+fresh Codex result of “Didn't find any major issues.” No Production/backend write was
+performed for this final correction, and no manual UAT result is claimed.
 
 ## 2026-09-22 — Frame-membership lock-order follow-up
 
