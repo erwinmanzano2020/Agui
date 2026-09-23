@@ -30,6 +30,7 @@ const bulkClient = repoFile(
 const dtrToday = repoFile(
   "agui-starter/src/app/payroll/dtr-today/page.client.tsx",
 );
+const dbTypes = repoFile("agui-starter/src/lib/db.types.ts");
 const repairScript = repoFile(
   "agui-starter/scripts/fix-dtr-timezone.ts",
 );
@@ -107,6 +108,10 @@ test("active bulk segment replacement no longer uses service-role raw dtr_segmen
     bulkRoute,
     /service[\s\S]{0,120}\.from\("dtr_entries"\)[\s\S]{0,80}\.(insert|update|delete|upsert)\(/i,
   );
+});
+
+test("removed summary-only RPC is absent from generated client contracts", () => {
+  assert.doesNotMatch(dbTypes, /hr_upsert_bulk_dtr_entry_summary/i);
 });
 
 test("bulk operation IDs survive retry across single, all, and CSV writes", () => {
