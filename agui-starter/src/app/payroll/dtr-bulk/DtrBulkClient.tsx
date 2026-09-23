@@ -451,6 +451,10 @@ export default function DtrBulkClient() {
           throw new Error(payload?.error || response.statusText);
         }
 
+        // Preserve IDs across failed/lost-response retries, but a confirmed save
+        // completes this logical operation. A later identical edit must receive a new
+        // operation identity rather than replaying an earlier successful replacement.
+        saveOperationIdsRef.current.clear();
         setToast({ kind: "success", msg: "Saved!" });
         setSaving(false);
         setYm((m) => m);
