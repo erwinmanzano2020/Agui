@@ -67,6 +67,7 @@ begin
               where device.id = event.device_id
                 and device.house_id = event.house_id
                 and device.branch_id = event.branch_id
+                and device.is_active = true
             )
         ),
         count(distinct event.branch_id),
