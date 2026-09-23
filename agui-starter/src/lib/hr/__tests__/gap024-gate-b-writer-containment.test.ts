@@ -65,6 +65,14 @@ test("bulk replacement is authenticated, idempotent, canonical, and atomic with 
     bulkSql,
     /grant execute on function public\.hr_replace_bulk_attendance_day[\s\S]*to authenticated/i,
   );
+  assert.match(
+    bulkSql,
+    /create or replace function public\.hr_upsert_bulk_dtr_entry_summary[\s\S]*security definer/i,
+  );
+  assert.match(
+    bulkSql,
+    /grant execute on function public\.hr_upsert_bulk_dtr_entry_summary[\s\S]*to authenticated/i,
+  );
 });
 
 test("active bulk segment replacement no longer uses service-role raw dtr_segments DML", () => {
@@ -76,6 +84,11 @@ test("active bulk segment replacement no longer uses service-role raw dtr_segmen
   assert.doesNotMatch(
     bulkRoute,
     /\.from\("dtr_segments"\)[\s\S]{0,80}\.(insert|update|delete)\(/i,
+  );
+  assert.match(bulkRoute, /"hr_upsert_bulk_dtr_entry_summary"/i);
+  assert.doesNotMatch(
+    bulkRoute,
+    /service[\s\S]{0,120}\.from\("dtr_entries"\)[\s\S]{0,80}\.(insert|update|delete|upsert)\(/i,
   );
 });
 
