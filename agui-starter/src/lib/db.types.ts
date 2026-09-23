@@ -1837,6 +1837,13 @@ export interface Database {
         p_operation_id: string;
         p_segments: Json;
       }, Json>;
+      hr_upsert_bulk_dtr_entry_summary: FunctionDefinition<{
+        p_house_id: string;
+        p_employee_id: string;
+        p_work_date: string;
+        p_time_in?: string | null;
+        p_time_out?: string | null;
+      }, void>;
       hr_get_dtr_mutation_tokens: FunctionDefinition<{
         p_house_id: string;
         p_segment_ids: string[];
