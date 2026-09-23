@@ -96,6 +96,8 @@ test("legacy browser attendance writers are retired", () => {
   );
 
   const legacyPageCandidates = [
+    resolve(process.cwd(), "src/app/payroll/dtr-bulk/page2.tsx"),
+    resolve(process.cwd(), "agui-starter/src/app/payroll/dtr-bulk/page2.tsx"),
     resolve(process.cwd(), "../agui-starter/src/app/payroll/dtr-bulk/page2.tsx"),
     resolve(process.cwd(), "../../agui-starter/src/app/payroll/dtr-bulk/page2.tsx"),
   ];
