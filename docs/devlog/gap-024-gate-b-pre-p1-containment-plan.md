@@ -2,7 +2,7 @@
 
 ## Status
 
-**PLANNING ONLY — first bounded planning pass. Runtime implementation is not authorized by this document.**
+**OWNER APPROVED — planning converged on 2026-09-23. Runtime implementation is now authorized only as a separate bounded Runtime phase/PR that follows this contract; this planning PR remains documentation-only.**
 
 Base: `develop` at `71d11b79c002dce9b65e786ecb30ecfa9abdd494` (PR #510 squash merge).
 
@@ -970,8 +970,10 @@ The future runtime slice is complete only when:
 This plan applies already-approved DEC-017 / GAP-024 / GAP-025 / DEC-018 sequencing and
 does not create a new business rule.
 
-No runtime, migration, grant, RPC, API, UI, or test implementation is authorized until
-this planning artifact is reviewed, converged, and explicitly owner-approved for Runtime.
+Owner approval was recorded on 2026-09-23 after planning convergence. Runtime,
+migration, grant, RPC, API, UI, and test implementation may now proceed **only in a
+separate bounded Runtime phase/PR** implementing this approved contract. PR #511 itself
+remains documentation-only and does not implement runtime.
 
 ## 28. Deferred work
 
@@ -1173,3 +1175,26 @@ earlier "known stale / must be reconciled" sentence false. The HR status is corr
 record the completed planning-state synchronization while keeping exact hosted-head/check
 facts in PR/Sync Map evidence. The Dashboard next-action row and PR-queue sequence are
 also corrected so the operational mirror and repository describe the same current gate.
+
+
+## 32. Owner Approval Record
+
+Owner approval was explicitly granted on **2026-09-23** after exact-head planning
+convergence.
+
+Approved planning candidate before this status-only approval sync:
+`2bef45485bde38d6b159d2a37aa53e64bc4cdbe6`.
+
+Approval effect:
+
+- the Gate-B pre-P1 containment planning contract is frozen for Runtime handoff;
+- PR #511 remains documentation/governance only;
+- a separate bounded Runtime implementation may now begin from merged canonical
+  `develop` after this planning PR is merged and verified;
+- Historical Daily DTR Write P1 remains blocked until the containment Runtime is
+  implemented, deployed, and its no-bypass acceptance criteria pass;
+- Gate C, Gate D, Gate E, unrelated HR feature work, POS, Operations, and Finance remain
+  unauthorized by this approval.
+
+Any material semantic deviation discovered during Runtime must stop and return to
+planning/owner decision rather than silently weakening this contract.
