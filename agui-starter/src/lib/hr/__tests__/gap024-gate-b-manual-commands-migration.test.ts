@@ -103,7 +103,11 @@ test("manual create wrapper derives actor authority and cannot self-assert produ
   );
 
   assert.match(wrapper, /v_entity_id := public\.current_entity_id\(\)/i);
-  assert.match(wrapper, /hr_attendance_actor_can_write_branch/i);
+  assert.match(
+    wrapper,
+    /hr_attendance_actor_can_write_branch\([\s\S]*p_actual_branch_id[\s\S]*select employee\.branch_id[\s\S]*v_employee_branch_id[\s\S]*hr_attendance_actor_can_write_branch\([\s\S]*v_employee_branch_id/i,
+  );
+  assert.match(wrapper, /Attendance employee target is outside caller write scope/i);
   assert.match(wrapper, /hr_attendance_actor_role_label/i);
   assert.match(wrapper, /p_producer_namespace => 'MANUAL_ADMIN_V1'/i);
   assert.match(wrapper, /p_mutation_kind => 'MANUAL_CREATE'/i);
