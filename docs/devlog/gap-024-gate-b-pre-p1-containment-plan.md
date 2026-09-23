@@ -156,14 +156,16 @@ DEC-017 containment.
 
 ### F. Database principals
 
-Live table privileges currently expose `INSERT/UPDATE/DELETE` on `dtr_segments` to:
+Live table privileges currently expose broad mutation/schema-adjacent privileges on
+`dtr_segments` to `authenticated`, `service_role`, and
+`postgres` / administrative database authority, including
+`INSERT`, `UPDATE`, `DELETE`, **`TRUNCATE`**, `REFERENCES`, and `TRIGGER`
+(along with SELECT).
 
-- `authenticated`;
-- `service_role`;
-- `postgres` / administrative database authority.
-
-Live authenticated RLS policies are House-role based and permit raw INSERT/UPDATE/DELETE.
-That is the present database bypass the future runtime slice must close.
+Live authenticated RLS policies are House-role based and permit raw
+INSERT/UPDATE/DELETE. TRUNCATE is outside row-level RLS semantics. Together these are the
+present database bypasses the future runtime slice must close for normal application
+principals.
 
 The implementation inventory must also search for hidden writers at the exact head
 (migrations, scripts, RPCs, tests that represent production procedures, direct SQL,
@@ -299,8 +301,15 @@ Add an additive nullable compatibility reference on `dtr_segments`:
 
 `canonical_fact_id uuid null`
 
-with same-House / same-employee referential enforcement to
-`hr_attendance_facts(house_id,id,employee_id)`.
+with:
+
+- same-House / same-employee referential enforcement to
+  `hr_attendance_facts(house_id,id,employee_id)`; and
+- a uniqueness rule ensuring one live compatibility row cannot share the same non-null
+  canonical fact bridge with another row.
+
+The exact composite/index shape may follow PostgreSQL implementation constraints, but the
+one-live-row-per-canonical-fact invariant is part of the contract.
 
 This bridge is compatibility metadata, not a new source of truth.
 
@@ -336,10 +345,16 @@ Requirements:
   `clientEventId`;
 - the future command must reject a missing producer operation/source ID for a write path
   that can retry; do not silently fall back to timestamp identity;
-- online kiosk must use the already generated per-scan UUID `clientId` as the stable
-  source/operation identity; offline replay uses required `clientEventId`. Historical
-  bootstrap may use those already-recorded opaque IDs only where present and
-  unambiguous—never database event-row order or timestamp as a substitute;
+- Gate B freezes the active kiosk producer mapping as one semantic source-identity
+  family: the online per-scan UUID `clientId` and offline `clientEventId` (which the
+  current sync service intentionally forwards into `processKioskScan` as `clientId`)
+  are the opaque ID for the same logical scan contract. Use one versioned producer
+  namespace for that contract so retries of the same offline action reuse the same
+  observation identity. A future materially different kiosk producer requires a new
+  namespace mapping;
+- historical bootstrap may use already-recorded `clientId` values only where present,
+  unique in the selected namespace, and unambiguous—never database event-row ID/order or
+  timestamp as a substitute;
 - source observation records capture:
   - producer namespace;
   - immutable client event/source ID;
@@ -359,16 +374,28 @@ JSON segment link and branch happen to agree.
 
 ### 9.2 Authenticated manual DTR create/update — must migrate in this slice
 
-The current manual action may continue to expose the same UI and validation, but the
-write must call the canonical command rather than raw table DML.
+The current manual action must call the canonical command rather than raw table DML.
 
-Because the current manual create/update surfaces do not collect approved actual-attendance
-branch provenance, they must not manufacture established `MANUAL_ADMIN` branch evidence.
-They may create/advance canonical value state with unresolved/unattributed evidence until
-a separately authorized correction/provenance workflow establishes branch attribution.
+**New manual/admin fact creation after containment must comply with GAP-025 Section 3.4.**
+The initiating surface must collect explicit actual-attendance branch provenance for that
+fact. The server/DB path must validate same-House branch integrity and existing caller
+authority; current employee branch, current device branch, schedule, request branch, or
+operator location cannot silently fill the value. The resulting MANUAL_ADMIN evidence
+must carry the required actor/authorization/time audit fields before it can be
+ESTABLISHED/SUFFICIENT.
 
-This slice does **not** implement Historical DTR Write P1 reason/correction/finalization
-semantics.
+This is a minimal producer-contract migration, not Historical DTR Write P1: it does not
+add missing-fact remediation adjudication, correction proposal/finalization, HR-4
+approval, or hidden-fact branch-limited create semantics.
+
+For **pre-existing legacy manual facts** that were canonicalized without approved
+provenance, an ordinary value-only edit may advance the same canonical fact revision
+while preserving its existing UNATTRIBUTED evidence basis. It must not silently invent
+branch provenance. A later operation that intends to establish/change attendance
+location belongs to the separately governed correction/provenance path.
+
+The current UI may therefore require one bounded actual-attendance branch input for new
+manual creation. Other UI/product behavior remains unchanged.
 
 ### 9.3 Legacy browser Daily DTR — must be migrated or retired before privilege cutover
 
@@ -394,11 +421,19 @@ Requirements:
 - browser direct delete/insert is removed or made unreachable;
 - service-role API no longer directly delete/inserts overlapping `dtr_segments`;
 - per result, use deterministic operation identity; the request/batch authorization
-  reference is not assumed to identify one attendance fact. The bulk adapter must derive
-  or receive one stable per-result operation ID that survives retry of the same logical
-  import item;
+  reference is not assumed to identify one attendance fact. The initiating browser/server
+  flow must create stable per-save/per-result operation IDs **before** the mutation call
+  and reuse them on transport retry; generating a fresh UUID inside each server retry is
+  not idempotency;
 - legacy replacement semantics are expressed as canonical retire/replace operations,
   not raw delete/reinsert;
+- because the current bulk save does not carry an approved one-to-one predecessor fact
+  identity, **employee + date + time similarity must not be used to infer that a recreated
+  row is the same canonical fact**. Default bulk replacement semantics are: retire the
+  currently replaced canonical facts and create new canonical facts for submitted
+  replacement rows, with no provenance inheritance. A same-fact revision is permitted
+  only if a future exact-head implementation can carry and validate explicit one-to-one
+  predecessor identity under GAP-025;
 - if explicit actual-attendance branch provenance is absent, new canonical state remains
   UNATTRIBUTED rather than inferring current employee branch;
 - `dtr_entries` compatibility updates must be included in the same database transaction
@@ -535,6 +570,9 @@ for final broad raw/base-access security cutover.
 - No cross-House mutation.
 - Branch is provenance/restriction, never tenant authority.
 - Authenticated HR write adapters preserve existing HR capability checks.
+- New manual/admin fact creation additionally requires explicit actual-attendance branch
+  provenance as already mandated by GAP-025; this is provenance input, not authorization
+  derived from current employee assignment.
 - Kiosk authorization remains device-token + House + branch device authority.
 - `service_role` alone never authorizes a business mutation; command input must carry and
   validate the producer's approved authority/provenance context.
@@ -639,7 +677,11 @@ No product redesign is authorized.
 - privilege test proving `authenticated` cannot INSERT/UPDATE/DELETE/**TRUNCATE** raw
   `dtr_segments` after cutover;
 - wrapper-authority tests proving an authenticated/manual caller cannot select kiosk or
-  bulk provenance by changing input labels.
+  bulk provenance by changing input labels;
+- manual-create tests requiring explicit authorized actual-attendance branch, while
+  value-only edits of legacy UNATTRIBUTED facts do not invent provenance;
+- bulk replacement tests proving employee/day/time similarity does not inherit fact
+  identity or branch provenance.
 
 ### 19.2 Database integration
 
@@ -892,3 +934,33 @@ stable opaque identity on every required governing observation. The plan now tre
 JSON link only as a migration candidate locator, requires creation of new durable
 canonical linkage, establishes only the DEC-019-compliant subset, and leaves the other
 system rows fail-closed/UNATTRIBUTED.
+
+
+### Round 3 — material corrections
+
+**P1 — future manual create violated GAP-025.** The prior draft allowed new manual facts
+to stay UNATTRIBUTED because the current UI lacks explicit branch provenance. GAP-025
+Section 3.4 already requires every future manual/admin-created fact to explicitly identify
+actual attendance branch. The plan now requires a bounded provenance input for new manual
+creation while keeping legacy value-only edits UNATTRIBUTED unless a separately governed
+location operation establishes provenance.
+
+**P1 — bulk replacement could accidentally invent same-fact identity.** GAP-025 states
+employee/date/time similarity and recreated segment IDs do not prove semantic attendance
+fact identity. The current bulk save does not carry an approved predecessor mapping. The
+plan now defaults bulk replacement to retire old canonical facts + create new facts, with
+no provenance inheritance; same-fact revision requires explicit one-to-one predecessor
+identity.
+
+**P2 — compatibility bridge lacked one-row uniqueness.** A nullable FK alone would allow
+two live `dtr_segments` rows to point to one canonical fact. The plan now freezes a
+one-live-compatibility-row-per-canonical-fact uniqueness invariant.
+
+**P2 — operation IDs could still be regenerated on retry.** Manual/bulk initiating flows
+must create and retain logical operation IDs before transport/server retries; a fresh UUID
+per retry is explicitly not idempotent.
+
+**P2 — kiosk namespace mapping was implicit.** The plan now freezes current online
+`clientId` and offline `clientEventId` (forwarded as `clientId`) as one versioned
+logical scan identity family, while requiring a new namespace for a future materially
+different producer.
