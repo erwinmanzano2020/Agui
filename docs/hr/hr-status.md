@@ -1,5 +1,26 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-23 — GAP-024 Gate-A runtime convergence checkpoint
+
+**Status: PR #510 runtime implementation converged; ready for the controlled UAT /
+PR-deployment gate.** The final reviewed runtime-code head is
+`1cc3e8e67fdb702be098f7e3088a33971bc757b0`.
+
+Exact-head evidence is now complete for the Runtime phase: GitHub Preflight run #776
+passed dependency installation, lint, typecheck, build, and compiled Node tests; Vercel
+Preview passed; PR #510 was mergeable; no current non-outdated review thread remained;
+and the fresh Codex review on `1cc3e8e67f` reported no major issue.
+
+The last P2 from `discussion_r4070921025` is fixed by aligning membership construction
+with frame sealing's serialization order: target frame -> owning fact ->
+observation/evidence/lineage. Focused migration-contract coverage explicitly asserts
+frame -> fact -> evidence ordering.
+
+This checkpoint supersedes the earlier “exact-head CI/review pending” language below.
+It does **not** mark UAT passed, merge PR #510, apply the final lock-order migration to
+Production/the restored backend, enable a Production flag, close GAP-024, or authorize
+Gate B. The next action remains the separately controlled PR/UAT/deployment gate.
+
 ## 2026-09-22 — GAP-024 Gate-A frame-membership lock-order follow-up
 
 **Status: P2 correction implemented in PR #510; exact-head CI/review pending.**
