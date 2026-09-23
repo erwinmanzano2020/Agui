@@ -282,6 +282,14 @@ revoke insert, update, delete, truncate, references, trigger
 revoke insert, update, delete, truncate, references, trigger
   on table public.dtr_segments from service_role;
 
+-- dtr_entries stays readable for legacy payroll consumers during the staged read
+-- migration, but it may no longer be independently mutable by application roles.
+drop policy if exists dtr_entries_all on public.dtr_entries;
+revoke insert, update, delete, truncate, references, trigger
+  on table public.dtr_entries from authenticated;
+revoke insert, update, delete, truncate, references, trigger
+  on table public.dtr_entries from service_role;
+
 -- Fail the migration if a normal application role still has a raw mutation privilege.
 do $verify$
 begin
@@ -296,6 +304,20 @@ begin
       )
   ) then
     raise exception 'Gate-B cutover left a raw dtr_segments mutation privilege'
+      using errcode = '55000';
+  end if;
+
+  if exists (
+    select 1
+    from information_schema.role_table_grants grant_row
+    where grant_row.table_schema = 'public'
+      and grant_row.table_name = 'dtr_entries'
+      and grant_row.grantee in ('authenticated', 'service_role')
+      and grant_row.privilege_type in (
+        'INSERT', 'UPDATE', 'DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER'
+      )
+  ) then
+    raise exception 'Gate-B cutover left a raw dtr_entries mutation privilege'
       using errcode = '55000';
   end if;
 end
