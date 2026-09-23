@@ -1,5 +1,51 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-23 — GAP-024 Gate-B pre-P1 planning owner-approved
+
+**Status: OWNER APPROVED — Gate-B pre-P1 raw-mutator / producer-write-containment
+planning has converged. The next authorized work is a separate bounded Runtime
+implementation; PR #511 remains documentation-only. Historical Daily DTR Write P1 stays
+blocked until containment is implemented, deployed, and verified.**
+
+GAP-024 Gate A completed its full release cycle:
+
+- PR #510 squash-merged as
+  `71d11b79c002dce9b65e786ecb30ecfa9abdd494`;
+- final `gap024_gate_a_membership_frame_lock_order` migration applied to the restored
+  Supabase project and verified live;
+- exact merge-SHA Vercel deployment
+  `dpl_6yn53VdTBBC9MapCdQUDq5WQFFEF` reached READY with successful GitHub Vercel status;
+- live Gate-A source-of-truth remained empty immediately after release
+  (facts/projection/history = 0/0/0).
+
+The next DEC-017 step is **not Historical Daily DTR Write P1**. The required predecessor
+is the separately bounded Gate-B pre-P1 containment foundation. Current planning artifact:
+
+`docs/devlog/gap-024-gate-b-pre-p1-containment-plan.md`
+
+The planning pass inventories authenticated, browser, service-role kiosk/bulk, and repair
+attendance writers; defines a non-bypassable canonical mutation engine with
+producer-specific wrappers; requires raw mutation privilege containment; preserves
+Gate-A source-of-truth authority; and keeps P1, Gate C, Gate D, and Gate E unauthorized.
+
+Read-only planning evidence at this checkpoint found 96 live `dtr_segments` rows
+(59 manual, 37 system). Kiosk linkage is structurally exact for all 37 system rows, but
+DEC-019 source-identity evidence exists on every required governing event for only 17/37
+current system segments. Therefore planning explicitly forbids blanket kiosk attribution:
+only a future exact-head durable-link proof may establish the qualifying subset; all
+others remain fail-closed/UNATTRIBUTED.
+
+The Agui Project Control Center was stale at the start of this planning pass
+(still mirroring Gate A as next). After the technical planning contract converged, the
+operational mirror was reconciled on 2026-09-23 to show Gate A released, PR #511 as the
+current planning artifact, Historical Daily DTR Write P1 still blocked on containment,
+and no Gate-B runtime authorization at that planning checkpoint. The owner explicitly
+approved the converged plan on 2026-09-23. The mirror must now track the transition to a
+separate Runtime handoff while PR #511 itself remains documentation-only. Exact hosted
+head/check state remains tracked through the PR and Sync Map and must be reverified after
+every approval-sync edit.
+
+
 ## 2026-09-23 — GAP-024 Gate-A controlled UAT checkpoint
 
 **Status: CONTROLLED UAT PASS; final exact-head release checks are green and PR #510

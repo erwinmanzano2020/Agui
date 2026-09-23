@@ -30,12 +30,20 @@
 - Historical posture: HR was treated as undergoing stabilization rather than awaiting feature completion; this is evidence for the audit, not a current completeness determination
 
 ## Current Execution Focus
-- implement no runtime in this governance correction; after it merges and each slice is
-  separately tasked, follow DEC-017: GAP-024 Gate A → the Gate-B pre-P1 foundation containing every principal able to raw-mutate
-  P1-covered attendance → the separate historical Daily DTR write-authorization P1 during Gate B →
-  completion of remaining Gate B → Gate C → Gate D → Gate E
+- **Gate A is released** at squash merge
+  `71d11b79c002dce9b65e786ecb30ecfa9abdd494`; its final backend lock-order migration
+  and merge-SHA Vercel deployment are verified.
+- the separately bounded DEC-017 **GAP-024 Gate-B pre-P1 raw-mutator /
+  producer-write-containment planning contract is OWNER APPROVED** as of 2026-09-23;
+  the next authorized work is its separate bounded Runtime implementation after the
+  planning PR is merged and verified
+- follow DEC-017 sequence: completed Gate A → owner-approved Gate-B pre-P1 containment
+  Runtime → deployed/verified no-bypass proof → separate historical Daily DTR
+  write-authorization P1 during Gate B → completion of remaining Gate B → Gate C →
+  Gate D → Gate E
 - preserve GAP-024's internal A → B → C → D → E order; the P1 remains a separate bounded
-  Codex task/PR during Gate B and must not be folded into Gate A to reduce PR count
+  Codex task/PR during Gate B and must not be folded into the containment foundation to
+  reduce PR count
 - preserve scope-first/no-leak, tenancy, identity, and frozen-contract guardrails during HR re-entry
 - do not infer end-to-end HR completeness from the historical stability checkpoint
 - keep general HR feature development gated: HR-2 feature expansion, HR-4 product
