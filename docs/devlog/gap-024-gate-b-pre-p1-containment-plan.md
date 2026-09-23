@@ -325,6 +325,27 @@ one-live-row-per-canonical-fact invariant is part of the contract.
 
 This bridge is compatibility metadata, not a new source of truth.
 
+### 8.1.1 Transitional bridge guard
+
+The bridge becomes security-sensitive before final raw-DML revocation, so it must not be
+left writable under the legacy table grant.
+
+The same additive migration that introduces the bridge must add a database trigger/guard
+with these transitional invariants:
+
+- ordinary `authenticated` / application `service_role` raw DML cannot set, change, or
+  clear a non-null `canonical_fact_id`;
+- once a compatibility row has a non-null canonical bridge, ordinary raw application
+  UPDATE/DELETE of that row is rejected;
+- the SECURITY DEFINER canonical command owner may create/update/delete the compatibility
+  row as part of the atomic canonical mutation transaction;
+- database-owner emergency SQL remains the explicit break-glass boundary.
+
+This makes migrated rows database-enforced as command-only even while unmigrated legacy
+rows temporarily remain raw-writable during rollout. Direct raw inserts with a NULL bridge
+may exist only during that pre-cutover transition; P1 remains disabled and the final
+cutover must reconcile them before raw privileges are revoked.
+
 ### 8.2 Why the direction is preferred
 
 Existing Gate-A fact revisions can point to `dtr_segment_id`, but current bulk writers
@@ -750,6 +771,9 @@ Use executable PostgreSQL/Supabase-capable tests for:
 - House mismatch;
 - invalid branch provenance;
 - compatibility-row bridge consistency and uniqueness;
+- transitional guard tests proving raw app roles cannot set/change/clear
+  `canonical_fact_id` or mutate/delete an already bridged row before final privilege
+  cutover;
 - proof that Gate-B-created/backfilled canonical fact revisions keep legacy
   `dtr_segment_id` NULL;
 - fact retirement + legacy row replacement without FK blockage;
@@ -809,25 +833,38 @@ After future owner-approved deployment:
 
 ## 22. Deployment sequence
 
-The implementation must be ordered to avoid breaking live writers:
+The implementation must be ordered to avoid breaking live writers **without exposing a
+half-canonical writable state**:
 
 1. exact-head re-inventory and freeze writer/principal matrix;
-2. add command/private helpers/idempotency/bridge additively;
-3. backfill only provable canonical authority;
-4. migrate kiosk to command and verify;
-5. migrate authenticated manual paths and verify;
-6. migrate/retire browser direct writers;
-7. migrate bulk to the authenticated command path and verify service-role attendance
+2. add command/private helpers/idempotency/bridge **and the transitional bridge guard**
+   additively; do not enable P1;
+3. deploy/migrate kiosk to command and verify command-created rows are immediately guarded
+   from legacy raw mutation;
+4. migrate authenticated manual paths and verify;
+5. migrate/retire browser direct writers;
+6. migrate bulk to the authenticated command path and verify service-role attendance
    write escalation is removed;
-8. migrate/retire repair writer;
-9. prove repository/database no-bypass matrix;
-10. revoke authenticated raw DML;
-11. bound service-role raw DML as far as platform ownership permits;
-12. repeat producer regression + DB integration + concurrency tests;
-13. rebuild/verify projection;
-14. Production deploy under explicit owner release approval;
-15. verify post-deploy containment;
-16. only then mark Historical Daily DTR Write P1 as the next authorized planning/runtime
+7. migrate/retire repair writer;
+8. prove every known application writer now uses a command wrapper or is retired;
+9. enter a bounded database cutover transaction:
+   - acquire a table/advisory lock that prevents concurrent raw attendance writers;
+   - re-inventory/reconcile every remaining NULL-bridge compatibility row;
+   - backfill canonical value/fact state for every deterministically representable row;
+   - establish only evidence that satisfies the approved provenance contract;
+   - verify no active compatibility row remains projection-invisible merely because the
+     transition missed it;
+   - revoke authenticated raw INSERT/UPDATE/DELETE/TRUNCATE and unnecessary
+     REFERENCES/TRIGGER privileges;
+   - revoke application service-role raw INSERT/UPDATE/DELETE/TRUNCATE;
+   - commit the reconcile + privilege cutover atomically;
+10. prove repository/database no-bypass matrix on the post-cutover state;
+11. repeat producer regression + DB integration + real concurrency tests;
+12. rebuild/verify projection;
+13. Production release under explicit owner approval, respecting the repository's known
+    migration-history drift and controlled migration process;
+14. verify post-deploy containment and zero new unmapped/raw-only attendance;
+15. only then mark Historical Daily DTR Write P1 as the next authorized planning/runtime
     candidate.
 
 Do not revoke raw DML before its dependent writers have migrated.
@@ -836,8 +873,9 @@ Do not revoke raw DML before its dependent writers have migrated.
 
 Rollback is two-stage:
 
-- before privilege cutover: producer adapters may be rolled back to the previous build
-  only while raw DML is still intentionally available and P1 remains disabled;
+- before privilege cutover: producer adapters may be rolled back only to a build that
+  cannot raw-mutate already bridged/canonical rows; the transitional DB guard remains in
+  force, raw DML is available only for unbridged legacy state, and P1 remains disabled;
 - after privilege cutover: rollback must preserve canonical command containment. Do not
   restore broad authenticated/service-role raw DML as a convenience rollback.
 
@@ -862,7 +900,7 @@ The future runtime slice is complete only when:
 
 1. all active attendance writers at the exact head are inventoried;
 2. every overlapping application principal uses the canonical command or is proven
-   database-enforced as disjoint;
+   database-enforced as disjoint, including during staged rollout;
 3. browser direct attendance DML is gone;
 4. authenticated raw DML over protected `dtr_segments` state is revoked;
 5. kiosk service-role flow cannot bypass canonical fact/evidence/projection, and bulk is
@@ -1048,3 +1086,15 @@ row replacement, the canonical history itself could block the delete/recreate pa
 plan now freezes Gate-B-created/backfilled revisions with `dtr_segment_id = NULL` and
 uses only the forward `dtr_segments.canonical_fact_id` bridge for mutable compatibility
 mapping.
+
+
+### Round 6 — material correction
+
+**P1 — staged rollout exposed bridged rows to legacy raw writers.** The bridge is added
+before final raw privilege revocation, while historical `authenticated` and
+`service_role` table DML still exists. Without an interim DB guard, a legacy writer
+could mutate a canonicalized row or tamper with `canonical_fact_id`, creating
+raw/canonical divergence during the rollout itself. The plan now requires a definer-aware
+bridge guard from the moment the bridge exists, plus a locked final reconcile/backfill +
+privilege revocation transaction so no NULL-bridge/raw-only attendance slips through the
+cutover.
