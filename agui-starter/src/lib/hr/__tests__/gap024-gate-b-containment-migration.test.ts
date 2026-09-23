@@ -96,6 +96,14 @@ test("transitional bridge guard blocks application roles but preserves definer p
     sql,
     /create trigger dtr_segments_canonical_bridge_guard[\s\S]*before insert or update or delete on public\.dtr_segments/i,
   );
+  assert.match(
+    guard,
+    /tg_op = 'TRUNCATE'[\s\S]*Raw attendance writers cannot truncate canonical compatibility state[\s\S]*42501/i,
+  );
+  assert.match(
+    sql,
+    /create trigger dtr_segments_canonical_truncate_guard[\s\S]*before truncate on public\.dtr_segments[\s\S]*for each statement/i,
+  );
 });
 
 test("manual branch authorization preserves House and branch write scope", () => {
