@@ -25,11 +25,59 @@ jobs:
         with:
           version: latest
 
-      - name: Start disposable local database
-        run: supabase db start
+      - name: Start disposable local database without historical repo replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv supabase/migrations supabase/migrations.repo
+          mkdir supabase/migrations
+          restore_migrations() {
+            rm -rf supabase/migrations
+            mv supabase/migrations.repo supabase/migrations
+          }
+          trap restore_migrations EXIT
+          supabase db start
+          restore_migrations
+          trap - EXIT
 
-      - name: Rebuild local database from repository migrations
-        run: supabase db reset --local --no-seed
+      - name: Apply current Gate-A/Gate-B prerequisite and migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          DB_CONTAINER="$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -n 1)"
+          test -n "$DB_CONTAINER"
+
+          apply_sql() {
+            local file="$1"
+            echo "Applying $file"
+            docker exec -i "$DB_CONTAINER"               psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres < "$file"
+          }
+
+          apply_sql supabase/tests/gap024_gate_ab_prerequisite.sql
+
+          migrations=(
+            supabase/migrations/20261019100000_gap024_gate_a_attendance_authority.sql
+            supabase/migrations/20261019110000_gap024_gate_a_live_policy_compatibility.sql
+            supabase/migrations/20261019120000_gap024_gate_a_policy_surface_replay_guard.sql
+            supabase/migrations/20261019130000_gap024_gate_a_role_scope_guard.sql
+            supabase/migrations/20261019140000_gap024_gate_a_supersession_lookup_index.sql
+            supabase/migrations/20261019150000_gap024_gate_a_projection_history.sql
+            supabase/migrations/20261019160000_gap024_gate_a_activation_history_guard.sql
+            supabase/migrations/20261019170000_gap024_gate_a_activation_history_privilege.sql
+            supabase/migrations/20261019180000_gap024_gate_a_retired_fact_pointer_freeze.sql
+            supabase/migrations/20261019190000_gap024_gate_a_initial_active_guard.sql
+            supabase/migrations/20261019200000_gap024_gate_a_membership_frame_lock_order.sql
+            supabase/migrations/20261020100000_gap024_gate_b_containment_foundation.sql
+            supabase/migrations/20261020110000_gap024_gate_b_manual_commands.sql
+            supabase/migrations/20261020120000_gap024_gate_b_kiosk_command.sql
+            supabase/migrations/20261020130000_gap024_gate_b_bulk_command.sql
+            supabase/migrations/20261020140000_gap024_gate_b_repair_command.sql
+            supabase/migrations/20261020150000_gap024_gate_b_reconcile_cutover.sql
+          )
+
+          for migration in "${migrations[@]}"; do
+            apply_sql "$migration"
+          done
 
       - name: Run Gate-B two-session concurrency harness
         run: bash supabase/tests/gap024_gate_b_concurrency.sh
