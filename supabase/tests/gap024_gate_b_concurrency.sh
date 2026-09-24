@@ -312,7 +312,7 @@ select pg_catalog.pg_advisory_xact_lock(
 );
 select public.hr_replace_bulk_attendance_day(
   '$HOUSE','$EMP4','2026-09-24','c4-bulk',
-  '[{"timeIn":"2026-09-24T08:30:00+08:00","timeOut":"2026-09-24T11:30:00+08:00"}]'::jsonb
+  jsonb_build_array(jsonb_build_object('timeIn','2026-09-24T08:30:00+08:00','timeOut','2026-09-24T11:30:00+08:00'))
 );
 select pg_sleep(1);
 COMMIT;
@@ -333,12 +333,12 @@ echo "C5 — two generation-changing mutations for one employee"
 GEN5_BEFORE="$(scalar "select coalesce((select candidate_evidence_generation from public.hr_attendance_employee_generations where house_id='$HOUSE' and employee_id='$EMP5'),0);")"
 auth_sql "select public.hr_replace_bulk_attendance_day(
   '$HOUSE','$EMP5','2026-09-20','c5-a',
-  '[{"timeIn":"2026-09-20T08:00:00+08:00","timeOut":"2026-09-20T17:00:00+08:00"}]'::jsonb
+  jsonb_build_array(jsonb_build_object('timeIn','2026-09-20T08:00:00+08:00','timeOut','2026-09-20T17:00:00+08:00'))
 );" >"$TMP_DIR/c5-a.log" 2>&1 &
 p1=$!
 auth_sql "select public.hr_replace_bulk_attendance_day(
   '$HOUSE','$EMP5','2026-09-21','c5-b',
-  '[{"timeIn":"2026-09-21T08:00:00+08:00","timeOut":"2026-09-21T17:00:00+08:00"}]'::jsonb
+  jsonb_build_array(jsonb_build_object('timeIn','2026-09-21T08:00:00+08:00','timeOut','2026-09-21T17:00:00+08:00'))
 );" >"$TMP_DIR/c5-b.log" 2>&1 &
 p2=$!
 wait_pair_success "$p1" "$p2" "$TMP_DIR/c5-a.log" "$TMP_DIR/c5-b.log" "C5 concurrent generation-changing mutations"
@@ -349,24 +349,24 @@ echo "PASS: C5 employee generation advances monotonically without a lost increme
 echo "C6 — overlapping bulk result races"
 auth_sql "select public.hr_replace_bulk_attendance_day(
   '$HOUSE','$EMP6','2026-09-22','c6-a',
-  '[{"timeIn":"2026-09-22T08:00:00+08:00","timeOut":"2026-09-22T17:00:00+08:00"}]'::jsonb
+  jsonb_build_array(jsonb_build_object('timeIn','2026-09-22T08:00:00+08:00','timeOut','2026-09-22T17:00:00+08:00'))
 );" >"$TMP_DIR/c6-a.log" 2>&1 &
 p1=$!
 auth_sql "select public.hr_replace_bulk_attendance_day(
   '$HOUSE','$EMP6','2026-09-22','c6-b',
-  '[{"timeIn":"2026-09-22T08:30:00+08:00","timeOut":"2026-09-22T17:30:00+08:00"}]'::jsonb
+  jsonb_build_array(jsonb_build_object('timeIn','2026-09-22T08:30:00+08:00','timeOut','2026-09-22T17:30:00+08:00'))
 );" >"$TMP_DIR/c6-b.log" 2>&1 &
 p2=$!
 wait_pair_success "$p1" "$p2" "$TMP_DIR/c6-a.log" "$TMP_DIR/c6-b.log" "C6 overlapping bulk results serialize without deadlock"
 expect_fail_auth "select public.hr_replace_bulk_attendance_day(
   '$HOUSE','$EMP6','2026-09-22','c6-a',
-  '[{"timeIn":"2026-09-22T09:00:00+08:00","timeOut":"2026-09-22T18:00:00+08:00"}]'::jsonb
+  jsonb_build_array(jsonb_build_object('timeIn','2026-09-22T09:00:00+08:00','timeOut','2026-09-22T18:00:00+08:00'))
 );" "C6 same bulk operation ID with different input fails"
 
 echo "C7 — projection rebuild vs active mutation"
 auth_sql "select public.hr_replace_bulk_attendance_day(
   '$HOUSE','$EMP7','2026-09-23','c7-bulk',
-  '[{"timeIn":"2026-09-23T08:00:00+08:00","timeOut":"2026-09-23T17:00:00+08:00"}]'::jsonb
+  jsonb_build_array(jsonb_build_object('timeIn','2026-09-23T08:00:00+08:00','timeOut','2026-09-23T17:00:00+08:00'))
 );" >"$TMP_DIR/c7-mutation.log" 2>&1 &
 p1=$!
 super_sql "select public.hr_rebuild_attendance_authorization_projection('$HOUSE');" >"$TMP_DIR/c7-rebuild.log" 2>&1 &
@@ -403,7 +403,7 @@ auth_sql "select public.hr_create_manual_attendance(
 );"
 auth_sql "select public.hr_replace_bulk_attendance_day(
   '$HOUSE','$EMP8','2026-09-25','c8-bulk',
-  '[{"timeIn":"2026-09-25T08:00:00+08:00","timeOut":"2026-09-25T17:00:00+08:00"}]'::jsonb
+  jsonb_build_array(jsonb_build_object('timeIn','2026-09-25T08:00:00+08:00','timeOut','2026-09-25T17:00:00+08:00'))
 );"
 service_sql "select public.hr_apply_kiosk_attendance_scan(
   '$HOUSE','$BRANCH_A','$DEVICE','$EMP8','c8-kiosk',
