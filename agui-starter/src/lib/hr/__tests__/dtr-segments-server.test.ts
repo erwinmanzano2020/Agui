@@ -133,6 +133,7 @@ function buildSegment(id: string, overrides: Partial<DtrSegmentRow> = {}): DtrSe
     overtime_minutes: overrides.overtime_minutes ?? 0,
     source: overrides.source ?? "manual",
     status: overrides.status ?? "open",
+    canonical_fact_id: overrides.canonical_fact_id ?? null,
     created_at: overrides.created_at ?? "2024-10-01T16:00:00Z",
   } satisfies DtrSegmentRow;
 }
@@ -178,6 +179,7 @@ class SegmentInsertMock {
       overtime_minutes: payload.overtime_minutes ?? 0,
       source: payload.source ?? "manual",
       status: payload.status ?? "open",
+      canonical_fact_id: payload.canonical_fact_id ?? null,
       created_at: new Date().toISOString(),
     } satisfies DtrSegmentRow;
     return this;
@@ -373,6 +375,8 @@ describe("createDtrSegment", () => {
         createDtrSegment(supabase as never, {
           houseId: "house-1",
           employeeId: "emp-1",
+          actualBranchId: "branch-1",
+          operationId: "op-create-cross-house",
           workDate: "2024-10-02",
           timeIn: "2024-10-02T08:00:00.000Z",
           timeOut: null,

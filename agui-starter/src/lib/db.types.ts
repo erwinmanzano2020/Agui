@@ -244,6 +244,7 @@ export type DtrSegmentRow = {
   overtime_minutes: number;
   source: "manual" | "bulk" | "pos" | "system";
   status: "open" | "closed" | "corrected";
+  canonical_fact_id: string | null;
   created_at: string;
 };
 
@@ -258,6 +259,7 @@ export type DtrSegmentInsert = {
   overtime_minutes?: number;
   source?: DtrSegmentRow["source"];
   status?: DtrSegmentRow["status"];
+  canonical_fact_id?: string | null;
   created_at?: string;
 };
 
@@ -330,6 +332,24 @@ export type HrAttendanceAuthorizationHistoryInsert =
   Omit<HrAttendanceAuthorizationHistoryRow, "governing_evidence_ids" | "projected_at"> &
   Partial<Pick<HrAttendanceAuthorizationHistoryRow, "governing_evidence_ids" | "projected_at">>;
 export type HrAttendanceAuthorizationHistoryUpdate = Partial<HrAttendanceAuthorizationHistoryInsert>;
+
+export type HrAttendanceMutationOperationRow = {
+  house_id: string;
+  producer_namespace: string;
+  operation_id: string;
+  employee_id: string;
+  request_fingerprint: string;
+  outcome: Json | null;
+  fact_id: string | null;
+  value_revision: number | null;
+  evidence_basis_revision: number | null;
+  created_at: string;
+  completed_at: string | null;
+};
+export type HrAttendanceMutationOperationInsert =
+  Omit<HrAttendanceMutationOperationRow, "outcome" | "fact_id" | "value_revision" | "evidence_basis_revision" | "created_at" | "completed_at"> &
+  Partial<Pick<HrAttendanceMutationOperationRow, "outcome" | "fact_id" | "value_revision" | "evidence_basis_revision" | "created_at" | "completed_at">>;
+export type HrAttendanceMutationOperationUpdate = Partial<HrAttendanceMutationOperationInsert>;
 
 export type HrScheduleTemplateRow = {
   id: string;
@@ -1662,6 +1682,7 @@ export interface Database {
       hr_attendance_employee_generations: TableDefinition<HrAttendanceEmployeeGenerationRow, HrAttendanceEmployeeGenerationInsert, HrAttendanceEmployeeGenerationUpdate>;
       hr_attendance_authorization_projection: TableDefinition<HrAttendanceAuthorizationProjectionRow, HrAttendanceAuthorizationProjectionInsert, HrAttendanceAuthorizationProjectionUpdate>;
       hr_attendance_authorization_history: TableDefinition<HrAttendanceAuthorizationHistoryRow, HrAttendanceAuthorizationHistoryInsert, HrAttendanceAuthorizationHistoryUpdate>;
+      hr_attendance_mutation_operations: TableDefinition<HrAttendanceMutationOperationRow, HrAttendanceMutationOperationInsert, HrAttendanceMutationOperationUpdate>;
       hr_schedule_templates: TableDefinition<
         HrScheduleTemplateRow,
         HrScheduleTemplateInsert,
@@ -1792,6 +1813,46 @@ export interface Database {
       current_entity_id: FunctionDefinition<Record<string, never>, string | null>;
       next_hr_reference_code: FunctionDefinition<{ target_year: number }, string>;
       hr_rebuild_attendance_authorization_projection: FunctionDefinition<{ p_house_id: string }, number>;
+      hr_create_manual_attendance: FunctionDefinition<{
+        p_house_id: string;
+        p_employee_id: string;
+        p_actual_branch_id: string;
+        p_operation_id: string;
+        p_work_date: string;
+        p_time_in: string;
+        p_time_out?: string | null;
+      }, Json>;
+      hr_update_manual_attendance: FunctionDefinition<{
+        p_house_id: string;
+        p_segment_id: string;
+        p_operation_id: string;
+        p_time_in: string;
+        p_time_out?: string | null;
+        p_expected_value_revision?: number | null;
+      }, Json>;
+      hr_replace_bulk_attendance_day: FunctionDefinition<{
+        p_house_id: string;
+        p_employee_id: string;
+        p_work_date: string;
+        p_operation_id: string;
+        p_segments: Json;
+      }, Json>;
+      hr_get_dtr_mutation_tokens: FunctionDefinition<{
+        p_house_id: string;
+        p_segment_ids: string[];
+      }, Array<{
+        segment_id: string;
+        canonical_fact_id: string | null;
+        current_value_revision: number | null;
+      }>>;
+      hr_apply_kiosk_attendance_scan: FunctionDefinition<{
+        p_house_id: string;
+        p_branch_id: string;
+        p_device_id: string;
+        p_employee_id: string;
+        p_operation_id: string;
+        p_occurred_at: string;
+      }, Json>;
       hr_read_canonical_attendance_branch_scoped: FunctionDefinition<{ p_house_id: string; p_start_date: string; p_end_date: string; p_employee_id?: string | null; p_limit?: number; p_offset?: number }, Array<{ fact_id: string; employee_id: string; work_date: string; time_in: string | null; time_out: string | null; hours_worked: number | null; overtime_minutes: number; status: string; active_branch_id: string }>>;
       hr_read_canonical_attendance_house_global: FunctionDefinition<{ p_house_id: string; p_start_date: string; p_end_date: string; p_employee_id?: string | null; p_limit?: number; p_offset?: number }, Array<{ fact_id: string; employee_id: string; work_date: string; time_in: string | null; time_out: string | null; hours_worked: number | null; overtime_minutes: number; status: string; attribution_state: "ATTRIBUTED" | "UNATTRIBUTED" | "CONFLICT"; active_branch_id: string | null }>>;
     };

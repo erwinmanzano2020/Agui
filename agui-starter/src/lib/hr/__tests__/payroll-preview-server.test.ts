@@ -186,6 +186,7 @@ function buildSegment(overrides: Partial<DtrSegmentRow> = {}): DtrSegmentRow {
     overtime_minutes: 0,
     source: "manual",
     status: overrides.status ?? "closed",
+    canonical_fact_id: overrides.canonical_fact_id ?? null,
     created_at: "2024-10-01T17:00:00Z",
   } satisfies DtrSegmentRow;
 }

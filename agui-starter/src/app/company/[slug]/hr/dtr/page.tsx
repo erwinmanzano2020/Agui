@@ -3,9 +3,12 @@ import { notFound } from "next/navigation";
 import { CreateDtrSegmentForm, UpdateDtrSegmentForm } from "./DtrSegmentForms";
 import { requireAuth } from "@/lib/auth/require-auth";
 import type { DtrSegmentRow } from "@/lib/db.types";
-import { requireHrAccess } from "@/lib/hr/access";
-import { listDtrByHouseAndDate } from "@/lib/hr/dtr-segments-server";
-import { listEmployeesByHouse } from "@/lib/hr/employees-server";
+import { requireHrAccess, requireHrAccessWithBranch } from "@/lib/hr/access";
+import {
+  listDtrByHouseAndDate,
+  listDtrMutationTokens,
+} from "@/lib/hr/dtr-segments-server";
+import { listBranchesForHouse, listEmployeesByHouse } from "@/lib/hr/employees-server";
 import { computeOvertimeForHouseDate, getScheduleForEmployeeOnDate } from "@/lib/hr/overtime-engine";
 import { formatManilaTimeFromIso } from "@/lib/hr/timezone";
 
@@ -60,6 +63,11 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
     notFound();
   }
   await requireHrAccess(supabase, house.id);
+  const writeAccess = await requireHrAccessWithBranch(supabase, {
+    houseId: house.id,
+    requiredLevel: "write",
+    writeScope: "branch-set-preflight",
+  });
 
   const today = new Date().toISOString().slice(0, 10);
   const dateParam = typeof rawSearch.date === "string" ? rawSearch.date : undefined;
@@ -67,8 +75,14 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
 
   const employeeFilter = typeof rawSearch.employee === "string" ? rawSearch.employee : "";
 
-  const employeesResult = await listEmployeesByHouse(supabase, house.id, { status: "active" });
+  const [employeesResult, branchResult] = await Promise.all([
+    listEmployeesByHouse(supabase, house.id, { status: "active" }),
+    writeAccess.allowed
+      ? listBranchesForHouse(supabase, house.id, writeAccess)
+      : Promise.resolve({ branches: [] }),
+  ]);
   const employees = employeesResult.employees;
+  const attendanceBranches = branchResult.branches;
   const allowedEmployeeIds = new Set(employees.map((employee) => employee.id));
   const filteredEmployeeId = allowedEmployeeIds.has(employeeFilter) ? employeeFilter : "";
 
@@ -76,6 +90,13 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
     employeeId: filteredEmployeeId || undefined,
   });
   const segmentsByEmployee = groupSegments(segments);
+  const mutationTokens = writeAccess.allowed
+    ? await listDtrMutationTokens(
+        supabase,
+        house.id,
+        segments.map((segment) => segment.id),
+      )
+    : new Map();
 
   const visibleEmployees = filteredEmployeeId
     ? employees.filter((employee) => employee.id === filteredEmployeeId)
@@ -229,6 +250,10 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
                             houseSlug={house.slug ?? slug}
                             workDate={workDate}
                             segment={segment}
+                            expectedValueRevision={
+                              mutationTokens.get(segment.id)?.current_value_revision ?? null
+                            }
+                            canEdit={mutationTokens.has(segment.id)}
                           />
                         </li>
                       ))}
@@ -282,12 +307,19 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
                   </div>
                 </details>
 
-                <CreateDtrSegmentForm
-                  houseId={house.id}
-                  houseSlug={house.slug ?? slug}
-                  workDate={workDate}
-                  employeeId={employee.id}
-                />
+                {writeAccess.allowed &&
+                attendanceBranches.length > 0 &&
+                (!writeAccess.isBranchLimited ||
+                  (employee.branch_id &&
+                    writeAccess.allowedBranchIds.includes(employee.branch_id.toLowerCase()))) ? (
+                  <CreateDtrSegmentForm
+                    houseId={house.id}
+                    houseSlug={house.slug ?? slug}
+                    workDate={workDate}
+                    employeeId={employee.id}
+                    branches={attendanceBranches}
+                  />
+                ) : null}
               </section>
             );
           })}

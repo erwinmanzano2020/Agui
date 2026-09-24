@@ -33,24 +33,28 @@
 - **Gate A is released** at squash merge
   `71d11b79c002dce9b65e786ecb30ecfa9abdd494`; its final backend lock-order migration
   and merge-SHA Vercel deployment are verified.
-- the separately bounded DEC-017 **GAP-024 Gate-B pre-P1 raw-mutator /
-  producer-write-containment planning contract is OWNER APPROVED** as of 2026-09-23;
-  the next authorized work is its separate bounded Runtime implementation after the
-  planning PR is merged and verified
-- follow DEC-017 sequence: completed Gate A → owner-approved Gate-B pre-P1 containment
-  Runtime → deployed/verified no-bypass proof → separate historical Daily DTR
-  write-authorization P1 during Gate B → completion of remaining Gate B → Gate C →
-  Gate D → Gate E
-- preserve GAP-024's internal A → B → C → D → E order; the P1 remains a separate bounded
-  Codex task/PR during Gate B and must not be folded into the containment foundation to
-  reduce PR count
-- preserve scope-first/no-leak, tenancy, identity, and frozen-contract guardrails during HR re-entry
-- do not infer end-to-end HR completeness from the historical stability checkpoint
-- keep general HR feature development gated: HR-2 feature expansion, HR-4 product
-  workflow implementation, native/offline work, and unrelated refactors are not
-  authorized by this execution posture
-- preserve the merged PR #488 POS checkpoint without further POS work
-- keep POS/Operations/Finance/Growth gated until later explicit phase decisions authorize their resumption or start
+- **GAP-024 Gate-B pre-P1 raw-mutator / producer-write-containment Runtime has
+  converged in PR #512.** Final reviewed Runtime candidate before governance-only sync:
+  `c8a512ca97c31033bf242b83d978c7938eebdfd8`.
+- Runtime evidence is green: Preflight #862, disposable Gate-A/Gate-B migration replay
+  plus C1-C8 real PostgreSQL concurrency #7, exact-head Vercel READY/SUCCESS, Preview
+  HTTP 200, clean checked runtime logs, and zero current material review threads.
+- **Next authorized phase is the separately controlled UAT / PR-deployment gate for
+  PR #512.** Runtime convergence does not authorize merge or Production deployment.
+- Production Supabase remains on released Gate A only; no Gate-B `20261020...`
+  migration has been applied.
+- Historical Daily DTR Write P1 remains blocked until Gate-B containment is
+  owner-released, deployed to Production through the controlled migration path, and
+  post-deploy no-bypass verification passes.
+- follow DEC-017 sequence: completed Gate A → converged Gate-B pre-P1 containment →
+  Controlled UAT/release → deployed/verified no-bypass proof → separate historical Daily
+  DTR write-authorization P1 during Gate B → completion of remaining Gate B → Gate C →
+  Gate D → Gate E.
+- preserve GAP-024's internal A → B → C → D → E order; P1 remains a separate bounded
+  task/PR and must not be folded into this containment release to reduce PR count.
+- keep general HR feature development, POS, Operations, Finance, and unrelated refactors
+  gated; preserve scope-first/no-leak, House tenancy, branch-restriction, identity, and
+  frozen-contract guardrails.
 
 ## HR Stability Gate (Satisfied; POS Unlock Recorded)
 HR can be considered stable enough to move forward **only** when:

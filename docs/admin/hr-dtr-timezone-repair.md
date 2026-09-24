@@ -1,129 +1,108 @@
-# HR Admin — DTR Timezone Repair (House-Scoped)
+# HR Admin — DTR Timezone Repair (Canonical Maintenance)
 
-## Why this exists
-Legacy DTR segments were sometimes stored as **UTC timestamps that actually represent Manila local clock time**. This shifts the Manila-local view by +8 hours, inflating OT and breaking payroll preview. This document provides a **house-scoped** detection + repair workflow.
+## Status
 
-> **Safety first:** Always run preview queries, inspect samples, and keep a rollback path before updating production data.
+Gate-B containment retires direct `UPDATE dtr_segments` repair SQL. Attendance repair
+must preserve canonical fact revisions, operation identity, employee generation, and
+authorization projection.
 
----
+The approved maintenance entrypoint is:
 
-## 1) Preview suspect rows (count + sample)
+`public.hr_apply_attendance_time_repair(...)`
 
-**Fill in**: `:house_id`, `:start_date`, `:end_date` (or set a cutoff).
+It is **not granted to `anon`, `authenticated`, or `service_role`**. Use it only
+from the approved administrator / database-owner break-glass SQL boundary.
 
-```sql
--- Preview count + sample rows for a given house/date range.
-WITH suspect AS (
-  SELECT
-    s.id,
-    s.house_id,
-    s.employee_id,
-    s.work_date,
-    s.time_in,
-    s.time_out,
-    s.created_at,
-    (s.time_in AT TIME ZONE 'Asia/Manila')  AS time_in_mnl,
-    (s.time_out AT TIME ZONE 'Asia/Manila') AS time_out_mnl
-  FROM dtr_segments s
-  WHERE s.house_id = :house_id
-    AND s.work_date >= :start_date
-    AND s.work_date <= :end_date
-    AND s.time_in IS NOT NULL
-    AND s.time_out IS NOT NULL
-    AND (
-      (s.time_in AT TIME ZONE 'Asia/Manila')::date <> s.work_date
-      OR (s.time_out AT TIME ZONE 'Asia/Manila')::date <> s.work_date
-      OR (s.time_out - s.time_in) > interval '18 hours'
-    )
-)
-SELECT COUNT(*) AS suspect_count FROM suspect;
+## 1. Generate a House-scoped review set
 
--- Sample rows (inspect before you update)
-SELECT *
-FROM suspect
-ORDER BY created_at DESC
-LIMIT 50;
+Use the repository helper:
+
+```bash
+node --loader ts-node/esm scripts/fix-dtr-timezone.ts \
+  --house=<house-uuid> \
+  --cutoff=2026-02-01 \
+  --direction=minus
 ```
 
-> Optional: If you have a known cutoff date, replace the work_date range with `s.work_date < :cutoff_date`.
+The helper prints:
 
----
+1. a read-only candidate query;
+2. deterministic per-segment canonical repair calls;
+3. dry-run / rollback guidance.
 
-## 2) Backup rows for rollback (recommended)
+It never prints a raw attendance UPDATE.
 
-```sql
--- Create a backup table for the rows you plan to update.
-CREATE TABLE IF NOT EXISTS dtr_segments_timezone_backup AS
-SELECT * FROM dtr_segments WHERE false;
+## 2. Review before repair
 
--- Store the suspect rows BEFORE mutation.
-INSERT INTO dtr_segments_timezone_backup
-SELECT s.*
-FROM dtr_segments s
-WHERE s.house_id = :house_id
-  AND s.work_date >= :start_date
-  AND s.work_date <= :end_date
-  AND s.time_in IS NOT NULL
-  AND s.time_out IS NOT NULL
-  AND (
-    (s.time_in AT TIME ZONE 'Asia/Manila')::date <> s.work_date
-    OR (s.time_out AT TIME ZONE 'Asia/Manila')::date <> s.work_date
-    OR (s.time_out - s.time_in) > interval '18 hours'
-  );
-```
+For every selected row verify:
 
----
+- House and employee are correct;
+- the row is genuinely affected by the historical timezone defect;
+- proposed `time_in` / `time_out` are correct;
+- `canonical_fact_id` and current value revision match the generated expected token;
+- the deterministic operation ID and reason describe this repair batch.
 
-## 3) Repair rows (Manila-local reinterpretation)
+Do not repair rows merely because they match a broad time heuristic.
 
-> **Goal:** Interpret the stored timestamptz **as if it were Manila local clock time**, then re-attach `+08:00`.
+## 3. Dry run
+
+Run only the reviewed generated calls inside an explicit transaction:
 
 ```sql
-BEGIN;
+begin;
 
-UPDATE dtr_segments s
-SET
-  time_in  = (s.time_in AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Manila',
-  time_out = (s.time_out AT TIME ZONE 'UTC') AT TIME ZONE 'Asia/Manila'
-WHERE s.house_id = :house_id
-  AND s.work_date >= :start_date
-  AND s.work_date <= :end_date
-  AND s.time_in IS NOT NULL
-  AND s.time_out IS NOT NULL
-  AND (
-    (s.time_in AT TIME ZONE 'Asia/Manila')::date <> s.work_date
-    OR (s.time_out AT TIME ZONE 'Asia/Manila')::date <> s.work_date
-    OR (s.time_out - s.time_in) > interval '18 hours'
-  );
+-- paste reviewed SELECT public.hr_apply_attendance_time_repair(...) calls here
 
-COMMIT;
+-- inspect affected dtr_segments, canonical fact revisions, mutation-operation outcome,
+-- employee generation, and authorization projection here.
+
+rollback;
 ```
 
----
+A dry run must not leave persistent attendance changes.
 
-## 4) Rollback (if needed)
+## 4. Apply
+
+After the dry run matches the intended rows, repeat the same reviewed calls with the same
+operation IDs:
 
 ```sql
--- Restore from backup for the affected rows.
-BEGIN;
+begin;
 
-UPDATE dtr_segments s
-SET
-  time_in  = b.time_in,
-  time_out = b.time_out
-FROM dtr_segments_timezone_backup b
-WHERE s.id = b.id
-  AND s.house_id = :house_id
-  AND s.work_date >= :start_date
-  AND s.work_date <= :end_date;
+-- same reviewed canonical repair calls
 
-COMMIT;
+commit;
 ```
 
----
+The stable operation ID makes an identical retry idempotent. Reusing an operation ID with
+different material input fails closed.
 
-## 5) Post-fix verification
+## 5. Stale / conflict behavior
 
-- Re-run the preview query above; `suspect_count` should drop to near zero.
-- Re-run Payroll Preview and check OT totals for the affected period.
-- Spot-check a few employees’ DTR segments in HR → DTR.
+For an already bridged segment, pass the current canonical value revision captured during
+review. If the fact advanced before the repair executes, the command fails stale instead
+of overwriting newer state.
+
+For an unbridged legacy segment, the canonical command performs the required bridge
+bootstrap inside the serialized transaction; no raw fallback is allowed.
+
+## 6. Verification
+
+After commit:
+
+- confirm segment timestamps;
+- confirm a new canonical value revision exists when applicable;
+- confirm `hr_attendance_mutation_operations` contains the operation result and
+  `repairReason`;
+- confirm employee generation advanced;
+- confirm authorization projection rebuild completed;
+- re-run payroll preview for the affected period.
+
+## 7. Rollback
+
+Do **not** restore rows with a direct SQL UPDATE.
+
+If an applied repair itself was wrong, perform another explicitly reviewed canonical
+repair using a new operation ID and the current expected value revision. Canonical
+history is append-only; rollback means a compensating audited revision, not destructive
+history rewrite.

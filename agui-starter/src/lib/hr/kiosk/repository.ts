@@ -32,64 +32,58 @@ export function createSupabaseKioskRepo(supabase: SupabaseClient): KioskRepo {
       return data;
     },
 
-    async findOpenSegments(employeeId, limit) {
-      let query = supabase
-        .from("dtr_segments")
-        .select("id, employee_id, house_id, work_date, time_in, time_out, status")
-        .eq("employee_id", employeeId)
-        .eq("status", "open")
-        .is("time_out", null)
-        .order("time_in", { ascending: false })
-        .order("created_at", { ascending: false });
+    async applyAttendanceScan({
+      houseId,
+      branchId,
+      deviceId,
+      employeeId,
+      operationId,
+      occurredAt,
+    }) {
+      const { data, error } = await supabase.rpc("hr_apply_kiosk_attendance_scan", {
+        p_house_id: houseId,
+        p_branch_id: branchId,
+        p_device_id: deviceId,
+        p_employee_id: employeeId,
+        p_operation_id: operationId,
+        p_occurred_at: occurredAt,
+      });
+      if (error) throw new Error(error.message);
 
-      if (typeof limit === "number" && Number.isFinite(limit) && limit > 0) {
-        query = query.limit(Math.floor(limit));
+      if (!data || typeof data !== "object" || Array.isArray(data)) {
+        throw new Error("Canonical kiosk command returned an invalid result.");
       }
 
-      const { data, error } = await query;
-      if (error) throw new Error(error.message);
-      return data ?? [];
-    },
+      const value = data as Record<string, unknown>;
+      const action = value.action;
+      const workDate = value.workDate;
+      const segmentId = value.segmentId;
+      if (
+        (action !== "clock_in" && action !== "clock_out" && action !== "debounced") ||
+        typeof workDate !== "string" ||
+        (segmentId !== null && typeof segmentId !== "string")
+      ) {
+        throw new Error("Canonical kiosk command returned an invalid result.");
+      }
 
-    async closeSegment(segmentId, timeOut) {
-      const { data, error } = await supabase
-        .from("dtr_segments")
-        .update({ time_out: timeOut, status: "closed" })
-        .eq("id", segmentId)
-        .select("id, employee_id, house_id, work_date, time_in, time_out, status")
-        .maybeSingle();
-      if (error) throw new Error(error.message);
-      return data;
-    },
-
-    async createOpenSegment({ houseId, employeeId, workDate, timeIn }) {
-      const { data, error } = await supabase
-        .from("dtr_segments")
-        .insert({
-          house_id: houseId,
-          employee_id: employeeId,
-          work_date: workDate,
-          time_in: timeIn,
-          source: "system",
-          status: "open",
-        })
-        .select("id, employee_id, house_id, work_date, time_in, time_out, status")
-        .maybeSingle();
-      if (error) throw new Error(error.message);
-      return data;
-    },
-
-    async findLatestEmployeeEvent(houseId, employeeId) {
-      const { data, error } = await supabase
-        .from("hr_kiosk_events")
-        .select("occurred_at")
-        .eq("house_id", houseId)
-        .eq("employee_id", employeeId)
-        .order("occurred_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (error) throw new Error(error.message);
-      return data;
+      return {
+        action,
+        segmentId,
+        factId: typeof value.factId === "string" ? value.factId : null,
+        valueRevision:
+          typeof value.valueRevision === "number" ? value.valueRevision : null,
+        evidenceBasisRevision:
+          typeof value.evidenceBasisRevision === "number"
+            ? value.evidenceBasisRevision
+            : null,
+        employeeGeneration:
+          typeof value.employeeGeneration === "number"
+            ? value.employeeGeneration
+            : null,
+        workDate,
+        multipleOpenSegments: value.multipleOpenSegments === true,
+        replayed: value.replayed === true,
+      };
     },
 
     async insertKioskEvent({ deviceId, houseId, branchId, employeeId, eventType, occurredAt, metadata }) {
@@ -112,18 +106,5 @@ export function createSupabaseKioskRepo(supabase: SupabaseClient): KioskRepo {
       if (updateDeviceError) throw new Error(updateDeviceError.message);
     },
 
-    async hasSyncClientEventId(houseId, branchId, clientEventId) {
-      const { data, error } = await supabase
-        .from("hr_kiosk_events")
-        .select("id")
-        .eq("house_id", houseId)
-        .eq("branch_id", branchId)
-        .eq("event_type", "sync_success")
-        .eq("metadata->>clientEventId", clientEventId)
-        .limit(1)
-        .maybeSingle();
-      if (error) throw new Error(error.message);
-      return Boolean(data?.id);
-    },
   };
 }

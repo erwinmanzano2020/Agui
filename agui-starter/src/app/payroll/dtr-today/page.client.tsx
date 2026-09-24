@@ -8,7 +8,6 @@ import { resolveEffectiveShift } from "@/lib/shifts";
 import { getSupabase } from "@/lib/supabase";
 import {
   assertManilaReasonableSegment,
-  getManilaTimeString,
   toManilaTimestamptz,
 } from "@/lib/hr/timezone";
 
@@ -31,7 +30,6 @@ export default function PayrollDtrTodayPageClient() {
 
   // segments
   const [segments, setSegments] = useState<Segment[]>([]);
-  const [hasOpen, setHasOpen] = useState(false);
 
   // info & results
   const [shiftInfo, setShiftInfo] = useState<{
@@ -80,7 +78,6 @@ export default function PayrollDtrTodayPageClient() {
     if (!sb) {
       setMsg("Supabase not configured");
       setSegments([]);
-      setHasOpen(false);
       return;
     }
 
@@ -95,102 +92,18 @@ export default function PayrollDtrTodayPageClient() {
       time_out: row.time_out,
     }));
     setSegments(rows);
-    setHasOpen(rows.some((row) => row.time_out === null));
   }, [date, employeeId]);
 
   useEffect(() => {
     void loadSegments();
   }, [loadSegments]);
 
-  async function clockIn() {
-    setMsg(null);
-    // prevent double-open
-    if (hasOpen) {
-      setMsg("There is already an open segment. Clock out first.");
-      return;
-    }
-
-    const now = new Date();
-    const startAt = toManilaTimestamptz(date, getManilaTimeString(now));
-    if (!startAt) {
-      setMsg("Invalid clock-in time");
-      return;
-    }
-    const validation = assertManilaReasonableSegment(startAt, null, date);
-    if (!validation.ok) {
-      setMsg("Invalid clock-in timestamp");
-      return;
-    }
-    const sb = getSupabase();
-    if (!sb) {
-      setMsg("Supabase not configured");
-      return;
-    }
-
-    const { error } = await sb.from("dtr_segments").insert({
-      employee_id: employeeId,
-      work_date: date,
-      time_in: startAt,
-      time_out: null,
-      source: "manual",
-      status: "open",
-    });
-    if (error) setMsg(error.message);
-    await loadSegments();
-  }
-
-  async function clockOut() {
-    setMsg(null);
-    // find latest open
-    const sb = getSupabase();
-    if (!sb) {
-      setMsg("Supabase not configured");
-      return;
-    }
-
-    const { data: openSegment, error } = await sb
-      .from("dtr_segments")
-      .select("id")
-      .eq("employee_id", employeeId)
-      .eq("work_date", date)
-      .is("time_out", null)
-      .order("time_in", { ascending: false })
-      .limit(1)
-      .maybeSingle<{ id: string }>();
-
-    if (error) {
-      setMsg(error.message);
-      return;
-    }
-
-    if (!openSegment) {
-      setMsg("No open segment to close.");
-      return;
-    }
-
-    const now = new Date();
-    const endAt = toManilaTimestamptz(date, getManilaTimeString(now));
-    if (!endAt) {
-      setMsg("Invalid clock-out time");
-      return;
-    }
-    const validation = assertManilaReasonableSegment(endAt, null, date);
-    if (!validation.ok) {
-      setMsg("Invalid clock-out timestamp");
-      return;
-    }
-
-    const { error: updateError } = await sb
-      .from("dtr_segments")
-      .update({ time_out: endAt, status: "closed" })
-      .eq("id", openSegment.id);
-
-    if (updateError) setMsg(updateError.message);
-    await loadSegments();
-  }
+  // Gate-B containment: this legacy payroll page is read/preview-only for attendance
+  // segments. Canonical attendance mutation lives on the authenticated HR DTR command
+  // surface; raw browser INSERT/UPDATE is intentionally retired here.
 
   // Preview based on MANUAL inputs (kept)
-  async function runManualPreview(saveAfter = false) {
+  async function runManualPreview() {
     setMsg(null);
     if (!employeeId || !date || !timeIn || !timeOut) return;
     const shift = await resolveEffectiveShift(employeeId, date);
@@ -216,30 +129,10 @@ export default function PayrollDtrTodayPageClient() {
     const res = computeMinutes(date, new Date(timeInStamp), new Date(timeOutStamp), shift);
     setPreview(res);
 
-    if (saveAfter) {
-      const sb = getSupabase();
-      if (!sb) {
-        setMsg("Supabase not configured");
-        return;
-      }
-
-      await sb.from("dtr_entries").upsert(
-        {
-          employee_id: employeeId,
-          work_date: date,
-          time_in: timeInStamp,
-          time_out: timeOutStamp,
-          minutes_regular: res.regular,
-          minutes_ot: res.ot,
-        },
-        { onConflict: "employee_id,work_date" },
-      );
-      setMsg("Saved ✔ (manual)");
-    }
   }
 
   // Rollup segments → preview/save for the day
-  async function rollupSegments(saveAfter = false) {
+  async function rollupSegments() {
     setMsg(null);
     const shift = await resolveEffectiveShift(employeeId, date);
     setShiftInfo({
@@ -265,7 +158,6 @@ export default function PayrollDtrTodayPageClient() {
       // Rest Day: all OT
       const res = { regular: 0, ot: totalMins, total: totalMins };
       setPreview(res);
-      if (saveAfter) await saveRollup(res, segments);
       return;
     }
 
@@ -299,44 +191,8 @@ export default function PayrollDtrTodayPageClient() {
 
     const res = { regular, ot, total: totalMins };
     setPreview(res);
-    if (saveAfter) await saveRollup(res, segments);
   }
 
-  async function saveRollup(
-    res: { regular: number; ot: number; total: number },
-    segs: Segment[],
-  ) {
-    // Persist last segment boundaries as time_in/out for reference
-    const firstInISO =
-      segs.find((s) => !!s.time_in)?.time_in ??
-      toManilaTimestamptz(date, "00:00:00");
-    if (!firstInISO) {
-      setMsg("Invalid rollup timestamp");
-      return;
-    }
-    const lastOutISO =
-      segs.filter((s) => !!s.time_out).slice(-1)[0]?.time_out ?? firstInISO;
-
-    const sb = getSupabase();
-    if (!sb) {
-      setMsg("Supabase not configured");
-      return;
-    }
-
-    await sb.from("dtr_entries").upsert(
-      {
-        employee_id: employeeId,
-        work_date: date,
-        time_in: firstInISO,
-        time_out: lastOutISO,
-        minutes_regular: res.regular,
-        minutes_ot: res.ot,
-        notes: "rollup",
-      },
-      { onConflict: "employee_id,work_date" },
-    );
-    setMsg("Saved ✔ (rollup)");
-  }
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -381,37 +237,13 @@ export default function PayrollDtrTodayPageClient() {
         </div>
       )}
 
-      {/* Multi-punch controls */}
+      {/* Gate-B containment: legacy segment writer retired. */}
       <div className="border rounded p-3 mb-4">
-        <div className="flex gap-2 mb-3">
-          <button
-            className="bg-muted text-foreground rounded px-3 py-2"
-            onClick={clockIn}
-            disabled={hasOpen}
-          >
-            Clock In
-          </button>
-          <button
-            className="bg-muted text-foreground rounded px-3 py-2"
-            onClick={clockOut}
-            disabled={!hasOpen}
-          >
-            Clock Out
-          </button>
-          <button
-            className="bg-card text-card-foreground border border-border rounded px-3 py-2"
-            onClick={() => rollupSegments(false)}
-          >
-            Preview Rollup
-          </button>
-          <button
-            className="bg-success text-success-foreground rounded px-3 py-2"
-            onClick={() => rollupSegments(true)}
-          >
-            Save Rollup
-          </button>
+        <div className="text-sm mb-2">
+          Attendance segment creation/editing is managed in the HR DTR workspace.
+          This legacy payroll view remains available for read-only segment review and
+          payroll preview/rollup.
         </div>
-
         <div className="text-sm mb-2">
           <b>Segments:</b>
         </div>
@@ -423,19 +255,23 @@ export default function PayrollDtrTodayPageClient() {
               {segments.map((s, i) => (
                 <li key={i}>
                   IN: {new Date(s.time_in).toLocaleTimeString()} — OUT:{" "}
-                  {s.time_out ? (
-                    new Date(s.time_out).toLocaleTimeString()
-                  ) : (
-                    <i>OPEN</i>
-                  )}
+                  {s.time_out ? new Date(s.time_out).toLocaleTimeString() : <i>OPEN</i>}
                 </li>
               ))}
             </ul>
           )}
         </div>
+        <div className="flex gap-2 mt-3">
+          <button
+            className="bg-card text-card-foreground border border-border rounded px-3 py-2"
+            onClick={() => rollupSegments()}
+          >
+            Preview Rollup
+          </button>
+        </div>
       </div>
 
-      {/* Manual one-shot entry (kept for convenience) */}
+      {/* Manual one-shot preview only. Canonical writes require the HR DTR provenance flow. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
         <div>
           <div className="text-xs mb-1">Time In (manual)</div>
@@ -457,15 +293,9 @@ export default function PayrollDtrTodayPageClient() {
         </div>
         <button
           className="bg-card text-card-foreground border border-border rounded px-3 py-2"
-          onClick={() => runManualPreview(false)}
+          onClick={() => runManualPreview()}
         >
           Preview
-        </button>
-        <button
-          className="bg-success text-success-foreground rounded px-3 py-2"
-          onClick={() => runManualPreview(true)}
-        >
-          Save
         </button>
       </div>
 

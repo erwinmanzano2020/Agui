@@ -201,6 +201,7 @@ export default function DtrBulkClient() {
     kind: "success" | "error";
     msg: string;
   } | null>(null);
+  const saveOperationIdsRef = useRef(new Map<string, string>());
 
   /** ===== Data state ===== */
   const [employees, setEmployees] = useState<Emp[]>([]);
@@ -405,6 +406,15 @@ export default function DtrBulkClient() {
     };
   }, [mode, selectedEmpId, scopedEmployees, days, employees]);
 
+  function operationIdFor(employeeId: string, day: string, cell: DayCell) {
+    const fingerprint = JSON.stringify([employeeId, day, cell.in1, cell.out1, cell.in2, cell.out2]);
+    const existing = saveOperationIdsRef.current.get(fingerprint);
+    if (existing) return existing;
+    const operationId = crypto.randomUUID();
+    saveOperationIdsRef.current.set(fingerprint, operationId);
+    return operationId;
+  }
+
   /** ===== Save (bulk) ===== */
   async function handleSave() {
     setSaving(true);
@@ -419,6 +429,21 @@ export default function DtrBulkClient() {
             employeeId: scopedEmployees[0].id,
             days,
             grid,
+            operationIds: Object.fromEntries(
+              days.map((day) => [
+                day,
+                operationIdFor(
+                  scopedEmployees[0].id,
+                  day,
+                  grid[scopedEmployees[0].id]?.[day] ?? {
+                    in1: "",
+                    out1: "",
+                    in2: "",
+                    out2: "",
+                  },
+                ),
+              ]),
+            ),
           }),
         });
         const payload = await response.json();
@@ -426,6 +451,10 @@ export default function DtrBulkClient() {
           throw new Error(payload?.error || response.statusText);
         }
 
+        // Preserve IDs across failed/lost-response retries, but a confirmed save
+        // completes this logical operation. A later identical edit must receive a new
+        // operation identity rather than replaying an earlier successful replacement.
+        saveOperationIdsRef.current.clear();
         setToast({ kind: "success", msg: "Saved!" });
         setSaving(false);
         setYm((m) => m);
@@ -441,6 +470,22 @@ export default function DtrBulkClient() {
           employeeIds: scopedEmployees.map((e) => e.id),
           days,
           grid,
+          operationIds: Object.fromEntries(
+            scopedEmployees.flatMap((employee) =>
+              days.map((day) => {
+                const cell = grid[employee.id]?.[day] ?? {
+                  in1: "",
+                  out1: "",
+                  in2: "",
+                  out2: "",
+                };
+                return [
+                  `${employee.id}:${day}`,
+                  operationIdFor(employee.id, day, cell),
+                ];
+              }),
+            ),
+          ),
         }),
       });
       const payload = await response.json();
@@ -448,6 +493,7 @@ export default function DtrBulkClient() {
         throw new Error(payload?.error || response.statusText);
       }
 
+      saveOperationIdsRef.current.clear();
       setToast({ kind: "success", msg: "Saved!" });
     } catch (error: unknown) {
       const message = formatError(error);
@@ -563,6 +609,20 @@ export default function DtrBulkClient() {
           employeeIds: Array.from(new Set(payload.map((p) => p.employee_id))),
           days: Array.from(new Set(payload.map((p) => p.work_date))).sort(),
           grid: gridPayload,
+          operationIds: Object.fromEntries(
+            payload.map((row) => {
+              const cell = gridPayload[row.employee_id]?.[row.work_date] ?? {
+                in1: "",
+                out1: "",
+                in2: "",
+                out2: "",
+              };
+              return [
+                `${row.employee_id}:${row.work_date}`,
+                operationIdFor(row.employee_id, row.work_date, cell),
+              ];
+            }),
+          ),
         }),
       });
       const resPayload = await response.json();
@@ -570,6 +630,7 @@ export default function DtrBulkClient() {
         throw new Error(resPayload?.error || response.statusText);
       }
 
+      saveOperationIdsRef.current.clear();
       setToast({ kind: "success", msg: `Imported ${payload.length} rows` });
 
       // Reload current scope after import

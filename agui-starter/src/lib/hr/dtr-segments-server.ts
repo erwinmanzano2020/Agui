@@ -7,7 +7,7 @@ import type { HrBranchAccessDecision } from "@/lib/hr/access";
 import { assertManilaReasonableSegment, normalizeManilaTimestamp } from "@/lib/hr/timezone";
 
 const DTR_SEGMENT_COLUMNS =
-  "id, house_id, employee_id, work_date, time_in, time_out, hours_worked, overtime_minutes, source, status, created_at";
+  "id, house_id, employee_id, work_date, time_in, time_out, hours_worked, overtime_minutes, source, status, canonical_fact_id, created_at";
 
 type DateRange = { start: string; end: string };
 type MinimalEmployee = Pick<EmployeeRow, "id" | "house_id" | "branch_id">;
@@ -210,6 +210,8 @@ export async function createDtrSegment(
   input: {
     houseId: string;
     employeeId: string;
+    actualBranchId: string;
+    operationId: string;
     workDate: string;
     timeIn: string;
     timeOut: string | null;
@@ -241,36 +243,106 @@ export async function createDtrSegment(
     throw new Error(`Unreasonable DTR segment timestamps: ${validation.reasons.join(", ")}`);
   }
 
-  const payload = {
-    house_id: input.houseId,
-    employee_id: input.employeeId,
-    work_date: input.workDate,
-    time_in: normalizedTimeIn,
-    time_out: normalizedTimeOut,
-    hours_worked: null,
-    overtime_minutes: 0,
-    source: "manual",
-    status: input.timeOut ? "closed" : "open",
-  } satisfies Partial<DtrSegmentRow>;
+  const { data: commandResult, error: commandError } = await supabase.rpc(
+    "hr_create_manual_attendance",
+    {
+      p_house_id: input.houseId,
+      p_employee_id: input.employeeId,
+      p_actual_branch_id: input.actualBranchId,
+      p_operation_id: input.operationId,
+      p_work_date: input.workDate,
+      p_time_in: normalizedTimeIn,
+      p_time_out: normalizedTimeOut,
+    },
+  );
+
+  if (commandError) {
+    if (isPermissionDenied(commandError)) {
+      throw new DtrSegmentAccessError("Not allowed to create DTR segments for this house.");
+    }
+    throw new Error(commandError.message);
+  }
+
+  const segmentId =
+    commandResult && typeof commandResult === "object" && !Array.isArray(commandResult)
+      ? (commandResult as { segmentId?: unknown }).segmentId
+      : null;
+  if (typeof segmentId !== "string" || !segmentId) {
+    throw new Error("Canonical attendance command did not return a segment.");
+  }
 
   const { data, error } = await supabase
     .from("dtr_segments")
-    .insert(payload)
     .select(DTR_SEGMENT_COLUMNS)
+    .eq("house_id", input.houseId)
+    .eq("id", segmentId)
     .maybeSingle<DtrSegmentRow>();
 
   if (error) {
-    if (isPermissionDenied(error)) {
-      throw new DtrSegmentAccessError("Not allowed to create DTR segments for this house.");
-    }
     throw new Error(error.message);
   }
-
   if (!data) {
-    throw new Error("Failed to create DTR segment.");
+    throw new Error("Canonical attendance segment was not readable after creation.");
   }
 
   return normalizeSegments([data])[0];
+}
+
+export type DtrMutationToken = {
+  segment_id: string;
+  canonical_fact_id: string | null;
+  current_value_revision: number | null;
+};
+
+export async function listDtrMutationTokens(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  segmentIds: string[],
+): Promise<Map<string, DtrMutationToken>> {
+  if (segmentIds.length === 0) return new Map();
+
+  const { data, error } = await supabase.rpc("hr_get_dtr_mutation_tokens", {
+    p_house_id: houseId,
+    p_segment_ids: segmentIds,
+  });
+  if (error) {
+    if (isPermissionDenied(error)) return new Map();
+    throw new Error(error.message);
+  }
+
+  const rows = (data ?? []) as DtrMutationToken[];
+  return new Map(rows.map((row) => [row.segment_id, row]));
+}
+
+export async function updateDtrSegmentCanonical(
+  supabase: SupabaseClient<Database>,
+  input: {
+    houseId: string;
+    segmentId: string;
+    operationId: string;
+    timeIn: string;
+    timeOut: string | null;
+    expectedValueRevision: number | null;
+  },
+): Promise<void> {
+  const { error } = await supabase.rpc("hr_update_manual_attendance", {
+    p_house_id: input.houseId,
+    p_segment_id: input.segmentId,
+    p_operation_id: input.operationId,
+    p_time_in: input.timeIn,
+    p_time_out: input.timeOut,
+    p_expected_value_revision: input.expectedValueRevision,
+  });
+
+  if (error) {
+    if (isPermissionDenied(error)) {
+      throw new DtrSegmentAccessError("Not allowed to update this segment");
+    }
+    if (error.code === "40001" || /stale/i.test(error.message)) {
+      throw new DtrSegmentAccessError("This DTR segment changed. Refresh and try again.");
+    }
+    throw new Error(error.message);
+  }
 }
 
 export async function listDtrByEmployee(
