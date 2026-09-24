@@ -17,6 +17,7 @@ security invoker
 set search_path = pg_catalog, public
 as $function$
 declare
+  v_initial_employee_id uuid;
   v_segment public.dtr_segments%rowtype;
   v_result jsonb;
   v_fingerprint text;
@@ -34,6 +35,24 @@ begin
       using errcode = '22023';
   end if;
 
+  select segment.employee_id
+  into v_initial_employee_id
+  from public.dtr_segments segment
+  where segment.house_id = p_house_id
+    and segment.id = p_segment_id;
+
+  if not found then
+    raise exception 'Attendance segment was not found'
+      using errcode = 'P0002';
+  end if;
+
+  perform pg_catalog.pg_advisory_xact_lock(
+    pg_catalog.hashtextextended(
+      'gap024.attendance_mutation:' || p_house_id::text || ':' || v_initial_employee_id::text,
+      0
+    )
+  );
+
   select segment.*
   into v_segment
   from public.dtr_segments segment
@@ -44,6 +63,11 @@ begin
   if not found then
     raise exception 'Attendance segment was not found'
       using errcode = 'P0002';
+  end if;
+
+  if v_segment.employee_id is distinct from v_initial_employee_id then
+    raise exception 'Attendance segment ownership changed during repair'
+      using errcode = '40001';
   end if;
 
   v_fingerprint := md5(jsonb_build_array(
