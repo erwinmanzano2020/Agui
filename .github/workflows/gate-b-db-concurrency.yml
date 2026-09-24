@@ -1,0 +1,43 @@
+name: Gate B DB Concurrency
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+    paths:
+      - "supabase/**"
+      - "agui-starter/src/lib/hr/**"
+      - "agui-starter/src/app/api/payroll/dtr-bulk/**"
+      - "agui-starter/src/app/payroll/dtr-bulk/**"
+      - "agui-starter/src/app/payroll/dtr-today/**"
+      - "agui-starter/scripts/fix-dtr-timezone.ts"
+      - ".github/workflows/gate-b-db-concurrency.yml"
+  workflow_dispatch:
+
+jobs:
+  gate-b-db-concurrency:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start disposable local database
+        run: supabase db start
+
+      - name: Rebuild local database from repository migrations
+        run: supabase db reset --local --no-seed
+
+      - name: Run Gate-B two-session concurrency harness
+        run: bash supabase/tests/gap024_gate_b_concurrency.sh
+
+      - name: Show local Supabase status on failure
+        if: failure()
+        run: supabase status || true
+
+      - name: Stop disposable local stack
+        if: always()
+        run: supabase stop --no-backup || true
