@@ -225,6 +225,19 @@ expect_fail_auth "select public.hr_create_manual_attendance(
   '2026-09-25 09:00:00+08','2026-09-25 17:00:00+08'
 );" "C1 same operation ID with different input fails"
 
+SEG1_UPDATE="$(scalar "select id from public.dtr_segments where employee_id='$EMP1' and work_date='2026-09-25' order by created_at desc limit 1;")"
+[[ -n "$SEG1_UPDATE" ]] || fail "C1 manual update target was not found"
+auth_sql "select public.hr_update_manual_attendance(
+  '$HOUSE','$SEG1_UPDATE','c1-update',
+  '2026-09-25 08:15:00+08','2026-09-25 17:15:00+08',1
+);"
+assert_scalar "2" "select f.current_value_revision from public.dtr_segments s join public.hr_attendance_facts f on f.id=s.canonical_fact_id and f.house_id=s.house_id and f.employee_id=s.employee_id where s.id='$SEG1_UPDATE';" "C1 manual update advances the canonical value revision"
+assert_scalar "2026-09-25 00:15:00+00" "select time_in::text from public.dtr_segments where id='$SEG1_UPDATE';" "C1 manual update rewrites compatibility time through the command"
+expect_fail_auth "select public.hr_update_manual_attendance(
+  '$HOUSE','$SEG1_UPDATE','c1-update-stale',
+  '2026-09-25 08:30:00+08','2026-09-25 17:30:00+08',1
+);" "C1 stale manual update revision fails closed"
+
 echo "C2 — exact kiosk retry and distinct debounced scan"
 service_sql "select public.hr_apply_kiosk_attendance_scan(
   '$HOUSE','$BRANCH_A','$DEVICE','$EMP2','c2-k1',
