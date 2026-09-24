@@ -7,7 +7,6 @@ BRANCH_B="20000000-0000-0000-0000-000000000002"
 AUTH_USER="30000000-0000-0000-0000-000000000001"
 ENTITY="40000000-0000-0000-0000-000000000001"
 DEVICE="60000000-0000-0000-0000-000000000001"
-GUILD="70000000-0000-0000-0000-000000000001"
 
 EMP1="50000000-0000-0000-0000-000000000001"
 EMP2="50000000-0000-0000-0000-000000000002"
@@ -159,12 +158,8 @@ insert into public.accounts (user_id, entity_id)
 values ('$AUTH_USER', '$ENTITY')
 on conflict (user_id) do update set entity_id = excluded.entity_id;
 
-insert into public.guilds (id, slug, name, guild_type)
-values ('$GUILD', 'gate-b-ci-guild', 'Gate B CI Guild', 'MERCHANT')
-on conflict (id) do nothing;
-
-insert into public.houses (id, guild_id, slug, name, house_type)
-values ('$HOUSE', '$GUILD', 'gate-b-ci-house', 'Gate B CI House', 'RETAIL')
+insert into public.houses (id, slug, name, house_type)
+values ('$HOUSE', 'gate-b-ci-house', 'Gate B CI House', 'RETAIL')
 on conflict (id) do nothing;
 
 insert into public.branches (id, house_id, name, slug)
