@@ -2,12 +2,33 @@
 
 ## Status
 
-**RUNTIME TEST HARNESS DEFINED / NOT YET EXECUTED.**
+**EXECUTED / PASS — disposable local Supabase/PostgreSQL CI.**
 
-Execute only on an isolated Supabase development branch or equivalent disposable
-PostgreSQL environment after all Gate-A + Gate-B migrations in PR #512 are applied.
+Verified runtime-code head:
+`59c93b904a92180b3852e8e8df40f1f06c073964`
 
-Do **not** run these mutation/race tests against Production.
+GitHub Actions:
+- workflow: `Gate B DB Concurrency`
+- run: **#6**
+- run id: `35960349148`
+- conclusion: **SUCCESS**
+
+The workflow starts an unlinked disposable local Supabase database on the GitHub runner,
+loads the minimal current prerequisite schema used by Gate A/B, applies the complete
+Gate-A + Gate-B migration chain in order, runs C1-C8 through independent PostgreSQL
+sessions, and destroys the local stack.
+
+No Production project ref, Production credential, paid Supabase branch, or Production
+attendance data participates in this harness.
+
+The first zero-history experiment also documented pre-existing repository migration debt:
+the full historical migration directory is not clean-replayable from an empty database
+because unrelated 2025 migration
+`20250207090000_add_tenant_theme_preset.sql` assumes `public.tenant_theme` already
+exists, and legacy nonstandard migration filenames are skipped by the current CLI.
+Gate-B testing therefore intentionally replays the approved Gate-A/Gate-B boundary on a
+scoped current-schema prerequisite fixture instead of changing unrelated historical
+migrations.
 
 ## Purpose
 
@@ -171,21 +192,34 @@ Expected:
   valid authority because their SECURITY DEFINER owner performs canonical DML;
 - private mutation engine is not directly executable by authenticated/service_role.
 
-## Evidence to record
+## Executed evidence
 
-For each case save:
+Run #6 proved:
 
-- session A SQL/timestamps/result;
-- session B SQL/timestamps/result;
-- SQLSTATE/message for stale/denied contender;
-- operation-ledger rows;
-- fact/revision/frame/evidence rows;
-- employee generation before/after;
-- projection before/after clean rebuild;
-- raw privilege verification output.
+- C1 concurrent manual creates serialize; replay is idempotent; same-key/different-input
+  fails closed;
+- C2 exact concurrent kiosk retry produces one clock-in; distinct scan inside the
+  debounce window does not create an accidental clock-out;
+- C3 kiosk close vs stale admin repair completes without deadlock and stale repair fails;
+- C4 bulk replacement vs late kiosk scan serializes; predecessor stays retired; no
+  Gate-B revision references a deletable compatibility row;
+- C5 concurrent generation-changing mutations preserve both generation increments;
+- C6 overlapping bulk results serialize without deadlock and operation-key mismatch fails;
+- C7 rebuild vs mutation completes without partial state and the post-race projection
+  rebuild is deterministic;
+- C8 authenticated and service-role raw mutation attempts on protected
+  `dtr_segments`/`dtr_entries` fail while approved wrappers remain callable and the
+  private mutation engine remains inaccessible.
+
+Final invariant checks also passed:
+
+- bridge House/employee integrity;
+- Gate-B revisions keep `dtr_segment_id IS NULL`;
+- every active fact has its current revision and a sealed current frame;
+- every active Gate-B fact remains compatibility-backed.
 
 ## Cleanup
 
-Delete the isolated Supabase development branch after evidence is captured. Do not merge
-that branch to Production. Production rollout remains a later owner-controlled
-PR/UAT/deployment phase.
+The GitHub Actions runner destroys the local Supabase stack automatically with
+`supabase stop --no-backup`. There is no persistent test project or paid branch to
+delete. Production rollout remains a later owner-controlled PR/UAT/deployment phase.
