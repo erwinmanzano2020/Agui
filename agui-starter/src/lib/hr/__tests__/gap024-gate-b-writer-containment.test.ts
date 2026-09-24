@@ -45,6 +45,14 @@ function sqlFunction(sql: string, functionName: string) {
   return sql.slice(start, end + "$function$;".length);
 }
 
+test("maintenance repair acquires employee serialization before the segment row lock", () => {
+  assert.match(
+    repairSql,
+    /select segment\.employee_id[\s\S]*pg_advisory_xact_lock[\s\S]*select segment\.\*[\s\S]*for update/i,
+  );
+  assert.match(repairSql, /Attendance segment ownership changed during repair/i);
+});
+
 test("bulk replacement is authenticated, idempotent, canonical, and atomic with dtr_entries", () => {
   const bulkCommand = sqlFunction(bulkSql, "hr_replace_bulk_attendance_day");
   assert.match(
