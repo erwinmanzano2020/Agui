@@ -1,5 +1,58 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-24 — GAP-024 Gate-B pre-P1 Runtime converged
+
+**Status: RUNTIME CONVERGED — PR #512 is ready for the separately controlled UAT /
+PR-deployment gate. No Production Gate-B migration has been applied, PR #512 remains
+unmerged, and Historical Daily DTR Write P1 remains blocked.**
+
+Final reviewed Runtime candidate before this governance-only synchronization:
+`c8a512ca97c31033bf242b83d978c7938eebdfd8`.
+
+Exact-head Runtime evidence:
+
+- GitHub Preflight #862: dependency install, lint, typecheck, Next.js build, and compiled
+  Node tests all passed;
+- Gate B DB Concurrency #7: disposable unlinked local Supabase/PostgreSQL startup,
+  scoped Gate-A/Gate-B migration replay, and real independent-session C1-C8 concurrency
+  harness all passed;
+- C1-C8 proved replay idempotency, kiosk debounce/serialization, kiosk-close versus stale
+  repair without deadlock, bulk-versus-kiosk serialization, generation monotonicity,
+  overlapping bulk retry safety, deterministic projection rebuild, raw mutation denial,
+  wrapper survivability, and private-engine inaccessibility;
+- exact-head Vercel deployment `dpl_A33c7BAELKj6orJofUmycMzupNgo` is READY with
+  GitHub Vercel SUCCESS; protected Preview root returned HTTP 200 and the checked
+  warning/error/fatal runtime log window was empty;
+- current non-outdated material review threads: zero;
+- exact-head writer verification confirms the legacy `payroll/dtr-bulk/page2.tsx`
+  writer is deleted, `payroll/dtr-today` is preview-only with no raw DTR writes, and
+  the active bulk API writes attendance only through the canonical replacement command;
+- Production/restored Supabase remains ACTIVE_HEALTHY and its migration history still
+  ends at released Gate A `20260923031711_gap024_gate_a_membership_frame_lock_order`;
+  no Gate-B `20261020...` migration was applied during Runtime.
+
+The executable database harness also exposed and closed a real repair lock-order defect:
+maintenance repair now takes the shared House+employee serialization domain before the
+segment row lock, matching kiosk/manual ordering. The final concurrency run proves the
+kiosk-close versus stale-repair race completes without deadlock.
+
+The repository's unrelated historical zero-to-head migration replay remains separately
+imperfect: an old 2025 tenant-theme migration assumes a prior table and legacy
+nonstandard filenames are skipped by the current Supabase CLI. Gate-B verification did
+not rewrite that unrelated migration debt; instead it replayed the complete approved
+Gate-A/Gate-B chain against a scoped current prerequisite fixture on a disposable local
+database.
+
+External `@codex review` could not run because the code-review usage limit was exhausted,
+so no external Codex PASS is claimed. Runtime convergence rests on the repeated fresh
+adversarial review, exact-head direct-file verification, Preflight, executable database
+race suite, and Preview evidence above.
+
+**Next authorized phase: Controlled UAT / PR-deployment convergence for PR #512.**
+Runtime convergence does not itself authorize merge, Production Gate-B migrations,
+Production deployment, Historical Daily DTR Write P1, Gate C/D/E, or unrelated HR/POS
+work.
+
 ## 2026-09-23 — GAP-024 Gate-B pre-P1 planning owner-approved
 
 **Status: OWNER APPROVED — Gate-B pre-P1 raw-mutator / producer-write-containment
