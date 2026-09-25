@@ -148,6 +148,36 @@ revoke all on public.hr_attendance_remediation_cases
 revoke all on public.hr_attendance_remediation_events
   from public, anon, authenticated, service_role;
 
+-- Private scope-first capability guard. It proves the actor has at least one
+-- attendance write scope in the requested House before any protected fact/case is
+-- dereferenced. This prevents exact-ID timing/state from becoming the first authorization
+-- probe.
+create or replace function public.hr_attendance_actor_has_any_write_scope(
+  p_house_id uuid,
+  p_entity_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $function$
+  select
+    p_house_id is not null
+    and p_entity_id is not null
+    and (
+      public.hr_attendance_actor_has_broad_write(p_house_id, p_entity_id)
+      or exists (
+        select 1
+        from public.branches b
+        where b.house_id = p_house_id
+          and public.hr_attendance_actor_can_write_branch(
+            p_house_id, p_entity_id, b.id
+          )
+      )
+    )
+$function$;
+
 -- P1 exact-fact resolver deliberately calls the already-protected canonical readers.
 -- This keeps write-target visibility no broader than the read authority already approved
 -- in Gate A. It is private and returns nothing for guessed/hidden targets.
@@ -187,7 +217,10 @@ declare
   v_page_count integer;
 begin
   if p_house_id is null or p_fact_id is null or p_actor_entity_id is null
-    or public.current_entity_id() is distinct from p_actor_entity_id then
+    or public.current_entity_id() is distinct from p_actor_entity_id
+    or not public.hr_attendance_actor_has_any_write_scope(
+      p_house_id, p_actor_entity_id
+    ) then
     return;
   end if;
 
@@ -493,6 +526,8 @@ create index if not exists hr_attendance_evidence_house_employee_lineage_idx
 create index if not exists hr_attendance_observations_house_employee_idx
   on public.hr_attendance_observations(house_id, employee_id, occurred_at, id);
 
+revoke all on function public.hr_attendance_actor_has_any_write_scope(uuid, uuid)
+  from public, anon, authenticated, service_role;
 revoke all on function public.hr_resolve_attendance_fact_write_context(uuid, uuid, uuid)
   from public, anon, authenticated, service_role;
 revoke all on function public.hr_attendance_p1_hr4_decision(uuid, text, uuid, text)
@@ -504,6 +539,8 @@ comment on table public.hr_attendance_correction_cases is
   'P1 immutable historical attendance correction proposal authority; active attendance changes only through guarded finalization.';
 comment on table public.hr_attendance_remediation_cases is
   'P1 DEC-018 owner/manager historical missing-fact remediation identity and resolver base.';
+comment on function public.hr_attendance_actor_has_any_write_scope(uuid, uuid) is
+  'Private P1 scope-first guard: verifies some House attendance write capability before protected target dereference.';
 comment on function public.hr_resolve_attendance_fact_write_context(uuid, uuid, uuid) is
   'Private P1 exact-fact write resolver whose visibility is no broader than Gate-A protected canonical readers.';
 comment on function public.hr_resolve_attendance_remediation_candidates(uuid, uuid) is
