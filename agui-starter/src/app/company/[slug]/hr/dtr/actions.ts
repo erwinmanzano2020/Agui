@@ -403,6 +403,16 @@ export async function openDtrRemediationAction(
     };
   }
 
+  const manilaToday = toManilaDate(new Date());
+  if (!manilaToday || parsed.data.workDate >= manilaToday) {
+    return {
+      status: "error",
+      message: "Historical attendance review is available only for past dates.",
+      fieldErrors: {},
+      resultStatus: "HISTORICAL_REVIEW_REQUIRED",
+    };
+  }
+
   const supabase = await createServerSupabaseClient();
   if (!supabase) return AUTH_REQUIRED_RESPONSE;
 
