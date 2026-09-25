@@ -1,5 +1,35 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-25 — Historical Daily DTR Write P1 Runtime converged
+
+**Status: RUNTIME IMPLEMENTATION CONVERGED — READY FOR CONTROLLED UAT. PR #514 remains
+Draft/unmerged and Production remains unchanged.**
+
+Final reviewed Runtime code candidate before governance-only synchronization:
+`6ba5f6f69423a9cbe64bae58c0ff8754471c4eaa`.
+
+Exact-head evidence:
+
+- Preflight #922: SUCCESS;
+- Gate B DB Concurrency #60: SUCCESS;
+- P1 Historical DTR DB Concurrency #48: SUCCESS;
+- exact-head Vercel deployment `dpl_7peikcDme8hiTVQ7xJg6Mrt7EtPd`: READY;
+- Preview root HTTP 200;
+- checked Preview warning/error/fatal logs: empty;
+- checked runtime error clusters: empty;
+- material PR review threads: zero.
+
+The final Review & Fix round corrected independent P1 correction staleness so value-only
+corrections depend only on value CAS, location-only corrections only on semantic
+evidence-basis revision/fingerprint, and combined corrections on both. Real DB tests now
+prove unrelated changes in the other dimension do not falsely stale the pending
+correction while the newer independent state is preserved.
+
+Next authorized phase: **Controlled UAT / PR / Deployment convergence for PR #514**.
+Runtime convergence does not authorize merge, Production P1 migrations, Production
+deployment, remaining Gate B, Gate C/D/E, or unrelated work.
+
+
 ## 2026-09-25 — Historical Daily DTR Write P1 Runtime code/checks converged; Preview quota-blocked
 
 **Status: RUNTIME CODE + AUTOMATED CHECKS CONVERGED / PREVIEW BLOCKED — Draft PR #514
