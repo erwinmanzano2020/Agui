@@ -106,9 +106,12 @@ describe("Historical Daily DTR P1 action boundary", () => {
       /Missing house context/i,
     );
 
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => allowWrite());
+
     const fieldResult = await proposeDtrCorrectionAction(
       dtrMutationInitialState,
-      buildCorrectionFormData({ timeIn: "bad" }),
+      buildCorrectionFormData({ timeIn: "25:00" }),
     );
     assert.equal(fieldResult.status, "error");
     assert.ok(fieldResult.fieldErrors.timeIn?.length);
