@@ -1065,7 +1065,7 @@ test("all authority tables remain direct-access denied", () => {
   assert.match(sql, /notify pgrst, 'reload schema'/i);
 });
 
-test("no production source imports a Gate-A reader", () => {
+test("only the approved P1 server adapter imports a Gate-A reader", () => {
   const references: string[] = [];
   const walk = (dir: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -1077,7 +1077,13 @@ test("no production source imports a Gate-A reader", () => {
   const sourceRoot = [resolve(process.cwd(), "src"), resolve(process.cwd(), "../src")].find(existsSync);
   assert.ok(sourceRoot, "application source must be resolvable in focused and full-suite runners");
   walk(sourceRoot);
-  assert.deepEqual(references, []);
+
+  const normalized = references.map((path) => path.replace(/\\/g, "/"));
+  assert.equal(normalized.length, 1);
+  assert.ok(
+    normalized[0]?.endsWith("/lib/hr/attendance-p1-server.ts"),
+    `unexpected Gate-A reader caller: ${normalized.join(", ")}`,
+  );
 });
 
 
