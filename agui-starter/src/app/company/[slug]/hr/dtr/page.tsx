@@ -131,6 +131,10 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
   const visibleEmployees = filteredEmployeeId
     ? employees.filter((employee) => employee.id === filteredEmployeeId)
     : employees;
+  const visibleEmployeeIds = new Set(visibleEmployees.map((employee) => employee.id));
+  const canonicalFactsOutsideCurrentRoster = canonicalFacts.filter(
+    (fact) => !visibleEmployeeIds.has(fact.employee_id),
+  );
 
   const overtimeResults = await computeOvertimeForHouseDate(supabase, {
     houseId: house.id,
@@ -420,6 +424,44 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
           })}
         </div>
       )}
+
+      {canonicalFactsOutsideCurrentRoster.length > 0 ? (
+        <section className="rounded-2xl border border-border bg-white/70 p-5 shadow-sm">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold text-foreground">
+              Other historically visible attendance
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              These canonical facts are visible from their attendance attribution even
+              though the employee is not in the current roster available to this view.
+              Current employee assignment is not used as historical attendance
+              provenance.
+            </p>
+          </div>
+          <ul className="mt-4 space-y-3">
+            {canonicalFactsOutsideCurrentRoster.map((fact) => (
+              <li
+                key={fact.fact_id}
+                className="rounded-xl border border-border/70 bg-background/70 p-3"
+              >
+                <div className="mb-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                  <span>Employee {fact.employee_id}</span>
+                  <span>Fact {fact.fact_id}</span>
+                  <span>Status: {fact.status}</span>
+                  <span>Attribution: {fact.attribution_state}</span>
+                </div>
+                <CorrectionDtrFactForm
+                  houseId={house.id}
+                  houseSlug={house.slug ?? slug}
+                  fact={fact}
+                  branches={attendanceBranches}
+                  canChangeLocation={!writeAccess.isBranchLimited}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }
