@@ -92,13 +92,26 @@ describe("Historical Daily DTR P1 action boundary", () => {
   afterEach(() => mock.restoreAll());
 
   it("maps correction validation errors without leaking hidden context", async () => {
-    const result = await proposeDtrCorrectionAction(
+    const hiddenContextResult = await proposeDtrCorrectionAction(
       dtrMutationInitialState,
-      buildCorrectionFormData({ houseId: "", timeIn: "bad" }),
+      buildCorrectionFormData({ houseId: "" }),
     );
-    assert.equal(result.status, "error");
-    assert.equal(result.fieldErrors.form?.[0], "Request context is missing or invalid. Refresh and try again.");
-    assert.ok(result.fieldErrors.timeIn?.length);
+    assert.equal(hiddenContextResult.status, "error");
+    assert.equal(
+      hiddenContextResult.fieldErrors.form?.[0],
+      "Request context is missing or invalid. Refresh and try again.",
+    );
+    assert.doesNotMatch(
+      JSON.stringify(hiddenContextResult.fieldErrors),
+      /Missing house context/i,
+    );
+
+    const fieldResult = await proposeDtrCorrectionAction(
+      dtrMutationInitialState,
+      buildCorrectionFormData({ timeIn: "bad" }),
+    );
+    assert.equal(fieldResult.status, "error");
+    assert.ok(fieldResult.fieldErrors.timeIn?.length);
   });
 
   it("returns authentication required before correction RPCs", async () => {
