@@ -39,12 +39,14 @@
 - **Historical Daily DTR Write P1 is now the active bounded planning slice during
   Gate B.** Draft planning PR #513 is based exactly on the PR #512 release merge and
   remains documentation-only.
-- Planning Review & Fix Round 1 closed material technical gaps, but planning is
-  **blocked on one owner policy decision: OD-P1-01**, the database-enforced boundary
-  between ordinary branch-limited manual Daily DTR capture and DEC-014 historical
-  missing-fact remediation.
-- Until OD-P1-01 is decided, P1 Runtime, merge, remaining Gate B, and Gate C/D/E remain
-  unauthorized.
+- Planning Review & Fix Round 1 closed material technical gaps.
+- **OD-P1-01 is now owner-approved as Option A+.** Branch-limited ordinary manual create
+  is current Asia/Manila business-date only; past existing visible facts use the P1
+  correction path; past missing attendance is owner/manager DEC-018 remediation only;
+  future dates fail; no initial grace-window exception is authorized.
+- P1 Runtime and merge remain unauthorized until the fresh post-decision exact-head
+  Review & Fix confirms planning convergence. Remaining Gate B and Gate C/D/E stay
+  blocked until the P1 release sequence advances.
 - DEC-017 sequence remains: Gate A → Gate-B pre-P1 containment → Historical Daily DTR
   P1 → remaining Gate B → Gate C → Gate D → Gate E.
 - P1 remains a separate bounded task/PR and must not be folded into remaining Gate B.
