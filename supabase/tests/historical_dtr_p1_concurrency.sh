@@ -69,7 +69,7 @@ END
 \$do\$;
 SET LOCAL ROLE authenticated;
 $query
-ROLLBACK;
+COMMIT;
 SQL
 }
 
