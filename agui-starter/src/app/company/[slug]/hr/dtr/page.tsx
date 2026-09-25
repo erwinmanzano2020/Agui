@@ -94,6 +94,8 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
   const dateParam = typeof rawSearch.date === "string" ? rawSearch.date : undefined;
   const workDate = normalizeDate(dateParam, today);
   const isCurrentBusinessDate = workDate === today;
+  const isPastBusinessDate = workDate < today;
+  const isFutureBusinessDate = workDate > today;
 
   const employeeFilter = typeof rawSearch.employee === "string" ? rawSearch.employee : "";
 
@@ -196,11 +198,18 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
             Load
           </button>
         </form>
-        {!isCurrentBusinessDate ? (
+        {isPastBusinessDate ? (
           <p className="mt-3 text-xs text-amber-700">
             Historical date selected. Ordinary missing-attendance creation is disabled;
             existing visible facts may be corrected, while missing attendance requires
             owner/manager review.
+          </p>
+        ) : null}
+        {isFutureBusinessDate ? (
+          <p className="mt-3 text-xs text-amber-700">
+            Future date selected. Attendance creation and historical remediation are
+            unavailable; existing visible facts remain read-only unless another approved
+            correction rule applies.
           </p>
         ) : null}
       </section>
@@ -245,7 +254,7 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
                   )));
 
             const canRemediateHistorical =
-              !isCurrentBusinessDate &&
+              isPastBusinessDate &&
               writeAccess.allowed &&
               !writeAccess.isBranchLimited &&
               attendanceBranches.length > 0;
