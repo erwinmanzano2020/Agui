@@ -117,6 +117,20 @@ expect_fail_auth_as() {
   echo "PASS: $label"
 }
 
+expect_fail_super() {
+  local sql="$1"
+  local label="$2"
+  set +e
+  psql_super -c "$sql" >"$TMP_DIR/expected-super-fail.log" 2>&1
+  local rc=$?
+  set -e
+  if [[ $rc -eq 0 ]]; then
+    cat "$TMP_DIR/expected-super-fail.log"
+    fail "$label unexpectedly succeeded"
+  fi
+  echo "PASS: $label"
+}
+
 TODAY="$(scalar "select (transaction_timestamp() at time zone 'Asia/Manila')::date;")"
 YESTERDAY="$(scalar "select ((transaction_timestamp() at time zone 'Asia/Manila')::date - 1);")"
 TOMORROW="$(scalar "select ((transaction_timestamp() at time zone 'Asia/Manila')::date + 1);")"
@@ -393,6 +407,30 @@ STALE_RESULT="$(auth_scalar_as "$OWNER_USER" "select public.hr_finalize_attendan
 printf '%s' "$STALE_RESULT" | grep -q '"status": "STALE"' || fail "changed candidate universe did not stale remediation"
 assert_scalar "STALE" "select lifecycle_status from public.hr_attendance_remediation_cases where id='$STALE_CASE';" "stale remediation records derived lifecycle"
 
+echo "P1-G2 — candidate changes before adjudication require refreshed review"
+OPEN_PRE_ADJ="$(auth_scalar_as "$OWNER_USER" "select public.hr_open_attendance_remediation_case(
+  '$HOUSE','$EMP3','pre-adj-open','$YESTERDAY',
+  '$YESTERDAY 06:00:00+08','$YESTERDAY 15:00:00+08',
+  '$BRANCH_A','Review changing candidate universe'
+)::text;")"
+PRE_ADJ_CASE="$(printf '%s' "$OPEN_PRE_ADJ" | python3 -c 'import json,sys; print(json.load(sys.stdin)["caseId"])')"
+auth_sql_as "$OWNER_USER" "select public.hr_create_manual_attendance(
+  '$HOUSE','$EMP3','$BRANCH_A','pre-adj-evidence','$TODAY',
+  '$TODAY 06:30:00+08','$TODAY 15:30:00+08'
+);"
+EMP3_FACT="$(scalar "select canonical_fact_id from public.dtr_segments where employee_id='$EMP3' order by created_at desc limit 1;")"
+PRE_ADJ_STALE="$(auth_scalar_as "$OWNER_USER" "select public.hr_adjudicate_attendance_remediation_case(
+  '$HOUSE','$PRE_ADJ_CASE','pre-adj-stale','DISTINCT_NEW',null
+)::text;")"
+printf '%s' "$PRE_ADJ_STALE" | grep -q '"status": "STALE"' || fail "changed pre-adjudication universe was not returned for review"
+printf '%s' "$PRE_ADJ_STALE" | grep -q "FACT:$EMP3_FACT" || fail "stale review result did not include current candidate universe"
+assert_scalar "0" "select count(*) from public.hr_attendance_remediation_events where remediation_case_id='$PRE_ADJ_CASE' and event_class like 'ADJUDICATED_%';" "stale pre-adjudication attempt records no adjudication"
+PRE_ADJ_REVIEWED="$(auth_scalar_as "$OWNER_USER" "select public.hr_adjudicate_attendance_remediation_case(
+  '$HOUSE','$PRE_ADJ_CASE','pre-adj-reviewed','EXISTING_RELATED','FACT:$EMP3_FACT'
+)::text;")"
+printf '%s' "$PRE_ADJ_REVIEWED" | grep -q '"status": "EXISTING_RELATED"' || fail "reviewed refreshed universe could not be adjudicated"
+assert_scalar "1" "select count(*) from public.hr_attendance_facts where employee_id='$EMP3' and is_active;" "refreshed existing-related review creates no duplicate"
+
 echo "P1-H — existing/related adjudication never creates a duplicate"
 OPEN_EXISTING="$(auth_scalar_as "$OWNER_USER" "select public.hr_open_attendance_remediation_case(
   '$HOUSE','$EMP1','existing-open','$YESTERDAY',
@@ -463,5 +501,9 @@ echo "P1-J — raw writes and new P1 tables remain non-bypassable"
 assert_scalar "f" "select has_table_privilege('authenticated','public.hr_attendance_correction_cases','INSERT');" "authenticated cannot write correction table"
 assert_scalar "f" "select has_table_privilege('service_role','public.hr_attendance_remediation_cases','UPDATE');" "service_role cannot mutate remediation table"
 assert_scalar "f" "select has_table_privilege('authenticated','public.dtr_segments','UPDATE');" "raw DTR update remains denied"
+expect_fail_super "update public.hr_attendance_correction_cases set reason='tampered' where id='$LOC_CASE';" "correction proposal body is database-immutable"
+expect_fail_super "update public.hr_attendance_correction_events set details='{}'::jsonb where correction_case_id='$LOC_CASE';" "correction lifecycle events are append-only"
+expect_fail_super "update public.hr_attendance_remediation_cases set reason='tampered' where id='$REM_CASE';" "remediation case body is database-immutable"
+expect_fail_super "delete from public.hr_attendance_remediation_events where remediation_case_id='$REM_CASE';" "remediation lifecycle events are append-only"
 
 echo "Historical Daily DTR P1 database harness passed."
