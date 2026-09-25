@@ -378,19 +378,59 @@ oracle.
 Operation identity remains a retry identity only. It never becomes attendance identity,
 case identity, or remediation identity.
 
-## 7. Proposed callable boundary — initial draft
+## 7. Callable boundary contract
 
-Exact signatures remain unfrozen.
+Exact PostgreSQL scalar types/default syntax may be selected in Runtime, but the public
+wrapper names and semantic input surfaces below are frozen. Runtime may not add a
+client-supplied authorization, payroll-impact, approval, hidden-state, or provenance
+override parameter.
 
 ### 7.1 Public authenticated wrappers
 
-Candidate wrappers:
-
 1. `hr_propose_attendance_correction(...)`
+   - requested House;
+   - exact canonical fact ID;
+   - retry operation ID;
+   - proposed `work_date`, `time_in`, `time_out`;
+   - optional explicit target actual-attendance branch only when proposing location
+     correction;
+   - required reason.
+   - No client payroll-impact flag, source/status override, evidence ID, employee branch,
+     approval status, or HR-4 decision reference.
+
 2. `hr_finalize_attendance_correction(...)`
+   - requested House;
+   - correction case ID;
+   - retry operation ID.
+   - Base revision/evidence fingerprints come from the immutable case, not mutable client
+     values.
+
 3. `hr_open_attendance_remediation_case(...)`
+   - requested House;
+   - exact employee ID;
+   - retry operation ID;
+   - proposed `work_date`, `time_in`, `time_out`;
+   - explicit asserted actual-attendance branch;
+   - required reason.
+   - Owner/manager only.
+
 4. `hr_adjudicate_attendance_remediation_case(...)`
+   - requested House;
+   - remediation case ID;
+   - retry operation ID;
+   - decision `EXISTING_RELATED | DISTINCT_NEW`;
+   - selected resolver-returned candidate identity only when
+     `EXISTING_RELATED`.
+   - Resolver version/digest/generation are read from the currently open case/resolution
+     state and revalidated server-side rather than trusted from the client.
+
 5. `hr_finalize_attendance_remediation_case(...)`
+   - requested House;
+   - remediation case ID;
+   - retry operation ID.
+   - Owner/manager only; initial Production P1 distinct-new finalization remains
+     fail-closed as `APPROVAL_DEPENDENCY_UNAVAILABLE` because it is payroll-impacting
+     and no HR-4 provider exists.
 
 All public wrappers must:
 
@@ -946,6 +986,16 @@ proves:
 - no unresolved material P0/P1/P2 planning defect remains.
 
 ## 24. Planning Review & Fix Log
+
+### Round 3 — fresh callable-contract review
+
+Fresh review found one P2 implementation ambiguity: the plan froze wrapper names and
+behavior but still described exact signatures as unfrozen, leaving room for Runtime to
+add client-authoritative payroll/approval/provenance fields or inconsistent staleness
+tokens. Fixed by freezing each public wrapper's semantic input surface while leaving only
+PostgreSQL scalar types/default syntax as Runtime detail.
+
+No owner decision was needed and no Runtime change was made.
 
 ### Round 2 — post-OD-P1-01 exact-policy review
 
