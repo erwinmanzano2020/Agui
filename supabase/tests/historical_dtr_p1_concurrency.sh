@@ -245,6 +245,14 @@ PROPOSE_LOC="$(auth_scalar_as "$OWNER_USER" "select public.hr_propose_attendance
 )::text;")"
 LOC_CASE="$(printf '%s' "$PROPOSE_LOC" | python3 -c 'import json,sys; print(json.load(sys.stdin)["caseId"])')"
 [[ -n "$LOC_CASE" ]] || fail "location correction case missing"
+OWNER_BROAD="$(auth_scalar_as "$OWNER_USER" "select public.hr_attendance_actor_has_broad_write('$HOUSE','$OWNER_ENTITY')::text;")"
+[[ "$OWNER_BROAD" == "true" || "$OWNER_BROAD" == "t" ]] || fail "owner broad-write helper denied fixture owner: $OWNER_BROAD"
+OWNER_TARGET_WRITE="$(auth_scalar_as "$OWNER_USER" "select public.hr_attendance_actor_can_write_branch('$HOUSE','$OWNER_ENTITY','$BRANCH_B')::text;")"
+[[ "$OWNER_TARGET_WRITE" == "true" || "$OWNER_TARGET_WRITE" == "t" ]] || fail "owner cannot write target branch: $OWNER_TARGET_WRITE"
+OWNER_TARGET_ROLE="$(auth_scalar_as "$OWNER_USER" "select coalesce(public.hr_attendance_actor_role_label('$HOUSE','$OWNER_ENTITY','$BRANCH_B'),'');")"
+[[ -n "$OWNER_TARGET_ROLE" ]] || fail "owner target-branch role label missing"
+OWNER_FACT_VISIBLE="$(auth_scalar_as "$OWNER_USER" "select count(*)::text from public.hr_resolve_attendance_fact_write_context('$HOUSE','$FACT1','$OWNER_ENTITY');")"
+[[ "$OWNER_FACT_VISIBLE" == "1" ]] || fail "owner exact-fact resolver lost visible fact before finalization: $OWNER_FACT_VISIBLE"
 auth_sql_as "$OWNER_USER" "select public.hr_finalize_attendance_correction(
   '$HOUSE','$LOC_CASE','loc-finalize'
 );"
