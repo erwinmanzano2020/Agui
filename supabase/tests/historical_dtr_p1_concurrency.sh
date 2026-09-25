@@ -341,6 +341,18 @@ HIDDEN_RESULT="$(auth_scalar_as "$BRANCH_USER" "select public.hr_propose_attenda
 printf '%s' "$HIDDEN_RESULT" | grep -q 'TARGET_UNAVAILABLE' || fail "hidden target did not collapse to TARGET_UNAVAILABLE"
 assert_scalar "0" "select count(*) from public.hr_attendance_mutation_operations where operation_id='hidden-propose';" "unauthorized guess creates no operation-ledger oracle"
 
+HIDDEN_CASE_PROPOSE="$(auth_scalar_as "$OWNER_USER" "select public.hr_propose_attendance_correction(
+  '$HOUSE','$HIDDEN_FACT','hidden-case-owner-propose','$TODAY',
+  '$TODAY 09:15:00+08','$TODAY 18:00:00+08',
+  null,'Owner prepares hidden fact correction'
+)::text;")"
+HIDDEN_CASE="$(printf '%s' "$HIDDEN_CASE_PROPOSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["caseId"])')"
+HIDDEN_FINALIZE="$(auth_scalar_as "$BRANCH_USER" "select public.hr_finalize_attendance_correction(
+  '$HOUSE','$HIDDEN_CASE','hidden-case-finalize'
+)::text;")"
+printf '%s' "$HIDDEN_FINALIZE" | grep -q 'TARGET_UNAVAILABLE' || fail "hidden correction case finalization did not collapse to TARGET_UNAVAILABLE"
+assert_scalar "0" "select count(*) from public.hr_attendance_mutation_operations where producer_namespace='P1_CORRECTION_FINALIZE_V1' and operation_id='hidden-case-finalize';" "hidden correction case creates no finalization operation-ledger oracle"
+
 echo "P1-E — DEC-018 open/adjudicate/fail-closed finalization"
 OPEN_REM="$(auth_scalar_as "$OWNER_USER" "select public.hr_open_attendance_remediation_case(
   '$HOUSE','$EMP2','rem-open','$YESTERDAY',
