@@ -87,20 +87,28 @@ export async function listCanonicalAttendanceForDate(
     ? "hr_read_canonical_attendance_branch_scoped"
     : "hr_read_canonical_attendance_house_global";
 
-  const { data, error } = await supabase.rpc(functionName, {
-    p_house_id: houseId,
-    p_start_date: workDate,
-    p_end_date: workDate,
-    p_employee_id: employeeId ?? null,
-    p_limit: 200,
-    p_offset: 0,
-  });
+  const pageSize = 200;
+  const rows: Array<Record<string, unknown>> = [];
 
-  if (error) {
-    throw new Error(error.message);
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase.rpc(functionName, {
+      p_house_id: houseId,
+      p_start_date: workDate,
+      p_end_date: workDate,
+      p_employee_id: employeeId ?? null,
+      p_limit: pageSize,
+      p_offset: offset,
+    });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const page = (data ?? []) as Array<Record<string, unknown>>;
+    rows.push(...page);
+    if (page.length < pageSize) break;
   }
 
-  const rows = (data ?? []) as Array<Record<string, unknown>>;
   return rows.map((row) => ({
     fact_id: String(row.fact_id),
     employee_id: String(row.employee_id),
