@@ -691,9 +691,8 @@ begin
     raise exception 'Authentication required' using errcode = '42501';
   end if;
 
-  if not public.current_entity_is_gm() and not exists (
-    select 1 from public.house_roles hr
-    where hr.house_id = p_house_id and hr.entity_id = v_entity_id
+  if not public.hr_attendance_actor_has_any_write_scope(
+    p_house_id, v_entity_id
   ) then
     raise exception 'Attendance correction is outside caller House authority'
       using errcode = '42501';
