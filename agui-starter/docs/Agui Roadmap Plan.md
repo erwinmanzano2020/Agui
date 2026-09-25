@@ -44,11 +44,14 @@
   is current Asia/Manila business-date only; past existing visible facts use the P1
   correction path; past missing attendance is owner/manager DEC-018 remediation only;
   future dates fail; no initial grace-window exception is authorized.
-- **P1 planning has converged on the exact reviewed head; explicit owner planning
-  approval is now the next gate.** Exact-head Preview is READY, root HTTP 200, checked
-  runtime logs/errors are clean, and no material review thread remains.
-- P1 Runtime and merge remain unauthorized until that explicit owner approval. Remaining
-  Gate B and Gate C/D/E stay blocked until the P1 release sequence advances.
+- **P1 planning is owner-approved (2026-09-25).** Exact-head Preview was READY, root
+  HTTP 200, checked runtime logs/errors were clean, and no material review thread
+  remained at the approval gate.
+- The next authorized work is a **separate bounded Historical Daily DTR Write P1 Runtime
+  task/PR** implementing the approved plan exactly. Runtime must still pass its own Review
+  & Fix, deterministic tests, Controlled UAT, release approval, and deployment
+  verification.
+- Remaining Gate B and Gate C/D/E stay blocked until the P1 release sequence advances.
 - DEC-017 sequence remains: Gate A → Gate-B pre-P1 containment → Historical Daily DTR
   P1 → remaining Gate B → Gate C → Gate D → Gate E.
 - P1 remains a separate bounded task/PR and must not be folded into remaining Gate B.
