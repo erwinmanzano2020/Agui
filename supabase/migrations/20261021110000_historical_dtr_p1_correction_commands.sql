@@ -82,23 +82,33 @@ declare
   v_status text;
   v_value_changed boolean;
   v_location_changed boolean;
+  v_depends_value boolean;
+  v_depends_evidence boolean;
+  v_effective_work_date date;
+  v_effective_time_in timestamptz;
+  v_effective_time_out timestamptz;
+  v_effective_target_branch_id uuid;
   v_generation bigint;
 begin
   if p_house_id is null or p_employee_id is null or p_case_id is null
-    or p_mode not in ('CORRECTION', 'REMEDIATION_CREATE')
+    or p_mode not in (
+      'CORRECTION_VALUE',
+      'CORRECTION_LOCATION',
+      'CORRECTION_COMBINED',
+      'REMEDIATION_CREATE'
+    )
     or p_work_date is null or p_time_in is null
     or (p_time_out is not null and p_time_out <= p_time_in)
     or p_actor_entity_id is null or p_actor_role is null then
     raise exception 'Invalid P1 finalization input' using errcode = '22023';
   end if;
 
-  v_status := case when p_time_out is null then 'open' else 'closed' end;
-
   if p_mode = 'REMEDIATION_CREATE' then
     if p_fact_id is not null or p_target_branch_id is null then
       raise exception 'Invalid P1 remediation-create finalization input' using errcode = '22023';
     end if;
 
+    v_status := case when p_time_out is null then 'open' else 'closed' end;
     v_new_segment_id := gen_random_uuid();
     v_new_fact_id := gen_random_uuid();
     v_new_observation_id := gen_random_uuid();
@@ -141,8 +151,6 @@ begin
       null, case when p_time_out is null then 'OPEN' else 'COMPLETED' end, false
     );
 
-    -- DEC-018 durable observation identity is the remediation case identity, not
-    -- employee/date/time or the retry operation identity.
     insert into public.hr_attendance_observations (
       id, house_id, employee_id, source_namespace,
       source_observation_id, occurred_at
@@ -207,11 +215,23 @@ begin
     );
   end if;
 
-  if p_fact_id is null
-    or p_base_value_revision is null
-    or p_base_evidence_basis_revision is null
-    or p_base_evidence_basis_fingerprint is null then
+  if p_fact_id is null then
     raise exception 'Invalid P1 correction finalization input' using errcode = '22023';
+  end if;
+
+  v_depends_value := p_mode in ('CORRECTION_VALUE', 'CORRECTION_COMBINED');
+  v_depends_evidence := p_mode in ('CORRECTION_LOCATION', 'CORRECTION_COMBINED');
+
+  if (v_depends_value and p_base_value_revision is null)
+    or (
+      v_depends_evidence
+      and (
+        p_base_evidence_basis_revision is null
+        or p_base_evidence_basis_fingerprint is null
+      )
+    )
+    or (v_depends_evidence and p_target_branch_id is null) then
+    raise exception 'Invalid P1 correction dependency base' using errcode = '22023';
   end if;
 
   select p.*
@@ -222,9 +242,17 @@ begin
     and p.employee_id = p_employee_id;
 
   if not found
-    or v_projection.value_revision <> p_base_value_revision
-    or v_projection.evidence_basis_revision <> p_base_evidence_basis_revision
-    or v_projection.evidence_basis_fingerprint is distinct from p_base_evidence_basis_fingerprint then
+    or (
+      v_depends_value
+      and v_projection.value_revision <> p_base_value_revision
+    )
+    or (
+      v_depends_evidence
+      and (
+        v_projection.evidence_basis_revision <> p_base_evidence_basis_revision
+        or v_projection.evidence_basis_fingerprint is distinct from p_base_evidence_basis_fingerprint
+      )
+    ) then
     raise exception 'P1 correction base is stale' using errcode = '40001';
   end if;
 
@@ -234,26 +262,44 @@ begin
   where r.house_id = p_house_id
     and r.fact_id = p_fact_id
     and r.employee_id = p_employee_id
-    and r.revision = p_base_value_revision;
+    and r.revision = v_projection.value_revision;
 
   if not found then
     raise exception 'P1 correction fact revision is unavailable' using errcode = '40001';
   end if;
 
-  v_value_changed :=
-    v_revision.work_date is distinct from p_work_date
-    or v_revision.time_in is distinct from p_time_in
-    or v_revision.time_out is distinct from p_time_out;
-
-  v_location_changed :=
-    p_target_branch_id is not null
-    and p_target_branch_id is distinct from v_projection.active_branch_id;
-
-  if not v_value_changed and not v_location_changed then
-    raise exception 'P1 correction proposal has no effective change' using errcode = '22023';
+  if p_mode = 'CORRECTION_LOCATION' then
+    v_effective_work_date := v_revision.work_date;
+    v_effective_time_in := v_revision.time_in;
+    v_effective_time_out := v_revision.time_out;
+  else
+    v_effective_work_date := p_work_date;
+    v_effective_time_in := p_time_in;
+    v_effective_time_out := p_time_out;
   end if;
 
-  -- Semantic changes follow the approved frame -> fact -> evidence/lineage prefix.
+  v_effective_target_branch_id := case
+    when v_depends_evidence then p_target_branch_id
+    else v_projection.active_branch_id
+  end;
+
+  v_status := case when v_effective_time_out is null then 'open' else 'closed' end;
+
+  v_value_changed := v_depends_value and (
+    v_revision.work_date is distinct from v_effective_work_date
+    or v_revision.time_in is distinct from v_effective_time_in
+    or v_revision.time_out is distinct from v_effective_time_out
+  );
+
+  v_location_changed := v_depends_evidence
+    and v_effective_target_branch_id is distinct from v_projection.active_branch_id;
+
+  if (v_depends_value and not v_value_changed)
+    or (v_depends_evidence and not v_location_changed) then
+    raise exception 'P1 correction proposal has no effective change'
+      using errcode = '22023';
+  end if;
+
   if v_location_changed then
     select ef.*
     into v_current_frame
@@ -261,7 +307,7 @@ begin
     where ef.house_id = p_house_id
       and ef.fact_id = p_fact_id
       and ef.employee_id = p_employee_id
-      and ef.evidence_basis_revision = p_base_evidence_basis_revision
+      and ef.evidence_basis_revision = v_projection.evidence_basis_revision
       and ef.is_sealed
     for update;
 
@@ -280,32 +326,35 @@ begin
   for update;
 
   if not found
-    or v_fact.current_value_revision <> p_base_value_revision
-    or v_fact.evidence_basis_revision <> p_base_evidence_basis_revision then
+    or (
+      v_depends_value
+      and v_fact.current_value_revision <> p_base_value_revision
+    )
+    or (
+      v_depends_evidence
+      and v_fact.evidence_basis_revision <> p_base_evidence_basis_revision
+    ) then
     raise exception 'P1 correction fact is stale' using errcode = '40001';
   end if;
 
-  -- Gate-A requires the current authority pair to have durable history before either
-  -- pointer advances. Gate-B projection maintenance normally guarantees this; fail
-  -- closed rather than inventing history inside the correction transaction.
   if not exists (
     select 1
     from public.hr_attendance_authorization_history h
     where h.house_id = p_house_id
       and h.fact_id = p_fact_id
       and h.employee_id = p_employee_id
-      and h.value_revision = p_base_value_revision
-      and h.evidence_basis_revision = p_base_evidence_basis_revision
+      and h.value_revision = v_fact.current_value_revision
+      and h.evidence_basis_revision = v_fact.evidence_basis_revision
   ) then
     raise exception 'P1 correction requires durable current authorization history'
       using errcode = '55000';
   end if;
 
-  v_new_value_revision := p_base_value_revision;
-  v_new_evidence_basis_revision := p_base_evidence_basis_revision;
+  v_new_value_revision := v_fact.current_value_revision;
+  v_new_evidence_basis_revision := v_fact.evidence_basis_revision;
 
   if v_value_changed then
-    v_new_value_revision := p_base_value_revision + 1;
+    v_new_value_revision := v_fact.current_value_revision + 1;
 
     insert into public.hr_attendance_fact_revisions (
       house_id, fact_id, employee_id, revision, predecessor_revision,
@@ -314,15 +363,15 @@ begin
     )
     values (
       p_house_id, p_fact_id, p_employee_id,
-      v_new_value_revision, p_base_value_revision,
-      null, p_work_date, p_time_in, p_time_out,
+      v_new_value_revision, v_fact.current_value_revision,
+      null, v_effective_work_date, v_effective_time_in, v_effective_time_out,
       v_revision.hours_worked, v_revision.overtime_minutes,
       v_revision.source, v_status
     );
   end if;
 
   if v_location_changed then
-    v_new_evidence_basis_revision := p_base_evidence_basis_revision + 1;
+    v_new_evidence_basis_revision := v_fact.evidence_basis_revision + 1;
     v_new_evidence_id := gen_random_uuid();
 
     insert into public.hr_attendance_evidence_frames (
@@ -331,8 +380,8 @@ begin
     )
     values (
       p_house_id, p_fact_id, p_employee_id, v_new_evidence_basis_revision,
-      p_base_evidence_basis_revision,
-      case when p_time_out is null then 'OPEN' else 'COMPLETED' end,
+      v_fact.evidence_basis_revision,
+      case when v_effective_time_out is null then 'OPEN' else 'COMPLETED' end,
       false
     );
 
@@ -348,7 +397,7 @@ begin
     )
     values (
       v_new_evidence_id, p_house_id, p_employee_id, null,
-      'MANUAL_ADMIN', 'EXPLICIT_BRANCH', p_target_branch_id,
+      'MANUAL_ADMIN', 'EXPLICIT_BRANCH', v_effective_target_branch_id,
       'ESTABLISHED', 'VALID', 'SUFFICIENT',
       true, 1, null, v_new_evidence_id,
       p_actor_entity_id, p_actor_role,
@@ -387,9 +436,9 @@ begin
 
   if v_value_changed then
     update public.dtr_segments
-    set work_date = p_work_date,
-        time_in = p_time_in,
-        time_out = p_time_out,
+    set work_date = v_effective_work_date,
+        time_in = v_effective_time_in,
+        time_out = v_effective_time_out,
         status = v_status
     where house_id = p_house_id
       and id = v_segment.id
@@ -412,7 +461,7 @@ begin
 
   return jsonb_build_object(
     'status', 'FINALIZED',
-    'mode', p_mode,
+    'mode', 'CORRECTION',
     'factId', p_fact_id,
     'segmentId', v_segment.id,
     'valueRevision', v_new_value_revision,
@@ -676,6 +725,10 @@ declare
   v_existing_fingerprint text;
   v_existing_outcome jsonb;
   v_result jsonb;
+  v_base_work_date date;
+  v_base_time_in timestamptz;
+  v_base_time_out timestamptz;
+  v_base_branch_id uuid;
   v_proposed_work_date date;
   v_proposed_time_in timestamptz;
   v_proposed_time_out timestamptz;
@@ -802,9 +855,17 @@ begin
     return v_result;
   end if;
 
-  if v_context.current_value_revision <> v_case.base_value_revision
-    or v_context.evidence_basis_revision <> v_case.base_evidence_basis_revision
-    or v_context.evidence_basis_fingerprint is distinct from v_case.base_evidence_basis_fingerprint then
+  if (
+      v_case.correction_kind in ('VALUE_TIME', 'COMBINED')
+      and v_context.current_value_revision <> v_case.base_value_revision
+    )
+    or (
+      v_case.correction_kind in ('LOCATION', 'COMBINED')
+      and (
+        v_context.evidence_basis_revision <> v_case.base_evidence_basis_revision
+        or v_context.evidence_basis_fingerprint is distinct from v_case.base_evidence_basis_fingerprint
+      )
+    ) then
 
     v_role := case
       when v_context.active_branch_id is not null then
@@ -845,22 +906,27 @@ begin
     return v_result;
   end if;
 
+  v_base_work_date := (v_case.base_snapshot ->> 'workDate')::date;
+  v_base_time_in := (v_case.base_snapshot ->> 'timeIn')::timestamptz;
+  v_base_time_out := nullif(v_case.base_snapshot ->> 'timeOut', '')::timestamptz;
+  v_base_branch_id := nullif(v_case.base_snapshot ->> 'activeBranchId', '')::uuid;
+
   v_proposed_work_date := (v_case.proposed_snapshot ->> 'workDate')::date;
   v_proposed_time_in := (v_case.proposed_snapshot ->> 'timeIn')::timestamptz;
   v_proposed_time_out := nullif(v_case.proposed_snapshot ->> 'timeOut', '')::timestamptz;
   v_target_branch_id := nullif(v_case.proposed_snapshot ->> 'targetBranchId', '')::uuid;
 
-  -- Recompute the correction shape and payroll-impact class from the immutable
-  -- proposal/base at finalization. Never trust even the stored derived label as an
-  -- authorization shortcut.
+  -- Recompute proposal shape from the immutable proposal/base, not from unrelated
+  -- current-state changes. VALUE_TIME depends only on value CAS, LOCATION only on the
+  -- semantic evidence basis, and COMBINED on both.
   v_recomputed_value_changed :=
-    v_context.work_date is distinct from v_proposed_work_date
-    or v_context.time_in is distinct from v_proposed_time_in
-    or v_context.time_out is distinct from v_proposed_time_out;
+    v_base_work_date is distinct from v_proposed_work_date
+    or v_base_time_in is distinct from v_proposed_time_in
+    or v_base_time_out is distinct from v_proposed_time_out;
 
   v_recomputed_location_changed :=
     v_target_branch_id is not null
-    and v_target_branch_id is distinct from v_context.active_branch_id;
+    and v_target_branch_id is distinct from v_base_branch_id;
 
   v_recomputed_kind := case
     when v_recomputed_value_changed and v_recomputed_location_changed then 'COMBINED'
@@ -984,18 +1050,38 @@ begin
   v_result := public.hr_apply_attendance_p1_finalization(
     p_house_id => p_house_id,
     p_employee_id => v_case.employee_id,
-    p_mode => 'CORRECTION',
+    p_mode => case v_case.correction_kind
+      when 'VALUE_TIME' then 'CORRECTION_VALUE'
+      when 'LOCATION' then 'CORRECTION_LOCATION'
+      else 'CORRECTION_COMBINED'
+    end,
     p_case_id => v_case.id,
     p_fact_id => v_case.fact_id,
     p_work_date => v_proposed_work_date,
     p_time_in => v_proposed_time_in,
     p_time_out => v_proposed_time_out,
-    p_target_branch_id => v_target_branch_id,
+    p_target_branch_id => case
+      when v_case.correction_kind in ('LOCATION', 'COMBINED')
+        then v_target_branch_id
+      else null
+    end,
     p_actor_entity_id => v_entity_id,
     p_actor_role => v_role,
-    p_base_value_revision => v_case.base_value_revision,
-    p_base_evidence_basis_revision => v_case.base_evidence_basis_revision,
-    p_base_evidence_basis_fingerprint => v_case.base_evidence_basis_fingerprint
+    p_base_value_revision => case
+      when v_case.correction_kind in ('VALUE_TIME', 'COMBINED')
+        then v_case.base_value_revision
+      else null
+    end,
+    p_base_evidence_basis_revision => case
+      when v_case.correction_kind in ('LOCATION', 'COMBINED')
+        then v_case.base_evidence_basis_revision
+      else null
+    end,
+    p_base_evidence_basis_fingerprint => case
+      when v_case.correction_kind in ('LOCATION', 'COMBINED')
+        then v_case.base_evidence_basis_fingerprint
+      else null
+    end
   );
 
   insert into public.hr_attendance_correction_events (
