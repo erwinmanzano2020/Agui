@@ -237,10 +237,11 @@ This P1 planning/runtime must not implement:
 - POS, Operations, Finance, Telegram, native/offline or unrelated HR work;
 - cleanup of pre-existing Next.js dynamic-render build-noise warnings.
 
-## 6. Proposed physical persistence direction — initial draft
+## 6. Physical persistence contract
 
-This section is a starting proposal for Planning Review & Fix. Names and exact DDL are
-not frozen until convergence.
+Round 1 freezes the logical table boundaries and lifecycle below. Exact column data types,
+constraint names, index names, and migration filenames remain Runtime implementation
+details so long as they preserve this contract.
 
 ### 6.1 Correction case authority
 
@@ -292,7 +293,7 @@ The case row must not be directly writable by application roles.
 Preserve lifecycle history as append-only events rather than repeatedly overwriting the
 proposal body.
 
-Provisional table:
+Planned table:
 `hr_attendance_correction_events`.
 
 The case insert itself is the durable proposal record; do not duplicate it with a second
@@ -319,7 +320,7 @@ finalizers cannot both win.
 
 Add a narrow remediation record, not a general case-management system.
 
-Provisional table:
+Planned table:
 `hr_attendance_remediation_cases`.
 
 Minimum immutable case fields:
@@ -414,21 +415,30 @@ Production has 96 linked segments / 96 distinct fact links / zero unbridged segm
 `dtr_segments_canonical_fact_unique_idx` enforces at most one compatibility segment per
 canonical fact. P1 finalization must preserve that invariant.
 
-Preferred direction for review:
+Freeze a **P1-specific private finalization helper** rather than widening the existing
+Gate-B producer engine's public/callable mutation-kind contract.
 
-- extend/refactor the Gate-B private engine/helper layer so finalization of an existing
-  correction and distinct-new remediation creation execute inside the same command-only
-  mutation authority;
-- preserve the existing House+employee advisory lock domain;
-- keep the private engine unexecutable by `authenticated` and `service_role`;
+Planning name:
+`hr_apply_attendance_p1_finalization(...)`.
+
+The helper is not a second source of mutation authority: it is an internal member of the
+same database-enforced command boundary and must:
+
+- reuse the existing House+employee advisory lock namespace and the existing operation
+  ledger semantics;
+- be callable only by the narrow P1 public wrappers / database owner path;
+- receive no EXECUTE grant for `public`, `anon`, `authenticated`, or
+  `service_role`;
+- use fixed `search_path` and safe non-login ownership;
+- reuse/extract Gate-B private primitives for compatible fact/revision/bridge/projection
+  maintenance rather than copy business logic into application code; and
 - atomically maintain Gate-A fact revisions, evidence/frame association where applicable,
   projection/history, compatibility `dtr_segments`, operation outcome, correction
   lineage, and employee generation.
 
-If review concludes extending the current engine signature is riskier than a new private
-helper, a new helper is acceptable only if it is part of the same non-bypassable boundary,
-uses the identical serialization domain/order, has no public execute grant, and cannot
-create competing mutation authority.
+The existing `hr_apply_attendance_producer_mutation(...)` signature and current producer
+mutation kinds remain backward-compatible and unchanged by P1 unless Runtime discovers a
+concrete private-helper extraction that does not alter its callable contract.
 
 ## 8. Existing-fact correction lifecycle
 
@@ -442,7 +452,7 @@ The proposal command:
    predicates are shared with the protected Gate-A readers;
 4. denies absent/hidden/cross-House/wrong-branch/unattributed/conflict/fingerprint-invalid
    targets with one normalized unavailable result for branch-limited callers;
-4. snapshots only the dependency bases required by the proposal:
+5. snapshots only the dependency bases required by the proposal:
    - value revision for value/time;
    - semantic evidence basis for location/attribution;
    - both for combined;
@@ -701,17 +711,24 @@ Freeze the conceptual lock order:
 2. House + employee Gate-B advisory lock;
 3. operation/idempotency row;
 4. P1 correction/remediation case row;
-5. canonical fact row when one exists;
-6. evidence frame → owning fact/evidence/lineage locks in the Gate-A-approved order for
-   any semantic-frame mutation;
+5. when semantic evidence/frame state will change: lock the target current evidence
+   frame first, then its owning canonical fact, then selected observation/evidence/lineage
+   rows in the same Gate-A frame → fact → evidence/lineage order;
+6. when the operation is value-only and does not mutate the semantic frame: lock the
+   canonical fact directly; it must not later acquire an older/current frame in an order
+   that can invert the Gate-A path;
 7. future HR-4 decision serialization only where an approved provider contract defines it;
 8. canonical mutation + projection/history + employee generation.
 
 A wrapper must re-read/revalidate target ownership after acquiring the employee advisory
-lock; the pre-lock lookup cannot authorize commit.
+lock; the pre-lock lookup cannot authorize commit. Case/operation rows are P1-only and
+must never be acquired by Gate-A/Gate-B producers, so they cannot become a reverse edge
+into those existing lock graphs.
 
-Review must reconcile this order against every Gate-A trigger and Gate-B producer to prove
-there is no inverted lock cycle.
+Runtime verification must prove this frozen order against every Gate-A trigger and
+Gate-B producer with static migration assertions plus independent-session race tests; a
+runtime finding of an inverted edge is a stop condition, not permission to improvise a
+new order.
 
 Required races include:
 
