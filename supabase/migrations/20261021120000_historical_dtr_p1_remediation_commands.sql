@@ -37,6 +37,11 @@ begin
     raise exception 'Invalid P1 remediation case' using errcode = '22023';
   end if;
 
+  if p_work_date >= (transaction_timestamp() at time zone 'Asia/Manila')::date then
+    raise exception 'Historical missing-fact remediation requires a past Manila business date'
+      using errcode = '22023';
+  end if;
+
   v_entity_id := public.current_entity_id();
   if v_entity_id is null then
     raise exception 'Authentication required' using errcode = '42501';
