@@ -17,20 +17,19 @@ remediation audit persistence, DEC-018 candidate-resolution completeness, payrol
 classification, absent HR-4 fail-closed behavior, lock ordering, compatibility-bridge
 cardinality, and no-leak result shapes.
 
-One genuine owner policy decision remains before planning can converge:
-**OD-P1-01 — define the database-enforced boundary between ordinary branch-limited Daily
-DTR manual capture and DEC-014 historical missing-fact remediation.** The repository's
-existing HR-2.1 contract preserves a date picker and manual Daily DTR capture but does not
-define a same-day, prior-day, grace-window, or closed-period cutoff. Planning therefore
-must not invent that operational policy.
+Owner decision **OD-P1-01 is approved as Option A+ (2026-09-25)**:
 
-Until OD-P1-01 is explicitly decided:
+- branch-limited ordinary manual create is allowed only for the current Asia/Manila
+  business date;
+- past existing visible ATTRIBUTED facts remain eligible for the P1 correction path;
+- past missing attendance is owner/manager DEC-018 remediation only;
+- future dates fail closed;
+- no initial grace-window/backdating exception is authorized.
 
-- PR #513 remains Draft/planning-only;
-- no P1 migration, RPC, API, UI, generated-type, or test implementation is authorized;
-- no merge is authorized;
-- remaining Gate B and Gate C/D/E remain blocked;
-- POS, Operations, Finance, and unrelated HR work remain gated.
+PR #513 remains Draft/planning-only until the fresh post-decision exact-head Review & Fix
+confirms convergence. No P1 migration, RPC, API, UI, generated-type, or test
+implementation is authorized yet; no merge is authorized; remaining Gate B and Gate
+C/D/E remain blocked; POS, Operations, Finance, and unrelated HR work remain gated.
 
 Gate-B Production release checkpoint now supersedes the stale pre-release language in the
 older 2026-09-24 entry below: PR #512 was squash-merged as
