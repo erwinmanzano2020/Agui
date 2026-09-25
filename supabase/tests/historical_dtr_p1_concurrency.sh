@@ -17,6 +17,8 @@ EMP3="51000000-0000-0000-0000-000000000003"
 EMP4="51000000-0000-0000-0000-000000000004"
 EMP5="51000000-0000-0000-0000-000000000005"
 EMP6="51000000-0000-0000-0000-000000000006"
+EMP7="51000000-0000-0000-0000-000000000007"
+EMP8="51000000-0000-0000-0000-000000000008"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT
@@ -202,7 +204,9 @@ values
   ('$EMP3', 'P1-E03', 'P1 Employee 03', 0, 'active', '$BRANCH_A', '$HOUSE'),
   ('$EMP4', 'P1-E04', 'P1 Employee 04', 0, 'active', '$BRANCH_A', '$HOUSE'),
   ('$EMP5', 'P1-E05', 'P1 Employee 05', 0, 'active', '$BRANCH_B', '$HOUSE'),
-  ('$EMP6', 'P1-E06', 'P1 Employee 06', 0, 'active', '$BRANCH_A', '$HOUSE')
+  ('$EMP6', 'P1-E06', 'P1 Employee 06', 0, 'active', '$BRANCH_A', '$HOUSE'),
+  ('$EMP7', 'P1-E07', 'P1 Employee 07', 0, 'active', '$BRANCH_A', '$HOUSE'),
+  ('$EMP8', 'P1-E08', 'P1 Employee 08', 0, 'active', '$BRANCH_A', '$HOUSE')
 on conflict (id) do nothing;
 
 insert into public.hr_kiosk_devices (
@@ -267,6 +271,111 @@ assert_scalar "$BRANCH_B" "select active_branch_id::text from public.hr_attendan
 assert_scalar "2" "select evidence_basis_revision from public.hr_attendance_facts where id='$FACT1';" "location correction advances evidence basis only"
 assert_scalar "1" "select current_value_revision from public.hr_attendance_facts where id='$FACT1';" "location correction preserves value revision"
 assert_scalar "1" "select count(*) from public.hr_attendance_correction_events where correction_case_id='$LOC_CASE' and event_class='FINALIZED';" "location correction has one terminal event"
+
+echo "P1-B2 — independent stale bases: value correction survives unrelated location change"
+auth_sql_as "$OWNER_USER" "select public.hr_create_manual_attendance(
+  '$HOUSE','$EMP7','$BRANCH_A','independent-value-create','$TODAY',
+  '$TODAY 08:00:00+08','$TODAY 17:00:00+08'
+);"
+IND_VALUE_FACT="$(scalar "select canonical_fact_id from public.dtr_segments where employee_id='$EMP7' order by created_at desc limit 1;")"
+IND_VALUE_PROPOSE="$(auth_scalar_as "$OWNER_USER" "select public.hr_propose_attendance_correction(
+  '$HOUSE','$IND_VALUE_FACT','independent-value-propose','$TODAY',
+  '$TODAY 08:15:00+08','$TODAY 17:00:00+08',
+  null,'Correct time after unrelated location change'
+)::text;")"
+IND_VALUE_CASE="$(printf '%s' "$IND_VALUE_PROPOSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["caseId"])')"
+IND_LOCATION_PROPOSE="$(auth_scalar_as "$OWNER_USER" "select public.hr_propose_attendance_correction(
+  '$HOUSE','$IND_VALUE_FACT','independent-location-first-propose','$TODAY',
+  '$TODAY 08:00:00+08','$TODAY 17:00:00+08',
+  '$BRANCH_B','Move branch before value finalization'
+)::text;")"
+IND_LOCATION_CASE="$(printf '%s' "$IND_LOCATION_PROPOSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["caseId"])')"
+auth_sql_as "$OWNER_USER" "select public.hr_finalize_attendance_correction(
+  '$HOUSE','$IND_LOCATION_CASE','independent-location-first-finalize'
+);"
+assert_scalar "1" "select current_value_revision from public.hr_attendance_facts where id='$IND_VALUE_FACT';" "unrelated location change leaves value revision unchanged"
+assert_scalar "2" "select evidence_basis_revision from public.hr_attendance_facts where id='$IND_VALUE_FACT';" "unrelated location change advances evidence basis"
+
+psql_super <<'SQL'
+create or replace function public.hr_attendance_p1_hr4_decision(
+  p_house_id uuid,
+  p_case_kind text,
+  p_case_id uuid,
+  p_proposal_fingerprint text
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $function$
+  select jsonb_build_object(
+    'status', 'APPROVED',
+    'decisionReference', p_proposal_fingerprint
+  )
+$function$;
+revoke all on function public.hr_attendance_p1_hr4_decision(uuid,text,uuid,text)
+  from public, anon, authenticated, service_role;
+SQL
+
+auth_sql_as "$OWNER_USER" "select public.hr_finalize_attendance_correction(
+  '$HOUSE','$IND_VALUE_CASE','independent-value-finalize'
+);"
+assert_scalar "2" "select current_value_revision from public.hr_attendance_facts where id='$IND_VALUE_FACT';" "value-only correction finalizes after unrelated evidence-basis change"
+assert_scalar "2" "select evidence_basis_revision from public.hr_attendance_facts where id='$IND_VALUE_FACT';" "value-only correction preserves newer evidence basis"
+assert_scalar "$BRANCH_B" "select active_branch_id::text from public.hr_attendance_authorization_projection where house_id='$HOUSE' and fact_id='$IND_VALUE_FACT';" "value-only correction preserves newer branch attribution"
+assert_scalar "$TODAY 08:15:00+08" "select to_char(time_in at time zone 'Asia/Manila','YYYY-MM-DD HH24:MI:SS') || '+08' from public.hr_attendance_fact_revisions where house_id='$HOUSE' and fact_id='$IND_VALUE_FACT' and revision=2;" "value-only correction activates proposed value"
+
+echo "P1-B3 — independent stale bases: location correction survives unrelated value change"
+auth_sql_as "$OWNER_USER" "select public.hr_create_manual_attendance(
+  '$HOUSE','$EMP8','$BRANCH_A','independent-location-create','$TODAY',
+  '$TODAY 09:00:00+08','$TODAY 18:00:00+08'
+);"
+IND_LOCATION_FACT="$(scalar "select canonical_fact_id from public.dtr_segments where employee_id='$EMP8' order by created_at desc limit 1;")"
+IND_LOCATION_ONLY_PROPOSE="$(auth_scalar_as "$OWNER_USER" "select public.hr_propose_attendance_correction(
+  '$HOUSE','$IND_LOCATION_FACT','independent-location-propose','$TODAY',
+  '$TODAY 09:00:00+08','$TODAY 18:00:00+08',
+  '$BRANCH_B','Correct branch after unrelated value change'
+)::text;")"
+IND_LOCATION_ONLY_CASE="$(printf '%s' "$IND_LOCATION_ONLY_PROPOSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["caseId"])')"
+IND_VALUE_FIRST_PROPOSE="$(auth_scalar_as "$OWNER_USER" "select public.hr_propose_attendance_correction(
+  '$HOUSE','$IND_LOCATION_FACT','independent-value-first-propose','$TODAY',
+  '$TODAY 09:20:00+08','$TODAY 18:00:00+08',
+  null,'Correct time before location finalization'
+)::text;")"
+IND_VALUE_FIRST_CASE="$(printf '%s' "$IND_VALUE_FIRST_PROPOSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["caseId"])')"
+auth_sql_as "$OWNER_USER" "select public.hr_finalize_attendance_correction(
+  '$HOUSE','$IND_VALUE_FIRST_CASE','independent-value-first-finalize'
+);"
+assert_scalar "2" "select current_value_revision from public.hr_attendance_facts where id='$IND_LOCATION_FACT';" "unrelated value change advances value revision"
+assert_scalar "1" "select evidence_basis_revision from public.hr_attendance_facts where id='$IND_LOCATION_FACT';" "unrelated value change leaves evidence basis unchanged"
+
+auth_sql_as "$OWNER_USER" "select public.hr_finalize_attendance_correction(
+  '$HOUSE','$IND_LOCATION_ONLY_CASE','independent-location-finalize'
+);"
+assert_scalar "2" "select current_value_revision from public.hr_attendance_facts where id='$IND_LOCATION_FACT';" "location-only correction preserves newer value revision"
+assert_scalar "2" "select evidence_basis_revision from public.hr_attendance_facts where id='$IND_LOCATION_FACT';" "location-only correction finalizes after unrelated value change"
+assert_scalar "$BRANCH_B" "select active_branch_id::text from public.hr_attendance_authorization_projection where house_id='$HOUSE' and fact_id='$IND_LOCATION_FACT';" "location-only correction activates proposed branch"
+assert_scalar "$TODAY 09:20:00+08" "select to_char(time_in at time zone 'Asia/Manila','YYYY-MM-DD HH24:MI:SS') || '+08' from public.hr_attendance_fact_revisions where house_id='$HOUSE' and fact_id='$IND_LOCATION_FACT' and revision=2;" "location-only correction preserves newer value"
+
+psql_super <<'SQL'
+create or replace function public.hr_attendance_p1_hr4_decision(
+  p_house_id uuid,
+  p_case_kind text,
+  p_case_id uuid,
+  p_proposal_fingerprint text
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $function$
+  select jsonb_build_object('status', 'UNAVAILABLE')
+$function$;
+revoke all on function public.hr_attendance_p1_hr4_decision(uuid,text,uuid,text)
+  from public, anon, authenticated, service_role;
+SQL
 
 echo "P1-C — payroll-impacting value correction fails closed without HR-4"
 PROPOSE_VALUE="$(auth_scalar_as "$OWNER_USER" "select public.hr_propose_attendance_correction(
