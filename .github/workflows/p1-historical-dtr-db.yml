@@ -1,0 +1,92 @@
+name: P1 Historical DTR DB Concurrency
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+    paths:
+      - "supabase/**"
+      - "agui-starter/src/lib/hr/**"
+      - "agui-starter/src/app/company/**/hr/dtr/**"
+      - "agui-starter/src/lib/db.types.ts"
+      - ".github/workflows/p1-historical-dtr-db.yml"
+  workflow_dispatch:
+
+jobs:
+  p1-historical-dtr-db:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start disposable local database without historical repo replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv supabase/migrations supabase/migrations.repo
+          mkdir supabase/migrations
+          restore_migrations() {
+            rm -rf supabase/migrations
+            mv supabase/migrations.repo supabase/migrations
+          }
+          trap restore_migrations EXIT
+          supabase db start
+          restore_migrations
+          trap - EXIT
+
+      - name: Apply scoped Gate-A/Gate-B/P1 chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          DB_CONTAINER="$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -n 1)"
+          test -n "$DB_CONTAINER"
+
+          apply_sql() {
+            local file="$1"
+            echo "Applying $file"
+            docker exec -i "$DB_CONTAINER"               psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres < "$file"
+          }
+
+          apply_sql supabase/tests/gap024_gate_ab_prerequisite.sql
+
+          migrations=(
+            supabase/migrations/20261019100000_gap024_gate_a_attendance_authority.sql
+            supabase/migrations/20261019110000_gap024_gate_a_live_policy_compatibility.sql
+            supabase/migrations/20261019120000_gap024_gate_a_policy_surface_replay_guard.sql
+            supabase/migrations/20261019130000_gap024_gate_a_role_scope_guard.sql
+            supabase/migrations/20261019140000_gap024_gate_a_supersession_lookup_index.sql
+            supabase/migrations/20261019150000_gap024_gate_a_projection_history.sql
+            supabase/migrations/20261019160000_gap024_gate_a_activation_history_guard.sql
+            supabase/migrations/20261019170000_gap024_gate_a_activation_history_privilege.sql
+            supabase/migrations/20261019180000_gap024_gate_a_retired_fact_pointer_freeze.sql
+            supabase/migrations/20261019190000_gap024_gate_a_initial_active_guard.sql
+            supabase/migrations/20261019200000_gap024_gate_a_membership_frame_lock_order.sql
+            supabase/migrations/20261020100000_gap024_gate_b_containment_foundation.sql
+            supabase/migrations/20261020110000_gap024_gate_b_manual_commands.sql
+            supabase/migrations/20261020120000_gap024_gate_b_kiosk_command.sql
+            supabase/migrations/20261020130000_gap024_gate_b_bulk_command.sql
+            supabase/migrations/20261020140000_gap024_gate_b_repair_command.sql
+            supabase/migrations/20261020150000_gap024_gate_b_reconcile_cutover.sql
+            supabase/migrations/20261021100000_historical_dtr_p1_foundation.sql
+            supabase/migrations/20261021110000_historical_dtr_p1_correction_commands.sql
+            supabase/migrations/20261021120000_historical_dtr_p1_remediation_commands.sql
+          )
+
+          for migration in "${migrations[@]}"; do
+            apply_sql "$migration"
+          done
+
+      - name: Run P1 database contract and concurrency harness
+        run: bash supabase/tests/historical_dtr_p1_concurrency.sh
+
+      - name: Show local Supabase status on failure
+        if: failure()
+        run: supabase status || true
+
+      - name: Stop disposable local stack
+        if: always()
+        run: supabase stop --no-backup || true
