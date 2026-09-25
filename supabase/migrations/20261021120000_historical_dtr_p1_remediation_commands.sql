@@ -189,6 +189,10 @@ declare
   v_selected jsonb;
   v_result jsonb;
   v_event_class text;
+  v_expected_resolver_version text;
+  v_expected_resolver_digest text;
+  v_expected_generation bigint;
+  v_stale_base public.hr_attendance_remediation_events%rowtype;
 begin
   if p_house_id is null or p_remediation_case_id is null
     or p_operation_id is null or length(btrim(p_operation_id)) = 0
@@ -286,6 +290,89 @@ begin
   v_generation := coalesce(
     nullif(v_resolver ->> 'candidateEvidenceGeneration', '')::bigint, 0
   );
+
+  -- The owner/manager must adjudicate the exact candidate universe that was actually
+  -- presented for review. If the universe changed after open (or after a prior stale
+  -- result), return the new bounded candidate snapshot first; a later operation may
+  -- adjudicate only if that reviewed snapshot is still current.
+  if v_case.lifecycle_status = 'STALE' then
+    select e.*
+    into v_stale_base
+    from public.hr_attendance_remediation_events e
+    where e.house_id = p_house_id
+      and e.remediation_case_id = v_case.id
+      and e.event_class = 'STALE'
+    order by e.event_at desc, e.id desc
+    limit 1;
+
+    if found then
+      v_expected_resolver_version := v_stale_base.resolver_version;
+      v_expected_resolver_digest := v_stale_base.resolver_digest;
+      v_expected_generation := v_stale_base.candidate_evidence_generation;
+    else
+      v_expected_resolver_version := v_case.resolver_version;
+      v_expected_resolver_digest := v_case.resolver_digest;
+      v_expected_generation := v_case.base_candidate_evidence_generation;
+    end if;
+  else
+    v_expected_resolver_version := v_case.resolver_version;
+    v_expected_resolver_digest := v_case.resolver_digest;
+    v_expected_generation := v_case.base_candidate_evidence_generation;
+  end if;
+
+  if v_resolver ->> 'resolverVersion' is distinct from v_expected_resolver_version
+    or v_resolver ->> 'digest' is distinct from v_expected_resolver_digest
+    or v_generation is distinct from v_expected_generation then
+
+    v_role := public.hr_attendance_actor_role_label(
+      p_house_id, v_entity_id, v_case.asserted_branch_id
+    );
+    if v_role is null then
+      raise exception 'Remediation actor role could not be resolved'
+        using errcode = '42501';
+    end if;
+
+    insert into public.hr_attendance_remediation_events (
+      house_id, remediation_case_id, employee_id,
+      event_class, actor_entity_id, actor_role,
+      resolver_version, resolver_digest,
+      candidate_evidence_generation, details
+    )
+    values (
+      p_house_id, v_case.id, v_case.employee_id,
+      'STALE', v_entity_id, v_role,
+      v_resolver ->> 'resolverVersion',
+      v_resolver ->> 'digest',
+      v_generation,
+      jsonb_build_object(
+        'reason', 'CANDIDATE_UNIVERSE_CHANGED_BEFORE_ADJUDICATION',
+        'coverageComplete', coalesce((v_resolver ->> 'coverageComplete')::boolean, false),
+        'candidates', coalesce(v_resolver -> 'candidates', '[]'::jsonb)
+      )
+    );
+
+    update public.hr_attendance_remediation_cases
+    set lifecycle_status = 'STALE'
+    where house_id = p_house_id and id = v_case.id;
+
+    v_result := jsonb_build_object(
+      'status', 'STALE',
+      'caseId', v_case.id,
+      'resolverVersion', v_resolver ->> 'resolverVersion',
+      'resolverDigest', v_resolver ->> 'digest',
+      'candidateEvidenceGeneration', v_generation,
+      'coverageComplete', coalesce((v_resolver ->> 'coverageComplete')::boolean, false),
+      'candidates', coalesce(v_resolver -> 'candidates', '[]'::jsonb)
+    );
+
+    update public.hr_attendance_mutation_operations
+    set outcome = v_result, completed_at = now()
+    where house_id = p_house_id
+      and producer_namespace = 'P1_REMEDIATION_ADJUDICATE_V1'
+      and operation_id = btrim(p_operation_id);
+
+    return v_result;
+  end if;
 
   if p_decision = 'DISTINCT_NEW'
     and not coalesce((v_resolver ->> 'coverageComplete')::boolean, false) then
@@ -568,14 +655,26 @@ begin
       v_resolver ->> 'resolverVersion',
       v_resolver ->> 'digest',
       v_generation,
-      jsonb_build_object('reason', 'CANDIDATE_UNIVERSE_CHANGED')
+      jsonb_build_object(
+        'reason', 'CANDIDATE_UNIVERSE_CHANGED',
+        'coverageComplete', coalesce((v_resolver ->> 'coverageComplete')::boolean, false),
+        'candidates', coalesce(v_resolver -> 'candidates', '[]'::jsonb)
+      )
     );
 
     update public.hr_attendance_remediation_cases
     set lifecycle_status = 'STALE'
     where house_id = p_house_id and id = v_case.id;
 
-    v_result := jsonb_build_object('status', 'STALE', 'caseId', v_case.id);
+    v_result := jsonb_build_object(
+      'status', 'STALE',
+      'caseId', v_case.id,
+      'resolverVersion', v_resolver ->> 'resolverVersion',
+      'resolverDigest', v_resolver ->> 'digest',
+      'candidateEvidenceGeneration', v_generation,
+      'coverageComplete', coalesce((v_resolver ->> 'coverageComplete')::boolean, false),
+      'candidates', coalesce(v_resolver -> 'candidates', '[]'::jsonb)
+    );
     update public.hr_attendance_mutation_operations
     set outcome = v_result, completed_at = now()
     where house_id = p_house_id
