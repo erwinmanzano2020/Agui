@@ -2,8 +2,10 @@
 
 ## Status
 
-**DRAFT — initial planning task started 2026-09-25. Not owner-approved. No Runtime
-implementation is authorized by this document.**
+**PLANNING REVIEW ACTIVE — Round 1 material defects have been corrected. Planning is
+not owner-approved and Runtime remains unauthorized. One owner policy decision remains
+open before convergence can be declared: the database-enforced boundary between ordinary
+branch-limited manual capture and DEC-014 historical missing-fact remediation.**
 
 Base: `develop` at PR #512 squash merge
 `df7bbeb11d016297a0a6dbd5d41c998441294c36`.
@@ -134,6 +136,30 @@ P1 must continue to consume the protected Gate-A readers:
 
 P1 does not authorize a new general attendance reader or a new authorization projection.
 
+A material planning constraint follows from the current reader shapes: both protected
+readers are date-range/paginated interfaces, not exact fact-target authorization
+primitives. P1 must **not** authorize a guessed fact by scanning a broad reader page or by
+performing a raw fact lookup and checking branch state in application code.
+
+The Runtime design must therefore extract/reuse the exact Gate-A authorization predicates
+inside a **private exact-fact resolver** used by the existing readers and P1 wrappers.
+Planning name: `hr_resolve_attendance_fact_write_context(...)`. The exact name may change
+during Runtime without changing the contract. It must:
+
+- accept House + exact fact ID and the already-resolved authenticated entity;
+- resolve House membership/capability before exposing target details;
+- for branch-limited actors, require the fact to be current, `ATTRIBUTED`, fingerprint-
+  valid, and active in one of the caller's allowed branches;
+- for house-wide owner/manager, preserve the existing house-global authority;
+- return only private database context needed by the calling wrapper;
+- have **no EXECUTE grant** to `public`, `anon`, `authenticated`, or `service_role`;
+- share one canonical predicate/helper implementation with the protected readers so P1
+  cannot drift from read visibility semantics; and
+- be covered by parity tests proving exact-target write eligibility cannot be broader than
+  the corresponding protected read authority.
+
+This is a private authorization primitive, not a third public attendance reader.
+
 ### 4.4 Current Daily DTR application behavior
 
 The current Daily DTR page still renders legacy `dtr_segments` and obtains canonical
@@ -220,8 +246,12 @@ not frozen until convergence.
 
 Add a P1-specific House-scoped correction record attached to one Gate-A fact.
 
-Provisional table:
+Planned table:
 `hr_attendance_correction_cases`.
+
+The proposal body is immutable after insert. A narrow derived lifecycle/status column may
+change only inside the private transactional command, but every transition must be
+mirrored by append-only history; application roles receive no table DML.
 
 Minimum immutable proposal fields:
 
@@ -240,7 +270,20 @@ Minimum immutable proposal fields:
 - reason
 - proposer entity ID / role
 - proposed timestamp
-- opaque HR-4 decision reference only when a real approved provider exists.
+- nullable opaque HR-4 decision reference storage reserved for a future real approved
+  provider; no current client/API parameter may populate it.
+
+The initial P1 value surface is deliberately narrow:
+
+- `work_date`;
+- `time_in`;
+- `time_out`; and
+- explicit target actual-attendance branch for a location correction.
+
+`hours_worked`, `overtime_minutes`, `source`, raw segment IDs, evidence IDs and raw
+status are not user-editable P1 correction inputs. Status remains derived from the
+canonical time values under the existing open/closed rules; payroll/overtime computation
+is not introduced by P1.
 
 The case row must not be directly writable by application roles.
 
@@ -252,21 +295,25 @@ proposal body.
 Provisional table:
 `hr_attendance_correction_events`.
 
-Candidate event classes:
+The case insert itself is the durable proposal record; do not duplicate it with a second
+mutable "proposal" payload. Planned append-only event classes are:
 
-- `PROPOSED`
-- `APPROVAL_REFERENCE_BOUND`
-- `REJECTED`
-- `STALE`
-- `FINALIZED`
-- bounded terminal failure/audit event only where recording it cannot create a no-leak
-  oracle.
+- `HR4_DECISION_OBSERVED` only after a real approved HR-4 provider exists;
+- `REJECTED` only when supplied by that authoritative HR-4 decision path;
+- `STALE`; and
+- `FINALIZED`.
+
+Initial Production P1 has no HR-4 provider, so it must not manufacture
+`HR4_DECISION_OBSERVED` or `REJECTED` itself. Payroll-impacting finalization fails
+closed instead.
 
 Each event is House-scoped, references the correction case, records actor/time, and may
 record only the bounded result revisions/decision reference needed by the frozen contract.
 
-Direct `UPDATE`/`DELETE` is prohibited. A unique terminal-transition rule must prevent
-double finalization/rejection races.
+Direct `UPDATE`/`DELETE` of events is prohibited. Enforce one terminal event per case
+with a database constraint/partial unique index over `STALE | REJECTED | FINALIZED`.
+The private command locks the case before testing/inserting a terminal event, so two
+finalizers cannot both win.
 
 ### 6.3 Owner/manager remediation case
 
@@ -289,9 +336,16 @@ Minimum immutable case fields:
   existing/related target or distinct-new;
 - resulting canonical fact ID only after successful distinct-new finalization.
 
-A separate append-only remediation event relation may be used if review proves one mutable
-state column cannot preserve the required audit safely. The final design must prefer the
-smallest schema that still preserves immutable lineage.
+Use a matching append-only
+`hr_attendance_remediation_events` relation rather than relying on a mutable status as
+the only history. The immutable case row represents `OPEN`; event classes are
+`ADJUDICATED_EXISTING`, `ADJUDICATED_DISTINCT`, `STALE`, and `FINALIZED`.
+Adjudication events are immutable and carry the resolver version/digest and base generation
+that were actually reviewed. Only one current adjudication may be finalizable; a later
+re-adjudication after staleness creates a new immutable adjudication event rather than
+rewriting the prior one.
+
+Application roles receive no direct DML on either remediation table.
 
 ### 6.4 Operation/idempotency ledger
 
@@ -306,11 +360,23 @@ Candidate namespaces:
 - `P1_REMEDIATION_ADJUDICATE_V1`
 - `P1_REMEDIATION_FINALIZE_V1`
 
-Planning Review & Fix must verify whether extracting a private idempotency helper from the
-current Gate-B engine is safer than duplicating ledger logic.
+Freeze reuse of the existing operation ledger rather than creating a second retry
+authority. Runtime may extract a private helper from the Gate-B engine, but the semantics
+remain exactly:
 
-Operation identity must remain a retry identity only. It must never become attendance
-identity or remediation identity.
+1. caller authorization/target visibility is established first;
+2. acquire the shared House+employee serialization domain;
+3. insert-or-load `(house_id, producer_namespace, operation_id)`;
+4. compare the immutable request fingerprint;
+5. identical completed retry returns the prior bounded outcome;
+6. key reuse with a different fingerprint fails;
+7. operation completion is committed atomically with the case/fact mutation.
+
+An unauthorized guessed target must not create an externally useful operation-ledger
+oracle.
+
+Operation identity remains a retry identity only. It never becomes attendance identity,
+case identity, or remediation identity.
 
 ## 7. Proposed callable boundary — initial draft
 
@@ -343,6 +409,11 @@ The remediation wrappers are owner/manager-only in P1.
 
 Do **not** create an independently bypassable P1 writer.
 
+The current one-to-one compatibility bridge is a live invariant, not an assumption:
+Production has 96 linked segments / 96 distinct fact links / zero unbridged segments, and
+`dtr_segments_canonical_fact_unique_idx` enforces at most one compatibility segment per
+canonical fact. P1 finalization must preserve that invariant.
+
 Preferred direction for review:
 
 - extend/refactor the Gate-B private engine/helper layer so finalization of an existing
@@ -365,19 +436,39 @@ create competing mutation authority.
 
 The proposal command:
 
-1. resolves House/capability;
-2. resolves exact canonical fact through the appropriate protected visibility path;
-3. denies hidden/cross-House/wrong-branch/unattributed/conflict targets with a normalized
-   response;
+1. validates syntax that can be checked without dereferencing protected target state;
+2. resolves authenticated actor + requested House membership/capability;
+3. resolves the exact canonical fact through the private exact-fact resolver whose
+   predicates are shared with the protected Gate-A readers;
+4. denies absent/hidden/cross-House/wrong-branch/unattributed/conflict/fingerprint-invalid
+   targets with one normalized unavailable result for branch-limited callers;
 4. snapshots only the dependency bases required by the proposal:
    - value revision for value/time;
    - semantic evidence basis for location/attribution;
    - both for combined;
-5. classifies payroll impact through canonical server/database logic, never a trusted
-   client boolean;
-6. requires a non-empty reason;
-7. records immutable base/proposed state and proposer identity/time;
-8. does **not** mutate active attendance.
+6. classifies payroll impact through canonical server/database logic, never a trusted
+   client boolean, using the frozen P1 classifier below;
+7. requires a non-empty reason;
+8. records immutable base/proposed state and proposer identity/time;
+9. does **not** mutate active attendance.
+
+#### Initial P1 payroll-impact classifier
+
+P1 does not calculate payroll. It conservatively classifies whether a proposal changes an
+attendance value that payroll is permitted to consume:
+
+- any change to `work_date`, `time_in`, or `time_out` is
+  **PAYROLL_IMPACTING**;
+- any combined value/time + location correction is **PAYROLL_IMPACTING**;
+- a genuinely distinct missing-fact creation is **PAYROLL_IMPACTING** because it adds a
+  new attendance contribution;
+- a **pure location-only** correction is
+  **NON_PAYROLL_IMPACTING** only when the canonical value snapshot is unchanged.
+
+No client may override this classification. The distinction does not infer schedules,
+rates, salary, overtime, or payable amounts. If a future approved dependency adds another
+payroll-sensitive attendance field, that is a later contract change rather than an
+implicit P1 widening.
 
 ### 8.2 Finalization
 
@@ -394,7 +485,8 @@ Finalization must:
 8. validate target branch/provenance for location change;
 9. re-evaluate payroll impact;
 10. if payroll-impacting, require a safely callable exact HR-4 decision for this immutable
-    proposal/base; otherwise fail closed;
+    proposal/base; because no such Production provider exists now, initial P1 returns the
+    bounded `APPROVAL_DEPENDENCY_UNAVAILABLE` result and makes **no canonical change**;
 11. append correction finalization lineage;
 12. invoke the private canonical mutation boundary;
 13. update the compatibility segment only as part of the same transaction;
@@ -411,40 +503,65 @@ ownership of an edit.
 A key P1 acceptance requirement is preventing the current immediate update wrapper from
 becoming a semantic bypass around correction/finalization.
 
-Initial proposed direction:
+Caller inventory at the PR #512 merge head found one application implementation caller:
+`agui-starter/src/lib/hr/dtr-segments-server.ts`; the remaining references are generated
+types, migration tests and database/concurrency tests.
 
-- route Daily DTR existing-fact edits through the new correction proposal/finalization
-  path;
-- after all application callers are migrated, remove normal authenticated execute
-  authority from `hr_update_manual_attendance(...)`, or database-bound it to a domain
-  proven outside P1 correction scope;
-- do not rely on hiding the old form/button;
-- prove direct PostgREST RPC invocation cannot immediately overwrite a P1-covered fact.
+Freeze the P1 cutover as follows:
 
-Planning review must inventory every repository caller before freezing the grant change.
+- route Daily DTR existing-fact edits through P1 proposal/finalization;
+- update/remove the `dtr-segments-server.ts` immediate-update adapter;
+- in the same P1 migration that makes the new wrapper callable, revoke
+  `hr_update_manual_attendance(uuid,uuid,text,timestamptz,timestamptz,bigint)`
+  EXECUTE from `public`, `anon`, `authenticated`, and `service_role`;
+- retain the old function only as non-public compatibility code if Runtime proves another
+  database-owned dependency needs it; otherwise retire it in a forward migration;
+- do not rely on hiding the old form/button; and
+- prove direct PostgREST invocation can no longer immediately overwrite a P1-covered fact.
+
+Any newly discovered caller during Runtime is a stop condition until migrated or proven
+database-disjoint.
 
 ## 10. Operational manual-create versus historical remediation
 
 The existing `hr_create_manual_attendance(...)` is a contained Gate-B producer but is not
-DEC-018 remediation.
+DEC-018 remediation. It currently accepts an arbitrary `work_date` for branch-limited
+writers, while DEC-014 forbids branch-limited **historical missing-fact** creation.
 
-P1 must prevent a branch-limited actor from using ordinary manual-create as a backdated
-missing-fact bypass.
+Repository/contract review did **not** find a canonical definition of where ordinary
+manual capture stops and "historical" remediation begins. HR-2.1 explicitly preserves a
+date picker and manual Daily DTR capture, but defines no same-day, prior-day, grace-window,
+or closed-period cutoff.
 
-Initial proposed direction for review:
+This is therefore not safe to invent as an engineering detail.
 
-- preserve ordinary current operational capture only inside a narrowly defined live-entry
-  domain;
-- route any historical/backdated missing-fact creation through owner/manager DEC-018
-  remediation;
-- enforce the domain in the database wrapper, not only in UI code;
-- continue requiring explicit actual-attendance branch for ordinary capture;
-- current employee assignment must not become historical provenance.
+### OWNER DECISION OD-P1-01 — required before planning convergence
 
-The exact live-versus-historical cutoff must be derived from existing HR/DTR time semantics
-during convergence; this draft does not silently freeze a new owner policy. If no existing
-canonical cutoff can be proven, the safer default is to narrow ordinary manual-create
-rather than allow a historical bypass.
+Choose the business boundary that the database must enforce:
+
+**Option A — same Manila business date only for branch-limited ordinary capture.**
+`hr_create_manual_attendance` remains available to a branch-limited authorized writer
+only when `p_work_date = (transaction_timestamp() AT TIME ZONE 'Asia/Manila')::date`.
+Earlier dates are historical and require owner/manager DEC-018 remediation; future dates
+fail. This preserves same-day operational capture while closing the backdated bypass.
+
+**Option B — owner/manager-only ordinary manual creation.**
+Remove branch-limited EXECUTE/use of ordinary manual create entirely; owner/manager may
+use the bounded owner flow, and historical creation remains DEC-018 remediation.
+
+Any different grace window (for example "yesterday until noon") is also valid only if the
+owner explicitly supplies that policy; planning must not invent it.
+
+Regardless of the chosen option:
+
+- enforce the boundary in the database wrapper, not only UI code;
+- historical/backdated missing-fact creation routes through owner/manager DEC-018;
+- continue requiring explicit actual-attendance branch;
+- current employee assignment remains non-provenance;
+- future dates fail closed; and
+- direct RPC invocation must not bypass the same rule.
+
+Until OD-P1-01 is decided, Runtime implementation is **not authorized**.
 
 ## 11. DEC-018 candidate/evidence resolver
 
@@ -463,18 +580,30 @@ same-House employee attendance candidate/evidence universe required by DEC-018:
 
 This resolver is not a new general public attendance reader.
 
-Initial safest V1 direction:
+Freeze the V1 resolution rules:
 
-- eligibility resolution is employee-wide, not date-window authoritative;
-- date/time filters may sort or focus presentation but cannot define completeness;
-- an omitted item must be deterministically excluded by canonical logic;
-- if the implementation cannot prove complete coverage, `DISTINCT_NEW` is unavailable
-  and the case remains unresolved;
-- owner/manager may receive only the minimum safe summary needed for explicit
-  adjudication.
+- resolution is employee-wide inside one House, not date-window authoritative;
+- inspect every canonical fact that has not been deterministically excluded by canonical
+  lineage, including inactive/retired history when it can still represent the claimed
+  real-world observation;
+- inspect the **current semantic revision** of every same-House employee observation /
+  evidence lineage;
+- current non-superseded `ESTABLISHED` and `UNRESOLVED` evidence is candidate-bearing;
+- an observation with no current evidence remains unresolved candidate state rather than
+  evidence of absence;
+- only evidence canonically finalized as non-current/superseded history or deterministically
+  `INVALID` under Gate-A integrity rules may be excluded;
+- if a row/state cannot be classified under those rules, set
+  `coverageComplete=false`; `DISTINCT_NEW` is unavailable;
+- date/time filters may order/focus the owner UI but cannot define completeness;
+- return a deterministic resolver version + sorted candidate digest + current employee
+  generation with the minimum safe owner/manager summaries;
+- persist the resolver version/digest/generation on the adjudication event; and
+- re-run the same resolver under the shared lock before finalization.
 
-The Planning Review & Fix loop must challenge performance, pagination, and the ability to
-prove completeness without inventing timestamp uniqueness.
+Required indexes must support employee-wide fact/evidence/observation lookup. Runtime must
+prove query plans remain bounded on production-like volume; pagination of the display may
+not paginate the authority decision itself.
 
 ## 12. Missing-fact remediation lifecycle
 
@@ -500,6 +629,8 @@ Owner/manager explicitly chooses:
 - `DISTINCT_NEW`: allowed only when candidate coverage is complete.
 
 The database must reject an attempt to infer distinct-new from timestamp non-match.
+`EXISTING_RELATED` may select only a candidate identity returned by the resolver version
+bound to that adjudication; arbitrary client-supplied hidden IDs are rejected.
 
 ### 12.3 Finalize distinct-new
 
@@ -510,9 +641,12 @@ Under the shared House+employee lock:
 - verify actor/House/branch authority and explicit provenance;
 - verify immutable case identity and operation fingerprint;
 - if stale, create nothing and require re-adjudication;
-- otherwise use the private canonical mutation boundary to create the fact, revision,
-  explicit manual provenance/evidence, projection/history, compatibility row, lineage and
-  generation update atomically.
+- otherwise classify the distinct-new creation as payroll-impacting. Initial Production P1
+  has no HR-4 provider, so finalization returns
+  `APPROVAL_DEPENDENCY_UNAVAILABLE` and creates nothing. Once a separately approved
+  HR-4 provider exists, the same finalization transaction may use the private canonical
+  mutation boundary to create the fact, revision, explicit manual provenance/evidence,
+  projection/history, compatibility row, lineage and generation update atomically.
 
 Multiple legitimate facts per employee/day remain allowed.
 
@@ -522,29 +656,36 @@ Current Production does not provide a general HR-4 DTR approval callable.
 
 Therefore the P1 runtime plan must:
 
-- classify payroll impact canonically;
+- classify payroll impact canonically using Section 8.1;
 - preserve the exact immutable proposal/base that any future HR-4 decision must approve;
-- accept only an opaque server-validated decision reference from a safely callable
-  HR-4 authority;
-- revalidate that decision inside finalization;
-- never trust an `approved=true` client field;
-- if no approved HR-4 provider exists, permit only behavior already safe without that
-  dependency and fail closed for payroll-impacting finalization.
+- expose **no client-supplied approval reference/status field** in initial P1;
+- return `APPROVAL_DEPENDENCY_UNAVAILABLE` for every payroll-impacting finalization while
+  Production lacks an approved HR-4 provider;
+- make no canonical attendance/evidence/projection change on that result;
+- when a future approved HR-4 provider exists, accept only an opaque server-validated
+  decision reference from that authority and revalidate it inside finalization;
+- never trust an `approved=true` client field.
 
 This P1 does not authorize building the missing general HR-4 workflow merely to make a
-payroll-impacting correction pass.
+payroll-impacting correction pass. Unit/DB harnesses may model approved/rejected provider
+responses to prove state behavior, but no test fixture becomes Production authority.
 
 ## 14. Authorization / tenancy / no-leak
 
 Every callable must enforce:
 
-- House-first resolution;
+- request-shape validation before protected target dereference;
+- House-first membership/capability resolution;
 - no cross-House ID dereference leakage;
 - branch-limited existing-fact proposal only from current protected visibility;
 - owner/manager house-global behavior only through existing broad authority;
 - no branch-limited remediation/create control;
-- normalized hidden/not-found/wrong-branch/unattributed/conflict outcomes where the actor
-  is not entitled to distinguish them;
+- for a branch-limited exact-fact proposal, one externally equivalent
+  `TARGET_UNAVAILABLE` outcome for absent, cross-House, wrong-branch, hidden,
+  `UNATTRIBUTED`, `CONFLICT`, retired/unavailable, and evidence-fingerprint-invalid
+  targets;
+- only after the caller already owns a visible case may `STALE`,
+  `APPROVAL_DEPENDENCY_UNAVAILABLE`, or validation-specific outcomes be distinguished;
 - no hidden branch/source/evidence/correction IDs or counts in errors;
 - no cache/revalidation/redirect/control-state oracle;
 - House-scoped structured logs only.
@@ -553,15 +694,21 @@ Client-side filtering is never authorization.
 
 ## 15. Concurrency / lock ordering
 
-The draft lock order is:
+Freeze the conceptual lock order:
 
-1. House + employee Gate-B advisory lock;
-2. operation/idempotency row;
-3. P1 correction/remediation case row;
-4. canonical fact row when one exists;
-5. evidence/frame rows in Gate-A-approved order;
-6. HR-4 decision row/callable serialization only where required;
-7. canonical mutation + projection/history + generation.
+1. resolve actor/House and non-locking exact target/case metadata needed to identify the
+   employee without returning protected details;
+2. House + employee Gate-B advisory lock;
+3. operation/idempotency row;
+4. P1 correction/remediation case row;
+5. canonical fact row when one exists;
+6. evidence frame → owning fact/evidence/lineage locks in the Gate-A-approved order for
+   any semantic-frame mutation;
+7. future HR-4 decision serialization only where an approved provider contract defines it;
+8. canonical mutation + projection/history + employee generation.
+
+A wrapper must re-read/revalidate target ownership after acquiring the employee advisory
+lock; the pre-lock lookup cannot authorize commit.
 
 Review must reconcile this order against every Gate-A trigger and Gate-B producer to prove
 there is no inverted lock cycle.
@@ -582,11 +729,12 @@ Latest-write-wins is prohibited.
 
 ## 16. UI/server boundary
 
-Preferred P1 application direction:
+Freeze the P1 application direction:
 
 - add a bounded correction interaction to the existing company Daily DTR surface;
 - derive branch-limited eligible facts from the canonical branch-scoped reader rather than
   legacy segment visibility;
+- key edit actions by canonical `fact_id`, never by a caller-trusted legacy segment ID;
 - owner/manager may use house-global canonical facts and the bounded remediation flow;
 - preserve existing Manila timestamp input/validation behavior where compatible;
 - require a correction reason;
@@ -602,7 +750,8 @@ but P1 write controls must be fact-authoritative.
 
 A later Runtime PR is expected to require:
 
-- one or more forward-only P1 migrations for correction/remediation persistence;
+- forward-only P1 migrations for the two immutable case records + append-only event
+  relations and their constraints/indexes;
 - private helper/engine changes;
 - narrow public RPC wrappers;
 - RLS enabled on every new table;
@@ -610,6 +759,9 @@ A later Runtime PR is expected to require:
   specific internal database ownership need is proven;
 - explicit narrow `EXECUTE` grants on public wrappers;
 - no execute grant on private engines/helpers;
+- revocation of authenticated EXECUTE on the immediate update wrapper after caller
+  migration;
+- the OD-P1-01-selected database restriction for ordinary manual-create;
 - generated `db.types.ts` updates;
 - `NOTIFY pgrst, 'reload schema';`;
 - independent PostgREST schema-cache and privilege verification.
@@ -671,7 +823,8 @@ Prove:
 - candidate generation prevents stale remediation commit;
 - partial failure rolls back lineage and canonical mutation together;
 - direct PostgREST DML remains denied after P1 migrations;
-- direct old RPC invocation cannot bypass P1 semantics.
+- direct old update RPC invocation cannot bypass P1 semantics;
+- direct ordinary manual-create invocation obeys the OD-P1-01 historical boundary.
 
 ## 19. Preview / controlled UAT
 
@@ -728,32 +881,32 @@ Preferred emergency posture:
 - do not down-migrate canonical facts or delete finalized lineage;
 - fix forward.
 
-## 22. Initial unresolved technical risks for convergence
+## 22. Residual risks / one unresolved owner decision
 
-These are planning questions, not requests for new owner semantics:
+Round 1 closed the previously open engineering questions for case/event persistence,
+operation-ledger reuse, exact-fact authorization, immediate-update cutover, candidate
+resolver rules, payroll-impact classification, HR-4 fail-closed behavior, lock ordering,
+and no-leak result shapes.
 
-1. exact minimal physical representation for append-only correction/remediation lifecycle;
-2. safest way to reuse Gate-B operation idempotency without duplicating private engine
-   behavior;
-3. exact private engine extension shape for correction finalization and distinct-new
-   creation;
-4. repository-wide caller inventory before restricting
-   `hr_update_manual_attendance(...)`;
-5. exact database-enforced boundary between ordinary live manual capture and historical
-   remediation, without inventing an unsupported date policy;
-6. complete DEC-018 candidate resolution that is safe and performant while refusing
-   timestamp/date uniqueness shortcuts;
-7. canonical payroll-impact classifier and the precise fail-closed behavior while the
-   general HR-4 approval runtime is absent;
-8. final lock order against all Gate-A frame/evidence triggers and Gate-B producer paths;
-9. sanitized error mapping that does not form an existence/branch oracle;
-10. migration replay strategy under the known unrelated historical baseline drift.
+Realistic residual risks remain for Runtime verification:
 
-No item above authorizes relaxing the frozen semantics.
+1. employee-wide DEC-018 resolution may need additional indexes after production-like
+   `EXPLAIN` evidence;
+2. Gate-A trigger lock ordering must be proven by real independent-session concurrency,
+   not only static review;
+3. the repository's unrelated historical zero-to-head migration replay debt remains; P1
+   must use the same scoped prerequisite fixture + controlled Production migration
+   application discipline as Gate A/B;
+4. future HR-4 integration remains absent, so payroll-impacting finalization is
+   intentionally unavailable at initial P1 release.
+
+One **owner policy decision** remains: OD-P1-01 in Section 10. No technical review may
+silently choose that operational manual-create cutoff.
 
 ## 23. Planning acceptance criteria
 
-Planning may be marked converged only when the Review & Fix loop proves:
+Planning may be marked converged only when OD-P1-01 is explicitly decided and the Review
+& Fix loop then proves:
 
 - every approved P1 semantic requirement maps to a physical control;
 - no P1 write can bypass Gate-A authority or Gate-B containment;
@@ -769,6 +922,48 @@ Planning may be marked converged only when the Review & Fix loop proves:
 - no unresolved material P0/P1/P2 planning defect remains.
 
 ## 24. Planning Review & Fix Log
+
+### Round 1 — autonomous adversarial review
+
+Material findings against head
+`01fc5eb5fe0d7d31394a08b81bf21f9f66984e56`:
+
+1. **P1 — exact-fact authorization drift risk.** The plan referred generally to protected
+   readers even though those readers are range/paginated, creating a plausible raw lookup
+   or page-scan authorization divergence. Fixed by freezing a private exact-fact resolver
+   sharing the Gate-A reader predicates and parity tests.
+2. **P1 — immediate update RPC bypass.** `hr_update_manual_attendance` remained directly
+   executable by authenticated callers and could bypass P1 proposal/finalization. Caller
+   inventory found one application adapter. Fixed by freezing same-PR caller migration +
+   authenticated EXECUTE revocation and direct-RPC negative verification.
+3. **P1 — historical manual-create bypass has no approved cutoff.**
+   `hr_create_manual_attendance` accepts arbitrary work dates, but no canonical source
+   defines where ordinary branch-limited Daily DTR capture becomes DEC-014 historical
+   remediation. This cannot be fixed autonomously without inventing business policy;
+   OD-P1-01 is now explicit.
+4. **P1 — payroll-impact/HR-4 ambiguity.** The draft said "classify canonically" without
+   freezing the actual P1 rule or the behavior of the absent HR-4 provider. Fixed with a
+   conservative value/location classifier, no client approval fields, and
+   `APPROVAL_DEPENDENCY_UNAVAILABLE` no-write behavior.
+5. **P1 — lifecycle double-terminal / mutable-audit risk.** Case/event schema was
+   provisional enough to permit competing terminal transitions. Fixed by immutable case
+   bodies, append-only events, terminal uniqueness, case locking, and no application DML.
+6. **P1 — DEC-018 completeness remained underspecified.** "Employee-wide" alone did not
+   define unassociated observations, unresolved evidence, supersession, invalid evidence,
+   or pagination authority. Fixed with complete current-lineage resolution,
+   `coverageComplete`, resolver version/digest/generation, and fail-closed unknown state.
+7. **P2 — P1 mutation field surface was wider/less explicit than the current Daily DTR
+   contract.** Fixed by freezing `work_date/time_in/time_out/location` only and excluding
+   direct hours/overtime/source/status edits.
+8. **P2 — compatibility bridge cardinality was assumed.** Live schema verification shows
+   `dtr_segments_canonical_fact_unique_idx`, 96 linked segments, 96 distinct fact links,
+   zero unbridged segments and no multi-segment canonical fact. Fixed by making one-to-one
+   compatibility preservation an explicit P1 invariant.
+9. **P2 — no-leak outcomes were descriptive rather than testable.** Fixed by freezing the
+   externally equivalent `TARGET_UNAVAILABLE` class and limiting stale/dependency
+   distinctions to already-authorized visible cases.
+
+Planning remains blocked only on OD-P1-01; no Runtime change was made.
 
 ### Round 0 — initial draft
 
