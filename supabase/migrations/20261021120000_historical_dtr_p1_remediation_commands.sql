@@ -691,7 +691,13 @@ begin
   -- DISTINCT_NEW is always payroll-impacting under the frozen classifier.
   v_hr4 := public.hr_attendance_p1_hr4_decision(
     p_house_id, 'REMEDIATION', v_case.id,
-    md5(v_case.proposed_snapshot::text || '|' || v_case.resolver_digest)
+    md5(jsonb_build_array(
+      'P1_REMEDIATION_HR4_V1',
+      v_case.proposed_snapshot,
+      v_adjudication.resolver_version,
+      v_adjudication.resolver_digest,
+      v_adjudication.candidate_evidence_generation
+    )::text)
   );
   v_hr4_status := upper(coalesce(v_hr4 ->> 'status', 'UNAVAILABLE'));
 
