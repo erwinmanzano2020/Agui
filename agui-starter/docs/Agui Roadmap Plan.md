@@ -31,27 +31,23 @@
 
 ## Current Execution Focus
 - **Gate A is released** at squash merge
-  `71d11b79c002dce9b65e786ecb30ecfa9abdd494`; its final backend lock-order migration
-  and merge-SHA Vercel deployment are verified.
-- **GAP-024 Gate-B pre-P1 raw-mutator / producer-write-containment Runtime has
-  converged in PR #512.** Final reviewed Runtime candidate before governance-only sync:
-  `c8a512ca97c31033bf242b83d978c7938eebdfd8`.
-- Runtime evidence is green: Preflight #862, disposable Gate-A/Gate-B migration replay
-  plus C1-C8 real PostgreSQL concurrency #7, exact-head Vercel READY/SUCCESS, Preview
-  HTTP 200, clean checked runtime logs, and zero current material review threads.
-- **Next authorized phase is the separately controlled UAT / PR-deployment gate for
-  PR #512.** Runtime convergence does not authorize merge or Production deployment.
-- Production Supabase remains on released Gate A only; no Gate-B `20261020...`
-  migration has been applied.
-- Historical Daily DTR Write P1 remains blocked until Gate-B containment is
-  owner-released, deployed to Production through the controlled migration path, and
-  post-deploy no-bypass verification passes.
-- follow DEC-017 sequence: completed Gate A → converged Gate-B pre-P1 containment →
-  Controlled UAT/release → deployed/verified no-bypass proof → separate historical Daily
-  DTR write-authorization P1 during Gate B → completion of remaining Gate B → Gate C →
-  Gate D → Gate E.
-- preserve GAP-024's internal A → B → C → D → E order; P1 remains a separate bounded
-  task/PR and must not be folded into this containment release to reduce PR count.
+  `71d11b79c002dce9b65e786ecb30ecfa9abdd494`.
+- **Gate-B pre-P1 containment is released and Production-verified.** PR #512 was
+  squash-merged as `df7bbeb11d016297a0a6dbd5d41c998441294c36`; all six Gate-B
+  migrations were applied; exact Production deployment
+  `dpl_39QX6j3znL729UcGiSAbEFmRcwq2` is READY; post-deploy no-bypass checks passed.
+- **Historical Daily DTR Write P1 is now the active bounded planning slice during
+  Gate B.** Draft planning PR #513 is based exactly on the PR #512 release merge and
+  remains documentation-only.
+- Planning Review & Fix Round 1 closed material technical gaps, but planning is
+  **blocked on one owner policy decision: OD-P1-01**, the database-enforced boundary
+  between ordinary branch-limited manual Daily DTR capture and DEC-014 historical
+  missing-fact remediation.
+- Until OD-P1-01 is decided, P1 Runtime, merge, remaining Gate B, and Gate C/D/E remain
+  unauthorized.
+- DEC-017 sequence remains: Gate A → Gate-B pre-P1 containment → Historical Daily DTR
+  P1 → remaining Gate B → Gate C → Gate D → Gate E.
+- P1 remains a separate bounded task/PR and must not be folded into remaining Gate B.
 - keep general HR feature development, POS, Operations, Finance, and unrelated refactors
   gated; preserve scope-first/no-leak, House tenancy, branch-restriction, identity, and
   frozen-contract guardrails.
