@@ -87,11 +87,6 @@ const FORBIDDEN_RESPONSE = {
   message: "You are not allowed to modify this record.",
   fieldErrors: {},
 } satisfies DtrMutationState;
-const NOT_FOUND_RESPONSE = {
-  status: "error",
-  message: "Record not found.",
-  fieldErrors: {},
-} satisfies DtrMutationState;
 const UNEXPECTED_RESPONSE = {
   status: "error",
   message: "Unable to save changes right now.",
@@ -241,7 +236,7 @@ export async function createDtrSegmentAction(
       parsed.data.houseId,
       parsed.data.employeeId,
     );
-    if (!target) return NOT_FOUND_RESPONSE;
+    if (!target) return FORBIDDEN_RESPONSE;
 
     if (
       access.isBranchLimited &&
