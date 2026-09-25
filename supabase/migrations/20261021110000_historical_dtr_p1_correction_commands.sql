@@ -711,6 +711,20 @@ begin
     return jsonb_build_object('status', 'TARGET_UNAVAILABLE');
   end if;
 
+  -- A guessed case ID must not create an operation-ledger oracle. Resolve the
+  -- underlying canonical fact through the private exact-fact authorization boundary
+  -- before taking locks or persisting retry state. This pre-lock result never
+  -- authorizes commit; it is re-resolved after serialization below.
+  select *
+  into v_context
+  from public.hr_resolve_attendance_fact_write_context(
+    p_house_id, v_case.fact_id, v_entity_id
+  );
+
+  if not found then
+    return jsonb_build_object('status', 'TARGET_UNAVAILABLE');
+  end if;
+
   perform pg_catalog.pg_advisory_xact_lock(
     pg_catalog.hashtextextended(
       'gap024.attendance_mutation:' || p_house_id::text || ':' || v_case.employee_id::text,
