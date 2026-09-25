@@ -54,7 +54,7 @@ export type AttendanceRemediationCandidate = {
   integrityState?: string | null;
 };
 
-export type P1RpcResult = Record<string, Json | undefined> & {
+export type P1RpcResult = {
   status?: string;
   caseId?: string;
   factId?: string;
@@ -64,13 +64,14 @@ export type P1RpcResult = Record<string, Json | undefined> & {
   coverageComplete?: boolean;
   candidates?: AttendanceRemediationCandidate[];
   selectedCandidate?: AttendanceRemediationCandidate | null;
+  replayed?: boolean;
 };
 
 function normalizeRpcResult(data: Json | null): P1RpcResult {
   if (!data || Array.isArray(data) || typeof data !== "object") {
     return {};
   }
-  return data as P1RpcResult;
+  return data as unknown as P1RpcResult;
 }
 
 export async function listCanonicalAttendanceForDate(
