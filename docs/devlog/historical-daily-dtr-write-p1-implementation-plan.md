@@ -550,15 +550,18 @@ The owner approved the following operational boundary:
 
 1. A branch-limited authorized writer may create a genuinely new ordinary manual DTR
    record only for the **current Asia/Manila business date**.
-2. The database wrapper must enforce:
+2. The ordinary manual-create RPC itself must enforce:
    `p_work_date = (transaction_timestamp() AT TIME ZONE 'Asia/Manila')::date`
-   for branch-limited ordinary manual-create authority.
+   for **all callers**, including owner/manager. Broad House authority does not turn the
+   legacy ordinary-create command into a historical-remediation bypass.
 3. A **past date with an already-existing visible canonical ATTRIBUTED fact** is not a
-   missing-fact create. The actor may use the separately authorized P1 correction path
-   when the fact's active branch is inside the actor's allowed branch scope.
+   missing-fact create. A branch-limited actor may use the separately authorized P1
+   correction path when the fact's active branch is inside the actor's allowed branch
+   scope; owner/manager retains the approved house-wide correction authority.
 4. A **past date with missing attendance** is historical missing-fact remediation and is
-   owner/manager house-wide only under DEC-014 / DEC-018.
-5. A future `work_date` fails closed.
+   owner/manager house-wide only under DEC-014 / DEC-018. Owner/manager must use that
+   remediation/adjudication path rather than the ordinary manual-create RPC.
+5. A future `work_date` fails closed for every caller.
 6. The branch-limited surface must not reveal whether a rejected historical create target
    is absent, hidden in another branch, conflicting, unattributed, or otherwise protected.
    The observable outcome is the same bounded historical-review-required result.
@@ -902,7 +905,7 @@ Preferred emergency posture:
 - do not down-migrate canonical facts or delete finalized lineage;
 - fix forward.
 
-## 22. Residual risks / one unresolved owner decision
+## 22. Residual Runtime verification risks
 
 Round 1 closed the previously open engineering questions for case/event persistence,
 operation-ledger reuse, exact-fact authorization, immediate-update cutover, candidate
@@ -943,6 +946,18 @@ proves:
 - no unresolved material P0/P1/P2 planning defect remains.
 
 ## 24. Planning Review & Fix Log
+
+### Round 2 — post-OD-P1-01 exact-policy review
+
+Fresh review after the owner selected Option A+ found one material bypass ambiguity:
+the first wording constrained branch-limited ordinary create to the current business date
+but did not explicitly revoke a house-wide owner/manager's ability to call the legacy
+ordinary-create RPC for a past missing fact. That would bypass DEC-018 adjudication.
+
+Fixed by freezing the ordinary manual-create RPC itself as current-Asia/Manila-business-
+date only for **all callers**. Owner/manager historical missing-fact creation must use
+DEC-018 remediation; broad authority does not bypass remediation identity/adjudication.
+Future dates fail for all callers. No Runtime change was made.
 
 ### Owner decision — OD-P1-01 approved
 
