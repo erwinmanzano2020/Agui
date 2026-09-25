@@ -2,10 +2,10 @@
 
 ## Status
 
-**PLANNING CONVERGED — owner approval pending. OD-P1-01 Option A+ is frozen, the
-post-decision Review & Fix loop found and corrected the remaining material ambiguities,
-and exact-head Preview verification is green. Runtime remains unauthorized until explicit
-owner approval of this planning contract.**
+**OWNER APPROVED — 2026-09-25. OD-P1-01 Option A+ and the converged Historical Daily
+DTR Write P1 implementation plan are approved for a separate bounded Runtime
+implementation. This planning PR remains documentation-only and does not itself authorize
+Production release.**
 
 Base: `develop` at PR #512 squash merge
 `df7bbeb11d016297a0a6dbd5d41c998441294c36`.
@@ -15,9 +15,10 @@ Production: Gate-A authority is released, Gate-B pre-P1 mutation containment is 
 the exact Gate-B application build is serving Production, and post-deploy no-bypass
 verification passed.
 
-The next permitted work is therefore to converge the exact physical implementation plan
-for the already-approved **Historical Daily DTR Write P1**. Runtime remains a separate
-future PR after explicit owner approval of the converged plan.
+The converged physical implementation plan for the already-approved **Historical Daily
+DTR Write P1** is now owner-approved. The next permitted work is a **separate bounded
+Runtime PR** implementing exactly this contract; Runtime still requires its own Review &
+Fix, tests, Controlled UAT, release approval, and deployment verification.
 
 ## 1. Objective
 
@@ -988,6 +989,17 @@ proves:
 
 ## 24. Planning Review & Fix Log
 
+### Owner approval — planning contract
+
+On 2026-09-25 the owner explicitly approved the converged P1 planning contract after
+exact-head convergence verification. The approved Runtime boundary is exactly this
+document, including OD-P1-01 Option A+, fail-closed HR-4 behavior, DEC-018 remediation,
+Gate-A/Gate-B authority preservation, no-leak behavior, callable surfaces, concurrency,
+tests, UAT, deployment, and rollback requirements.
+
+The next authorized work is a **separate bounded P1 Runtime task/PR**. This approval does
+not merge planning and Runtime into one PR and does not authorize Production release.
+
 ### Round 4 — final exact-head convergence review
 
 Fresh adversarial review on exact planning head
@@ -1006,9 +1018,10 @@ Exact-head hosted verification:
 - checked Preview warning/error/fatal runtime logs were empty;
 - checked runtime error clusters were empty.
 
-Planning is therefore **CONVERGED / EXPLICIT OWNER APPROVAL PENDING**. No Runtime,
-migration, RPC, API, UI, generated-type, test, merge, or Production implementation is
-authorized by this convergence result.
+Planning was therefore **CONVERGED** and received explicit owner approval on
+2026-09-25. This authorizes a separate bounded Runtime implementation PR only. It does
+not authorize bypassing Runtime Review & Fix, Controlled UAT, release approval, or
+Production deployment gates.
 
 ### Round 3 — fresh callable-contract review
 
