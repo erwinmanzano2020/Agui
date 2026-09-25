@@ -512,6 +512,19 @@ export async function adjudicateDtrRemediationAction(
           : null,
     });
 
+    if (adjudication.status === "STALE") {
+      return {
+        status: "error",
+        message:
+          "Attendance evidence changed before adjudication. Review the refreshed candidate list and submit a new decision.",
+        fieldErrors: {},
+        caseId: parsed.data.caseId,
+        resultStatus: adjudication.status,
+        coverageComplete: adjudication.coverageComplete,
+        candidates: adjudication.candidates ?? [],
+      };
+    }
+
     if (adjudication.status === "EXISTING_RELATED") {
       return {
         status: "success",
@@ -577,10 +590,13 @@ export async function adjudicateDtrRemediationAction(
     if (finalization.status === "STALE") {
       return {
         status: "error",
-        message: "Attendance evidence changed. Review the candidate universe again.",
+        message:
+          "Attendance evidence changed. Review the refreshed candidate universe and submit a new adjudication.",
         fieldErrors: {},
         caseId: parsed.data.caseId,
         resultStatus: finalization.status,
+        coverageComplete: finalization.coverageComplete,
+        candidates: finalization.candidates ?? [],
       };
     }
 
