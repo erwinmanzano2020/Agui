@@ -865,7 +865,41 @@ begin
     );
     v_hr4_status := upper(coalesce(v_hr4 ->> 'status', 'UNAVAILABLE'));
 
-    if v_hr4_status <> 'APPROVED' then
+    if v_hr4_status = 'REJECTED' then
+      insert into public.hr_attendance_correction_events (
+        house_id, correction_case_id, employee_id,
+        event_class, actor_entity_id, actor_role,
+        decision_reference, details
+      )
+      values (
+        p_house_id, v_case.id, v_case.employee_id,
+        'REJECTED', v_entity_id, v_role,
+        nullif(v_hr4 ->> 'decisionReference', ''),
+        jsonb_build_object('status', v_hr4_status)
+      );
+
+      update public.hr_attendance_correction_cases
+      set lifecycle_status = 'REJECTED',
+          hr4_decision_reference = nullif(v_hr4 ->> 'decisionReference', '')
+      where house_id = p_house_id and id = v_case.id;
+
+      v_result := jsonb_build_object(
+        'status', 'REJECTED',
+        'caseId', v_case.id
+      );
+
+      update public.hr_attendance_mutation_operations
+      set outcome = v_result,
+          fact_id = v_case.fact_id,
+          value_revision = v_case.base_value_revision,
+          evidence_basis_revision = v_case.base_evidence_basis_revision,
+          completed_at = now()
+      where house_id = p_house_id
+        and producer_namespace = 'P1_CORRECTION_FINALIZE_V1'
+        and operation_id = btrim(p_operation_id);
+
+      return v_result;
+    elsif v_hr4_status <> 'APPROVED' then
       v_result := jsonb_build_object(
         'status', 'APPROVAL_DEPENDENCY_UNAVAILABLE',
         'caseId', v_case.id
