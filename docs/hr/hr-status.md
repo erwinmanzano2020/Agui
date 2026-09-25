@@ -1,5 +1,45 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-25 — Historical Daily DTR Write P1 planning active
+
+**Status: PLANNING REVIEW ACTIVE — Draft PR #513 is planning-only and Runtime remains
+unauthorized. Gate-B pre-P1 containment is released and post-deploy no-bypass proof is
+complete, so DEC-017 now permits P1 planning.**
+
+Planning artifact:
+`docs/devlog/historical-daily-dtr-write-p1-implementation-plan.md`
+
+Hosted planning PR: **#513 — Plan Historical Daily DTR Write P1**.
+
+The first autonomous adversarial Review & Fix round closed material planning gaps around
+exact-fact authorization parity, the legacy immediate-update RPC bypass, correction /
+remediation audit persistence, DEC-018 candidate-resolution completeness, payroll-impact
+classification, absent HR-4 fail-closed behavior, lock ordering, compatibility-bridge
+cardinality, and no-leak result shapes.
+
+One genuine owner policy decision remains before planning can converge:
+**OD-P1-01 — define the database-enforced boundary between ordinary branch-limited Daily
+DTR manual capture and DEC-014 historical missing-fact remediation.** The repository's
+existing HR-2.1 contract preserves a date picker and manual Daily DTR capture but does not
+define a same-day, prior-day, grace-window, or closed-period cutoff. Planning therefore
+must not invent that operational policy.
+
+Until OD-P1-01 is explicitly decided:
+
+- PR #513 remains Draft/planning-only;
+- no P1 migration, RPC, API, UI, generated-type, or test implementation is authorized;
+- no merge is authorized;
+- remaining Gate B and Gate C/D/E remain blocked;
+- POS, Operations, Finance, and unrelated HR work remain gated.
+
+Gate-B Production release checkpoint now supersedes the stale pre-release language in the
+older 2026-09-24 entry below: PR #512 was squash-merged as
+`df7bbeb11d016297a0a6dbd5d41c998441294c36`; all six Gate-B migrations were applied;
+Production deployment `dpl_39QX6j3znL729UcGiSAbEFmRcwq2` serves that exact commit;
+raw DTR table mutation privileges remain revoked from `authenticated` and
+`service_role`; and post-deploy verification passed.
+
+
 ## 2026-09-24 — GAP-024 Gate-B pre-P1 Runtime converged
 
 **Status: RUNTIME CONVERGED — PR #512 is ready for the separately controlled UAT /
