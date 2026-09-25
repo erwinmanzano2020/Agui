@@ -2,8 +2,8 @@
 
 ## Status
 
-**RUNTIME CODE + AUTOMATED CHECKS CONVERGED — PREVIEW GATE BLOCKED BY VERCEL DAILY
-DEPLOYMENT QUOTA. Controlled UAT is not yet authorized.**
+**RUNTIME IMPLEMENTATION CONVERGED — READY FOR CONTROLLED UAT. Production remains
+unchanged and no merge/release is authorized by this Runtime verdict.**
 
 Runtime base:
 
@@ -13,9 +13,9 @@ Runtime PR:
 
 **#514 — Implement Historical Daily DTR Write P1**
 
-Latest fully reviewed code candidate before this governance-only synchronization:
+Latest fully reviewed Runtime code candidate before this governance-only synchronization:
 
-`189ca2f677d1c3b28ef745edc1620d5448750cc2`
+`6ba5f6f69423a9cbe64bae58c0ff8754471c4eaa`
 
 Approved planning authority:
 
@@ -145,6 +145,34 @@ Fresh review found:
    attendance attribution but absent from the current roster; current assignment is not
    treated as historical provenance.
 
+### Round 6 — independent correction-staleness review
+
+Fresh review against the owner-approved plan found one **P1 correctness defect** in the
+previous Runtime candidate: correction finalization treated value CAS and semantic
+evidence-basis state as universal dependencies for every correction kind. That could
+falsely stale a value-only correction after an unrelated location/evidence change, or
+falsely stale a location-only correction after an unrelated value change.
+
+Fixed by:
+
+- making the private P1 finalization primitive explicit about
+  `CORRECTION_VALUE | CORRECTION_LOCATION | CORRECTION_COMBINED`;
+- validating only the approved dependency base for each correction kind;
+- recomputing correction shape from immutable base/proposed snapshots rather than
+  unrelated current-state differences;
+- preserving the newest non-dependent current state when finalizing; and
+- adding real DB-harness proofs in both directions:
+  value-only survives an unrelated evidence-basis change, and location-only survives an
+  unrelated value-revision change.
+
+Replacement exact code head:
+`6ba5f6f69423a9cbe64bae58c0ff8754471c4eaa`.
+
+At that head, Preflight #922, Gate B DB Concurrency #60, and P1 Historical DTR DB
+Concurrency #48 all passed; exact-head Vercel Preview reached READY; HTTP 200 and runtime
+log/error checks were clean. A fresh post-fix review found no additional material
+P0/P1/P2 defect in the approved slice.
+
 ### Round 5 — final code-head review
 
 Fresh adversarial review of code candidate
@@ -163,33 +191,27 @@ At that exact code head:
 - **P1 Historical DTR DB Concurrency #43: SUCCESS**
 - PR #514 remained mergeable with zero material review threads.
 
-## Preview blocker
+## Exact-head Preview verification
 
-The final Runtime Preview gate is currently blocked by an external Vercel account quota,
-not a code/build failure.
+The former Vercel daily deployment-quota blocker cleared during this Runtime convergence
+run. Exact code head `6ba5f6f69423a9cbe64bae58c0ff8754471c4eaa` produced Preview deployment
+`dpl_7peikcDme8hiTVQ7xJg6Mrt7EtPd`, which reached **READY**.
 
-Vercel's PR integration reports:
+Verification on that exact code head:
 
-`Resource is limited - try again in 1 day (more than 100, code:
-"api-deployments-free-per-day").`
-
-Earlier superseded Runtime heads produced healthy READY previews, but the exact-head rule
-forbids transferring a Preview PASS from an older head to the current Runtime head.
-Therefore Runtime **must not** be declared READY FOR CONTROLLED UAT until an exact-current
-head Preview is independently built and verified after the quota resets.
+- Preview root returned HTTP 200 through the expected unauthenticated welcome path;
+- checked Preview warning/error/fatal runtime logs were empty;
+- checked runtime error clusters were empty;
+- Preflight #922: SUCCESS;
+- Gate B DB Concurrency #60: SUCCESS;
+- P1 Historical DTR DB Concurrency #48: SUCCESS;
+- PR #514 remained mergeable with zero material review threads.
 
 Production remains unchanged. No P1 migration has been applied to Production and no
 Production feature/behavior has been enabled.
 
 ## Exact next action
 
-After the Vercel daily deployment quota resets:
-
-1. obtain an exact-current-head Preview for PR #514;
-2. verify Preview READY/SUCCESS and HTTP behavior;
-3. inspect warning/error/fatal runtime logs and runtime error clusters;
-4. re-fetch PR #514, exact head, changed files, review threads, and CI;
-5. only if every exact-head gate remains green, record Runtime convergence as
-   **READY FOR CONTROLLED UAT**.
-
-Do not merge PR #514 and do not apply P1 migrations to Production during Runtime.
+Proceed to the separately governed **Controlled UAT / PR / Deployment convergence**
+phase for PR #514. Do not merge PR #514, apply P1 migrations to Production, or claim UAT
+passed until that later gate explicitly authorizes and verifies those actions.
