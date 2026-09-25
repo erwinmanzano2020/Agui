@@ -2,10 +2,9 @@
 
 ## Status
 
-**PLANNING REVIEW ACTIVE — Round 1 material defects have been corrected. Planning is
-not owner-approved and Runtime remains unauthorized. One owner policy decision remains
-open before convergence can be declared: the database-enforced boundary between ordinary
-branch-limited manual capture and DEC-014 historical missing-fact remediation.**
+**PLANNING REVIEW ACTIVE — Round 1 material defects have been corrected and owner
+decision OD-P1-01 is now approved as Option A+. Planning itself is not yet owner-approved
+and Runtime remains unauthorized until a fresh exact-head review confirms convergence.**
 
 Base: `develop` at PR #512 squash merge
 `df7bbeb11d016297a0a6dbd5d41c998441294c36`.
@@ -545,33 +544,38 @@ or closed-period cutoff.
 
 This is therefore not safe to invent as an engineering detail.
 
-### OWNER DECISION OD-P1-01 — required before planning convergence
+### OD-P1-01 — APPROVED Option A+ (2026-09-25)
 
-Choose the business boundary that the database must enforce:
+The owner approved the following operational boundary:
 
-**Option A — same Manila business date only for branch-limited ordinary capture.**
-`hr_create_manual_attendance` remains available to a branch-limited authorized writer
-only when `p_work_date = (transaction_timestamp() AT TIME ZONE 'Asia/Manila')::date`.
-Earlier dates are historical and require owner/manager DEC-018 remediation; future dates
-fail. This preserves same-day operational capture while closing the backdated bypass.
+1. A branch-limited authorized writer may create a genuinely new ordinary manual DTR
+   record only for the **current Asia/Manila business date**.
+2. The database wrapper must enforce:
+   `p_work_date = (transaction_timestamp() AT TIME ZONE 'Asia/Manila')::date`
+   for branch-limited ordinary manual-create authority.
+3. A **past date with an already-existing visible canonical ATTRIBUTED fact** is not a
+   missing-fact create. The actor may use the separately authorized P1 correction path
+   when the fact's active branch is inside the actor's allowed branch scope.
+4. A **past date with missing attendance** is historical missing-fact remediation and is
+   owner/manager house-wide only under DEC-014 / DEC-018.
+5. A future `work_date` fails closed.
+6. The branch-limited surface must not reveal whether a rejected historical create target
+   is absent, hidden in another branch, conflicting, unattributed, or otherwise protected.
+   The observable outcome is the same bounded historical-review-required result.
+7. Explicit actual-attendance branch remains required for ordinary manual capture;
+   current employee assignment, UI branch, schedule, or operator branch never becomes
+   historical provenance.
+8. No "yesterday until noon", configurable grace period, schedule-aware overnight window,
+   or other backdating exception is part of initial P1. Such a rule requires a later
+   explicit owner policy decision.
 
-**Option B — owner/manager-only ordinary manual creation.**
-Remove branch-limited EXECUTE/use of ordinary manual create entirely; owner/manager may
-use the bounded owner flow, and historical creation remains DEC-018 remediation.
+This is intentionally stricter than the legacy arbitrary-date date picker while preserving
+same-day operational usability. UI may still display historical dates for reading and
+authorized correction; it must not present branch-limited missing-fact create controls for
+past dates.
 
-Any different grace window (for example "yesterday until noon") is also valid only if the
-owner explicitly supplies that policy; planning must not invent it.
-
-Regardless of the chosen option:
-
-- enforce the boundary in the database wrapper, not only UI code;
-- historical/backdated missing-fact creation routes through owner/manager DEC-018;
-- continue requiring explicit actual-attendance branch;
-- current employee assignment remains non-provenance;
-- future dates fail closed; and
-- direct RPC invocation must not bypass the same rule.
-
-Until OD-P1-01 is decided, Runtime implementation is **not authorized**.
+Runtime acceptance must prove the rule at the database RPC boundary, including direct
+PostgREST invocation. UI-only disabling is insufficient.
 
 ## 11. DEC-018 candidate/evidence resolver
 
@@ -917,13 +921,13 @@ Realistic residual risks remain for Runtime verification:
 4. future HR-4 integration remains absent, so payroll-impacting finalization is
    intentionally unavailable at initial P1 release.
 
-One **owner policy decision** remains: OD-P1-01 in Section 10. No technical review may
-silently choose that operational manual-create cutoff.
+OD-P1-01 is now resolved by explicit owner approval of Option A+. Residual items above are
+Runtime verification risks, not unresolved Planning policy decisions.
 
 ## 23. Planning acceptance criteria
 
-Planning may be marked converged only when OD-P1-01 is explicitly decided and the Review
-& Fix loop then proves:
+Planning may be marked converged only when the fresh post-OD-P1-01 Review & Fix loop
+proves:
 
 - every approved P1 semantic requirement maps to a physical control;
 - no P1 write can bypass Gate-A authority or Gate-B containment;
@@ -939,6 +943,20 @@ Planning may be marked converged only when OD-P1-01 is explicitly decided and th
 - no unresolved material P0/P1/P2 planning defect remains.
 
 ## 24. Planning Review & Fix Log
+
+### Owner decision — OD-P1-01 approved
+
+On 2026-09-25 the owner selected **Option A+**:
+
+- branch-limited ordinary manual creation is same-Asia/Manila-business-date only;
+- past existing visible facts remain eligible for the P1 correction path;
+- past missing attendance is owner/manager DEC-018 remediation only;
+- future dates fail closed;
+- no initial grace-window/backdating exception is authorized.
+
+This resolves GAP-030's policy ambiguity without widening DEC-014 or weakening the
+no-leak boundary. A fresh exact-head adversarial review is required before Planning can be
+declared converged.
 
 ### Round 1 — autonomous adversarial review
 
@@ -980,7 +998,8 @@ Material findings against head
    externally equivalent `TARGET_UNAVAILABLE` class and limiting stale/dependency
    distinctions to already-authorized visible cases.
 
-Planning remains blocked only on OD-P1-01; no Runtime change was made.
+OD-P1-01 was subsequently resolved by explicit owner approval of Option A+ on
+2026-09-25. No Runtime change was made by the decision itself.
 
 ### Round 0 — initial draft
 
