@@ -1,5 +1,43 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-25 — Historical Daily DTR Write P1 Runtime code/checks converged; Preview quota-blocked
+
+**Status: RUNTIME CODE + AUTOMATED CHECKS CONVERGED / PREVIEW BLOCKED — Draft PR #514
+implements the owner-approved P1 contract. Exact code candidate
+`189ca2f677d1c3b28ef745edc1620d5448750cc2` passed all repository/database checks, but
+Vercel cannot create the required exact-head Preview because the account exceeded its
+daily deployment quota. Controlled UAT is not yet authorized.**
+
+Runtime artifact:
+`docs/devlog/historical-daily-dtr-write-p1-runtime.md`
+
+Hosted Runtime PR: **#514 — Implement Historical Daily DTR Write P1**.
+
+Exact code-candidate evidence:
+
+- Preflight #917: SUCCESS (lint, typecheck, Next.js build, compiled Node tests);
+- Gate B DB Concurrency #55: SUCCESS;
+- P1 Historical DTR DB Concurrency #43: SUCCESS;
+- PR remained mergeable with zero material review threads;
+- fresh Runtime Review & Fix closed no-leak operation-ledger ordering, retry operation-ID
+  stability, canonical-reader pagination, DEC-018 past-date enforcement, HR-4
+  adjudication-base binding, and current-roster/historical-visibility coupling.
+
+Vercel's integration now reports the external quota blocker:
+
+`api-deployments-free-per-day` — more than 100 deployments; retry after the daily quota
+resets.
+
+Older superseded Runtime heads had READY previews, but they do not satisfy the exact-head
+rule for the current candidate. Production remains unchanged: no P1 migration or behavior
+has been deployed.
+
+**Next authorized action:** after the Vercel quota resets, build/verify an exact-current
+PR #514 Preview, inspect runtime logs/errors, re-check the current head/CI/review threads,
+and only then mark Runtime READY FOR CONTROLLED UAT. Do not merge #514 or apply P1
+Production migrations yet.
+
+
 ## 2026-09-25 — Historical Daily DTR Write P1 planning active
 
 **Status: PLANNING OWNER-APPROVED — PR #513 remains documentation-only. Gate-B pre-P1
