@@ -230,6 +230,17 @@ expect_fail_auth_as "$OWNER_USER" "select public.hr_create_manual_attendance(
   '$TOMORROW 08:00:00+08','$TOMORROW 17:00:00+08'
 );" "Option A+ denies future ordinary create"
 
+expect_fail_auth_as "$OWNER_USER" "select public.hr_open_attendance_remediation_case(
+  '$HOUSE','$EMP1','today-remediation','$TODAY',
+  '$TODAY 08:00:00+08','$TODAY 17:00:00+08',
+  '$BRANCH_A','Not historical'
+);" "DEC-018 remediation rejects current-day create substitution"
+expect_fail_auth_as "$OWNER_USER" "select public.hr_open_attendance_remediation_case(
+  '$HOUSE','$EMP1','future-remediation','$TOMORROW',
+  '$TOMORROW 08:00:00+08','$TOMORROW 17:00:00+08',
+  '$BRANCH_A','Future attendance is not remediation'
+);" "DEC-018 remediation rejects future attendance"
+
 auth_sql_as "$OWNER_USER" "select public.hr_create_manual_attendance(
   '$HOUSE','$EMP1','$BRANCH_A','today-create','$TODAY',
   '$TODAY 08:00:00+08','$TODAY 17:00:00+08'
