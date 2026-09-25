@@ -122,6 +122,12 @@ function toTimestamp(workDate: string, timeValue: string) {
   return toManilaTimestamptz(workDate, `${timeValue}:00`);
 }
 
+function revalidateDtrPath(houseSlug: string) {
+  if (typeof revalidatePath === "function") {
+    revalidatePath(`/company/${houseSlug}/hr/dtr`);
+  }
+}
+
 function toValidationFieldErrors(error: { issues: Array<{ path?: unknown[]; message?: string }> }) {
   const fieldErrors: Record<string, string[]> = {};
   for (const issue of error.issues) {
@@ -259,7 +265,7 @@ export async function createDtrSegmentAction(
     return UNEXPECTED_RESPONSE;
   }
 
-  revalidatePath(`/company/${parsed.data.houseSlug}/hr/dtr`);
+  revalidateDtrPath(parsed.data.houseSlug);
   return { status: "success", message: "DTR segment saved.", fieldErrors: {} };
 }
 
@@ -334,7 +340,7 @@ export async function proposeDtrCorrectionAction(
     });
 
     if (finalization.status === "FINALIZED") {
-      revalidatePath(`/company/${parsed.data.houseSlug}/hr/dtr`);
+      revalidateDtrPath(parsed.data.houseSlug);
       return {
         status: "success",
         message: "Attendance correction finalized.",
@@ -566,7 +572,7 @@ export async function adjudicateDtrRemediationAction(
     });
 
     if (finalization.status === "FINALIZED") {
-      revalidatePath(`/company/${parsed.data.houseSlug}/hr/dtr`);
+      revalidateDtrPath(parsed.data.houseSlug);
       return {
         status: "success",
         message: "Historical attendance remediation finalized.",
