@@ -88,19 +88,25 @@ function formatTimeInput(value: string | null) {
   return formatManilaTimeForUi(value);
 }
 
-function useOperationId(resetSignal: unknown) {
+function useOperationId(resetOnSuccess: boolean) {
   const [operationId, setOperationId] = useState("");
 
   useEffect(() => {
     setOperationId(crypto.randomUUID());
-  }, [resetSignal]);
+  }, []);
+
+  useEffect(() => {
+    if (resetOnSuccess) {
+      setOperationId(crypto.randomUUID());
+    }
+  }, [resetOnSuccess]);
 
   return operationId;
 }
 
-function useOperationPair(resetSignal: unknown) {
-  const first = useOperationId(resetSignal);
-  const second = useOperationId(resetSignal);
+function useOperationPair(resetOnSuccess: boolean) {
+  const first = useOperationId(resetOnSuccess);
+  const second = useOperationId(resetOnSuccess);
   return [first, second] as const;
 }
 
@@ -127,7 +133,7 @@ export function CorrectionDtrFactForm({
     proposeDtrCorrectionAction,
     dtrMutationInitialState,
   );
-  const [proposalOperationId, finalizeOperationId] = useOperationPair(state);
+  const [proposalOperationId, finalizeOperationId] = useOperationPair(state.status === "success");
 
   return (
     <form action={formAction} className="flex flex-wrap items-end gap-3">
@@ -246,7 +252,7 @@ export function CreateDtrSegmentForm({
     createDtrSegmentAction,
     dtrMutationInitialState,
   );
-  const operationId = useOperationId(state);
+  const operationId = useOperationId(state.status === "success");
 
   return (
     <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3">
@@ -355,7 +361,7 @@ function RemediationAdjudicationForm({
   const [decision, setDecision] = useState<"EXISTING_RELATED" | "DISTINCT_NEW">(
     (state.candidates?.length ?? 0) > 0 ? "EXISTING_RELATED" : "DISTINCT_NEW",
   );
-  const [operationId, finalizeOperationId] = useOperationPair(result);
+  const [operationId, finalizeOperationId] = useOperationPair(result.status === "success");
   const reviewState =
     result.resultStatus === "STALE" && result.caseId === state.caseId
       ? result
@@ -482,7 +488,7 @@ export function RemediationDtrForm({
     openDtrRemediationAction,
     dtrMutationInitialState,
   );
-  const operationId = useOperationId(state);
+  const operationId = useOperationId(state.status === "success");
 
   return (
     <details className="mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
