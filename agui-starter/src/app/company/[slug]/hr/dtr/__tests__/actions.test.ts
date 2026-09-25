@@ -295,7 +295,12 @@ describe("Historical Daily DTR P1 action boundary", () => {
   });
 
   it("runtime-facing UI surfaces mutation states from action responses", () => {
-    const states = [
+    const states: Array<{
+      status: "success" | "error";
+      message: string;
+      fieldErrors: Record<string, string[]>;
+      expected: RegExp;
+    }> = [
       { status: "success" as const, message: "Attendance correction finalized.", fieldErrors: {}, expected: /finalized/ },
       {
         status: "error" as const,
