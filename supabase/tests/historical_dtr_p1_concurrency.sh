@@ -397,7 +397,7 @@ set search_path = pg_catalog, public
 as $function$
   select jsonb_build_object(
     'status', 'APPROVED',
-    'decisionReference', 'CI-HR4-APPROVED'
+    'decisionReference', p_proposal_fingerprint
   )
 $function$;
 revoke all on function public.hr_attendance_p1_hr4_decision(uuid,text,uuid,text)
@@ -409,6 +409,25 @@ auth_sql_as "$OWNER_USER" "select public.hr_finalize_attendance_remediation_case
 );"
 assert_scalar "1" "select count(*) from public.hr_attendance_facts where employee_id='$EMP2' and is_active;" "approved remediation creates one canonical fact"
 assert_scalar "1" "select count(*) from public.hr_attendance_observations where house_id='$HOUSE' and employee_id='$EMP2' and source_namespace='P1_MANUAL_REMEDIATION_V1' and source_observation_id='$REM_CASE';" "remediation case is durable manual observation identity"
+EXPECTED_REM_HR4="$(scalar "select md5(jsonb_build_array(
+  'P1_REMEDIATION_HR4_V1',
+  c.proposed_snapshot,
+  e.resolver_version,
+  e.resolver_digest,
+  e.candidate_evidence_generation
+)::text)
+from public.hr_attendance_remediation_cases c
+join lateral (
+  select resolver_version, resolver_digest, candidate_evidence_generation
+  from public.hr_attendance_remediation_events
+  where house_id=c.house_id
+    and remediation_case_id=c.id
+    and event_class='ADJUDICATED_DISTINCT'
+  order by event_at desc, id desc
+  limit 1
+) e on true
+where c.house_id='$HOUSE' and c.id='$REM_CASE';")"
+assert_scalar "$EXPECTED_REM_HR4" "select details->>'hr4DecisionReference' from public.hr_attendance_remediation_events where house_id='$HOUSE' and remediation_case_id='$REM_CASE' and event_class='FINALIZED' order by event_at desc, id desc limit 1;" "HR-4 decision binds to exact remediation adjudication base"
 auth_sql_as "$OWNER_USER" "select public.hr_finalize_attendance_remediation_case(
   '$HOUSE','$REM_CASE','rem-finalize-approved'
 );"
