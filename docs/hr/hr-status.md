@@ -1,5 +1,48 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-25 — Historical Daily DTR Write P1 planning active
+
+**Status: PLANNING OWNER-APPROVED — PR #513 remains documentation-only. Gate-B pre-P1
+containment is released, OD-P1-01 Option A+ is frozen, the final exact-head Review & Fix /
+Preview verification is green, and a separate bounded Historical Daily DTR Write P1
+Runtime task/PR is now authorized.**
+
+Planning artifact:
+`docs/devlog/historical-daily-dtr-write-p1-implementation-plan.md`
+
+Hosted planning PR: **#513 — Plan Historical Daily DTR Write P1**.
+
+The first autonomous adversarial Review & Fix round closed material planning gaps around
+exact-fact authorization parity, the legacy immediate-update RPC bypass, correction /
+remediation audit persistence, DEC-018 candidate-resolution completeness, payroll-impact
+classification, absent HR-4 fail-closed behavior, lock ordering, compatibility-bridge
+cardinality, and no-leak result shapes.
+
+Owner decision **OD-P1-01 is approved as Option A+ (2026-09-25)**:
+
+- branch-limited ordinary manual create is allowed only for the current Asia/Manila
+  business date;
+- past existing visible ATTRIBUTED facts remain eligible for the P1 correction path;
+- past missing attendance is owner/manager DEC-018 remediation only;
+- future dates fail closed;
+- no initial grace-window/backdating exception is authorized.
+
+Final post-decision exact-head review found no remaining material planning defect.
+Exact-head Vercel Preview is READY, root HTTP 200, and checked runtime warning/error/fatal
+logs and runtime error clusters are empty. The owner explicitly approved the converged
+planning contract on 2026-09-25. A **separate bounded P1 Runtime PR** is now authorized;
+PR #513 itself remains documentation-only. Remaining Gate B and Gate C/D/E remain blocked
+until the P1 Runtime/UAT/release sequence completes; POS, Operations, Finance, and
+unrelated HR work remain gated.
+
+Gate-B Production release checkpoint now supersedes the stale pre-release language in the
+older 2026-09-24 entry below: PR #512 was squash-merged as
+`df7bbeb11d016297a0a6dbd5d41c998441294c36`; all six Gate-B migrations were applied;
+Production deployment `dpl_39QX6j3znL729UcGiSAbEFmRcwq2` serves that exact commit;
+raw DTR table mutation privileges remain revoked from `authenticated` and
+`service_role`; and post-deploy verification passed.
+
+
 ## 2026-09-24 — GAP-024 Gate-B pre-P1 Runtime converged
 
 **Status: RUNTIME CONVERGED — PR #512 is ready for the separately controlled UAT /
