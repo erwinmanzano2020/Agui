@@ -253,6 +253,62 @@ printf '%s' "$VALUE_FINAL" | grep -q 'APPROVAL_DEPENDENCY_UNAVAILABLE' || fail "
 assert_scalar "1" "select current_value_revision from public.hr_attendance_facts where id='$FACT1';" "HR-4 unavailable leaves active value unchanged"
 assert_scalar "OPEN" "select lifecycle_status from public.hr_attendance_correction_cases where id='$VALUE_CASE';" "approval-unavailable case stays open"
 
+echo "P1-C2 — modeled authoritative HR-4 rejection is terminal and no-write"
+psql_super <<'SQL'
+create or replace function public.hr_attendance_p1_hr4_decision(
+  p_house_id uuid,
+  p_case_kind text,
+  p_case_id uuid,
+  p_proposal_fingerprint text
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $function$
+  select jsonb_build_object(
+    'status', 'REJECTED',
+    'decisionReference', 'CI-HR4-REJECTED'
+  )
+$function$;
+revoke all on function public.hr_attendance_p1_hr4_decision(uuid,text,uuid,text)
+  from public, anon, authenticated, service_role;
+SQL
+
+REJECT_PROPOSE="$(auth_scalar_as "$OWNER_USER" "select public.hr_propose_attendance_correction(
+  '$HOUSE','$FACT1','reject-propose','$TODAY',
+  '$TODAY 08:30:00+08','$TODAY 17:00:00+08',
+  null,'Rejected correction'
+)::text;")"
+REJECT_CASE="$(printf '%s' "$REJECT_PROPOSE" | python3 -c 'import json,sys; print(json.load(sys.stdin)["caseId"])')"
+REJECT_RESULT="$(auth_scalar_as "$OWNER_USER" "select public.hr_finalize_attendance_correction(
+  '$HOUSE','$REJECT_CASE','reject-finalize'
+)::text;")"
+printf '%s' "$REJECT_RESULT" | grep -q '"status": "REJECTED"' || fail "authoritative HR-4 rejection was not preserved"
+assert_scalar "REJECTED" "select lifecycle_status from public.hr_attendance_correction_cases where id='$REJECT_CASE';" "rejected correction is terminal"
+assert_scalar "1" "select count(*) from public.hr_attendance_correction_events where correction_case_id='$REJECT_CASE' and event_class='REJECTED';" "rejected correction has one terminal event"
+assert_scalar "1" "select current_value_revision from public.hr_attendance_facts where id='$FACT1';" "rejected correction leaves active value unchanged"
+
+psql_super <<'SQL'
+create or replace function public.hr_attendance_p1_hr4_decision(
+  p_house_id uuid,
+  p_case_kind text,
+  p_case_id uuid,
+  p_proposal_fingerprint text
+)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = pg_catalog, public
+as $function$
+  select jsonb_build_object('status', 'UNAVAILABLE')
+$function$;
+revoke all on function public.hr_attendance_p1_hr4_decision(uuid,text,uuid,text)
+  from public, anon, authenticated, service_role;
+SQL
+
 echo "P1-D — branch-limited hidden fact collapses to TARGET_UNAVAILABLE without operation oracle"
 auth_sql_as "$OWNER_USER" "select public.hr_create_manual_attendance(
   '$HOUSE','$EMP5','$BRANCH_B','hidden-create','$TODAY',
