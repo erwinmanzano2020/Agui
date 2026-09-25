@@ -538,11 +538,11 @@ begin
     return jsonb_build_object('status', 'TARGET_UNAVAILABLE');
   end if;
 
-  select coalesce(g.candidate_evidence_generation, 0)
-  into v_generation
-  from (select 1) seed
-  left join public.hr_attendance_employee_generations g
-    on g.house_id = p_house_id and g.employee_id = v_context.employee_id;
+  -- Correction staleness is governed by the fact value CAS and semantic
+  -- evidence-basis fingerprint. The employee-wide remediation generation is not a
+  -- correction dependency in P1, so do not stale an otherwise valid correction merely
+  -- because unrelated same-employee candidate evidence changed.
+  v_generation := null;
 
   v_actor_role := case
     when v_location_changed then
@@ -626,7 +626,7 @@ begin
     v_case_id, p_house_id, v_context.employee_id, p_fact_id,
     v_kind, v_payroll_impact,
     v_context.current_value_revision, v_context.evidence_basis_revision,
-    v_context.evidence_basis_fingerprint, v_generation,
+    v_context.evidence_basis_fingerprint, null,
     v_base_snapshot, v_proposed_snapshot, btrim(p_reason),
     v_entity_id, v_actor_role
   );
@@ -785,16 +785,9 @@ begin
     return v_result;
   end if;
 
-  select coalesce(g.candidate_evidence_generation, 0)
-  into v_generation
-  from (select 1) seed
-  left join public.hr_attendance_employee_generations g
-    on g.house_id = p_house_id and g.employee_id = v_case.employee_id;
-
   if v_context.current_value_revision <> v_case.base_value_revision
     or v_context.evidence_basis_revision <> v_case.base_evidence_basis_revision
-    or v_context.evidence_basis_fingerprint is distinct from v_case.base_evidence_basis_fingerprint
-    or v_generation is distinct from v_case.base_candidate_evidence_generation then
+    or v_context.evidence_basis_fingerprint is distinct from v_case.base_evidence_basis_fingerprint then
 
     v_role := case
       when v_context.active_branch_id is not null then
