@@ -288,63 +288,6 @@ export async function createDtrSegment(
   return normalizeSegments([data])[0];
 }
 
-export type DtrMutationToken = {
-  segment_id: string;
-  canonical_fact_id: string | null;
-  current_value_revision: number | null;
-};
-
-export async function listDtrMutationTokens(
-  supabase: SupabaseClient<Database>,
-  houseId: string,
-  segmentIds: string[],
-): Promise<Map<string, DtrMutationToken>> {
-  if (segmentIds.length === 0) return new Map();
-
-  const { data, error } = await supabase.rpc("hr_get_dtr_mutation_tokens", {
-    p_house_id: houseId,
-    p_segment_ids: segmentIds,
-  });
-  if (error) {
-    if (isPermissionDenied(error)) return new Map();
-    throw new Error(error.message);
-  }
-
-  const rows = (data ?? []) as DtrMutationToken[];
-  return new Map(rows.map((row) => [row.segment_id, row]));
-}
-
-export async function updateDtrSegmentCanonical(
-  supabase: SupabaseClient<Database>,
-  input: {
-    houseId: string;
-    segmentId: string;
-    operationId: string;
-    timeIn: string;
-    timeOut: string | null;
-    expectedValueRevision: number | null;
-  },
-): Promise<void> {
-  const { error } = await supabase.rpc("hr_update_manual_attendance", {
-    p_house_id: input.houseId,
-    p_segment_id: input.segmentId,
-    p_operation_id: input.operationId,
-    p_time_in: input.timeIn,
-    p_time_out: input.timeOut,
-    p_expected_value_revision: input.expectedValueRevision,
-  });
-
-  if (error) {
-    if (isPermissionDenied(error)) {
-      throw new DtrSegmentAccessError("Not allowed to update this segment");
-    }
-    if (error.code === "40001" || /stale/i.test(error.message)) {
-      throw new DtrSegmentAccessError("This DTR segment changed. Refresh and try again.");
-    }
-    throw new Error(error.message);
-  }
-}
-
 export async function listDtrByEmployee(
   supabase: SupabaseClient<Database>,
   employeeId: string,
