@@ -225,6 +225,23 @@ describe("Historical Daily DTR P1 action boundary", () => {
     assert.equal(result.status, "success");
   });
 
+  it("keeps missing same-day employee targets generic", async () => {
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
+    mock.method(hrAccess, "requireHrAccessWithBranch", async () => allowWrite());
+    mock.method(
+      dtrSegmentsServer,
+      "resolveDtrEmployeeWriteTargetForHouseWithAccess",
+      async () => null,
+    );
+
+    const result = await createDtrSegmentAction(
+      dtrMutationInitialState,
+      buildCreateFormData(),
+    );
+    assert.equal(result.status, "error");
+    assert.equal(result.message, "You are not allowed to modify this record.");
+  });
+
   it("keeps branch access denial generic for same-day create", async () => {
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
     mock.method(hrAccess, "requireHrAccessWithBranch", async () => allowWrite({
