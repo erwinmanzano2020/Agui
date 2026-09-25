@@ -259,6 +259,25 @@ describe("Historical Daily DTR P1 action boundary", () => {
     assert.equal(result.message, "You are not allowed to modify this record.");
   });
 
+  it("rejects future remediation before any protected target lookup", async () => {
+    let authResolved = false;
+    mock.method(supabaseServer, "createServerSupabaseClient", async () => {
+      authResolved = true;
+      return {} as never;
+    });
+
+    const futureDate = "2999-01-01";
+    const result = await openDtrRemediationAction(
+      dtrMutationInitialState,
+      buildRemediationOpenFormData({ workDate: futureDate }),
+    );
+
+    assert.equal(result.status, "error");
+    assert.equal(result.resultStatus, "HISTORICAL_REVIEW_REQUIRED");
+    assert.match(result.message, /past dates/i);
+    assert.equal(authResolved, false);
+  });
+
   it("denies remediation UI action to branch-limited writers", async () => {
     mock.method(supabaseServer, "createServerSupabaseClient", async () => ({}) as never);
     mock.method(hrAccess, "requireHrAccessWithBranch", async () => allowWrite({
