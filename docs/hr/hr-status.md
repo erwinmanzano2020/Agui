@@ -2,10 +2,10 @@
 
 ## 2026-09-25 — Historical Daily DTR Write P1 planning active
 
-**Status: PLANNING CONVERGED / EXPLICIT OWNER APPROVAL PENDING — Draft PR #513 remains
-planning-only and Runtime remains unauthorized. Gate-B pre-P1 containment is released,
-OD-P1-01 Option A+ is frozen, and the final exact-head Review & Fix / Preview verification
-is green.**
+**Status: PLANNING OWNER-APPROVED — PR #513 remains documentation-only. Gate-B pre-P1
+containment is released, OD-P1-01 Option A+ is frozen, the final exact-head Review & Fix /
+Preview verification is green, and a separate bounded Historical Daily DTR Write P1
+Runtime task/PR is now authorized.**
 
 Planning artifact:
 `docs/devlog/historical-daily-dtr-write-p1-implementation-plan.md`
@@ -29,10 +29,11 @@ Owner decision **OD-P1-01 is approved as Option A+ (2026-09-25)**:
 
 Final post-decision exact-head review found no remaining material planning defect.
 Exact-head Vercel Preview is READY, root HTTP 200, and checked runtime warning/error/fatal
-logs and runtime error clusters are empty. PR #513 remains Draft/planning-only until
-**explicit owner approval**. No P1 Runtime implementation or merge is authorized yet;
-remaining Gate B and Gate C/D/E remain blocked; POS, Operations, Finance, and unrelated HR
-work remain gated.
+logs and runtime error clusters are empty. The owner explicitly approved the converged
+planning contract on 2026-09-25. A **separate bounded P1 Runtime PR** is now authorized;
+PR #513 itself remains documentation-only. Remaining Gate B and Gate C/D/E remain blocked
+until the P1 Runtime/UAT/release sequence completes; POS, Operations, Finance, and
+unrelated HR work remain gated.
 
 Gate-B Production release checkpoint now supersedes the stale pre-release language in the
 older 2026-09-24 entry below: PR #512 was squash-merged as
