@@ -134,6 +134,117 @@ create unique index hr_attendance_remediation_finalized_unique_idx
 create index hr_attendance_remediation_events_case_idx
   on public.hr_attendance_remediation_events(house_id, remediation_case_id, event_at, id);
 
+-- Enforce immutable case bodies and append-only event history in the database, not
+-- merely through application grants.
+create or replace function public.hr_guard_attendance_correction_case_immutability()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public
+as $function$
+begin
+  if new.id is distinct from old.id
+    or new.house_id is distinct from old.house_id
+    or new.employee_id is distinct from old.employee_id
+    or new.fact_id is distinct from old.fact_id
+    or new.correction_kind is distinct from old.correction_kind
+    or new.payroll_impact is distinct from old.payroll_impact
+    or new.base_value_revision is distinct from old.base_value_revision
+    or new.base_evidence_basis_revision is distinct from old.base_evidence_basis_revision
+    or new.base_evidence_basis_fingerprint is distinct from old.base_evidence_basis_fingerprint
+    or new.base_candidate_evidence_generation is distinct from old.base_candidate_evidence_generation
+    or new.base_snapshot is distinct from old.base_snapshot
+    or new.proposed_snapshot is distinct from old.proposed_snapshot
+    or new.reason is distinct from old.reason
+    or new.proposer_entity_id is distinct from old.proposer_entity_id
+    or new.proposer_role is distinct from old.proposer_role
+    or new.proposed_at is distinct from old.proposed_at then
+    raise exception 'Attendance correction proposal body is immutable'
+      using errcode = '55000';
+  end if;
+
+  if old.lifecycle_status <> 'OPEN'
+    and new.lifecycle_status is distinct from old.lifecycle_status then
+    raise exception 'Attendance correction terminal lifecycle cannot be reopened'
+      using errcode = '55000';
+  end if;
+
+  return new;
+end
+$function$;
+
+create or replace function public.hr_guard_attendance_remediation_case_immutability()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public
+as $function$
+begin
+  if new.id is distinct from old.id
+    or new.house_id is distinct from old.house_id
+    or new.employee_id is distinct from old.employee_id
+    or new.proposed_snapshot is distinct from old.proposed_snapshot
+    or new.asserted_branch_id is distinct from old.asserted_branch_id
+    or new.reason is distinct from old.reason
+    or new.creator_entity_id is distinct from old.creator_entity_id
+    or new.creator_role is distinct from old.creator_role
+    or new.created_at is distinct from old.created_at
+    or new.base_candidate_evidence_generation is distinct from old.base_candidate_evidence_generation
+    or new.resolver_version is distinct from old.resolver_version
+    or new.resolver_digest is distinct from old.resolver_digest
+    or new.coverage_complete is distinct from old.coverage_complete
+    or new.resolver_snapshot is distinct from old.resolver_snapshot then
+    raise exception 'Attendance remediation case body is immutable'
+      using errcode = '55000';
+  end if;
+
+  if old.lifecycle_status = 'FINALIZED'
+    and new.lifecycle_status is distinct from old.lifecycle_status then
+    raise exception 'Finalized attendance remediation cannot be reopened'
+      using errcode = '55000';
+  end if;
+
+  if old.lifecycle_status = 'OPEN'
+    and new.lifecycle_status not in ('OPEN', 'STALE', 'FINALIZED') then
+    raise exception 'Invalid attendance remediation lifecycle transition'
+      using errcode = '55000';
+  end if;
+
+  if old.lifecycle_status = 'STALE'
+    and new.lifecycle_status not in ('STALE', 'OPEN') then
+    raise exception 'Stale attendance remediation requires re-adjudication before finalization'
+      using errcode = '55000';
+  end if;
+
+  return new;
+end
+$function$;
+
+create or replace function public.hr_guard_attendance_p1_event_append_only()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public
+as $function$
+begin
+  raise exception 'Attendance P1 lifecycle events are append-only'
+    using errcode = '55000';
+end
+$function$;
+
+create trigger hr_attendance_correction_case_immutability_guard
+before update on public.hr_attendance_correction_cases
+for each row execute function public.hr_guard_attendance_correction_case_immutability();
+
+create trigger hr_attendance_remediation_case_immutability_guard
+before update on public.hr_attendance_remediation_cases
+for each row execute function public.hr_guard_attendance_remediation_case_immutability();
+
+create trigger hr_attendance_correction_event_append_only_guard
+before update or delete on public.hr_attendance_correction_events
+for each row execute function public.hr_guard_attendance_p1_event_append_only();
+
+create trigger hr_attendance_remediation_event_append_only_guard
+before update or delete on public.hr_attendance_remediation_events
+for each row execute function public.hr_guard_attendance_p1_event_append_only();
+
 alter table public.hr_attendance_correction_cases enable row level security;
 alter table public.hr_attendance_correction_events enable row level security;
 alter table public.hr_attendance_remediation_cases enable row level security;
@@ -146,6 +257,13 @@ revoke all on public.hr_attendance_correction_events
 revoke all on public.hr_attendance_remediation_cases
   from public, anon, authenticated, service_role;
 revoke all on public.hr_attendance_remediation_events
+  from public, anon, authenticated, service_role;
+
+revoke all on function public.hr_guard_attendance_correction_case_immutability()
+  from public, anon, authenticated, service_role;
+revoke all on function public.hr_guard_attendance_remediation_case_immutability()
+  from public, anon, authenticated, service_role;
+revoke all on function public.hr_guard_attendance_p1_event_append_only()
   from public, anon, authenticated, service_role;
 
 -- Private scope-first capability guard. It proves the actor has at least one
