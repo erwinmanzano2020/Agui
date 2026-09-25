@@ -680,6 +680,10 @@ declare
   v_proposed_time_in timestamptz;
   v_proposed_time_out timestamptz;
   v_target_branch_id uuid;
+  v_recomputed_value_changed boolean;
+  v_recomputed_location_changed boolean;
+  v_recomputed_kind text;
+  v_recomputed_payroll_impact text;
 begin
   if p_house_id is null or p_correction_case_id is null
     or p_operation_id is null or length(btrim(p_operation_id)) = 0 then
@@ -832,6 +836,37 @@ begin
   v_proposed_time_out := nullif(v_case.proposed_snapshot ->> 'timeOut', '')::timestamptz;
   v_target_branch_id := nullif(v_case.proposed_snapshot ->> 'targetBranchId', '')::uuid;
 
+  -- Recompute the correction shape and payroll-impact class from the immutable
+  -- proposal/base at finalization. Never trust even the stored derived label as an
+  -- authorization shortcut.
+  v_recomputed_value_changed :=
+    v_context.work_date is distinct from v_proposed_work_date
+    or v_context.time_in is distinct from v_proposed_time_in
+    or v_context.time_out is distinct from v_proposed_time_out;
+
+  v_recomputed_location_changed :=
+    v_target_branch_id is not null
+    and v_target_branch_id is distinct from v_context.active_branch_id;
+
+  v_recomputed_kind := case
+    when v_recomputed_value_changed and v_recomputed_location_changed then 'COMBINED'
+    when v_recomputed_location_changed then 'LOCATION'
+    when v_recomputed_value_changed then 'VALUE_TIME'
+    else null
+  end;
+
+  v_recomputed_payroll_impact := case
+    when v_recomputed_value_changed then 'PAYROLL_IMPACTING'
+    else 'NON_PAYROLL_IMPACTING'
+  end;
+
+  if v_recomputed_kind is null
+    or v_case.correction_kind is distinct from v_recomputed_kind
+    or v_case.payroll_impact is distinct from v_recomputed_payroll_impact then
+    raise exception 'P1 correction classification no longer matches immutable proposal'
+      using errcode = '55000';
+  end if;
+
   if v_case.correction_kind in ('LOCATION', 'COMBINED') then
     if not public.hr_attendance_actor_has_broad_write(p_house_id, v_entity_id) then
       return jsonb_build_object('status', 'TARGET_UNAVAILABLE');
@@ -857,7 +892,7 @@ begin
     return jsonb_build_object('status', 'TARGET_UNAVAILABLE');
   end if;
 
-  if v_case.payroll_impact = 'PAYROLL_IMPACTING' then
+  if v_recomputed_payroll_impact = 'PAYROLL_IMPACTING' then
     v_hr4 := public.hr_attendance_p1_hr4_decision(
       p_house_id, 'CORRECTION', v_case.id,
       md5(v_case.base_snapshot::text || '|' || v_case.proposed_snapshot::text)
