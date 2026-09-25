@@ -88,25 +88,19 @@ function formatTimeInput(value: string | null) {
   return formatManilaTimeForUi(value);
 }
 
-function useOperationId(resetOnSuccess: boolean) {
+function useOperationId(resetSignal: unknown) {
   const [operationId, setOperationId] = useState("");
 
   useEffect(() => {
     setOperationId(crypto.randomUUID());
-  }, []);
-
-  useEffect(() => {
-    if (resetOnSuccess) {
-      setOperationId(crypto.randomUUID());
-    }
-  }, [resetOnSuccess]);
+  }, [resetSignal]);
 
   return operationId;
 }
 
-function useOperationPair(resetOnSuccess: boolean) {
-  const first = useOperationId(resetOnSuccess);
-  const second = useOperationId(resetOnSuccess);
+function useOperationPair(resetSignal: unknown) {
+  const first = useOperationId(resetSignal);
+  const second = useOperationId(resetSignal);
   return [first, second] as const;
 }
 
@@ -133,9 +127,7 @@ export function CorrectionDtrFactForm({
     proposeDtrCorrectionAction,
     dtrMutationInitialState,
   );
-  const [proposalOperationId, finalizeOperationId] = useOperationPair(
-    state.status === "success",
-  );
+  const [proposalOperationId, finalizeOperationId] = useOperationPair(state);
 
   return (
     <form action={formAction} className="flex flex-wrap items-end gap-3">
@@ -254,7 +246,7 @@ export function CreateDtrSegmentForm({
     createDtrSegmentAction,
     dtrMutationInitialState,
   );
-  const operationId = useOperationId(state.status === "success");
+  const operationId = useOperationId(state);
 
   return (
     <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3">
@@ -363,10 +355,13 @@ function RemediationAdjudicationForm({
   const [decision, setDecision] = useState<"EXISTING_RELATED" | "DISTINCT_NEW">(
     (state.candidates?.length ?? 0) > 0 ? "EXISTING_RELATED" : "DISTINCT_NEW",
   );
-  const [operationId, finalizeOperationId] = useOperationPair(
-    result.status === "success",
-  );
-  const candidates = state.candidates ?? [];
+  const [operationId, finalizeOperationId] = useOperationPair(result);
+  const reviewState =
+    result.resultStatus === "STALE" && result.caseId === state.caseId
+      ? result
+      : state;
+  const candidates = reviewState.candidates ?? [];
+  const coverageComplete = reviewState.coverageComplete ?? false;
 
   if (!state.caseId) return null;
 
@@ -411,7 +406,7 @@ function RemediationAdjudicationForm({
               value="DISTINCT_NEW"
               checked={decision === "DISTINCT_NEW"}
               onChange={() => setDecision("DISTINCT_NEW")}
-              disabled={!state.coverageComplete}
+              disabled={!coverageComplete}
             />
             Genuinely distinct new attendance
           </label>
@@ -447,7 +442,7 @@ function RemediationAdjudicationForm({
           ))}
         </ul>
 
-        {!state.coverageComplete ? (
+        {!coverageComplete ? (
           <p className="text-xs text-destructive">
             Candidate coverage is incomplete. Distinct-new creation is disabled.
           </p>
@@ -460,7 +455,7 @@ function RemediationAdjudicationForm({
           disabled={
             !operationId ||
             !finalizeOperationId ||
-            (decision === "DISTINCT_NEW" && !state.coverageComplete)
+            (decision === "DISTINCT_NEW" && !coverageComplete)
           }
         />
         <MutationMessage
@@ -487,7 +482,7 @@ export function RemediationDtrForm({
     openDtrRemediationAction,
     dtrMutationInitialState,
   );
-  const operationId = useOperationId(Boolean(state.caseId));
+  const operationId = useOperationId(state);
 
   return (
     <details className="mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
