@@ -47,10 +47,15 @@
 - **P1 planning is owner-approved (2026-09-25).** Exact-head Preview was READY, root
   HTTP 200, checked runtime logs/errors were clean, and no material review thread
   remained at the approval gate.
-- The next authorized work is a **separate bounded Historical Daily DTR Write P1 Runtime
-  task/PR** implementing the approved plan exactly. Runtime must still pass its own Review
-  & Fix, deterministic tests, Controlled UAT, release approval, and deployment
-  verification.
+- **Historical Daily DTR Write P1 Runtime is active in Draft PR #514.** The reviewed
+  code candidate `189ca2f677d1c3b28ef745edc1620d5448750cc2` passed Preflight #917,
+  Gate B DB Concurrency #55, and P1 Historical DTR DB Concurrency #43 with zero material
+  review threads.
+- Runtime is **not yet READY FOR CONTROLLED UAT** because Vercel's daily deployment quota
+  (`api-deployments-free-per-day`) currently prevents an exact-current-head Preview.
+  Older READY previews do not transfer to the newer head.
+- After quota reset, exact-head Preview + runtime log/error verification is the only
+  remaining Runtime convergence gate. No merge or Production P1 migration is authorized.
 - Remaining Gate B and Gate C/D/E stay blocked until the P1 release sequence advances.
 - DEC-017 sequence remains: Gate A → Gate-B pre-P1 containment → Historical Daily DTR
   P1 → remaining Gate B → Gate C → Gate D → Gate E.
