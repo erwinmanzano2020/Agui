@@ -58,11 +58,15 @@ auth_scalar_as() {
   local query="$2"
   docker exec -i "$DB_CONTAINER" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d postgres <<SQL
 BEGIN;
-SELECT set_config(
-  'request.jwt.claims',
-  '{"sub":"$user_id","role":"authenticated"}',
-  true
-);
+DO \$do\$
+BEGIN
+  PERFORM set_config(
+    'request.jwt.claims',
+    '{"sub":"$user_id","role":"authenticated"}',
+    true
+  );
+END
+\$do\$;
 SET LOCAL ROLE authenticated;
 $query
 ROLLBACK;
