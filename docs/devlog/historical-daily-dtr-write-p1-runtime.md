@@ -2,9 +2,9 @@
 
 ## Status
 
-**CONTROLLED UAT CONVERGED — READY FOR FINAL EXACT-HEAD RELEASE REVIEW / OWNER RELEASE
-APPROVAL. Production remains unchanged and no merge/release is authorized until the
-owner explicitly approves the exact release actions.**
+**CONTROLLED UAT + FINAL RELEASE REVIEW CONVERGED — READY FOR OWNER RELEASE APPROVAL.
+Production remains unchanged and no merge/release is authorized until the owner explicitly
+approves the exact release actions.**
 
 Runtime base:
 
@@ -256,9 +256,44 @@ Exact-head evidence before this governance-only synchronization:
 The governance-only synchronization after UAT does not invalidate the focused runtime UAT;
 it requires the normal new-head CI/Preview/final release review before owner approval.
 
+## Final exact-head release review — 2026-09-26
+
+The governance-synchronized candidate completed a fresh release review with no new
+material P0/P1/P2 finding.
+
+Verified before this final governance-only status sync:
+
+- PR #514 exact head `ec066165df534023af75e91571904fd1baa33407` was open, Draft,
+  mergeable, and had zero material review threads;
+- Preflight #931: SUCCESS;
+- Gate B DB Concurrency #69: SUCCESS;
+- P1 Historical DTR DB Concurrency #57: SUCCESS;
+- exact-head Vercel Preview `dpl_7juRMyHaFSpLeBM6QYBznwrA87Eu`: READY;
+- GitHub Vercel status: SUCCESS;
+- Preview root: HTTP 200;
+- authenticated Daily DTR refresh returned HTTP 200 on
+  `/company/p1-uat-house/hr/dtr`;
+- the authenticated log window contained no `auth_uid` or
+  `entity_identifier_type` warning and no warning/error/fatal entry;
+- Preview remained bound to isolated UAT Supabase
+  `ectzbcijqhegoamtaqgo`;
+- Production migration history still ended at released Gate-B pre-P1 containment, and
+  P1 correction/remediation tables/RPCs were absent from Production.
+
+UAT advisor findings were reviewed against Production and the approved migration/grant
+contract. The P1 case/event tables intentionally use RLS plus revoked direct table
+privileges, and the narrow authenticated SECURITY DEFINER wrappers intentionally expose
+only the approved correction/remediation commands with fixed search paths. Broader
+pre-existing Production advisor debt remains outside this P1 slice and is not represented
+as newly introduced P1 release debt.
+
+The final documentation sync is governance-only and does not invalidate the exact tested
+runtime/UAT behavior. It requires only the normal exact-head CI/Preview verification before
+the owner release action is executed.
+
 ## Exact next action
 
-Run the final exact-head release review on the governance-synchronized PR #514 head.
-If CI, Preview, review threads, scope, cleanup, and rollout/rollback checks remain green,
-stop at the explicit owner release gate. Do not merge PR #514 or apply/deploy P1 to
-Production without that approval.
+Stop at the explicit owner release gate. After owner approval, re-fetch the exact PR head,
+verify no drift, squash-merge PR #514, apply only the three unapplied P1 migrations in the
+approved order, verify grants/RPCs/schema cache, deploy the exact merge build to Production,
+and execute the approved post-deploy verification sequence.
