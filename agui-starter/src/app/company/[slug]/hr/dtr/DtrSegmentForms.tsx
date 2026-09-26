@@ -92,6 +92,10 @@ export function shouldRotateOperationIdentity(state: DtrMutationState) {
   return state.status === "success" || state.resultStatus === "STALE";
 }
 
+export function defaultRemediationDecision(candidateCount: number) {
+  return candidateCount > 0 ? "EXISTING_RELATED" : "DISTINCT_NEW";
+}
+
 function useOperationId(state: DtrMutationState) {
   const [operationId, setOperationId] = useState("");
 
@@ -363,7 +367,7 @@ function RemediationAdjudicationForm({
     dtrMutationInitialState,
   );
   const [decision, setDecision] = useState<"EXISTING_RELATED" | "DISTINCT_NEW">(
-    (state.candidates?.length ?? 0) > 0 ? "EXISTING_RELATED" : "DISTINCT_NEW",
+    defaultRemediationDecision(state.candidates?.length ?? 0),
   );
   const [operationId, finalizeOperationId] = useOperationPair(result);
   const reviewState =
@@ -372,6 +376,12 @@ function RemediationAdjudicationForm({
       : state;
   const candidates = reviewState.candidates ?? [];
   const coverageComplete = reviewState.coverageComplete ?? false;
+
+  useEffect(() => {
+    if (result.resultStatus === "STALE" && result.caseId === state.caseId) {
+      setDecision(defaultRemediationDecision(result.candidates?.length ?? 0));
+    }
+  }, [result, state.caseId]);
 
   if (!state.caseId) return null;
 
