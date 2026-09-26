@@ -16,7 +16,12 @@ import {
   openDtrRemediationAction,
   proposeDtrCorrectionAction,
 } from "../actions";
-import { FieldError, MutationMessage } from "../DtrSegmentForms";
+import {
+  defaultRemediationDecision,
+  FieldError,
+  MutationMessage,
+  shouldRotateOperationIdentity,
+} from "../DtrSegmentForms";
 
 const HOUSE_ID = "house-1";
 const HOUSE_SLUG = "demo-house";
@@ -90,6 +95,28 @@ function allowWrite(overrides: Record<string, unknown> = {}) {
 
 describe("Historical Daily DTR P1 action boundary", () => {
   afterEach(() => mock.restoreAll());
+
+  it("rotates operation identities after stale results and selects refreshed defaults", () => {
+    assert.equal(
+      shouldRotateOperationIdentity({
+        ...dtrMutationInitialState,
+        status: "error",
+        resultStatus: "STALE",
+      }),
+      true,
+    );
+    assert.equal(
+      shouldRotateOperationIdentity({
+        ...dtrMutationInitialState,
+        status: "error",
+        resultStatus: "TARGET_UNAVAILABLE",
+      }),
+      false,
+    );
+    assert.equal(defaultRemediationDecision(0), "DISTINCT_NEW");
+    assert.equal(defaultRemediationDecision(1), "EXISTING_RELATED");
+    assert.equal(defaultRemediationDecision(4), "EXISTING_RELATED");
+  });
 
   it("maps correction validation errors without leaking hidden context", async () => {
     const hiddenContextResult = await proposeDtrCorrectionAction(
