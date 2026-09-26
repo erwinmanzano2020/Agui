@@ -1,16 +1,27 @@
 import { notFound } from "next/navigation";
 
-import { CreateDtrSegmentForm, UpdateDtrSegmentForm } from "./DtrSegmentForms";
+import {
+  CorrectionDtrFactForm,
+  CreateDtrSegmentForm,
+  RemediationDtrForm,
+} from "./DtrSegmentForms";
 import { requireAuth } from "@/lib/auth/require-auth";
 import type { DtrSegmentRow } from "@/lib/db.types";
 import { requireHrAccess, requireHrAccessWithBranch } from "@/lib/hr/access";
 import {
-  listDtrByHouseAndDate,
-  listDtrMutationTokens,
-} from "@/lib/hr/dtr-segments-server";
+  listCanonicalAttendanceForDate,
+  type CanonicalAttendanceRow,
+} from "@/lib/hr/attendance-p1-server";
+import { listDtrByHouseAndDate } from "@/lib/hr/dtr-segments-server";
 import { listBranchesForHouse, listEmployeesByHouse } from "@/lib/hr/employees-server";
-import { computeOvertimeForHouseDate, getScheduleForEmployeeOnDate } from "@/lib/hr/overtime-engine";
-import { formatManilaTimeFromIso } from "@/lib/hr/timezone";
+import {
+  computeOvertimeForHouseDate,
+  getScheduleForEmployeeOnDate,
+} from "@/lib/hr/overtime-engine";
+import {
+  formatManilaTimeFromIso,
+  toManilaDate,
+} from "@/lib/hr/timezone";
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -34,6 +45,16 @@ function groupSegments(segments: DtrSegmentRow[]) {
     const bucket = map.get(segment.employee_id) ?? [];
     bucket.push(segment);
     map.set(segment.employee_id, bucket);
+  });
+  return map;
+}
+
+function groupCanonicalFacts(rows: CanonicalAttendanceRow[]) {
+  const map = new Map<string, CanonicalAttendanceRow[]>();
+  rows.forEach((row) => {
+    const bucket = map.get(row.employee_id) ?? [];
+    bucket.push(row);
+    map.set(row.employee_id, bucket);
   });
   return map;
 }
@@ -69,9 +90,12 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
     writeScope: "branch-set-preflight",
   });
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = toManilaDate(new Date()) ?? new Date().toISOString().slice(0, 10);
   const dateParam = typeof rawSearch.date === "string" ? rawSearch.date : undefined;
   const workDate = normalizeDate(dateParam, today);
+  const isCurrentBusinessDate = workDate === today;
+  const isPastBusinessDate = workDate < today;
+  const isFutureBusinessDate = workDate > today;
 
   const employeeFilter = typeof rawSearch.employee === "string" ? rawSearch.employee : "";
 
@@ -86,21 +110,31 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
   const allowedEmployeeIds = new Set(employees.map((employee) => employee.id));
   const filteredEmployeeId = allowedEmployeeIds.has(employeeFilter) ? employeeFilter : "";
 
-  const segments = await listDtrByHouseAndDate(supabase, house.id, workDate, {
-    employeeId: filteredEmployeeId || undefined,
-  });
+  const [segments, canonicalFacts] = await Promise.all([
+    listDtrByHouseAndDate(supabase, house.id, workDate, {
+      employeeId: filteredEmployeeId || undefined,
+    }),
+    writeAccess.allowed
+      ? listCanonicalAttendanceForDate(
+          supabase,
+          house.id,
+          workDate,
+          writeAccess,
+          filteredEmployeeId || undefined,
+        )
+      : Promise.resolve([]),
+  ]);
+
   const segmentsByEmployee = groupSegments(segments);
-  const mutationTokens = writeAccess.allowed
-    ? await listDtrMutationTokens(
-        supabase,
-        house.id,
-        segments.map((segment) => segment.id),
-      )
-    : new Map();
+  const canonicalFactsByEmployee = groupCanonicalFacts(canonicalFacts);
 
   const visibleEmployees = filteredEmployeeId
     ? employees.filter((employee) => employee.id === filteredEmployeeId)
     : employees;
+  const visibleEmployeeIds = new Set(visibleEmployees.map((employee) => employee.id));
+  const canonicalFactsOutsideCurrentRoster = canonicalFacts.filter(
+    (fact) => !visibleEmployeeIds.has(fact.employee_id),
+  );
 
   const overtimeResults = await computeOvertimeForHouseDate(supabase, {
     houseId: house.id,
@@ -131,8 +165,9 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
         <div className="space-y-2">
           <h2 className="text-xl font-semibold text-foreground">Daily DTR</h2>
           <p className="text-sm text-muted-foreground">
-            Multiple segments per day are allowed. This view captures raw attendance and shows derived overtime minutes
-            computed from schedules and house policy (read-only).
+            Multiple attendance facts per day are allowed. Existing historical attendance
+            is corrected through canonical fact proposals; historical missing attendance
+            requires owner/manager remediation review.
           </p>
         </div>
         <form method="get" className="mt-4 flex flex-wrap items-end gap-4">
@@ -167,6 +202,20 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
             Load
           </button>
         </form>
+        {isPastBusinessDate ? (
+          <p className="mt-3 text-xs text-amber-700">
+            Historical date selected. Ordinary missing-attendance creation is disabled;
+            existing visible facts may be corrected, while missing attendance requires
+            owner/manager review.
+          </p>
+        ) : null}
+        {isFutureBusinessDate ? (
+          <p className="mt-3 text-xs text-amber-700">
+            Future date selected. Attendance creation and historical remediation are
+            unavailable; existing visible facts remain read-only unless another approved
+            correction rule applies.
+          </p>
+        ) : null}
       </section>
 
       {employeesResult.error ? (
@@ -183,29 +232,64 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
         <div className="space-y-4">
           {visibleEmployees.map((employee) => {
             const employeeSegments = segmentsByEmployee.get(employee.id) ?? [];
+            const employeeCanonicalFacts =
+              canonicalFactsByEmployee.get(employee.id) ?? [];
             const schedule = scheduleByEmployee.get(employee.id);
             const scheduleStart =
               schedule?.status === "ok" ? schedule.scheduledStartTs : null;
             const scheduleEnd =
               schedule?.status === "ok" ? schedule.scheduledEndTs : null;
-            const lastOut = employeeSegments.filter((segment) => segment.time_out).slice(-1)[0]
-              ?.time_out;
-            const derivedOtMinutes = Math.max(0, diffMinutesFromIso(scheduleEnd, lastOut ?? null));
+            const lastOut = employeeSegments
+              .filter((segment) => segment.time_out)
+              .slice(-1)[0]?.time_out;
+            const derivedOtMinutes = Math.max(
+              0,
+              diffMinutesFromIso(scheduleEnd, lastOut ?? null),
+            );
+
+            const canCreateCurrent =
+              isCurrentBusinessDate &&
+              writeAccess.allowed &&
+              attendanceBranches.length > 0 &&
+              (!writeAccess.isBranchLimited ||
+                (employee.branch_id &&
+                  writeAccess.allowedBranchIds.includes(
+                    employee.branch_id.toLowerCase(),
+                  )));
+
+            const canRemediateHistorical =
+              isPastBusinessDate &&
+              writeAccess.allowed &&
+              !writeAccess.isBranchLimited &&
+              attendanceBranches.length > 0;
+
             return (
-              <section key={employee.id} className="rounded-2xl border border-border bg-white/70 p-5 shadow-sm">
+              <section
+                key={employee.id}
+                className="rounded-2xl border border-border bg-white/70 p-5 shadow-sm"
+              >
                 <div className="flex flex-wrap items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-lg font-semibold text-foreground">{employee.full_name}</h3>
-                    <p className="text-xs text-muted-foreground">Employee ID: {employee.code}</p>
+                    <h3 className="text-lg font-semibold text-foreground">
+                      {employee.full_name}
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      Employee ID: {employee.code}
+                    </p>
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    Segments: {employeeSegments.length} for {workDate}
+                    Canonical facts: {employeeCanonicalFacts.length} · Compatibility
+                    segments: {employeeSegments.length} for {workDate}
                   </div>
                 </div>
+
                 <div className="mt-3 flex flex-wrap items-center gap-6 text-sm">
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs text-muted-foreground">Overtime (mins, derived)</span>
-                    {overtimeByEmployee.get(employee.id)?.scheduleStatus === "no_schedule" ? (
+                    <span className="text-xs text-muted-foreground">
+                      Overtime (mins, derived)
+                    </span>
+                    {overtimeByEmployee.get(employee.id)?.scheduleStatus ===
+                    "no_schedule" ? (
                       <span
                         className="text-sm font-semibold text-muted-foreground"
                         title="No schedule assigned"
@@ -219,8 +303,11 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
                     )}
                   </div>
                   <div className="flex flex-col gap-1">
-                    <span className="text-xs text-muted-foreground">Overtime (rounded)</span>
-                    {overtimeByEmployee.get(employee.id)?.scheduleStatus === "no_schedule" ? (
+                    <span className="text-xs text-muted-foreground">
+                      Overtime (rounded)
+                    </span>
+                    {overtimeByEmployee.get(employee.id)?.scheduleStatus ===
+                    "no_schedule" ? (
                       <span
                         className="text-sm font-semibold text-muted-foreground"
                         title="No schedule assigned"
@@ -236,24 +323,28 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
                 </div>
 
                 <div className="mt-4 space-y-3">
-                  {employeeSegments.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No segments recorded for this employee yet.</p>
+                  {employeeCanonicalFacts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No canonical attendance fact visible for correction on this date.
+                    </p>
                   ) : (
-                    <ul className="space-y-2">
-                      {employeeSegments.map((segment) => (
+                    <ul className="space-y-3">
+                      {employeeCanonicalFacts.map((fact) => (
                         <li
-                          key={segment.id}
-                          className="rounded-xl border border-border/70 bg-background/70 p-3 text-sm"
+                          key={fact.fact_id}
+                          className="rounded-xl border border-border/70 bg-background/70 p-3"
                         >
-                          <UpdateDtrSegmentForm
+                          <div className="mb-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                            <span>Fact {fact.fact_id}</span>
+                            <span>Status: {fact.status}</span>
+                            <span>Attribution: {fact.attribution_state}</span>
+                          </div>
+                          <CorrectionDtrFactForm
                             houseId={house.id}
                             houseSlug={house.slug ?? slug}
-                            workDate={workDate}
-                            segment={segment}
-                            expectedValueRevision={
-                              mutationTokens.get(segment.id)?.current_value_revision ?? null
-                            }
-                            canEdit={mutationTokens.has(segment.id)}
+                            fact={fact}
+                            branches={attendanceBranches}
+                            canChangeLocation={!writeAccess.isBranchLimited}
                           />
                         </li>
                       ))}
@@ -261,21 +352,49 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
                   )}
                 </div>
 
+                {canCreateCurrent ? (
+                  <CreateDtrSegmentForm
+                    houseId={house.id}
+                    houseSlug={house.slug ?? slug}
+                    workDate={workDate}
+                    employeeId={employee.id}
+                    branches={attendanceBranches}
+                  />
+                ) : null}
+
+                {canRemediateHistorical ? (
+                  <RemediationDtrForm
+                    houseId={house.id}
+                    houseSlug={house.slug ?? slug}
+                    workDate={workDate}
+                    employeeId={employee.id}
+                    branches={attendanceBranches}
+                  />
+                ) : null}
+
                 <details className="mt-4 rounded-xl border border-border/70 bg-background/60 p-3 text-xs text-muted-foreground">
-                  <summary className="cursor-pointer text-xs font-medium text-foreground">Debug</summary>
+                  <summary className="cursor-pointer text-xs font-medium text-foreground">
+                    Compatibility/debug
+                  </summary>
                   <div className="mt-3 space-y-2">
                     <div className="grid gap-1 sm:grid-cols-2">
                       <div>
-                        <div className="text-[11px] uppercase text-muted-foreground">Schedule start</div>
+                        <div className="text-[11px] uppercase text-muted-foreground">
+                          Schedule start
+                        </div>
                         <div>{formatManilaTimeFromIso(scheduleStart)}</div>
                       </div>
                       <div>
-                        <div className="text-[11px] uppercase text-muted-foreground">Schedule end</div>
+                        <div className="text-[11px] uppercase text-muted-foreground">
+                          Schedule end
+                        </div>
                         <div>{formatManilaTimeFromIso(scheduleEnd)}</div>
                       </div>
                     </div>
                     <div>
-                      <div className="text-[11px] uppercase text-muted-foreground">Derived OT (mins)</div>
+                      <div className="text-[11px] uppercase text-muted-foreground">
+                        Derived OT (mins)
+                      </div>
                       <div>
                         {derivedOtMinutes}{" "}
                         <span className="text-muted-foreground">
@@ -285,46 +404,64 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
                         </span>
                       </div>
                     </div>
-                    <div className="space-y-2">
-                      {employeeSegments.map((segment) => (
-                        <div key={`${segment.id}-debug`} className="rounded-lg border border-border/60 bg-background/80 p-2">
-                          <div className="text-[11px] uppercase text-muted-foreground">Segment {segment.id}</div>
-                          <div className="grid gap-2 sm:grid-cols-2">
-                            <div>
-                              <div className="text-[11px] uppercase text-muted-foreground">time_in</div>
-                              <div className="font-mono text-[11px] text-foreground">{segment.time_in ?? "—"}</div>
-                              <div className="text-[11px]">Manila: {formatManilaTimeFromIso(segment.time_in)}</div>
-                            </div>
-                            <div>
-                              <div className="text-[11px] uppercase text-muted-foreground">time_out</div>
-                              <div className="font-mono text-[11px] text-foreground">{segment.time_out ?? "—"}</div>
-                              <div className="text-[11px]">Manila: {formatManilaTimeFromIso(segment.time_out)}</div>
-                            </div>
-                          </div>
+                    {employeeSegments.map((segment) => (
+                      <div
+                        key={`${segment.id}-debug`}
+                        className="rounded-lg border border-border/60 bg-background/80 p-2"
+                      >
+                        <div className="text-[11px] uppercase text-muted-foreground">
+                          Compatibility segment {segment.id}
                         </div>
-                      ))}
-                    </div>
+                        <div className="font-mono text-[11px] text-foreground">
+                          {segment.time_in ?? "—"} → {segment.time_out ?? "—"}
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </details>
-
-                {writeAccess.allowed &&
-                attendanceBranches.length > 0 &&
-                (!writeAccess.isBranchLimited ||
-                  (employee.branch_id &&
-                    writeAccess.allowedBranchIds.includes(employee.branch_id.toLowerCase()))) ? (
-                  <CreateDtrSegmentForm
-                    houseId={house.id}
-                    houseSlug={house.slug ?? slug}
-                    workDate={workDate}
-                    employeeId={employee.id}
-                    branches={attendanceBranches}
-                  />
-                ) : null}
               </section>
             );
           })}
         </div>
       )}
+
+      {canonicalFactsOutsideCurrentRoster.length > 0 ? (
+        <section className="rounded-2xl border border-border bg-white/70 p-5 shadow-sm">
+          <div className="space-y-1">
+            <h3 className="text-base font-semibold text-foreground">
+              Other historically visible attendance
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              These canonical facts are visible from their attendance attribution even
+              though the employee is not in the current roster available to this view.
+              Current employee assignment is not used as historical attendance
+              provenance.
+            </p>
+          </div>
+          <ul className="mt-4 space-y-3">
+            {canonicalFactsOutsideCurrentRoster.map((fact) => (
+              <li
+                key={fact.fact_id}
+                className="rounded-xl border border-border/70 bg-background/70 p-3"
+              >
+                <div className="mb-3 flex flex-wrap gap-4 text-xs text-muted-foreground">
+                  <span>Employee {fact.employee_id}</span>
+                  <span>Fact {fact.fact_id}</span>
+                  <span>Status: {fact.status}</span>
+                  <span>Attribution: {fact.attribution_state}</span>
+                </div>
+                <CorrectionDtrFactForm
+                  houseId={house.id}
+                  houseSlug={house.slug ?? slug}
+                  fact={fact}
+                  branches={attendanceBranches}
+                  canChangeLocation={!writeAccess.isBranchLimited}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -1,5 +1,118 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-26 — Historical Daily DTR Write P1 Controlled UAT converged
+
+**Status: CONTROLLED UAT + FINAL RELEASE REVIEW CONVERGED — READY FOR OWNER RELEASE
+APPROVAL. PR #514 remains Draft/unmerged; Production remains unchanged.**
+
+Controlled UAT used only isolated Supabase project `agui-p1-uat`
+(`ectzbcijqhegoamtaqgo`) and synthetic/disposable attendance fixtures.
+
+Focused UAT is complete:
+
+- visible existing-fact location correction: PASS / FINALIZED;
+- owner/manager remediation candidate review: PASS;
+- distinct-new remediation: PASS / fail-closed at absent HR-4 approval dependency with
+  no resulting fact;
+- stale/retry: PASS after Review & Fix.
+
+The stale/retry run exposed and closed a real client retry defect: after `STALE`, the UI
+now rotates the consumed operation identity and resets the decision from the refreshed
+candidate universe. Exact tested runtime head
+`97a3370ea56209b66fb936806da7532671a788bb` used a fresh retry operation ID and
+durably reached `ADJUDICATED_EXISTING` then `FINALIZED` without creating a duplicate
+fact.
+
+The disposable UAT backend also lacked Production's lowercase `email` and `auth_uid`
+`entity_identifier_type` enum labels. UAT only was brought to Production parity; no
+Production schema or application-code change was made for that environment correction.
+
+Before the governance-only UAT documentation sync, exact-head checks were Preflight #928,
+Gate B DB Concurrency #66, and P1 Historical DTR DB Concurrency #54 — all SUCCESS;
+Vercel deployment `dpl_8otsaBaMnhnoQH9qNDGaXSEEKG9F` was READY; material review
+threads were zero.
+
+Fresh release review verified PR #514 head
+`ec066165df534023af75e91571904fd1baa33407`: Preflight #931, Gate B DB Concurrency
+#69, and P1 Historical DTR DB Concurrency #57 all succeeded; exact-head Vercel Preview
+`dpl_7juRMyHaFSpLeBM6QYBznwrA87Eu` is READY; Preview root and authenticated Daily DTR
+returned HTTP 200; no warning/error/fatal log entry and no `auth_uid` /
+`entity_identifier_type` warning appeared after the final authenticated refresh; material
+review threads were zero. Production still has no P1 migrations/RPCs.
+
+The next gate is explicit owner release approval. After approval, re-fetch exact state,
+squash-merge PR #514, apply only the three approved P1 migrations in order, verify
+grants/RPCs/schema cache, deploy the exact merge build, perform post-deploy verification,
+then unblock remaining Gate B only if that verification passes.
+
+## 2026-09-25 — Historical Daily DTR Write P1 Runtime converged
+
+**Status: RUNTIME IMPLEMENTATION CONVERGED — READY FOR CONTROLLED UAT. PR #514 remains
+Draft/unmerged and Production remains unchanged.**
+
+Final reviewed Runtime code candidate before governance-only synchronization:
+`6ba5f6f69423a9cbe64bae58c0ff8754471c4eaa`.
+
+Exact-head evidence:
+
+- Preflight #922: SUCCESS;
+- Gate B DB Concurrency #60: SUCCESS;
+- P1 Historical DTR DB Concurrency #48: SUCCESS;
+- exact-head Vercel deployment `dpl_7peikcDme8hiTVQ7xJg6Mrt7EtPd`: READY;
+- Preview root HTTP 200;
+- checked Preview warning/error/fatal logs: empty;
+- checked runtime error clusters: empty;
+- material PR review threads: zero.
+
+The final Review & Fix round corrected independent P1 correction staleness so value-only
+corrections depend only on value CAS, location-only corrections only on semantic
+evidence-basis revision/fingerprint, and combined corrections on both. Real DB tests now
+prove unrelated changes in the other dimension do not falsely stale the pending
+correction while the newer independent state is preserved.
+
+Next authorized phase: **Controlled UAT / PR / Deployment convergence for PR #514**.
+Runtime convergence does not authorize merge, Production P1 migrations, Production
+deployment, remaining Gate B, Gate C/D/E, or unrelated work.
+
+
+## 2026-09-25 — Historical Daily DTR Write P1 Runtime code/checks converged; Preview quota-blocked
+
+**Status: RUNTIME CODE + AUTOMATED CHECKS CONVERGED / PREVIEW BLOCKED — Draft PR #514
+implements the owner-approved P1 contract. Exact code candidate
+`189ca2f677d1c3b28ef745edc1620d5448750cc2` passed all repository/database checks, but
+Vercel cannot create the required exact-head Preview because the account exceeded its
+daily deployment quota. Controlled UAT is not yet authorized.**
+
+Runtime artifact:
+`docs/devlog/historical-daily-dtr-write-p1-runtime.md`
+
+Hosted Runtime PR: **#514 — Implement Historical Daily DTR Write P1**.
+
+Exact code-candidate evidence:
+
+- Preflight #917: SUCCESS (lint, typecheck, Next.js build, compiled Node tests);
+- Gate B DB Concurrency #55: SUCCESS;
+- P1 Historical DTR DB Concurrency #43: SUCCESS;
+- PR remained mergeable with zero material review threads;
+- fresh Runtime Review & Fix closed no-leak operation-ledger ordering, retry operation-ID
+  stability, canonical-reader pagination, DEC-018 past-date enforcement, HR-4
+  adjudication-base binding, and current-roster/historical-visibility coupling.
+
+Vercel's integration now reports the external quota blocker:
+
+`api-deployments-free-per-day` — more than 100 deployments; retry after the daily quota
+resets.
+
+Older superseded Runtime heads had READY previews, but they do not satisfy the exact-head
+rule for the current candidate. Production remains unchanged: no P1 migration or behavior
+has been deployed.
+
+**Next authorized action:** after the Vercel quota resets, build/verify an exact-current
+PR #514 Preview, inspect runtime logs/errors, re-check the current head/CI/review threads,
+and only then mark Runtime READY FOR CONTROLLED UAT. Do not merge #514 or apply P1
+Production migrations yet.
+
+
 ## 2026-09-25 — Historical Daily DTR Write P1 planning active
 
 **Status: PLANNING OWNER-APPROVED — PR #513 remains documentation-only. Gate-B pre-P1

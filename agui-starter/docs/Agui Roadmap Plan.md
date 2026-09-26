@@ -47,10 +47,26 @@
 - **P1 planning is owner-approved (2026-09-25).** Exact-head Preview was READY, root
   HTTP 200, checked runtime logs/errors were clean, and no material review thread
   remained at the approval gate.
-- The next authorized work is a **separate bounded Historical Daily DTR Write P1 Runtime
-  task/PR** implementing the approved plan exactly. Runtime must still pass its own Review
-  & Fix, deterministic tests, Controlled UAT, release approval, and deployment
-  verification.
+- **Historical Daily DTR Write P1 Controlled UAT has converged in Draft PR #514.**
+  Exact tested runtime head `97a3370ea56209b66fb936806da7532671a788bb` passed
+  visible existing-fact correction, owner/manager candidate review, distinct-new
+  fail-closed behavior, and the stale/retry path after one bounded Review & Fix.
+- The stale/retry defect is closed: a stale result now rotates the consumed operation
+  identity and resets the adjudication decision from the refreshed candidate universe;
+  source-of-truth verification reached `ADJUDICATED_EXISTING` then `FINALIZED`
+  without duplicate attendance creation.
+- Before governance-only UAT status synchronization, Preflight #928, Gate B DB
+  Concurrency #66, and P1 Historical DTR DB Concurrency #54 were SUCCESS and exact-head
+  Vercel deployment `dpl_8otsaBaMnhnoQH9qNDGaXSEEKG9F` was READY with zero material
+  review threads.
+- **Final release review is converged and the slice is READY FOR OWNER RELEASE
+  APPROVAL.** Fresh review verified the governance-synchronized PR head, exact-head CI,
+  exact-head Preview, authenticated Daily DTR refresh, clean warning/error/fatal logs,
+  zero material review threads, and unchanged Production.
+- No merge or Production P1 migration/deployment is authorized until explicit owner
+  release approval. After approval, follow the frozen sequence: re-fetch exact state →
+  squash-merge PR #514 → apply only the three P1 migrations in order → verify
+  grants/RPC/schema cache → deploy the exact merge build → post-deploy verification.
 - Remaining Gate B and Gate C/D/E stay blocked until the P1 release sequence advances.
 - DEC-017 sequence remains: Gate A → Gate-B pre-P1 containment → Historical Daily DTR
   P1 → remaining Gate B → Gate C → Gate D → Gate E.

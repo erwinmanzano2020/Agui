@@ -351,6 +351,95 @@ export type HrAttendanceMutationOperationInsert =
   Partial<Pick<HrAttendanceMutationOperationRow, "outcome" | "fact_id" | "value_revision" | "evidence_basis_revision" | "created_at" | "completed_at">>;
 export type HrAttendanceMutationOperationUpdate = Partial<HrAttendanceMutationOperationInsert>;
 
+
+export type HrAttendanceCorrectionCaseRow = {
+  id: string;
+  house_id: string;
+  employee_id: string;
+  fact_id: string;
+  correction_kind: "VALUE_TIME" | "LOCATION" | "COMBINED";
+  payroll_impact: "PAYROLL_IMPACTING" | "NON_PAYROLL_IMPACTING";
+  base_value_revision: number;
+  base_evidence_basis_revision: number;
+  base_evidence_basis_fingerprint: string;
+  base_candidate_evidence_generation: number | null;
+  base_snapshot: Json;
+  proposed_snapshot: Json;
+  reason: string;
+  proposer_entity_id: string;
+  proposer_role: string;
+  proposed_at: string;
+  lifecycle_status: "OPEN" | "STALE" | "REJECTED" | "FINALIZED";
+  hr4_decision_reference: string | null;
+};
+export type HrAttendanceCorrectionCaseInsert =
+  Omit<HrAttendanceCorrectionCaseRow, "id" | "proposed_at" | "lifecycle_status" | "hr4_decision_reference"> &
+  Partial<Pick<HrAttendanceCorrectionCaseRow, "id" | "proposed_at" | "lifecycle_status" | "hr4_decision_reference">>;
+export type HrAttendanceCorrectionCaseUpdate = Partial<HrAttendanceCorrectionCaseInsert>;
+
+export type HrAttendanceCorrectionEventRow = {
+  id: string;
+  house_id: string;
+  correction_case_id: string;
+  employee_id: string;
+  event_class: "HR4_DECISION_OBSERVED" | "REJECTED" | "STALE" | "FINALIZED";
+  actor_entity_id: string;
+  actor_role: string;
+  event_at: string;
+  result_value_revision: number | null;
+  result_evidence_basis_revision: number | null;
+  decision_reference: string | null;
+  details: Json;
+};
+export type HrAttendanceCorrectionEventInsert =
+  Omit<HrAttendanceCorrectionEventRow, "id" | "event_at" | "result_value_revision" | "result_evidence_basis_revision" | "decision_reference" | "details"> &
+  Partial<Pick<HrAttendanceCorrectionEventRow, "id" | "event_at" | "result_value_revision" | "result_evidence_basis_revision" | "decision_reference" | "details">>;
+export type HrAttendanceCorrectionEventUpdate = Partial<HrAttendanceCorrectionEventInsert>;
+
+export type HrAttendanceRemediationCaseRow = {
+  id: string;
+  house_id: string;
+  employee_id: string;
+  proposed_snapshot: Json;
+  asserted_branch_id: string;
+  reason: string;
+  creator_entity_id: string;
+  creator_role: string;
+  created_at: string;
+  base_candidate_evidence_generation: number;
+  resolver_version: string;
+  resolver_digest: string;
+  coverage_complete: boolean;
+  resolver_snapshot: Json;
+  lifecycle_status: "OPEN" | "STALE" | "FINALIZED";
+  resulting_fact_id: string | null;
+};
+export type HrAttendanceRemediationCaseInsert =
+  Omit<HrAttendanceRemediationCaseRow, "id" | "created_at" | "lifecycle_status" | "resulting_fact_id"> &
+  Partial<Pick<HrAttendanceRemediationCaseRow, "id" | "created_at" | "lifecycle_status" | "resulting_fact_id">>;
+export type HrAttendanceRemediationCaseUpdate = Partial<HrAttendanceRemediationCaseInsert>;
+
+export type HrAttendanceRemediationEventRow = {
+  id: string;
+  house_id: string;
+  remediation_case_id: string;
+  employee_id: string;
+  event_class: "ADJUDICATED_EXISTING" | "ADJUDICATED_DISTINCT" | "STALE" | "FINALIZED";
+  actor_entity_id: string;
+  actor_role: string;
+  event_at: string;
+  selected_candidate_identity: string | null;
+  resolver_version: string | null;
+  resolver_digest: string | null;
+  candidate_evidence_generation: number | null;
+  resulting_fact_id: string | null;
+  details: Json;
+};
+export type HrAttendanceRemediationEventInsert =
+  Omit<HrAttendanceRemediationEventRow, "id" | "event_at" | "selected_candidate_identity" | "resolver_version" | "resolver_digest" | "candidate_evidence_generation" | "resulting_fact_id" | "details"> &
+  Partial<Pick<HrAttendanceRemediationEventRow, "id" | "event_at" | "selected_candidate_identity" | "resolver_version" | "resolver_digest" | "candidate_evidence_generation" | "resulting_fact_id" | "details">>;
+export type HrAttendanceRemediationEventUpdate = Partial<HrAttendanceRemediationEventInsert>;
+
 export type HrScheduleTemplateRow = {
   id: string;
   house_id: string;
@@ -1683,6 +1772,10 @@ export interface Database {
       hr_attendance_authorization_projection: TableDefinition<HrAttendanceAuthorizationProjectionRow, HrAttendanceAuthorizationProjectionInsert, HrAttendanceAuthorizationProjectionUpdate>;
       hr_attendance_authorization_history: TableDefinition<HrAttendanceAuthorizationHistoryRow, HrAttendanceAuthorizationHistoryInsert, HrAttendanceAuthorizationHistoryUpdate>;
       hr_attendance_mutation_operations: TableDefinition<HrAttendanceMutationOperationRow, HrAttendanceMutationOperationInsert, HrAttendanceMutationOperationUpdate>;
+      hr_attendance_correction_cases: TableDefinition<HrAttendanceCorrectionCaseRow, HrAttendanceCorrectionCaseInsert, HrAttendanceCorrectionCaseUpdate>;
+      hr_attendance_correction_events: TableDefinition<HrAttendanceCorrectionEventRow, HrAttendanceCorrectionEventInsert, HrAttendanceCorrectionEventUpdate>;
+      hr_attendance_remediation_cases: TableDefinition<HrAttendanceRemediationCaseRow, HrAttendanceRemediationCaseInsert, HrAttendanceRemediationCaseUpdate>;
+      hr_attendance_remediation_events: TableDefinition<HrAttendanceRemediationEventRow, HrAttendanceRemediationEventInsert, HrAttendanceRemediationEventUpdate>;
       hr_schedule_templates: TableDefinition<
         HrScheduleTemplateRow,
         HrScheduleTemplateInsert,
@@ -1829,6 +1922,43 @@ export interface Database {
         p_time_in: string;
         p_time_out?: string | null;
         p_expected_value_revision?: number | null;
+      }, Json>;
+      hr_propose_attendance_correction: FunctionDefinition<{
+        p_house_id: string;
+        p_fact_id: string;
+        p_operation_id: string;
+        p_work_date: string;
+        p_time_in: string;
+        p_time_out: string | null;
+        p_target_branch_id: string | null;
+        p_reason: string;
+      }, Json>;
+      hr_finalize_attendance_correction: FunctionDefinition<{
+        p_house_id: string;
+        p_correction_case_id: string;
+        p_operation_id: string;
+      }, Json>;
+      hr_open_attendance_remediation_case: FunctionDefinition<{
+        p_house_id: string;
+        p_employee_id: string;
+        p_operation_id: string;
+        p_work_date: string;
+        p_time_in: string;
+        p_time_out: string | null;
+        p_asserted_branch_id: string;
+        p_reason: string;
+      }, Json>;
+      hr_adjudicate_attendance_remediation_case: FunctionDefinition<{
+        p_house_id: string;
+        p_remediation_case_id: string;
+        p_operation_id: string;
+        p_decision: "EXISTING_RELATED" | "DISTINCT_NEW";
+        p_selected_candidate_identity: string | null;
+      }, Json>;
+      hr_finalize_attendance_remediation_case: FunctionDefinition<{
+        p_house_id: string;
+        p_remediation_case_id: string;
+        p_operation_id: string;
       }, Json>;
       hr_replace_bulk_attendance_day: FunctionDefinition<{
         p_house_id: string;
