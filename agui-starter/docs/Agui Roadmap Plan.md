@@ -47,15 +47,21 @@
 - **P1 planning is owner-approved (2026-09-25).** Exact-head Preview was READY, root
   HTTP 200, checked runtime logs/errors were clean, and no material review thread
   remained at the approval gate.
-- **Historical Daily DTR Write P1 Runtime has converged in Draft PR #514 and is READY
-  FOR CONTROLLED UAT.** Final reviewed code candidate
-  `6ba5f6f69423a9cbe64bae58c0ff8754471c4eaa` passed Preflight #922,
-  Gate B DB Concurrency #60, and P1 Historical DTR DB Concurrency #48.
-- Exact-head Vercel deployment `dpl_7peikcDme8hiTVQ7xJg6Mrt7EtPd` is READY; Preview
-  root returned HTTP 200; checked runtime logs/errors were clean; material review threads
-  are zero.
-- No merge or Production P1 migration/deployment is authorized by Runtime convergence.
-  The next gate is the separately controlled UAT / PR / Deployment phase.
+- **Historical Daily DTR Write P1 Controlled UAT has converged in Draft PR #514.**
+  Exact tested runtime head `97a3370ea56209b66fb936806da7532671a788bb` passed
+  visible existing-fact correction, owner/manager candidate review, distinct-new
+  fail-closed behavior, and the stale/retry path after one bounded Review & Fix.
+- The stale/retry defect is closed: a stale result now rotates the consumed operation
+  identity and resets the adjudication decision from the refreshed candidate universe;
+  source-of-truth verification reached `ADJUDICATED_EXISTING` then `FINALIZED`
+  without duplicate attendance creation.
+- Before governance-only UAT status synchronization, Preflight #928, Gate B DB
+  Concurrency #66, and P1 Historical DTR DB Concurrency #54 were SUCCESS and exact-head
+  Vercel deployment `dpl_8otsaBaMnhnoQH9qNDGaXSEEKG9F` was READY with zero material
+  review threads.
+- Production remains unchanged. The active gate is now the **final exact-head release
+  review / explicit owner release approval**. No merge or Production P1
+  migration/deployment is authorized yet.
 - Remaining Gate B and Gate C/D/E stay blocked until the P1 release sequence advances.
 - DEC-017 sequence remains: Gate A → Gate-B pre-P1 containment → Historical Daily DTR
   P1 → remaining Gate B → Gate C → Gate D → Gate E.
