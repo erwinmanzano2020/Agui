@@ -15,7 +15,7 @@ import {
   openDtrRemediationAction,
   proposeDtrCorrectionAction,
 } from "./actions";
-import { dtrMutationInitialState } from "./action-types";
+import { dtrMutationInitialState, type DtrMutationState } from "./action-types";
 
 export function FieldError({ message }: { message?: string[] }) {
   if (!message || message.length === 0) return null;
@@ -88,7 +88,11 @@ function formatTimeInput(value: string | null) {
   return formatManilaTimeForUi(value);
 }
 
-function useOperationId(resetOnSuccess: boolean) {
+export function shouldRotateOperationIdentity(state: DtrMutationState) {
+  return state.status === "success" || state.resultStatus === "STALE";
+}
+
+function useOperationId(state: DtrMutationState) {
   const [operationId, setOperationId] = useState("");
 
   useEffect(() => {
@@ -96,17 +100,17 @@ function useOperationId(resetOnSuccess: boolean) {
   }, []);
 
   useEffect(() => {
-    if (resetOnSuccess) {
+    if (shouldRotateOperationIdentity(state)) {
       setOperationId(crypto.randomUUID());
     }
-  }, [resetOnSuccess]);
+  }, [state]);
 
   return operationId;
 }
 
-function useOperationPair(resetOnSuccess: boolean) {
-  const first = useOperationId(resetOnSuccess);
-  const second = useOperationId(resetOnSuccess);
+function useOperationPair(state: DtrMutationState) {
+  const first = useOperationId(state);
+  const second = useOperationId(state);
   return [first, second] as const;
 }
 
@@ -133,7 +137,7 @@ export function CorrectionDtrFactForm({
     proposeDtrCorrectionAction,
     dtrMutationInitialState,
   );
-  const [proposalOperationId, finalizeOperationId] = useOperationPair(state.status === "success");
+  const [proposalOperationId, finalizeOperationId] = useOperationPair(state);
 
   return (
     <form action={formAction} className="flex flex-wrap items-end gap-3">
@@ -252,7 +256,7 @@ export function CreateDtrSegmentForm({
     createDtrSegmentAction,
     dtrMutationInitialState,
   );
-  const operationId = useOperationId(state.status === "success");
+  const operationId = useOperationId(state);
 
   return (
     <form action={formAction} className="mt-4 flex flex-wrap items-end gap-3">
@@ -361,7 +365,7 @@ function RemediationAdjudicationForm({
   const [decision, setDecision] = useState<"EXISTING_RELATED" | "DISTINCT_NEW">(
     (state.candidates?.length ?? 0) > 0 ? "EXISTING_RELATED" : "DISTINCT_NEW",
   );
-  const [operationId, finalizeOperationId] = useOperationPair(result.status === "success");
+  const [operationId, finalizeOperationId] = useOperationPair(result);
   const reviewState =
     result.resultStatus === "STALE" && result.caseId === state.caseId
       ? result
