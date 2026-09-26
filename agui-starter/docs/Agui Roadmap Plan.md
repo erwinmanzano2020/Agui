@@ -59,9 +59,14 @@
   Concurrency #66, and P1 Historical DTR DB Concurrency #54 were SUCCESS and exact-head
   Vercel deployment `dpl_8otsaBaMnhnoQH9qNDGaXSEEKG9F` was READY with zero material
   review threads.
-- Production remains unchanged. The active gate is now the **final exact-head release
-  review / explicit owner release approval**. No merge or Production P1
-  migration/deployment is authorized yet.
+- **Final release review is converged and the slice is READY FOR OWNER RELEASE
+  APPROVAL.** Fresh review verified the governance-synchronized PR head, exact-head CI,
+  exact-head Preview, authenticated Daily DTR refresh, clean warning/error/fatal logs,
+  zero material review threads, and unchanged Production.
+- No merge or Production P1 migration/deployment is authorized until explicit owner
+  release approval. After approval, follow the frozen sequence: re-fetch exact state →
+  squash-merge PR #514 → apply only the three P1 migrations in order → verify
+  grants/RPC/schema cache → deploy the exact merge build → post-deploy verification.
 - Remaining Gate B and Gate C/D/E stay blocked until the P1 release sequence advances.
 - DEC-017 sequence remains: Gate A → Gate-B pre-P1 containment → Historical Daily DTR
   P1 → remaining Gate B → Gate C → Gate D → Gate E.
