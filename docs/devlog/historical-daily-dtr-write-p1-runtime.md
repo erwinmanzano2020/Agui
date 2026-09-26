@@ -2,8 +2,9 @@
 
 ## Status
 
-**RUNTIME IMPLEMENTATION CONVERGED — READY FOR CONTROLLED UAT. Production remains
-unchanged and no merge/release is authorized by this Runtime verdict.**
+**CONTROLLED UAT CONVERGED — READY FOR FINAL EXACT-HEAD RELEASE REVIEW / OWNER RELEASE
+APPROVAL. Production remains unchanged and no merge/release is authorized until the
+owner explicitly approves the exact release actions.**
 
 Runtime base:
 
@@ -210,8 +211,54 @@ Verification on that exact code head:
 Production remains unchanged. No P1 migration has been applied to Production and no
 Production feature/behavior has been enabled.
 
+## Controlled UAT convergence — 2026-09-26
+
+Controlled UAT ran only against the isolated `agui-p1-uat` Supabase project
+(`ectzbcijqhegoamtaqgo`); Production remained on the released Gate-B pre-P1 migration
+set.
+
+Focused acceptance evidence:
+
+- existing-fact location correction: **PASS / FINALIZED**;
+- owner/manager remediation candidate review: **PASS**;
+- distinct-new path: **PASS / FAIL-CLOSED** — adjudication reached
+  `ADJUDICATED_DISTINCT`, finalization returned
+  `APPROVAL_DEPENDENCY_UNAVAILABLE`, and no resulting fact was created;
+- stale/retry path: **PASS after Review & Fix**.
+
+The stale/retry UAT exposed one P1 client defect: after a correct `STALE` response, the
+client reused the consumed remediation operation identity and required a manual
+Distinct → Existing toggle. Runtime fixes now:
+
+- rotate operation identities after `STALE` as well as success;
+- reset the remediation decision from the refreshed candidate universe; and
+- cover both behaviors with regression tests.
+
+The exact tested code head is
+`97a3370ea56209b66fb936806da7532671a788bb`. Its stale retry used a new operation
+identity and durably recorded `ADJUDICATED_EXISTING` then `FINALIZED` with route
+`CORRECTION`; no duplicate/new fact was created.
+
+Final UAT log review also found disposable-UAT identity-enum drift
+(`entity_identifier_type` lacked Production's lowercase `email` and `auth_uid`
+labels). The temporary UAT project was brought to Production enum parity only. No
+Production schema or PR product-code change was made by that environment correction.
+
+Exact-head evidence before this governance-only synchronization:
+
+- Preflight #928: SUCCESS;
+- Gate B DB Concurrency #66: SUCCESS;
+- P1 Historical DTR DB Concurrency #54: SUCCESS;
+- Vercel deployment `dpl_8otsaBaMnhnoQH9qNDGaXSEEKG9F`: READY;
+- stable Preview alias resolved to that exact head;
+- material review threads: zero.
+
+The governance-only synchronization after UAT does not invalidate the focused runtime UAT;
+it requires the normal new-head CI/Preview/final release review before owner approval.
+
 ## Exact next action
 
-Proceed to the separately governed **Controlled UAT / PR / Deployment convergence**
-phase for PR #514. Do not merge PR #514, apply P1 migrations to Production, or claim UAT
-passed until that later gate explicitly authorizes and verifies those actions.
+Run the final exact-head release review on the governance-synchronized PR #514 head.
+If CI, Preview, review threads, scope, cleanup, and rollout/rollback checks remain green,
+stop at the explicit owner release gate. Do not merge PR #514 or apply/deploy P1 to
+Production without that approval.
