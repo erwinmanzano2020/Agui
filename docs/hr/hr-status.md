@@ -2,8 +2,8 @@
 
 ## 2026-09-26 — Historical Daily DTR Write P1 Controlled UAT converged
 
-**Status: CONTROLLED UAT PASS / FINAL EXACT-HEAD RELEASE REVIEW IN PROGRESS. PR #514
-remains Draft/unmerged; Production remains unchanged.**
+**Status: CONTROLLED UAT + FINAL RELEASE REVIEW CONVERGED — READY FOR OWNER RELEASE
+APPROVAL. PR #514 remains Draft/unmerged; Production remains unchanged.**
 
 Controlled UAT used only isolated Supabase project `agui-p1-uat`
 (`ectzbcijqhegoamtaqgo`) and synthetic/disposable attendance fixtures.
@@ -32,9 +32,18 @@ Gate B DB Concurrency #66, and P1 Historical DTR DB Concurrency #54 — all SUCC
 Vercel deployment `dpl_8otsaBaMnhnoQH9qNDGaXSEEKG9F` was READY; material review
 threads were zero.
 
-The next gate is the fresh exact-head release review on the governance-synchronized PR
-head. Merge, Production P1 migrations, Production deployment, and remaining Gate B remain
-unauthorized until explicit owner release approval.
+Fresh release review verified PR #514 head
+`ec066165df534023af75e91571904fd1baa33407`: Preflight #931, Gate B DB Concurrency
+#69, and P1 Historical DTR DB Concurrency #57 all succeeded; exact-head Vercel Preview
+`dpl_7juRMyHaFSpLeBM6QYBznwrA87Eu` is READY; Preview root and authenticated Daily DTR
+returned HTTP 200; no warning/error/fatal log entry and no `auth_uid` /
+`entity_identifier_type` warning appeared after the final authenticated refresh; material
+review threads were zero. Production still has no P1 migrations/RPCs.
+
+The next gate is explicit owner release approval. After approval, re-fetch exact state,
+squash-merge PR #514, apply only the three approved P1 migrations in order, verify
+grants/RPCs/schema cache, deploy the exact merge build, perform post-deploy verification,
+then unblock remaining Gate B only if that verification passes.
 
 ## 2026-09-25 — Historical Daily DTR Write P1 Runtime converged
 
