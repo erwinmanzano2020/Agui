@@ -1,5 +1,41 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-26 — Historical Daily DTR Write P1 Controlled UAT converged
+
+**Status: CONTROLLED UAT PASS / FINAL EXACT-HEAD RELEASE REVIEW IN PROGRESS. PR #514
+remains Draft/unmerged; Production remains unchanged.**
+
+Controlled UAT used only isolated Supabase project `agui-p1-uat`
+(`ectzbcijqhegoamtaqgo`) and synthetic/disposable attendance fixtures.
+
+Focused UAT is complete:
+
+- visible existing-fact location correction: PASS / FINALIZED;
+- owner/manager remediation candidate review: PASS;
+- distinct-new remediation: PASS / fail-closed at absent HR-4 approval dependency with
+  no resulting fact;
+- stale/retry: PASS after Review & Fix.
+
+The stale/retry run exposed and closed a real client retry defect: after `STALE`, the UI
+now rotates the consumed operation identity and resets the decision from the refreshed
+candidate universe. Exact tested runtime head
+`97a3370ea56209b66fb936806da7532671a788bb` used a fresh retry operation ID and
+durably reached `ADJUDICATED_EXISTING` then `FINALIZED` without creating a duplicate
+fact.
+
+The disposable UAT backend also lacked Production's lowercase `email` and `auth_uid`
+`entity_identifier_type` enum labels. UAT only was brought to Production parity; no
+Production schema or application-code change was made for that environment correction.
+
+Before the governance-only UAT documentation sync, exact-head checks were Preflight #928,
+Gate B DB Concurrency #66, and P1 Historical DTR DB Concurrency #54 — all SUCCESS;
+Vercel deployment `dpl_8otsaBaMnhnoQH9qNDGaXSEEKG9F` was READY; material review
+threads were zero.
+
+The next gate is the fresh exact-head release review on the governance-synchronized PR
+head. Merge, Production P1 migrations, Production deployment, and remaining Gate B remain
+unauthorized until explicit owner release approval.
+
 ## 2026-09-25 — Historical Daily DTR Write P1 Runtime converged
 
 **Status: RUNTIME IMPLEMENTATION CONVERGED — READY FOR CONTROLLED UAT. PR #514 remains
