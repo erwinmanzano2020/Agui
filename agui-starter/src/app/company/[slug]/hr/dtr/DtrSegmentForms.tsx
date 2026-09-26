@@ -502,7 +502,7 @@ export function RemediationDtrForm({
     openDtrRemediationAction,
     dtrMutationInitialState,
   );
-  const operationId = useOperationId(state.status === "success");
+  const operationId = useOperationId(state);
 
   return (
     <details className="mt-4 rounded-xl border border-amber-200 bg-amber-50/60 p-3">
