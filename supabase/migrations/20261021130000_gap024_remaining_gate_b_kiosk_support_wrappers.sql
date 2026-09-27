@@ -43,7 +43,8 @@ begin
     perform 1
     from public.employees employee
     where employee.id = p_employee_id
-      and employee.house_id = v_device.house_id;
+      and employee.house_id = v_device.house_id
+    for share;
 
     if not found then
       raise exception 'Kiosk support event employee must belong to the device House'
