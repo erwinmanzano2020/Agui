@@ -15,10 +15,9 @@ export function createSupabaseKioskRepo(supabase: SupabaseClient): KioskRepo {
     },
 
     async touchDevice(deviceId) {
-      const { error } = await supabase
-        .from("hr_kiosk_devices")
-        .update({ last_seen_at: new Date().toISOString() })
-        .eq("id", deviceId);
+      const { error } = await supabase.rpc("hr_touch_kiosk_device_telemetry", {
+        p_device_id: deviceId,
+      });
       if (error) throw new Error(error.message);
     },
 
@@ -86,24 +85,15 @@ export function createSupabaseKioskRepo(supabase: SupabaseClient): KioskRepo {
       };
     },
 
-    async insertKioskEvent({ deviceId, houseId, branchId, employeeId, eventType, occurredAt, metadata }) {
-      const { error } = await supabase.from("hr_kiosk_events").insert({
-        device_id: deviceId,
-        house_id: houseId,
-        branch_id: branchId,
-        employee_id: employeeId ?? null,
-        event_type: eventType,
-        occurred_at: occurredAt,
-        metadata: metadata ?? {},
+    async insertKioskEvent({ deviceId, employeeId, eventType, occurredAt, metadata }) {
+      const { error } = await supabase.rpc("hr_record_kiosk_support_event", {
+        p_device_id: deviceId,
+        p_employee_id: employeeId ?? null,
+        p_event_type: eventType,
+        p_occurred_at: occurredAt,
+        p_metadata: metadata ?? {},
       });
       if (error) throw new Error(error.message);
-
-      const { error: updateDeviceError } = await supabase
-        .from("hr_kiosk_devices")
-        .update({ last_event_at: occurredAt })
-        .eq("id", deviceId)
-        .eq("house_id", houseId);
-      if (updateDeviceError) throw new Error(updateDeviceError.message);
     },
 
   };
