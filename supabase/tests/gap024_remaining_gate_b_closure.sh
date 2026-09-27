@@ -33,6 +33,57 @@ assert_scalar() {
   echo "PASS: $label"
 }
 
+GB_HOUSE="10000000-0000-0000-0000-000000000001"
+GB_BRANCH="20000000-0000-0000-0000-000000000001"
+GB_AUTH_USER="30000000-0000-0000-0000-000000000001"
+GB_DEVICE="60000000-0000-0000-0000-000000000001"
+POST_MANUAL_EMP="82000000-0000-0000-0000-0000000000e1"
+POST_KIOSK_EMP="82000000-0000-0000-0000-0000000000e2"
+POST_BULK_EMP="82000000-0000-0000-0000-0000000000e3"
+
+auth_sql() {
+  local body="$1"
+  psql_super <<SQL
+BEGIN;
+SELECT set_config(
+  'request.jwt.claims',
+  '{"sub":"$GB_AUTH_USER","role":"authenticated"}',
+  true
+);
+SET LOCAL ROLE authenticated;
+$body
+COMMIT;
+SQL
+}
+
+service_sql() {
+  local body="$1"
+  psql_super <<SQL
+BEGIN;
+SET LOCAL ROLE service_role;
+$body
+COMMIT;
+SQL
+}
+
+expect_auth_failure() {
+  local sql="$1"
+  local label="$2"
+  local log
+  log="$(mktemp)"
+  set +e
+  auth_sql "$sql" >"$log" 2>&1
+  local rc=$?
+  set -e
+  if [[ $rc -eq 0 ]]; then
+    cat "$log"
+    rm -f "$log"
+    fail "$label unexpectedly succeeded"
+  fi
+  rm -f "$log"
+  echo "PASS: $label"
+}
+
 expect_role_failure() {
   local role="$1"
   local sql="$2"
@@ -297,6 +348,75 @@ SQL
     ;;
 
   verify-post-p1)
+    echo "Verifying post-cutover producer compatibility on the current business date"
+    psql_super <<SQL
+insert into public.employees (id, code, full_name, rate_per_day, status, branch_id, house_id)
+values
+  ('$POST_MANUAL_EMP', 'RGB-POST-MANUAL', 'Remaining B Post Manual', 0, 'active', '$GB_BRANCH', '$GB_HOUSE'),
+  ('$POST_KIOSK_EMP', 'RGB-POST-KIOSK', 'Remaining B Post Kiosk', 0, 'active', '$GB_BRANCH', '$GB_HOUSE'),
+  ('$POST_BULK_EMP', 'RGB-POST-BULK', 'Remaining B Post Bulk', 0, 'active', '$GB_BRANCH', '$GB_HOUSE')
+on conflict (id) do nothing;
+SQL
+
+    auth_sql "select public.hr_create_manual_attendance(
+      '$GB_HOUSE',
+      '$POST_MANUAL_EMP',
+      '$GB_BRANCH',
+      'rgb-post-manual',
+      (now() at time zone 'Asia/Manila')::date,
+      (((now() at time zone 'Asia/Manila')::date + time '08:00') at time zone 'Asia/Manila'),
+      null
+    );"
+
+    service_sql "select public.hr_apply_kiosk_attendance_scan(
+      '$GB_HOUSE',
+      '$GB_BRANCH',
+      '$GB_DEVICE',
+      '$POST_KIOSK_EMP',
+      'rgb-post-kiosk',
+      now()
+    );"
+
+    auth_sql "select public.hr_replace_bulk_attendance_day(
+      '$GB_HOUSE',
+      '$POST_BULK_EMP',
+      (now() at time zone 'Asia/Manila')::date,
+      'rgb-post-bulk',
+      jsonb_build_array(
+        jsonb_build_object(
+          'timeIn', ((((now() at time zone 'Asia/Manila')::date + time '09:00') at time zone 'Asia/Manila'))::text,
+          'timeOut', ((((now() at time zone 'Asia/Manila')::date + time '12:00') at time zone 'Asia/Manila'))::text
+        )
+      )
+    );"
+
+    assert_scalar "3" "select count(*) from public.hr_attendance_facts where employee_id in ('$POST_MANUAL_EMP','$POST_KIOSK_EMP','$POST_BULK_EMP') and is_active;" "manual, kiosk, and bulk producers remain canonical after cutover"
+    assert_scalar "0" "select count(*) from public.hr_attendance_facts f left join public.hr_attendance_authorization_projection p on p.house_id=f.house_id and p.fact_id=f.id and p.employee_id=f.employee_id where f.employee_id in ('$POST_MANUAL_EMP','$POST_KIOSK_EMP','$POST_BULK_EMP') and f.is_active and p.fact_id is null;" "post-cutover producers immediately maintain projection"
+
+    echo "Verifying authenticated device administration and event read survive cutover"
+    auth_sql "insert into public.hr_kiosk_devices(
+      id, house_id, branch_id, name, token_hash, is_active
+    ) values (
+      '82000000-0000-0000-0000-0000000000d1',
+      '$GB_HOUSE',
+      '$GB_BRANCH',
+      'Remaining B Auth Device',
+      'remaining-b-auth-device-hash',
+      true
+    );
+    update public.hr_kiosk_devices
+    set name='Remaining B Auth Device Updated'
+    where id='82000000-0000-0000-0000-0000000000d1';
+    select count(*) from public.hr_kiosk_events where house_id='$GB_HOUSE';
+    delete from public.hr_kiosk_devices
+    where id='82000000-0000-0000-0000-0000000000d1';"
+
+    expect_auth_failure "insert into public.hr_kiosk_events(
+      house_id, branch_id, device_id, event_type, occurred_at, metadata
+    ) values (
+      '$GB_HOUSE', '$GB_BRANCH', '$GB_DEVICE', 'sync_fail', now(), '{}'::jsonb
+    );" "authenticated raw kiosk-event insert denied with valid owner context"
+
     echo "Verifying full canonical bridge and projection coverage"
     assert_scalar "0" "select count(*) from public.dtr_segments where canonical_fact_id is null;" "no unbridged compatibility rows"
     assert_scalar "0" "select count(*) from public.hr_attendance_facts f left join public.hr_attendance_authorization_projection p on p.house_id=f.house_id and p.fact_id=f.id and p.employee_id=f.employee_id where f.is_active and p.fact_id is null;" "no active fact missing projection"
