@@ -99,12 +99,23 @@ do $verify$
 begin
   if exists (
     select 1
-    from information_schema.role_table_grants grant_row
-    where grant_row.table_schema = 'public'
-      and grant_row.table_name like 'hr_attendance_%'
-      and grant_row.grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role')
+    from pg_class relation
+    join pg_namespace namespace on namespace.oid = relation.relnamespace
+    cross join (values ('anon'), ('authenticated'), ('service_role')) as app_role(role_name)
+    where namespace.nspname = 'public'
+      and relation.relkind in ('r', 'p')
+      and relation.relname like 'hr_attendance_%'
+      and (
+        has_table_privilege(app_role.role_name, relation.oid, 'SELECT')
+        or has_table_privilege(app_role.role_name, relation.oid, 'INSERT')
+        or has_table_privilege(app_role.role_name, relation.oid, 'UPDATE')
+        or has_table_privilege(app_role.role_name, relation.oid, 'DELETE')
+        or has_table_privilege(app_role.role_name, relation.oid, 'TRUNCATE')
+        or has_table_privilege(app_role.role_name, relation.oid, 'REFERENCES')
+        or has_table_privilege(app_role.role_name, relation.oid, 'TRIGGER')
+      )
   ) then
-    raise exception 'Remaining Gate-B cutover left direct canonical attendance table privileges'
+    raise exception 'Remaining Gate-B cutover left effective canonical attendance table privileges'
       using errcode = '55000';
   end if;
 
