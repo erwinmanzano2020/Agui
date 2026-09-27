@@ -1983,6 +1983,16 @@ export interface Database {
         p_operation_id: string;
         p_occurred_at: string;
       }, Json>;
+      hr_record_kiosk_support_event: FunctionDefinition<{
+        p_device_id: string;
+        p_employee_id: string | null;
+        p_event_type: string;
+        p_occurred_at: string;
+        p_metadata: Json;
+      }, void>;
+      hr_touch_kiosk_device_telemetry: FunctionDefinition<{
+        p_device_id: string;
+      }, void>;
       hr_read_canonical_attendance_branch_scoped: FunctionDefinition<{ p_house_id: string; p_start_date: string; p_end_date: string; p_employee_id?: string | null; p_limit?: number; p_offset?: number }, Array<{ fact_id: string; employee_id: string; work_date: string; time_in: string | null; time_out: string | null; hours_worked: number | null; overtime_minutes: number; status: string; active_branch_id: string }>>;
       hr_read_canonical_attendance_house_global: FunctionDefinition<{ p_house_id: string; p_start_date: string; p_end_date: string; p_employee_id?: string | null; p_limit?: number; p_offset?: number }, Array<{ fact_id: string; employee_id: string; work_date: string; time_in: string | null; time_out: string | null; hours_worked: number | null; overtime_minutes: number; status: string; attribution_state: "ATTRIBUTED" | "UNATTRIBUTED" | "CONFLICT"; active_branch_id: string | null }>>;
     };
