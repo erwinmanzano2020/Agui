@@ -1361,4 +1361,11 @@ type/time/metadata, derives House + branch from the device row, and returns void
 the telemetry wrapper as one `(uuid) RETURNS void` overload. Runtime must verify exact
 overload count and generated client signatures after schema-cache reload.
 
+### Round 19 — governance claim precision
+
+**P2 — Roadmap wording still said P1 preserved a generic “no-bypass privilege posture,”
+which contradicted the fresh canonical/service-role findings.** Fix: narrow the released
+claim to the raw DTR-table no-bypass posture actually proven by the P1 release, while the
+new Remaining-Gate-B section owns the broader canonical/supporting-state privilege gaps.
+
 Fresh review is required on the replacement exact head.
