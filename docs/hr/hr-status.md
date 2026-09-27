@@ -2,10 +2,10 @@
 
 ## 2026-09-27 — GAP-024 Remaining Gate B planning active
 
-**Status: PLANNING ACTIVE — Historical Daily DTR Write P1 is released and Production-
-verified; Remaining Gate B is now the current bounded planning target. No Remaining Gate-B
-Runtime, Gate C, merge, schema change, or Production mutation is authorized by this
-planning state.**
+**Status: PLANNING CONVERGED — READY FOR OWNER APPROVAL. Historical Daily DTR Write P1
+is released and Production-verified; Remaining Gate B is the current bounded target.
+PR #515 remains Draft/unmerged. No Remaining Gate-B Runtime, Gate C, merge, schema change,
+or Production mutation has been authorized yet.**
 
 Released predecessor state:
 
@@ -61,8 +61,13 @@ DEC-017 order remains:
 Gate A → Gate-B pre-P1 containment → Historical Daily DTR P1 → **Remaining Gate B** →
 Gate C → Gate D → Gate E.
 
-Gate C remains unauthorized until Remaining Gate B itself passes its separate planning,
-Runtime, verification, and owner gates.
+Planning Review & Fix is converged with unresolved P0/P1/material-P2 = 0. Exact-current-
+head CI/Preview must remain green at the approval gate. The single next authorized action
+is explicit owner approval of PR #515's planning contract; only then may the planning PR
+be merged and a separately bounded Remaining-Gate-B Runtime begin.
+
+Gate C remains unauthorized until Remaining Gate B itself passes its separate Runtime,
+verification, release, and owner gates.
 
 ## 2026-09-26 — Historical Daily DTR Write P1 Controlled UAT converged
 
