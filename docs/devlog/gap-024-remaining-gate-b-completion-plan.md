@@ -505,13 +505,22 @@ The preferred implementation is one closure workflow that:
 5. applies all P1 migrations in released order;
 6. executes the existing Gate-B concurrency harness;
 7. executes the existing P1 concurrency harness using its distinct fixture IDs/state;
-8. runs a **small Remaining-Gate-B closure verifier** for only the missing cross-slice
+8. **restores every test-overridden database seam to the exact released definition before
+   closure assertions** — specifically, the current P1 harness models HR-4
+   APPROVED/REJECTED states by replacing `hr_attendance_p1_hr4_decision` and ends with
+   the modeled APPROVED definition, whereas released Production deliberately defaults
+   that private seam to `UNAVAILABLE`;
+9. runs a **small Remaining-Gate-B closure verifier** for only the missing cross-slice
    assertions: full bridge coverage, semantic rebuild determinism, reader parity,
    operation/grant no-bypass posture, and auxiliary-writer disjointness.
 
 This ordering matters: seeding all representative “legacy” rows only **after** the
 reconcile migration would not test backfill at all and would produce a false Gate-B
 closure proof.
+
+All closure-specific fixture UUIDs / House IDs / operation IDs must be disjoint from the
+existing Gate-B and P1 harness namespaces so reuse cannot accidentally satisfy or disturb
+another harness's assertions.
 
 The closure verifier must not copy large blocks of existing test logic merely to obtain a
 new workflow name.
@@ -766,5 +775,19 @@ invariant rather than freezing the planning-time count of 96 as future business 
 session should be able to recover the exact review surface without searching by inference.
 Fix: record PR #515 in this plan, HR status, and Roadmap while preserving its Draft,
 planning-only, unapproved state.
+
+### Round 4 — fresh integrated-harness state review
+
+**P1 — the existing P1 harness leaves a modeled HR-4 APPROVED seam installed.** In its
+standalone disposable database this is harmless, but an integrated Remaining-Gate-B
+workflow that runs closure assertions afterward could accidentally verify a test-only
+approval capability instead of the released fail-closed Production contract. Fix:
+require restoration of every test-overridden seam — explicitly
+`hr_attendance_p1_hr4_decision` to released `UNAVAILABLE` behavior — before final
+cross-slice assertions.
+
+**P2 — reused harness fixtures need namespace isolation.** Fix: require closure-specific
+House/employee/device/operation identifiers to be disjoint from both existing harnesses
+so one suite cannot satisfy or corrupt another suite's assertions by collision.
 
 Fresh review is required on the replacement exact head.
