@@ -41,16 +41,24 @@ post-P1 system, that canonical attendance authority is complete, deterministic,
 non-bypassable, producer-compatible, replay/idempotency-safe, and ready for the later
 Gate C read cutover.
 
-This is deliberately a **verification/closure-first slice**.
+This is a **verification + bounded privilege-hardening closure slice**.
 
 Current repository and Production evidence already show the pre-P1 containment runtime
-performed the canonical bootstrap/backfill and producer migration. Therefore this plan
-does **not** presume another schema migration, another data backfill, or another product
-behavior change is needed. The future verification Runtime must first prove the existing
-released mechanisms satisfy the Remaining Gate-B acceptance contract.
+performed the canonical bootstrap/backfill and producer migration. Fresh Production
+privilege audit during this planning run, however, found one remaining approved Gate-B
+containment gap: `service_role` still has direct table privileges over several Gate-A
+canonical authority tables because the original Gate-A migration revoked those tables
+from PUBLIC/anon/authenticated but did not revoke `service_role`.
 
-If that exact-head proof exposes a concrete producer/runtime defect, execution must stop
-and return to planning rather than silently broadening this closure slice.
+That is not a new business-policy choice. The already-approved Gate-B contract says raw
+canonical tables are deny-direct and that `service_role` must not remain a generic
+attendance mutation principal. Therefore Remaining Gate B must include one bounded,
+forward-only **privilege-cutover migration** plus the closure verification.
+
+No data model, attendance semantics, producer behavior, attribution rule, or user-facing
+workflow is changed by that migration. If Runtime proof exposes any additional
+producer/runtime/schema defect beyond this frozen privilege closure, execution must stop
+and return to planning rather than silently broadening the slice.
 
 ## 2. Business / security outcome
 
@@ -67,6 +75,9 @@ After the future Remaining Gate-B verification Runtime converges:
 - P1 correction/remediation is included in the producer compatibility proof;
 - invalid or insufficient provenance remains fail-closed;
 - no application principal can create raw-only or projection-invisible attendance;
+- `service_role` has no direct canonical-table mutation path and cannot invoke the
+  projection rebuild as an application mutation primitive;
+- the kiosk wrapper remains the only service-role attendance mutation entrypoint;
 - Gate C prerequisites are either durably proven or the gate remains blocked with a
   concrete named gap.
 
@@ -120,6 +131,27 @@ Read-only Production verification at planning start shows:
 - P1 correction/remediation cases in Production: **0 / 0**;
 - mutation-operation ledger rows in Production: **0**.
 
+Fresh privilege audit additionally found the current Remaining Gate-B blocker:
+
+- `authenticated` has no direct DML on canonical attendance authority tables;
+- `service_role` still has direct SELECT/INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER
+  privileges on:
+  - `hr_attendance_facts`;
+  - `hr_attendance_fact_revisions`;
+  - `hr_attendance_observations`;
+  - `hr_attendance_evidence`;
+  - `hr_attendance_evidence_frames`;
+  - `hr_attendance_fact_evidence`;
+  - `hr_attendance_employee_generations`;
+  - `hr_attendance_authorization_projection`;
+- `service_role` also still has EXECUTE on
+  `hr_rebuild_attendance_authorization_projection(uuid)`;
+- P1 case/event tables, mutation-operation ledger, and authorization history are already
+  deny-direct to `service_role`;
+- the approved kiosk wrapper remains service-role executable as intended.
+
+This privilege posture is why Remaining Gate B cannot close as verification-only.
+
 The 79 UNATTRIBUTED facts are not by themselves a defect. GAP-025 intentionally requires
 insufficient historical provenance to remain fail-closed rather than fabricated from
 current employee/device/schedule context.
@@ -169,6 +201,15 @@ The shared internal producer engine and P1 finalization helpers remain private.
 Raw INSERT/UPDATE/DELETE authority over `dtr_segments` and `dtr_entries` is already
 revoked from `authenticated` and `service_role`.
 
+The **remaining database-principal gap** is direct `service_role` authority on the
+Gate-A canonical tables listed in Section 4 plus direct EXECUTE on the projection rebuild.
+That authority must be cut off in this slice while preserving:
+
+- `hr_apply_kiosk_attendance_scan` as the only ordinary service-role attendance
+  mutation wrapper;
+- protected canonical read RPCs as read-only interfaces where still needed;
+- database-owner / migration-owner authority as explicit break-glass infrastructure.
+
 ### 5.3 Exact-head producer inventory at planning baseline
 
 The first planning audit found the following live mutation-related surfaces on
@@ -202,8 +243,14 @@ Neither is allowed to become a second attendance source of truth.
 
 ## 6. In-scope behavior
 
-The future Remaining Gate-B verification Runtime may change **tests, CI verification, and
-governance evidence only** unless this plan is explicitly reopened.
+The future Remaining Gate-B Runtime may change only:
+
+- one forward-only privilege-cutover migration;
+- bounded static/integration verification;
+- the closure CI workflow/helper;
+- generated database contract files **only if** the privilege-only migration genuinely
+  changes a generated contract (not expected);
+- governance evidence.
 
 It must:
 
@@ -224,10 +271,14 @@ It must:
 8. prove same-operation/different-input fails closed;
 9. prove multi-session races do not produce raw-only, duplicate, or stale-visible facts;
 10. prove P1 correction/remediation preserves the same canonical/projection invariants;
-11. prove current direct table/RPC grants still prevent mutation bypass;
-12. prove canonical branch/global readers observe only their approved state;
-13. compare read-only Production counts/grants/migration history before closure;
-14. record an explicit Remaining Gate-B completion/blocked verdict.
+11. add the bounded privilege-cutover migration and prove direct
+    `service_role` canonical-table access is removed;
+12. prove `service_role` cannot call the projection rebuild directly while the kiosk
+    wrapper still works;
+13. prove current direct table/RPC grants otherwise prevent mutation bypass;
+14. prove canonical branch/global readers observe only their approved state;
+15. compare read-only Production counts/grants/migration history before closure;
+16. record an explicit Remaining Gate-B completion/blocked verdict.
 
 ## 7. Explicit out of scope
 
@@ -249,7 +300,9 @@ This slice does **not** authorize:
 - POS, Operations, Finance, Telegram, native/offline product expansion;
 - synthetic Production attendance writes for verification;
 - a new canonical table, authoritative store, or feature flag;
-- a new migration merely to mark Gate B complete.
+- any data-shape/business-semantic migration;
+- any migration beyond the single bounded privilege-cutover migration unless planning is
+  reopened.
 
 ## 8. Existing contracts consumed
 
@@ -291,23 +344,54 @@ unavailable.
 
 ## 9. New / changed backend contract
 
-**None planned.**
+One **permission-only forward migration** is planned.
 
-Remaining Gate B is not a new product/backend contract. It verifies the released
-Gate-A/Gate-B/P1 contracts together.
+Runtime must create the migration through the repository's normal Supabase migration
+creation flow; this plan freezes the migration purpose/name stem, not a fabricated
+timestamp:
 
-If Runtime proof demonstrates that a currently active producer cannot satisfy the frozen
-contract without a backend/schema change, the slice is blocked and must return to
-planning. Do not improvise a new RPC, table, privilege, attribution rule, or mutation
-lane inside the verification PR.
+`gap024_remaining_gate_b_canonical_privilege_cutover`
+
+The migration contract is:
+
+1. re-audit the exact-head application for direct canonical-table dependencies;
+2. `REVOKE ALL` direct table privileges from `service_role` on the Gate-A canonical
+   authority tables listed in Section 4;
+3. selectively re-grant **SELECT only** on a canonical table only if exact-head repository
+   evidence proves a required service-backed read that cannot use an already-approved
+   protected reader; the expected default is **no direct canonical-table grant**;
+4. repeat/retain deny-direct posture for PUBLIC/anon/authenticated as defense in depth;
+5. revoke `service_role` EXECUTE on
+   `hr_rebuild_attendance_authorization_projection(uuid)`;
+6. revoke any leftover `service_role` EXECUTE on private Gate-A trigger/guard helpers
+   that are not approved public/service entrypoints;
+7. preserve service-role EXECUTE on
+   `hr_apply_kiosk_attendance_scan(uuid,uuid,uuid,uuid,text,timestamptz)`;
+8. preserve protected read RPC behavior; this slice is not Gate-D/E read retirement;
+9. issue `NOTIFY pgrst, 'reload schema'`;
+10. perform **no data rewrite**.
+
+Expected post-migration attendance mutation entrypoints:
+
+- authenticated: manual create, bulk replacement, P1 correction/remediation wrappers;
+- service_role: kiosk attendance scan only;
+- database owner / controlled migration-admin boundary: maintenance repair and private
+  internals.
+
+If Runtime proof demonstrates that a currently active producer needs direct canonical
+table mutation, or any other schema/business contract change, the slice is blocked and
+must return to planning. Do not improvise a new RPC, table, attribution rule, or mutation
+lane.
 
 ## 10. Data / store impact
 
 ### Authoritative operational state
 
-No new authoritative state is planned.
+No new authoritative **data** state is planned.
 
 Existing canonical attendance tables and P1 case/event tables remain authoritative.
+Remaining Gate B changes only which application database principals may directly access
+that authority.
 
 ### Convenience / compatibility state
 
@@ -393,8 +477,12 @@ The future verification must assert at minimum:
 
 - raw DTR table mutation remains denied to `authenticated`;
 - raw DTR table mutation remains denied to application `service_role`;
-- direct INSERT/UPDATE/DELETE/TRUNCATE against canonical attendance authority tables
-  remains denied to `authenticated` and application `service_role`, including facts,
+- direct table access to canonical attendance authority remains denied to
+  `authenticated`;
+- direct service-role canonical-table privileges are absent by default; any retained
+  SELECT must have an exact reviewed dependency and no mutation/schema-adjacent grants;
+- INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER against canonical attendance authority
+  tables are denied to application `service_role`, including facts,
   revisions, observations, evidence/frames/membership, employee generations,
   projection/history, mutation operations, and P1 case/event tables;
 - public/anon cannot call canonical mutation wrappers;
@@ -404,15 +492,23 @@ The future verification must assert at minimum:
 - maintenance repair remains unavailable to normal application roles;
 - private producer/P1 helpers remain non-callable;
 - P1 case tables have no direct authenticated mutation lane;
+- `service_role` cannot directly execute
+  `hr_rebuild_attendance_authorization_projection`;
+- `hr_apply_kiosk_attendance_scan` remains service-role executable;
 - canonical readers preserve branch-limited versus house-global behavior.
 
 ## 16. Operational writes
 
-No new operational write is introduced.
+No new business/attendance write is introduced.
 
-The test harness may write only to an isolated disposable Supabase/PostgreSQL database.
+The privilege migration changes PostgreSQL grants only; it does not write attendance
+rows.
 
-Production verification remains read-only.
+The test harness may write attendance fixtures only to an isolated disposable
+Supabase/PostgreSQL database.
+
+Pre-release Production verification remains read-only. Owner-approved release later
+applies only the exact privilege migration to Production.
 
 ## 17. Convenience / cache / local persistence
 
@@ -594,14 +690,15 @@ After trigger/setup, it should:
    - bridged canonical ATTRIBUTED only when the full released proof succeeds; and
    - bridged canonical UNATTRIBUTED/fail-closed, never fabricated ATTRIBUTED;
 5. applies all P1 migrations in released order;
-6. executes the existing Gate-B concurrency harness;
-7. executes the existing P1 concurrency harness using its distinct fixture IDs/state;
-8. **restores every test-overridden database seam to the exact released definition before
+6. applies the new Remaining-Gate-B canonical privilege-cutover migration;
+7. executes the existing Gate-B concurrency harness;
+8. executes the existing P1 concurrency harness using its distinct fixture IDs/state;
+9. **restores every test-overridden database seam to the exact released definition before
    closure assertions** — specifically, the current P1 harness models HR-4
    APPROVED/REJECTED states by replacing `hr_attendance_p1_hr4_decision` and ends with
    the modeled APPROVED definition, whereas released Production deliberately defaults
    that private seam to `UNAVAILABLE`;
-9. runs a **small Remaining-Gate-B closure verifier** for only the missing cross-slice
+10. runs a **small Remaining-Gate-B closure verifier** for only the missing cross-slice
    assertions: full bridge coverage, semantic rebuild determinism, reader parity,
    operation/grant no-bypass posture across both compatibility and canonical authority
    tables, kiosk event-type ownership/coupling, and auxiliary-writer disposition.
@@ -668,8 +765,12 @@ Before release approval, read-only Production checks must confirm:
 - no active fact missing a current projection;
 - no unbridged compatibility segment;
 - no direct app-role raw DTR mutation privilege;
-- no direct authenticated/service-role DML privilege on canonical attendance authority
-  tables or P1 lifecycle tables;
+- no direct authenticated canonical-table access;
+- no service-role INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER on canonical authority;
+- any retained service-role canonical SELECT has an exact reviewed dependency;
+- service_role cannot execute the projection rebuild directly;
+- kiosk wrapper remains service-role executable;
+- no direct authenticated/service-role DML privilege on P1 lifecycle tables;
 - canonical wrapper/grant/search_path posture;
 - P1 case/event table RLS and direct-DML denial;
 - no unexpected ATTRIBUTED/UNATTRIBUTED/CONFLICT transition since planning baseline;
@@ -709,22 +810,29 @@ At closure:
 
 ## 29. Deployment / data deployment sequence
 
-Planned sequence for the future verification Runtime:
+Planned sequence for the future Runtime/release:
 
 1. branch from then-current `develop`;
-2. add/extend only verification tests/workflow and governance evidence;
-3. run Review & Fix to exact-head convergence;
-4. run scoped integrated disposable DB proof;
-5. build/Preview check if automatically applicable;
-6. perform read-only Production baseline comparison;
-7. request owner release approval;
-8. merge the verification/closure PR only after approval;
-9. **do not apply a Production migration** unless planning has been reopened;
-10. **do not promote a new Production application artifact merely for test/docs-only
-    changes**;
-11. re-check Production health/read-only invariants;
-12. record Remaining Gate B closed;
-13. leave Gate C unauthorized until the owner separately approves its planning/runtime
+2. create the single privilege-cutover migration through the normal Supabase migration
+   command;
+3. add/extend only the frozen verification tests/workflow/helper and governance evidence;
+4. run Review & Fix to exact-head convergence;
+5. run scoped integrated disposable DB proof with the privilege migration applied before
+   final harness/closure assertions;
+6. build/Preview check if automatically applicable;
+7. perform read-only Production baseline + privilege comparison;
+8. request explicit owner release approval;
+9. squash-merge the Runtime/closure PR only after approval;
+10. fetch the privilege migration from the exact merge commit;
+11. re-check Production migration history and privilege matrix immediately before change;
+12. apply **only** the exact unapplied Remaining-Gate-B privilege migration;
+13. verify PostgREST schema reload, canonical-table grants, function EXECUTE grants,
+    kiosk command survivability, and all read-only canonical invariants;
+14. no Vercel Production promotion is required if the merged diff contains no application
+    runtime code; if Runtime scope changes, planning must reopen before release;
+15. inspect Production warning/error/fatal logs and smoke the existing Production app;
+16. record Remaining Gate B closed only after all post-migration verification passes;
+17. leave Gate C unauthorized until the owner separately approves its planning/runtime
     progression.
 
 ## 30. Cleanup
@@ -740,9 +848,18 @@ Future Runtime must:
 
 ## 31. Rollback / kill switch
 
-No new Production behavior means there is no new product kill switch.
+There is no feature-flag kill switch for a database privilege cutover.
 
-If verification exposes a defect:
+Rollback policy is **fix forward**. Restoring broad direct canonical-table mutation to
+`service_role` is not an acceptable routine rollback because that recreates the Gate-B
+bypass this slice exists to close.
+
+If pre-release verification finds a required direct dependency, stop before Production
+and return to planning. If an unforeseen post-release dependency appears, use a separately
+reviewed forward permission correction that grants only the minimum non-mutating
+capability needed; do not broadly re-grant canonical DML.
+
+If verification exposes any other defect:
 
 - do not close Gate B;
 - do not weaken grants;
@@ -773,17 +890,21 @@ Remaining Gate B is complete only when all are true on the exact verification he
 10. branch/global canonical reader assertions pass;
 11. insufficient/conflicting provenance fails closed;
 12. direct authenticated/service-role raw DTR mutation remains denied;
-13. direct authenticated/service-role DML on canonical attendance authority and P1
-    lifecycle tables remains denied;
-14. private helpers remain private;
-15. no active fact lacks current projection;
-16. no compatibility row is unbridged;
-17. no active producer can create raw-only/projection-invisible attendance;
-18. no Gate C/D/E behavior was pulled forward;
-19. exact-head CI is green;
-20. material review threads = 0;
-21. current Roadmap/HR status and detailed plan agree;
-22. read-only Production verification has no blocker.
+13. authenticated has no direct canonical-table access;
+14. service_role has no direct canonical-table mutation/schema-adjacent privileges and
+    no unreviewed direct canonical SELECT;
+15. service_role cannot execute the projection rebuild directly;
+16. kiosk wrapper remains the only service-role attendance mutation entrypoint;
+17. direct authenticated/service-role DML on P1 lifecycle tables remains denied;
+18. private helpers remain private;
+19. no active fact lacks current projection;
+20. no compatibility row is unbridged;
+21. no active producer can create raw-only/projection-invisible attendance;
+22. no Gate C/D/E behavior was pulled forward;
+23. exact-head CI is green;
+24. material review threads = 0;
+25. current Roadmap/HR status and detailed plan agree;
+26. read-only Production verification has no blocker.
 
 ## 33. Governance / authorization boundary
 
@@ -814,6 +935,9 @@ Explicitly deferred:
 
 ## 35. Initial residual risks to carry into Runtime
 
+- The current privilege gap means Remaining Gate B is not verification-only; release
+  sequencing must not apply the privilege cutover before exact-head producer dependency
+  proof is green.
 - The current 96-row Production baseline is small and clean; larger future attendance
   volume may expose rebuild contention not visible in this dataset.
 - Production operation ledger is currently empty, so live replay evidence is absent;
@@ -972,5 +1096,23 @@ bypass the command engine by writing facts/evidence/projection/generation/operat
 directly. Fix: extend static producer discovery, disposable DB grant verification, and
 Production read-only verification to the full canonical authority table set for both
 `authenticated` and application `service_role`.
+
+### Round 12 — Production principal privilege audit
+
+**P1 — Remaining Gate B was incorrectly modeled as verification-only.** Fresh Production
+grant inspection proved that `service_role` still has direct canonical-table privileges
+on core Gate-A authority tables and can execute the projection rebuild. This violates the
+already-approved Gate-B requirement that raw canonical authority be deny-direct and that
+`service_role` not remain a generic attendance mutation principal. The gap originates
+from Gate A revoking table privileges from PUBLIC/anon/authenticated but not
+`service_role`.
+
+Fix: Remaining Gate B now includes one bounded forward privilege-cutover migration.
+The migration revokes direct service-role canonical table access by default, preserves
+SELECT only if a concrete exact-head dependency is proven, removes mutation/schema-
+adjacent privileges unconditionally, revokes direct service-role projection rebuild,
+keeps the kiosk wrapper as the sole ordinary service-role attendance mutation entrypoint,
+reloads PostgREST schema, and performs no data rewrite. Release sequencing and rollback
+were updated accordingly.
 
 Fresh review is required on the replacement exact head.
