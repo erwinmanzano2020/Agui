@@ -166,6 +166,29 @@ The shared internal producer engine and P1 finalization helpers remain private.
 Raw INSERT/UPDATE/DELETE authority over `dtr_segments` and `dtr_entries` is already
 revoked from `authenticated` and `service_role`.
 
+### 5.3 Exact-head producer inventory at planning baseline
+
+The first planning audit found the following live mutation-related surfaces on
+`a95c3c921e067297f4f033620fe2f4ede7e7c5aa`. Runtime must re-run the inventory because
+this table is evidence, not a permanent allowlist.
+
+| Surface | Exact-head path | Current disposition |
+|---|---|---|
+| Daily DTR same-day manual create | `src/app/company/[slug]/hr/dtr/actions.ts` → `src/lib/hr/dtr-segments-server.ts` | authenticated canonical command `hr_create_manual_attendance` |
+| Daily DTR historical correction | `actions.ts` → `attendance-p1-server.ts` | P1 proposal/finalization commands |
+| Daily DTR historical missing-attendance review | `actions.ts` → `attendance-p1-server.ts` | P1 open/adjudicate/finalize commands |
+| Kiosk online/offline attendance | `src/lib/hr/kiosk/service.ts` → `repository.ts` | device-authenticated service path → `hr_apply_kiosk_attendance_scan` |
+| Kiosk event/device telemetry | `src/lib/hr/kiosk/repository.ts` | auxiliary event + device timestamp writes; must remain database-disjoint from canonical attendance mutation |
+| Bulk DTR replacement | `src/app/api/payroll/dtr-bulk/route.ts` | authenticated `hr_replace_bulk_attendance_day` |
+| Timezone repair | `scripts/fix-dtr-timezone.ts` | emits private maintenance command calls; no raw DTR UPDATE |
+| Legacy `payroll/dtr-today` browser writer | `src/app/payroll/dtr-today/page.client.tsx` | retired as writer / preview-only |
+| Legacy `payroll/dtr-bulk/page2.tsx` | absent | retired |
+| Payroll/payslip/overtime DTR access | payroll preview/run/payslip/overtime server paths | current **read** consumers only; later Gate D, not Gate-B writer blockers |
+
+Runtime inventory must also search for raw SQL, PostgREST, RPC, scripts, background jobs,
+admin utilities, service-role clients, and newly added routes rather than relying only on
+the known paths above.
+
 ### 5.3 Compatibility state
 
 `dtr_segments` remains a compatibility projection/bridge during staged Gate C/D work.
@@ -457,14 +480,24 @@ Minimum static assertions:
 
 ## 25. Integration / backend tests
 
-Prefer one integrated disposable database proof that applies:
+Do **not** fork a third independent attendance fixture/harness that can drift from the
+already released Gate-B and P1 proofs.
 
-1. scoped prerequisite fixture;
-2. all Gate-A migrations;
-3. all Gate-B migrations;
-4. all P1 migrations.
+The preferred implementation is one closure workflow that:
 
-Then seed representative:
+1. starts the same scoped prerequisite fixture used by the existing database workflows;
+2. applies all Gate-A, Gate-B, and P1 migrations once in their released order;
+3. executes the existing Gate-B concurrency harness;
+4. executes the existing P1 concurrency harness against a clean compatible fixture/state
+   or composes their proven scenarios into one shared fixture only when isolation makes
+   direct sequential reuse impossible; and
+5. adds a **small Remaining-Gate-B closure verifier** only for cross-slice assertions that
+   neither existing harness currently proves.
+
+The closure verifier must not copy large blocks of existing test logic merely to obtain a
+new workflow name.
+
+Representative cross-slice state must include:
 
 - legacy manual segment;
 - legacy kiosk/system segment with valid provable event linkage;
@@ -488,8 +521,22 @@ Required invariant snapshots before and after deterministic rebuild:
 - employee generation;
 - authorization-history cardinality/hash as applicable.
 
-Two rebuilds without authoritative change must produce the same current projection and
-must not manufacture new semantic evidence or alter fact identity.
+Two rebuilds without authoritative change must reproduce the same semantic projection
+tuple for every current fact:
+`fact_id + value_revision + evidence_basis_revision + fingerprint + attribution_state +
+active_branch_id + governing_evidence_ids`.
+
+`rebuilt_at` is intentionally non-semantic and may change.
+
+Authorization history must **not gain a second row for the same exact
+House/fact/value-revision/evidence-basis-revision pair** because its primary key and
+`ON CONFLICT ... DO NOTHING` contract make rebuild replay idempotent. The verifier must
+compare semantic history keys/content, not wall-clock timestamps.
+
+Do not test “backfill idempotency” by blindly re-running already-applied migration files
+inside the same database. Migration replay is proved by constructing a fresh disposable
+database from the released ordered chain; rebuild/idempotency is proved through the
+released callable/reconciliation contracts and their stable keys.
 
 ## 26. Production-shaped baseline verification
 
@@ -654,7 +701,31 @@ Explicitly deferred:
 
 ## 36. Review & Fix history
 
+### Round 0 — initial draft
+
 Initial draft created from the exact post-P1 repository, Production Vercel deployment,
 Production Supabase state, and owner-approved GAP-024 ordering.
 
-Fresh adversarial review is required after this draft and after every planning edit.
+### Round 1 — fresh adversarial review and fixes
+
+**P1 — durable governance was stale after the P1 release.** The Roadmap and HR status
+still described P1 as awaiting release even though PR #514, Production migrations, and the
+exact Production deployment were complete. Fix: synchronize those durable governance
+records in this planning PR so a fresh chat cannot select the wrong active slice.
+
+**P2 — producer inventory was implicit rather than auditable.** A closure plan that says
+“inventory every writer” without recording the known exact-head surfaces risks omitting an
+auxiliary/service path. Fix: add Section 5.3 with the current producer/auxiliary/read-only
+inventory plus an explicit exact-head re-search requirement.
+
+**P2 — the initial integration-test wording risked creating a third drifting harness.**
+Gate-B and P1 already have real database harnesses. Fix: require reuse/composition of the
+released harnesses and limit new code to a small cross-slice closure verifier.
+
+**P2 — rebuild determinism was underspecified around audit timestamps/history.** A literal
+row/hash comparison could falsely fail because `rebuilt_at` changes, while history is
+keyed by fact/value/evidence revision. Fix: define the semantic projection tuple and the
+history-key idempotency assertion, and explicitly prohibit treating migration re-execution
+as the idempotency test.
+
+Fresh review is required after these fixes and after governance synchronization.
