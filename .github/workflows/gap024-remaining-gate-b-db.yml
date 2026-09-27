@@ -33,6 +33,7 @@ jobs:
           version: latest
 
       - name: Generate approved Remaining Gate B migration filenames
+        id: migrations
         shell: bash
         run: |
           set -euo pipefail
@@ -42,4 +43,15 @@ jobs:
           sleep 1
           supabase migration new gap024_remaining_gate_b_privilege_cutover
           printf '%s\n' "GENERATED_MIGRATIONS"
-          ls -1 supabase/migrations/*_gap024_remaining_gate_b_*.sql
+          files=(supabase/migrations/*_gap024_remaining_gate_b_*.sql)
+          printf '%s\n' "${files[@]}"
+          support="$(basename "${files[0]}")"
+          cutover="$(basename "${files[1]}")"
+          echo "artifact_name=migration-paths--${support}--${cutover}" >> "$GITHUB_OUTPUT"
+
+      - name: Persist generated migration-name evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.migrations.outputs.artifact_name }}
+          path: supabase/migrations/*_gap024_remaining_gate_b_*.sql
+          if-no-files-found: error
