@@ -32,7 +32,7 @@ begin
   into v_device
   from public.hr_kiosk_devices device
   where device.id = p_device_id
-  for share;
+  for update;
 
   if not found then
     raise exception 'Kiosk support event requires an existing device'
