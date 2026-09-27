@@ -44,7 +44,8 @@
   compatibility rows, and the released **raw DTR-table** no-bypass privilege posture.
   The broader canonical/supporting-state privilege audit below found the Remaining-Gate-B
   gaps that are now being planned.
-- **Current bounded target: GAP-024 Remaining Gate B — PLANNING ACTIVE.**
+- **Current bounded target: GAP-024 Remaining Gate B — PLANNING CONVERGED / READY FOR
+  OWNER APPROVAL.**
   Planning artifact:
   `docs/devlog/gap-024-remaining-gate-b-completion-plan.md`.
   Hosted planning PR: **#515 — Plan GAP-024 Remaining Gate B completion**
@@ -59,12 +60,15 @@
   hardening**: two ordered forward migrations, a narrow kiosk repository adapter change,
   exact-head producer discovery, released Gate-B + P1 harness reuse/composition,
   deterministic rebuild/replay proof, and Production invariant verification.
-- No Remaining Gate-B Runtime is authorized yet. After owner approval of this planning
-  PR, the bounded Runtime may add only the additive kiosk support-wrapper migration,
-  wrapper-capable kiosk repository adapter/types/tests, final privilege-cutover migration,
-  and closure verification. No product behavior/attribution semantics, Gate C cutover,
-  Gate D/E work, unrelated HR work, POS, Operations, or Finance work is authorized by
-  this planning state.
+- Planning Review & Fix is converged with unresolved P0/P1/material-P2 = 0. PR #515
+  remains Draft/unmerged; exact-current-head CI/Preview must remain green. The single next
+  authorized action is explicit owner approval of the planning contract.
+- No Remaining Gate-B Runtime is authorized yet. After owner approval and merge of the
+  planning PR, a separately bounded Runtime may add only the additive kiosk support-
+  wrapper migration, wrapper-capable kiosk repository/http adapter + generated types/tests,
+  final privilege-cutover migration, and closure verification. No product
+  behavior/attribution semantics, Gate C cutover, Gate D/E work, unrelated HR work, POS,
+  Operations, or Finance work is authorized by this planning state.
 - DEC-017 sequence remains:
   Gate A → Gate-B pre-P1 containment → Historical Daily DTR P1 → **Remaining Gate B** →
   Gate C → Gate D → Gate E.
