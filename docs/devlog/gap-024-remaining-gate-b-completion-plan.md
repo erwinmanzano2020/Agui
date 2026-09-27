@@ -1125,6 +1125,13 @@ Explicitly deferred:
   records branch-visible must not lead to fabricated attribution.
 - Supabase/PostgREST behavior can drift across platform updates; final Runtime must
   verify current grants/function signatures/schema-cache behavior on the release path.
+- Repository evidence shows no legitimate external consumer that requires the broad
+  canonical/event/device grants being removed, but an undocumented external client cannot
+  be proven absent from source alone; the staged release, runtime-log checks, and
+  pre-cutover dependency audit reduce but do not eliminate that integration risk.
+- There is a deliberately short post-deploy/pre-cutover window where the wrapper-capable
+  app is live while old raw support grants still coexist. Release execution should
+  minimize this window and never treat that temporary posture as Gate-B completion.
 
 ## 36. Review & Fix history
 
@@ -1395,5 +1402,12 @@ post-release proof that the gaps are closed.
 scope.** Fix: explicitly test ping telemetry, scan/sync response preservation, allowed
 support-event classes, forbidden provenance event classes, post-cutover raw DML denial,
 and authenticated admin/read survivability against an isolated backend.
+
+### Round 21 — residual rollout risk completeness
+
+**P3 — residual risk did not explicitly mention undocumented external grant consumers or
+the intentional short coexistence window between wrapper-capable app promotion and the
+final privilege migration.** Fix: document both as realistic release risks without
+weakening the cutover contract.
 
 Fresh review is required on the replacement exact head.
