@@ -23,7 +23,7 @@ on:
 jobs:
   remaining-gate-b-db:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -32,26 +32,97 @@ jobs:
         with:
           version: latest
 
-      - name: Generate approved Remaining Gate B migration filenames
-        id: migrations
+      - name: Start disposable local database without historical repo replay
         shell: bash
         run: |
           set -euo pipefail
-          test ! -e supabase/migrations/*_gap024_remaining_gate_b_kiosk_support_wrappers.sql
-          test ! -e supabase/migrations/*_gap024_remaining_gate_b_privilege_cutover.sql
-          supabase migration new gap024_remaining_gate_b_kiosk_support_wrappers
-          sleep 1
-          supabase migration new gap024_remaining_gate_b_privilege_cutover
-          printf '%s\n' "GENERATED_MIGRATIONS"
-          files=(supabase/migrations/*_gap024_remaining_gate_b_*.sql)
-          printf '%s\n' "${files[@]}"
-          support="$(basename "${files[0]}")"
-          cutover="$(basename "${files[1]}")"
-          echo "artifact_name=migration-paths--${support}--${cutover}" >> "$GITHUB_OUTPUT"
+          mv supabase/migrations supabase/migrations.repo
+          mkdir supabase/migrations
+          restore_migrations() {
+            rm -rf supabase/migrations
+            mv supabase/migrations.repo supabase/migrations
+          }
+          trap restore_migrations EXIT
+          supabase db start
+          restore_migrations
+          trap - EXIT
 
-      - name: Persist generated migration-name evidence
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ steps.migrations.outputs.artifact_name }}
-          path: supabase/migrations/*_gap024_remaining_gate_b_*.sql
-          if-no-files-found: error
+      - name: Apply phased Gate-A / Gate-B / P1 / Remaining-B chain
+        shell: bash
+        run: |
+          set -euo pipefail
+          DB_CONTAINER="$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -n 1)"
+          test -n "$DB_CONTAINER"
+
+          apply_sql() {
+            local file="$1"
+            echo "Applying $file"
+            docker exec -i "$DB_CONTAINER"               psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres < "$file"
+          }
+
+          apply_sql supabase/tests/gap024_gate_ab_prerequisite.sql
+          bash supabase/tests/gap024_remaining_gate_b_closure.sh prepare-live-kiosk-prereqs
+
+          gate_a=(
+            supabase/migrations/20261019100000_gap024_gate_a_attendance_authority.sql
+            supabase/migrations/20261019110000_gap024_gate_a_live_policy_compatibility.sql
+            supabase/migrations/20261019120000_gap024_gate_a_policy_surface_replay_guard.sql
+            supabase/migrations/20261019130000_gap024_gate_a_role_scope_guard.sql
+            supabase/migrations/20261019140000_gap024_gate_a_supersession_lookup_index.sql
+            supabase/migrations/20261019150000_gap024_gate_a_projection_history.sql
+            supabase/migrations/20261019160000_gap024_gate_a_activation_history_guard.sql
+            supabase/migrations/20261019170000_gap024_gate_a_activation_history_privilege.sql
+            supabase/migrations/20261019180000_gap024_gate_a_retired_fact_pointer_freeze.sql
+            supabase/migrations/20261019190000_gap024_gate_a_initial_active_guard.sql
+            supabase/migrations/20261019200000_gap024_gate_a_membership_frame_lock_order.sql
+          )
+          gate_b_pre_cutover=(
+            supabase/migrations/20261020100000_gap024_gate_b_containment_foundation.sql
+            supabase/migrations/20261020110000_gap024_gate_b_manual_commands.sql
+            supabase/migrations/20261020120000_gap024_gate_b_kiosk_command.sql
+            supabase/migrations/20261020130000_gap024_gate_b_bulk_command.sql
+            supabase/migrations/20261020140000_gap024_gate_b_repair_command.sql
+          )
+
+          for migration in "${gate_a[@]}" "${gate_b_pre_cutover[@]}"; do
+            apply_sql "$migration"
+          done
+
+          bash supabase/tests/gap024_remaining_gate_b_closure.sh seed-pre-cutover
+          apply_sql supabase/migrations/20261020150000_gap024_gate_b_reconcile_cutover.sql
+          bash supabase/tests/gap024_remaining_gate_b_closure.sh verify-reconcile
+
+          p1=(
+            supabase/migrations/20261021100000_historical_dtr_p1_foundation.sql
+            supabase/migrations/20261021110000_historical_dtr_p1_correction_commands.sql
+            supabase/migrations/20261021120000_historical_dtr_p1_remediation_commands.sql
+          )
+          remaining_b=(
+            supabase/migrations/20260927094900_gap024_remaining_gate_b_kiosk_support_wrappers.sql
+            supabase/migrations/20260927094901_gap024_remaining_gate_b_privilege_cutover.sql
+          )
+
+          for migration in "${p1[@]}" "${remaining_b[@]}"; do
+            apply_sql "$migration"
+          done
+
+      - name: Re-run released Gate-B concurrency proof
+        run: bash supabase/tests/gap024_gate_b_concurrency.sh
+
+      - name: Re-run released P1 concurrency proof
+        run: bash supabase/tests/historical_dtr_p1_concurrency.sh
+
+      - name: Restore released seams and verify cross-slice closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash supabase/tests/gap024_remaining_gate_b_closure.sh restore-released-seams
+          bash supabase/tests/gap024_remaining_gate_b_closure.sh verify-post-p1
+
+      - name: Show local Supabase status on failure
+        if: failure()
+        run: supabase status || true
+
+      - name: Stop disposable local stack
+        if: always()
+        run: supabase stop --no-backup || true
