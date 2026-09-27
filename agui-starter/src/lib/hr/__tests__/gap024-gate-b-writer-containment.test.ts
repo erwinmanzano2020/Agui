@@ -49,6 +49,13 @@ const kioskHttp = repoFile(
 const kioskAdmin = repoFile(
   "agui-starter/src/lib/hr/kiosk/admin.ts",
 );
+const kioskAdminRoutes = [
+  "agui-starter/src/app/api/hr/kiosk-devices/route.ts",
+  "agui-starter/src/app/api/hr/kiosk-devices/[id]/enable/route.ts",
+  "agui-starter/src/app/api/hr/kiosk-devices/[id]/disable/route.ts",
+  "agui-starter/src/app/api/hr/kiosk-devices/[id]/rotate-token/route.ts",
+  "agui-starter/src/app/api/hr/kiosk-devices/[id]/events/route.ts",
+].map((path) => ({ path, content: repoFile(path) }));
 
 function repositoryRoot() {
   const root = [
@@ -329,8 +336,23 @@ test("Remaining Gate B generated client contract exposes only the approved suppo
 });
 
 test("kiosk device administration stays on the authenticated RLS client", () => {
-  assert.match(kioskAdmin, /createServerSupabaseClient\(\)/i);
-  assert.doesNotMatch(kioskAdmin, /createServiceSupabaseClient|createServiceClient|getServiceSupabase/i);
+  assert.doesNotMatch(
+    kioskAdmin,
+    /createServiceSupabaseClient|createServiceClient|getServiceSupabase/i,
+  );
+
+  for (const route of kioskAdminRoutes) {
+    assert.match(
+      route.content,
+      /createServerSupabaseClient\(\)/i,
+      `${route.path} must construct the authenticated server client`,
+    );
+    assert.doesNotMatch(
+      route.content,
+      /createServiceSupabaseClient|createServiceClient|getServiceSupabase/i,
+      `${route.path} must not construct a service-role client`,
+    );
+  }
 });
 
 test("Remaining Gate B support wrappers are narrow, service-only, and derive trusted context", () => {
