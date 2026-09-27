@@ -23,6 +23,9 @@ Released predecessor state:
 Current planning artifact:
 `docs/devlog/gap-024-remaining-gate-b-completion-plan.md`
 
+Hosted planning PR:
+**#515 — Plan GAP-024 Remaining Gate B completion** (Draft / planning-only / unapproved)
+
 Planning branch:
 `codex/plan-gap-024-remaining-gate-b`
 
