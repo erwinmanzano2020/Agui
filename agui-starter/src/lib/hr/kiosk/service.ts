@@ -177,10 +177,14 @@ export async function processKioskScan(
       houseId: device.house_id,
       branchId: device.branch_id,
       deviceId: device.id,
-      employeeId: qrClaims.employeeId,
+      employeeId: null,
       eventType: "reject",
       occurredAt,
-      metadata: { reason: "house_mismatch", clientId: input.clientId ?? null },
+      metadata: {
+        reason: "house_mismatch",
+        clientId: input.clientId ?? null,
+        claimedEmployeeId: qrClaims.employeeId,
+      },
     }));
     throw new Error("QR token does not match kiosk house.");
   }
@@ -199,10 +203,14 @@ export async function processKioskScan(
       houseId: device.house_id,
       branchId: device.branch_id,
       deviceId: device.id,
-      employeeId: qrClaims.employeeId,
+      employeeId: null,
       eventType: "reject",
       occurredAt,
-      metadata: { reason: "employee_not_found", clientId: input.clientId ?? null },
+      metadata: {
+        reason: "employee_not_found",
+        clientId: input.clientId ?? null,
+        claimedEmployeeId: qrClaims.employeeId,
+      },
     }));
     throw new Error("Employee is not available for this kiosk.");
   }
