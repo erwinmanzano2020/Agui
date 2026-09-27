@@ -18,7 +18,7 @@
 - Current planning re-entry base: `develop @ 908e36eb1861f3ba76426927f0968ed0caf0fdcb`.
 - Current planning amendment branch:
   `codex/amend-gap-024-remaining-gate-b-planning`.
-- Current planning amendment PR: **pending creation**.
+- Current planning amendment PR: **#517 — Amend GAP-024 Remaining Gate B planning for kiosk reject identity** (Draft / planning-only / unapproved).
 - Blocked Runtime artifact: **PR #516 — Implement GAP-024 Remaining Gate B closure**,
   Draft/unmerged; exact blocker-review head
   `a56e47a25507258f192cca5de0ad4e71e0ff2185`.
