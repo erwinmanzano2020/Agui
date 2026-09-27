@@ -140,7 +140,33 @@ describe("kiosk service canonical command adapter", () => {
 
     assert.equal(commandCalls.length, 0);
     assert.equal(events.at(-1)?.event_type, "reject");
+    assert.equal(events.at(-1)?.employee_id, null);
     assert.equal(events.at(-1)?.metadata.reason, "house_mismatch");
+    assert.equal(events.at(-1)?.metadata.claimedEmployeeId, employeeId);
+  });
+
+  it("keeps an unverified missing employee out of reject-event identity", async () => {
+    const missingEmployeeId = "00000000-0000-0000-0000-000000000099";
+    const qrToken = createEmployeeQrToken({
+      employeeId: missingEmployeeId,
+      houseId,
+    });
+
+    await assert.rejects(
+      () =>
+        processKioskScan(repo, {
+          kioskToken,
+          qrToken,
+          clientId: "scan-missing-employee",
+        }),
+      /Employee is not available for this kiosk/,
+    );
+
+    assert.equal(commandCalls.length, 0);
+    assert.equal(events.at(-1)?.event_type, "reject");
+    assert.equal(events.at(-1)?.employee_id, null);
+    assert.equal(events.at(-1)?.metadata.reason, "employee_not_found");
+    assert.equal(events.at(-1)?.metadata.claimedEmployeeId, missingEmployeeId);
   });
 
   it("fails closed when a scan has no stable operation identity", async () => {
