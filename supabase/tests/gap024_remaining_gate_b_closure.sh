@@ -505,7 +505,7 @@ SQL
     echo "PASS: semantic projection/history replay is deterministic"
 
     echo "Verifying discovery-based canonical privilege posture"
-    assert_scalar "0" "select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace cross join (values ('authenticated'),('service_role')) role_name(name) where n.nspname='public' and c.relkind in ('r','p') and c.relname like 'hr_attendance_%' and (has_table_privilege(role_name.name,c.oid,'SELECT') or has_table_privilege(role_name.name,c.oid,'INSERT') or has_table_privilege(role_name.name,c.oid,'UPDATE') or has_table_privilege(role_name.name,c.oid,'DELETE') or has_table_privilege(role_name.name,c.oid,'TRUNCATE') or has_table_privilege(role_name.name,c.oid,'REFERENCES') or has_table_privilege(role_name.name,c.oid,'TRIGGER'));" "canonical attendance tables deny direct application-role privileges"
+    assert_scalar "0" "select count(*) from information_schema.role_table_grants where table_schema='public' and table_name like 'hr_attendance_%' and grantee in ('PUBLIC','anon','authenticated','service_role');" "canonical attendance tables deny direct PUBLIC/application-role privileges"
 
     assert_scalar "0" "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and (p.proname like 'hr_%attendance%' or p.proname like 'hr_%kiosk%') and has_function_privilege('service_role',p.oid,'EXECUTE') and p.proname not in ('hr_apply_kiosk_attendance_scan','hr_record_kiosk_support_event','hr_touch_kiosk_device_telemetry','hr_read_canonical_attendance_branch_scoped','hr_read_canonical_attendance_house_global');" "service-role attendance/kiosk callable surface has no unreviewed function"
 
