@@ -350,7 +350,7 @@ test("Remaining Gate B cutover removes canonical and kiosk supporting-state raw 
   assert.match(remainingCutoverSql, /c\.relname like 'hr_attendance_%'/i);
   assert.match(
     remainingCutoverSql,
-    /revoke all privileges on table %s from authenticated, service_role/i,
+    /revoke all privileges on table %s from public, anon, authenticated, service_role/i,
   );
   assert.match(
     remainingCutoverSql,
