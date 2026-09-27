@@ -128,7 +128,7 @@ jobs:
           grep -q "hr_record_kiosk_support_event:" /tmp/remaining-gate-b-db.types.ts
           grep -q "hr_touch_kiosk_device_telemetry:" /tmp/remaining-gate-b-db.types.ts
           grep -q "p_metadata: Json" /tmp/remaining-gate-b-db.types.ts
-          grep -q "p_employee_id: string | null" /tmp/remaining-gate-b-db.types.ts
+          grep -q "p_employee_id: string" /tmp/remaining-gate-b-db.types.ts
 
       - name: Re-run released P1 concurrency proof
         run: bash supabase/tests/historical_dtr_p1_concurrency.sh
