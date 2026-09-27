@@ -9,11 +9,19 @@
 - Active system phase: **HR System — end-to-end MVP / Foundation Security Correction**
 - Active GAP-024 sequence: **Gate A → Gate B → Gate C → Gate D → Gate E**
 - Current bounded target: **Remaining Gate B**
-- Planning base: `develop` at
+- Original planning base: `develop` at
   `a95c3c921e067297f4f033620fe2f4ede7e7c5aa`
   (Historical Daily DTR Write P1 squash merge, PR #514)
-- Hosted planning PR: **#515 — Plan GAP-024 Remaining Gate B completion**
-- Planning branch: `codex/plan-gap-024-remaining-gate-b`
+- Original planning PR: **#515 — Plan GAP-024 Remaining Gate B completion**,
+  owner-approved and squash-merged to `develop` as
+  `908e36eb1861f3ba76426927f0968ed0caf0fdcb`.
+- Current planning re-entry base: `develop @ 908e36eb1861f3ba76426927f0968ed0caf0fdcb`.
+- Current planning amendment branch:
+  `codex/amend-gap-024-remaining-gate-b-planning`.
+- Current planning amendment PR: **pending creation**.
+- Blocked Runtime artifact: **PR #516 — Implement GAP-024 Remaining Gate B closure**,
+  Draft/unmerged; exact blocker-review head
+  `a56e47a25507258f192cca5de0ad4e71e0ff2185`.
 - Production application: Vercel `agui-nine.vercel.app`, currently serving exact commit
   `a95c3c921e067297f4f033620fe2f4ede7e7c5aa`
 - Production backend: Supabase project `rytrmtsteojboqmrimdb`
@@ -31,8 +39,11 @@ sub-slice after:
 2. Historical Daily DTR Write P1 — released and Production-verified;
 3. Remaining Gate B — current planning target.
 
-No current open PR was found for Remaining Gate B, so this is the first planning pass for
-this bounded target.
+Historical note: the original Remaining-Gate-B planning pass began with no open planning
+PR and converged in PR #515. That plan was owner-approved and merged. Runtime PR #516
+subsequently discovered one bounded planning-contract omission and correctly returned to
+Planning instead of silently widening Runtime scope. This document is now the durable
+planning amendment for that re-entry.
 
 ## 1. Objective
 
@@ -56,10 +67,17 @@ attendance mutation principal. Therefore Remaining Gate B must include one bound
 two bounded forward migrations plus the kiosk repository adapter change and closure
 verification.
 
-No data model, attendance semantics, producer behavior, attribution rule, or user-facing
-workflow is changed by that migration. If Runtime proof exposes any additional
-producer/runtime/schema defect beyond this frozen privilege closure, execution must stop
-and return to planning rather than silently broadening the slice.
+No data model, attendance semantics, attribution rule, or user-facing workflow is changed
+by the planned closure. If Runtime proof exposes any additional producer/runtime/schema
+defect beyond the frozen closure, execution must stop and return to planning rather than
+silently broadening the slice.
+
+That stop condition fired in Runtime PR #516. The additive support-event RPC correctly
+validates that any supplied employee belongs to the device-derived House, while the
+released kiosk service historically attached the QR-claimed employee ID to
+`house_mismatch` and `employee_not_found` reject events before same-House employee
+verification. The Runtime branch therefore needs a narrowly bounded `service.ts`
+adaptation so unverified claims do not become authoritative event identity.
 
 ## 2. Business / security outcome
 
@@ -254,6 +272,8 @@ The future Remaining Gate-B Runtime may change only:
 - `agui-starter/src/lib/hr/kiosk/repository.ts` to replace raw supporting writes with
   the new narrow RPCs;
 - `agui-starter/src/lib/hr/kiosk/http.ts` to move ping telemetry to the same wrapper;
+- `agui-starter/src/lib/hr/kiosk/service.ts` only to preserve reject-event audit writes
+  under the new same-House employee validation rule;
 - the directly corresponding kiosk repository/service/HTTP tests;
 - generated database contract types for the two new RPCs;
 - bounded static/integration verification;
@@ -325,7 +345,17 @@ missing attendance uses owner/manager remediation.
 
 The service derives device House/branch from the authenticated device, uses stable
 `clientId` / offline `clientEventId` as operation identity, and calls
-`hr_apply_kiosk_attendance_scan`. Exact retries must be idempotent. The service-side `hr_kiosk_events` writer is not an alternate attendance-fact writer,
+`hr_apply_kiosk_attendance_scan`. Exact retries must be idempotent.
+
+Reject-event identity is now explicitly frozen: `employee_id` may be supplied to the
+support-event writer only after the employee has been resolved and verified inside the
+device-derived House. A QR claim that fails House matching or resolves to no same-House
+employee is non-authoritative input, so the reject event must use `employee_id = null`.
+The claimed employee identifier may be retained only as audit metadata
+(`claimedEmployeeId`) and must never be treated as established employee identity,
+authorization, attendance provenance, or a branch-attribution input.
+
+The service-side `hr_kiosk_events` writer is not an alternate attendance-fact writer,
 but it is **not database-disjoint** because the kiosk command reads provenance-bearing
 event classes for debounce and the released cutover used those classes for historical
 proof. Its safe boundary is event-type ownership: command-owned
@@ -415,7 +445,20 @@ It performs no attendance data rewrite and no privilege revocation required by m
 admin helper remains unchanged because it uses the authenticated session + existing
 owner/manager RLS for legitimate create/enable/disable/token-rotation operations.
 
-Generated DB types and focused repository/service/HTTP tests must cover both new RPCs.
+`agui-starter/src/lib/hr/kiosk/service.ts` has one additional bounded responsibility
+required by the wrapper contract:
+
+- for `house_mismatch` and `employee_not_found`, pass `employeeId: null` to the
+  support-event adapter because no same-House employee identity has been established;
+- preserve the QR-claimed identifier only in non-authoritative
+  `metadata.claimedEmployeeId` for audit/debugging;
+- once same-House employee resolution succeeds, existing verified employee IDs continue
+  to be used for later reject/sync support events;
+- no response status, scan decision, session behavior, event label, or attendance
+  mutation semantics change.
+
+Generated DB types and focused repository/service/HTTP tests must cover both new RPCs and
+the unverified-claim reject-event rule.
 
 ### 9.3 Migration 2 — final privilege cutover
 
@@ -535,6 +578,11 @@ Branch never creates House authorization.
 
 A `service_role` credential is not kiosk identity by itself; the kiosk path must still
 use the approved server/device authentication boundary before the database wrapper.
+
+A signed/decoded QR employee claim is also not established employee identity by itself.
+Until the employee row is resolved and proven to belong to the device-derived House, the
+claim cannot populate authoritative `hr_kiosk_events.employee_id`. It may be retained
+only as explicitly non-authoritative audit metadata.
 
 ## 12. Shared-device behavior
 
@@ -719,6 +767,9 @@ Minimum static assertions:
   command may write `scan/clock_in/clock_out`; service-side auxiliary writes route
   through the narrow support-event RPC and are limited to
   `reject/sync_success/sync_fail`;
+- `house_mismatch` and `employee_not_found` support events never place an unverified
+  QR employee claim into authoritative `employee_id`; they use null identity plus
+  non-authoritative `claimedEmployeeId` metadata;
 - current wrappers and intended grants remain frozen;
 - P1 immediate-update bypass remains retired;
 - timezone repair remains command-only;
@@ -735,6 +786,8 @@ Planned Runtime/verification file surface:
   - `gap024_remaining_gate_b_privilege_cutover`;
 - `agui-starter/src/lib/hr/kiosk/repository.ts`;
 - `agui-starter/src/lib/hr/kiosk/http.ts`;
+- `agui-starter/src/lib/hr/kiosk/service.ts`, limited to the frozen unverified
+  reject-event identity adaptation;
 - directly corresponding kiosk repository/service/HTTP tests as needed;
 - `agui-starter/src/lib/db.types.ts` for the two new RPC signatures;
 - existing
@@ -921,6 +974,10 @@ Preview/staging verification should instead prove:
 - kiosk ping updates `last_seen_at` through the telemetry RPC;
 - scan/sync retain current response semantics;
 - `reject/sync_success/sync_fail` support events remain writable through the narrow RPC;
+- `house_mismatch` and `employee_not_found` reject paths still record their audit
+  events even though the QR employee claim is not same-House verified, with
+  authoritative `employee_id = null` and the claim present only as audit metadata;
+- verified-employee reject/sync events continue to carry the verified employee ID;
 - direct support RPC attempts to mint `scan/clock_in/clock_out/queued` fail closed;
 - raw service-role event/device mutations fail after migration 2;
 - authenticated event mutation fails while event read/admin-device flows remain intact;
@@ -1065,23 +1122,29 @@ Remaining Gate B is complete only when all are true on the exact verification he
 18. service_role has no raw kiosk-event or device mutation;
 19. auxiliary kiosk-event RPC accepts only `reject/sync_success/sync_fail` and cannot
     mint `scan/clock_in/clock_out` provenance;
-20. device telemetry RPC cannot alter House/branch/token/activation/identity fields;
-21. direct authenticated/service-role DML on P1 lifecycle tables remains denied;
-22. private helpers remain private;
-23. no active fact lacks current projection;
-24. no compatibility row is unbridged;
-25. no active producer can create raw-only/projection-invisible attendance;
-26. no Gate C/D/E behavior was pulled forward;
-27. exact-head CI is green;
-28. material review threads = 0;
-29. current Roadmap/HR status and detailed plan agree;
-30. pre-release Production baseline has no **unplanned** blocker and post-release
+20. unverified QR employee claims never populate authoritative kiosk-event
+    `employee_id`; `house_mismatch` / `employee_not_found` use null identity and
+    may retain the claim only as non-authoritative audit metadata;
+21. verified same-House employee support events continue to carry the verified employee
+    identity;
+22. device telemetry RPC cannot alter House/branch/token/activation/identity fields;
+23. direct authenticated/service-role DML on P1 lifecycle tables remains denied;
+24. private helpers remain private;
+25. no active fact lacks current projection;
+26. no compatibility row is unbridged;
+27. no active producer can create raw-only/projection-invisible attendance;
+28. no Gate C/D/E behavior was pulled forward;
+29. exact-head CI is green;
+30. material review threads = 0;
+31. current Roadmap/HR status and detailed plan agree;
+32. pre-release Production baseline has no **unplanned** blocker and post-release
     Production verification passes.
 
 ## 33. Governance / authorization boundary
 
-This planning PR may define and refine only Remaining Gate-B producer/privilege
-containment + verification closure.
+This planning amendment may define and refine only Remaining Gate-B
+producer/privilege containment + verification closure, including the minimum kiosk
+reject-event identity/file-surface correction discovered by Runtime PR #516.
 
 It does not:
 
@@ -1092,8 +1155,11 @@ It does not:
 - authorize any Production mutation;
 - resume POS or another system phase.
 
-After this plan converges, the only next action is explicit owner approval of the planning
-contract. A later bounded Runtime/closure PR is required.
+After this amendment converges, the only next action is explicit owner approval of the
+amended planning contract. After that approval and merge, the already-open Draft Runtime
+PR #516 may resume against the amended contract; do not create a duplicate Runtime PR.
+The Runtime must re-fetch the merged planning amendment before continuing its
+Review → Fix → exact-head verification loop.
 
 ## 34. Deferred work
 
@@ -1133,6 +1199,9 @@ Explicitly deferred:
 - There is a deliberately short post-deploy/pre-cutover window where the wrapper-capable
   app is live while old raw support grants still coexist. Release execution should
   minimize this window and never treat that temporary posture as Gate-B completion.
+- `claimedEmployeeId` is intentionally untrusted audit metadata. Future analytics,
+  debugging, or support tooling must not silently reinterpret it as established employee
+  identity or provenance.
 
 ## 36. Review & Fix history
 
@@ -1419,7 +1488,7 @@ migrations and a bounded kiosk adapter change.** Fix: describe the future scope 
 producer/privilege containment + verification closure and the later artifact as a bounded
 Runtime/closure PR. No authorization or product scope was expanded.
 
-### Round 23 — final fresh review from scratch
+### Round 23 — original-plan final fresh review from scratch
 
 Fresh review of the complete current Slice Contract, exact post-P1 repository state,
 Production privilege evidence, kiosk producer/supporting-state surfaces, two-stage rollout,
@@ -1440,6 +1509,26 @@ Convergence state:
 - exact-current-head Preflight/Vercel checks must be green before owner approval is acted
   on.
 
-No further planning fix is justified without new durable evidence.
+No further planning fix was justified at the original PR #515 approval gate.
 
-**PLANNING GATE: READY FOR OWNER APPROVAL**
+### Round 24 — Runtime-discovered planning re-entry
+
+**P1 — the approved Runtime file surface omitted a service adaptation required by its own
+new support-event identity contract.** Runtime PR #516 exposed the concrete path:
+`hr_record_kiosk_support_event` correctly rejects an employee ID that is not in the
+device-derived House, but the released kiosk service historically attached the QR claim
+to `house_mismatch` and `employee_not_found` reject events before same-House employee
+resolution. Under the strict wrapper, those audit writes would fail. Runtime had already
+implemented the safe correction in `service.ts`, but that file was outside the
+owner-approved "may change only" surface.
+
+Planning fix: authorize only the necessary `service.ts` adaptation and freeze the
+identity semantics. Unverified QR claims use authoritative `employee_id = null` and may
+be preserved only as non-authoritative `claimedEmployeeId` metadata; verified
+same-House employees retain existing behavior. Corresponding service tests are required.
+No additional schema, RPC, event type, product behavior, or rollout step is added.
+
+This planning re-entry does not authorize Runtime to resume yet. The amendment must
+converge, be explicitly owner-approved, and be merged first.
+
+**PLANNING GATE: REVIEW IN PROGRESS — OWNER APPROVAL NOT YET REQUESTED**
