@@ -1,0 +1,45 @@
+name: Remaining Gate B DB Closure
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+    paths:
+      - "supabase/**"
+      - "agui-starter/src/lib/hr/**"
+      - "agui-starter/src/lib/db.types.ts"
+      - "agui-starter/src/app/company/**/hr/dtr/**"
+      - "agui-starter/src/app/api/kiosk/**"
+      - "agui-starter/src/app/api/hr/kiosk/**"
+      - "agui-starter/src/app/api/hr/kiosk-devices/**"
+      - "agui-starter/src/app/api/payroll/dtr-bulk/**"
+      - "agui-starter/src/app/payroll/dtr-bulk/**"
+      - "agui-starter/src/app/payroll/dtr-today/**"
+      - "agui-starter/scripts/fix-dtr-timezone.ts"
+      - ".github/workflows/gate-b-db-concurrency.yml"
+      - ".github/workflows/p1-historical-dtr-db.yml"
+      - ".github/workflows/gap024-remaining-gate-b-db.yml"
+  workflow_dispatch:
+
+jobs:
+  remaining-gate-b-db:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Generate approved Remaining Gate B migration filenames
+        shell: bash
+        run: |
+          set -euo pipefail
+          test ! -e supabase/migrations/*_gap024_remaining_gate_b_kiosk_support_wrappers.sql
+          test ! -e supabase/migrations/*_gap024_remaining_gate_b_privilege_cutover.sql
+          supabase migration new gap024_remaining_gate_b_kiosk_support_wrappers
+          sleep 1
+          supabase migration new gap024_remaining_gate_b_privilege_cutover
+          printf '%s\n' "GENERATED_MIGRATIONS"
+          ls -1 supabase/migrations/*_gap024_remaining_gate_b_*.sql
