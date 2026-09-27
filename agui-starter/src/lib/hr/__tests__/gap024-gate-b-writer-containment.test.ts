@@ -46,6 +46,9 @@ const kioskRepository = repoFile(
 const kioskHttp = repoFile(
   "agui-starter/src/lib/hr/kiosk/http.ts",
 );
+const kioskAdmin = repoFile(
+  "agui-starter/src/lib/hr/kiosk/admin.ts",
+);
 
 function repositoryRoot() {
   const root = [
@@ -313,6 +316,22 @@ test("cutover reconciles every row, constrains kiosk establishment, and removes 
   assert.match(cutoverSql, /Gate-B cutover left a raw dtr_entries mutation privilege/i);
 });
 
+
+test("Remaining Gate B generated client contract exposes only the approved support RPC shapes", () => {
+  assert.match(
+    dbTypes,
+    /hr_record_kiosk_support_event:\s*FunctionDefinition<\{[\s\S]*p_device_id: string;[\s\S]*p_employee_id: string \| null;[\s\S]*p_event_type: string;[\s\S]*p_occurred_at: string;[\s\S]*p_metadata: Json;[\s\S]*\}, void>/i,
+  );
+  assert.match(
+    dbTypes,
+    /hr_touch_kiosk_device_telemetry:\s*FunctionDefinition<\{[\s\S]*p_device_id: string;[\s\S]*\}, void>/i,
+  );
+});
+
+test("kiosk device administration stays on the authenticated RLS client", () => {
+  assert.match(kioskAdmin, /createServerSupabaseClient\(\)/i);
+  assert.doesNotMatch(kioskAdmin, /createServiceSupabaseClient|createServiceClient|getServiceSupabase/i);
+});
 
 test("Remaining Gate B support wrappers are narrow, service-only, and derive trusted context", () => {
   assert.match(
