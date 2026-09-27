@@ -77,7 +77,10 @@ After the future Remaining Gate-B verification Runtime converges:
 - no application principal can create raw-only or projection-invisible attendance;
 - `service_role` has no direct canonical-table mutation path and cannot invoke the
   projection rebuild as an application mutation primitive;
-- the kiosk wrapper remains the only service-role attendance mutation entrypoint;
+- the kiosk wrapper remains the only service-role **attendance-truth** mutation
+  entrypoint;
+- service-role kiosk support writes are database-bounded to non-provenance event classes
+  and telemetry-only device fields;
 - Gate C prerequisites are either durably proven or the gate remains blocked with a
   concrete named gap.
 
@@ -222,7 +225,7 @@ this table is evidence, not a permanent allowlist.
 | Daily DTR historical correction | `actions.ts` → `attendance-p1-server.ts` | P1 proposal/finalization commands |
 | Daily DTR historical missing-attendance review | `actions.ts` → `attendance-p1-server.ts` | P1 open/adjudicate/finalize commands |
 | Kiosk online/offline attendance | `src/lib/hr/kiosk/service.ts` → `repository.ts` | device-authenticated service path → `hr_apply_kiosk_attendance_scan` |
-| Kiosk support/event writes | `src/lib/hr/kiosk/repository.ts` plus the kiosk command | **coupled supporting state, not database-disjoint**: the command owns `scan/clock_in/clock_out` event rows and reads `clock_in/clock_out` for debounce; the service-side auxiliary writer currently emits only `reject/sync_success/sync_fail` and updates device timestamps |
+| Kiosk support/event writes | `src/lib/hr/kiosk/repository.ts` plus the kiosk command | **coupled supporting state, not database-disjoint**: current raw table access is too broad; Runtime must move service-side auxiliary events + device telemetry to narrow RPCs, reserve `scan/clock_in/clock_out` to the canonical kiosk command, and revoke raw event/device mutation from service_role |
 | Bulk DTR replacement | `src/app/api/payroll/dtr-bulk/route.ts` | authenticated `hr_replace_bulk_attendance_day` |
 | Timezone repair | `scripts/fix-dtr-timezone.ts` | emits private maintenance command calls; no raw DTR UPDATE |
 | Legacy `payroll/dtr-today` browser writer | `src/app/payroll/dtr-today/page.client.tsx` | retired as writer / preview-only |
@@ -245,11 +248,13 @@ Neither is allowed to become a second attendance source of truth.
 
 The future Remaining Gate-B Runtime may change only:
 
-- one forward-only privilege-cutover migration;
+- one forward-only privilege/adapter cutover migration;
+- `agui-starter/src/lib/hr/kiosk/repository.ts` to replace raw supporting writes with
+  the new narrow RPCs;
+- the directly corresponding kiosk repository/service tests;
+- generated database contract types for the two new RPCs;
 - bounded static/integration verification;
 - the closure CI workflow/helper;
-- generated database contract files **only if** the privilege-only migration genuinely
-  changes a generated contract (not expected);
 - governance evidence.
 
 It must:
@@ -344,17 +349,19 @@ unavailable.
 
 ## 9. New / changed backend contract
 
-One **permission-only forward migration** is planned.
+One **bounded privilege/adapter forward migration** is planned, plus the corresponding
+kiosk repository adapter update.
 
 Runtime must create the migration through the repository's normal Supabase migration
 creation flow; this plan freezes the migration purpose/name stem, not a fabricated
 timestamp:
 
-`gap024_remaining_gate_b_canonical_privilege_cutover`
+`gap024_remaining_gate_b_privilege_cutover`
 
 The migration contract is:
 
-1. re-audit the exact-head application for direct canonical-table dependencies;
+1. re-audit the exact-head application for direct canonical-table, kiosk-event, and
+   kiosk-device dependencies;
 2. `REVOKE ALL` direct table privileges from `service_role` on the Gate-A canonical
    authority tables listed in Section 4;
 3. selectively re-grant **SELECT only** on a canonical table only if exact-head repository
@@ -367,14 +374,42 @@ The migration contract is:
    that are not approved public/service entrypoints;
 7. preserve service-role EXECUTE on
    `hr_apply_kiosk_attendance_scan(uuid,uuid,uuid,uuid,text,timestamptz)`;
-8. preserve protected read RPC behavior; this slice is not Gate-D/E read retirement;
-9. issue `NOTIFY pgrst, 'reload schema'`;
-10. perform **no data rewrite**.
+8. **harden `hr_kiosk_events` as supporting/provenance state**:
+   - authenticated keeps approved read access but loses raw INSERT/UPDATE/DELETE;
+   - drop the authenticated event-write RLS policies;
+   - service_role loses direct table DML (and direct SELECT unless exact-head proof finds
+     a real read dependency);
+   - command-owned `scan/clock_in/clock_out` rows remain writable only inside the
+     canonical kiosk command / database-owner boundary;
+9. add a narrow SECURITY DEFINER service-role wrapper for auxiliary kiosk events that:
+   - accepts only the exact currently-used non-provenance classes
+     `reject`, `sync_success`, and `sync_fail`;
+   - rejects `scan`, `clock_in`, `clock_out`, and unused `queued`;
+   - re-reads the device and requires exact active House + branch match;
+   - inserts the auxiliary event and updates only `last_event_at`;
+   - has fixed `search_path`, PUBLIC/anon/authenticated EXECUTE revoked, and
+     service_role EXECUTE granted;
+10. narrow service-role `hr_kiosk_devices` authority:
+    - preserve direct SELECT required for token-hash device lookup;
+    - revoke service-role INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER;
+    - preserve authenticated owner/manager device administration policies;
+11. add a narrow SECURITY DEFINER service-role device-touch wrapper that updates only
+    `last_seen_at` for an existing active device; no branch, House, activation, token,
+    or identity field may be changed through it;
+12. preserve protected canonical read RPC behavior; this slice is not Gate-D/E read
+    retirement;
+13. issue `NOTIFY pgrst, 'reload schema'`;
+14. perform **no attendance data rewrite**.
 
-Expected post-migration attendance mutation entrypoints:
+Expected post-migration attendance/support entrypoints:
 
-- authenticated: manual create, bulk replacement, P1 correction/remediation wrappers;
-- service_role: kiosk attendance scan only;
+- authenticated attendance mutation: manual create, bulk replacement, P1
+  correction/remediation wrappers;
+- authenticated kiosk administration: existing owner/manager device CRUD, plus event
+  **read-only** access;
+- service_role attendance mutation: kiosk attendance scan only;
+- service_role kiosk support writes: narrow auxiliary-event wrapper +
+  last-seen telemetry wrapper only;
 - database owner / controlled migration-admin boundary: maintenance repair and private
   internals.
 
@@ -414,12 +449,21 @@ attendance truth and not merely inert telemetry:
   `reject`, `sync_success`, and `sync_fail`, plus device telemetry updates.
 
 Therefore the service-side event writer cannot be classified as “database-disjoint.”
-Remaining Gate B must instead prove **event-type ownership**: no application path outside
-the canonical kiosk command may emit command-owned `clock_in`/`clock_out` rows or
-otherwise create provenance that can alter debounce/backfill semantics.
+Remaining Gate B must enforce **event-type ownership in the database**, not only in
+TypeScript: no application path outside the canonical kiosk command may emit command-owned
+`scan/clock_in/clock_out` rows or otherwise create provenance that can alter debounce /
+historical-proof semantics.
+
+Current Production also gives authenticated owner/manager policies raw event
+INSERT/UPDATE/DELETE. Exact-head application evidence shows admin monitoring reads events
+but does not need raw event mutation, so the event write policies/privileges are removed
+while read access remains.
 
 `hr_kiosk_devices.last_seen_at/last_event_at` remains device telemetry and is not
-canonical attendance authority.
+canonical attendance authority. Service-role direct device UPDATE is nevertheless too
+broad because it could change authorization-bearing device fields; Runtime replaces the
+two telemetry updates with narrow wrappers while preserving authenticated owner/manager
+device administration.
 
 ### Production mutation rule
 
@@ -622,9 +666,12 @@ Minimum static assertions:
 - repository writer inventory includes all exact-head producer paths and fails on an
   unclassified newly discovered mutation call site;
 - no application code performs raw `dtr_segments`/`dtr_entries` mutation;
-- kiosk event-type ownership is frozen: only the canonical database kiosk command may
-  write provenance-bearing `clock_in`/`clock_out` events; service-side auxiliary
-  event call sites are limited to non-provenance event classes such as
+- no application code directly mutates `hr_kiosk_events`;
+- kiosk service code has no raw `hr_kiosk_devices` UPDATE/INSERT/DELETE; only SELECT
+  lookup remains direct;
+- kiosk event-type ownership is database-enforced: only the canonical database kiosk
+  command may write `scan/clock_in/clock_out`; service-side auxiliary writes route
+  through the narrow support-event RPC and are limited to
   `reject/sync_success/sync_fail`;
 - current wrappers and intended grants remain frozen;
 - P1 immediate-update bypass remains retired;
@@ -635,12 +682,20 @@ Minimum static assertions:
 
 ## 25. Integration / backend tests
 
-Planned verification files for the Runtime slice:
+Planned Runtime/verification file surface:
 
+- one Supabase migration created through the normal migration command, purpose stem
+  `gap024_remaining_gate_b_privilege_cutover`;
+- `agui-starter/src/lib/hr/kiosk/repository.ts`;
+- directly corresponding kiosk repository/service tests as needed;
+- `agui-starter/src/lib/db.types.ts` for the two new RPC signatures;
+- existing
+  `agui-starter/src/lib/hr/__tests__/gap024-gate-b-writer-containment.test.ts`;
 - new orchestration workflow:
   `.github/workflows/gap024-remaining-gate-b-db.yml`;
 - new **small** phased closure helper:
-  `supabase/tests/gap024_remaining_gate_b_closure.sh`.
+  `supabase/tests/gap024_remaining_gate_b_closure.sh`;
+- governance/status docs only.
 
 The closure helper should expose only the bounded phases needed by the workflow, for
 example `seed-pre-cutover`, `restore-released-seams`, and
@@ -767,6 +822,10 @@ Before release approval, read-only Production checks must confirm:
 - no direct app-role raw DTR mutation privilege;
 - no direct authenticated canonical-table access;
 - no service-role INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER on canonical authority;
+- authenticated `hr_kiosk_events` is read-only;
+- service_role has no direct `hr_kiosk_events` table DML and no raw device mutation;
+- service-role auxiliary event wrapper rejects command-owned provenance event types;
+- service-role device-touch wrapper can update telemetry only;
 - any retained service-role canonical SELECT has an exact reviewed dependency;
 - service_role cannot execute the projection rebuild directly;
 - kiosk wrapper remains service-role executable;
@@ -894,17 +953,22 @@ Remaining Gate B is complete only when all are true on the exact verification he
 14. service_role has no direct canonical-table mutation/schema-adjacent privileges and
     no unreviewed direct canonical SELECT;
 15. service_role cannot execute the projection rebuild directly;
-16. kiosk wrapper remains the only service-role attendance mutation entrypoint;
-17. direct authenticated/service-role DML on P1 lifecycle tables remains denied;
-18. private helpers remain private;
-19. no active fact lacks current projection;
-20. no compatibility row is unbridged;
-21. no active producer can create raw-only/projection-invisible attendance;
-22. no Gate C/D/E behavior was pulled forward;
-23. exact-head CI is green;
-24. material review threads = 0;
-25. current Roadmap/HR status and detailed plan agree;
-26. read-only Production verification has no blocker.
+16. kiosk wrapper remains the only service-role attendance-truth mutation entrypoint;
+17. authenticated kiosk-event access is read-only;
+18. service_role has no raw kiosk-event or device mutation;
+19. auxiliary kiosk-event RPC accepts only `reject/sync_success/sync_fail` and cannot
+    mint `scan/clock_in/clock_out` provenance;
+20. device telemetry RPC cannot alter House/branch/token/activation/identity fields;
+21. direct authenticated/service-role DML on P1 lifecycle tables remains denied;
+22. private helpers remain private;
+23. no active fact lacks current projection;
+24. no compatibility row is unbridged;
+25. no active producer can create raw-only/projection-invisible attendance;
+26. no Gate C/D/E behavior was pulled forward;
+27. exact-head CI is green;
+28. material review threads = 0;
+29. current Roadmap/HR status and detailed plan agree;
+30. read-only Production verification has no blocker.
 
 ## 33. Governance / authorization boundary
 
@@ -1114,5 +1178,26 @@ adjacent privileges unconditionally, revokes direct service-role projection rebu
 keeps the kiosk wrapper as the sole ordinary service-role attendance mutation entrypoint,
 reloads PostgREST schema, and performs no data rewrite. Release sequencing and rollback
 were updated accordingly.
+
+### Round 13 — kiosk supporting-state database containment
+
+**P1 — static kiosk event-type ownership was still only application convention.**
+Production grants show both authenticated house-owner/manager paths and `service_role`
+can directly mutate `hr_kiosk_events`; service_role can also broadly mutate
+`hr_kiosk_devices`. Because `clock_in/clock_out` events affect kiosk debounce and were
+historical provenance material, that raw authority is part of the Gate-B supporting-state
+boundary.
+
+Fix: broaden the single Remaining-Gate-B migration from canonical-table privilege cleanup
+to a bounded privilege/adapter cutover. Authenticated event access becomes read-only;
+service_role loses raw event DML and raw device mutation; the kiosk repository moves
+auxiliary event insertion and device telemetry updates to two narrow service-role
+SECURITY DEFINER RPCs. The support-event RPC accepts only
+`reject/sync_success/sync_fail`, while command-owned
+`scan/clock_in/clock_out` remain database-owned by the canonical kiosk command.
+Authenticated owner/manager device administration remains unchanged.
+
+This is producer-containment work already covered by Remaining Gate B, not a new product
+policy.
 
 Fresh review is required on the replacement exact head.
