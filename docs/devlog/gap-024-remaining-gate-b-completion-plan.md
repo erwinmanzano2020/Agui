@@ -1558,4 +1558,31 @@ approved staged release sequence: additive wrapper migration → exact wrapper-c
 → final privilege cutover. Also clean the pre-existing malformed “one bounded, two bounded
 migrations” wording.
 
-**PLANNING GATE: REVIEW IN PROGRESS — OWNER APPROVAL NOT YET REQUESTED**
+### Round 26 — fresh amendment review from scratch
+
+Fresh review of the amended Slice Contract, Runtime PR #516 blocker evidence, persisted
+support-event identity semantics, exact file surface, identity/authorization boundaries,
+data/write impact, tests/UAT, rollout sequence, rollback rules, and synchronized
+governance found **no remaining material P0/P1/P2 planning defect**.
+
+Convergence state for the planning contract itself:
+
+- unresolved P0: 0;
+- unresolved P1: 0;
+- unresolved material P2: 0;
+- changed files remain documentation/governance only in PR #517;
+- Runtime PR #516 remains Draft/unmerged and paused;
+- the only newly authorized Runtime file is the bounded `kiosk/service.ts` adaptation
+  required by the already-approved support-event wrapper contract;
+- no new schema, RPC, event type, attendance semantic, product workflow, or rollout step
+  is introduced;
+- Gate C/D/E remain unauthorized;
+- Production remains unchanged.
+
+The owner-approval gate is **not yet actionable** because the exact-current planning head
+must still satisfy the repository's normal checks. Vercel is currently reporting the
+external daily deployment quota (`api-deployments-free-per-day`) rather than a build or
+application defect. Do not reuse a superseded Preview as evidence; re-check the exact
+current head after that quota clears.
+
+**PLANNING GATE: TECHNICALLY CONVERGED — CHECK GATE BLOCKED BY VERCEL DAILY QUOTA**
