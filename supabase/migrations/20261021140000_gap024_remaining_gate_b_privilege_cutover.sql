@@ -119,38 +119,36 @@ begin
       using errcode = '55000';
   end if;
 
-  if exists (
-    select 1
-    from information_schema.role_table_grants grant_row
-    where grant_row.table_schema = 'public'
-      and grant_row.table_name = 'hr_kiosk_events'
-      and grant_row.grantee = 'authenticated'
-      and grant_row.privilege_type <> 'SELECT'
-  ) then
-    raise exception 'Remaining Gate-B cutover left authenticated kiosk-event mutation privileges'
+  if not has_table_privilege('authenticated', 'public.hr_kiosk_events', 'SELECT')
+     or has_table_privilege('authenticated', 'public.hr_kiosk_events', 'INSERT')
+     or has_table_privilege('authenticated', 'public.hr_kiosk_events', 'UPDATE')
+     or has_table_privilege('authenticated', 'public.hr_kiosk_events', 'DELETE')
+     or has_table_privilege('authenticated', 'public.hr_kiosk_events', 'TRUNCATE')
+     or has_table_privilege('authenticated', 'public.hr_kiosk_events', 'REFERENCES')
+     or has_table_privilege('authenticated', 'public.hr_kiosk_events', 'TRIGGER') then
+    raise exception 'Remaining Gate-B cutover did not leave authenticated kiosk-event access read-only'
       using errcode = '55000';
   end if;
 
-  if exists (
-    select 1
-    from information_schema.role_table_grants grant_row
-    where grant_row.table_schema = 'public'
-      and grant_row.table_name = 'hr_kiosk_events'
-      and grant_row.grantee = 'service_role'
-  ) then
-    raise exception 'Remaining Gate-B cutover left service-role kiosk-event table privileges'
+  if has_table_privilege('service_role', 'public.hr_kiosk_events', 'SELECT')
+     or has_table_privilege('service_role', 'public.hr_kiosk_events', 'INSERT')
+     or has_table_privilege('service_role', 'public.hr_kiosk_events', 'UPDATE')
+     or has_table_privilege('service_role', 'public.hr_kiosk_events', 'DELETE')
+     or has_table_privilege('service_role', 'public.hr_kiosk_events', 'TRUNCATE')
+     or has_table_privilege('service_role', 'public.hr_kiosk_events', 'REFERENCES')
+     or has_table_privilege('service_role', 'public.hr_kiosk_events', 'TRIGGER') then
+    raise exception 'Remaining Gate-B cutover left effective service-role kiosk-event table privileges'
       using errcode = '55000';
   end if;
 
-  if exists (
-    select 1
-    from information_schema.role_table_grants grant_row
-    where grant_row.table_schema = 'public'
-      and grant_row.table_name = 'hr_kiosk_devices'
-      and grant_row.grantee = 'service_role'
-      and grant_row.privilege_type <> 'SELECT'
-  ) then
-    raise exception 'Remaining Gate-B cutover left service-role kiosk-device mutation privileges'
+  if not has_table_privilege('service_role', 'public.hr_kiosk_devices', 'SELECT')
+     or has_table_privilege('service_role', 'public.hr_kiosk_devices', 'INSERT')
+     or has_table_privilege('service_role', 'public.hr_kiosk_devices', 'UPDATE')
+     or has_table_privilege('service_role', 'public.hr_kiosk_devices', 'DELETE')
+     or has_table_privilege('service_role', 'public.hr_kiosk_devices', 'TRUNCATE')
+     or has_table_privilege('service_role', 'public.hr_kiosk_devices', 'REFERENCES')
+     or has_table_privilege('service_role', 'public.hr_kiosk_devices', 'TRIGGER') then
+    raise exception 'Remaining Gate-B cutover did not leave service-role kiosk-device access SELECT-only'
       using errcode = '55000';
   end if;
 
