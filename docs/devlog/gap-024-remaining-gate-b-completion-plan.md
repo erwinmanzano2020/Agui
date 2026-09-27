@@ -253,7 +253,8 @@ The future Remaining Gate-B Runtime may change only:
   cutover;
 - `agui-starter/src/lib/hr/kiosk/repository.ts` to replace raw supporting writes with
   the new narrow RPCs;
-- the directly corresponding kiosk repository/service tests;
+- `agui-starter/src/lib/hr/kiosk/http.ts` to move ping telemetry to the same wrapper;
+- the directly corresponding kiosk repository/service/HTTP tests;
 - generated database contract types for the two new RPCs;
 - bounded static/integration verification;
 - the closure CI workflow/helper;
@@ -369,7 +370,9 @@ It adds:
 1. a narrow SECURITY DEFINER service-role auxiliary-event wrapper that:
    - accepts only `reject`, `sync_success`, and `sync_fail`;
    - rejects `scan`, `clock_in`, `clock_out`, and unused `queued`;
-   - re-reads the device and requires exact active House + branch match;
+   - re-reads the device and requires exact device + House + branch match;
+   - does **not** add a second activity-state authorization decision after the request has
+     already crossed the existing kiosk authentication / canonical scan boundary;
    - validates an optional employee belongs to the same House when supplied;
    - inserts the auxiliary event;
    - updates only `last_event_at`;
@@ -377,7 +380,7 @@ It adds:
    - revokes EXECUTE from PUBLIC/anon/authenticated and grants only service_role;
 2. a narrow SECURITY DEFINER service-role device-touch wrapper that:
    - accepts the existing device identity;
-   - requires an existing active device;
+   - requires the device row to exist;
    - updates only `last_seen_at`;
    - cannot alter House, branch, token, activation, name, or other identity/authority
      fields;
@@ -399,7 +402,12 @@ It performs no attendance data rewrite and no privilege revocation required by m
 - canonical attendance scan remains `hr_apply_kiosk_attendance_scan`;
 - no user-visible kiosk semantics or event labels change.
 
-Generated DB types and focused repository/service tests must cover both new RPCs.
+`agui-starter/src/lib/hr/kiosk/http.ts` must also move the kiosk **ping**
+`last_seen_at` raw UPDATE to the same telemetry wrapper. The authenticated kiosk-device
+admin helper remains unchanged because it uses the authenticated session + existing
+owner/manager RLS for legitimate create/enable/disable/token-rotation operations.
+
+Generated DB types and focused repository/service/HTTP tests must cover both new RPCs.
 
 ### 9.3 Migration 2 — final privilege cutover
 
@@ -695,8 +703,10 @@ Minimum static assertions:
   unclassified newly discovered mutation call site;
 - no application code performs raw `dtr_segments`/`dtr_entries` mutation;
 - no application code directly mutates `hr_kiosk_events`;
-- kiosk service code has no raw `hr_kiosk_devices` UPDATE/INSERT/DELETE; only SELECT
-  lookup remains direct;
+- kiosk service/HTTP code has no raw `hr_kiosk_devices` UPDATE/INSERT/DELETE; only
+  token/device SELECT lookup remains direct;
+- authenticated kiosk-device admin code is explicitly exempt from that service-role
+  assertion and remains governed by owner/manager RLS;
 - kiosk event-type ownership is database-enforced: only the canonical database kiosk
   command may write `scan/clock_in/clock_out`; service-side auxiliary writes route
   through the narrow support-event RPC and are limited to
@@ -716,7 +726,8 @@ Planned Runtime/verification file surface:
   - `gap024_remaining_gate_b_kiosk_support_wrappers`;
   - `gap024_remaining_gate_b_privilege_cutover`;
 - `agui-starter/src/lib/hr/kiosk/repository.ts`;
-- directly corresponding kiosk repository/service tests as needed;
+- `agui-starter/src/lib/hr/kiosk/http.ts`;
+- directly corresponding kiosk repository/service/HTTP tests as needed;
 - `agui-starter/src/lib/db.types.ts` for the two new RPC signatures;
 - existing
   `agui-starter/src/lib/hr/__tests__/gap024-gate-b-writer-containment.test.ts`;
@@ -1263,5 +1274,21 @@ support wrappers, then the exact wrapper-capable application is promoted, then m
 2 revokes canonical/event/device raw authority. Interruption and rollback behavior are
 explicit: before migration 2 the old app remains compatible; after migration 2 only the
 wrapper-capable build may serve.
+
+### Round 15 — exact kiosk dependency + race-preservation review
+
+**P1 — kiosk ping was an unrecorded raw service-role device UPDATE.** Exact-head
+`src/lib/hr/kiosk/http.ts` updates `last_seen_at` directly, so revoking service-role
+device UPDATE after changing only the repository would break ping. Fix: include
+`http.ts` and its focused tests in the frozen Runtime surface and route ping through the
+same telemetry wrapper.
+
+**P2 — support wrappers initially re-checked device active state and could introduce a
+new disable-race failure after an already-authorized request/attendance command.** Fix:
+keep active-device authorization in the existing kiosk authentication/canonical scan
+boundary. Auxiliary-event RPC validates exact device + House + branch and allowed event
+class; telemetry touch validates existing device identity only. Neither wrapper can alter
+authorization-bearing fields, so this preserves current behavior without weakening
+attendance authority.
 
 Fresh review is required on the replacement exact head.
