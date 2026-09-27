@@ -2,12 +2,12 @@
 
 ## 2026-09-27 — GAP-024 Remaining Gate B planning amendment active
 
-**Status: PLANNING RE-ENTRY / REVIEW & FIX IN PROGRESS. Original Remaining Gate-B
-planning PR #515 was owner-approved and squash-merged as
-`908e36eb1861f3ba76426927f0968ed0caf0fdcb`. Runtime PR #516 is Draft/unmerged and
-correctly paused after exposing one bounded planning-contract omission. Planning amendment
-PR #517 is Draft/planning-only/unapproved. Production is unchanged; Gate C/D/E remain
-unauthorized.**
+**Status: PLANNING AMENDMENT TECHNICALLY CONVERGED; OWNER-APPROVAL CHECK GATE BLOCKED
+ONLY BY THE CURRENT VERCEL DAILY DEPLOYMENT QUOTA. Original Remaining Gate-B planning
+PR #515 was owner-approved and squash-merged as
+`908e36eb1861f3ba76426927f0968ed0caf0fdcb`. Runtime PR #516 remains Draft/unmerged
+and paused. Planning amendment PR #517 remains Draft/planning-only/unapproved. Production
+is unchanged; Gate C/D/E remain unauthorized.**
 
 Released predecessor state:
 
@@ -81,11 +81,15 @@ DEC-017 order remains:
 Gate A → Gate-B pre-P1 containment → Historical Daily DTR P1 → **Remaining Gate B** →
 Gate C → Gate D → Gate E.
 
-Planning Review & Fix is reopened only for this bounded amendment. The current exact next
-action is autonomous review/fix of PR #517 until unresolved P0/P1/material-P2 = 0 and
-exact-head checks are green. Only then is explicit owner approval of PR #517 allowed.
-After owner approval and merge, resume the existing PR #516; do not create a duplicate
-Runtime PR.
+Planning Review & Fix for the amended contract is converged with unresolved
+P0/P1/material-P2 = 0 and the changed-file surface remains documentation/governance only.
+The owner-approval gate is not yet actionable because the exact-current head must still
+clear normal checks; Vercel currently reports the external
+`api-deployments-free-per-day` quota instead of a build/application defect. Do not reuse
+an older Preview as evidence. Re-check the exact current PR #517 head after the quota
+clears; if exact-head checks are green, the single next authorized action becomes explicit
+owner approval of PR #517. After approval and merge, resume existing PR #516; do not
+create a duplicate Runtime PR.
 
 Gate C remains unauthorized until Remaining Gate B itself passes its separate Runtime,
 verification, release, and owner gates.
