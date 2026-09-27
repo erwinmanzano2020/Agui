@@ -367,20 +367,26 @@ This migration is backward-compatible with the currently deployed application an
 
 It adds:
 
-1. `public.hr_record_kiosk_support_event(...)`, a narrow SECURITY DEFINER service-role
-   auxiliary-event wrapper that:
+1. exactly one
+   `public.hr_record_kiosk_support_event(uuid,uuid,text,timestamptz,jsonb)`
+   overload, logically
+   `(device_id, employee_id, event_type, occurred_at, metadata) RETURNS void`, as a
+   narrow SECURITY DEFINER service-role auxiliary-event wrapper that:
    - accepts only `reject`, `sync_success`, and `sync_fail`;
    - rejects `scan`, `clock_in`, `clock_out`, and unused `queued`;
-   - re-reads the device and requires exact device + House + branch match;
+   - re-reads `device_id` and derives House + branch from that trusted database row
+     rather than accepting caller-supplied House/branch;
    - does **not** add a second activity-state authorization decision after the request has
      already crossed the existing kiosk authentication / canonical scan boundary;
-   - validates an optional employee belongs to the same House when supplied;
-   - inserts the auxiliary event;
-   - updates only `last_event_at`;
+   - validates an optional employee belongs to the derived House when supplied;
+   - inserts the auxiliary event using the derived House/branch;
+   - updates only that device's `last_event_at` to the supplied event occurrence time,
+     preserving current monitoring semantics;
    - uses fixed `search_path`;
    - revokes EXECUTE from PUBLIC/anon/authenticated and grants only service_role;
-2. `public.hr_touch_kiosk_device_telemetry(uuid)`, a narrow SECURITY DEFINER
-   service-role device-touch wrapper that:
+2. exactly one `public.hr_touch_kiosk_device_telemetry(uuid) RETURNS void` overload,
+   logically `(device_id)`, as a narrow SECURITY DEFINER service-role device-touch
+   wrapper that:
    - accepts the existing device identity;
    - requires the device row to exist;
    - updates only `last_seen_at`;
@@ -1327,11 +1333,8 @@ verification now explicitly requires the ordered migrations, exact wrapper-capab
 artifact, post-cutover privilege matrix, route health, and proof that no pre-wrapper build
 is serving. Synthetic attendance remains unnecessary.
 
-**P3 — new service-role wrapper names were left implicit.** Fix: freeze
-`hr_record_kiosk_support_event(...)` and
-`hr_touch_kiosk_device_telemetry(uuid)` as the planned callable surfaces while leaving
-the detailed support-event parameter signature to Runtime implementation within the
-already-frozen validation contract.
+**P3 — new service-role wrapper names were left implicit.** Fixed in Round 16 by naming
+the callable surfaces. Round 18 further freezes their callable shapes.
 
 ### Round 17 — future privilege drift + deferred authorization review
 
@@ -1347,5 +1350,15 @@ formal branch-limited authorization lanes until that authority model is standard
 Fix: record this as deferred and preserve the current authenticated owner/manager device
 administration + event-read contract rather than smuggling a new branch-role policy into
 this security closure.
+
+### Round 18 — support-RPC authority-shape review
+
+**P2 — the support-event wrapper still accepted caller-supplied House/branch even though
+the device row is the authoritative source for those values.** Cross-checking would be
+safe, but it leaves unnecessary authority-shaped inputs and a larger signature. Fix:
+freeze one five-argument support-event RPC that accepts device/optional employee/event
+type/time/metadata, derives House + branch from the device row, and returns void. Freeze
+the telemetry wrapper as one `(uuid) RETURNS void` overload. Runtime must verify exact
+overload count and generated client signatures after schema-cache reload.
 
 Fresh review is required on the replacement exact head.
