@@ -1,5 +1,74 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-27 — GAP-024 Remaining Gate B planning active
+
+**Status: PLANNING CONVERGED — READY FOR OWNER APPROVAL. Historical Daily DTR Write P1
+is released and Production-verified; Remaining Gate B is the current bounded target.
+PR #515 remains Draft/unmerged. No Remaining Gate-B Runtime, Gate C, merge, schema change,
+or Production mutation has been authorized yet.**
+
+Released predecessor state:
+
+- Gate A: released;
+- Gate-B pre-P1 containment: released and Production-verified;
+- Historical Daily DTR Write P1: PR #514 squash-merged as
+  `a95c3c921e067297f4f033620fe2f4ede7e7c5aa`;
+- P1 Production deployment: `dpl_HskHAzyWYZShZo3Y1Sesa4fJEAJK`, READY at the exact
+  merge commit;
+- Production Supabase contains the six Gate-B and three P1 migrations;
+- post-P1 Production verification preserved 96/96 canonical bridge coverage, 96 current
+  projection rows, zero active facts missing projection, zero unbridged segments, and
+  raw DTR mutation denial.
+
+Current planning artifact:
+`docs/devlog/gap-024-remaining-gate-b-completion-plan.md`
+
+Hosted planning PR:
+**#515 — Plan GAP-024 Remaining Gate B completion** (Draft / planning-only / unapproved)
+
+Planning branch:
+`codex/plan-gap-024-remaining-gate-b`
+
+The current plan is **verification + bounded privilege-hardening closure**. Fresh
+Production audit found that `service_role` still retains direct privileges on core
+Gate-A canonical attendance tables and can execute the projection rebuild. That is a
+Remaining Gate-B blocker under the already-approved deny-direct / non-generic-service-role
+contract.
+
+Fresh audit also found raw kiosk supporting-state authority: authenticated
+owner/manager policies and service_role can directly mutate `hr_kiosk_events`, while
+service_role can broadly mutate `hr_kiosk_devices`. Because command-owned kiosk event
+types affect debounce/provenance semantics, static application convention is insufficient.
+
+The plan therefore authorizes for later Runtime **two ordered forward migrations plus one
+bounded kiosk repository adapter change**:
+
+1. additive `gap024_remaining_gate_b_kiosk_support_wrappers`;
+2. exact wrapper-capable application deployment;
+3. final `gap024_remaining_gate_b_privilege_cutover`.
+
+The adapter moves only auxiliary event insertion and device telemetry writes to narrow
+service-role RPCs. The final cutover removes direct service-role canonical authority,
+direct raw kiosk event/device mutation, and projection-rebuild EXECUTE while preserving
+authenticated device administration, event read access, and the kiosk scan wrapper.
+
+Gate-B/P1 harness reuse, pre-cutover legacy proof, deterministic rebuild/replay proof,
+producer discovery, database-enforced kiosk event-type ownership, and Production
+invariants remain part of the closure contract. Any additional runtime/schema defect must
+return to planning instead of silently broadening the slice.
+
+DEC-017 order remains:
+Gate A → Gate-B pre-P1 containment → Historical Daily DTR P1 → **Remaining Gate B** →
+Gate C → Gate D → Gate E.
+
+Planning Review & Fix is converged with unresolved P0/P1/material-P2 = 0. Exact-current-
+head CI/Preview must remain green at the approval gate. The single next authorized action
+is explicit owner approval of PR #515's planning contract; only then may the planning PR
+be merged and a separately bounded Remaining-Gate-B Runtime begin.
+
+Gate C remains unauthorized until Remaining Gate B itself passes its separate Runtime,
+verification, release, and owner gates.
+
 ## 2026-09-26 — Historical Daily DTR Write P1 Controlled UAT converged
 
 **Status: CONTROLLED UAT + FINAL RELEASE REVIEW CONVERGED — READY FOR OWNER RELEASE
