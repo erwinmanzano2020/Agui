@@ -19,6 +19,11 @@ describe("POST /api/kiosk/ping legacy path", () => {
   it("returns 200 with legacy x-kiosk-token header", async () => {
     mock.method(service, "createServiceSupabaseClient", () => {
       return {
+        async rpc(name: string, args: Record<string, unknown>) {
+          assert.equal(name, "hr_touch_kiosk_device_telemetry");
+          assert.deepEqual(args, { p_device_id: "device-1" });
+          return { data: null, error: null };
+        },
         from(table: string) {
           if (table === "hr_kiosk_devices") {
             return {
@@ -39,13 +44,6 @@ describe("POST /api/kiosk/ping legacy path", () => {
                 },
                 error: null,
               }),
-              update() {
-                return {
-                  eq() {
-                    return this;
-                  },
-                };
-              },
             };
           }
           if (table === "branches") {
