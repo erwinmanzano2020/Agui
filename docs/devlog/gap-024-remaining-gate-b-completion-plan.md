@@ -215,8 +215,8 @@ It must:
    - genuinely database-disjoint auxiliary writer; or
    - blocker;
 3. run the complete scoped Gate-A + Gate-B + P1 migration chain on a disposable database;
-4. prove bootstrap/backfill/reconcile idempotency against representative legacy
-   manual/system fixtures;
+4. prove deterministic bootstrap/backfill on representative pre-cutover legacy
+   manual/system fixtures, then prove post-cutover rebuild/replay idempotency;
 5. prove projection rebuild determinism from the resulting durable authority;
 6. prove all command producers immediately leave canonical facts/revisions/frames and
    projection coherent;
@@ -532,7 +532,26 @@ already released Gate-B and P1 proofs.
 
 The new closure workflow should preserve the current reusable workflow primitives
 (`supabase/setup-cli@v1`, the scoped prerequisite fixture, explicit ordered SQL apply,
-and unconditional local-stack cleanup) and then:
+and unconditional local-stack cleanup).
+
+It must run on `pull_request` to `develop` / `main` plus
+`workflow_dispatch`, with path coverage broad enough that future producer-boundary
+changes cannot silently skip the closure proof. Minimum watched paths:
+
+- `supabase/**`;
+- `agui-starter/src/lib/hr/**`;
+- `agui-starter/src/lib/db.types.ts`;
+- `agui-starter/src/app/company/**/hr/dtr/**`;
+- `agui-starter/src/app/api/kiosk/**`;
+- `agui-starter/src/app/api/payroll/dtr-bulk/**`;
+- `agui-starter/src/app/payroll/dtr-bulk/**`;
+- `agui-starter/src/app/payroll/dtr-today/**`;
+- `agui-starter/scripts/fix-dtr-timezone.ts`;
+- `.github/workflows/gate-b-db-concurrency.yml`;
+- `.github/workflows/p1-historical-dtr-db.yml`;
+- `.github/workflows/gap024-remaining-gate-b-db.yml`.
+
+After trigger/setup, it should:
 
 1. starts the same scoped prerequisite fixture used by the existing database workflows;
 2. applies all Gate-A migrations and Gate-B migrations **through the repair-command
@@ -716,7 +735,8 @@ Remaining Gate B is complete only when all are true on the exact verification he
    either proven safe under an explicit coupling/ownership contract or genuinely
    database-disjoint;
 3. integrated Gate-A/Gate-B/P1 migration replay succeeds;
-4. representative legacy bootstrap/backfill is deterministic and idempotent;
+4. representative legacy bootstrap/backfill is deterministic on a fresh ordered replay,
+   and post-cutover rebuild/replay behavior is idempotent;
 5. every test producer leaves canonical authority + projection coherent;
 6. P1 correction/remediation maintains the same invariants;
 7. replay/idempotency mismatch tests pass;
@@ -878,5 +898,18 @@ different ways. Fix: reuse the existing
 (`.github/workflows/gap024-remaining-gate-b-db.yml`), and add one small phased closure
 helper (`supabase/tests/gap024_remaining_gate_b_closure.sh`) that orchestrates only the
 cross-slice gaps while continuing to invoke the released Gate-B and P1 harnesses.
+
+### Round 8 — continuous-enforcement and idempotency wording review
+
+**P1 — the planned closure workflow did not freeze trigger coverage.** A gate-closing CI
+proof that does not rerun when kiosk API, Daily DTR, bulk, repair, RPC type surface, or
+the predecessor harnesses change can silently become stale after merge. Fix: freeze
+`pull_request` / `workflow_dispatch` behavior and the minimum producer-relevant path
+set, including both reused workflows/harness domains.
+
+**P2 — “backfill idempotency” still conflicted with the explicit rule not to re-run an
+already-applied migration.** Fix: define the migration/backfill property as deterministic
+fresh ordered replay, while idempotency applies to operation replay and callable
+post-cutover rebuild/reconciliation behavior.
 
 Fresh review is required on the replacement exact head.
