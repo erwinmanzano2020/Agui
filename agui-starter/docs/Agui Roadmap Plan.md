@@ -47,18 +47,22 @@
   `docs/devlog/gap-024-remaining-gate-b-completion-plan.md`.
   Hosted planning PR: **#515 — Plan GAP-024 Remaining Gate B completion**
   (Draft / planning-only / unapproved).
-  Fresh Production privilege audit found one remaining Gate-B containment blocker:
-  `service_role` still has direct privileges on core Gate-A canonical attendance tables
-  and can execute the projection rebuild.
-  The planning approach is therefore **verification + bounded privilege hardening**:
-  exact-head producer discovery, one forward-only canonical privilege-cutover migration,
-  released Gate-B + P1 harness reuse/composition, deterministic rebuild/replay proof, and
-  Production invariant verification.
-- No Remaining Gate-B Runtime is authorized yet. The later bounded Runtime may implement
-  only the approved privilege-cutover migration + closure verification after owner
-  approval of this planning PR. No product behavior, attribution semantics, Gate C
-  cutover, Gate D/E work, unrelated HR work, POS, Operations, or Finance work is
-  authorized by this planning state.
+  Fresh Production privilege audit found two related Remaining-Gate-B containment
+  blockers:
+  1. `service_role` still has direct privileges on core Gate-A canonical attendance
+     tables and can execute the projection rebuild;
+  2. authenticated/service-role raw kiosk event/device mutation is broader than the
+     database-enforced supporting-state boundary required for provenance/debounce safety.
+  The planning approach is therefore **verification + bounded privilege/adapter
+  hardening**: two ordered forward migrations, a narrow kiosk repository adapter change,
+  exact-head producer discovery, released Gate-B + P1 harness reuse/composition,
+  deterministic rebuild/replay proof, and Production invariant verification.
+- No Remaining Gate-B Runtime is authorized yet. After owner approval of this planning
+  PR, the bounded Runtime may add only the additive kiosk support-wrapper migration,
+  wrapper-capable kiosk repository adapter/types/tests, final privilege-cutover migration,
+  and closure verification. No product behavior/attribution semantics, Gate C cutover,
+  Gate D/E work, unrelated HR work, POS, Operations, or Finance work is authorized by
+  this planning state.
 - DEC-017 sequence remains:
   Gate A → Gate-B pre-P1 containment → Historical Daily DTR P1 → **Remaining Gate B** →
   Gate C → Gate D → Gate E.
