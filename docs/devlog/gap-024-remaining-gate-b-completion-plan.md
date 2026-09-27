@@ -211,7 +211,8 @@ It must:
 2. classify each as:
    - canonical command producer;
    - P1 correction/remediation producer;
-   - database-disjoint auxiliary writer; or
+   - coupled supporting/provenance writer with an explicitly frozen ownership boundary;
+   - genuinely database-disjoint auxiliary writer; or
    - blocker;
 3. run the complete scoped Gate-A + Gate-B + P1 migration chain on a disposable database;
 4. prove bootstrap/backfill/reconcile idempotency against representative legacy
@@ -263,9 +264,12 @@ missing attendance uses owner/manager remediation.
 
 The service derives device House/branch from the authenticated device, uses stable
 `clientId` / offline `clientEventId` as operation identity, and calls
-`hr_apply_kiosk_attendance_scan`. Exact retries must be idempotent. Auxiliary
-`hr_kiosk_events` logging and device last-event timestamps are not an alternate
-attendance-fact writer and must be proven database-disjoint.
+`hr_apply_kiosk_attendance_scan`. Exact retries must be idempotent. The service-side `hr_kiosk_events` writer is not an alternate attendance-fact writer,
+but it is **not database-disjoint** because the kiosk command reads provenance-bearing
+event classes for debounce and the released cutover used those classes for historical
+proof. Its safe boundary is event-type ownership: command-owned
+`scan/clock_in/clock_out` versus service-side `reject/sync_success/sync_fail`.
+Device timestamp updates remain telemetry.
 
 ### Bulk
 
@@ -310,7 +314,7 @@ Existing canonical attendance tables and P1 case/event tables remain authoritati
 `dtr_segments` and `dtr_entries` remain compatibility surfaces. Their existing
 bridging/atomic compatibility behavior must be verified, not redefined.
 
-### Audit / telemetry state
+### Supporting operational / audit / telemetry state
 
 `hr_attendance_mutation_operations` remains the durable operation-idempotency ledger.
 `hr_kiosk_events` is **supporting operational/provenance state**, not canonical
@@ -688,7 +692,9 @@ and P1 immutable audit lineage.
 Remaining Gate B is complete only when all are true on the exact verification head:
 
 1. exact writer inventory is complete;
-2. every writer is command-compatible or database-disjoint;
+2. every attendance-truth writer is command-compatible, and every supporting writer is
+   either proven safe under an explicit coupling/ownership contract or genuinely
+   database-disjoint;
 3. integrated Gate-A/Gate-B/P1 migration replay succeeds;
 4. representative legacy bootstrap/backfill is deterministic and idempotent;
 5. every test producer leaves canonical authority + projection coherent;
@@ -827,5 +833,20 @@ classes.
 
 The existing `last_event_at` device-timestamp behavior remains telemetry/UX state and is
 not promoted into this Gate-B attendance-authority closure slice.
+
+### Round 6 — fresh cross-section consistency review
+
+**P1 — Round-5 kiosk coupling was not propagated through the whole Slice Contract.**
+Section 8 still called the kiosk event writer database-disjoint, the writer-classification
+list had no category for coupled supporting state, and the acceptance criterion still
+required every writer to be command-compatible or disjoint. Those contradictions could
+cause Runtime either to ignore the kiosk coupling or incorrectly block it. Fix: add an
+explicit coupled-supporting/provenance category, define its event-type ownership boundary
+consistently, and update acceptance to distinguish attendance-truth writers from safe
+supporting writers.
+
+**P3 — the persistence subsection heading still called all of the state “audit /
+telemetry.”** Fix: rename it to supporting operational / audit / telemetry state so the
+heading matches the actual contract.
 
 Fresh review is required on the replacement exact head.
