@@ -872,34 +872,40 @@ inside the same database. Migration replay is proved by constructing a fresh dis
 database from the released ordered chain; rebuild/idempotency is proved through the
 released callable/reconciliation contracts and their stable keys.
 
-## 26. Production-shaped baseline verification
+## 26. Production-shaped pre-release baseline verification
 
-Before release approval, read-only Production checks must confirm:
+Before Runtime release approval, Production checks are **read-only** and must confirm the
+actual pre-cutover state, not pretend the future migration has already run.
 
-- expected Gate-A/Gate-B/P1 migration history;
+Required baseline:
+
+- expected released Gate-A/Gate-B/P1 migration history, with neither Remaining-Gate-B
+  migration present yet;
 - `dtr_segments total = linked`;
 - active facts = current projection rows;
-- no active fact missing a current projection;
+- no active fact missing current projection;
 - no unbridged compatibility segment;
-- no direct app-role raw DTR mutation privilege;
-- no direct authenticated canonical-table access;
-- no service-role INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER on canonical authority;
-- authenticated `hr_kiosk_events` is read-only;
-- service_role has no direct `hr_kiosk_events` table DML and no raw device mutation;
-- service-role auxiliary event wrapper rejects command-owned provenance event types;
-- service-role device-touch wrapper can update telemetry only;
-- any retained service-role canonical SELECT has an exact reviewed dependency;
-- service_role cannot execute the projection rebuild directly;
-- kiosk wrapper remains service-role executable;
-- no direct authenticated/service-role DML privilege on P1 lifecycle tables;
-- canonical wrapper/grant/search_path posture;
-- P1 case/event table RLS and direct-DML denial;
+- raw authenticated/service-role DTR mutation remains denied;
+- authenticated remains deny-direct on canonical attendance authority;
+- the known service-role canonical-table privilege gap matches the planned Section 4
+  inventory and has not expanded to additional canonical relations/functions;
+- `hr_rebuild_attendance_authorization_projection(uuid)` remains the known direct
+  service-role callable slated for revocation;
+- current authenticated/service-role kiosk event/device privileges match the known
+  pre-cutover gap and contain no additional unplanned writer;
+- migration-1 support RPCs are **absent** before release;
+- P1 lifecycle direct-DML denial and immutable audit posture remain intact;
 - no unexpected ATTRIBUTED/UNATTRIBUTED/CONFLICT transition since planning baseline;
-- Vercel Production still serves the intended released application baseline before any
-  separate later cutover.
+- Vercel Production serves the intended released P1 application baseline;
+- recent Production warning/error/fatal logs show no blocker unrelated to this planned
+  cutover.
 
-A changed count is not automatically an error if legitimate attendance has occurred.
-Verification must compare relational invariants, not freeze business row counts forever.
+A changed business-row count is not automatically an error if legitimate attendance has
+occurred. Verification compares relational invariants and privilege **shape**, not a
+frozen count of 96.
+
+Any additional raw writer/grant/dependency found at this gate is a planning/runtime
+blocker; do not stretch the approved migration to absorb it silently.
 
 ## 27. Preview / staging UAT
 
@@ -910,8 +916,15 @@ Preview/staging verification should instead prove:
 
 - exact-head build/checks are green;
 - no new product route/UI behavior is introduced;
-- disposable DB integrated harness passes;
-- Preview root/smoke remains healthy if Vercel builds the verification PR;
+- disposable DB integrated harness passes with both new migrations;
+- wrapper-capable app works against the isolated post-migration backend;
+- kiosk ping updates `last_seen_at` through the telemetry RPC;
+- scan/sync retain current response semantics;
+- `reject/sync_success/sync_fail` support events remain writable through the narrow RPC;
+- direct support RPC attempts to mint `scan/clock_in/clock_out/queued` fail closed;
+- raw service-role event/device mutations fail after migration 2;
+- authenticated event mutation fails while event read/admin-device flows remain intact;
+- Preview root/smoke remains healthy;
 - runtime logs contain no new warning/error/fatal condition attributable to the slice.
 
 If Runtime unexpectedly changes product behavior, this UAT contract is invalid and
@@ -1032,7 +1045,7 @@ Remaining Gate B is complete only when all are true on the exact verification he
 2. every attendance-truth writer is command-compatible, and every supporting writer is
    either proven safe under an explicit coupling/ownership contract or genuinely
    database-disjoint;
-3. integrated Gate-A/Gate-B/P1 migration replay succeeds;
+3. integrated Gate-A/Gate-B/P1 + both Remaining-Gate-B migration replay succeeds;
 4. representative legacy bootstrap/backfill is deterministic on a fresh ordered replay,
    and post-cutover rebuild/replay behavior is idempotent;
 5. every test producer leaves canonical authority + projection coherent;
@@ -1062,7 +1075,8 @@ Remaining Gate B is complete only when all are true on the exact verification he
 27. exact-head CI is green;
 28. material review threads = 0;
 29. current Roadmap/HR status and detailed plan agree;
-30. read-only Production verification has no blocker.
+30. pre-release Production baseline has no **unplanned** blocker and post-release
+    Production verification passes.
 
 ## 33. Governance / authorization boundary
 
@@ -1367,5 +1381,19 @@ overload count and generated client signatures after schema-cache reload.
 which contradicted the fresh canonical/service-role findings.** Fix: narrow the released
 claim to the raw DTR-table no-bypass posture actually proven by the P1 release, while the
 new Remaining-Gate-B section owns the broader canonical/supporting-state privilege gaps.
+
+### Round 20 — pre-release versus post-release evidence separation
+
+**P1 — the pre-release Production baseline section incorrectly required the future
+post-cutover privilege state.** That would make owner release approval impossible because
+Production is supposed to still contain the known gap before the migration. Fix: Section
+26 now verifies the real released P1 state, confirms the known privilege gaps match the
+frozen plan, and blocks only on additional/unplanned drift. Section 28 remains the
+post-release proof that the gaps are closed.
+
+**P2 — Preview verification was too generic after the kiosk adapter became Runtime
+scope.** Fix: explicitly test ping telemetry, scan/sync response preservation, allowed
+support-event classes, forbidden provenance event classes, post-cutover raw DML denial,
+and authenticated admin/read survivability against an isolated backend.
 
 Fresh review is required on the replacement exact head.
