@@ -47,7 +47,7 @@ jobs:
           restore_migrations
           trap - EXIT
 
-      - name: Apply phased Gate-A / Gate-B / P1 / Remaining-B chain
+      - name: Apply Gate-A and Gate-B through reconcile
         shell: bash
         run: |
           set -euo pipefail
@@ -92,27 +92,38 @@ jobs:
           apply_sql supabase/migrations/20261020150000_gap024_gate_b_reconcile_cutover.sql
           bash supabase/tests/gap024_remaining_gate_b_closure.sh verify-reconcile
 
-          p1=(
+      - name: Re-run released Gate-B concurrency proof at its native schema point
+        run: bash supabase/tests/gap024_gate_b_concurrency.sh
+
+      - name: Apply P1 and Remaining-B migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          DB_CONTAINER="$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -n 1)"
+          test -n "$DB_CONTAINER"
+
+          apply_sql() {
+            local file="$1"
+            echo "Applying $file"
+            docker exec -i "$DB_CONTAINER"               psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres < "$file"
+          }
+
+          migrations=(
             supabase/migrations/20261021100000_historical_dtr_p1_foundation.sql
             supabase/migrations/20261021110000_historical_dtr_p1_correction_commands.sql
             supabase/migrations/20261021120000_historical_dtr_p1_remediation_commands.sql
-          )
-          remaining_b=(
             supabase/migrations/20260927094900_gap024_remaining_gate_b_kiosk_support_wrappers.sql
             supabase/migrations/20260927094901_gap024_remaining_gate_b_privilege_cutover.sql
           )
 
-          for migration in "${p1[@]}" "${remaining_b[@]}"; do
+          for migration in "${migrations[@]}"; do
             apply_sql "$migration"
           done
-
-      - name: Re-run released Gate-B concurrency proof
-        run: bash supabase/tests/gap024_gate_b_concurrency.sh
 
       - name: Re-run released P1 concurrency proof
         run: bash supabase/tests/historical_dtr_p1_concurrency.sh
 
-      - name: Restore released seams and verify cross-slice closure
+      - name: Restore released seams and verify post-cutover closure
         shell: bash
         run: |
           set -euo pipefail
