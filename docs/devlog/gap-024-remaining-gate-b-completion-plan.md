@@ -1579,10 +1579,11 @@ Convergence state for the planning contract itself:
 - Gate C/D/E remain unauthorized;
 - Production remains unchanged.
 
-The owner-approval gate is **not yet actionable** because the exact-current planning head
-must still satisfy the repository's normal checks. Vercel is currently reporting the
-external daily deployment quota (`api-deployments-free-per-day`) rather than a build or
-application defect. Do not reuse a superseded Preview as evidence; re-check the exact
-current head after that quota clears.
+The exact-current planning head has now cleared the repository's normal check gate:
+Preflight is green, the Vercel status is successful, and the exact-head Preview deployment
+is READY. No superseded Preview is being reused as evidence.
 
-**PLANNING GATE: TECHNICALLY CONVERGED — CHECK GATE BLOCKED BY VERCEL DAILY QUOTA**
+No remaining material P0/P1/P2 planning defect is known. The next authorized action is
+explicit owner approval of planning amendment PR #517.
+
+**PLANNING GATE: READY FOR OWNER APPROVAL**
