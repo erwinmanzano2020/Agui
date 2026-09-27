@@ -12,6 +12,8 @@
 - Planning base: `develop` at
   `a95c3c921e067297f4f033620fe2f4ede7e7c5aa`
   (Historical Daily DTR Write P1 squash merge, PR #514)
+- Hosted planning PR: **#515 — Plan GAP-024 Remaining Gate B completion**
+- Planning branch: `codex/plan-gap-024-remaining-gate-b`
 - Production application: Vercel `agui-nine.vercel.app`, currently serving exact commit
   `a95c3c921e067297f4f033620fe2f4ede7e7c5aa`
 - Production backend: Supabase project `rytrmtsteojboqmrimdb`
@@ -757,5 +759,12 @@ reconcile cutover once and assert ATTRIBUTED versus fail-closed UNATTRIBUTED out
 **P3 — duplicate subsection numbering and fixed-row wording reduced precision.** Fix:
 renumber compatibility state to 5.4 and express bridge completeness as a relational
 invariant rather than freezing the planning-time count of 96 as future business state.
+
+### Round 3 — durable planning-artifact identity synchronization
+
+**P2 — durable status named the branch/artifact but not the hosted planning PR.** A fresh
+session should be able to recover the exact review surface without searching by inference.
+Fix: record PR #515 in this plan, HR status, and Roadmap while preserving its Draft,
+planning-only, unapproved state.
 
 Fresh review is required on the replacement exact head.
