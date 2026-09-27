@@ -55,7 +55,7 @@ type KioskRepo = {
     houseId: string;
     branchId: string;
     employeeId?: string | null;
-    eventType: "scan" | "clock_in" | "clock_out" | "reject" | "queued" | "sync_success" | "sync_fail";
+    eventType: "reject" | "sync_success" | "sync_fail";
     occurredAt: string;
     metadata?: Record<string, unknown>;
   }): Promise<void>;
