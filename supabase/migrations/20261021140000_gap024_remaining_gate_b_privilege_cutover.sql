@@ -62,8 +62,8 @@ drop policy if exists hr_kiosk_events_insert_house_roles on public.hr_kiosk_even
 drop policy if exists hr_kiosk_events_update_house_roles on public.hr_kiosk_events;
 drop policy if exists hr_kiosk_events_delete_house_roles on public.hr_kiosk_events;
 
-revoke insert, update, delete, truncate, references, trigger
-  on table public.hr_kiosk_events from authenticated;
+revoke all privileges on table public.hr_kiosk_events from authenticated;
+grant select on table public.hr_kiosk_events to authenticated;
 revoke all privileges on table public.hr_kiosk_events from service_role;
 
 -- Device token lookup still needs service-role SELECT. All service-side telemetry writes
