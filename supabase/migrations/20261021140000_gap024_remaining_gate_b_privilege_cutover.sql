@@ -18,7 +18,7 @@ begin
       and c.relname like 'hr_attendance_%'
   loop
     execute format(
-      'revoke all privileges on table %s from authenticated, service_role',
+      'revoke all privileges on table %s from public, anon, authenticated, service_role',
       v_relation.qualified_name
     );
   end loop;
@@ -102,7 +102,7 @@ begin
     from information_schema.role_table_grants grant_row
     where grant_row.table_schema = 'public'
       and grant_row.table_name like 'hr_attendance_%'
-      and grant_row.grantee in ('authenticated', 'service_role')
+      and grant_row.grantee in ('PUBLIC', 'anon', 'authenticated', 'service_role')
   ) then
     raise exception 'Remaining Gate-B cutover left direct canonical attendance table privileges'
       using errcode = '55000';
