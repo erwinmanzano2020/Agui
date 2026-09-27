@@ -490,7 +490,13 @@ acceptable.
 
 ## 24. Deterministic unit/static tests
 
-Future Runtime should extend existing tests rather than create parallel architecture.
+Future Runtime should extend the existing containment test rather than create a parallel
+writer-inventory test surface:
+
+- update
+  `agui-starter/src/lib/hr/__tests__/gap024-gate-b-writer-containment.test.ts`;
+- do not create a second independent static writer allowlist unless a concrete test
+  limitation requires it.
 
 Minimum static assertions:
 
@@ -509,10 +515,24 @@ Minimum static assertions:
 
 ## 25. Integration / backend tests
 
+Planned verification files for the Runtime slice:
+
+- new orchestration workflow:
+  `.github/workflows/gap024-remaining-gate-b-db.yml`;
+- new **small** phased closure helper:
+  `supabase/tests/gap024_remaining_gate_b_closure.sh`.
+
+The closure helper should expose only the bounded phases needed by the workflow, for
+example `seed-pre-cutover`, `restore-released-seams`, and
+`verify-post-p1`. It must call the same local Supabase/PostgreSQL container contract used
+by the existing harnesses and must not embed a copy of their C1-C8/P1 scenarios.
+
 Do **not** fork a third independent attendance fixture/harness that can drift from the
 already released Gate-B and P1 proofs.
 
-The preferred implementation is one closure workflow that:
+The new closure workflow should preserve the current reusable workflow primitives
+(`supabase/setup-cli@v1`, the scoped prerequisite fixture, explicit ordered SQL apply,
+and unconditional local-stack cleanup) and then:
 
 1. starts the same scoped prerequisite fixture used by the existing database workflows;
 2. applies all Gate-A migrations and Gate-B migrations **through the repair-command
@@ -848,5 +868,15 @@ supporting writers.
 **P3 — the persistence subsection heading still called all of the state “audit /
 telemetry.”** Fix: rename it to supporting operational / audit / telemetry state so the
 heading matches the actual contract.
+
+### Round 7 — implementation-surface precision review
+
+**P2 — the plan described the integrated proof but did not freeze its bounded file
+surface.** That left Runtime free to duplicate existing workflows/tests in several
+different ways. Fix: reuse the existing
+`gap024-gate-b-writer-containment.test.ts`, add exactly one closure workflow
+(`.github/workflows/gap024-remaining-gate-b-db.yml`), and add one small phased closure
+helper (`supabase/tests/gap024_remaining_gate_b_closure.sh`) that orchestrates only the
+cross-slice gaps while continuing to invoke the released Gate-B and P1 harnesses.
 
 Fresh review is required on the replacement exact head.
