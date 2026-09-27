@@ -44,31 +44,35 @@
   compatibility rows, and the released **raw DTR-table** no-bypass privilege posture.
   The broader canonical/supporting-state privilege audit below found the Remaining-Gate-B
   gaps that are now being planned.
-- **Current bounded target: GAP-024 Remaining Gate B — PLANNING CONVERGED / READY FOR
-  OWNER APPROVAL.**
-  Planning artifact:
+- **Current bounded target: GAP-024 Remaining Gate B — PLANNING RE-ENTRY /
+  AMENDMENT REVIEW IN PROGRESS.**
+  Durable planning artifact:
   `docs/devlog/gap-024-remaining-gate-b-completion-plan.md`.
-  Hosted planning PR: **#515 — Plan GAP-024 Remaining Gate B completion**
+  Original planning PR **#515 — Plan GAP-024 Remaining Gate B completion** was explicitly
+  owner-approved and squash-merged as
+  `908e36eb1861f3ba76426927f0968ed0caf0fdcb`.
+  Runtime PR **#516 — Implement GAP-024 Remaining Gate B closure** is Draft/unmerged and
+  paused after its exact-scope review exposed one bounded planning omission.
+  Current planning amendment PR:
+  **#517 — Amend GAP-024 Remaining Gate B planning for kiosk reject identity**
   (Draft / planning-only / unapproved).
-  Fresh Production privilege audit found two related Remaining-Gate-B containment
-  blockers:
-  1. `service_role` still has direct privileges on core Gate-A canonical attendance
-     tables and can execute the projection rebuild;
-  2. authenticated/service-role raw kiosk event/device mutation is broader than the
-     database-enforced supporting-state boundary required for provenance/debounce safety.
-  The planning approach is therefore **verification + bounded privilege/adapter
-  hardening**: two ordered forward migrations, a narrow kiosk repository adapter change,
-  exact-head producer discovery, released Gate-B + P1 harness reuse/composition,
-  deterministic rebuild/replay proof, and Production invariant verification.
-- Planning Review & Fix is converged with unresolved P0/P1/material-P2 = 0. PR #515
-  remains Draft/unmerged; exact-current-head CI/Preview must remain green. The single next
-  authorized action is explicit owner approval of the planning contract.
-- No Remaining Gate-B Runtime is authorized yet. After owner approval and merge of the
-  planning PR, a separately bounded Runtime may add only the additive kiosk support-
-  wrapper migration, wrapper-capable kiosk repository/http adapter + generated types/tests,
-  final privilege-cutover migration, and closure verification. No product
-  behavior/attribution semantics, Gate C cutover, Gate D/E work, unrelated HR work, POS,
-  Operations, or Finance work is authorized by this planning state.
+- The original privilege/adapter closure remains unchanged: two ordered forward
+  migrations, narrow kiosk support RPCs, exact-head producer discovery, released Gate-B +
+  P1 harness reuse/composition, deterministic rebuild/replay proof, and Production
+  invariant verification.
+- The amendment adds only the missing authorized `agui-starter/src/lib/hr/kiosk/service.ts`
+  surface required by the new support-event identity validation. For
+  `house_mismatch` / `employee_not_found`, an unverified QR employee claim cannot
+  populate authoritative kiosk-event `employee_id`; use null identity and preserve the
+  claim only as non-authoritative `claimedEmployeeId` audit metadata. Verified
+  same-House employee identity continues unchanged.
+- Planning Review & Fix is reopened only for PR #517. The next authorized action is to
+  converge that planning amendment and request explicit owner approval. Runtime PR #516
+  must remain paused until the amendment is owner-approved and merged, then that existing
+  Runtime PR may resume against the amended contract. No duplicate Runtime PR is needed.
+- No Production mutation or Remaining-Gate-B release is authorized by this amendment.
+  No new schema/RPC/event type/user-facing workflow is added. Gate C/D/E, unrelated HR
+  work, POS, Operations, and Finance remain unauthorized.
 - DEC-017 sequence remains:
   Gate A → Gate-B pre-P1 containment → Historical Daily DTR P1 → **Remaining Gate B** →
   Gate C → Gate D → Gate E.
