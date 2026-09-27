@@ -341,7 +341,7 @@ test("Remaining Gate B support wrappers are narrow, service-only, and derive tru
   assert.match(remainingSupportSql, /p_event_type not in \('reject', 'sync_success', 'sync_fail'\)/i);
   assert.match(
     remainingSupportSql,
-    /from public\.hr_kiosk_devices[\s\S]*where device\.id = p_device_id[\s\S]*employee\.house_id = v_device\.house_id/i,
+    /from public\.hr_kiosk_devices[\s\S]*where device\.id = p_device_id[\s\S]*employee\.house_id = v_device\.house_id[\s\S]*for share/i,
   );
   assert.match(
     remainingSupportSql,
