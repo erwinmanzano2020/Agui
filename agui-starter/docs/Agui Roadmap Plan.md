@@ -41,7 +41,9 @@
   `dpl_HskHAzyWYZShZo3Y1Sesa4fJEAJK` serves that exact commit.
 - Post-P1 Production verification preserved 96/96 canonical bridge coverage, 96 current
   authorization-projection rows, zero active facts missing projection, zero unbridged
-  compatibility rows, and the released no-bypass privilege posture.
+  compatibility rows, and the released **raw DTR-table** no-bypass privilege posture.
+  The broader canonical/supporting-state privilege audit below found the Remaining-Gate-B
+  gaps that are now being planned.
 - **Current bounded target: GAP-024 Remaining Gate B — PLANNING ACTIVE.**
   Planning artifact:
   `docs/devlog/gap-024-remaining-gate-b-completion-plan.md`.
