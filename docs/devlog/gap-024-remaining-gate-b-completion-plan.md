@@ -498,9 +498,25 @@ writer-inventory test surface:
 - do not create a second independent static writer allowlist unless a concrete test
   limitation requires it.
 
+The containment test must also become a **repository-wide producer discovery guard**,
+not only a collection of hard-coded file reads. It should recursively inspect
+`agui-starter/src/**` and `agui-starter/scripts/**` (excluding test fixtures/generated
+output as appropriate) for:
+
+- raw mutation calls against `dtr_segments` / `dtr_entries`;
+- calls to released attendance mutation RPCs;
+- direct `hr_kiosk_events` writes capable of emitting provenance-bearing event classes.
+
+The discovered mutation call sites must match an explicit reviewed allowlist of approved
+producer/supporting paths. A new call site fails Preflight until it is classified in the
+plan/containment test and, when it is a legitimate producer boundary, its path is added to
+the integrated closure-workflow trigger set. Read-only DTR consumers must not be falsely
+classified as writers.
+
 Minimum static assertions:
 
-- repository writer inventory includes all exact-head producer paths;
+- repository writer inventory includes all exact-head producer paths and fails on an
+  unclassified newly discovered mutation call site;
 - no application code performs raw `dtr_segments`/`dtr_entries` mutation;
 - kiosk event-type ownership is frozen: only the canonical database kiosk command may
   write provenance-bearing `clock_in`/`clock_out` events; service-side auxiliary
@@ -922,5 +938,17 @@ development head.** A change to device activation/branch context or the HR-prefi
 scan/sync boundary could therefore alter producer identity semantics without rerunning the
 closure proof. Fix: add both `agui-starter/src/app/api/hr/kiosk/**` and
 `agui-starter/src/app/api/hr/kiosk-devices/**` to the mandatory workflow trigger set.
+
+### Round 10 — future producer-discovery bypass review
+
+**P1 — exact-head hard-coded inventory plus path-filtered DB CI was not sufficient to
+detect a future attendance writer added under a previously unknown route/script.** The
+existing containment test reads known files directly; a new command or raw writer outside
+those files could avoid both its assertions and the closure workflow path filters. Fix:
+require the existing containment test to gain repository-wide mutation-call discovery
+over `agui-starter/src/**` and `agui-starter/scripts/**`, fail on every unclassified
+new writer/supporting call site, and require any newly approved producer path to be added
+to the closure workflow trigger set. This preserves efficient path-filtered DB CI without
+leaving an unknown-path bypass.
 
 Fresh review is required on the replacement exact head.
