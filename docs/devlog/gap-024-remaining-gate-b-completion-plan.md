@@ -181,7 +181,7 @@ this table is evidence, not a permanent allowlist.
 | Daily DTR historical correction | `actions.ts` → `attendance-p1-server.ts` | P1 proposal/finalization commands |
 | Daily DTR historical missing-attendance review | `actions.ts` → `attendance-p1-server.ts` | P1 open/adjudicate/finalize commands |
 | Kiosk online/offline attendance | `src/lib/hr/kiosk/service.ts` → `repository.ts` | device-authenticated service path → `hr_apply_kiosk_attendance_scan` |
-| Kiosk event/device telemetry | `src/lib/hr/kiosk/repository.ts` | auxiliary event + device timestamp writes; must remain database-disjoint from canonical attendance mutation |
+| Kiosk support/event writes | `src/lib/hr/kiosk/repository.ts` plus the kiosk command | **coupled supporting state, not database-disjoint**: the command owns `scan/clock_in/clock_out` event rows and reads `clock_in/clock_out` for debounce; the service-side auxiliary writer currently emits only `reject/sync_success/sync_fail` and updates device timestamps |
 | Bulk DTR replacement | `src/app/api/payroll/dtr-bulk/route.ts` | authenticated `hr_replace_bulk_attendance_day` |
 | Timezone repair | `scripts/fix-dtr-timezone.ts` | emits private maintenance command calls; no raw DTR UPDATE |
 | Legacy `payroll/dtr-today` browser writer | `src/app/payroll/dtr-today/page.client.tsx` | retired as writer / preview-only |
@@ -313,7 +313,25 @@ bridging/atomic compatibility behavior must be verified, not redefined.
 ### Audit / telemetry state
 
 `hr_attendance_mutation_operations` remains the durable operation-idempotency ledger.
-Kiosk event/device telemetry remains auxiliary and must not acquire attendance authority.
+`hr_kiosk_events` is **supporting operational/provenance state**, not canonical
+attendance truth and not merely inert telemetry:
+
+- the released kiosk command writes command-owned `scan`, `clock_in`, and
+  `clock_out` rows;
+- kiosk debounce reads prior `clock_in`/`clock_out` events;
+- the released legacy reconcile cutover used exact `clock_in`/`clock_out` event,
+  device, branch, source-identity, and timestamp proof to establish historical kiosk
+  provenance;
+- current service-side auxiliary calls to `insertKioskEvent` emit only
+  `reject`, `sync_success`, and `sync_fail`, plus device telemetry updates.
+
+Therefore the service-side event writer cannot be classified as “database-disjoint.”
+Remaining Gate B must instead prove **event-type ownership**: no application path outside
+the canonical kiosk command may emit command-owned `clock_in`/`clock_out` rows or
+otherwise create provenance that can alter debounce/backfill semantics.
+
+`hr_kiosk_devices.last_seen_at/last_event_at` remains device telemetry and is not
+canonical attendance authority.
 
 ### Production mutation rule
 
@@ -474,6 +492,10 @@ Minimum static assertions:
 
 - repository writer inventory includes all exact-head producer paths;
 - no application code performs raw `dtr_segments`/`dtr_entries` mutation;
+- kiosk event-type ownership is frozen: only the canonical database kiosk command may
+  write provenance-bearing `clock_in`/`clock_out` events; service-side auxiliary
+  event call sites are limited to non-provenance event classes such as
+  `reject/sync_success/sync_fail`;
 - current wrappers and intended grants remain frozen;
 - P1 immediate-update bypass remains retired;
 - timezone repair remains command-only;
@@ -512,7 +534,8 @@ The preferred implementation is one closure workflow that:
    that private seam to `UNAVAILABLE`;
 9. runs a **small Remaining-Gate-B closure verifier** for only the missing cross-slice
    assertions: full bridge coverage, semantic rebuild determinism, reader parity,
-   operation/grant no-bypass posture, and auxiliary-writer disjointness.
+   operation/grant no-bypass posture, kiosk event-type ownership/coupling, and
+   auxiliary-writer disposition.
 
 This ordering matters: seeding all representative “legacy” rows only **after** the
 reconcile migration would not test backfill at all and would produce a false Gate-B
@@ -789,5 +812,20 @@ cross-slice assertions.
 **P2 — reused harness fixtures need namespace isolation.** Fix: require closure-specific
 House/employee/device/operation identifiers to be disjoint from both existing harnesses
 so one suite cannot satisfy or corrupt another suite's assertions by collision.
+
+### Round 5 — kiosk supporting-state ownership review
+
+**P1 — the plan incorrectly classified kiosk event writes as database-disjoint
+telemetry.** The released kiosk command itself writes `scan/clock_in/clock_out` rows,
+reads prior `clock_in/clock_out` events for debounce, and the released Gate-B reconcile
+migration used exact kiosk event/device/branch/timestamp proof for historical provenance.
+Treating the table as inert telemetry could miss a path that changes operational
+semantics. Fix: classify `hr_kiosk_events` as supporting operational/provenance state,
+freeze command-owned event types, and require a static/runtime proof that service-side
+auxiliary writes remain limited to non-provenance `reject/sync_success/sync_fail`
+classes.
+
+The existing `last_event_at` device-timestamp behavior remains telemetry/UX state and is
+not promoted into this Gate-B attendance-authority closure slice.
 
 Fresh review is required on the replacement exact head.
