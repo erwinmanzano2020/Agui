@@ -800,6 +800,20 @@ After trigger/setup, it should:
    operation/grant no-bypass posture across both compatibility and canonical authority
    tables, kiosk event-type ownership/coupling, and auxiliary-writer disposition.
 
+The final database privilege assertion must be **discovery-based**, not a frozen list of
+today's tables/functions:
+
+- enumerate current `public.hr_attendance_%` relations and fail any unclassified
+  authenticated/service-role direct privilege;
+- enumerate attendance/kiosk mutation-capable functions and compare service-role EXECUTE
+  to the reviewed allowlist;
+- separately assert kiosk event/device table privileges;
+- allow only documented read surfaces and the approved kiosk/support wrappers.
+
+Because the new closure workflow triggers on `supabase/**`, a later migration that
+silently recreates direct canonical grants must fail CI instead of becoming unnoticed
+authorization drift.
+
 This ordering matters: seeding all representative “legacy” rows only **after** the
 reconcile migration would not test backfill at all and would produce a false Gate-B
 closure proof.
@@ -1067,9 +1081,13 @@ Explicitly deferred:
 1. Gate C canonical Daily DTR facts-only read cutover;
 2. Gate D all-consumer read migration/disposition;
 3. Gate E final broad raw/base-access cutover;
-4. HR-4 approval product implementation;
-5. GAP-026;
-6. unrelated HR/POS/Operations/Finance work.
+4. kiosk-device/event **branch-limited authorization-lane redesign**. Existing durable
+   HR branch-scope audit explicitly records this as a future authorization-model gap; this
+   slice preserves current authenticated owner/manager device administration and event
+   read scope rather than inventing a new branch-role source of truth;
+5. HR-4 approval product implementation;
+6. GAP-026;
+7. unrelated HR/POS/Operations/Finance work.
 
 ## 35. Initial residual risks to carry into Runtime
 
@@ -1314,5 +1332,20 @@ is serving. Synthetic attendance remains unnecessary.
 `hr_touch_kiosk_device_telemetry(uuid)` as the planned callable surfaces while leaving
 the detailed support-event parameter signature to Runtime implementation within the
 already-frozen validation contract.
+
+### Round 17 — future privilege drift + deferred authorization review
+
+**P1 — a one-time privilege matrix could pass Remaining Gate B and then silently regress
+when a later Supabase migration creates another attendance table/function with default
+service-role grants.** Fix: require discovery-based disposable-DB privilege assertions
+over current `hr_attendance_%` relations and attendance/kiosk callable surfaces, and
+keep the closure workflow triggered by all `supabase/**` changes.
+
+**P2 — kiosk device/event branch-limited authorization is a known durable model gap but is
+not owned by Remaining Gate B.** The existing HR branch-scope audit explicitly defers
+formal branch-limited authorization lanes until that authority model is standardized.
+Fix: record this as deferred and preserve the current authenticated owner/manager device
+administration + event-read contract rather than smuggling a new branch-role policy into
+this security closure.
 
 Fresh review is required on the replacement exact head.
