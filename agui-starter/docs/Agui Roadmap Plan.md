@@ -45,6 +45,8 @@
 - **Current bounded target: GAP-024 Remaining Gate B — PLANNING ACTIVE.**
   Planning artifact:
   `docs/devlog/gap-024-remaining-gate-b-completion-plan.md`.
+  Hosted planning PR: **#515 — Plan GAP-024 Remaining Gate B completion**
+  (Draft / planning-only / unapproved).
   The planning approach is verification/closure-first: exact-head producer inventory,
   released Gate-B + P1 harness reuse/composition, deterministic rebuild and
   replay/idempotency proof, and read-only Production invariant verification.
