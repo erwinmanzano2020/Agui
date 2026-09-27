@@ -1,5 +1,45 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-09-27 — GAP-024 Remaining Gate B planning active
+
+**Status: PLANNING ACTIVE — Historical Daily DTR Write P1 is released and Production-
+verified; Remaining Gate B is now the current bounded planning target. No Remaining Gate-B
+Runtime, Gate C, merge, schema change, or Production mutation is authorized by this
+planning state.**
+
+Released predecessor state:
+
+- Gate A: released;
+- Gate-B pre-P1 containment: released and Production-verified;
+- Historical Daily DTR Write P1: PR #514 squash-merged as
+  `a95c3c921e067297f4f033620fe2f4ede7e7c5aa`;
+- P1 Production deployment: `dpl_HskHAzyWYZShZo3Y1Sesa4fJEAJK`, READY at the exact
+  merge commit;
+- Production Supabase contains the six Gate-B and three P1 migrations;
+- post-P1 Production verification preserved 96/96 canonical bridge coverage, 96 current
+  projection rows, zero active facts missing projection, zero unbridged segments, and
+  raw DTR mutation denial.
+
+Current planning artifact:
+`docs/devlog/gap-024-remaining-gate-b-completion-plan.md`
+
+Planning branch:
+`codex/plan-gap-024-remaining-gate-b`
+
+The current plan is verification/closure-first: re-inventory every exact-head attendance
+producer, reuse/compose the released Gate-B and P1 disposable database proofs, add only
+the missing cross-slice closure assertions, verify deterministic projection rebuild and
+replay/idempotency, and perform read-only Production invariant checks. The plan does not
+presume a new migration or product behavior. A concrete runtime/schema defect discovered
+during verification must return to planning instead of silently broadening the slice.
+
+DEC-017 order remains:
+Gate A → Gate-B pre-P1 containment → Historical Daily DTR P1 → **Remaining Gate B** →
+Gate C → Gate D → Gate E.
+
+Gate C remains unauthorized until Remaining Gate B itself passes its separate planning,
+Runtime, verification, and owner gates.
+
 ## 2026-09-26 — Historical Daily DTR Write P1 Controlled UAT converged
 
 **Status: CONTROLLED UAT + FINAL RELEASE REVIEW CONVERGED — READY FOR OWNER RELEASE
