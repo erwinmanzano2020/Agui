@@ -58,7 +58,8 @@ After the future Remaining Gate-B verification Runtime converges:
   disposition;
 - every producer that can change attendance truth is command-compatible or proven
   database-disjoint;
-- all 96 currently released compatibility rows remain canonically bridged;
+- every active compatibility row remains canonically bridged, without freezing the
+  planning-time row count as a business invariant;
 - deterministic projection rebuild reproduces the same authorization state;
 - retries/replays cannot duplicate or diverge canonical attendance;
 - P1 correction/remediation is included in the producer compatibility proof;
@@ -189,7 +190,7 @@ Runtime inventory must also search for raw SQL, PostgREST, RPC, scripts, backgro
 admin utilities, service-role clients, and newly added routes rather than relying only on
 the known paths above.
 
-### 5.3 Compatibility state
+### 5.4 Compatibility state
 
 `dtr_segments` remains a compatibility projection/bridge during staged Gate C/D work.
 `dtr_entries` remains a legacy compatibility/read surface where retained by current
@@ -486,18 +487,34 @@ already released Gate-B and P1 proofs.
 The preferred implementation is one closure workflow that:
 
 1. starts the same scoped prerequisite fixture used by the existing database workflows;
-2. applies all Gate-A, Gate-B, and P1 migrations once in their released order;
-3. executes the existing Gate-B concurrency harness;
-4. executes the existing P1 concurrency harness against a clean compatible fixture/state
-   or composes their proven scenarios into one shared fixture only when isolation makes
-   direct sequential reuse impossible; and
-5. adds a **small Remaining-Gate-B closure verifier** only for cross-slice assertions that
-   neither existing harness currently proves.
+2. applies all Gate-A migrations and Gate-B migrations **through the repair-command
+   migration**, but intentionally pauses before the final
+   `gap024_gate_b_reconcile_cutover`;
+3. seeds a small, explicit **pre-cutover legacy fixture** containing:
+   - a manual compatibility segment without approved historical provenance;
+   - a system/kiosk segment whose event/device/source identity satisfies the released
+     provenance proof; and
+   - a system/kiosk segment whose historical metadata is insufficient or ambiguous;
+4. applies the released `gap024_gate_b_reconcile_cutover` migration exactly once and
+   asserts the three fixture classes become, respectively:
+   - bridged canonical UNATTRIBUTED;
+   - bridged canonical ATTRIBUTED only when the full released proof succeeds; and
+   - bridged canonical UNATTRIBUTED/fail-closed, never fabricated ATTRIBUTED;
+5. applies all P1 migrations in released order;
+6. executes the existing Gate-B concurrency harness;
+7. executes the existing P1 concurrency harness using its distinct fixture IDs/state;
+8. runs a **small Remaining-Gate-B closure verifier** for only the missing cross-slice
+   assertions: full bridge coverage, semantic rebuild determinism, reader parity,
+   operation/grant no-bypass posture, and auxiliary-writer disjointness.
+
+This ordering matters: seeding all representative “legacy” rows only **after** the
+reconcile migration would not test backfill at all and would produce a false Gate-B
+closure proof.
 
 The closure verifier must not copy large blocks of existing test logic merely to obtain a
 new workflow name.
 
-Representative cross-slice state must include:
+Representative post-cutover / command state must additionally include:
 
 - legacy manual segment;
 - legacy kiosk/system segment with valid provable event linkage;
@@ -728,4 +745,17 @@ keyed by fact/value/evidence revision. Fix: define the semantic projection tuple
 history-key idempotency assertion, and explicitly prohibit treating migration re-execution
 as the idempotency test.
 
-Fresh review is required after these fixes and after governance synchronization.
+### Round 2 — fresh review after governance synchronization
+
+**P2 — legacy backfill proof was ordered too late.** The Round-1 wording applied the full
+Gate-B migration chain before seeding representative legacy rows. That would test only
+post-cutover commands and could falsely claim deterministic backfill without exercising
+the released reconcile migration on legacy state. Fix: pause after the repair-command
+migration, seed three bounded pre-cutover fixture classes, then apply the released
+reconcile cutover once and assert ATTRIBUTED versus fail-closed UNATTRIBUTED outcomes.
+
+**P3 — duplicate subsection numbering and fixed-row wording reduced precision.** Fix:
+renumber compatibility state to 5.4 and express bridge completeness as a relational
+invariant rather than freezing the planning-time count of 96 as future business state.
+
+Fresh review is required on the replacement exact head.
