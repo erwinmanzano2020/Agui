@@ -124,9 +124,32 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          DB_CONTAINER="$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -n 1)"
+          test -n "$DB_CONTAINER"
+
+          support_count="$(docker exec "$DB_CONTAINER" psql -X -qAt -U postgres -d postgres -c "
+            select count(*)
+            from pg_proc p
+            join pg_namespace n on n.oid=p.pronamespace
+            where n.nspname='public'
+              and p.proname='hr_record_kiosk_support_event'
+              and pg_get_function_identity_arguments(p.oid) =
+                'p_device_id uuid, p_employee_id uuid, p_event_type text, p_occurred_at timestamp with time zone, p_metadata jsonb';
+          ")"
+          telemetry_count="$(docker exec "$DB_CONTAINER" psql -X -qAt -U postgres -d postgres -c "
+            select count(*)
+            from pg_proc p
+            join pg_namespace n on n.oid=p.pronamespace
+            where n.nspname='public'
+              and p.proname='hr_touch_kiosk_device_telemetry'
+              and pg_get_function_identity_arguments(p.oid)='p_device_id uuid';
+          ")"
+          test "$support_count" = "1"
+          test "$telemetry_count" = "1"
+
           supabase gen types typescript --local --schema public > /tmp/remaining-gate-b-db.types.ts
-          grep -q "hr_record_kiosk_support_event:" /tmp/remaining-gate-b-db.types.ts
-          grep -q "hr_touch_kiosk_device_telemetry:" /tmp/remaining-gate-b-db.types.ts
+          grep -q "hr_record_kiosk_support_event" /tmp/remaining-gate-b-db.types.ts
+          grep -q "hr_touch_kiosk_device_telemetry" /tmp/remaining-gate-b-db.types.ts
 
       - name: Re-run released P1 concurrency proof
         run: bash supabase/tests/historical_dtr_p1_concurrency.sh
