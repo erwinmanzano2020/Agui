@@ -393,6 +393,10 @@ The future verification must assert at minimum:
 
 - raw DTR table mutation remains denied to `authenticated`;
 - raw DTR table mutation remains denied to application `service_role`;
+- direct INSERT/UPDATE/DELETE/TRUNCATE against canonical attendance authority tables
+  remains denied to `authenticated` and application `service_role`, including facts,
+  revisions, observations, evidence/frames/membership, employee generations,
+  projection/history, mutation operations, and P1 case/event tables;
 - public/anon cannot call canonical mutation wrappers;
 - authenticated can call only the approved authenticated wrappers;
 - kiosk service_role can call only the approved kiosk mutation wrapper among ordinary
@@ -504,6 +508,10 @@ not only a collection of hard-coded file reads. It should recursively inspect
 output as appropriate) for:
 
 - raw mutation calls against `dtr_segments` / `dtr_entries`;
+- direct application DML against canonical attendance authority tables
+  (`hr_attendance_facts`, revisions, observations, evidence/frames/membership,
+  employee generations, projection/history, mutation operations, and P1
+  correction/remediation case/event tables);
 - calls to released attendance mutation RPCs;
 - direct `hr_kiosk_events` writes capable of emitting provenance-bearing event classes.
 
@@ -595,8 +603,8 @@ After trigger/setup, it should:
    that private seam to `UNAVAILABLE`;
 9. runs a **small Remaining-Gate-B closure verifier** for only the missing cross-slice
    assertions: full bridge coverage, semantic rebuild determinism, reader parity,
-   operation/grant no-bypass posture, kiosk event-type ownership/coupling, and
-   auxiliary-writer disposition.
+   operation/grant no-bypass posture across both compatibility and canonical authority
+   tables, kiosk event-type ownership/coupling, and auxiliary-writer disposition.
 
 This ordering matters: seeding all representative “legacy” rows only **after** the
 reconcile migration would not test backfill at all and would produce a false Gate-B
@@ -660,6 +668,8 @@ Before release approval, read-only Production checks must confirm:
 - no active fact missing a current projection;
 - no unbridged compatibility segment;
 - no direct app-role raw DTR mutation privilege;
+- no direct authenticated/service-role DML privilege on canonical attendance authority
+  tables or P1 lifecycle tables;
 - canonical wrapper/grant/search_path posture;
 - P1 case/event table RLS and direct-DML denial;
 - no unexpected ATTRIBUTED/UNATTRIBUTED/CONFLICT transition since planning baseline;
@@ -763,15 +773,17 @@ Remaining Gate B is complete only when all are true on the exact verification he
 10. branch/global canonical reader assertions pass;
 11. insufficient/conflicting provenance fails closed;
 12. direct authenticated/service-role raw DTR mutation remains denied;
-13. private helpers remain private;
-14. no active fact lacks current projection;
-15. no compatibility row is unbridged;
-16. no active producer can create raw-only/projection-invisible attendance;
-17. no Gate C/D/E behavior was pulled forward;
-18. exact-head CI is green;
-19. material review threads = 0;
-20. current Roadmap/HR status and detailed plan agree;
-21. read-only Production verification has no blocker.
+13. direct authenticated/service-role DML on canonical attendance authority and P1
+    lifecycle tables remains denied;
+14. private helpers remain private;
+15. no active fact lacks current projection;
+16. no compatibility row is unbridged;
+17. no active producer can create raw-only/projection-invisible attendance;
+18. no Gate C/D/E behavior was pulled forward;
+19. exact-head CI is green;
+20. material review threads = 0;
+21. current Roadmap/HR status and detailed plan agree;
+22. read-only Production verification has no blocker.
 
 ## 33. Governance / authorization boundary
 
@@ -950,5 +962,15 @@ over `agui-starter/src/**` and `agui-starter/scripts/**`, fail on every unclassi
 new writer/supporting call site, and require any newly approved producer path to be added
 to the closure workflow trigger set. This preserves efficient path-filtered DB CI without
 leaving an unknown-path bypass.
+
+### Round 11 — canonical-authority raw-DML bypass review
+
+**P1 — the no-bypass contract focused on compatibility DTR tables and P1 lifecycle
+tables but did not explicitly freeze raw application DML denial across the full canonical
+attendance authority.** A future service-role path plus grant drift could otherwise
+bypass the command engine by writing facts/evidence/projection/generation/operation rows
+directly. Fix: extend static producer discovery, disposable DB grant verification, and
+Production read-only verification to the full canonical authority table set for both
+`authenticated` and application `service_role`.
 
 Fresh review is required on the replacement exact head.
