@@ -405,7 +405,7 @@ test("repository-wide attendance producer discovery has no unclassified mutation
   for (const file of files) {
     for (const table of rawMutationTables) {
       const rawMutation = new RegExp(
-        String.raw`\\.from\\(\\s*["\']${table}["\']\\s*\\)[\\s\\S]{0,600}?\\.(insert|update|delete|upsert)\\(`,
+        String.raw`\.from\(\s*["\']${table}["\']\s*\)[\s\S]{0,600}?\.(insert|update|delete|upsert)\(`,
         "i",
       );
       if (rawMutation.test(file.content)) record(file.path, `raw:${table}`);
