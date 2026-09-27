@@ -35,10 +35,10 @@ const repairScript = repoFile(
   "agui-starter/scripts/fix-dtr-timezone.ts",
 );
 const remainingSupportSql = repoFile(
-  "supabase/migrations/20260927094900_gap024_remaining_gate_b_kiosk_support_wrappers.sql",
+  "supabase/migrations/20261021130000_gap024_remaining_gate_b_kiosk_support_wrappers.sql",
 );
 const remainingCutoverSql = repoFile(
-  "supabase/migrations/20260927094901_gap024_remaining_gate_b_privilege_cutover.sql",
+  "supabase/migrations/20261021140000_gap024_remaining_gate_b_privilege_cutover.sql",
 );
 const kioskRepository = repoFile(
   "agui-starter/src/lib/hr/kiosk/repository.ts",
@@ -464,4 +464,13 @@ test("repository-wide attendance producer discovery has no unclassified mutation
     .sort(([a], [b]) => a.localeCompare(b));
 
   assert.deepEqual(normalized, expected);
+});
+
+
+test("Remaining Gate B migration order stays after the released P1 dependency tip", () => {
+  const latestP1 = "20261021120000";
+  const support = "20261021130000";
+  const cutover = "20261021140000";
+  assert.ok(support > latestP1, "support-wrapper migration must run after P1");
+  assert.ok(cutover > support, "privilege cutover must run after support-wrapper migration");
 });
