@@ -367,7 +367,8 @@ This migration is backward-compatible with the currently deployed application an
 
 It adds:
 
-1. a narrow SECURITY DEFINER service-role auxiliary-event wrapper that:
+1. `public.hr_record_kiosk_support_event(...)`, a narrow SECURITY DEFINER service-role
+   auxiliary-event wrapper that:
    - accepts only `reject`, `sync_success`, and `sync_fail`;
    - rejects `scan`, `clock_in`, `clock_out`, and unused `queued`;
    - re-reads the device and requires exact device + House + branch match;
@@ -378,7 +379,8 @@ It adds:
    - updates only `last_event_at`;
    - uses fixed `search_path`;
    - revokes EXECUTE from PUBLIC/anon/authenticated and grants only service_role;
-2. a narrow SECURITY DEFINER service-role device-touch wrapper that:
+2. `public.hr_touch_kiosk_device_telemetry(uuid)`, a narrow SECURITY DEFINER
+   service-role device-touch wrapper that:
    - accepts the existing device identity;
    - requires the device row to exist;
    - updates only `last_seen_at`;
@@ -897,14 +899,22 @@ planning must reopen.
 
 ## 28. Production verification
 
-No synthetic operational write is required.
+No synthetic attendance write is required.
+
+Production release does require both planned migrations and the exact wrapper-capable
+application artifact under the staged sequence in Section 29.
 
 At closure:
 
-- re-fetch Production application deployment;
+- confirm Production serves the exact merge application commit;
+- confirm both Remaining-Gate-B migrations are present in migration history in the
+  approved order;
 - inspect recent warning/error/fatal logs;
-- run the read-only database invariant/grant checks in Section 26;
-- confirm no migration/product deployment was required by this verification-only slice;
+- run the read-only canonical/data invariants in Section 26;
+- verify the exact post-cutover table/RPC privilege matrix;
+- verify kiosk ping/scan/sync routes remain healthy without manufacturing a live
+  attendance event solely for smoke;
+- confirm no pre-wrapper deployment is serving after final privilege cutover;
 - record exact evidence and Gate-B completion status.
 
 ## 29. Deployment / data deployment sequence
@@ -1290,5 +1300,19 @@ boundary. Auxiliary-event RPC validates exact device + House + branch and allowe
 class; telemetry touch validates existing device identity only. Neither wrapper can alter
 authorization-bearing fields, so this preserves current behavior without weakening
 attendance authority.
+
+### Round 16 — Production verification coherence review
+
+**P2 — Section 28 still described the slice as verification-only after the plan had
+gained two migrations and an application adapter deployment.** Fix: Production
+verification now explicitly requires the ordered migrations, exact wrapper-capable
+artifact, post-cutover privilege matrix, route health, and proof that no pre-wrapper build
+is serving. Synthetic attendance remains unnecessary.
+
+**P3 — new service-role wrapper names were left implicit.** Fix: freeze
+`hr_record_kiosk_support_event(...)` and
+`hr_touch_kiosk_device_telemetry(uuid)` as the planned callable surfaces while leaving
+the detailed support-event parameter signature to Runtime implementation within the
+already-frozen validation contract.
 
 Fresh review is required on the replacement exact head.
