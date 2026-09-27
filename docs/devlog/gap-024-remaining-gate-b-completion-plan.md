@@ -63,9 +63,8 @@ from PUBLIC/anon/authenticated but did not revoke `service_role`.
 
 That is not a new business-policy choice. The already-approved Gate-B contract says raw
 canonical tables are deny-direct and that `service_role` must not remain a generic
-attendance mutation principal. Therefore Remaining Gate B must include one bounded,
-two bounded forward migrations plus the kiosk repository adapter change and closure
-verification.
+attendance mutation principal. Therefore Remaining Gate B must include two bounded forward migrations plus the kiosk
+adapter changes and closure verification.
 
 No data model, attendance semantics, attribution rule, or user-facing workflow is changed
 by the planned closure. If Runtime proof exposes any additional producer/runtime/schema
@@ -546,6 +545,14 @@ INSERT/UPDATE/DELETE. Exact-head application evidence shows admin monitoring rea
 but does not need raw event mutation, so the event write policies/privileges are removed
 while read access remains.
 
+For the two pre-verification reject classes `house_mismatch` and
+`employee_not_found`, the persisted audit identity representation changes in one bounded
+way: the unverified QR claim is no longer written to authoritative
+`hr_kiosk_events.employee_id`; that field is null, while the claim may be retained only
+as non-authoritative `metadata.claimedEmployeeId`. This does not establish employee
+identity, attendance provenance, branch attribution, or authorization and does not alter
+canonical attendance truth.
+
 `hr_kiosk_devices.last_seen_at/last_event_at` remains device telemetry and is not
 canonical attendance authority. Service-role direct device UPDATE is nevertheless too
 broad because it could change authorization-bearing device fields; Runtime replaces the
@@ -635,16 +642,26 @@ The future verification must assert at minimum:
 
 ## 16. Operational writes
 
-No new business/attendance write is introduced.
+No new attendance-truth or business transaction write is introduced.
 
-The privilege migration changes PostgreSQL grants only; it does not write attendance
-rows.
+Runtime changes only the already-existing kiosk supporting-write path:
+- auxiliary `reject/sync_success/sync_fail` events move behind the narrow support-event
+  RPC;
+- `house_mismatch` / `employee_not_found` reject rows use null authoritative employee
+  identity until same-House verification succeeds, with the QR claim retained only as
+  non-authoritative audit metadata;
+- device `last_seen_at` / `last_event_at` updates move behind the bounded telemetry /
+  support wrappers.
+
+Neither migration rewrites attendance rows. The final migration changes PostgreSQL
+privileges; the additive migration only introduces the wrapper functions.
 
 The test harness may write attendance fixtures only to an isolated disposable
 Supabase/PostgreSQL database.
 
-Pre-release Production verification remains read-only. Owner-approved release later
-applies only the exact privilege migration to Production.
+Pre-release Production verification remains read-only. A later owner-approved release
+must follow the already-frozen sequence: additive wrapper migration → exact
+wrapper-capable application deployment → final privilege-cutover migration.
 
 ## 17. Convenience / cache / local persistence
 
@@ -1530,5 +1547,15 @@ No additional schema, RPC, event type, product behavior, or rollout step is adde
 
 This planning re-entry does not authorize Runtime to resume yet. The amendment must
 converge, be explicitly owner-approved, and be merged first.
+
+### Round 25 — amendment cross-section data/write coherence review
+
+**P2 — the amendment froze the reject-event identity rule but did not propagate it into
+Data/Store Impact and Operational Writes, and Section 16 still described a stale
+single-migration Production action.** Fix: record the exact audit-row representation
+change, distinguish support/audit writes from attendance-truth writes, and restore the
+approved staged release sequence: additive wrapper migration → exact wrapper-capable app
+→ final privilege cutover. Also clean the pre-existing malformed “one bounded, two bounded
+migrations” wording.
 
 **PLANNING GATE: REVIEW IN PROGRESS — OWNER APPROVAL NOT YET REQUESTED**
