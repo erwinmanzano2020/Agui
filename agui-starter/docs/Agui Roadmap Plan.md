@@ -44,8 +44,8 @@
   compatibility rows, and the released **raw DTR-table** no-bypass privilege posture.
   The broader canonical/supporting-state privilege audit below found the Remaining-Gate-B
   gaps that are now being planned.
-- **Current bounded target: GAP-024 Remaining Gate B — PLANNING AMENDMENT TECHNICALLY
-  CONVERGED; OWNER-APPROVAL CHECK GATE BLOCKED BY VERCEL DAILY QUOTA.**
+- **Current bounded target: GAP-024 Remaining Gate B — PLANNING AMENDMENT CONVERGED /
+  READY FOR OWNER APPROVAL.**
   Durable planning artifact:
   `docs/devlog/gap-024-remaining-gate-b-completion-plan.md`.
   Original planning PR **#515 — Plan GAP-024 Remaining Gate B completion** was explicitly
@@ -67,13 +67,10 @@
   claim only as non-authoritative `claimedEmployeeId` audit metadata. Verified
   same-House employee identity continues unchanged.
 - Planning Review & Fix for PR #517 is converged with unresolved P0/P1/material-P2 = 0
-  and a documentation/governance-only diff. Runtime PR #516 must remain paused.
-  Owner approval is not yet actionable because the exact-current planning head must clear
-  normal checks and Vercel currently reports the external
-  `api-deployments-free-per-day` quota rather than a build/application defect. Re-check
-  that exact head after quota recovery; if checks are green, request explicit owner
-  approval of PR #517. After approval and merge, resume existing PR #516 against the
-  amended contract. No duplicate Runtime PR is needed.
+  and a documentation/governance-only diff. The exact-current head has green Preflight
+  and a successful exact-head Vercel Preview. Runtime PR #516 must remain paused until
+  explicit owner approval and merge of PR #517. After approval and merge, resume the
+  existing PR #516 against the amended contract. No duplicate Runtime PR is needed.
 - No Production mutation or Remaining-Gate-B release is authorized by this amendment.
   No new schema/RPC/event type/user-facing workflow is added. Gate C/D/E, unrelated HR
   work, POS, Operations, and Finance remain unauthorized.
