@@ -1080,7 +1080,8 @@ Remaining Gate B is complete only when all are true on the exact verification he
 
 ## 33. Governance / authorization boundary
 
-This planning PR may define and refine only Remaining Gate-B verification/closure.
+This planning PR may define and refine only Remaining Gate-B producer/privilege
+containment + verification closure.
 
 It does not:
 
@@ -1092,7 +1093,7 @@ It does not:
 - resume POS or another system phase.
 
 After this plan converges, the only next action is explicit owner approval of the planning
-contract. A later bounded verification Runtime PR is required.
+contract. A later bounded Runtime/closure PR is required.
 
 ## 34. Deferred work
 
@@ -1109,7 +1110,7 @@ Explicitly deferred:
 6. GAP-026;
 7. unrelated HR/POS/Operations/Finance work.
 
-## 35. Initial residual risks to carry into Runtime
+## 35. Residual risks to carry into Runtime
 
 - The current privilege gap means Remaining Gate B is not verification-only; release
   sequencing must not apply the privilege cutover before exact-head producer dependency
@@ -1409,5 +1410,13 @@ and authenticated admin/read survivability against an isolated backend.
 the intentional short coexistence window between wrapper-capable app promotion and the
 final privilege migration.** Fix: document both as realistic release risks without
 weakening the cutover contract.
+
+### Round 22 — authorization-boundary terminology review
+
+**P2 — Section 33 still called the future slice a “verification Runtime,” which no
+longer matched the converged plan after the approved containment gaps required two
+migrations and a bounded kiosk adapter change.** Fix: describe the future scope as
+producer/privilege containment + verification closure and the later artifact as a bounded
+Runtime/closure PR. No authorization or product scope was expanded.
 
 Fresh review is required on the replacement exact head.
