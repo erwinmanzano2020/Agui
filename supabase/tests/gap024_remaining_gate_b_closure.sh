@@ -37,6 +37,9 @@ GB_HOUSE="10000000-0000-0000-0000-000000000001"
 GB_BRANCH="20000000-0000-0000-0000-000000000001"
 GB_AUTH_USER="30000000-0000-0000-0000-000000000001"
 GB_DEVICE="60000000-0000-0000-0000-000000000001"
+BRANCH_AUTH_USER="83000000-0000-0000-0000-000000000001"
+BRANCH_ENTITY="83000000-0000-0000-0000-000000000002"
+BRANCH_ROLE="83000000-0000-0000-0000-000000000003"
 POST_MANUAL_EMP="82000000-0000-0000-0000-0000000000e1"
 POST_KIOSK_EMP="82000000-0000-0000-0000-0000000000e2"
 POST_BULK_EMP="82000000-0000-0000-0000-0000000000e3"
@@ -63,6 +66,18 @@ BEGIN;
 SET LOCAL ROLE service_role;
 $body
 COMMIT;
+SQL
+}
+
+auth_scalar_as() {
+  local user_id="$1"
+  local query="$2"
+  docker exec -i "$DB_CONTAINER" psql -X -qAt -v ON_ERROR_STOP=1 -U postgres -d postgres <<SQL
+BEGIN;
+SET LOCAL request.jwt.claims = '{"sub":"$user_id","role":"authenticated"}';
+SET LOCAL ROLE authenticated;
+$query
+ROLLBACK;
 SQL
 }
 
@@ -411,6 +426,80 @@ SQL
 
     assert_scalar "3" "select count(*) from public.hr_attendance_facts where employee_id in ('$POST_MANUAL_EMP','$POST_KIOSK_EMP','$POST_BULK_EMP') and is_active;" "manual, kiosk, and bulk producers remain canonical after cutover"
     assert_scalar "0" "select count(*) from public.hr_attendance_facts f left join public.hr_attendance_authorization_projection p on p.house_id=f.house_id and p.fact_id=f.id and p.employee_id=f.employee_id where f.employee_id in ('$POST_MANUAL_EMP','$POST_KIOSK_EMP','$POST_BULK_EMP') and f.is_active and p.fact_id is null;" "post-cutover producers immediately maintain projection"
+
+    echo "Verifying branch-scoped and House-global canonical readers after cutover"
+    psql_super <<SQL
+insert into auth.users (
+  id, aud, role, email, encrypted_password, email_confirmed_at, created_at, updated_at
+)
+values (
+  '$BRANCH_AUTH_USER', 'authenticated', 'authenticated',
+  'remaining-gate-b-branch-reader@example.invalid', '', now(), now(), now()
+)
+on conflict (id) do nothing;
+
+insert into public.entities (id, kind, display_name, universal_code, is_gm)
+values (
+  '$BRANCH_ENTITY', 'PERSON', 'Remaining Gate B Branch Reader',
+  'REMAINING-GATE-B-BRANCH-READER', false
+)
+on conflict (id) do nothing;
+
+insert into public.accounts (user_id, entity_id)
+values ('$BRANCH_AUTH_USER', '$BRANCH_ENTITY')
+on conflict (user_id) do update set entity_id = excluded.entity_id;
+
+insert into public.roles (id, key, slug, scope, scope_ref)
+values (
+  '$BRANCH_ROLE', 'remaining_gate_b_branch_reader', 'remaining-gate-b-branch-reader',
+  'HOUSE', '$GB_HOUSE'
+)
+on conflict (id) do update
+set key=excluded.key, slug=excluded.slug, scope=excluded.scope, scope_ref=excluded.scope_ref;
+
+insert into public.policies (id, key)
+values
+  ('83000000-0000-0000-0000-000000000010', 'tiles.hr.read'),
+  ('83000000-0000-0000-0000-000000000011', 'hr.branch.$GB_BRANCH')
+on conflict (key) do nothing;
+
+insert into public.entity_policies (entity_id, policy_id)
+select '$BRANCH_ENTITY', p.id
+from public.policies p
+where p.key='tiles.hr.read'
+on conflict do nothing;
+
+insert into public.role_policies (role_id, policy_id)
+select '$BRANCH_ROLE', p.id
+from public.policies p
+where p.key='hr.branch.$GB_BRANCH'
+on conflict do nothing;
+
+insert into public.house_roles (house_id, entity_id, role_id, role)
+values ('$GB_HOUSE', '$BRANCH_ENTITY', '$BRANCH_ROLE', 'remaining_gate_b_branch_reader')
+on conflict do nothing;
+SQL
+
+    business_date="$(scalar "select (now() at time zone 'Asia/Manila')::date;")"
+    branch_count="$(auth_scalar_as "$BRANCH_AUTH_USER" "select count(*) from public.hr_read_canonical_attendance_branch_scoped('$GB_HOUSE','$business_date','$business_date',null,200,0);")"
+    if [[ "$branch_count" -lt 1 ]]; then
+      fail "branch-scoped canonical reader returned no attributed current-date facts"
+    fi
+    echo "PASS: branch-scoped canonical reader returns attributed current-branch facts"
+
+    branch_wrong_scope="$(auth_scalar_as "$BRANCH_AUTH_USER" "select count(*) from public.hr_read_canonical_attendance_branch_scoped('$GB_HOUSE','$business_date','$business_date',null,200,0) where active_branch_id <> '$GB_BRANCH';")"
+    [[ "$branch_wrong_scope" == "0" ]] || fail "branch-scoped canonical reader leaked another branch"
+    echo "PASS: branch-scoped canonical reader has no cross-branch rows"
+
+    owner_global_count="$(auth_scalar_as "$GB_AUTH_USER" "select count(*) from public.hr_read_canonical_attendance_house_global('$GB_HOUSE','$business_date','$business_date',null,200,0);")"
+    if [[ "$owner_global_count" -lt 3 ]]; then
+      fail "House-global canonical reader did not preserve owner visibility"
+    fi
+    echo "PASS: House-global canonical reader preserves owner visibility"
+
+    branch_global_count="$(auth_scalar_as "$BRANCH_AUTH_USER" "select count(*) from public.hr_read_canonical_attendance_house_global('$GB_HOUSE','$business_date','$business_date',null,200,0);")"
+    [[ "$branch_global_count" == "0" ]] || fail "branch-limited actor gained House-global attendance visibility"
+    echo "PASS: branch-limited actor remains excluded from House-global reader"
 
     echo "Verifying authenticated device administration and event read survive cutover"
     auth_sql "insert into public.hr_kiosk_devices(
