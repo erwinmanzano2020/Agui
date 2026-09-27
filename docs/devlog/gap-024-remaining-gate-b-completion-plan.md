@@ -53,7 +53,8 @@ from PUBLIC/anon/authenticated but did not revoke `service_role`.
 That is not a new business-policy choice. The already-approved Gate-B contract says raw
 canonical tables are deny-direct and that `service_role` must not remain a generic
 attendance mutation principal. Therefore Remaining Gate B must include one bounded,
-forward-only **privilege-cutover migration** plus the closure verification.
+two bounded forward migrations plus the kiosk repository adapter change and closure
+verification.
 
 No data model, attendance semantics, producer behavior, attribution rule, or user-facing
 workflow is changed by that migration. If Runtime proof exposes any additional
@@ -248,7 +249,8 @@ Neither is allowed to become a second attendance source of truth.
 
 The future Remaining Gate-B Runtime may change only:
 
-- one forward-only privilege/adapter cutover migration;
+- two ordered forward migrations: additive kiosk support wrappers, then final privilege
+  cutover;
 - `agui-starter/src/lib/hr/kiosk/repository.ts` to replace raw supporting writes with
   the new narrow RPCs;
 - the directly corresponding kiosk repository/service tests;
@@ -306,7 +308,7 @@ This slice does **not** authorize:
 - synthetic Production attendance writes for verification;
 - a new canonical table, authoritative store, or feature flag;
 - any data-shape/business-semantic migration;
-- any migration beyond the single bounded privilege-cutover migration unless planning is
+- any migration beyond the two bounded Remaining-Gate-B migrations unless planning is
   reopened.
 
 ## 8. Existing contracts consumed
@@ -349,74 +351,100 @@ unavailable.
 
 ## 9. New / changed backend contract
 
-One **bounded privilege/adapter forward migration** is planned, plus the corresponding
-kiosk repository adapter update.
+Two ordered forward migrations and one internal adapter change are planned.
 
-Runtime must create the migration through the repository's normal Supabase migration
-creation flow; this plan freezes the migration purpose/name stem, not a fabricated
-timestamp:
+Runtime must create both migrations through the repository's normal Supabase migration
+creation flow; this plan freezes purpose/name stems, not fabricated timestamps:
 
-`gap024_remaining_gate_b_privilege_cutover`
+1. `gap024_remaining_gate_b_kiosk_support_wrappers`
+2. `gap024_remaining_gate_b_privilege_cutover`
 
-The migration contract is:
+### 9.1 Migration 1 — additive kiosk support wrappers
 
-1. re-audit the exact-head application for direct canonical-table, kiosk-event, and
-   kiosk-device dependencies;
-2. `REVOKE ALL` direct table privileges from `service_role` on the Gate-A canonical
-   authority tables listed in Section 4;
-3. selectively re-grant **SELECT only** on a canonical table only if exact-head repository
-   evidence proves a required service-backed read that cannot use an already-approved
-   protected reader; the expected default is **no direct canonical-table grant**;
-4. repeat/retain deny-direct posture for PUBLIC/anon/authenticated as defense in depth;
-5. revoke `service_role` EXECUTE on
-   `hr_rebuild_attendance_authorization_projection(uuid)`;
-6. revoke any leftover `service_role` EXECUTE on private Gate-A trigger/guard helpers
-   that are not approved public/service entrypoints;
-7. preserve service-role EXECUTE on
-   `hr_apply_kiosk_attendance_scan(uuid,uuid,uuid,uuid,text,timestamptz)`;
-8. **harden `hr_kiosk_events` as supporting/provenance state**:
-   - authenticated keeps approved read access but loses raw INSERT/UPDATE/DELETE;
-   - drop the authenticated event-write RLS policies;
-   - service_role loses direct table DML (and direct SELECT unless exact-head proof finds
-     a real read dependency);
-   - command-owned `scan/clock_in/clock_out` rows remain writable only inside the
-     canonical kiosk command / database-owner boundary;
-9. add a narrow SECURITY DEFINER service-role wrapper for auxiliary kiosk events that:
-   - accepts only the exact currently-used non-provenance classes
-     `reject`, `sync_success`, and `sync_fail`;
+This migration is backward-compatible with the currently deployed application and must
+**not revoke the old raw grants yet**.
+
+It adds:
+
+1. a narrow SECURITY DEFINER service-role auxiliary-event wrapper that:
+   - accepts only `reject`, `sync_success`, and `sync_fail`;
    - rejects `scan`, `clock_in`, `clock_out`, and unused `queued`;
    - re-reads the device and requires exact active House + branch match;
-   - inserts the auxiliary event and updates only `last_event_at`;
-   - has fixed `search_path`, PUBLIC/anon/authenticated EXECUTE revoked, and
-     service_role EXECUTE granted;
-10. narrow service-role `hr_kiosk_devices` authority:
-    - preserve direct SELECT required for token-hash device lookup;
-    - revoke service-role INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER;
-    - preserve authenticated owner/manager device administration policies;
-11. add a narrow SECURITY DEFINER service-role device-touch wrapper that updates only
-    `last_seen_at` for an existing active device; no branch, House, activation, token,
-    or identity field may be changed through it;
-12. preserve protected canonical read RPC behavior; this slice is not Gate-D/E read
-    retirement;
-13. issue `NOTIFY pgrst, 'reload schema'`;
-14. perform **no attendance data rewrite**.
+   - validates an optional employee belongs to the same House when supplied;
+   - inserts the auxiliary event;
+   - updates only `last_event_at`;
+   - uses fixed `search_path`;
+   - revokes EXECUTE from PUBLIC/anon/authenticated and grants only service_role;
+2. a narrow SECURITY DEFINER service-role device-touch wrapper that:
+   - accepts the existing device identity;
+   - requires an existing active device;
+   - updates only `last_seen_at`;
+   - cannot alter House, branch, token, activation, name, or other identity/authority
+     fields;
+   - uses fixed `search_path`;
+   - revokes EXECUTE from PUBLIC/anon/authenticated and grants only service_role;
+3. explicit comments/contract metadata and `NOTIFY pgrst, 'reload schema'`.
 
-Expected post-migration attendance/support entrypoints:
+It performs no attendance data rewrite and no privilege revocation required by migration
+2.
+
+### 9.2 Application adapter between migrations
+
+`agui-starter/src/lib/hr/kiosk/repository.ts` changes only its supporting writes:
+
+- `touchDevice` calls the new telemetry wrapper instead of raw device UPDATE;
+- `insertKioskEvent` calls the new auxiliary-event wrapper instead of raw event INSERT +
+  device UPDATE;
+- device token-hash lookup remains the existing direct SELECT;
+- canonical attendance scan remains `hr_apply_kiosk_attendance_scan`;
+- no user-visible kiosk semantics or event labels change.
+
+Generated DB types and focused repository/service tests must cover both new RPCs.
+
+### 9.3 Migration 2 — final privilege cutover
+
+Only after the exact new application artifact is verified against migration 1 may the
+final migration close the old raw paths.
+
+Its contract is:
+
+1. re-audit exact-head direct canonical-table, kiosk-event, and kiosk-device dependencies;
+2. `REVOKE ALL` direct table privileges from `service_role` on the Gate-A canonical
+   authority tables listed in Section 4;
+3. selectively re-grant **SELECT only** on a canonical table only if exact-head evidence
+   proves a required service-backed read that cannot use an approved protected reader;
+   expected default: **no direct canonical-table grant**;
+4. repeat/retain deny-direct posture for PUBLIC/anon/authenticated;
+5. revoke service-role EXECUTE on
+   `hr_rebuild_attendance_authorization_projection(uuid)`;
+6. revoke leftover service-role EXECUTE on private Gate-A trigger/guard helpers that are
+   not approved service entrypoints;
+7. preserve service-role EXECUTE on the canonical kiosk scan and the two new support
+   wrappers;
+8. harden `hr_kiosk_events`:
+   - authenticated keeps approved SELECT but loses INSERT/UPDATE/DELETE;
+   - drop authenticated event-write RLS policies;
+   - service_role loses direct table access unless exact-head proof justifies SELECT;
+   - command-owned `scan/clock_in/clock_out` remain database-owned;
+9. harden `hr_kiosk_devices` for service_role:
+   - preserve direct SELECT required for token-hash lookup;
+   - revoke INSERT/UPDATE/DELETE/TRUNCATE/REFERENCES/TRIGGER;
+   - preserve authenticated owner/manager device administration;
+10. preserve protected canonical read RPC behavior; this is not Gate-D/E read retirement;
+11. `NOTIFY pgrst, 'reload schema'`;
+12. perform no attendance data rewrite.
+
+Expected post-cutover entrypoints:
 
 - authenticated attendance mutation: manual create, bulk replacement, P1
-  correction/remediation wrappers;
-- authenticated kiosk administration: existing owner/manager device CRUD, plus event
-  **read-only** access;
-- service_role attendance mutation: kiosk attendance scan only;
-- service_role kiosk support writes: narrow auxiliary-event wrapper +
-  last-seen telemetry wrapper only;
-- database owner / controlled migration-admin boundary: maintenance repair and private
-  internals.
+  correction/remediation;
+- authenticated kiosk administration: owner/manager device CRUD + event read-only;
+- service-role attendance mutation: kiosk scan only;
+- service-role supporting writes: auxiliary-event wrapper + telemetry-touch wrapper only;
+- database owner / controlled admin boundary: repair/private internals.
 
-If Runtime proof demonstrates that a currently active producer needs direct canonical
-table mutation, or any other schema/business contract change, the slice is blocked and
-must return to planning. Do not improvise a new RPC, table, attribution rule, or mutation
-lane.
+If exact-head proof finds another direct producer dependency or a schema/business semantic
+change is required, stop and return to planning.
 
 ## 10. Data / store impact
 
@@ -684,8 +712,9 @@ Minimum static assertions:
 
 Planned Runtime/verification file surface:
 
-- one Supabase migration created through the normal migration command, purpose stem
-  `gap024_remaining_gate_b_privilege_cutover`;
+- two Supabase migrations created through the normal migration command:
+  - `gap024_remaining_gate_b_kiosk_support_wrappers`;
+  - `gap024_remaining_gate_b_privilege_cutover`;
 - `agui-starter/src/lib/hr/kiosk/repository.ts`;
 - directly corresponding kiosk repository/service tests as needed;
 - `agui-starter/src/lib/db.types.ts` for the two new RPC signatures;
@@ -745,7 +774,7 @@ After trigger/setup, it should:
    - bridged canonical ATTRIBUTED only when the full released proof succeeds; and
    - bridged canonical UNATTRIBUTED/fail-closed, never fabricated ATTRIBUTED;
 5. applies all P1 migrations in released order;
-6. applies the new Remaining-Gate-B canonical privilege-cutover migration;
+6. applies both Remaining-Gate-B migrations in order for disposable-db proof;
 7. executes the existing Gate-B concurrency harness;
 8. executes the existing P1 concurrency harness using its distinct fixture IDs/state;
 9. **restores every test-overridden database seam to the exact released definition before
@@ -869,30 +898,53 @@ At closure:
 
 ## 29. Deployment / data deployment sequence
 
-Planned sequence for the future Runtime/release:
+The Runtime PR must prove both migrations + the adapter together in disposable CI, but
+Production rollout is deliberately staged to avoid an API/grant compatibility gap.
 
 1. branch from then-current `develop`;
-2. create the single privilege-cutover migration through the normal Supabase migration
-   command;
-3. add/extend only the frozen verification tests/workflow/helper and governance evidence;
+2. create both migrations through the normal Supabase migration command;
+3. implement the bounded kiosk repository adapter + generated RPC types + frozen tests /
+   workflow/helper;
 4. run Review & Fix to exact-head convergence;
-5. run scoped integrated disposable DB proof with the privilege migration applied before
-   final harness/closure assertions;
-6. build/Preview check if automatically applicable;
+5. in disposable DB, apply the full released Gate-A/Gate-B/P1 chain plus both new
+   migrations and pass all integrated closure assertions;
+6. build exact-head Vercel Preview and run focused kiosk scan/sync/support-event route
+   verification against an isolated backend; no Production attendance writes;
 7. perform read-only Production baseline + privilege comparison;
 8. request explicit owner release approval;
-9. squash-merge the Runtime/closure PR only after approval;
-10. fetch the privilege migration from the exact merge commit;
-11. re-check Production migration history and privilege matrix immediately before change;
-12. apply **only** the exact unapplied Remaining-Gate-B privilege migration;
-13. verify PostgREST schema reload, canonical-table grants, function EXECUTE grants,
-    kiosk command survivability, and all read-only canonical invariants;
-14. no Vercel Production promotion is required if the merged diff contains no application
-    runtime code; if Runtime scope changes, planning must reopen before release;
-15. inspect Production warning/error/fatal logs and smoke the existing Production app;
-16. record Remaining Gate B closed only after all post-migration verification passes;
-17. leave Gate C unauthorized until the owner separately approves its planning/runtime
-    progression.
+9. squash-merge the Runtime PR only after approval;
+10. fetch both migrations and the exact application build from the exact merge commit;
+11. re-check Production migration history, privileges, deployment, and runtime logs;
+12. apply **migration 1 only** (additive kiosk support wrappers);
+13. verify wrapper signatures/grants/schema cache while the old Production app remains
+    compatible;
+14. deploy/promote the exact merge application artifact that uses the wrappers;
+15. verify Production HTTP/runtime health and confirm the serving deployment is the exact
+    merge commit; do not manufacture an attendance event solely for smoke;
+16. confirm new requests are on the wrapper-capable deployment, then apply
+    **migration 2** (final privilege cutover);
+17. verify:
+    - canonical service-role table privileges are closed;
+    - projection rebuild is not service-role executable;
+    - authenticated kiosk events are read-only;
+    - service_role has no raw event/device mutation;
+    - kiosk scan + support wrapper EXECUTE matrix is exact;
+    - all canonical bridge/projection/history invariants still hold;
+18. inspect Production warning/error/fatal logs and route health again;
+19. record Remaining Gate B closed only after every post-cutover check passes;
+20. leave Gate C unauthorized until separately approved.
+
+### Rollout interruption safety
+
+- If migration 1 succeeds but app promotion fails, the old app remains compatible because
+  raw grants have not yet been revoked; leave the additive wrappers in place and rollback
+  / fix the app.
+- If the new app is promoted but migration 2 has not run, both old raw capability and new
+  wrappers temporarily coexist; minimize this window and proceed only after exact-app
+  verification.
+- After migration 2, rolling the application back to the pre-wrapper build is unsafe
+  because that build depends on raw support writes. Rollback must use the exact
+  wrapper-capable build or a forward fix; do not restore broad raw grants.
 
 ## 30. Cleanup
 
@@ -907,7 +959,8 @@ Future Runtime must:
 
 ## 31. Rollback / kill switch
 
-There is no feature-flag kill switch for a database privilege cutover.
+There is no feature-flag kill switch for the database privilege cutover. The two-stage
+release sequence is the compatibility/rollback control.
 
 Rollback policy is **fix forward**. Restoring broad direct canonical-table mutation to
 `service_role` is not an acceptable routine rollback because that recreates the Gate-B
@@ -1199,5 +1252,16 @@ Authenticated owner/manager device administration remains unchanged.
 
 This is producer-containment work already covered by Remaining Gate B, not a new product
 policy.
+
+### Round 14 — coordinated DB/application rollout review
+
+**P1 — a single migration plus adapter change had an unavoidable compatibility gap.**
+Revoking raw kiosk event/device grants before deploying the new adapter breaks the old
+app; deploying the adapter first makes it call RPCs that do not exist yet. Fix: split the
+bounded database work into two migrations. Migration 1 additively introduces narrow
+support wrappers, then the exact wrapper-capable application is promoted, then migration
+2 revokes canonical/event/device raw authority. Interruption and rollback behavior are
+explicit: before migration 2 the old app remains compatible; after migration 2 only the
+wrapper-capable build may serve.
 
 Fresh review is required on the replacement exact head.
