@@ -2,9 +2,8 @@
 
 ## 2026-09-27 — GAP-024 Remaining Gate B planning amendment active
 
-**Status: PLANNING AMENDMENT TECHNICALLY CONVERGED; OWNER-APPROVAL CHECK GATE BLOCKED
-ONLY BY THE CURRENT VERCEL DAILY DEPLOYMENT QUOTA. Original Remaining Gate-B planning
-PR #515 was owner-approved and squash-merged as
+**Status: PLANNING AMENDMENT CONVERGED — READY FOR OWNER APPROVAL. Original
+Remaining Gate-B planning PR #515 was owner-approved and squash-merged as
 `908e36eb1861f3ba76426927f0968ed0caf0fdcb`. Runtime PR #516 remains Draft/unmerged
 and paused. Planning amendment PR #517 remains Draft/planning-only/unapproved. Production
 is unchanged; Gate C/D/E remain unauthorized.**
@@ -83,13 +82,9 @@ Gate C → Gate D → Gate E.
 
 Planning Review & Fix for the amended contract is converged with unresolved
 P0/P1/material-P2 = 0 and the changed-file surface remains documentation/governance only.
-The owner-approval gate is not yet actionable because the exact-current head must still
-clear normal checks; Vercel currently reports the external
-`api-deployments-free-per-day` quota instead of a build/application defect. Do not reuse
-an older Preview as evidence. Re-check the exact current PR #517 head after the quota
-clears; if exact-head checks are green, the single next authorized action becomes explicit
-owner approval of PR #517. After approval and merge, resume existing PR #516; do not
-create a duplicate Runtime PR.
+The exact-current PR #517 head now has green Preflight plus a successful exact-head Vercel
+Preview. The single next authorized action is explicit owner approval of PR #517. After
+approval and merge, resume existing PR #516; do not create a duplicate Runtime PR.
 
 Gate C remains unauthorized until Remaining Gate B itself passes its separate Runtime,
 verification, release, and owner gates.
