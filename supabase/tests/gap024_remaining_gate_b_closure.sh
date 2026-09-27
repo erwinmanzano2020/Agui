@@ -303,6 +303,7 @@ SQL
 
     echo "Verifying semantic projection rebuild determinism"
     psql_super <<'SQL'
+begin;
 create temp table rgb_projection_before on commit drop as
 select house_id, fact_id, employee_id, value_revision, evidence_basis_revision,
        evidence_basis_fingerprint, attribution_state, active_branch_id,
@@ -379,6 +380,7 @@ begin
   end if;
 end
 $verify$;
+commit;
 SQL
     echo "PASS: semantic projection/history replay is deterministic"
 
