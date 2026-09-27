@@ -543,6 +543,8 @@ changes cannot silently skip the closure proof. Minimum watched paths:
 - `agui-starter/src/lib/db.types.ts`;
 - `agui-starter/src/app/company/**/hr/dtr/**`;
 - `agui-starter/src/app/api/kiosk/**`;
+- `agui-starter/src/app/api/hr/kiosk/**`;
+- `agui-starter/src/app/api/hr/kiosk-devices/**`;
 - `agui-starter/src/app/api/payroll/dtr-bulk/**`;
 - `agui-starter/src/app/payroll/dtr-bulk/**`;
 - `agui-starter/src/app/payroll/dtr-today/**`;
@@ -911,5 +913,14 @@ set, including both reused workflows/harness domains.
 already-applied migration.** Fix: define the migration/backfill property as deterministic
 fresh ordered replay, while idempotency applies to operation replay and callable
 post-cutover rebuild/reconciliation behavior.
+
+### Round 9 — exact route-surface trigger review
+
+**P1 — the Round-8 CI path set covered `/api/kiosk/**` but omitted the parallel
+`/api/hr/kiosk/**` routes and kiosk-device administration routes present on the exact
+development head.** A change to device activation/branch context or the HR-prefixed
+scan/sync boundary could therefore alter producer identity semantics without rerunning the
+closure proof. Fix: add both `agui-starter/src/app/api/hr/kiosk/**` and
+`agui-starter/src/app/api/hr/kiosk-devices/**` to the mandatory workflow trigger set.
 
 Fresh review is required on the replacement exact head.
