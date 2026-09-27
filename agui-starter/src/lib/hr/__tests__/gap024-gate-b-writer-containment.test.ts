@@ -326,6 +326,10 @@ test("Remaining Gate B support wrappers are narrow, service-only, and derive tru
   );
   assert.match(
     remainingSupportSql,
+    /where device\.id = p_device_id[\s\S]*for update/i,
+  );
+  assert.match(
+    remainingSupportSql,
     /insert into public\.hr_kiosk_events[\s\S]*v_device\.house_id[\s\S]*v_device\.branch_id/i,
   );
   assert.match(
