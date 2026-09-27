@@ -396,6 +396,15 @@ test("kiosk service-side supporting writes use RPCs rather than raw event/device
   );
 });
 
+test("application source has no direct canonical attendance table dependency", () => {
+  const directCanonical = sourceFiles()
+    .filter((file) => /\.from\(\s*["'`]hr_attendance_[^"'`]+["'`]\s*\)/i.test(file.content))
+    .map((file) => file.path)
+    .sort();
+
+  assert.deepEqual(directCanonical, []);
+});
+
 test("repository-wide attendance producer discovery has no unclassified mutation call site", () => {
   const files = sourceFiles();
   const findings = new Map<string, Set<string>>();
