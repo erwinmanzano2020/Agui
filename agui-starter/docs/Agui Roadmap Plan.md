@@ -34,43 +34,28 @@
   `71d11b79c002dce9b65e786ecb30ecfa9abdd494`.
 - **Gate-B pre-P1 containment is released and Production-verified.** PR #512 was
   squash-merged as `df7bbeb11d016297a0a6dbd5d41c998441294c36`; all six Gate-B
-  migrations were applied; exact Production deployment
-  `dpl_39QX6j3znL729UcGiSAbEFmRcwq2` is READY; post-deploy no-bypass checks passed.
-- **Historical Daily DTR Write P1 is now the active bounded planning slice during
-  Gate B.** Draft planning PR #513 is based exactly on the PR #512 release merge and
-  remains documentation-only.
-- Planning Review & Fix Round 1 closed material technical gaps.
-- **OD-P1-01 is now owner-approved as Option A+.** Branch-limited ordinary manual create
-  is current Asia/Manila business-date only; past existing visible facts use the P1
-  correction path; past missing attendance is owner/manager DEC-018 remediation only;
-  future dates fail; no initial grace-window exception is authorized.
-- **P1 planning is owner-approved (2026-09-25).** Exact-head Preview was READY, root
-  HTTP 200, checked runtime logs/errors were clean, and no material review thread
-  remained at the approval gate.
-- **Historical Daily DTR Write P1 Controlled UAT has converged in Draft PR #514.**
-  Exact tested runtime head `97a3370ea56209b66fb936806da7532671a788bb` passed
-  visible existing-fact correction, owner/manager candidate review, distinct-new
-  fail-closed behavior, and the stale/retry path after one bounded Review & Fix.
-- The stale/retry defect is closed: a stale result now rotates the consumed operation
-  identity and resets the adjudication decision from the refreshed candidate universe;
-  source-of-truth verification reached `ADJUDICATED_EXISTING` then `FINALIZED`
-  without duplicate attendance creation.
-- Before governance-only UAT status synchronization, Preflight #928, Gate B DB
-  Concurrency #66, and P1 Historical DTR DB Concurrency #54 were SUCCESS and exact-head
-  Vercel deployment `dpl_8otsaBaMnhnoQH9qNDGaXSEEKG9F` was READY with zero material
-  review threads.
-- **Final release review is converged and the slice is READY FOR OWNER RELEASE
-  APPROVAL.** Fresh review verified the governance-synchronized PR head, exact-head CI,
-  exact-head Preview, authenticated Daily DTR refresh, clean warning/error/fatal logs,
-  zero material review threads, and unchanged Production.
-- No merge or Production P1 migration/deployment is authorized until explicit owner
-  release approval. After approval, follow the frozen sequence: re-fetch exact state →
-  squash-merge PR #514 → apply only the three P1 migrations in order → verify
-  grants/RPC/schema cache → deploy the exact merge build → post-deploy verification.
-- Remaining Gate B and Gate C/D/E stay blocked until the P1 release sequence advances.
-- DEC-017 sequence remains: Gate A → Gate-B pre-P1 containment → Historical Daily DTR
-  P1 → remaining Gate B → Gate C → Gate D → Gate E.
-- P1 remains a separate bounded task/PR and must not be folded into remaining Gate B.
+  migrations were applied and raw DTR application mutation remains contained.
+- **Historical Daily DTR Write P1 is released and Production-verified.** PR #514 was
+  squash-merged as `a95c3c921e067297f4f033620fe2f4ede7e7c5aa`; all three P1
+  migrations are in Production; Vercel Production deployment
+  `dpl_HskHAzyWYZShZo3Y1Sesa4fJEAJK` serves that exact commit.
+- Post-P1 Production verification preserved 96/96 canonical bridge coverage, 96 current
+  authorization-projection rows, zero active facts missing projection, zero unbridged
+  compatibility rows, and the released no-bypass privilege posture.
+- **Current bounded target: GAP-024 Remaining Gate B — PLANNING ACTIVE.**
+  Planning artifact:
+  `docs/devlog/gap-024-remaining-gate-b-completion-plan.md`.
+  The planning approach is verification/closure-first: exact-head producer inventory,
+  released Gate-B + P1 harness reuse/composition, deterministic rebuild and
+  replay/idempotency proof, and read-only Production invariant verification.
+- No new Remaining Gate-B Runtime, schema migration, product behavior, Gate C cutover,
+  Gate D/E work, unrelated HR work, POS, Operations, or Finance work is authorized by
+  this planning state.
+- DEC-017 sequence remains:
+  Gate A → Gate-B pre-P1 containment → Historical Daily DTR P1 → **Remaining Gate B** →
+  Gate C → Gate D → Gate E.
+- Gate C remains blocked until Remaining Gate B itself completes its separate planning,
+  Runtime/verification, release, and owner gates.
 - keep general HR feature development, POS, Operations, Finance, and unrelated refactors
   gated; preserve scope-first/no-leak, House tenancy, branch-restriction, identity, and
   frozen-contract guardrails.
