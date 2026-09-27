@@ -84,6 +84,25 @@ expect_auth_failure() {
   echo "PASS: $label"
 }
 
+wait_pair_success() {
+  local pid_a="$1"
+  local pid_b="$2"
+  local log_a="$3"
+  local log_b="$4"
+  local label="$5"
+  set +e
+  wait "$pid_a"; local rc_a=$?
+  wait "$pid_b"; local rc_b=$?
+  set -e
+  if [[ $rc_a -ne 0 || $rc_b -ne 0 ]]; then
+    echo "--- session A ---"; cat "$log_a" || true
+    echo "--- session B ---"; cat "$log_b" || true
+    fail "$label failed (A=$rc_a B=$rc_b)"
+  fi
+  rm -f "$log_a" "$log_b"
+  echo "PASS: $label"
+}
+
 expect_role_failure() {
   local role="$1"
   local sql="$2"
@@ -537,6 +556,30 @@ SQL
     assert_scalar "1" "select (last_seen_at is not null)::int from public.hr_kiosk_devices where id='$DEVICE';" "telemetry wrapper updates last_seen_at"
     assert_scalar "2026-09-23 01:15:00+00" "select last_event_at::text from public.hr_kiosk_devices where id='$DEVICE';" "support event updates last_event_at to occurred_at"
     assert_scalar "1" "select count(*) from public.hr_kiosk_events where device_id='$DEVICE' and event_type='sync_success' and metadata->>'clientEventId'='rgb-support';" "allowed support event persists once"
+
+    echo "Verifying concurrent support events serialize without lock upgrade deadlock"
+    log_a="$(mktemp)"
+    log_b="$(mktemp)"
+    service_sql "select public.hr_record_kiosk_support_event(
+      '$DEVICE',
+      '$EMP_PROVED',
+      'sync_success',
+      '2026-09-23 09:16+08',
+      '{\"clientEventId\":\"rgb-support-a\"}'::jsonb
+    ); select pg_sleep(1);" >"$log_a" 2>&1 &
+    pid_a=$!
+    sleep 0.1
+    service_sql "select public.hr_record_kiosk_support_event(
+      '$DEVICE',
+      '$EMP_PROVED',
+      'sync_success',
+      '2026-09-23 09:17+08',
+      '{\"clientEventId\":\"rgb-support-b\"}'::jsonb
+    );" >"$log_b" 2>&1 &
+    pid_b=$!
+    wait_pair_success "$pid_a" "$pid_b" "$log_a" "$log_b" "concurrent support events serialize cleanly"
+    assert_scalar "2" "select count(*) from public.hr_kiosk_events where device_id='$DEVICE' and metadata->>'clientEventId' in ('rgb-support-a','rgb-support-b');" "both concurrent support events persist once"
+    assert_scalar "2026-09-23 01:17:00+00" "select last_event_at::text from public.hr_kiosk_devices where id='$DEVICE';" "serialized support events leave the later occurrence timestamp"
 
     for forbidden in scan clock_in clock_out queued; do
       expect_role_failure service_role "select public.hr_record_kiosk_support_event('$DEVICE','$EMP_PROVED','$forbidden','2026-09-23 09:20+08','{}'::jsonb);" "support wrapper rejects $forbidden"
