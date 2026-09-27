@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { relative, resolve } from "node:path";
 import test from "node:test";
 
 function repoFile(relativePath: string) {
@@ -34,6 +34,95 @@ const dbTypes = repoFile("agui-starter/src/lib/db.types.ts");
 const repairScript = repoFile(
   "agui-starter/scripts/fix-dtr-timezone.ts",
 );
+const remainingSupportSql = repoFile(
+  "supabase/migrations/20260927094900_gap024_remaining_gate_b_kiosk_support_wrappers.sql",
+);
+const remainingCutoverSql = repoFile(
+  "supabase/migrations/20260927094901_gap024_remaining_gate_b_privilege_cutover.sql",
+);
+const kioskRepository = repoFile(
+  "agui-starter/src/lib/hr/kiosk/repository.ts",
+);
+const kioskHttp = repoFile(
+  "agui-starter/src/lib/hr/kiosk/http.ts",
+);
+
+function repositoryRoot() {
+  const root = [
+    resolve(process.cwd()),
+    resolve(process.cwd(), ".."),
+    resolve(process.cwd(), "../.."),
+  ].find(
+    (candidate) =>
+      existsSync(resolve(candidate, "agui-starter/src")) &&
+      existsSync(resolve(candidate, "supabase")),
+  );
+  assert.ok(root, "Repository root not found");
+  return root;
+}
+
+function sourceFiles() {
+  const root = repositoryRoot();
+  const roots = [
+    resolve(root, "agui-starter/src"),
+    resolve(root, "agui-starter/scripts"),
+  ];
+  const files: string[] = [];
+
+  function visit(path: string) {
+    const info = statSync(path);
+    if (info.isDirectory()) {
+      const base = path.split(/[\\/]/).pop() ?? "";
+      if (base === "__tests__" || base === "node_modules" || base === ".test-dist") return;
+      for (const entry of readdirSync(path)) visit(resolve(path, entry));
+      return;
+    }
+    if (!info.isFile() || !/\.(ts|tsx|js|cjs|mjs)$/.test(path)) return;
+    if (/\.test\.(ts|tsx|js)$/.test(path)) return;
+    const rel = relative(root, path).replace(/\\/g, "/");
+    if (rel === "agui-starter/src/lib/db.types.ts") return;
+    files.push(rel);
+  }
+
+  for (const rootPath of roots) visit(rootPath);
+  return files.map((path) => ({ path, content: repoFile(path) }));
+}
+
+const rawMutationTables = [
+  "dtr_segments",
+  "dtr_entries",
+  "hr_attendance_facts",
+  "hr_attendance_fact_revisions",
+  "hr_attendance_observations",
+  "hr_attendance_evidence",
+  "hr_attendance_evidence_frames",
+  "hr_attendance_fact_evidence",
+  "hr_attendance_employee_generations",
+  "hr_attendance_authorization_projection",
+  "hr_attendance_authorization_history",
+  "hr_attendance_mutation_operations",
+  "hr_attendance_correction_cases",
+  "hr_attendance_correction_events",
+  "hr_attendance_remediation_cases",
+  "hr_attendance_remediation_events",
+  "hr_kiosk_events",
+] as const;
+
+const mutationFunctionNames = [
+  "hr_create_manual_attendance",
+  "hr_update_manual_attendance",
+  "hr_propose_attendance_correction",
+  "hr_finalize_attendance_correction",
+  "hr_open_attendance_remediation_case",
+  "hr_adjudicate_attendance_remediation_case",
+  "hr_finalize_attendance_remediation_case",
+  "hr_replace_bulk_attendance_day",
+  "hr_apply_kiosk_attendance_scan",
+  "hr_apply_attendance_time_repair",
+  "hr_apply_attendance_producer_mutation",
+  "hr_record_kiosk_support_event",
+  "hr_touch_kiosk_device_telemetry",
+] as const;
 
 function sqlFunction(sql: string, functionName: string) {
   const start = sql.toLowerCase().indexOf(
@@ -222,4 +311,157 @@ test("cutover reconciles every row, constrains kiosk establishment, and removes 
     /revoke insert, update, delete, truncate, references, trigger[\s\S]*dtr_entries[\s\S]*from service_role/i,
   );
   assert.match(cutoverSql, /Gate-B cutover left a raw dtr_entries mutation privilege/i);
+});
+
+
+test("Remaining Gate B support wrappers are narrow, service-only, and derive trusted context", () => {
+  assert.match(
+    remainingSupportSql,
+    /create or replace function public\.hr_record_kiosk_support_event\([\s\S]*p_device_id uuid[\s\S]*p_employee_id uuid[\s\S]*p_event_type text[\s\S]*p_occurred_at timestamptz[\s\S]*p_metadata jsonb[\s\S]*returns void[\s\S]*security definer[\s\S]*search_path = pg_catalog, public/i,
+  );
+  assert.match(remainingSupportSql, /p_event_type not in \('reject', 'sync_success', 'sync_fail'\)/i);
+  assert.match(
+    remainingSupportSql,
+    /from public\.hr_kiosk_devices[\s\S]*where device\.id = p_device_id[\s\S]*employee\.house_id = v_device\.house_id/i,
+  );
+  assert.match(
+    remainingSupportSql,
+    /insert into public\.hr_kiosk_events[\s\S]*v_device\.house_id[\s\S]*v_device\.branch_id/i,
+  );
+  assert.match(
+    remainingSupportSql,
+    /update public\.hr_kiosk_devices[\s\S]*set last_event_at = p_occurred_at[\s\S]*where id = v_device\.id/i,
+  );
+  assert.match(
+    remainingSupportSql,
+    /create or replace function public\.hr_touch_kiosk_device_telemetry\([\s\S]*p_device_id uuid[\s\S]*returns void[\s\S]*set last_seen_at = now\(\)/i,
+  );
+  assert.match(
+    remainingSupportSql,
+    /revoke all on function public\.hr_record_kiosk_support_event[\s\S]*from public, anon, authenticated, service_role[\s\S]*grant execute[\s\S]*to service_role/i,
+  );
+  assert.match(
+    remainingSupportSql,
+    /revoke all on function public\.hr_touch_kiosk_device_telemetry[\s\S]*from public, anon, authenticated, service_role[\s\S]*grant execute[\s\S]*to service_role/i,
+  );
+});
+
+test("Remaining Gate B cutover removes canonical and kiosk supporting-state raw bypasses", () => {
+  assert.match(remainingCutoverSql, /c\.relname like 'hr_attendance_%'/i);
+  assert.match(
+    remainingCutoverSql,
+    /revoke all privileges on table %s from authenticated, service_role/i,
+  );
+  assert.match(
+    remainingCutoverSql,
+    /revoke all on function public\.hr_rebuild_attendance_authorization_projection[\s\S]*from service_role/i,
+  );
+  assert.match(
+    remainingCutoverSql,
+    /drop policy if exists hr_kiosk_events_insert_house_roles[\s\S]*drop policy if exists hr_kiosk_events_update_house_roles[\s\S]*drop policy if exists hr_kiosk_events_delete_house_roles/i,
+  );
+  assert.match(
+    remainingCutoverSql,
+    /revoke all privileges on table public\.hr_kiosk_events from service_role/i,
+  );
+  assert.match(
+    remainingCutoverSql,
+    /revoke all privileges on table public\.hr_kiosk_devices from service_role[\s\S]*grant select on table public\.hr_kiosk_devices to service_role/i,
+  );
+  assert.match(
+    remainingCutoverSql,
+    /grant execute on function public\.hr_apply_kiosk_attendance_scan[\s\S]*to service_role[\s\S]*grant execute on function public\.hr_record_kiosk_support_event[\s\S]*to service_role[\s\S]*grant execute on function public\.hr_touch_kiosk_device_telemetry[\s\S]*to service_role/i,
+  );
+});
+
+test("kiosk service-side supporting writes use RPCs rather than raw event/device mutation", () => {
+  assert.match(kioskRepository, /rpc\("hr_touch_kiosk_device_telemetry"/i);
+  assert.match(kioskRepository, /rpc\("hr_record_kiosk_support_event"/i);
+  assert.doesNotMatch(
+    kioskRepository,
+    /\.from\("hr_kiosk_events"\)[\s\S]{0,500}?\.(insert|update|delete|upsert)\(/i,
+  );
+  assert.doesNotMatch(
+    kioskRepository,
+    /\.from\("hr_kiosk_devices"\)[\s\S]{0,500}?\.(insert|update|delete|upsert)\(/i,
+  );
+  assert.match(kioskHttp, /repo\.touchDevice\(auth\.deviceId\)/i);
+  assert.doesNotMatch(
+    kioskHttp,
+    /\.from\("hr_kiosk_devices"\)[\s\S]{0,500}?\.(insert|update|delete|upsert)\(/i,
+  );
+});
+
+test("repository-wide attendance producer discovery has no unclassified mutation call site", () => {
+  const files = sourceFiles();
+  const findings = new Map<string, Set<string>>();
+
+  function record(path: string, finding: string) {
+    const bucket = findings.get(path) ?? new Set<string>();
+    bucket.add(finding);
+    findings.set(path, bucket);
+  }
+
+  for (const file of files) {
+    for (const table of rawMutationTables) {
+      const rawMutation = new RegExp(
+        String.raw`\\.from\\(\\s*["'\\`]${table}["'\\`]\\s*\\)[\\s\\S]{0,600}?\\.(insert|update|delete|upsert)\\(`,
+        "i",
+      );
+      if (rawMutation.test(file.content)) record(file.path, `raw:${table}`);
+    }
+
+    const deviceMutation = /\.from\(\s*["'`]hr_kiosk_devices["'`]\s*\)[\s\S]{0,600}?\.(insert|update|delete|upsert)\(/i;
+    if (deviceMutation.test(file.content)) record(file.path, "raw:hr_kiosk_devices");
+
+    for (const functionName of mutationFunctionNames) {
+      if (file.content.includes(functionName)) record(file.path, `rpc:${functionName}`);
+    }
+  }
+
+  const allowed = new Map<string, Set<string>>([
+    [
+      "agui-starter/src/lib/hr/dtr-segments-server.ts",
+      new Set(["rpc:hr_create_manual_attendance"]),
+    ],
+    [
+      "agui-starter/src/lib/hr/attendance-p1-server.ts",
+      new Set([
+        "rpc:hr_propose_attendance_correction",
+        "rpc:hr_finalize_attendance_correction",
+        "rpc:hr_open_attendance_remediation_case",
+        "rpc:hr_adjudicate_attendance_remediation_case",
+        "rpc:hr_finalize_attendance_remediation_case",
+      ]),
+    ],
+    [
+      "agui-starter/src/lib/hr/kiosk/repository.ts",
+      new Set([
+        "rpc:hr_apply_kiosk_attendance_scan",
+        "rpc:hr_record_kiosk_support_event",
+        "rpc:hr_touch_kiosk_device_telemetry",
+      ]),
+    ],
+    [
+      "agui-starter/src/lib/hr/kiosk/admin.ts",
+      new Set(["raw:hr_kiosk_devices"]),
+    ],
+    [
+      "agui-starter/src/app/api/payroll/dtr-bulk/route.ts",
+      new Set(["rpc:hr_replace_bulk_attendance_day"]),
+    ],
+    [
+      "agui-starter/scripts/fix-dtr-timezone.ts",
+      new Set(["rpc:hr_apply_attendance_time_repair"]),
+    ],
+  ]);
+
+  const normalized = [...findings.entries()]
+    .map(([path, values]) => [path, [...values].sort()] as const)
+    .sort(([a], [b]) => a.localeCompare(b));
+  const expected = [...allowed.entries()]
+    .map(([path, values]) => [path, [...values].sort()] as const)
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  assert.deepEqual(normalized, expected);
 });
