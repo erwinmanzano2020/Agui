@@ -112,8 +112,8 @@ jobs:
             supabase/migrations/20261021100000_historical_dtr_p1_foundation.sql
             supabase/migrations/20261021110000_historical_dtr_p1_correction_commands.sql
             supabase/migrations/20261021120000_historical_dtr_p1_remediation_commands.sql
-            supabase/migrations/20260927094900_gap024_remaining_gate_b_kiosk_support_wrappers.sql
-            supabase/migrations/20260927094901_gap024_remaining_gate_b_privilege_cutover.sql
+            supabase/migrations/20261021130000_gap024_remaining_gate_b_kiosk_support_wrappers.sql
+            supabase/migrations/20261021140000_gap024_remaining_gate_b_privilege_cutover.sql
           )
 
           for migration in "${migrations[@]}"; do
