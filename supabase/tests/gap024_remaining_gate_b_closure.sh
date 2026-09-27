@@ -509,6 +509,8 @@ SQL
 
     assert_scalar "0" "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and (p.proname like 'hr_%attendance%' or p.proname like 'hr_%kiosk%') and has_function_privilege('service_role',p.oid,'EXECUTE') and p.proname not in ('hr_apply_kiosk_attendance_scan','hr_record_kiosk_support_event','hr_touch_kiosk_device_telemetry','hr_read_canonical_attendance_branch_scoped','hr_read_canonical_attendance_house_global');" "service-role attendance/kiosk callable surface has no unreviewed function"
 
+    assert_scalar "0" "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and (p.proname like 'hr_%attendance%' or p.proname like 'hr_%kiosk%') and (has_function_privilege('anon',p.oid,'EXECUTE') or has_function_privilege('public',p.oid,'EXECUTE'));" "PUBLIC/anon cannot execute attendance or kiosk authority functions"
+
     for allowed in hr_apply_kiosk_attendance_scan hr_record_kiosk_support_event hr_touch_kiosk_device_telemetry hr_read_canonical_attendance_branch_scoped hr_read_canonical_attendance_house_global; do
       assert_scalar "1" "select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname='$allowed' and has_function_privilege('service_role',p.oid,'EXECUTE');" "service-role approved function $allowed has exactly one callable overload"
     done
