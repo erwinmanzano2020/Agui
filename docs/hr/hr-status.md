@@ -1,11 +1,13 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
-## 2026-09-27 — GAP-024 Remaining Gate B planning active
+## 2026-09-27 — GAP-024 Remaining Gate B planning amendment active
 
-**Status: PLANNING CONVERGED — READY FOR OWNER APPROVAL. Historical Daily DTR Write P1
-is released and Production-verified; Remaining Gate B is the current bounded target.
-PR #515 remains Draft/unmerged. No Remaining Gate-B Runtime, Gate C, merge, schema change,
-or Production mutation has been authorized yet.**
+**Status: PLANNING RE-ENTRY / REVIEW & FIX IN PROGRESS. Original Remaining Gate-B
+planning PR #515 was owner-approved and squash-merged as
+`908e36eb1861f3ba76426927f0968ed0caf0fdcb`. Runtime PR #516 is Draft/unmerged and
+correctly paused after exposing one bounded planning-contract omission. Planning amendment
+PR #517 is Draft/planning-only/unapproved. Production is unchanged; Gate C/D/E remain
+unauthorized.**
 
 Released predecessor state:
 
@@ -23,11 +25,20 @@ Released predecessor state:
 Current planning artifact:
 `docs/devlog/gap-024-remaining-gate-b-completion-plan.md`
 
-Hosted planning PR:
-**#515 — Plan GAP-024 Remaining Gate B completion** (Draft / planning-only / unapproved)
+Original planning PR:
+**#515 — Plan GAP-024 Remaining Gate B completion** — owner-approved and squash-merged as
+`908e36eb1861f3ba76426927f0968ed0caf0fdcb`.
 
-Planning branch:
-`codex/plan-gap-024-remaining-gate-b`
+Current planning amendment PR:
+**#517 — Amend GAP-024 Remaining Gate B planning for kiosk reject identity**
+(Draft / planning-only / unapproved).
+
+Planning amendment branch:
+`codex/amend-gap-024-remaining-gate-b-planning`.
+
+Blocked Runtime PR:
+**#516 — Implement GAP-024 Remaining Gate B closure** (Draft / unmerged). Runtime remains
+paused until the amendment converges, receives explicit owner approval, and is merged.
 
 The current plan is **verification + bounded privilege-hardening closure**. Fresh
 Production audit found that `service_role` still retains direct privileges on core
@@ -40,17 +51,26 @@ owner/manager policies and service_role can directly mutate `hr_kiosk_events`, w
 service_role can broadly mutate `hr_kiosk_devices`. Because command-owned kiosk event
 types affect debounce/provenance semantics, static application convention is insufficient.
 
-The plan therefore authorizes for later Runtime **two ordered forward migrations plus one
-bounded kiosk repository adapter change**:
+The original plan authorized for Runtime **two ordered forward migrations plus a bounded
+kiosk adapter change**. Runtime PR #516 then found one plan-surface omission that requires
+this amendment before Runtime may resume:
 
 1. additive `gap024_remaining_gate_b_kiosk_support_wrappers`;
-2. exact wrapper-capable application deployment;
-3. final `gap024_remaining_gate_b_privilege_cutover`.
+2. wrapper-capable kiosk repository + ping adapter;
+3. bounded `kiosk/service.ts` reject-event identity adaptation;
+4. exact wrapper-capable application deployment;
+5. final `gap024_remaining_gate_b_privilege_cutover`.
 
-The adapter moves only auxiliary event insertion and device telemetry writes to narrow
-service-role RPCs. The final cutover removes direct service-role canonical authority,
-direct raw kiosk event/device mutation, and projection-rebuild EXECUTE while preserving
-authenticated device administration, event read access, and the kiosk scan wrapper.
+The new support-event RPC validates that any supplied employee belongs to the
+device-derived House. Released kiosk service behavior historically attached the QR claim
+to `house_mismatch` / `employee_not_found` reject events before same-House employee
+verification, so those audit writes would fail under the strict wrapper. The amended rule
+is: unverified QR claims use authoritative `employee_id = null`; the claimed ID may be
+retained only as non-authoritative `claimedEmployeeId` audit metadata. Once same-House
+employee resolution succeeds, verified employee IDs continue to be used normally.
+
+This amendment does not add a schema, RPC, event type, user-facing workflow, or rollout
+step beyond the already approved Remaining-Gate-B closure.
 
 Gate-B/P1 harness reuse, pre-cutover legacy proof, deterministic rebuild/replay proof,
 producer discovery, database-enforced kiosk event-type ownership, and Production
@@ -61,10 +81,11 @@ DEC-017 order remains:
 Gate A → Gate-B pre-P1 containment → Historical Daily DTR P1 → **Remaining Gate B** →
 Gate C → Gate D → Gate E.
 
-Planning Review & Fix is converged with unresolved P0/P1/material-P2 = 0. Exact-current-
-head CI/Preview must remain green at the approval gate. The single next authorized action
-is explicit owner approval of PR #515's planning contract; only then may the planning PR
-be merged and a separately bounded Remaining-Gate-B Runtime begin.
+Planning Review & Fix is reopened only for this bounded amendment. The current exact next
+action is autonomous review/fix of PR #517 until unresolved P0/P1/material-P2 = 0 and
+exact-head checks are green. Only then is explicit owner approval of PR #517 allowed.
+After owner approval and merge, resume the existing PR #516; do not create a duplicate
+Runtime PR.
 
 Gate C remains unauthorized until Remaining Gate B itself passes its separate Runtime,
 verification, release, and owner gates.
