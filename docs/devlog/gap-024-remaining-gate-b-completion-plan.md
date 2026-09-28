@@ -18,10 +18,8 @@
 - Current planning re-entry base: `develop @ 908e36eb1861f3ba76426927f0968ed0caf0fdcb`.
 - Current planning amendment branch:
   `codex/amend-gap-024-remaining-gate-b-planning`.
-- Current planning amendment PR: **#517 — Amend GAP-024 Remaining Gate B planning for kiosk reject identity** (Draft / planning-only / unapproved).
-- Blocked Runtime artifact: **PR #516 — Implement GAP-024 Remaining Gate B closure**,
-  Draft/unmerged; exact blocker-review head
-  `a56e47a25507258f192cca5de0ad4e71e0ff2185`.
+- Planning amendment PR **#517 — Amend GAP-024 Remaining Gate B planning for kiosk reject identity** was explicitly owner-approved and squash-merged to `develop` as `8fe979729d79bba806ba28b89b851baeee450258`.
+- Runtime artifact **PR #516 — Implement GAP-024 Remaining Gate B closure** is resumed, Draft/unmerged, and reconciled with the approved amendment via merge commit `425c8df8f756b352f1e40acf591314e2cebe4c3a`.
 - Production application: Vercel `agui-nine.vercel.app`, currently serving exact commit
   `a95c3c921e067297f4f033620fe2f4ede7e7c5aa`
 - Production backend: Supabase project `rytrmtsteojboqmrimdb`
@@ -1545,8 +1543,9 @@ be preserved only as non-authoritative `claimedEmployeeId` metadata; verified
 same-House employees retain existing behavior. Corresponding service tests are required.
 No additional schema, RPC, event type, product behavior, or rollout step is added.
 
-This planning re-entry does not authorize Runtime to resume yet. The amendment must
-converge, be explicitly owner-approved, and be merged first.
+The planning amendment has converged, was explicitly owner-approved, and was merged as
+PR #517. Runtime PR #516 is therefore authorized to resume against the amended contract
+while remaining Draft/unmerged until its own Runtime/UAT/release gates pass.
 
 ### Round 25 — amendment cross-section data/write coherence review
 
@@ -1571,7 +1570,7 @@ Convergence state for the planning contract itself:
 - unresolved P1: 0;
 - unresolved material P2: 0;
 - changed files remain documentation/governance only in PR #517;
-- Runtime PR #516 remains Draft/unmerged and paused;
+- Runtime PR #516 is resumed, Draft/unmerged, and reconciled with the merged amendment;
 - the only newly authorized Runtime file is the bounded `kiosk/service.ts` adaptation
   required by the already-approved support-event wrapper contract;
 - no new schema, RPC, event type, attendance semantic, product workflow, or rollout step
@@ -1583,7 +1582,82 @@ The exact-current planning head has now cleared the repository's normal check ga
 Preflight is green, the Vercel status is successful, and the exact-head Preview deployment
 is READY. No superseded Preview is being reused as evidence.
 
-No remaining material P0/P1/P2 planning defect is known. The next authorized action is
-explicit owner approval of planning amendment PR #517.
+No remaining material P0/P1/P2 planning defect is known. Planning amendment PR #517 has
+been explicitly owner-approved and merged; Runtime PR #516 has resumed under that amended
+contract.
 
-**PLANNING GATE: READY FOR OWNER APPROVAL**
+**PLANNING GATE: CLOSED — RUNTIME RESUMED**
+
+
+## Runtime / Controlled UAT pre-release convergence checkpoint — 2026-09-28
+
+Runtime PR #516 resumed under the owner-approved amended contract and reached controlled
+Preview/UAT convergence on functional head
+`45d1db84114f8ccc36950aa377f39df14f2d38c9`.
+
+Exact functional-head automated evidence:
+
+- Preflight #1023 — SUCCESS;
+- Gate B DB Concurrency #123 — SUCCESS;
+- P1 Historical DTR DB Concurrency #111 — SUCCESS;
+- Remaining Gate B DB Closure #53 — SUCCESS;
+- Vercel Preview deployment `dpl_GQkYdqFQAnks7Q7Z32sqxX81keMn` — READY;
+- material review threads — 0.
+
+Controlled Preview/UAT evidence:
+
+- the branch Preview was explicitly isolated to UAT Supabase project
+  `ectzbcijqhegoamtaqgo`, not Production `rytrmtsteojboqmrimdb`;
+- the exact Runtime Preview loaded successfully in a real browser;
+- both Remaining-Gate-B migrations are present in the isolated UAT backend;
+- kiosk support/device fixture rows are clean after verification
+  (`hr_kiosk_devices = 0`, `hr_kiosk_events = 0`);
+- exact-head tests cover ping/scan/sync route behavior and prove
+  `house_mismatch` / `employee_not_found` reject events use
+  `employee_id = null` with only non-authoritative `claimedEmployeeId` metadata;
+- the disposable DB closure suite proves support RPC allow/deny behavior, raw
+  kiosk event/device privilege denial, canonical no-bypass posture, producer
+  compatibility, concurrency, reader scope, and projection/rebuild invariants;
+- Preview warning/error/fatal logs for the controlled smoke window contain no
+  slice-attributable entry.
+
+The human browser checkpoint was intentionally minimal because this slice adds no
+user-visible workflow. Its purpose was only to prove that the isolated exact-head Preview
+renders normally. No Telegram/native/physical checkpoint is applicable.
+
+Read-only Production pre-release baseline remains exactly the planned pre-cutover state:
+
+- Production Vercel still serves released P1 commit
+  `a95c3c921e067297f4f033620fe2f4ede7e7c5aa`;
+- neither Remaining-Gate-B migration is present in Production;
+- `dtr_segments = 96`, linked segments = 96;
+- active canonical facts = 96 and current projection rows = 96;
+- active facts missing projection = 0;
+- unbridged compatibility segments = 0;
+- current attribution remains 17 ATTRIBUTED / 79 UNATTRIBUTED / 0 CONFLICT;
+- authenticated has no direct canonical attendance-table access;
+- the known service-role canonical-table privileges remain limited to the exact
+  planned pre-cutover inventory;
+- service_role still has projection-rebuild EXECUTE as expected pre-cutover;
+- kiosk event/device raw privileges remain the known planned pre-cutover gap;
+- migration-1 support RPCs are absent in Production;
+- raw authenticated/service-role DTR writes and direct P1 lifecycle DML remain denied;
+- Production warning/error/fatal logs for the last 24 hours contain no blocker.
+
+Cleanup/pre-release safety:
+
+- disposable CI Supabase stacks stop on every run;
+- no synthetic UAT kiosk device/event row remains in the isolated UAT backend;
+- no UAT account/device or Remaining-Gate-B migration was introduced into Production;
+- no temporary rollout feature flag exists;
+- the branch-scoped UAT Preview environment override is intentionally retained while PR
+  #516 remains open because it is the active safety boundary preventing Preview writes
+  from reaching Production. It is not stale cleanup; remove it only when the branch
+  Preview is retired after release/merge.
+
+Fresh release review of the complete Runtime diff against the amended approved contract
+found no unresolved P0/P1/material-P2 defect. The two-stage Production rollout and
+fix-forward rules in Sections 29–31 remain valid.
+
+The next release action is owner approval only after the governance-sync exact head is
+green. No merge or Production mutation is authorized by this checkpoint.

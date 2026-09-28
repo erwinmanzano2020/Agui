@@ -29,6 +29,11 @@ describe("POST /api/hr/kiosk/ping", () => {
   it("returns 401 for invalid bearer token", async () => {
     mock.method(service, "createServiceSupabaseClient", () => {
       return {
+        async rpc(name: string, args: Record<string, unknown>) {
+          assert.equal(name, "hr_touch_kiosk_device_telemetry");
+          assert.deepEqual(args, { p_device_id: "device-1" });
+          return { data: null, error: null };
+        },
         from(table: string) {
           if (table === "hr_kiosk_devices") {
             return {
@@ -68,6 +73,11 @@ describe("POST /api/hr/kiosk/ping", () => {
 
     mock.method(service, "createServiceSupabaseClient", () => {
       return {
+        async rpc(name: string, args: Record<string, unknown>) {
+          assert.equal(name, "hr_touch_kiosk_device_telemetry");
+          assert.deepEqual(args, { p_device_id: "device-1" });
+          return { data: null, error: null };
+        },
         from(table: string) {
           if (table === "hr_kiosk_devices") {
             return {
@@ -109,6 +119,11 @@ describe("POST /api/hr/kiosk/ping", () => {
 
     mock.method(service, "createServiceSupabaseClient", () => {
       return {
+        async rpc(name: string, args: Record<string, unknown>) {
+          assert.equal(name, "hr_touch_kiosk_device_telemetry");
+          assert.deepEqual(args, { p_device_id: "device-1" });
+          return { data: null, error: null };
+        },
         from(table: string) {
           if (table === "hr_kiosk_devices") {
             return {
@@ -122,13 +137,6 @@ describe("POST /api/hr/kiosk/ping", () => {
                 return this;
               },
               maybeSingle: async () => ({ data: activeDevice, error: null }),
-              update() {
-                return {
-                  eq() {
-                    return this;
-                  },
-                };
-              },
             };
           }
           if (table === "branches") {

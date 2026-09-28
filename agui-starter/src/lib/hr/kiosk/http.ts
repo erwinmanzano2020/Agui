@@ -36,15 +36,8 @@ export async function handleKioskPing(request: Request) {
       return NextResponse.json({ error: branchError.message }, { status: 500 });
     }
 
-    const { error: updateError } = await supabase
-      .from("hr_kiosk_devices")
-      .update({ last_seen_at: new Date().toISOString() })
-      .eq("id", auth.deviceId)
-      .eq("house_id", auth.houseId);
-
-    if (updateError) {
-      return NextResponse.json({ error: updateError.message }, { status: 500 });
-    }
+    const repo = createSupabaseKioskRepo(supabase);
+    await repo.touchDevice(auth.deviceId);
 
     return NextResponse.json({
       ok: true,

@@ -1,0 +1,170 @@
+name: Remaining Gate B DB Closure
+
+on:
+  pull_request:
+    branches: [ develop, main ]
+    paths:
+      - "supabase/**"
+      - "agui-starter/src/lib/hr/**"
+      - "agui-starter/src/lib/db.types.ts"
+      - "agui-starter/src/app/company/**/hr/dtr/**"
+      - "agui-starter/src/app/api/kiosk/**"
+      - "agui-starter/src/app/api/hr/kiosk/**"
+      - "agui-starter/src/app/api/hr/kiosk-devices/**"
+      - "agui-starter/src/app/api/payroll/dtr-bulk/**"
+      - "agui-starter/src/app/payroll/dtr-bulk/**"
+      - "agui-starter/src/app/payroll/dtr-today/**"
+      - "agui-starter/scripts/fix-dtr-timezone.ts"
+      - ".github/workflows/gate-b-db-concurrency.yml"
+      - ".github/workflows/p1-historical-dtr-db.yml"
+      - ".github/workflows/gap024-remaining-gate-b-db.yml"
+  workflow_dispatch:
+
+jobs:
+  remaining-gate-b-db:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Start disposable local database without historical repo replay
+        shell: bash
+        run: |
+          set -euo pipefail
+          mv supabase/migrations supabase/migrations.repo
+          mkdir supabase/migrations
+          restore_migrations() {
+            rm -rf supabase/migrations
+            mv supabase/migrations.repo supabase/migrations
+          }
+          trap restore_migrations EXIT
+          supabase db start
+          restore_migrations
+          trap - EXIT
+
+      - name: Apply Gate-A and Gate-B through reconcile
+        shell: bash
+        run: |
+          set -euo pipefail
+          DB_CONTAINER="$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -n 1)"
+          test -n "$DB_CONTAINER"
+
+          apply_sql() {
+            local file="$1"
+            echo "Applying $file"
+            docker exec -i "$DB_CONTAINER"               psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres < "$file"
+          }
+
+          apply_sql supabase/tests/gap024_gate_ab_prerequisite.sql
+          bash supabase/tests/gap024_remaining_gate_b_closure.sh prepare-live-kiosk-prereqs
+
+          gate_a=(
+            supabase/migrations/20261019100000_gap024_gate_a_attendance_authority.sql
+            supabase/migrations/20261019110000_gap024_gate_a_live_policy_compatibility.sql
+            supabase/migrations/20261019120000_gap024_gate_a_policy_surface_replay_guard.sql
+            supabase/migrations/20261019130000_gap024_gate_a_role_scope_guard.sql
+            supabase/migrations/20261019140000_gap024_gate_a_supersession_lookup_index.sql
+            supabase/migrations/20261019150000_gap024_gate_a_projection_history.sql
+            supabase/migrations/20261019160000_gap024_gate_a_activation_history_guard.sql
+            supabase/migrations/20261019170000_gap024_gate_a_activation_history_privilege.sql
+            supabase/migrations/20261019180000_gap024_gate_a_retired_fact_pointer_freeze.sql
+            supabase/migrations/20261019190000_gap024_gate_a_initial_active_guard.sql
+            supabase/migrations/20261019200000_gap024_gate_a_membership_frame_lock_order.sql
+          )
+          gate_b_pre_cutover=(
+            supabase/migrations/20261020100000_gap024_gate_b_containment_foundation.sql
+            supabase/migrations/20261020110000_gap024_gate_b_manual_commands.sql
+            supabase/migrations/20261020120000_gap024_gate_b_kiosk_command.sql
+            supabase/migrations/20261020130000_gap024_gate_b_bulk_command.sql
+            supabase/migrations/20261020140000_gap024_gate_b_repair_command.sql
+          )
+
+          for migration in "${gate_a[@]}" "${gate_b_pre_cutover[@]}"; do
+            apply_sql "$migration"
+          done
+
+          bash supabase/tests/gap024_remaining_gate_b_closure.sh seed-pre-cutover
+          apply_sql supabase/migrations/20261020150000_gap024_gate_b_reconcile_cutover.sql
+          bash supabase/tests/gap024_remaining_gate_b_closure.sh verify-reconcile
+
+      - name: Re-run released Gate-B concurrency proof at its native schema point
+        run: bash supabase/tests/gap024_gate_b_concurrency.sh
+
+      - name: Apply P1 and Remaining-B migrations
+        shell: bash
+        run: |
+          set -euo pipefail
+          DB_CONTAINER="$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -n 1)"
+          test -n "$DB_CONTAINER"
+
+          apply_sql() {
+            local file="$1"
+            echo "Applying $file"
+            docker exec -i "$DB_CONTAINER"               psql -X -q -v ON_ERROR_STOP=1 -U postgres -d postgres < "$file"
+          }
+
+          migrations=(
+            supabase/migrations/20261021100000_historical_dtr_p1_foundation.sql
+            supabase/migrations/20261021110000_historical_dtr_p1_correction_commands.sql
+            supabase/migrations/20261021120000_historical_dtr_p1_remediation_commands.sql
+            supabase/migrations/20261021130000_gap024_remaining_gate_b_kiosk_support_wrappers.sql
+            supabase/migrations/20261021140000_gap024_remaining_gate_b_privilege_cutover.sql
+          )
+
+          for migration in "${migrations[@]}"; do
+            apply_sql "$migration"
+          done
+
+      - name: Verify generated local Supabase contract exposes support RPCs
+        shell: bash
+        run: |
+          set -euo pipefail
+          DB_CONTAINER="$(docker ps --format '{{.Names}}' | grep '^supabase_db_' | head -n 1)"
+          test -n "$DB_CONTAINER"
+
+          support_count="$(docker exec "$DB_CONTAINER" psql -X -qAt -U postgres -d postgres -c "
+            select count(*)
+            from pg_proc p
+            join pg_namespace n on n.oid=p.pronamespace
+            where n.nspname='public'
+              and p.proname='hr_record_kiosk_support_event'
+              and pg_get_function_identity_arguments(p.oid) =
+                'p_device_id uuid, p_employee_id uuid, p_event_type text, p_occurred_at timestamp with time zone, p_metadata jsonb';
+          ")"
+          telemetry_count="$(docker exec "$DB_CONTAINER" psql -X -qAt -U postgres -d postgres -c "
+            select count(*)
+            from pg_proc p
+            join pg_namespace n on n.oid=p.pronamespace
+            where n.nspname='public'
+              and p.proname='hr_touch_kiosk_device_telemetry'
+              and pg_get_function_identity_arguments(p.oid)='p_device_id uuid';
+          ")"
+          test "$support_count" = "1"
+          test "$telemetry_count" = "1"
+
+          supabase gen types typescript --local --schema public > /tmp/remaining-gate-b-db.types.ts
+          grep -q "hr_record_kiosk_support_event" /tmp/remaining-gate-b-db.types.ts
+          grep -q "hr_touch_kiosk_device_telemetry" /tmp/remaining-gate-b-db.types.ts
+
+      - name: Re-run released P1 concurrency proof
+        run: bash supabase/tests/historical_dtr_p1_concurrency.sh
+
+      - name: Restore released seams and verify post-cutover closure
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash supabase/tests/gap024_remaining_gate_b_closure.sh restore-released-seams
+          bash supabase/tests/gap024_remaining_gate_b_closure.sh verify-post-p1
+
+      - name: Show local Supabase status on failure
+        if: failure()
+        run: supabase status || true
+
+      - name: Stop disposable local stack
+        if: always()
+        run: supabase stop --no-backup || true
