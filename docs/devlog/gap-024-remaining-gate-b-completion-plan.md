@@ -18,10 +18,8 @@
 - Current planning re-entry base: `develop @ 908e36eb1861f3ba76426927f0968ed0caf0fdcb`.
 - Current planning amendment branch:
   `codex/amend-gap-024-remaining-gate-b-planning`.
-- Current planning amendment PR: **#517 — Amend GAP-024 Remaining Gate B planning for kiosk reject identity** (Draft / planning-only / unapproved).
-- Blocked Runtime artifact: **PR #516 — Implement GAP-024 Remaining Gate B closure**,
-  Draft/unmerged; exact blocker-review head
-  `a56e47a25507258f192cca5de0ad4e71e0ff2185`.
+- Planning amendment PR **#517 — Amend GAP-024 Remaining Gate B planning for kiosk reject identity** was explicitly owner-approved and squash-merged to `develop` as `8fe979729d79bba806ba28b89b851baeee450258`.
+- Runtime artifact **PR #516 — Implement GAP-024 Remaining Gate B closure** is resumed, Draft/unmerged, and reconciled with the approved amendment via merge commit `425c8df8f756b352f1e40acf591314e2cebe4c3a`.
 - Production application: Vercel `agui-nine.vercel.app`, currently serving exact commit
   `a95c3c921e067297f4f033620fe2f4ede7e7c5aa`
 - Production backend: Supabase project `rytrmtsteojboqmrimdb`
@@ -1545,8 +1543,9 @@ be preserved only as non-authoritative `claimedEmployeeId` metadata; verified
 same-House employees retain existing behavior. Corresponding service tests are required.
 No additional schema, RPC, event type, product behavior, or rollout step is added.
 
-This planning re-entry does not authorize Runtime to resume yet. The amendment must
-converge, be explicitly owner-approved, and be merged first.
+The planning amendment has converged, was explicitly owner-approved, and was merged as
+PR #517. Runtime PR #516 is therefore authorized to resume against the amended contract
+while remaining Draft/unmerged until its own Runtime/UAT/release gates pass.
 
 ### Round 25 — amendment cross-section data/write coherence review
 
@@ -1571,7 +1570,7 @@ Convergence state for the planning contract itself:
 - unresolved P1: 0;
 - unresolved material P2: 0;
 - changed files remain documentation/governance only in PR #517;
-- Runtime PR #516 remains Draft/unmerged and paused;
+- Runtime PR #516 is resumed, Draft/unmerged, and reconciled with the merged amendment;
 - the only newly authorized Runtime file is the bounded `kiosk/service.ts` adaptation
   required by the already-approved support-event wrapper contract;
 - no new schema, RPC, event type, attendance semantic, product workflow, or rollout step
@@ -1583,7 +1582,8 @@ The exact-current planning head has now cleared the repository's normal check ga
 Preflight is green, the Vercel status is successful, and the exact-head Preview deployment
 is READY. No superseded Preview is being reused as evidence.
 
-No remaining material P0/P1/P2 planning defect is known. The next authorized action is
-explicit owner approval of planning amendment PR #517.
+No remaining material P0/P1/P2 planning defect is known. Planning amendment PR #517 has
+been explicitly owner-approved and merged; Runtime PR #516 has resumed under that amended
+contract.
 
-**PLANNING GATE: READY FOR OWNER APPROVAL**
+**PLANNING GATE: CLOSED — RUNTIME RESUMED**
