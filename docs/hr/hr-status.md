@@ -2,11 +2,13 @@
 
 ## 2026-09-27 — GAP-024 Remaining Gate B planning amendment active
 
-**Status: REMAINING GATE B RUNTIME RESUMED. Original planning PR #515 and planning
-amendment PR #517 were both explicitly owner-approved and squash-merged. Runtime PR #516
-is Draft/unmerged and reconciled with the amended contract. Exact Runtime head has green
-Preflight, Gate-B concurrency, P1 concurrency, Remaining-Gate-B closure, and Vercel
-Preview. Production is unchanged; Gate C/D/E remain unauthorized.**
+**Status: REMAINING GATE B CONTROLLED UAT + PRE-RELEASE REVIEW CONVERGED. Runtime
+PR #516 remains Draft/unmerged. Functional head
+`45d1db84114f8ccc36950aa377f39df14f2d38c9` passed Preflight #1023, Gate B DB
+Concurrency #123, P1 Historical DTR DB Concurrency #111, Remaining Gate B DB Closure #53,
+isolated-backend Preview smoke, and fresh release review. Production remains unchanged;
+Gate C/D/E remain unauthorized. Owner release approval is the next action once the
+governance-sync exact head is green.**
 
 Released predecessor state:
 
@@ -79,11 +81,14 @@ DEC-017 order remains:
 Gate A → Gate-B pre-P1 containment → Historical Daily DTR P1 → **Remaining Gate B** →
 Gate C → Gate D → Gate E.
 
-The amended planning contract is closed and Runtime PR #516 has resumed. Its exact
-reconciled head passed Preflight #1021, Gate B DB Concurrency #121, P1 Historical DTR DB
-Concurrency #109, Remaining Gate B DB Closure #51, and an exact-head Vercel Preview.
-Next Runtime work is isolated-backend Preview/UAT verification and pre-release Production
-baseline review; no merge or Production mutation is authorized yet.
+The amended planning contract is closed and Runtime PR #516 has completed controlled
+Preview/UAT and pre-release review on functional head
+`45d1db84114f8ccc36950aa377f39df14f2d38c9`. Exact functional-head checks are green,
+the Preview is isolated to UAT Supabase `ectzbcijqhegoamtaqgo`, browser smoke passed,
+Preview warning/error/fatal logs are clean, and the read-only Production baseline matches
+the planned pre-cutover privilege/data state. No Production mutation has occurred. The
+next action is owner release approval only after the current governance-sync head clears
+exact-head checks.
 
 Gate C remains unauthorized until Remaining Gate B itself passes its separate Runtime,
 verification, release, and owner gates.

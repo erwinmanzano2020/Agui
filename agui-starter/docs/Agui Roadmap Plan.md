@@ -44,8 +44,8 @@
   compatibility rows, and the released **raw DTR-table** no-bypass privilege posture.
   The broader canonical/supporting-state privilege audit below found the Remaining-Gate-B
   gaps that are now being planned.
-- **Current bounded target: GAP-024 Remaining Gate B — RUNTIME RESUMED / PRE-RELEASE
-  VERIFICATION ACTIVE.**
+- **Current bounded target: GAP-024 Remaining Gate B — CONTROLLED UAT + PRE-RELEASE
+  REVIEW CONVERGED; OWNER RELEASE GATE NEXT AFTER EXACT-HEAD CHECKS.**
   Durable planning artifact:
   `docs/devlog/gap-024-remaining-gate-b-completion-plan.md`.
   Original planning PR **#515 — Plan GAP-024 Remaining Gate B completion** was explicitly
@@ -67,13 +67,18 @@
   claim only as non-authoritative `claimedEmployeeId` audit metadata. Verified
   same-House employee identity continues unchanged.
 - Runtime branch reconciliation commit
-  `425c8df8f756b352f1e40acf591314e2cebe4c3a` incorporates the approved amendment while
-  preserving the bounded Runtime diff. Exact-head checks are green: Preflight #1021,
-  Gate-B DB Concurrency #121, P1 Historical DTR DB Concurrency #109, Remaining Gate B DB
-  Closure #51, and Vercel Preview READY.
-- Runtime is now in isolated-backend Preview/UAT + pre-release verification. PR #516 must
-  remain Draft/unmerged until those gates converge and owner release approval is later
-  requested. Gate C/D/E remain unauthorized.
+  `425c8df8f756b352f1e40acf591314e2cebe4c3a` incorporated the approved amendment.
+  Functional release head `45d1db84114f8ccc36950aa377f39df14f2d38c9` passed
+  Preflight #1023, Gate-B DB Concurrency #123, P1 Historical DTR DB Concurrency #111,
+  Remaining Gate B DB Closure #53, exact-head Vercel Preview, isolated-UAT backend
+  verification, and the required minimal browser smoke.
+- Read-only Production baseline remains the released P1 state: 96/96 bridge coverage,
+  96 active facts / 96 projection rows, zero missing projection, zero unbridged segments,
+  17 ATTRIBUTED / 79 UNATTRIBUTED / 0 CONFLICT, no Remaining-Gate-B migration, and only
+  the already-planned pre-cutover service-role/kiosk privilege gap.
+- PR #516 remains Draft/unmerged. No Production mutation has occurred. Owner release
+  approval is the next action only after the governance-sync exact head is green.
+  Gate C/D/E remain unauthorized.
 - No Production mutation or Remaining-Gate-B release is authorized by this amendment.
   No new schema/RPC/event type/user-facing workflow is added. Gate C/D/E, unrelated HR
   work, POS, Operations, and Finance remain unauthorized.
