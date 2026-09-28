@@ -2,11 +2,11 @@
 
 ## 2026-09-27 — GAP-024 Remaining Gate B planning amendment active
 
-**Status: PLANNING AMENDMENT CONVERGED — READY FOR OWNER APPROVAL. Original
-Remaining Gate-B planning PR #515 was owner-approved and squash-merged as
-`908e36eb1861f3ba76426927f0968ed0caf0fdcb`. Runtime PR #516 remains Draft/unmerged
-and paused. Planning amendment PR #517 remains Draft/planning-only/unapproved. Production
-is unchanged; Gate C/D/E remain unauthorized.**
+**Status: REMAINING GATE B RUNTIME RESUMED. Original planning PR #515 and planning
+amendment PR #517 were both explicitly owner-approved and squash-merged. Runtime PR #516
+is Draft/unmerged and reconciled with the amended contract. Exact Runtime head has green
+Preflight, Gate-B concurrency, P1 concurrency, Remaining-Gate-B closure, and Vercel
+Preview. Production is unchanged; Gate C/D/E remain unauthorized.**
 
 Released predecessor state:
 
@@ -28,16 +28,15 @@ Original planning PR:
 **#515 — Plan GAP-024 Remaining Gate B completion** — owner-approved and squash-merged as
 `908e36eb1861f3ba76426927f0968ed0caf0fdcb`.
 
-Current planning amendment PR:
-**#517 — Amend GAP-024 Remaining Gate B planning for kiosk reject identity**
-(Draft / planning-only / unapproved).
+Planning amendment PR:
+**#517 — Amend GAP-024 Remaining Gate B planning for kiosk reject identity** — explicitly
+owner-approved and squash-merged as
+`8fe979729d79bba806ba28b89b851baeee450258`.
 
-Planning amendment branch:
-`codex/amend-gap-024-remaining-gate-b-planning`.
-
-Blocked Runtime PR:
-**#516 — Implement GAP-024 Remaining Gate B closure** (Draft / unmerged). Runtime remains
-paused until the amendment converges, receives explicit owner approval, and is merged.
+Current Runtime PR:
+**#516 — Implement GAP-024 Remaining Gate B closure** (Draft / unmerged), resumed and
+reconciled with the merged amendment via
+`425c8df8f756b352f1e40acf591314e2cebe4c3a`.
 
 The current plan is **verification + bounded privilege-hardening closure**. Fresh
 Production audit found that `service_role` still retains direct privileges on core
@@ -80,11 +79,11 @@ DEC-017 order remains:
 Gate A → Gate-B pre-P1 containment → Historical Daily DTR P1 → **Remaining Gate B** →
 Gate C → Gate D → Gate E.
 
-Planning Review & Fix for the amended contract is converged with unresolved
-P0/P1/material-P2 = 0 and the changed-file surface remains documentation/governance only.
-The exact-current PR #517 head now has green Preflight plus a successful exact-head Vercel
-Preview. The single next authorized action is explicit owner approval of PR #517. After
-approval and merge, resume existing PR #516; do not create a duplicate Runtime PR.
+The amended planning contract is closed and Runtime PR #516 has resumed. Its exact
+reconciled head passed Preflight #1021, Gate B DB Concurrency #121, P1 Historical DTR DB
+Concurrency #109, Remaining Gate B DB Closure #51, and an exact-head Vercel Preview.
+Next Runtime work is isolated-backend Preview/UAT verification and pre-release Production
+baseline review; no merge or Production mutation is authorized yet.
 
 Gate C remains unauthorized until Remaining Gate B itself passes its separate Runtime,
 verification, release, and owner gates.
