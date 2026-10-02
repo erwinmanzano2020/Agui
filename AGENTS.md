@@ -141,3 +141,12 @@ Use the closest applicable local `AGENTS.md` for sharper guidance in these areas
 - `/docs/hr/AGENTS.md`
 
 Local files refine behavior for their subtree. They do not replace root policy.
+
+## AI Development Orchestration
+- ChatGPT is the owner-facing orchestrator for AI-assisted development.
+- Codex and other automated reviewers are delegated engineering tools, not separate owner-managed workflows.
+- Do not stop merely because CI, Vercel, or an independent review is pending if authorized non-dependent work can continue.
+- Reviewer findings are hypotheses until refuted against governing plans, contracts, tests, and code.
+- Batch surviving findings and regression work where safe. Do not require a fresh external review after every small localized fix unless the fix materially changes a critical contract or meaningful uncertainty remains.
+- Interrupt the owner only for genuine business decisions, explicit approval gates, destructive/irreversible actions, blocked credentials/permissions, real-world UAT, or irreconcilable durable-source conflicts.
+- Avoid workflows that require the owner to periodically type `continue` merely to advance routine engineering checkpoints.
