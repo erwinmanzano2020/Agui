@@ -1,0 +1,28 @@
+{
+  "system": "AI Magic Development System",
+  "version": 1,
+  "project": "Agui",
+  "profile": "agui",
+  "control_center_url": "https://docs.google.com/spreadsheets/d/1a0sXhx96Yxsn2b0pyo23OoS7nuloR1nmLrz6I7sEMhM/edit",
+  "authority_rule": "Existing Agui AGENTS.md and governing roadmap/master plans outrank reusable skills.",
+  "active_delivery_note": "HR remains the sole active phase under current root AGENTS.md.",
+  "selected_skills": [
+    "ai-development-system",
+    "systematic-debugging",
+    "risk-aware-testing",
+    "adversarial-review",
+    "ui-ux-pro-max",
+    "vercel-react-best-practices"
+  ],
+  "central_library": {
+    "repository": "erwinmanzano2020/ai-magic",
+    "branch": "main"
+  },
+  "resume_branch": "develop",
+  "risk_model": [
+    "FAST",
+    "STANDARD",
+    "CONTROLLED"
+  ],
+  "integrated_on": "2026-10-02"
+}
