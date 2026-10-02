@@ -1,8 +1,12 @@
 {
   "system": "AI Magic Development System",
-  "version": 1,
+  "version": 2,
   "project": "Agui",
   "profile": "agui",
+  "orchestration_model": "chatgpt-led-single-interface",
+  "owner_interruptions": "material decisions, explicit approval gates, destructive actions, blocking credentials/permissions, real-world UAT, irreconcilable durable-source conflicts",
+  "reviewer_model": "Codex is a delegated implementer/independent reviewer; reviewer output is advisory evidence until refuted against project truth.",
+  "wait_policy": "Do not require owner 'continue' messages for routine CI/review/deployment waits. Continue non-dependent work; use async monitoring when available; otherwise persist checkpoint.",
   "control_center_url": "https://docs.google.com/spreadsheets/d/1a0sXhx96Yxsn2b0pyo23OoS7nuloR1nmLrz6I7sEMhM/edit",
   "authority_rule": "Existing Agui AGENTS.md and governing roadmap/master plans outrank reusable skills.",
   "active_delivery_note": "HR remains the sole active phase under current root AGENTS.md.",
@@ -24,5 +28,6 @@
     "STANDARD",
     "CONTROLLED"
   ],
-  "integrated_on": "2026-10-02"
+  "integrated_on": "2026-10-02",
+  "upgraded_on": "2026-10-03"
 }
