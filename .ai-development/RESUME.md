@@ -31,12 +31,16 @@ Current seeded checkpoint (2026-10-03):
   `f2479fcc9ceaf439591df315f8f582e5e8db6f12` passed Preflight #1025 and Vercel
   exact-head verification with zero unresolved material planning findings.
 - Owner approved converged Gate C planning on 2026-10-03.
-- Gate C Runtime is ACTIVE. Initial implementation removes raw compatibility/current-roster
-  attendance-result authority, separates read/write access, and preserves Option A+ capture
-  plus owner-only historical remediation as separate workflows.
+- Gate C Runtime + Controlled UAT are CONVERGED on validated runtime head
+  `7dc72c91900e3727193fc145bd875e2275cdda3c`.
+- Exact-head Preflight/Vercel and Gate-B/P1 regression suites PASS.
+- Human no-write Preview UAT PASS.
+- Isolated `agui-p1-uat` write-contract UAT PASS, including expected HR-4 fail-closed
+  finalization boundary.
 - Runtime artifact: `docs/devlog/gap-024-gate-c-runtime.md`.
-- Next action: autonomous Review & Fix → exact-head checks → Controlled UAT.
-- Production release is not authorized.
+- Next action: explicit owner release approval for PR #520, then squash-merge/deploy and
+  Production verification.
+- Production release is not yet authorized.
 - Daily DTR read visibility and write/capture authority must remain separate; same-day
   Option A+ manual capture is a separate write affordance, not a fabricated no-record row.
 - Gate D/E remain unauthorized.
