@@ -21,6 +21,7 @@ function row(index: number) {
     status: "closed",
     attribution_state: "ATTRIBUTED",
     active_branch_id: "branch-1",
+    has_finalized_correction: index === 1,
   };
 }
 
@@ -85,6 +86,7 @@ describe("Historical DTR P1 canonical reader adapter", () => {
     );
 
     assert.equal(result.length, 1);
+    assert.equal(result[0]?.has_finalized_correction, true);
     assert.equal(calls[0]?.name, "hr_read_canonical_attendance_house_global");
     assert.deepEqual(calls[0]?.args, {
       p_house_id: "house-1",
