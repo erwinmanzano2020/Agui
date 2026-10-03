@@ -87,6 +87,15 @@ async function resolveAccess(
   houseId: string,
   accessOverride?: HrAccessDecision,
 ): Promise<HrBranchAccessDecision> {
+  if (accessOverride && !accessOverride.allowed) {
+    return {
+      ...accessOverride,
+      branchId: null,
+      isBranchLimited: false,
+      allowedBranchIds: [],
+    };
+  }
+
   if (
     accessOverride &&
     "isBranchLimited" in accessOverride &&
@@ -206,6 +215,9 @@ export async function computePayrollPreviewForHousePeriod(
     visibleEmployeeIds,
   );
   const employeeMap = new Map(employees.map((employee) => [employee.id, employee]));
+  if (input.employeeId && !employeeMap.has(input.employeeId)) {
+    throw new PayrollPreviewAccessError("Employee does not belong to this house.");
+  }
   const segments = visibleFacts;
 
   if (segments.length === 0) {
