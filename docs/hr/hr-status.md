@@ -1,5 +1,39 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-10-03 — GAP-024 Gate C planning active
+
+**Status: PLANNING ACTIVE — canonical Daily DTR facts-only cutover is the next DEC-017
+slice. Remaining Gate B is released and Production-verified. Runtime for Gate C is not
+authorized until this planning contract converges and receives explicit owner approval.**
+
+Released predecessor state:
+
+- Gate A: released;
+- Gate-B pre-P1 containment: released and Production-verified;
+- Historical Daily DTR Write P1: released and Production-verified via PR #514;
+- Remaining Gate B: released and Production-verified via PR #516, squash merge
+  `1193dc29007ccf0c0eadc1a8ebd483dff233444d`;
+- exact Remaining-Gate-B Production deployment:
+  `dpl_GSk4sj6wCbbxsSS3P2dftH9tHskd`;
+- both Remaining-Gate-B migrations are present in Production;
+- post-cutover canonical invariants remain 96 compatibility segments, 96 linked
+  segments, 96 active facts, 96 projection rows, zero active facts missing projection,
+  and zero unbridged segments;
+- unresolved release P0/P1/material-P2 findings: zero.
+
+Current planning artifact:
+`docs/devlog/gap-024-gate-c-daily-dtr-cutover-plan.md`.
+
+Gate C planning targets only the Daily DTR consumer cutover. Its result surface must use
+the released canonical readers, keep branch-limited results facts-only, fail closed for
+UNATTRIBUTED/CONFLICT, and preserve no-leak parity. The later owner-approved P1 Option A+
+same-day ordinary manual-capture policy is preserved as a separate write affordance; it
+must not manufacture a no-record attendance row or historical remediation path.
+
+Gate D/E, broad HR work, POS, Operations, and Finance remain unauthorized. No Gate C
+Runtime code, migration, RPC, Production change, or deployment is authorized by this
+planning checkpoint.
+
 ## 2026-09-27 — GAP-024 Remaining Gate B planning amendment active
 
 **Status: REMAINING GATE B CONTROLLED UAT + PRE-RELEASE REVIEW CONVERGED. Runtime
