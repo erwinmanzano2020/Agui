@@ -36,7 +36,17 @@ Current seeded checkpoint (2026-10-03):
 - Exact Production deployment `dpl_5g4kPshzA1uBFmayMuisBQCTLRbL` is READY and targets
   production on the exact merge SHA.
 - Production aliases are attached and post-promotion warning/error/fatal logs are clean.
-- Next action: start GAP-024 Gate D planning under the AI Development System.
+- GAP-024 Gate D planning is ACTIVE on branch
+  `codex/plan-gap-024-gate-d-consumer-migration`.
+- Planning artifact:
+  `docs/devlog/gap-024-gate-d-consumer-migration-plan.md`.
+- Initial findings: payroll preview, payroll-run open-attendance guard, overtime,
+  payslip recomputation, legacy browser payroll pages/helpers, and bulk API load paths
+  still consume `dtr_segments` and/or `dtr_entries`.
+- Gate D must preserve frozen payroll semantics and migrate consumers through canonical
+  readers selected from resolved authority; Gate E remains last.
+- Next action: converge Gate D planning through adversarial review, then owner planning
+  approval before Runtime.
 - Daily DTR read visibility and write/capture authority must remain separate; same-day
   Option A+ manual capture is a separate write affordance, not a fabricated no-record row.
 - Gate D/E remain unauthorized.
