@@ -2,7 +2,7 @@
 
 ## Status
 
-**PLANNING CONVERGED — READY FOR OWNER APPROVAL. DOCUMENTATION / GOVERNANCE ONLY.**
+**OWNER APPROVED — 2026-10-03. DOCUMENTATION / GOVERNANCE ONLY.**
 
 Exact reviewed planning candidate before this governance closeout:
 `f2479fcc9ceaf439591df315f8f582e5e8db6f12`.
@@ -16,9 +16,9 @@ Hosted evidence on that exact candidate:
 - unresolved P1: 0;
 - unresolved material P2: 0.
 
-The next authorized action is explicit owner approval of this converged planning contract.
-That approval authorizes only a separate bounded Gate C Runtime PR; it does not authorize
-Production release.
+Owner approval was granted on 2026-10-03. The next authorized action is a **separate
+bounded Gate C Runtime PR** implementing exactly this contract. This approval does not
+authorize Production release, Gate D/E, unrelated HR work, POS, Operations, or Finance.
 
 Base: `develop` at `ecbf1e93b0c2f789e0cc7d66f29c05ff7c459f40`.
 
@@ -575,13 +575,23 @@ historical branch-limited remediation path.
 No owner decision was required to make these fixes because they preserve existing
 approved contracts rather than selecting new business policy.
 
-## 17. Owner gate
+## 17. Owner approval — 2026-10-03
+
+The owner explicitly approved the converged Gate C planning contract after the exact
+governance head `c3289b1f5119c944eedefa75486c3ba491104536` passed Preflight #1028 and
+Vercel exact-head verification.
+
+This approval authorizes only a **separate bounded Gate C Runtime PR**. Runtime must still
+follow the CONTROLLED Review & Fix loop, exact-head automated checks, Controlled UAT,
+fresh release review, explicit owner release approval, and Production verification.
+
+Planning PR #519 itself remains documentation/governance-only and may be squash-merged
+after this approval-sync head is green.
+
+## 18. Owner gate
 
 After planning convergence, present only material owner decisions, if any.
 
 If no unresolved policy decision remains, the requested owner action is one gate:
 
-**Approve the converged Gate C planning contract to authorize a separate bounded Runtime
-PR.**
-
-No Runtime implementation begins before that approval.
+**APPROVED on 2026-10-03.** A separate bounded Gate C Runtime PR is now authorized.
