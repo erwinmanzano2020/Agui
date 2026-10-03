@@ -2,9 +2,11 @@
 
 ## 2026-10-03 — GAP-024 Gate C planning active
 
-**Status: PLANNING ACTIVE — canonical Daily DTR facts-only cutover is the next DEC-017
-slice. Remaining Gate B is released and Production-verified. Runtime for Gate C is not
-authorized until this planning contract converges and receives explicit owner approval.**
+**Status: PLANNING CONVERGED — READY FOR OWNER APPROVAL. Canonical Daily DTR facts-only
+cutover is the next DEC-017 slice. Exact reviewed candidate
+`f2479fcc9ceaf439591df315f8f582e5e8db6f12` passed Preflight #1025 and Vercel
+exact-head verification with no unresolved material planning finding. Gate C Runtime
+remains unauthorized until explicit owner approval.**
 
 Released predecessor state:
 
@@ -24,7 +26,7 @@ Released predecessor state:
 Current planning artifact:
 `docs/devlog/gap-024-gate-c-daily-dtr-cutover-plan.md`.
 
-Gate C planning targets only the Daily DTR consumer cutover. Its result surface must use
+Gate C planning is converged and targets only the Daily DTR consumer cutover. Its result surface must use
 the released canonical readers, keep branch-limited results facts-only, fail closed for
 UNATTRIBUTED/CONFLICT, and preserve no-leak parity. The later owner-approved P1 Option A+
 same-day ordinary manual-capture policy is preserved as a separate write affordance; it
