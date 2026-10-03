@@ -13,6 +13,7 @@ import {
   computePayrollPreviewForHousePeriod,
   type PayrollPreviewResult,
 } from "./payroll-preview-server";
+import { listCanonicalAttendanceForRange } from "./attendance-p1-server";
 import { parseDateParts } from "./overtime-engine";
 
 export type PayrollRunStatus = HrPayrollRunRow["status"];
@@ -202,23 +203,32 @@ async function hasOpenSegmentsInPeriod(
   houseId: string,
   periodStart: string,
   periodEnd: string,
+  access: HrAccessDecision,
 ): Promise<boolean> {
-  const { data, error } = await supabase
-    .from("dtr_segments")
-    .select("id")
-    .eq("house_id", houseId)
-    .gte("work_date", periodStart)
-    .lte("work_date", periodEnd)
-    .not("time_in", "is", null)
-    .is("time_out", null)
-    .eq("status", "open")
-    .limit(1);
+  const canonicalAccess: HrBranchAccessDecision =
+    "isBranchLimited" in access && "allowedBranchIds" in access
+      ? (access as HrBranchAccessDecision)
+      : {
+          ...access,
+          branchId: null,
+          isBranchLimited: false,
+          allowedBranchIds: [],
+        };
 
-  if (error) {
-    throw new PayrollRunFetchError(error.message);
-  }
+  const facts = await listCanonicalAttendanceForRange(
+    supabase,
+    houseId,
+    periodStart,
+    periodEnd,
+    canonicalAccess,
+  );
 
-  return (data ?? []).length > 0;
+  return facts.some(
+    (fact) =>
+      Boolean(fact.time_in) &&
+      !fact.time_out &&
+      fact.status === "open",
+  );
 }
 
 function mapRun(row: HrPayrollRunRow, itemCount: number): PayrollRunListItem {
@@ -480,6 +490,7 @@ export async function finalizePayrollRunForHouse(
     houseId,
     run.period_start,
     run.period_end,
+    access,
   );
   if (hasOpenSegments) {
     throw new PayrollRunOpenSegmentsError("Open DTR segments exist in this payroll period.");
@@ -647,6 +658,7 @@ export async function postPayrollRunForHouse(
     input.houseId,
     run.period_start,
     run.period_end,
+    access,
   );
   if (hasOpenSegments) {
     throw new PayrollRunOpenSegmentsError("Open DTR segments exist in this payroll period.");
