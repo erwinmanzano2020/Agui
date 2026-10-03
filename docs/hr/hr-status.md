@@ -2,11 +2,10 @@
 
 ## 2026-10-03 — GAP-024 Gate C planning active
 
-**Status: PLANNING CONVERGED — READY FOR OWNER APPROVAL. Canonical Daily DTR facts-only
-cutover is the next DEC-017 slice. Exact reviewed candidate
-`f2479fcc9ceaf439591df315f8f582e5e8db6f12` passed Preflight #1025 and Vercel
-exact-head verification with no unresolved material planning finding. Gate C Runtime
-remains unauthorized until explicit owner approval.**
+**Status: PLANNING OWNER-APPROVED — separate bounded Gate C Runtime is now authorized.
+Canonical Daily DTR facts-only cutover remains the next DEC-017 slice. The approved
+planning contract passed exact-head Preflight/Vercel verification with zero unresolved
+material planning findings. Production remains unchanged.**
 
 Released predecessor state:
 
@@ -26,15 +25,15 @@ Released predecessor state:
 Current planning artifact:
 `docs/devlog/gap-024-gate-c-daily-dtr-cutover-plan.md`.
 
-Gate C planning is converged and targets only the Daily DTR consumer cutover. Its result surface must use
+Gate C planning is owner-approved and targets only the Daily DTR consumer cutover. Its result surface must use
 the released canonical readers, keep branch-limited results facts-only, fail closed for
 UNATTRIBUTED/CONFLICT, and preserve no-leak parity. The later owner-approved P1 Option A+
 same-day ordinary manual-capture policy is preserved as a separate write affordance; it
 must not manufacture a no-record attendance row or historical remediation path.
 
-Gate D/E, broad HR work, POS, Operations, and Finance remain unauthorized. No Gate C
-Runtime code, migration, RPC, Production change, or deployment is authorized by this
-planning checkpoint.
+A separate bounded Gate C Runtime PR is now authorized. Gate D/E, broad HR work, POS,
+Operations, and Finance remain unauthorized. Planning approval does not authorize
+Production deployment.
 
 ## 2026-09-27 — GAP-024 Remaining Gate B planning amendment active
 
