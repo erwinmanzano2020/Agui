@@ -31,16 +31,12 @@ Current seeded checkpoint (2026-10-03):
   `f2479fcc9ceaf439591df315f8f582e5e8db6f12` passed Preflight #1025 and Vercel
   exact-head verification with zero unresolved material planning findings.
 - Owner approved converged Gate C planning on 2026-10-03.
-- Gate C Runtime + Controlled UAT are CONVERGED on validated runtime head
-  `7dc72c91900e3727193fc145bd875e2275cdda3c`.
-- Exact-head Preflight/Vercel and Gate-B/P1 regression suites PASS.
-- Human no-write Preview UAT PASS.
-- Isolated `agui-p1-uat` write-contract UAT PASS, including expected HR-4 fail-closed
-  finalization boundary.
-- Runtime artifact: `docs/devlog/gap-024-gate-c-runtime.md`.
-- Next action: explicit owner release approval for PR #520, then squash-merge/deploy and
-  Production verification.
-- Production release is not yet authorized.
+- Gate C is PRODUCTION-VERIFIED / CLOSED.
+- PR #520 squash-merged as `fef6dd7f5af29473f064275d886d23d36afa4a41`.
+- Exact Production deployment `dpl_5g4kPshzA1uBFmayMuisBQCTLRbL` is READY and targets
+  production on the exact merge SHA.
+- Production aliases are attached and post-promotion warning/error/fatal logs are clean.
+- Next action: start GAP-024 Gate D planning under the AI Development System.
 - Daily DTR read visibility and write/capture authority must remain separate; same-day
   Option A+ manual capture is a separate write affordance, not a fabricated no-record row.
 - Gate D/E remain unauthorized.
