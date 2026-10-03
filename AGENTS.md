@@ -150,3 +150,9 @@ Local files refine behavior for their subtree. They do not replace root policy.
 - Batch surviving findings and regression work where safe. Do not require a fresh external review after every small localized fix unless the fix materially changes a critical contract or meaningful uncertainty remains.
 - Interrupt the owner only for genuine business decisions, explicit approval gates, destructive/irreversible actions, blocked credentials/permissions, real-world UAT, or irreconcilable durable-source conflicts.
 - Avoid workflows that require the owner to periodically type `continue` merely to advance routine engineering checkpoints.
+
+## External Gate Handling
+- Short-lived PR, CI, Vercel, and independent-review waits should be actively polled in the same run for a bounded window while non-dependent authorized work continues.
+- If a gate remains pending and the host supports conditional/background tasks, create a watch instead of making the owner refresh GitHub or type `continue`.
+- Failed checks should be inspected and fixed autonomously when the current milestone already authorizes the fix.
+- The owner is not the normal polling mechanism for automated gates.
