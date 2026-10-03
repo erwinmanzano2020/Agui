@@ -28,8 +28,10 @@ Current seeded checkpoint (2026-10-03):
 - Gate C planning is CONVERGED. Reviewed candidate
   `f2479fcc9ceaf439591df315f8f582e5e8db6f12` passed Preflight #1025 and Vercel
   exact-head verification with zero unresolved material planning findings.
-- Next action: explicit owner approval of converged Gate C planning.
-- Gate C Runtime remains unauthorized until that approval.
+- Owner approved converged Gate C planning on 2026-10-03.
+- Next action: squash-merge planning PR #519 after approval-sync exact-head verification,
+  then start the separate bounded Gate C Runtime PR.
+- Gate C Runtime is authorized; Production release is not.
 - Daily DTR read visibility and write/capture authority must remain separate; same-day
   Option A+ manual capture is a separate write affordance, not a fabricated no-record row.
 - Gate D/E remain unauthorized.
