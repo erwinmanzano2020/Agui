@@ -115,8 +115,11 @@ Current `payroll-runs-server.ts`:
 **Gate D disposition:**
 - payroll-run snapshot/adjustment inherits canonical attendance exclusively through the
   migrated payroll-preview computation;
-- replace the raw open-segment guard with canonical fact state/time-out semantics through
-  the correct canonical reader;
+- characterize the purpose and reachability of the raw open-segment guard before
+  replacing it. If payroll finalization is intentionally blocked by compatibility rows
+  that are not yet representable as canonical facts, Runtime must not weaken that
+  blocker. A canonical replacement is permitted only if equivalence is proven; otherwise
+  planning must re-enter for the smallest approved readiness signal;
 - preserve lifecycle, snapshot, posting, paid, adjustment, and frozen money semantics.
 
 ### 3.5 Overtime
@@ -223,8 +226,12 @@ verification language still permits raw `dtr_segments` inspection.
 - obsolete raw/base read to retire.
 
 Any privileged residual diagnostic base-table access that must remain after live consumer
-migration is recorded for Gate E; it must not be mistaken for a normal production
-consumer.
+migration is recorded for Gate E; however, because the Gate D approval explicitly names
+the timezone repair script/runbook, Gate D must leave the operational procedure in a
+safe usable state. It may not simply label the entire repair verification path
+“Gate-E residual” if operators still need raw reads to validate repairs. The plan must
+either migrate verification to canonical/projection evidence or explicitly prove why a
+narrow privileged diagnostic read is still required and non-user-facing.
 
 ## 4. Gate D runtime architecture
 
@@ -244,10 +251,23 @@ Requirements:
 `listCanonicalAttendanceForDate(...)` may delegate to the range helper to avoid
 duplicated reader selection/pagination.
 
-### 4.2 Consumer adapter shape
+### 4.2 Consumer adapter shape and cardinality caveat
 
 Where old math utilities require a segment-like time slice, introduce a narrow
 **consumer input type**, not a resurrected raw-authority abstraction.
+
+**Material planning caveat:** the legacy payroll/overtime code can aggregate multiple
+`dtr_segments` per employee/day. Gate D must not assume the released canonical reader
+necessarily exposes identical multi-segment cardinality merely because it exposes
+`time_in` / `time_out`. Before migrating any calculation, Runtime must characterize
+the exact relationship between:
+- one active canonical fact;
+- its compatibility segment(s);
+- the frozen payroll/OT calculations that currently accept multiple segments.
+
+If one canonical fact cannot losslessly represent an approved multi-segment payroll
+input, that is a planning re-entry condition. Gate D may not silently collapse multiple
+segments, double-count compatibility rows, or alter pay/OT semantics.
 
 Example conceptual fields:
 - fact ID;
@@ -273,6 +293,14 @@ Authorization/result authority first, enrichment second:
 Metadata must not widen the visible fact universe.
 
 ### 4.4 Branch-limited behavior
+
+Gate D does not authorize a new payroll role model. Existing payroll route/domain
+authorization remains frozen. Where a payroll consumer already supports branch-limited
+read authority, its attendance rows must come directly from the branch-scoped canonical
+reader. Where an existing payroll surface is legitimately house-global only, Gate D
+preserves that authority and must not invent a branch-limited mode merely to use the
+branch reader.
+
 
 Branch-limited consumers must use the branch-scoped RPC directly.
 
@@ -308,7 +336,8 @@ Unless a separately approved contract explicitly says otherwise, preserve:
 
 Potential parity-sensitive fields requiring explicit characterization:
 - open segment/day;
-- corrected segment/day;
+- corrected segment/day — do not equate canonical `status` to legacy segment
+  `status='corrected'` without proving semantic equivalence;
 - timezone mismatch;
 - work-minute aggregation;
 - raw/rounded OT;
@@ -323,6 +352,14 @@ Gate D does not implement the deferred future "PAYROLL_READY" approval/readiness
 enforcement contract or a generalized HR-4 approval workflow.
 
 ## 6. `dtr_entries` disposition
+
+Gate D treats `dtr_entries` as a legacy consumer source, but does not assume every row
+is derivable from current canonical facts. Before migrating a live surface, Runtime must
+characterize whether that surface uses fields such as `minutes_regular`,
+`minutes_ot`, `minutes_late`, or `minutes_undertime` that have independent legacy
+computation semantics. If canonical facts plus the frozen computation layer cannot
+reproduce them, the path cannot be silently redirected.
+
 
 `dtr_entries` is not part of the released canonical attendance authorization interface.
 A live consumer must not continue using it as an alternate attendance truth after Gate D.
@@ -344,7 +381,12 @@ Before implementation edits, re-run an exact-head inventory for:
 - service-role attendance reads;
 - admin/background/repair readers;
 - kiosk/bulk mixed reader/writer paths;
-- tests/mocks that encode old raw-source assumptions.
+- tests/mocks that encode old raw-source assumptions;
+- SQL migrations/views/functions or generated types that are not live consumers but could
+  be mistaken for one during inventory.
+
+Schema history and generated types are classification evidence, not automatically Gate D
+migration targets.
 
 Every hit receives a disposition:
 - **MIGRATE** — live consumer moves to canonical reader/snapshot;
