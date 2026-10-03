@@ -45,7 +45,7 @@
   96 active canonical facts / 96 projection rows, zero active facts missing projection,
   and zero unbridged segments.
 - **Current bounded target: GAP-024 Gate D — PLANNING ACTIVE.** Durable planning artifact:
-  `docs/devlog/gap-024-gate-c-daily-dtr-cutover-plan.md`.
+  `docs/devlog/gap-024-gate-d-consumer-migration-plan.md`.
 - Gate C is the canonical Daily DTR **facts-only result cutover**. Branch-limited result
   visibility must come from the branch-scoped canonical reader; legitimate owner/manager
   house-wide visibility uses the house-global reader. Read and write authority are
