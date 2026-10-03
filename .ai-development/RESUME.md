@@ -12,16 +12,18 @@ Before acting:
 
 Current seeded checkpoint (2026-10-03):
 - HR is the sole active phase.
-- Current repository `develop` checkpoint before this planning branch:
-  `ecbf1e93b0c2f789e0cc7d66f29c05ff7c459f40` (AI Development System integration).
+- Current `develop` head after owner-approved Gate C planning merge:
+  `bd90af64eafe1ca5204c47da05dbc0e10a829679`.
 - GAP-024 Remaining Gate B is fully released and Production-verified:
   PR #516 squash merge `1193dc29007ccf0c0eadc1a8ebd483dff233444d`,
   Production deployment `dpl_GSk4sj6wCbbxsSS3P2dftH9tHskd`, both staged
   Remaining-Gate-B migrations applied, canonical invariants green.
 - Next authorized milestone resolved from governing docs: **GAP-024 Gate C — canonical
   Daily DTR facts-only cutover**.
-- Gate C planning branch:
-  `codex/plan-gap-024-gate-c-daily-dtr-cutover`.
+- Gate C planning PR #519 is merged.
+- Gate C Runtime branch:
+  `codex/runtime-gap-024-gate-c-daily-dtr-cutover`.
+- Current Runtime PR: **#520**.
 - Gate C planning artifact:
   `docs/devlog/gap-024-gate-c-daily-dtr-cutover-plan.md`.
 - Risk lane: CONTROLLED.
@@ -29,9 +31,12 @@ Current seeded checkpoint (2026-10-03):
   `f2479fcc9ceaf439591df315f8f582e5e8db6f12` passed Preflight #1025 and Vercel
   exact-head verification with zero unresolved material planning findings.
 - Owner approved converged Gate C planning on 2026-10-03.
-- Next action: squash-merge planning PR #519 after approval-sync exact-head verification,
-  then start the separate bounded Gate C Runtime PR.
-- Gate C Runtime is authorized; Production release is not.
+- Gate C Runtime is ACTIVE. Initial implementation removes raw compatibility/current-roster
+  attendance-result authority, separates read/write access, and preserves Option A+ capture
+  plus owner-only historical remediation as separate workflows.
+- Runtime artifact: `docs/devlog/gap-024-gate-c-runtime.md`.
+- Next action: autonomous Review & Fix → exact-head checks → Controlled UAT.
+- Production release is not authorized.
 - Daily DTR read visibility and write/capture authority must remain separate; same-day
   Option A+ manual capture is a separate write affordance, not a fabricated no-record row.
 - Gate D/E remain unauthorized.
