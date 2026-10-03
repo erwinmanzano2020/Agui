@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   listCanonicalAttendanceForDate,
+  listCanonicalAttendanceForRange,
 } from "@/lib/hr/attendance-p1-server";
 import type { Database } from "@/lib/db.types";
 import type { HrBranchAccessDecision } from "@/lib/hr/access";
@@ -56,6 +57,67 @@ describe("Historical DTR P1 canonical reader adapter", () => {
     assert.equal(result.length, 201);
     assert.deepEqual(offsets, [0, 200]);
     assert.equal(result[200]?.fact_id, "fact-200");
+  });
+
+
+  it("forwards date ranges through the house-global canonical RPC", async () => {
+    const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+    const supabase = {
+      rpc: async (name: string, args: Record<string, unknown>) => {
+        calls.push({ name, args });
+        return { data: [row(1)], error: null };
+      },
+    } as unknown as SupabaseClient<Database>;
+
+    const access = {
+      allowed: true,
+      isBranchLimited: false,
+      allowedBranchIds: [],
+    } as HrBranchAccessDecision;
+
+    const result = await listCanonicalAttendanceForRange(
+      supabase,
+      "house-1",
+      "2026-09-23",
+      "2026-09-25",
+      access,
+      "employee-1",
+    );
+
+    assert.equal(result.length, 1);
+    assert.equal(calls[0]?.name, "hr_read_canonical_attendance_house_global");
+    assert.deepEqual(calls[0]?.args, {
+      p_house_id: "house-1",
+      p_start_date: "2026-09-23",
+      p_end_date: "2026-09-25",
+      p_employee_id: "employee-1",
+      p_limit: 200,
+      p_offset: 0,
+    });
+  });
+
+  it("selects the branch-scoped canonical RPC for branch-limited access", async () => {
+    const names: string[] = [];
+    const supabase = {
+      rpc: async (name: string) => {
+        names.push(name);
+        return { data: [], error: null };
+      },
+    } as unknown as SupabaseClient<Database>;
+
+    await listCanonicalAttendanceForRange(
+      supabase,
+      "house-1",
+      "2026-09-23",
+      "2026-09-25",
+      {
+        allowed: true,
+        isBranchLimited: true,
+        allowedBranchIds: ["branch-1"],
+      } as HrBranchAccessDecision,
+    );
+
+    assert.deepEqual(names, ["hr_read_canonical_attendance_branch_scoped"]);
   });
 
   it("does not call a canonical reader when HR access is denied", async () => {
