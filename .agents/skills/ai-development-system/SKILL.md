@@ -22,6 +22,7 @@ Roles:
 - **Project Control Center:** durable continuity index.
 
 Read `references/orchestration.md` for stop/continue rules.
+Read `references/external-gates.md` whenever PR checks, CI, Vercel, or independent reviews are pending.
 Read `references/profile-selection.md` for profile/skill selection.
 Read `references/control-center.md` for durable project state.
 
@@ -86,7 +87,7 @@ Stop when required evidence is green and there is no unresolved material failure
 
 An external wait should not become an owner task.
 
-If the current environment can monitor asynchronously, use that capability for meaningful external gates. If it cannot, persist the exact checkpoint and tell the owner **no action is required until the external result changes**. Do not ask for repetitive "continue" messages as part of the designed workflow.
+For short-lived external gates, actively poll the exact head/check inside the same run for a bounded window while continuing non-dependent work. If still pending and the host supports scheduled/conditional tasks, create a background watch so the owner does not need to refresh GitHub or type "continue". If background tasks are unavailable, persist the exact checkpoint and state that this is an environment limitation—not the intended owner workflow. See `references/external-gates.md`.
 
 ## New Project
 
