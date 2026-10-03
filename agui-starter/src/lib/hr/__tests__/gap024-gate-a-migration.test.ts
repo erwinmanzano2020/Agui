@@ -1065,7 +1065,7 @@ test("all authority tables remain direct-access denied", () => {
   assert.match(sql, /notify pgrst, 'reload schema'/i);
 });
 
-test("only the approved P1 server adapter imports a Gate-A reader", () => {
+test("only approved canonical attendance server consumers import a Gate-A reader", () => {
   const references: string[] = [];
   const walk = (dir: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
