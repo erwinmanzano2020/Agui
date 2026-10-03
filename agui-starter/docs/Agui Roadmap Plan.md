@@ -44,7 +44,7 @@
   is verified, and post-release invariants remain 96 compatibility segments / 96 linked,
   96 active canonical facts / 96 projection rows, zero active facts missing projection,
   and zero unbridged segments.
-- **Current bounded target: GAP-024 Gate C — RUNTIME ACTIVE / PR #520.** Durable planning artifact:
+- **Current bounded target: GAP-024 Gate C — RUNTIME/UAT CONVERGED / OWNER RELEASE APPROVAL NEXT.** Durable planning artifact:
   `docs/devlog/gap-024-gate-c-daily-dtr-cutover-plan.md`.
 - Gate C is the canonical Daily DTR **facts-only result cutover**. Branch-limited result
   visibility must come from the branch-scoped canonical reader; legitimate owner/manager
@@ -60,11 +60,12 @@
   verification passed with zero unresolved material planning findings.
 - Owner approval was granted on 2026-10-03. Planning PR #519 was squash-merged as
   `bd90af64eafe1ca5204c47da05dbc0e10a829679`.
-- Draft Runtime PR **#520 — Implement GAP-024 Gate C canonical Daily DTR cutover** is now
-  active. The current Runtime is application-only: canonical fact result rendering,
-  independent read/write authority, exact visible-fact employee metadata enrichment,
-  separate same-day manual capture, separate owner/manager historical remediation, and
-  focused tests.
+- Draft Runtime PR **#520 — Implement GAP-024 Gate C canonical Daily DTR cutover** has
+  converged on runtime head `7dc72c91900e3727193fc145bd875e2275cdda3c`.
+- Exact-head automated checks, human no-write Preview UAT, and isolated write-contract UAT
+  are PASS. Historical DISTINCT_NEW finalization correctly stops at the existing HR-4
+  `APPROVAL_DEPENDENCY_UNAVAILABLE` boundary.
+- Next gate: explicit owner release approval.
 - Production release is not authorized. A required migration,
   new public RPC, new role/capability, or canonical-reader semantic change is a planning
   re-entry condition.
