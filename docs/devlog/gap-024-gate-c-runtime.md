@@ -101,3 +101,23 @@ Production verification only. It does not authorize Gate D/E or unrelated scope.
 The isolated `agui-p1-uat` fixture has pre-existing support tables with RLS disabled.
 This was surfaced during UAT, was not changed by Gate C, and is not part of PR #520.
 Do not enable RLS blindly: the UAT fixture needs explicit policies before any remediation.
+
+
+## Production release closeout — 2026-10-03
+
+Owner-approved PR #520 was squash-merged to `develop` as
+`fef6dd7f5af29473f064275d886d23d36afa4a41`.
+
+Exact Production deployment:
+- Vercel: `dpl_5g4kPshzA1uBFmayMuisBQCTLRbL`
+- state: READY
+- target: production
+- source: redeploy of exact Gate C merge SHA
+- aliases: `agui-nine.vercel.app`,
+  `agui-erwinmanzano2020s-projects.vercel.app`,
+  `agui-git-develop-erwinmanzano2020s-projects.vercel.app`
+- alias error: none
+- warning/error/fatal runtime logs after promotion: none observed
+
+Gate C is Production-verified and CLOSED. Next authorized roadmap item remains Gate D,
+subject to normal planning/runtime/UAT/release governance.
