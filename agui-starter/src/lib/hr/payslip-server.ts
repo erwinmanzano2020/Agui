@@ -4,7 +4,6 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
   Database,
-  DtrSegmentRow,
   EmployeeRow,
   HrBranchScheduleAssignmentRow,
   HrPayPolicyRow,
@@ -13,7 +12,11 @@ import type {
   HrPayrollRunRow,
   HrScheduleWindowRow,
 } from "@/lib/db.types";
-import { requireHrAccess, requireHrAccessWithBranch, type HrAccessDecision, type HrBranchAccessDecision } from "./access";
+import { requireHrAccessWithBranch, type HrAccessDecision, type HrBranchAccessDecision } from "./access";
+import {
+  listCanonicalAttendanceForRange,
+  type CanonicalAttendanceRow,
+} from "./attendance-p1-server";
 import {
   buildZonedDateTime,
   getDayOfWeekInTimeZone,
@@ -112,8 +115,6 @@ const DEFAULT_POLICY: PayPolicySnapshot = {
   otMultiplier: 1.0,
 };
 
-const DTR_SEGMENT_COLUMNS =
-  "id, house_id, employee_id, work_date, time_in, time_out, status";
 const MANILA_TIMEZONE = "Asia/Manila";
 
 function asNumber(value: number | string | null | undefined): number {
@@ -144,9 +145,29 @@ async function resolveAccess(
   supabase: SupabaseClient<Database>,
   houseId: string,
   accessOverride?: HrAccessDecision,
-): Promise<HrAccessDecision> {
-  if (accessOverride) return accessOverride;
-  return requireHrAccess(supabase, houseId);
+): Promise<HrBranchAccessDecision> {
+  if (
+    accessOverride &&
+    "isBranchLimited" in accessOverride &&
+    "allowedBranchIds" in accessOverride
+  ) {
+    return accessOverride as HrBranchAccessDecision;
+  }
+
+  if (accessOverride?.allowedByRole) {
+    return {
+      ...accessOverride,
+      branchId: null,
+      isBranchLimited: false,
+      allowedBranchIds: [],
+    };
+  }
+
+  return requireHrAccessWithBranch(supabase, {
+    houseId,
+    requiredLevel: "read",
+    requiredCapability: "payroll",
+  });
 }
 
 async function resolvePayrollWriteAccess(
@@ -245,24 +266,6 @@ async function loadRunDeductionsForEmployees(
     deductionsByEmployee.set(row.employee_id, bucket);
   });
   return deductionsByEmployee;
-}
-
-async function loadSegmentsForPeriod(
-  supabase: SupabaseClient<Database>,
-  input: { houseId: string; employeeId: string; startDate: string; endDate: string },
-): Promise<DtrSegmentRow[]> {
-  const { data, error } = await supabase
-    .from("dtr_segments")
-    .select(DTR_SEGMENT_COLUMNS)
-    .eq("house_id", input.houseId)
-    .eq("employee_id", input.employeeId)
-    .gte("work_date", input.startDate)
-    .lte("work_date", input.endDate)
-    .order("work_date", { ascending: true })
-    .order("time_in", { ascending: true });
-
-  if (error) throw new PayslipFetchError(error.message);
-  return (data as DtrSegmentRow[] | null) ?? [];
 }
 
 async function loadAssignmentsForBranches(
@@ -625,13 +628,31 @@ export async function computePayslipsForPayrollRun(
   if (items.length === 0) return [];
 
   const policy = await getPayPolicyForHouse(supabase, input.houseId);
-  const isBranchLimited = options.branchScope?.isBranchLimited === true;
+  const branchScope = options.branchScope ?? access;
+  const isBranchLimited = branchScope.isBranchLimited === true;
   const allowedBranchIds = new Set(
-    (options.branchScope?.allowedBranchIds ?? []).map((branchId) => branchId.trim().toLowerCase()),
+    (branchScope.allowedBranchIds ?? []).map((branchId) => branchId.trim().toLowerCase()),
   );
   if (isBranchLimited && allowedBranchIds.size === 0) {
     throw new PayslipAccessError("Not allowed to access payslip previews for this house.");
   }
+
+  const canonicalFacts = await listCanonicalAttendanceForRange(
+    supabase,
+    input.houseId,
+    run.period_start,
+    run.period_end,
+    {
+      ...access,
+      branchId: access.branchId ?? null,
+      isBranchLimited,
+      allowedBranchIds: Array.from(allowedBranchIds),
+    },
+    input.employeeId,
+  );
+  const visibleCanonicalEmployeeIds = new Set(
+    canonicalFacts.map((fact) => fact.employee_id),
+  );
 
   const employeeIds = Array.from(new Set(items.map((item) => item.employee_id)));
   const [employees, deductionsByEmployee] = await Promise.all([
@@ -639,10 +660,7 @@ export async function computePayslipsForPayrollRun(
     loadRunDeductionsForEmployees(supabase, input.runId, employeeIds),
   ]);
   const scopedEmployees = isBranchLimited
-    ? employees.filter((employee) => {
-        const branchId = employee.branch_id?.trim().toLowerCase();
-        return Boolean(branchId && allowedBranchIds.has(branchId));
-      })
+    ? employees.filter((employee) => visibleCanonicalEmployeeIds.has(employee.id))
     : employees;
   const scopedEmployeeIds = new Set(scopedEmployees.map((employee) => employee.id));
   if (input.employeeId && !scopedEmployeeIds.has(input.employeeId)) {
@@ -715,17 +733,14 @@ export async function computePayslipsForPayrollRun(
       getSchedule,
     );
 
-    const segments = await loadSegmentsForPeriod(supabase, {
-      houseId: input.houseId,
-      employeeId: item.employee_id,
-      startDate: run.period_start,
-      endDate: run.period_end,
-    });
+    const segments = canonicalFacts.filter(
+      (fact) => fact.employee_id === item.employee_id,
+    );
 
     const mismatchDates = new Set<string>();
     const attendanceDates = new Set<string>();
-    const segmentsByDate = new Map<string, DtrSegmentRow[]>();
-    const closedSegmentsByDate = new Map<string, DtrSegmentRow[]>();
+    const segmentsByDate = new Map<string, CanonicalAttendanceRow[]>();
+    const closedSegmentsByDate = new Map<string, CanonicalAttendanceRow[]>();
 
     segments.forEach((segment) => {
       if (!segment.time_in) return;
