@@ -30,66 +30,42 @@
 - Historical posture: HR was treated as undergoing stabilization rather than awaiting feature completion; this is evidence for the audit, not a current completeness determination
 
 ## Current Execution Focus
+
 - **Gate A is released** at squash merge
   `71d11b79c002dce9b65e786ecb30ecfa9abdd494`.
 - **Gate-B pre-P1 containment is released and Production-verified.** PR #512 was
-  squash-merged as `df7bbeb11d016297a0a6dbd5d41c998441294c36`; all six Gate-B
-  migrations were applied and raw DTR application mutation remains contained.
+  squash-merged as `df7bbeb11d016297a0a6dbd5d41c998441294c36`.
 - **Historical Daily DTR Write P1 is released and Production-verified.** PR #514 was
-  squash-merged as `a95c3c921e067297f4f033620fe2f4ede7e7c5aa`; all three P1
-  migrations are in Production; Vercel Production deployment
-  `dpl_HskHAzyWYZShZo3Y1Sesa4fJEAJK` serves that exact commit.
-- Post-P1 Production verification preserved 96/96 canonical bridge coverage, 96 current
-  authorization-projection rows, zero active facts missing projection, zero unbridged
-  compatibility rows, and the released **raw DTR-table** no-bypass privilege posture.
-  The broader canonical/supporting-state privilege audit below found the Remaining-Gate-B
-  gaps that are now being planned.
-- **Current bounded target: GAP-024 Remaining Gate B — CONTROLLED UAT + PRE-RELEASE
-  REVIEW CONVERGED; OWNER RELEASE GATE NEXT AFTER EXACT-HEAD CHECKS.**
-  Durable planning artifact:
-  `docs/devlog/gap-024-remaining-gate-b-completion-plan.md`.
-  Original planning PR **#515 — Plan GAP-024 Remaining Gate B completion** was explicitly
-  owner-approved and squash-merged as
-  `908e36eb1861f3ba76426927f0968ed0caf0fdcb`.
-  Planning amendment PR **#517 — Amend GAP-024 Remaining Gate B planning for kiosk reject identity**
-  was explicitly owner-approved and squash-merged as
-  `8fe979729d79bba806ba28b89b851baeee450258`.
-  Runtime PR **#516 — Implement GAP-024 Remaining Gate B closure** is Draft/unmerged and
-  resumed against the amended contract.
-- The original privilege/adapter closure remains unchanged: two ordered forward
-  migrations, narrow kiosk support RPCs, exact-head producer discovery, released Gate-B +
-  P1 harness reuse/composition, deterministic rebuild/replay proof, and Production
-  invariant verification.
-- The amendment adds only the missing authorized `agui-starter/src/lib/hr/kiosk/service.ts`
-  surface required by the new support-event identity validation. For
-  `house_mismatch` / `employee_not_found`, an unverified QR employee claim cannot
-  populate authoritative kiosk-event `employee_id`; use null identity and preserve the
-  claim only as non-authoritative `claimedEmployeeId` audit metadata. Verified
-  same-House employee identity continues unchanged.
-- Runtime branch reconciliation commit
-  `425c8df8f756b352f1e40acf591314e2cebe4c3a` incorporated the approved amendment.
-  Functional release head `45d1db84114f8ccc36950aa377f39df14f2d38c9` passed
-  Preflight #1023, Gate-B DB Concurrency #123, P1 Historical DTR DB Concurrency #111,
-  Remaining Gate B DB Closure #53, exact-head Vercel Preview, isolated-UAT backend
-  verification, and the required minimal browser smoke.
-- Read-only Production baseline remains the released P1 state: 96/96 bridge coverage,
-  96 active facts / 96 projection rows, zero missing projection, zero unbridged segments,
-  17 ATTRIBUTED / 79 UNATTRIBUTED / 0 CONFLICT, no Remaining-Gate-B migration, and only
-  the already-planned pre-cutover service-role/kiosk privilege gap.
-- PR #516 remains Draft/unmerged. No Production mutation has occurred. Owner release
-  approval is the next action only after the governance-sync exact head is green.
-  Gate C/D/E remain unauthorized.
-- No Production mutation or Remaining-Gate-B release is authorized by this amendment.
-  No new schema/RPC/event type/user-facing workflow is added. Gate C/D/E, unrelated HR
-  work, POS, Operations, and Finance remain unauthorized.
+  squash-merged as `a95c3c921e067297f4f033620fe2f4ede7e7c5aa`.
+- **Remaining Gate B is released and Production-verified.** PR #516 was squash-merged as
+  `1193dc29007ccf0c0eadc1a8ebd483dff233444d`; Production deployment
+  `dpl_GSk4sj6wCbbxsSS3P2dftH9tHskd` serves that exact source. Both staged
+  Remaining-Gate-B migrations are present, the planned canonical/kiosk privilege cutover
+  is verified, and post-release invariants remain 96 compatibility segments / 96 linked,
+  96 active canonical facts / 96 projection rows, zero active facts missing projection,
+  and zero unbridged segments.
+- **Current bounded target: GAP-024 Gate C — PLANNING ACTIVE.** Durable planning artifact:
+  `docs/devlog/gap-024-gate-c-daily-dtr-cutover-plan.md`.
+- Gate C is the canonical Daily DTR **facts-only result cutover**. Branch-limited result
+  visibility must come from the branch-scoped canonical reader; legitimate owner/manager
+  house-wide visibility uses the house-global reader. Read and write authority are
+  resolved separately. `UNATTRIBUTED` / `CONFLICT` remain fail closed for
+  branch-limited results, and roster/raw compatibility data must not manufacture
+  attendance rows, counts, or hidden-existence signals.
+- The owner-approved P1 OD-P1-01 Option A+ same-day ordinary manual-capture rule remains
+  intact as a **separate write affordance**. It must not be presented as a no-record
+  attendance result or historical branch-limited remediation path.
+- Gate C Runtime remains unauthorized until the planning contract converges and receives
+  explicit owner approval. The expected Runtime is application-only; a required migration,
+  new public RPC, new role/capability, or canonical-reader semantic change is a planning
+  re-entry condition.
+- Gate D remains the broad consumer migration gate, including payroll/payslip/overtime and
+  other live consumers. Gate E remains the final broad residual raw/base-access cutover.
 - DEC-017 sequence remains:
-  Gate A → Gate-B pre-P1 containment → Historical Daily DTR P1 → **Remaining Gate B** →
-  Gate C → Gate D → Gate E.
-- Gate C remains blocked until Remaining Gate B itself completes its separate planning,
-  Runtime/verification, release, and owner gates.
-- keep general HR feature development, POS, Operations, Finance, and unrelated refactors
-  gated; preserve scope-first/no-leak, House tenancy, branch-restriction, identity, and
-  frozen-contract guardrails.
+  Gate A → Gate-B pre-P1 containment → Historical Daily DTR P1 → Remaining Gate B →
+  **Gate C** → Gate D → Gate E.
+- Keep unrelated HR work, POS, Operations, Finance, and Growth/Advanced systems gated.
+  POS remains paused at merged PR #488.
 
 ## HR Stability Gate (Satisfied; POS Unlock Recorded)
 HR can be considered stable enough to move forward **only** when:
