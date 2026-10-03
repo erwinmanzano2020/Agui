@@ -122,6 +122,53 @@ class SupabaseMock {
     if (table === "branches") return new QueryMock(this.data.branches);
     throw new Error(`Unexpected table ${table}`);
   }
+
+  async rpc(
+    name: string,
+    args: {
+      p_house_id?: string;
+      p_start_date?: string;
+      p_end_date?: string;
+      p_employee_id?: string | null;
+      p_limit?: number;
+      p_offset?: number;
+    },
+  ) {
+    if (
+      name !== "hr_read_canonical_attendance_house_global" &&
+      name !== "hr_read_canonical_attendance_branch_scoped"
+    ) {
+      return { data: null, error: { message: `Unexpected RPC ${name}` } };
+    }
+
+    const offset = args.p_offset ?? 0;
+    const limit = args.p_limit ?? 200;
+    const rows = this.data.segments
+      .filter((segment) => !args.p_house_id || segment.house_id === args.p_house_id)
+      .filter((segment) => !args.p_start_date || segment.work_date >= args.p_start_date)
+      .filter((segment) => !args.p_end_date || segment.work_date <= args.p_end_date)
+      .filter((segment) => !args.p_employee_id || segment.employee_id === args.p_employee_id)
+      
+      .slice(offset, offset + limit)
+      .map((segment) => {
+        const employee = this.data.employees.find((row) => row.id === segment.employee_id);
+        return {
+          fact_id: ("canonical_fact_id" in segment && segment.canonical_fact_id) || segment.id,
+          employee_id: segment.employee_id,
+          work_date: segment.work_date,
+          time_in: segment.time_in,
+          time_out: segment.time_out,
+          hours_worked: null,
+          overtime_minutes: 0,
+          status: segment.status,
+          attribution_state: "ATTRIBUTED",
+          active_branch_id: employee?.branch_id ?? null,
+          has_finalized_correction: segment.status === "corrected",
+        };
+      });
+
+    return { data: rows, error: null };
+  }
 }
 
 const accessAllowed = evaluateHrAccess({ roles: ["house_owner"], policyKeys: [], entityId: "entity-1" });
@@ -296,6 +343,27 @@ describe("payroll preview aggregation", () => {
     );
 
     assert.equal(result.rows[0].flags.missingScheduleDays, 2);
+  });
+
+  it("flags finalized correction lineage without changing completion status", async () => {
+    const supabase = new SupabaseMock({
+      segments: [
+        buildSegment({ id: "seg-corrected", status: "corrected" }),
+      ],
+      employees: [baseEmployee],
+      assignments: [baseAssignment],
+      windows: [baseWindow],
+      policies: [basePolicy],
+      branches: [{ id: "branch-1", house_id: "house-1" }],
+    });
+
+    const result = await computePayrollPreviewForHousePeriod(
+      supabase as never,
+      { houseId: "house-1", startDate: "2024-10-01", endDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    assert.equal(result.rows[0]?.flags.hasCorrectedSegments, true);
   });
 
   it("flags open segments without breaking totals", async () => {

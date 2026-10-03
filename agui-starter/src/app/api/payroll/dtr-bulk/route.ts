@@ -7,6 +7,7 @@ import type { Database } from "@/lib/db.types";
 import { resolveEntityIdForUser } from "@/lib/identity/entity-server";
 import { assertManilaReasonableSegment, toManilaTimestamptz } from "@/lib/hr/timezone";
 import { requireHrAccessWithBranch } from "@/lib/hr/access";
+import { listCanonicalAttendanceForRange } from "@/lib/hr/attendance-p1-server";
 import { getServiceSupabase } from "@/lib/supabase-service";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { z } from "@/lib/z";
@@ -236,27 +237,22 @@ export async function POST(req: NextRequest) {
           );
         }
 
-        try {
-          const map = await loadEmployeeBranchMap(service, [employeeId], houseId, branchIds);
-          if (!hasOnlyAccessibleEmployeeIds([employeeId], map, { allowUnassigned: !access.isBranchLimited })) {
-            return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
-          }
-        } catch (error) {
-          console.error("[/api/payroll/dtr-bulk] failed to verify employee department", error);
-          return NextResponse.json({ error: "Failed to resolve employee" }, { status: 500 });
-        }
-
-
-        const { data, error } = await service
-          .from("dtr_segments")
-          .select("employee_id, work_date, time_in, time_out")
-          .eq("employee_id", employeeId)
-          .gte("work_date", payload.from)
-          .lte("work_date", payload.to)
-          .order("work_date", { ascending: true })
-          .order("time_in", { ascending: true });
-        if (error) throw error;
-        return NextResponse.json({ segments: data ?? [] });
+        const facts = await listCanonicalAttendanceForRange(
+          supabase,
+          houseId,
+          payload.from,
+          payload.to,
+          access,
+          employeeId,
+        );
+        return NextResponse.json({
+          segments: facts.map((fact) => ({
+            employee_id: fact.employee_id,
+            work_date: fact.work_date,
+            time_in: fact.time_in,
+            time_out: fact.time_out,
+          })),
+        });
       }
 
       const ids = payload.employeeIds?.filter(Boolean) ?? [];
@@ -264,26 +260,24 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ entries: [] });
       }
 
-      let employeeMap: Map<string, string | null> = new Map();
-      try {
-        employeeMap = await loadEmployeeBranchMap(service, ids, houseId, branchIds);
-      } catch (error) {
-        console.error("[/api/payroll/dtr-bulk] failed to verify employees for load", error);
-        return NextResponse.json({ error: "Failed to resolve employees" }, { status: 500 });
-      }
-
-      if (!hasOnlyAccessibleEmployeeIds(ids, employeeMap, { allowUnassigned: !access.isBranchLimited })) {
-        return NextResponse.json({ error: "Employee not accessible" }, { status: 403 });
-      }
-
-      const { data, error } = await service
-        .from("dtr_entries")
-        .select("employee_id, work_date, time_in, time_out")
-        .in("employee_id", ids)
-        .gte("work_date", payload.from)
-        .lte("work_date", payload.to);
-      if (error) throw error;
-      return NextResponse.json({ entries: data ?? [] });
+      const requestedIds = new Set(ids);
+      const facts = await listCanonicalAttendanceForRange(
+        supabase,
+        houseId,
+        payload.from,
+        payload.to,
+        access,
+      );
+      return NextResponse.json({
+        entries: facts
+          .filter((fact) => requestedIds.has(fact.employee_id))
+          .map((fact) => ({
+            employee_id: fact.employee_id,
+            work_date: fact.work_date,
+            time_in: fact.time_in,
+            time_out: fact.time_out,
+          })),
+      });
     }
 
     if ((body as { action?: string }).action === "save") {

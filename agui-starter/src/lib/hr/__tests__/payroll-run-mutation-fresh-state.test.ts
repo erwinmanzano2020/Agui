@@ -27,6 +27,40 @@ function createMutationSupabaseMock(run: MockRun, options: { openSegmentsForFres
   const lteValues: string[] = [];
 
   const supabase = {
+    rpc: async (
+      name: string,
+      args: { p_start_date?: string; p_end_date?: string },
+    ) => {
+      if (
+        name !== "hr_read_canonical_attendance_house_global" &&
+        name !== "hr_read_canonical_attendance_branch_scoped"
+      ) {
+        return { data: null, error: { message: `Unexpected RPC: ${name}` } };
+      }
+      const start = args.p_start_date ?? "";
+      const end = args.p_end_date ?? "";
+      gteValues.push(start);
+      lteValues.push(end);
+      const isFreshRange = start === run.period_start && end === run.period_end;
+      const hasOpen = Boolean(options.openSegmentsForFreshRange && isFreshRange);
+      return {
+        data: hasOpen
+          ? [{
+              fact_id: "fact-open-1",
+              employee_id: "employee-1",
+              work_date: start,
+              time_in: `${start}T09:00:00+08:00`,
+              time_out: null,
+              hours_worked: null,
+              overtime_minutes: 0,
+              status: "open",
+              attribution_state: "ATTRIBUTED",
+              active_branch_id: "branch-1",
+            }]
+          : [],
+        error: null,
+      };
+    },
     from: (table: string) => {
       if (table === "hr_payroll_runs") {
         return {
@@ -37,37 +71,6 @@ function createMutationSupabaseMock(run: MockRun, options: { openSegmentsForFres
           }),
         };
       }
-
-      if (table === "dtr_segments") {
-        return {
-          select: () => ({
-            eq: () => ({
-              gte: (_field: string, value: string) => {
-                gteValues.push(value);
-                return {
-                  lte: (_lteField: string, lteValue: string) => {
-                    lteValues.push(lteValue);
-                    return {
-                      not: () => ({
-                        is: () => ({
-                          eq: () => ({
-                            limit: async () => {
-                              const isFreshRange = value === run.period_start && lteValue === run.period_end;
-                              const hasOpen = Boolean(options.openSegmentsForFreshRange && isFreshRange);
-                              return { data: hasOpen ? [{ id: "open-1" }] : [], error: null };
-                            },
-                          }),
-                        }),
-                      }),
-                    };
-                  },
-                };
-              },
-            }),
-          }),
-        };
-      }
-
       throw new Error(`Unexpected table: ${table}`);
     },
   } as never;
