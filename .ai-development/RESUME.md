@@ -45,8 +45,8 @@ Current seeded checkpoint (2026-10-03):
   still consume `dtr_segments` and/or `dtr_entries`.
 - Gate D must preserve frozen payroll semantics and migrate consumers through canonical
   readers selected from resolved authority; Gate E remains last.
-- Next action: converge Gate D planning through adversarial review, then owner planning
-  approval before Runtime.
+- First adversarial Gate D planning Review & Fix is complete.
+- Next action: exact-head checks + fresh final planning review, then owner planning approval before Runtime.
 - Daily DTR read visibility and write/capture authority must remain separate; same-day
   Option A+ manual capture is a separate write affordance, not a fabricated no-record row.
 - Gate D/E remain unauthorized.
