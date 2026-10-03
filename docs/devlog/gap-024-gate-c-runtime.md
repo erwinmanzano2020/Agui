@@ -2,7 +2,28 @@
 
 ## Status
 
-**RUNTIME ACTIVE — Draft PR #520. Production unchanged.**
+**RUNTIME + CONTROLLED UAT CONVERGED — OWNER RELEASE APPROVAL NEXT. Production unchanged.**
+
+Validated Runtime head:
+`7dc72c91900e3727193fc145bd875e2275cdda3c`.
+
+Exact-head evidence:
+- Preflight #1036 PASS;
+- Gate B DB Concurrency #130 PASS;
+- P1 Historical DTR DB Concurrency #118 PASS;
+- Remaining Gate B DB Closure #60 PASS;
+- Vercel exact-head deployment `dpl_76HqGYuFvgP5FVkjexNxhP6RC3we` READY;
+- PR #520 mergeable;
+- unresolved GitHub review threads: 0;
+- Preview warning/error/fatal logs during human UAT: none.
+
+Controlled UAT:
+- live Preview no-write read-surface matrix: PASS;
+- isolated `agui-p1-uat` same-day manual create contract: PASS;
+- isolated historical remediation open/adjudicate flow: PASS;
+- HR-4 payroll-impacting finalization fail-closed boundary:
+  `APPROVAL_DEPENDENCY_UNAVAILABLE` as expected;
+- no live VVS attendance write was performed.
 
 Base: owner-approved Gate C planning squash merge
 `bd90af64eafe1ca5204c47da05dbc0e10a829679`.
@@ -65,3 +86,18 @@ Exact initial Runtime head checks are currently running:
 
 Runtime is not converged and no Production release is authorized until all required checks,
 fresh review, Controlled UAT, and the release gate complete.
+
+
+## Release readiness
+
+Fresh release review after UAT found no new material P0/P1/P2 issue. Gate C Runtime and
+Controlled UAT are converged. The next gate is explicit owner release approval for PR #520.
+
+That approval may authorize squash-merge to `develop` and exact-merge deployment /
+Production verification only. It does not authorize Gate D/E or unrelated scope.
+
+### UAT environment security debt
+
+The isolated `agui-p1-uat` fixture has pre-existing support tables with RLS disabled.
+This was surfaced during UAT, was not changed by Gate C, and is not part of PR #520.
+Do not enable RLS blindly: the UAT fixture needs explicit policies before any remediation.
