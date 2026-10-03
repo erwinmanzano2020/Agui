@@ -2,7 +2,7 @@
 
 ## 1. Status and purpose
 
-**Status: PLANNING — initial autonomous convergence candidate**
+**Status: PLANNING CONVERGENCE CANDIDATE — adversarial pass completed**
 
 This document plans GAP-024 Gate D only. Gate C is Production-verified and closed.
 Gate D is the owner-approved broad attendance **read-consumer migration/disposition**
@@ -540,5 +540,4 @@ The initial candidate therefore assumes:
 - preservation of frozen payroll/payslip/overtime semantics;
 - Gate E remains last.
 
-This assumption must survive adversarial planning review and exact-head consumer
-inventory before Runtime is authorized.
+This assumption has survived the first adversarial planning review. Exact-head checks and a fresh final planning review must remain green before owner planning approval; Runtime remains unauthorized until that approval.
