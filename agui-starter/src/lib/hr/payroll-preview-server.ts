@@ -268,7 +268,7 @@ export async function computePayrollPreviewForHousePeriod(
     const row = rowsByEmployee.get(employee.id);
     if (!row) return;
 
-    if (segment.status === "corrected") {
+    if (segment.has_finalized_correction) {
       row.flags.hasCorrectedSegments = true;
     }
 
