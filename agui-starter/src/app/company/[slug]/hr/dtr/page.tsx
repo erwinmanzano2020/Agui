@@ -115,14 +115,14 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
             { status: "active" },
             { readScope: writeAccess },
           )
-        : Promise.resolve({ employees: [] } satisfies EmployeeListResult),
+        : Promise.resolve<EmployeeListResult>({ employees: [] }),
       isPastBusinessDate && writeAccess.allowed && !writeAccess.isBranchLimited
         ? listEmployeesByHouse(
             supabase,
             house.id,
             { status: "all" },
           )
-        : Promise.resolve({ employees: [] } satisfies EmployeeListResult),
+        : Promise.resolve<EmployeeListResult>({ employees: [] }),
     ]);
 
   const attendanceBranches = branchResult.branches;
