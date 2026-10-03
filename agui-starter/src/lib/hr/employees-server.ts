@@ -151,6 +151,51 @@ export async function listBranchesForHouse(
   return { branches: rows } satisfies BranchListResult;
 }
 
+export type EmployeeDisplayMetadata = {
+  id: string;
+  code: string;
+  full_name: string;
+  status: EmployeeRow["status"];
+};
+
+/**
+ * Resolves display-only employee metadata for an already-authorized set of employee IDs.
+ *
+ * The caller must derive employeeIds from an independently authorized result set (for
+ * example the canonical attendance reader). This helper is House-scoped and deliberately
+ * does not reinterpret current employee.branch_id as historical attendance authorization.
+ */
+export async function listEmployeeDisplayMetadataForHouseByIds(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  employeeIds: string[],
+): Promise<EmployeeDisplayMetadata[]> {
+  const uniqueIds = Array.from(new Set(employeeIds.filter(Boolean)));
+  if (uniqueIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("employees")
+    .select("id, house_id, code, full_name, status")
+    .eq("house_id", houseId)
+    .in("id", uniqueIds)
+    .order("full_name", { ascending: true });
+
+  if (error) {
+    console.error("Failed to load canonical attendance employee display metadata", error);
+    return [];
+  }
+
+  return (data ?? [])
+    .filter((row) => (row as { house_id?: string | null }).house_id === houseId)
+    .map((row) => ({
+      id: String((row as { id?: unknown }).id ?? ""),
+      code: String((row as { code?: unknown }).code ?? ""),
+      full_name: String((row as { full_name?: unknown }).full_name ?? ""),
+      status: (row as { status?: EmployeeRow["status"] }).status ?? "active",
+    }))
+    .filter((row) => Boolean(row.id));
+}
+
 export async function listEmployeesByHouse(
   supabase: SupabaseClient<Database>,
   houseId: string,
