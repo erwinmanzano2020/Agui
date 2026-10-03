@@ -44,8 +44,8 @@
   is verified, and post-release invariants remain 96 compatibility segments / 96 linked,
   96 active canonical facts / 96 projection rows, zero active facts missing projection,
   and zero unbridged segments.
-- **Current bounded target: GAP-024 Gate C — PRODUCTION-VERIFIED / CLOSED.** Durable planning artifact:
-  `docs/devlog/gap-024-gate-c-daily-dtr-cutover-plan.md`.
+- **Current bounded target: GAP-024 Gate D — PLANNING ACTIVE.** Durable planning artifact:
+  `docs/devlog/gap-024-gate-d-consumer-migration-plan.md`.
 - Gate C is the canonical Daily DTR **facts-only result cutover**. Branch-limited result
   visibility must come from the branch-scoped canonical reader; legitimate owner/manager
   house-wide visibility uses the house-global reader. Read and write authority are
@@ -148,3 +148,14 @@ Historical roadmap interpretation: bounded POS foundation continuation was autho
 - Production aliases attached; no alias error.
 - Post-promotion warning/error/fatal runtime logs: none observed.
 - Gate C is CLOSED. Next roadmap item: Gate D planning.
+
+
+### GAP-024 Gate D planning checkpoint
+- Gate C is Production-verified and closed.
+- Gate D planning branch:
+  `codex/plan-gap-024-gate-d-consumer-migration`.
+- Planning artifact:
+  `docs/devlog/gap-024-gate-d-consumer-migration-plan.md`.
+- Scope: migrate/retire every live attendance read consumer according to resolved
+  branch-vs-house authority while preserving frozen payroll/payslip/overtime semantics.
+- Gate E final broad raw/base-access cutover remains unauthorized.

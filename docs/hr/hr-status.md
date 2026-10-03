@@ -1,5 +1,25 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-10-03 — GAP-024 Gate D Planning active
+
+**Status: GATE D PLANNING ACTIVE. Gate C is Production-verified/closed.**
+
+Planning branch:
+`codex/plan-gap-024-gate-d-consumer-migration`
+
+Planning artifact:
+`docs/devlog/gap-024-gate-d-consumer-migration-plan.md`
+
+Current bounded scope is the owner-approved Gate D broad attendance consumer
+migration/disposition gate. Initial exact-head findings include raw/base attendance reads
+in payroll preview, payroll-run finalization guard, overtime, payslip recomputation,
+legacy browser payslip/preview/DTR pages/helpers, and the bulk API read path. Gate B
+producer commands remain frozen; Gate E final broad revocation remains unauthorized.
+
+Risk lane: **CONTROLLED**.
+
+Adversarial Planning Review & Fix completed on the initial candidate. Next action: exact-head checks + fresh final planning review, then owner planning approval before Runtime.
+
 ## 2026-10-03 — GAP-024 Gate C Runtime active
 
 **Status: GATE C PRODUCTION-VERIFIED / CLOSED. PR #520 was squash-merged as
