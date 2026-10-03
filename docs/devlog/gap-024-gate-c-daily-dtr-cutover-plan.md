@@ -22,6 +22,9 @@ the approved P1 write workflows.
 
 Gate C must make Daily DTR truthful to canonical attendance authorization:
 
+- Daily DTR **read visibility** resolves from a dedicated HR read-access decision;
+- write/correction/capture affordances resolve separately from HR write authority and may
+  never be used as the prerequisite for legitimate read visibility;
 - branch-limited result rows come only from
   `hr_read_canonical_attendance_branch_scoped(...)`;
 - legitimate house-wide owner/manager result rows come only from
@@ -98,6 +101,13 @@ That composition is incompatible with Gate C facts-only semantics for branch-lim
 attendance results because current roster membership and raw compatibility rows are not
 historical attendance authorization.
 
+A second material gap is that the current page passes a `requiredLevel: "write"`
+`HrBranchAccessDecision` into the canonical attendance reader and skips canonical facts
+when that write decision is denied. The existing access model already supports separate
+`"read"` and `"write"` decisions. Gate C must therefore separate the two: legitimate
+read-only HR visibility cannot disappear merely because correction/capture write authority
+is absent, and write authority cannot broaden read scope.
+
 ## 5. Reconciliation of Gate C facts-only with P1 Option A+
 
 There is no contract change here.
@@ -152,6 +162,17 @@ The future Runtime PR is intentionally narrow.
 Refactor the Daily DTR page so the result collection starts from
 `listCanonicalAttendanceForDate(...)`, not from the active employee roster.
 
+Resolve two independent access decisions:
+
+- **read access:** `requireHrAccessWithBranch(... requiredLevel: "read")` (or the exact
+  existing equivalent) drives which canonical reader is callable and which facts may be
+  displayed;
+- **write access:** the existing bounded write decision drives create/correction/remediation
+  affordances only.
+
+Do not require write access before loading legitimate canonical read results. Do not use a
+broader write scope to expand canonical read visibility.
+
 For canonical rows, resolve only the minimum employee display metadata needed for visible
 fact presentation, and only after the canonical reader has established the visible fact
 set.
@@ -199,17 +220,15 @@ independently authorized directory route.
 
 ### 6.4 Schedule/overtime presentation
 
-Daily DTR must not compute/show schedule or overtime metadata for roster-derived employees
-with no visible canonical attendance fact.
+Gate D explicitly owns the broader overtime/payroll consumer migration. Gate C must not
+silently pull that migration forward.
 
-For visible canonical facts:
-
-- schedule/overtime may be shown only if their existing helpers can consume the visible
-  employee/fact context without broad fetch/post-filter behavior and without changing
-  payroll semantics;
-- if preserving those fields requires a broader Gate D consumer migration or creates
-  authorization ambiguity, omit/defer those supplementary fields in Gate C rather than
-  weakening facts-only semantics.
+The current Daily DTR page must therefore stop using roster/raw-attendance-derived
+schedule/overtime values as part of Gate C result construction. Supplementary
+schedule/overtime fields may remain only if Runtime proves they are already independently
+authorized, operate solely on the canonical fact-visible employee set, and require no
+Gate-D consumer migration or semantic change. Otherwise they are omitted/deferred from
+the Gate C Daily DTR result surface.
 
 Gate C does not redesign overtime or payroll calculation.
 
@@ -234,6 +253,9 @@ states.
 
 Preserve P1 correction semantics:
 
+- canonical fact **display** is governed by read access;
+- correction controls require the separate applicable write/P1 authorization and must not
+  be rendered merely because the fact is readable;
 - correction controls exist only on a canonical fact already returned by the authorized
   reader;
 - branch-limited correction remains only for a visible `ATTRIBUTED` fact in allowed
@@ -318,6 +340,8 @@ planning re-entry and normal migration/RPC governance.
 Runtime must prove:
 
 - House authorization resolves before branch restriction;
+- read and write decisions are resolved independently; lack of write authority does not
+  suppress otherwise-authorized reads, and write authority does not widen read scope;
 - branch-limited results are returned by the branch-scoped canonical reader, not a
   house-global read followed by application filtering;
 - house-wide reader use is limited to legitimate house-wide authority;
@@ -334,55 +358,63 @@ Runtime must prove:
 
 The future Runtime must add/adjust deterministic tests covering at minimum:
 
-### Canonical result path
+### Access split / canonical result path
 
-1. branch-limited actor sees only canonical `ATTRIBUTED` facts in allowed branches;
-2. a house-visible but other-branch fact is absent with no count/row/metadata leak;
-3. `UNATTRIBUTED` is absent for branch-limited actor;
-4. `CONFLICT` is absent for branch-limited actor;
-5. zero branch scope returns no result and no hidden count;
-6. owner/manager house-global result preserves legitimate canonical visibility;
-7. historical canonical fact remains displayable even if employee is no longer in the
+1. branch-limited **read-authorized but write-denied** actor still sees canonical
+   `ATTRIBUTED` facts allowed by read scope and receives no mutation controls;
+2. branch-limited actor with read + write authority sees only canonical `ATTRIBUTED`
+   facts in allowed read branches, while mutation controls remain bounded by write scope;
+3. a write decision never widens canonical read scope;
+4. a house-visible but other-branch fact is absent with no count/row/metadata leak;
+5. `UNATTRIBUTED` is absent for branch-limited actor;
+6. `CONFLICT` is absent for branch-limited actor;
+7. zero branch read scope returns no result and no hidden count;
+8. owner/manager house-global result preserves legitimate canonical visibility;
+9. historical canonical fact remains displayable even if employee is no longer in the
    current active roster, when house-global authority permits it;
-8. current roster employee with no canonical fact does not produce an attendance card;
-9. result counts equal visible canonical facts only;
-10. raw `dtr_segments` differences cannot alter canonical result visibility.
+10. current roster employee with no canonical fact does not produce an attendance card;
+11. result counts equal visible canonical facts only;
+12. raw `dtr_segments` differences cannot alter canonical result visibility.
 
 ### Metadata / enrichment
 
-11. employee display metadata is resolved only for already-visible canonical employee IDs
+13. employee display metadata is resolved only for already-visible canonical employee IDs
     or through an independently authorized bounded directory surface;
-12. metadata lookup failure does not broaden the result;
-13. result employee filter does not become a hidden fact existence oracle;
-14. schedule/overtime supplementary reads occur only for visible result employees when
-    retained.
+14. metadata lookup failure does not broaden the result;
+15. result employee filter does not become a hidden fact existence oracle;
+16. roster/raw schedule or overtime reads do not participate in branch-limited result
+    visibility; any retained supplementary read is limited to already-visible result
+    employees and proven outside Gate-D migration scope.
 
 ### Same-day manual capture
 
-15. branch-limited same-day manual capture remains available only within existing write
+17. branch-limited same-day manual capture remains available only within existing write
     scope;
-16. capture target display does not vary based on hidden attendance existence;
-17. past-date branch-limited ordinary create is unavailable and the database command still
+18. read-only users receive no create/correction controls even when facts are visible;
+19. capture target display does not vary based on hidden attendance existence;
+20. past-date branch-limited ordinary create is unavailable and the database command still
     denies it;
-18. future ordinary create remains denied;
-19. explicit actual-attendance branch is still required;
-20. duplicate/retry/idempotency behavior of the existing command remains unchanged.
+21. future ordinary create remains denied;
+22. explicit actual-attendance branch is still required;
+23. duplicate/retry/idempotency behavior of the existing command remains unchanged.
 
 ### Correction / remediation
 
-21. branch-limited correction is available only for an already-visible canonical fact;
-22. hidden/other-branch guessed fact does not gain a correction control or safe-oracle
+24. branch-limited correction is available only for an already-visible canonical fact
+    plus applicable write/P1 authority;
+25. hidden/other-branch guessed fact does not gain a correction control or safe-oracle
     distinction;
-23. owner/manager past missing-fact remediation remains available separately;
-24. branch-limited historical remediation remains unavailable;
-25. stale/retry behavior of P1 correction/remediation remains covered.
+26. owner/manager past missing-fact remediation remains available separately;
+27. branch-limited historical remediation remains unavailable;
+28. stale/retry behavior of P1 correction/remediation remains covered.
 
 ### Regression / safety
 
-26. no application Daily DTR result path reads raw `dtr_segments` for visibility;
-27. no house-global canonical result is fetched then filtered to simulate branch scope;
-28. lint, typecheck, build, and relevant automated tests pass;
-29. released Gate-B/P1 database suites continue to pass where triggered/applicable.
+29. no application Daily DTR result path reads raw `dtr_segments` for visibility;
+30. no house-global canonical result is fetched then filtered to simulate branch scope;
+31. no Gate-D overtime/payroll consumer is migrated implicitly by Gate C;
+32. lint, typecheck, build, and relevant automated tests pass;
+33. released Gate-B/P1 database suites continue to pass where triggered/applicable.
 
 ## 11. Controlled UAT contract
 
