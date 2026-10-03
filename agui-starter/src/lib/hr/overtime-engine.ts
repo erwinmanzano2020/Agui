@@ -427,6 +427,12 @@ export async function computeDailyOvertime(
   options: { access?: HrAccessDecision } = {},
 ): Promise<DailyOvertimeResult | null> {
   let access: HrBranchAccessDecision;
+  if (options.access && !options.access.allowed) {
+    return null;
+  }
+  if (options.access && !options.access.allowed) {
+    return [];
+  }
   if (
     options.access &&
     "isBranchLimited" in options.access &&
