@@ -2,11 +2,10 @@
 
 ## 2026-10-03 — GAP-024 Gate C Runtime active
 
-**Status: RUNTIME + CONTROLLED UAT CONVERGED — OWNER RELEASE APPROVAL NEXT. Draft PR
-#520 implements the owner-approved canonical Daily DTR facts-only cutover. Validated
-runtime head `7dc72c91900e3727193fc145bd875e2275cdda3c` is exact-head green, Preview
-UAT passed, isolated write-contract UAT passed to the approved HR-4 dependency boundary,
-and Production remains unchanged.**
+**Status: GATE C PRODUCTION-VERIFIED / CLOSED. PR #520 was squash-merged as
+`fef6dd7f5af29473f064275d886d23d36afa4a41` and exact Production deployment
+`dpl_5g4kPshzA1uBFmayMuisBQCTLRbL` is READY on that merge SHA. Production aliases
+are attached and post-promotion warning/error/fatal logs are clean.**
 
 Released predecessor state:
 
