@@ -426,8 +426,37 @@ export async function computeDailyOvertime(
   input: { houseId: string; employeeId: string; workDate: string },
   options: { access?: HrAccessDecision } = {},
 ): Promise<DailyOvertimeResult | null> {
-  const access = await resolveAccess(supabase, input.houseId, options.access);
+  let access: HrBranchAccessDecision;
+  if (
+    options.access &&
+    "isBranchLimited" in options.access &&
+    "allowedBranchIds" in options.access
+  ) {
+    access = options.access as HrBranchAccessDecision;
+  } else if (options.access?.allowedByRole) {
+    access = {
+      ...options.access,
+      branchId: null,
+      isBranchLimited: false,
+      allowedBranchIds: [],
+    };
+  } else {
+    access = await requireHrAccessWithBranch(supabase, {
+      houseId: input.houseId,
+      requiredLevel: "read",
+      requiredCapability: "payroll",
+    });
+  }
   if (!access.allowed) return null;
+
+  const segments = await listCanonicalAttendanceForDate(
+    supabase,
+    input.houseId,
+    input.workDate,
+    access,
+    input.employeeId,
+  );
+  if (segments.length === 0) return null;
 
   const { data: employee, error: employeeError } = await supabase
     .from("employees")
@@ -438,8 +467,7 @@ export async function computeDailyOvertime(
   if (employeeError) throw new Error(employeeError.message);
   if (!employee || employee.house_id !== input.houseId) return null;
 
-  const [segments, policy, schedule] = await Promise.all([
-    loadSegments(supabase, input.houseId, input.workDate, [input.employeeId]),
+  const [policy, schedule] = await Promise.all([
     loadOvertimePolicy(supabase, input.houseId),
     getScheduleForEmployeeOnDate(supabase, input, { access }),
   ]);
