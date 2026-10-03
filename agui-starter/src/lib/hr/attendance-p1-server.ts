@@ -14,6 +14,7 @@ export type CanonicalAttendanceRow = {
   status: string;
   attribution_state: "ATTRIBUTED" | "UNATTRIBUTED" | "CONFLICT";
   active_branch_id: string | null;
+  has_finalized_correction: boolean;
 };
 
 export type AttendanceCorrectionProposalInput = {
@@ -130,6 +131,7 @@ export async function listCanonicalAttendanceForRange(
         : "ATTRIBUTED",
     active_branch_id:
       typeof row.active_branch_id === "string" ? row.active_branch_id : null,
+    has_finalized_correction: row.has_finalized_correction === true,
   }));
 }
 
