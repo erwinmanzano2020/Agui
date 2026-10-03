@@ -541,3 +541,42 @@ The initial candidate therefore assumes:
 - Gate E remains last.
 
 This assumption has survived the first adversarial planning review. Exact-head checks and a fresh final planning review must remain green before owner planning approval; Runtime remains unauthorized until that approval.
+
+
+## 15. Owner-approved planning amendment — canonical correction lineage signal
+
+Runtime adversarial review proved that the released canonical reader cannot preserve the
+legacy payroll `corrected_segment_days` signal by inspecting attendance `status`.
+Canonical revision status is intentionally completion state only (`open | closed`), and
+P1 finalized corrections preserve that completion meaning.
+
+Owner decision: **Option 1A approved**.
+
+Gate D may therefore make the smallest additive canonical-reader contract extension:
+
+`has_finalized_correction boolean`
+
+Semantics:
+- true only when an `hr_attendance_correction_cases` row exists for the same House +
+  canonical fact with `lifecycle_status = 'FINALIZED'`;
+- false for OPEN / STALE / REJECTED correction cases and facts with no correction lineage;
+- does not change attendance `status`;
+- does not expose correction reason, actor, case ID, proposal, or other correction details;
+- is returned only after the existing canonical reader has independently authorized the
+  fact;
+- must preserve branch-scoped vs house-global reader authorization unchanged.
+
+Payroll mapping:
+- `hasCorrectedSegments` is true when at least one authorized canonical fact in that
+  employee preview has `has_finalized_correction = true`;
+- `corrected_segment_days` remains a day-level payroll snapshot signal, not a count of
+  correction events;
+- multiple finalized corrections to one attendance day still count as one corrected day.
+
+This amendment authorizes:
+- one migration that extends both protected canonical reader return shapes;
+- application/type/test updates required to consume the new boolean;
+- isolated UAT application of that migration before Production release.
+
+It does **not** authorize broader correction metadata exposure, new payroll policy,
+new HR-4 behavior, or Gate E access revocation.
