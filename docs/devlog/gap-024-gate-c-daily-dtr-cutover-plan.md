@@ -2,7 +2,23 @@
 
 ## Status
 
-**PLANNING ACTIVE — DOCUMENTATION / GOVERNANCE ONLY.**
+**PLANNING CONVERGED — READY FOR OWNER APPROVAL. DOCUMENTATION / GOVERNANCE ONLY.**
+
+Exact reviewed planning candidate before this governance closeout:
+`f2479fcc9ceaf439591df315f8f582e5e8db6f12`.
+
+Hosted evidence on that exact candidate:
+- GitHub Preflight #1025: SUCCESS;
+- Vercel exact-head status: SUCCESS;
+- PR #519: Draft, mergeable, planning-only;
+- hosted diff: four governance/documentation files only;
+- unresolved P0: 0;
+- unresolved P1: 0;
+- unresolved material P2: 0.
+
+The next authorized action is explicit owner approval of this converged planning contract.
+That approval authorizes only a separate bounded Gate C Runtime PR; it does not authorize
+Production release.
 
 Base: `develop` at `ecbf1e93b0c2f789e0cc7d66f29c05ff7c459f40`.
 
@@ -520,7 +536,46 @@ Planning converges only when:
 Codex/external review is independent evidence, not the workflow conductor and not a
 reason to stall after the finite convergence rule is satisfied.
 
-## 16. Owner gate
+## 16. Planning Review & Fix log
+
+### Round 2 — fresh exact-head convergence review
+
+Fresh review of exact planning candidate
+`f2479fcc9ceaf439591df315f8f582e5e8db6f12` found no new material P0/P1/P2 defect.
+
+Hosted evidence:
+- Preflight #1025 SUCCESS;
+- Vercel exact-head SUCCESS;
+- PR #519 mergeable and Draft;
+- diff limited to the Gate C plan, HR status, Roadmap current focus, and AI resume
+  checkpoint.
+
+Planning is therefore **CONVERGED** subject only to the explicit owner approval gate.
+
+### Round 1 — focused authority and boundary review
+
+Two material planning risks were found and fixed:
+
+1. **Read/write authorization coupling.** The current Daily DTR page uses a
+   `requiredLevel: "write"` branch-access decision to decide whether canonical facts are
+   even loaded. That would suppress legitimate read-only HR visibility and incorrectly
+   couple read semantics to mutation authority. The plan now freezes independent read and
+   write decisions and adds regression coverage for read-authorized/write-denied users.
+2. **Gate D boundary drift.** Current Daily DTR schedule/overtime presentation can depend
+   on roster/raw-segment composition. The plan now forbids Gate C from silently migrating
+   broader overtime/payroll consumers and permits supplementary fields only when they are
+   independently authorized, canonical-visible-set-bounded, and require no Gate-D
+   semantic migration.
+
+The review also reconciled the older Gate C facts-only contract with the later
+owner-approved P1 OD-P1-01 Option A+: same-day ordinary manual capture remains available
+as a separate write affordance, but cannot manufacture an attendance/no-record result or
+historical branch-limited remediation path.
+
+No owner decision was required to make these fixes because they preserve existing
+approved contracts rather than selecting new business policy.
+
+## 17. Owner gate
 
 After planning convergence, present only material owner decisions, if any.
 
