@@ -18,8 +18,7 @@ producer commands remain frozen; Gate E final broad revocation remains unauthori
 
 Risk lane: **CONTROLLED**.
 
-Next action: adversarial Planning Review & Fix, exact-head consumer inventory, planning
-PR, then owner planning approval before Runtime.
+Adversarial Planning Review & Fix completed on the initial candidate. Next action: exact-head checks + fresh final planning review, then owner planning approval before Runtime.
 
 ## 2026-10-03 — GAP-024 Gate C Runtime active
 
