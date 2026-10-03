@@ -606,7 +606,16 @@ export async function computePayslipsForPayrollRun(
   input: { houseId: string; runId: string; employeeId?: string },
   options: { access?: HrAccessDecision; branchScope?: PayslipReadBranchScope } = {},
 ): Promise<PayslipPreviewRow[]> {
-  const access = await resolveAccess(supabase, input.houseId, options.access);
+  const explicitScopedAccess =
+    options.access && options.branchScope
+      ? ({
+          ...options.access,
+          branchId: (options.access as Partial<HrBranchAccessDecision>).branchId ?? null,
+          isBranchLimited: options.branchScope.isBranchLimited,
+          allowedBranchIds: options.branchScope.allowedBranchIds,
+        } as HrBranchAccessDecision)
+      : options.access;
+  const access = await resolveAccess(supabase, input.houseId, explicitScopedAccess);
   if (!access.allowed) {
     throw new PayslipAccessError("Not allowed to access payslip previews for this house.");
   }
