@@ -19,6 +19,7 @@ import {
   listBranchesForHouse,
   listEmployeeDisplayMetadataForHouseByIds,
   listEmployeesByHouse,
+  type EmployeeListResult,
 } from "@/lib/hr/employees-server";
 import { formatManilaTimeFromIso, toManilaDate } from "@/lib/hr/timezone";
 
@@ -114,14 +115,14 @@ export default async function HrDtrPage({ params, searchParams }: Props) {
             { status: "active" },
             { readScope: writeAccess },
           )
-        : Promise.resolve({ employees: [] }),
+        : Promise.resolve({ employees: [] } satisfies EmployeeListResult),
       isPastBusinessDate && writeAccess.allowed && !writeAccess.isBranchLimited
         ? listEmployeesByHouse(
             supabase,
             house.id,
             { status: "all" },
           )
-        : Promise.resolve({ employees: [] }),
+        : Promise.resolve({ employees: [] } satisfies EmployeeListResult),
     ]);
 
   const attendanceBranches = branchResult.branches;
