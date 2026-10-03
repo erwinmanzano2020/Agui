@@ -44,7 +44,7 @@
   is verified, and post-release invariants remain 96 compatibility segments / 96 linked,
   96 active canonical facts / 96 projection rows, zero active facts missing projection,
   and zero unbridged segments.
-- **Current bounded target: GAP-024 Gate C — RUNTIME/UAT CONVERGED / OWNER RELEASE APPROVAL NEXT.** Durable planning artifact:
+- **Current bounded target: GAP-024 Gate C — PRODUCTION-VERIFIED / CLOSED.** Durable planning artifact:
   `docs/devlog/gap-024-gate-c-daily-dtr-cutover-plan.md`.
 - Gate C is the canonical Daily DTR **facts-only result cutover**. Branch-limited result
   visibility must come from the branch-scoped canonical reader; legitimate owner/manager
@@ -140,3 +140,11 @@ Historical roadmap interpretation: bounded POS foundation continuation was autho
   GAP-024 security gates; no other implementation scope is introduced.
 - No module reordering is authorized.
 - Any work that changes frozen contracts, tenancy boundaries, identity boundaries, or phase gates must be explicitly approved in governing docs.
+
+
+### GAP-024 Gate C release closeout
+- PR #520 squash-merged: `fef6dd7f5af29473f064275d886d23d36afa4a41`.
+- Production deployment: `dpl_5g4kPshzA1uBFmayMuisBQCTLRbL` — READY.
+- Production aliases attached; no alias error.
+- Post-promotion warning/error/fatal runtime logs: none observed.
+- Gate C is CLOSED. Next roadmap item: Gate D planning.
