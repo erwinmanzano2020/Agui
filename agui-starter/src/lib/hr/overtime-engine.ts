@@ -4,13 +4,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type {
   Database,
-  DtrSegmentRow,
   EmployeeRow,
   HrBranchScheduleAssignmentRow,
   HrOvertimePolicyRow,
   HrScheduleWindowRow,
 } from "@/lib/db.types";
-import { requireHrAccess, type HrAccessDecision } from "./access";
+import {
+  requireHrAccess,
+  requireHrAccessWithBranch,
+  type HrAccessDecision,
+  type HrBranchAccessDecision,
+} from "./access";
+import {
+  listCanonicalAttendanceForDate,
+  type CanonicalAttendanceRow,
+} from "./attendance-p1-server";
 
 export type OvertimePolicyInput = {
   timezone: string;
@@ -199,7 +207,7 @@ function applyRoundingPolicy(
   return Math.round(ratio) * roundingMinutes;
 }
 
-type SegmentInput = Pick<DtrSegmentRow, "time_in" | "time_out">;
+type SegmentInput = Pick<CanonicalAttendanceRow, "time_in" | "time_out">;
 
 function computeRawOvertimeMinutes(
   segments: SegmentInput[],
@@ -289,28 +297,7 @@ async function loadEmployees(
   return (data as EmployeeRow[] | null) ?? [];
 }
 
-async function loadSegments(
-  supabase: SupabaseClient<Database>,
-  houseId: string,
-  workDate: string,
-  employeeIds?: string[],
-): Promise<DtrSegmentRow[]> {
-  let query = supabase
-    .from("dtr_segments")
-    .select("id, house_id, employee_id, work_date, time_in, time_out")
-    .eq("house_id", houseId)
-    .eq("work_date", workDate);
 
-  if (employeeIds && employeeIds.length > 0) {
-    query = query.in("employee_id", employeeIds);
-  }
-
-  const { data, error } = await query.order("time_in", { ascending: true });
-  if (error) {
-    throw new Error(error.message);
-  }
-  return (data as DtrSegmentRow[] | null) ?? [];
-}
 
 async function loadAssignments(
   supabase: SupabaseClient<Database>,
@@ -508,21 +495,52 @@ export async function computeOvertimeForHouseDate(
   input: { houseId: string; workDate: string; employeeIds?: string[] },
   options: { access?: HrAccessDecision } = {},
 ): Promise<DailyOvertimeResult[]> {
-  const access = await resolveAccess(supabase, input.houseId, options.access);
+  let access: HrBranchAccessDecision;
+  if (
+    options.access &&
+    "isBranchLimited" in options.access &&
+    "allowedBranchIds" in options.access
+  ) {
+    access = options.access as HrBranchAccessDecision;
+  } else if (options.access?.allowedByRole) {
+    access = {
+      ...options.access,
+      branchId: null,
+      isBranchLimited: false,
+      allowedBranchIds: [],
+    };
+  } else {
+    access = await requireHrAccessWithBranch(supabase, {
+      houseId: input.houseId,
+      requiredLevel: "read",
+      requiredCapability: "payroll",
+    });
+  }
   if (!access.allowed) return [];
 
-  const employees = await loadEmployees(supabase, input.houseId, input.employeeIds);
-  if (employees.length === 0) return [];
+  const canonicalFacts = await listCanonicalAttendanceForDate(
+    supabase,
+    input.houseId,
+    input.workDate,
+    access,
+  );
+  const requestedEmployeeIds =
+    input.employeeIds && input.employeeIds.length > 0
+      ? new Set(input.employeeIds)
+      : null;
+  const segments = requestedEmployeeIds
+    ? canonicalFacts.filter((fact) => requestedEmployeeIds.has(fact.employee_id))
+    : canonicalFacts;
+  if (segments.length === 0) return [];
 
-  const [segments, policy] = await Promise.all([
-    loadSegments(
-      supabase,
-      input.houseId,
-      input.workDate,
-      employees.map((employee) => employee.id),
-    ),
+  const visibleEmployeeIds = Array.from(
+    new Set(segments.map((segment) => segment.employee_id)),
+  );
+  const [employees, policy] = await Promise.all([
+    loadEmployees(supabase, input.houseId, visibleEmployeeIds),
     loadOvertimePolicy(supabase, input.houseId),
   ]);
+  if (employees.length === 0) return [];
 
   const branchIds = Array.from(
     new Set(
