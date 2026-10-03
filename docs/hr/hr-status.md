@@ -1,11 +1,12 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
-## 2026-10-03 — GAP-024 Gate C planning active
+## 2026-10-03 — GAP-024 Gate C Runtime active
 
-**Status: PLANNING OWNER-APPROVED — separate bounded Gate C Runtime is now authorized.
-Canonical Daily DTR facts-only cutover remains the next DEC-017 slice. The approved
-planning contract passed exact-head Preflight/Vercel verification with zero unresolved
-material planning findings. Production remains unchanged.**
+**Status: RUNTIME + CONTROLLED UAT CONVERGED — OWNER RELEASE APPROVAL NEXT. Draft PR
+#520 implements the owner-approved canonical Daily DTR facts-only cutover. Validated
+runtime head `7dc72c91900e3727193fc145bd875e2275cdda3c` is exact-head green, Preview
+UAT passed, isolated write-contract UAT passed to the approved HR-4 dependency boundary,
+and Production remains unchanged.**
 
 Released predecessor state:
 
@@ -22,8 +23,14 @@ Released predecessor state:
   and zero unbridged segments;
 - unresolved release P0/P1/material-P2 findings: zero.
 
-Current planning artifact:
+Planning artifact:
 `docs/devlog/gap-024-gate-c-daily-dtr-cutover-plan.md`.
+
+Current Runtime artifact:
+`docs/devlog/gap-024-gate-c-runtime.md`.
+
+Current Runtime PR:
+**#520 — Implement GAP-024 Gate C canonical Daily DTR cutover**.
 
 Gate C planning is owner-approved and targets only the Daily DTR consumer cutover. Its result surface must use
 the released canonical readers, keep branch-limited results facts-only, fail closed for
@@ -31,9 +38,11 @@ UNATTRIBUTED/CONFLICT, and preserve no-leak parity. The later owner-approved P1 
 same-day ordinary manual-capture policy is preserved as a separate write affordance; it
 must not manufacture a no-record attendance row or historical remediation path.
 
-A separate bounded Gate C Runtime PR is now authorized. Gate D/E, broad HR work, POS,
-Operations, and Finance remain unauthorized. Planning approval does not authorize
-Production deployment.
+Gate C Runtime is now implementing only the approved application cutover: canonical
+fact-driven results, independent read/write authority, separate same-day capture, and
+separate owner/manager historical remediation. No migration/new RPC/RLS/grant change is
+included. Gate D/E, broad HR work, POS, Operations, and Finance remain unauthorized.
+Runtime convergence does not authorize Production deployment.
 
 ## 2026-09-27 — GAP-024 Remaining Gate B planning amendment active
 
