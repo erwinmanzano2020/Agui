@@ -1522,3 +1522,35 @@ test("frame sealing and membership share frame -> fact -> evidence lock order", 
     "membership must acquire evidence after the owning fact",
   );
 });
+
+
+test("canonical readers expose finalized correction lineage boolean without repurposing status", () => {
+  const gateDPath = path.join(
+    repoRoot,
+    "supabase",
+    "migrations",
+    "20261021150000_gap024_gate_d_correction_lineage_reader.sql",
+  );
+  const gateDSql = fs.readFileSync(gateDPath, "utf8");
+
+  assert.match(
+    gateDSql,
+    /has_finalized_correction boolean/i,
+  );
+  assert.match(
+    gateDSql,
+    /from public\.hr_attendance_correction_cases c[\s\S]*c\.house_id = p\.house_id[\s\S]*c\.fact_id = p\.fact_id[\s\S]*c\.lifecycle_status = 'FINALIZED'/i,
+  );
+  assert.doesNotMatch(
+    gateDSql,
+    /r\.status\s*=\s*'corrected'|status\s*=\s*'corrected'/i,
+  );
+  assert.match(
+    gateDSql,
+    /hr_read_canonical_attendance_branch_scoped[\s\S]*has_finalized_correction boolean/i,
+  );
+  assert.match(
+    gateDSql,
+    /hr_read_canonical_attendance_house_global[\s\S]*has_finalized_correction boolean/i,
+  );
+});
