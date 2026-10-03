@@ -163,6 +163,7 @@ class SupabaseMock {
           status: segment.status,
           attribution_state: "ATTRIBUTED",
           active_branch_id: employee?.branch_id ?? null,
+          has_finalized_correction: segment.status === "corrected",
         };
       });
 
@@ -342,6 +343,27 @@ describe("payroll preview aggregation", () => {
     );
 
     assert.equal(result.rows[0].flags.missingScheduleDays, 2);
+  });
+
+  it("flags finalized correction lineage without changing completion status", async () => {
+    const supabase = new SupabaseMock({
+      segments: [
+        buildSegment({ id: "seg-corrected", status: "corrected" }),
+      ],
+      employees: [baseEmployee],
+      assignments: [baseAssignment],
+      windows: [baseWindow],
+      policies: [basePolicy],
+      branches: [{ id: "branch-1", house_id: "house-1" }],
+    });
+
+    const result = await computePayrollPreviewForHousePeriod(
+      supabase as never,
+      { houseId: "house-1", startDate: "2024-10-01", endDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    assert.equal(result.rows[0]?.flags.hasCorrectedSegments, true);
   });
 
   it("flags open segments without breaking totals", async () => {
