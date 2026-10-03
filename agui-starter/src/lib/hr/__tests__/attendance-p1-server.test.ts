@@ -73,7 +73,7 @@ describe("Historical DTR P1 canonical reader adapter", () => {
       allowed: true,
       isBranchLimited: false,
       allowedBranchIds: [],
-    } as HrBranchAccessDecision;
+    } as unknown as HrBranchAccessDecision;
 
     const result = await listCanonicalAttendanceForRange(
       supabase,
