@@ -268,7 +268,7 @@ export async function computePayrollPreviewForHousePeriod(
       openSegmentDays.set(employee.id, daySet);
     }
 
-    const dateMap = segmentsByEmployeeDate.get(employee.id) ?? new Map<string, DtrSegmentRow[]>();
+    const dateMap = segmentsByEmployeeDate.get(employee.id) ?? new Map<string, CanonicalAttendanceRow[]>();
     const bucket = dateMap.get(manilaWorkDate) ?? [];
     bucket.push(segment);
     dateMap.set(manilaWorkDate, bucket);
