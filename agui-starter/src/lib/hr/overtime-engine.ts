@@ -430,9 +430,6 @@ export async function computeDailyOvertime(
   if (options.access && !options.access.allowed) {
     return null;
   }
-  if (options.access && !options.access.allowed) {
-    return [];
-  }
   if (
     options.access &&
     "isBranchLimited" in options.access &&
