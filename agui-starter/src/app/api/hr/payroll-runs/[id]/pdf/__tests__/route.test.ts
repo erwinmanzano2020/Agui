@@ -74,6 +74,50 @@ class PayrollRunPdfSupabaseMock {
     getUser: async () => ({ data: { user: { id: "user-1" } }, error: null }),
   };
 
+  async rpc(
+    name: string,
+    args: {
+      p_house_id?: string;
+      p_start_date?: string;
+      p_end_date?: string;
+      p_employee_id?: string | null;
+      p_limit?: number;
+      p_offset?: number;
+    },
+  ) {
+    if (
+      name !== "hr_read_canonical_attendance_house_global" &&
+      name !== "hr_read_canonical_attendance_branch_scoped"
+    ) {
+      return { data: null, error: { message: `Unexpected RPC ${name}` } };
+    }
+    const offset = args.p_offset ?? 0;
+    const limit = args.p_limit ?? 200;
+    const employees = this.employees;
+    const rows = this.segments
+      .filter((segment) => !args.p_house_id || segment.house_id === args.p_house_id)
+      .filter((segment) => !args.p_start_date || segment.work_date >= args.p_start_date)
+      .filter((segment) => !args.p_end_date || segment.work_date <= args.p_end_date)
+      .filter((segment) => !args.p_employee_id || segment.employee_id === args.p_employee_id)
+      .slice(offset, offset + limit)
+      .map((segment) => {
+        const employee = employees.find((row) => row.id === segment.employee_id);
+        return {
+          fact_id: segment.id,
+          employee_id: segment.employee_id,
+          work_date: segment.work_date,
+          time_in: segment.time_in,
+          time_out: segment.time_out,
+          hours_worked: segment.hours_worked,
+          overtime_minutes: segment.overtime_minutes,
+          status: segment.status,
+          attribution_state: "ATTRIBUTED",
+          active_branch_id: employee?.branch_id ?? this.branchId,
+        };
+      });
+    return { data: rows, error: null };
+  }
+
   buildQuery<T>(data: T | T[]) {
     const filters: Record<string, unknown> = {};
     const query = {

@@ -338,7 +338,47 @@ class SupabaseMock {
     throw new Error(`Unexpected table ${table}`);
   }
 
-  async rpc(name: string, args: { target_year?: number }) {
+  async rpc(
+    name: string,
+    args: {
+      target_year?: number;
+      p_house_id?: string;
+      p_start_date?: string;
+      p_end_date?: string;
+      p_employee_id?: string | null;
+      p_limit?: number;
+      p_offset?: number;
+    },
+  ) {
+    if (
+      name === "hr_read_canonical_attendance_house_global" ||
+      name === "hr_read_canonical_attendance_branch_scoped"
+    ) {
+      const offset = args.p_offset ?? 0;
+      const limit = args.p_limit ?? 200;
+      const rows = this.data.segments
+        .filter((segment) => !args.p_house_id || segment.house_id === args.p_house_id)
+        .filter((segment) => !args.p_start_date || segment.work_date >= args.p_start_date)
+        .filter((segment) => !args.p_end_date || segment.work_date <= args.p_end_date)
+        .filter((segment) => !args.p_employee_id || segment.employee_id === args.p_employee_id)
+        .slice(offset, offset + limit)
+        .map((segment) => ({
+          fact_id: segment.id,
+          employee_id: segment.employee_id,
+          work_date: segment.work_date,
+          time_in: segment.time_in,
+          time_out: segment.time_out,
+          hours_worked: null,
+          overtime_minutes: 0,
+          status: segment.status,
+          attribution_state: "ATTRIBUTED",
+          active_branch_id:
+            this.data.employees.find((employee) => employee.id === segment.employee_id)?.branch_id ??
+            null,
+        }));
+      return { data: rows, error: null };
+    }
+
     if (name !== "next_hr_reference_code") {
       return { data: null, error: { message: `Unexpected RPC ${name}` } };
     }

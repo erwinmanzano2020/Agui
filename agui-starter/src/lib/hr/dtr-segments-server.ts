@@ -9,7 +9,6 @@ import { assertManilaReasonableSegment, normalizeManilaTimestamp } from "@/lib/h
 const DTR_SEGMENT_COLUMNS =
   "id, house_id, employee_id, work_date, time_in, time_out, hours_worked, overtime_minutes, source, status, canonical_fact_id, created_at";
 
-type DateRange = { start: string; end: string };
 type MinimalEmployee = Pick<EmployeeRow, "id" | "house_id" | "branch_id">;
 type DtrSegmentWriteTarget = {
   id: string;
@@ -179,32 +178,6 @@ export async function resolveDtrEmployeeWriteTargetForHouseWithAccess(
   return employee;
 }
 
-export async function listDtrByHouseAndDate(
-  supabase: SupabaseClient<Database>,
-  houseId: string,
-  workDate: string,
-  options: { employeeId?: string } = {},
-): Promise<DtrSegmentRow[]> {
-  let query = supabase
-    .from("dtr_segments")
-    .select(DTR_SEGMENT_COLUMNS)
-    .eq("house_id", houseId)
-    .eq("work_date", workDate);
-
-  if (options.employeeId) {
-    query = query.eq("employee_id", options.employeeId);
-  }
-
-  const { data, error } = await query.order("time_in", { ascending: true });
-
-  if (error) {
-    if (isPermissionDenied(error)) return [];
-    throw new Error(error.message);
-  }
-
-  return normalizeSegments(data as DtrSegmentRow[]);
-}
-
 export async function createDtrSegment(
   supabase: SupabaseClient<Database>,
   input: {
@@ -286,71 +259,4 @@ export async function createDtrSegment(
   }
 
   return normalizeSegments([data])[0];
-}
-
-export async function listDtrByEmployee(
-  supabase: SupabaseClient<Database>,
-  employeeId: string,
-  dateRange: DateRange,
-): Promise<DtrSegmentRow[]> {
-  const employee = await loadEmployeeForAccess(supabase, employeeId);
-  if (!employee) return [];
-
-  const { data, error } = await supabase
-    .from("dtr_segments")
-    .select(DTR_SEGMENT_COLUMNS)
-    .eq("house_id", employee.house_id)
-    .eq("employee_id", employee.id)
-    .gte("work_date", dateRange.start)
-    .lte("work_date", dateRange.end)
-    .order("work_date", { ascending: true })
-    .order("time_in", { ascending: true });
-
-  if (error) {
-    if (isPermissionDenied(error)) return [];
-    throw new Error(error.message);
-  }
-
-  return normalizeSegments(data as DtrSegmentRow[]);
-}
-
-export async function listDtrTodayByBranch(
-  supabase: SupabaseClient<Database>,
-  branchId: string,
-  options: { today?: string } = {},
-): Promise<DtrSegmentRow[]> {
-  const today = options.today ?? new Date().toISOString().slice(0, 10);
-  const { data: employees, error: employeesError } = await supabase
-    .from("employees")
-    .select("id, house_id, branch_id")
-    .eq("branch_id", branchId);
-
-  if (employeesError) {
-    if (isPermissionDenied(employeesError)) return [];
-    throw new Error(employeesError.message);
-  }
-
-  const accessibleEmployees = (employees as MinimalEmployee[] | null) ?? [];
-  const houseId = accessibleEmployees[0]?.house_id ?? null;
-  if (!houseId) return [];
-
-  const employeeIds = accessibleEmployees
-    .filter((emp) => emp.house_id === houseId)
-    .map((emp) => emp.id);
-
-  if (employeeIds.length === 0) return [];
-
-  const { data, error } = await supabase
-    .from("dtr_segments")
-    .select(DTR_SEGMENT_COLUMNS)
-    .eq("house_id", houseId)
-    .in("employee_id", employeeIds)
-    .eq("work_date", today)
-    .order("time_in", { ascending: true });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return normalizeSegments(data as DtrSegmentRow[]);
 }
