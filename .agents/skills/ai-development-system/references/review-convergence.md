@@ -66,3 +66,28 @@ If none applies, close convergence after regression and internal refutation.
 ## Owner experience
 
 The owner should not be asked to watch for reviewer completion, type `check`, or advance each review round manually. ChatGPT owns review orchestration and external-gate monitoring.
+
+
+## Non-recursive final review
+
+The independent final review is **not recursive**.
+
+If the final independent review finds material issues:
+1. refute the findings;
+2. fix all surviving findings as one batch;
+3. run regression and an internal adversarial closure pass;
+4. proceed when the frozen contract is satisfied and required evidence is green.
+
+Do **not** automatically request another independent review merely because the final review produced fixes.
+
+A further external review is justified only when the fixes introduce a **new design or contract decision**, expand scope beyond the frozen review surface, or create a genuinely new risk class. Repairing implementation so it conforms to the already-frozen contract is not, by itself, a new review epoch.
+
+## External review budget
+
+Default maximum per coherent CONTROLLED review epoch:
+- one independent review of the internally converged candidate;
+- one final independent review after the first survivor-fix batch, if justified.
+
+After that, close with regression + internal adversarial verification unless an explicit new design/contract decision creates a new review epoch.
+
+This budget exists to prevent self-perpetuating review loops where each reviewer-driven fix recursively triggers another reviewer pass.
