@@ -1525,13 +1525,17 @@ test("frame sealing and membership share frame -> fact -> evidence lock order", 
 
 
 test("canonical readers expose finalized correction lineage boolean without repurposing status", () => {
-  const gateDPath = path.join(
-    repoRoot,
-    "supabase",
-    "migrations",
-    "20261021150000_gap024_gate_d_correction_lineage_reader.sql",
+  const gateDRelativePath =
+    "supabase/migrations/20261021150000_gap024_gate_d_correction_lineage_reader.sql";
+  const gateDPath = [
+    resolve(process.cwd(), "..", gateDRelativePath),
+    resolve(process.cwd(), "../..", gateDRelativePath),
+  ].find(existsSync);
+  assert.ok(
+    gateDPath,
+    "Gate-D correction-lineage reader migration must be resolvable in focused and full-suite runners",
   );
-  const gateDSql = fs.readFileSync(gateDPath, "utf8");
+  const gateDSql = readFileSync(gateDPath, "utf8");
 
   assert.match(
     gateDSql,
