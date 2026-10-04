@@ -23,6 +23,7 @@ Roles:
 
 Read `references/orchestration.md` for stop/continue rules.
 Read `references/external-gates.md` whenever PR checks, CI, Vercel, or independent reviews are pending.
+Read `references/review-convergence.md` for CONTROLLED planning/runtime review budgets, semantic-cluster review, and re-review triggers.
 Read `references/profile-selection.md` for profile/skill selection.
 Read `references/control-center.md` for durable project state.
 
