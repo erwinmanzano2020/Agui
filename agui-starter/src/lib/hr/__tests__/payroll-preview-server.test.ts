@@ -266,7 +266,7 @@ describe("payroll preview aggregation", () => {
     });
   });
 
-  it("denies cross-house access", async () => {
+  it("does not reveal a cross-house employee through an empty canonical result", async () => {
     const supabase = new SupabaseMock({
       segments: [],
       employees: [{ ...baseEmployee, house_id: "house-2" }],
@@ -276,20 +276,19 @@ describe("payroll preview aggregation", () => {
       branches: [],
     });
 
-    await assert.rejects(
-      () =>
-        computePayrollPreviewForHousePeriod(
-          supabase as never,
-          {
-            houseId: "house-1",
-            startDate: "2024-10-01",
-            endDate: "2024-10-02",
-            employeeId: "emp-1",
-          },
-          { access: accessAllowed },
-        ),
-      PayrollPreviewAccessError,
+    const result = await computePayrollPreviewForHousePeriod(
+      supabase as never,
+      {
+        houseId: "house-1",
+        startDate: "2024-10-01",
+        endDate: "2024-10-02",
+        employeeId: "emp-1",
+      },
+      { access: accessAllowed },
     );
+
+    assert.equal(result.rows.length, 0);
+    assert.equal(result.summary.employeeCount, 0);
   });
 
   it("aggregates multi-segment days correctly", async () => {
