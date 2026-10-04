@@ -19,6 +19,21 @@ Project invariants from AGENTS.md, contracts, architecture, milestone docs, and 
    - verify severity and contract impact.
 5. Report/fix only findings that survive refutation.
 
+## Internal convergence before independent review
+
+Before requesting Codex for CONTROLLED work, review the whole affected semantic/risk cluster internally. Do not send every tiny patch back to Codex.
+
+Examples:
+- identity/session lifecycle
+- authorization scope semantics
+- persistence namespace isolation
+- idempotency/replay/reconciliation
+- financial/custody projection integrity
+- stale-state/multi-tab concurrency
+- closing/release isolation
+
+If one finding exposes a category weakness, expand the review across that category and batch related fixes before independent review.
+
 ## Independent reviewer role
 
 Codex or another independent reviewer is a **second opinion**, not the conductor of the workflow.
