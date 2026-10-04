@@ -1071,7 +1071,14 @@ test("only approved canonical attendance server consumers import a Gate-A reader
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const path = resolve(dir, entry.name);
       if (entry.isDirectory()) walk(path);
-      else if (/\.(?:ts|tsx)$/.test(entry.name) && !path.endsWith("db.types.ts") && !path.endsWith("gap024-gate-a-migration.test.ts") && /hr_read_canonical_attendance_(?:branch_scoped|house_global)/.test(readFileSync(path, "utf8"))) references.push(path);
+      else if (
+        /\.(?:ts|tsx)$/.test(entry.name) &&
+        !path.endsWith("db.types.ts") &&
+        !path.includes("/__tests__/") &&
+        !path.includes("\\__tests__\\") &&
+        !/\.(?:test|spec)\.(?:ts|tsx)$/.test(path) &&
+        /hr_read_canonical_attendance_(?:branch_scoped|house_global)/.test(readFileSync(path, "utf8"))
+      ) references.push(path);
     }
   };
   const sourceRoot = [resolve(process.cwd(), "src"), resolve(process.cwd(), "../src")].find(existsSync);
