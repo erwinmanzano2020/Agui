@@ -659,8 +659,14 @@ export async function computePayslipsForPayrollRun(
     },
     input.employeeId,
   );
+  const visibleCanonicalFacts = isBranchLimited
+    ? canonicalFacts.filter((fact) => {
+        const branchId = fact.active_branch_id?.trim().toLowerCase();
+        return Boolean(branchId && allowedBranchIds.has(branchId));
+      })
+    : canonicalFacts;
   const visibleCanonicalEmployeeIds = new Set(
-    canonicalFacts.map((fact) => fact.employee_id),
+    visibleCanonicalFacts.map((fact) => fact.employee_id),
   );
 
   const employeeIds = Array.from(new Set(items.map((item) => item.employee_id)));
@@ -742,7 +748,7 @@ export async function computePayslipsForPayrollRun(
       getSchedule,
     );
 
-    const segments = canonicalFacts.filter(
+    const segments = visibleCanonicalFacts.filter(
       (fact) => fact.employee_id === item.employee_id,
     );
 
