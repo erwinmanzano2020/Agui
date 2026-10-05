@@ -91,3 +91,34 @@ Default maximum per coherent CONTROLLED review epoch:
 After that, close with regression + internal adversarial verification unless an explicit new design/contract decision creates a new review epoch.
 
 This budget exists to prevent self-perpetuating review loops where each reviewer-driven fix recursively triggers another reviewer pass.
+
+
+## Review budget ledger
+
+For CONTROLLED work, keep a durable review ledger at `.ai-development/review-state.json` when the project uses the AI Development System.
+
+Required fields:
+- `epoch_id`
+- `risk_surface`
+- `independent_reviews_used`
+- `independent_review_budget`
+- `budget_exhausted`
+- `last_reviewed_head`
+- `next_review_requires_new_epoch`
+- `new_epoch_reason`
+
+Before requesting Codex, ChatGPT must read this ledger.
+
+Default budget for one coherent risk surface:
+- independent review #1: converged candidate;
+- independent review #2: optional final review after the first survivor-fix batch.
+
+If the budget is exhausted, another Codex review is prohibited unless ChatGPT first creates a **new review epoch** with a written reason showing that one of these occurred:
+- new design/contract decision;
+- new risk class;
+- materially expanded scope;
+- prior review coverage no longer applies.
+
+A new commit, a bug fix, a regression fix, or the owner's command `continue` is not sufficient reason to create a new epoch.
+
+If no valid new-epoch reason exists, close with regression + internal adversarial verification and proceed to the next gate.
