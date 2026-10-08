@@ -138,3 +138,9 @@ Use the closest applicable local `AGENTS.md` for sharper guidance in these areas
 - `/docs/hr/AGENTS.md`
 
 Local files refine behavior for their subtree. They do not replace root policy.
+
+---
+
+## AI-assisted delivery convergence
+
+For any authorized future planning or runtime task, apply the reusable `delivery-convergence` workflow from `erwinmanzano2020/ai-magic`. A `continue` request should complete the largest safe authorized bounded work unit, not stop after a status poll or trivial document edit. Detect two consecutive non-progress turns and consolidate a gate decision. Batch code review findings, distinguish plan defects from runtime acceptance evidence, and avoid restarting independent reviews unless a material risk changes. Never broaden the currently authorized phase or bypass existing HR/POS freeze, tenancy, identity, UAT, or production deployment approvals. This rule changes execution discipline only; it does NOT reactivate paused phases.
