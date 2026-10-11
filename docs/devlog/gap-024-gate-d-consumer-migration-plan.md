@@ -2,7 +2,13 @@
 
 ## 1. Status and purpose
 
-**Status: PLANNING CONVERGENCE CANDIDATE — adversarial pass completed**
+**Status: RUNTIME FINAL ACCEPTANCE BLOCKED (2026-10-11).**
+The planning and Option 1A contract below remain the approved Gate D boundary.
+The owner-requested final acceptance task completed a bounded adapter correction and
+passing local regressions; authenticated UAT and release evidence remain blocked.
+See [exact source, results, UAT matrix, and decision](gap-024-gate-d-final-acceptance.md).
+Earlier planning-only conclusions below describe their historical stage, not the current
+acceptance task's authorization. Gate E and Production changes remain unauthorized.
 
 This document plans GAP-024 Gate D only. Gate C is Production-verified and closed.
 Gate D is the owner-approved broad attendance **read-consumer migration/disposition**
