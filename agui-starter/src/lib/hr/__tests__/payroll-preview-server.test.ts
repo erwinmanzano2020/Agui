@@ -110,6 +110,7 @@ class SupabaseMock {
       windows: HrScheduleWindowRow[];
       policies: HrOvertimePolicyRow[];
       branches: { id: string; house_id: string | null }[];
+      finalizedCorrectionFactIds?: string[];
     },
   ) {}
 
@@ -121,6 +122,53 @@ class SupabaseMock {
     if (table === "hr_overtime_policies") return new QueryMock(this.data.policies);
     if (table === "branches") return new QueryMock(this.data.branches);
     throw new Error(`Unexpected table ${table}`);
+  }
+
+  async rpc(
+    name: string,
+    args: {
+      p_house_id?: string;
+      p_start_date?: string;
+      p_end_date?: string;
+      p_employee_id?: string | null;
+      p_limit?: number;
+      p_offset?: number;
+    },
+  ) {
+    if (
+      name !== "hr_read_canonical_attendance_house_global" &&
+      name !== "hr_read_canonical_attendance_branch_scoped"
+    ) {
+      return { data: null, error: { message: `Unexpected RPC ${name}` } };
+    }
+
+    const offset = args.p_offset ?? 0;
+    const limit = args.p_limit ?? 200;
+    const rows = this.data.segments
+      .filter((segment) => !args.p_house_id || segment.house_id === args.p_house_id)
+      .filter((segment) => !args.p_start_date || segment.work_date >= args.p_start_date)
+      .filter((segment) => !args.p_end_date || segment.work_date <= args.p_end_date)
+      .filter((segment) => !args.p_employee_id || segment.employee_id === args.p_employee_id)
+      
+      .slice(offset, offset + limit)
+      .map((segment) => {
+        const employee = this.data.employees.find((row) => row.id === segment.employee_id);
+        return {
+          fact_id: ("canonical_fact_id" in segment && segment.canonical_fact_id) || segment.id,
+          employee_id: segment.employee_id,
+          work_date: segment.work_date,
+          time_in: segment.time_in,
+          time_out: segment.time_out,
+          hours_worked: null,
+          overtime_minutes: 0,
+          status: segment.status,
+          attribution_state: "ATTRIBUTED",
+          active_branch_id: employee?.branch_id ?? null,
+          has_finalized_correction: this.data.finalizedCorrectionFactIds?.includes(segment.id) ?? false,
+        };
+      });
+
+    return { data: rows, error: null };
   }
 }
 
@@ -219,7 +267,7 @@ describe("payroll preview aggregation", () => {
     });
   });
 
-  it("denies cross-house access", async () => {
+  it("does not reveal a cross-house employee through an empty canonical result", async () => {
     const supabase = new SupabaseMock({
       segments: [],
       employees: [{ ...baseEmployee, house_id: "house-2" }],
@@ -229,20 +277,19 @@ describe("payroll preview aggregation", () => {
       branches: [],
     });
 
-    await assert.rejects(
-      () =>
-        computePayrollPreviewForHousePeriod(
-          supabase as never,
-          {
-            houseId: "house-1",
-            startDate: "2024-10-01",
-            endDate: "2024-10-02",
-            employeeId: "emp-1",
-          },
-          { access: accessAllowed },
-        ),
-      PayrollPreviewAccessError,
+    const result = await computePayrollPreviewForHousePeriod(
+      supabase as never,
+      {
+        houseId: "house-1",
+        startDate: "2024-10-01",
+        endDate: "2024-10-02",
+        employeeId: "emp-1",
+      },
+      { access: accessAllowed },
     );
+
+    assert.equal(result.rows.length, 0);
+    assert.equal(result.summary.employeeCount, 0);
   });
 
   it("aggregates multi-segment days correctly", async () => {
@@ -296,6 +343,57 @@ describe("payroll preview aggregation", () => {
     );
 
     assert.equal(result.rows[0].flags.missingScheduleDays, 2);
+  });
+
+  it("flags finalized correction lineage without changing completion status", async () => {
+    const supabase = new SupabaseMock({
+      segments: [
+        buildSegment({ id: "seg-corrected", status: "closed" }),
+      ],
+      employees: [baseEmployee],
+      assignments: [baseAssignment],
+      windows: [baseWindow],
+      policies: [basePolicy],
+      branches: [{ id: "branch-1", house_id: "house-1" }],
+      finalizedCorrectionFactIds: ["seg-corrected"],
+    });
+
+    const result = await computePayrollPreviewForHousePeriod(
+      supabase as never,
+      { houseId: "house-1", startDate: "2024-10-01", endDate: "2024-10-01" },
+      { access: accessAllowed },
+    );
+
+    assert.equal(result.rows[0]?.flags.hasCorrectedSegments, true);
+  });
+
+  it("rejects payroll preview when the canonical reader omits correction lineage", async () => {
+    const supabase = {
+      rpc: async () => ({
+        data: [{
+          fact_id: "fact-1",
+          employee_id: baseEmployee.id,
+          work_date: "2024-10-01",
+          time_in: "2024-10-01T08:00:00+08:00",
+          time_out: "2024-10-01T17:00:00+08:00",
+          status: "closed",
+          active_branch_id: "branch-1",
+        }],
+        error: null,
+      }),
+      from: () => {
+        assert.fail("Invalid attendance must not proceed to payroll metadata enrichment.");
+      },
+    };
+
+    await assert.rejects(
+      computePayrollPreviewForHousePeriod(
+        supabase as never,
+        { houseId: "house-1", startDate: "2024-10-01", endDate: "2024-10-01" },
+        { access: accessAllowed },
+      ),
+      { message: "Invalid canonical attendance correction lineage." },
+    );
   });
 
   it("flags open segments without breaking totals", async () => {

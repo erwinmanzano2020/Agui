@@ -1,4 +1,7 @@
-import type { DtrSegmentRow } from "@/lib/db.types";
+export type AttendanceTimeSliceInput = {
+  time_in: string | null;
+  time_out: string | null;
+};
 
 export type ScheduleTimeBounds = {
   scheduledStartTs: string;
@@ -51,7 +54,7 @@ function resolveBreakBounds(
 }
 
 export function computeDailyRateBreakdown(
-  segments: Pick<DtrSegmentRow, "time_in" | "time_out">[],
+  segments: AttendanceTimeSliceInput[],
   schedule: ScheduleTimeBounds | null,
 ): DailyRateBreakdown {
   if (!schedule) {

@@ -2,8 +2,15 @@
  * Admin helper: generate reviewed canonical repair-command SQL for verified timezone rows.
  *
  * This script NEVER emits UPDATE dtr_segments. It prints:
- *   1) a House-scoped candidate query; and
+ *   1) a House-scoped administrator diagnostic query; and
  *   2) SQL that generates stable, per-segment hr_apply_attendance_time_repair(...) calls.
+ *
+ * GAP-024 Gate D classification:
+ * - the raw dtr_segments SELECT is a privileged break-glass diagnostic used only to
+ *   identify the compatibility segment and canonical revision expected by the repair RPC;
+ * - it is not an application/runtime attendance consumer and must not be copied into UI,
+ *   API, payroll, payslip, kiosk, or service read paths;
+ * - the diagnostic remains a Gate-E residual for final raw/base-access disposition.
  *
  * Usage:
  *   node --loader ts-node/esm scripts/fix-dtr-timezone.ts \

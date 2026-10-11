@@ -13,6 +13,26 @@ The approved maintenance entrypoint is:
 It is **not granted to `anon`, `authenticated`, or `service_role`**. Use it only
 from the approved administrator / database-owner break-glass SQL boundary.
 
+## GAP-024 Gate D read classification
+
+The candidate/generator SQL in this break-glass runbook intentionally reads
+`public.dtr_segments` because the approved repair command is segment-targeted and
+requires the compatibility segment identity plus the current canonical fact revision.
+
+This is a **privileged administrator diagnostic**, not a normal attendance consumer:
+
+- application/UI/API/payroll/payslip/kiosk/service readers must use the canonical
+  attendance interfaces;
+- the raw SELECT must remain inside the approved database-owner break-glass workflow;
+- it does not authorize raw `INSERT`, `UPDATE`, or `DELETE`;
+- all repair writes still go through
+  `public.hr_apply_attendance_time_repair(...)`;
+- this narrow diagnostic is recorded as a **Gate-E residual** for final raw/base-access
+  retirement or bounding.
+
+Gate D therefore leaves the repair procedure operational without treating this diagnostic
+read as an application visibility authority.
+
 ## 1. Generate a House-scoped review set
 
 Use the repository helper:
@@ -53,8 +73,10 @@ begin;
 
 -- paste reviewed SELECT public.hr_apply_attendance_time_repair(...) calls here
 
--- inspect affected dtr_segments, canonical fact revisions, mutation-operation outcome,
--- employee generation, and authorization projection here.
+-- verify canonical fact revisions, mutation-operation outcome, employee generation,
+-- and authorization projection here.
+-- If compatibility dtr_segments must also be inspected, do so only inside this same
+-- administrator break-glass transaction; that raw diagnostic remains Gate-E residual.
 
 rollback;
 ```

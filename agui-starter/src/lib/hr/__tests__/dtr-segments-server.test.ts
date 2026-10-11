@@ -6,9 +6,6 @@ import type { HrBranchAccessDecision } from "@/lib/hr/access";
 import {
   DtrSegmentAccessError,
   createDtrSegment,
-  listDtrByEmployee,
-  listDtrByHouseAndDate,
-  listDtrTodayByBranch,
   resolveDtrEmployeeWriteTargetForHouseWithAccess,
   resolveDtrSegmentWriteTargetForHouseWithAccess,
 } from "../dtr-segments-server";
@@ -246,113 +243,6 @@ function buildAccess(overrides: Partial<HrBranchAccessDecision> = {}): HrBranchA
     ...overrides,
   } satisfies HrBranchAccessDecision;
 }
-
-describe("dtr segment server helpers", () => {
-  it("returns empty results when no DTR segments exist for the house and date", async () => {
-    const supabase = new SupabaseMock([], [buildEmployee("emp-1", "house-1")]);
-
-    const rows = await listDtrByHouseAndDate(supabase as never, "house-1", "2024-10-02");
-
-    assert.deepEqual(rows, []);
-  });
-
-  it("keeps DTR results scoped to the employee's house", async () => {
-    const supabase = new SupabaseMock(
-      [
-        buildSegment("seg-1", { house_id: "house-1", employee_id: "emp-1", work_date: "2024-10-01" }),
-        buildSegment("seg-2", { house_id: "house-2", employee_id: "emp-1", work_date: "2024-10-01" }),
-      ],
-      [buildEmployee("emp-1", "house-1")],
-    );
-
-    const rows = await listDtrByEmployee(supabase as never, "emp-1", { start: "2024-10-01", end: "2024-10-02" });
-
-    assert.deepEqual(rows.map((row) => row.id), ["seg-1"]);
-  });
-
-  it("returns multiple segments for the same employee and day without merging", async () => {
-    const supabase = new SupabaseMock(
-      [
-        buildSegment("seg-1", { house_id: "house-1", employee_id: "emp-1", work_date: "2024-10-01" }),
-        buildSegment("seg-2", { house_id: "house-1", employee_id: "emp-1", work_date: "2024-10-01" }),
-      ],
-      [buildEmployee("emp-1", "house-1")],
-    );
-    const rows = await listDtrByHouseAndDate(
-      supabase as never,
-      "house-1",
-      "2024-10-01",
-      { employeeId: "emp-1" },
-    );
-    assert.equal(rows.length, 2);
-    assert.deepEqual(rows.map((row) => row.id), ["seg-1", "seg-2"]);
-  });
-
-  it("returns an empty array when the employee is not accessible", async () => {
-    const supabase = new SupabaseMock([buildSegment("seg-3", { employee_id: "emp-missing" })], []);
-
-    const rows = await listDtrByEmployee(supabase as never, "emp-missing", { start: "2024-10-01", end: "2024-10-05" });
-
-    assert.deepEqual(rows, []);
-  });
-
-  it("filters branch DTR to today's entries within the same house", async () => {
-    const employees = [
-      buildEmployee("emp-1", "house-1", "branch-1"),
-      buildEmployee("emp-2", "house-1", "branch-1"),
-      buildEmployee("emp-3", "house-2", "branch-1"),
-    ];
-    const segments = [
-      buildSegment("seg-a", {
-        employee_id: "emp-1",
-        house_id: "house-1",
-        work_date: "2024-10-05",
-        time_in: "2024-10-05T08:00:00+08:00",
-      }),
-      buildSegment("seg-b", {
-        employee_id: "emp-2",
-        house_id: "house-1",
-        work_date: "2024-10-04",
-        time_in: "2024-10-04T08:00:00+08:00",
-      }),
-      buildSegment("seg-c", {
-        employee_id: "emp-3",
-        house_id: "house-2",
-        work_date: "2024-10-05",
-        time_in: "2024-10-05T09:00:00+08:00",
-      }),
-    ];
-    const supabase = new SupabaseMock(segments, employees);
-
-    const rows = await listDtrTodayByBranch(supabase as never, "branch-1", { today: "2024-10-05" });
-
-    assert.deepEqual(rows.map((row) => row.id), ["seg-a"]);
-  });
-
-  it("returns an empty list when segment access is denied by RLS", async () => {
-    const supabase = new SupabaseMock(
-      [buildSegment("seg-1", { house_id: "house-1", work_date: "2024-10-02" })],
-      [buildEmployee("emp-1", "house-1")],
-      { segmentError: { message: "permission denied for table dtr_segments" } },
-    );
-
-    const rows = await listDtrByHouseAndDate(supabase as never, "house-1", "2024-10-02");
-
-    assert.deepEqual(rows, []);
-  });
-
-  it("returns an empty list when employee lookup is denied", async () => {
-    const supabase = new SupabaseMock(
-      [],
-      [buildEmployee("emp-1", "house-1")],
-      { employeeError: { message: "permission denied for table employees" } },
-    );
-
-    const rows = await listDtrByEmployee(supabase as never, "emp-1", { start: "2024-10-01", end: "2024-10-02" });
-
-    assert.deepEqual(rows, []);
-  });
-});
 
 describe("createDtrSegment", () => {
   it("rejects cross-house access when the employee is in another house", async () => {

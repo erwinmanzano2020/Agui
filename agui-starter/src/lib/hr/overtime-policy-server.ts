@@ -11,7 +11,7 @@ import type {
   HrScheduleWindowRow,
 } from "@/lib/db.types";
 import { requireHrAccess, requireHrAccessWithBranch, type HrAccessDecision, type HrBranchAccessDecision } from "./access";
-import { listDtrByHouseAndDate } from "./dtr-segments-server";
+import { listCanonicalAttendanceForDate } from "./attendance-p1-server";
 import {
   computeOvertimeForDay,
   getDayOfWeekInTimeZone,
@@ -287,10 +287,36 @@ export async function getDailyComputedDtrForEmployee(
   workDate: string,
   options: { access?: HrAccessDecision } = {},
 ): Promise<DailyComputedDtr | null> {
-  const access = await resolveAccess(supabase, houseId, options.access);
-  if (!access.allowed) return null;
+  const baseAccess = await resolveAccess(supabase, houseId, options.access);
+  if (!baseAccess.allowed) return null;
 
-  const segments = await listDtrByHouseAndDate(supabase, houseId, workDate, { employeeId });
+  const attendanceAccess: HrBranchAccessDecision =
+    "isBranchLimited" in baseAccess && "allowedBranchIds" in baseAccess
+      ? (baseAccess as HrBranchAccessDecision)
+      : baseAccess.allowedByRole
+        ? {
+            ...baseAccess,
+            branchId: null,
+            isBranchLimited: false,
+            allowedBranchIds: [],
+          }
+        : await requireHrAccessWithBranch(supabase, {
+            houseId,
+            requiredLevel: "read",
+            requiredCapability: "hr",
+          });
+
+  if (!attendanceAccess.allowed) return null;
+
+  const segments = await listCanonicalAttendanceForDate(
+    supabase,
+    houseId,
+    workDate,
+    attendanceAccess,
+    employeeId,
+  );
+  if (segments.length === 0) return null;
+
   const policy = await loadOvertimePolicy(supabase, houseId);
   const scheduleResolution = await resolveScheduleWindowForEmployee(supabase, {
     houseId,

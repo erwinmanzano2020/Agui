@@ -1,5 +1,27 @@
 # HR Status — Evidence-Backed Phase Re-entry Checkpoint
 
+## 2026-10-11 — GAP-024 Gate D final acceptance blocked
+
+**Status: BLOCKED for final acceptance / release. PR #522 remains unmerged.**
+
+The owner-authorized bounded acceptance task reverified hosted head
+`2500859701c0d5d38b685b8bd5cbe10aaa78fff8` against `develop`
+`99afb17c433d09b7c339fc0371a68767a1c22308`. Functional correction
+`3066741234815fc7b80e1b7698e70d810121cdab` rejects missing/invalid canonical
+correction-lineage booleans rather than hiding finalized corrections.
+Local regression: **628/628 tests**, lint, isolated typecheck, and CI-fallback build passed.
+
+Authenticated testing on `agui-p1-uat` has **not run**: its HTTPS request was denied by
+the network proxy (403), and UAT credentials/actor sessions are not injected. Current
+security-advisor evidence is unavailable and remains separate from Gate D regressions.
+Production was not contacted or changed; no project was paused/deleted; Gate E stays gated.
+No new review loop was started. Next action: supply isolated UAT access securely, verify
+the live reader shape, and complete the bounded acceptance matrix and exact-head checks.
+
+Canonical evidence and staged Control Center handoff:
+[`gap-024-gate-d-final-acceptance.md`](../devlog/gap-024-gate-d-final-acceptance.md).
+Earlier checkpoints below remain historical evidence.
+
 ## 2026-10-03 — GAP-024 Gate D Planning active
 
 **Status: GATE D PLANNING ACTIVE. Gate C is Production-verified/closed.**

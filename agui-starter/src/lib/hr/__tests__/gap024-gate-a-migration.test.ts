@@ -1065,13 +1065,20 @@ test("all authority tables remain direct-access denied", () => {
   assert.match(sql, /notify pgrst, 'reload schema'/i);
 });
 
-test("only the approved P1 server adapter imports a Gate-A reader", () => {
+test("only approved canonical attendance server consumers import a Gate-A reader", () => {
   const references: string[] = [];
   const walk = (dir: string) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const path = resolve(dir, entry.name);
       if (entry.isDirectory()) walk(path);
-      else if (/\.(?:ts|tsx)$/.test(entry.name) && !path.endsWith("db.types.ts") && !path.endsWith("gap024-gate-a-migration.test.ts") && /hr_read_canonical_attendance_(?:branch_scoped|house_global)/.test(readFileSync(path, "utf8"))) references.push(path);
+      else if (
+        /\.(?:ts|tsx)$/.test(entry.name) &&
+        !path.endsWith("db.types.ts") &&
+        !path.includes("/__tests__/") &&
+        !path.includes("\\__tests__\\") &&
+        !/\.(?:test|spec)\.(?:ts|tsx)$/.test(path) &&
+        /hr_read_canonical_attendance_(?:branch_scoped|house_global)/.test(readFileSync(path, "utf8"))
+      ) references.push(path);
     }
   };
   const sourceRoot = [resolve(process.cwd(), "src"), resolve(process.cwd(), "../src")].find(existsSync);
@@ -1520,5 +1527,41 @@ test("frame sealing and membership share frame -> fact -> evidence lock order", 
   assert.ok(
     membershipEvidenceLock > membershipFactLock,
     "membership must acquire evidence after the owning fact",
+  );
+});
+
+
+test("canonical readers expose finalized correction lineage boolean without repurposing status", () => {
+  const gateDRelativePath =
+    "supabase/migrations/20261021150000_gap024_gate_d_correction_lineage_reader.sql";
+  const gateDPath = [
+    resolve(process.cwd(), "..", gateDRelativePath),
+    resolve(process.cwd(), "../..", gateDRelativePath),
+  ].find(existsSync);
+  assert.ok(
+    gateDPath,
+    "Gate-D correction-lineage reader migration must be resolvable in focused and full-suite runners",
+  );
+  const gateDSql = readFileSync(gateDPath, "utf8");
+
+  assert.match(
+    gateDSql,
+    /has_finalized_correction boolean/i,
+  );
+  assert.match(
+    gateDSql,
+    /from public\.hr_attendance_correction_cases c[\s\S]*c\.house_id = p\.house_id[\s\S]*c\.fact_id = p\.fact_id[\s\S]*c\.lifecycle_status = 'FINALIZED'/i,
+  );
+  assert.doesNotMatch(
+    gateDSql,
+    /r\.status\s*=\s*'corrected'|status\s*=\s*'corrected'/i,
+  );
+  assert.match(
+    gateDSql,
+    /hr_read_canonical_attendance_branch_scoped[\s\S]*has_finalized_correction boolean/i,
+  );
+  assert.match(
+    gateDSql,
+    /hr_read_canonical_attendance_house_global[\s\S]*has_finalized_correction boolean/i,
   );
 });

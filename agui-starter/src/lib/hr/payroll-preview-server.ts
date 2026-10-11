@@ -2,14 +2,12 @@ import "server-only";
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import type { Database, DtrSegmentRow, EmployeeRow } from "@/lib/db.types";
-import { requireHrAccess, type HrAccessDecision } from "./access";
+import type { Database, EmployeeRow } from "@/lib/db.types";
+import { requireHrAccessWithBranch, type HrAccessDecision, type HrBranchAccessDecision } from "./access";
+import { listCanonicalAttendanceForRange, type CanonicalAttendanceRow } from "./attendance-p1-server";
 import { computeOvertimeForHouseDate, getScheduleForEmployeeOnDate, parseDateParts } from "./overtime-engine";
 import { computeDailyRateBreakdown } from "./payroll-math";
 import { isWorkDateMismatch, toManilaDate } from "./timezone";
-
-const DTR_SEGMENT_COLUMNS =
-  "id, house_id, employee_id, work_date, time_in, time_out, status";
 
 export type PayrollPreviewInput = {
   houseId: string;
@@ -88,9 +86,38 @@ async function resolveAccess(
   supabase: SupabaseClient<Database>,
   houseId: string,
   accessOverride?: HrAccessDecision,
-): Promise<HrAccessDecision> {
-  if (accessOverride) return accessOverride;
-  return requireHrAccess(supabase, houseId);
+): Promise<HrBranchAccessDecision> {
+  if (accessOverride && !accessOverride.allowed) {
+    return {
+      ...accessOverride,
+      branchId: null,
+      isBranchLimited: false,
+      allowedBranchIds: [],
+    };
+  }
+
+  if (
+    accessOverride &&
+    "isBranchLimited" in accessOverride &&
+    "allowedBranchIds" in accessOverride
+  ) {
+    return accessOverride as HrBranchAccessDecision;
+  }
+
+  if (accessOverride?.allowedByRole) {
+    return {
+      ...accessOverride,
+      branchId: null,
+      isBranchLimited: false,
+      allowedBranchIds: [],
+    };
+  }
+
+  return requireHrAccessWithBranch(supabase, {
+    houseId,
+    requiredLevel: "read",
+    requiredCapability: "payroll",
+  });
 }
 
 async function loadBranchForHouse(
@@ -112,56 +139,25 @@ async function loadBranchForHouse(
   return data.house_id === houseId ? data.id : null;
 }
 
-async function loadEmployees(
+async function loadEmployeesForIds(
   supabase: SupabaseClient<Database>,
   houseId: string,
-  filters: { branchId?: string | null; employeeId?: string | null },
+  employeeIds: string[],
 ): Promise<EmployeeRow[]> {
-  let query = supabase
+  if (employeeIds.length === 0) return [];
+
+  const { data, error } = await supabase
     .from("employees")
     .select("id, house_id, code, full_name, branch_id")
-    .eq("house_id", houseId);
+    .eq("house_id", houseId)
+    .in("id", employeeIds)
+    .order("full_name", { ascending: true });
 
-  if (filters.branchId) {
-    query = query.eq("branch_id", filters.branchId);
-  }
-
-  if (filters.employeeId) {
-    query = query.eq("id", filters.employeeId);
-  }
-
-  const { data, error } = await query.order("full_name", { ascending: true });
   if (error) {
     throw new Error(error.message);
   }
 
   return (data as EmployeeRow[] | null) ?? [];
-}
-
-async function loadSegmentsForPeriod(
-  supabase: SupabaseClient<Database>,
-  houseId: string,
-  employeeIds: string[],
-  startDate: string,
-  endDate: string,
-): Promise<DtrSegmentRow[]> {
-  if (employeeIds.length === 0) return [];
-
-  const { data, error } = await supabase
-    .from("dtr_segments")
-    .select(DTR_SEGMENT_COLUMNS)
-    .eq("house_id", houseId)
-    .in("employee_id", employeeIds)
-    .gte("work_date", startDate)
-    .lte("work_date", endDate)
-    .order("work_date", { ascending: true })
-    .order("time_in", { ascending: true });
-
-  if (error) {
-    throw new Error(error.message);
-  }
-
-  return (data as DtrSegmentRow[] | null) ?? [];
 }
 
 export async function computePayrollPreviewForHousePeriod(
@@ -189,25 +185,40 @@ export async function computePayrollPreviewForHousePeriod(
     }
   }
 
-  const employees = await loadEmployees(supabase, input.houseId, {
-    branchId: input.branchId ?? null,
-    employeeId: input.employeeId ?? null,
-  });
-
-  if (input.employeeId && employees.length === 0) {
-    throw new PayrollPreviewAccessError("Employee does not belong to this house.");
-  }
-
-  const employeeMap = new Map(employees.map((employee) => [employee.id, employee]));
-  const employeeIds = Array.from(employeeMap.keys());
-
-  const segments = await loadSegmentsForPeriod(
+  const canonicalFacts = await listCanonicalAttendanceForRange(
     supabase,
     input.houseId,
-    employeeIds,
     input.startDate,
     input.endDate,
+    access,
+    input.employeeId ?? undefined,
   );
+
+  const visibleFacts = input.branchId
+    ? canonicalFacts.filter((fact) => fact.active_branch_id === input.branchId)
+    : canonicalFacts;
+
+  if (visibleFacts.length === 0) {
+    return {
+      period: { startDate: input.startDate, endDate: input.endDate },
+      rows: [],
+      summary: buildEmptySummary(),
+    } satisfies PayrollPreviewResult;
+  }
+
+  const visibleEmployeeIds = Array.from(
+    new Set(visibleFacts.map((fact) => fact.employee_id)),
+  );
+  const employees = await loadEmployeesForIds(
+    supabase,
+    input.houseId,
+    visibleEmployeeIds,
+  );
+  const employeeMap = new Map(employees.map((employee) => [employee.id, employee]));
+  if (input.employeeId && !employeeMap.has(input.employeeId)) {
+    throw new PayrollPreviewAccessError("Employee does not belong to this house.");
+  }
+  const segments = visibleFacts;
 
   if (segments.length === 0) {
     return {
@@ -218,7 +229,7 @@ export async function computePayrollPreviewForHousePeriod(
   }
 
   const rowsByEmployee = new Map<string, PayrollPreviewRow>();
-  const segmentsByEmployeeDate = new Map<string, Map<string, DtrSegmentRow[]>>();
+  const segmentsByEmployeeDate = new Map<string, Map<string, CanonicalAttendanceRow[]>>();
   const openSegmentDays = new Map<string, Set<string>>();
   const timezoneMismatchDays = new Map<string, Set<string>>();
 
@@ -257,7 +268,7 @@ export async function computePayrollPreviewForHousePeriod(
     const row = rowsByEmployee.get(employee.id);
     if (!row) return;
 
-    if (segment.status === "corrected") {
+    if (segment.has_finalized_correction) {
       row.flags.hasCorrectedSegments = true;
     }
 
@@ -269,7 +280,7 @@ export async function computePayrollPreviewForHousePeriod(
       openSegmentDays.set(employee.id, daySet);
     }
 
-    const dateMap = segmentsByEmployeeDate.get(employee.id) ?? new Map<string, DtrSegmentRow[]>();
+    const dateMap = segmentsByEmployeeDate.get(employee.id) ?? new Map<string, CanonicalAttendanceRow[]>();
     const bucket = dateMap.get(manilaWorkDate) ?? [];
     bucket.push(segment);
     dateMap.set(manilaWorkDate, bucket);

@@ -27,9 +27,6 @@ const bulkRoute = repoFile(
 const bulkClient = repoFile(
   "agui-starter/src/app/payroll/dtr-bulk/DtrBulkClient.tsx",
 );
-const dtrToday = repoFile(
-  "agui-starter/src/app/payroll/dtr-today/page.client.tsx",
-);
 const dbTypes = repoFile("agui-starter/src/lib/db.types.ts");
 const repairScript = repoFile(
   "agui-starter/scripts/fix-dtr-timezone.ts",
@@ -244,15 +241,17 @@ test("bulk operation IDs survive retry across single, all, and CSV writes", () =
 });
 
 test("legacy browser attendance writers are retired", () => {
-  assert.doesNotMatch(
-    dtrToday,
-    /\.from\("dtr_segments"\)[\s\S]{0,80}\.(insert|update|delete)\(/i,
+  const legacyDtrTodayCandidates = [
+    resolve(process.cwd(), "src/app/payroll/dtr-today/page.client.tsx"),
+    resolve(process.cwd(), "agui-starter/src/app/payroll/dtr-today/page.client.tsx"),
+    resolve(process.cwd(), "../agui-starter/src/app/payroll/dtr-today/page.client.tsx"),
+    resolve(process.cwd(), "../../agui-starter/src/app/payroll/dtr-today/page.client.tsx"),
+  ];
+  assert.equal(
+    legacyDtrTodayCandidates.some(existsSync),
+    false,
+    "legacy browser DTR client must stay retired",
   );
-  assert.doesNotMatch(
-    dtrToday,
-    /\.from\("dtr_entries"\)[\s\S]{0,80}\.(insert|update|delete|upsert)\(/i,
-  );
-  assert.doesNotMatch(dtrToday, /Save Rollup|Saved ✔ \(manual\)/i);
 
   const legacyPageCandidates = [
     resolve(process.cwd(), "src/app/payroll/dtr-bulk/page2.tsx"),

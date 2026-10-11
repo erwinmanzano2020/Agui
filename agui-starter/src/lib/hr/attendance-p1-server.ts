@@ -14,6 +14,7 @@ export type CanonicalAttendanceRow = {
   status: string;
   attribution_state: "ATTRIBUTED" | "UNATTRIBUTED" | "CONFLICT";
   active_branch_id: string | null;
+  has_finalized_correction: boolean;
 };
 
 export type AttendanceCorrectionProposalInput = {
@@ -74,10 +75,11 @@ function normalizeRpcResult(data: Json | null): P1RpcResult {
   return data as unknown as P1RpcResult;
 }
 
-export async function listCanonicalAttendanceForDate(
+export async function listCanonicalAttendanceForRange(
   supabase: SupabaseClient<Database>,
   houseId: string,
-  workDate: string,
+  startDate: string,
+  endDate: string,
   access: HrBranchAccessDecision,
   employeeId?: string,
 ): Promise<CanonicalAttendanceRow[]> {
@@ -93,8 +95,8 @@ export async function listCanonicalAttendanceForDate(
   for (let offset = 0; ; offset += pageSize) {
     const { data, error } = await supabase.rpc(functionName, {
       p_house_id: houseId,
-      p_start_date: workDate,
-      p_end_date: workDate,
+      p_start_date: startDate,
+      p_end_date: endDate,
       p_employee_id: employeeId ?? null,
       p_limit: pageSize,
       p_offset: offset,
@@ -109,27 +111,51 @@ export async function listCanonicalAttendanceForDate(
     if (page.length < pageSize) break;
   }
 
-  return rows.map((row) => ({
-    fact_id: String(row.fact_id),
-    employee_id: String(row.employee_id),
-    work_date: String(row.work_date),
-    time_in: typeof row.time_in === "string" ? row.time_in : null,
-    time_out: typeof row.time_out === "string" ? row.time_out : null,
-    hours_worked:
-      typeof row.hours_worked === "number"
-        ? row.hours_worked
-        : row.hours_worked == null
-          ? null
-          : Number(row.hours_worked),
-    overtime_minutes: Number(row.overtime_minutes ?? 0),
-    status: String(row.status ?? ""),
-    attribution_state:
-      row.attribution_state === "UNATTRIBUTED" || row.attribution_state === "CONFLICT"
-        ? row.attribution_state
-        : "ATTRIBUTED",
-    active_branch_id:
-      typeof row.active_branch_id === "string" ? row.active_branch_id : null,
-  }));
+  return rows.map((row) => {
+    if (typeof row.has_finalized_correction !== "boolean") {
+      throw new Error("Invalid canonical attendance correction lineage.");
+    }
+
+    return {
+      fact_id: String(row.fact_id),
+      employee_id: String(row.employee_id),
+      work_date: String(row.work_date),
+      time_in: typeof row.time_in === "string" ? row.time_in : null,
+      time_out: typeof row.time_out === "string" ? row.time_out : null,
+      hours_worked:
+        typeof row.hours_worked === "number"
+          ? row.hours_worked
+          : row.hours_worked == null
+            ? null
+            : Number(row.hours_worked),
+      overtime_minutes: Number(row.overtime_minutes ?? 0),
+      status: String(row.status ?? ""),
+      attribution_state:
+        row.attribution_state === "UNATTRIBUTED" || row.attribution_state === "CONFLICT"
+          ? row.attribution_state
+          : "ATTRIBUTED",
+      active_branch_id:
+        typeof row.active_branch_id === "string" ? row.active_branch_id : null,
+      has_finalized_correction: row.has_finalized_correction,
+    };
+  });
+}
+
+export async function listCanonicalAttendanceForDate(
+  supabase: SupabaseClient<Database>,
+  houseId: string,
+  workDate: string,
+  access: HrBranchAccessDecision,
+  employeeId?: string,
+): Promise<CanonicalAttendanceRow[]> {
+  return listCanonicalAttendanceForRange(
+    supabase,
+    houseId,
+    workDate,
+    workDate,
+    access,
+    employeeId,
+  );
 }
 
 export async function proposeAttendanceCorrection(

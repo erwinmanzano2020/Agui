@@ -10,7 +10,24 @@ Before acting:
 4. Inspect current `develop` head and any active PR/CI/deployment state.
 5. Report current milestone, stage, next authorized action, blockers, risk lane, and selected skills.
 
-Current seeded checkpoint (2026-10-03):
+Current checkpoint (2026-10-11):
+- HR remains the sole active phase. Risk lane: CONTROLLED.
+- Bounded task: GAP-024 Gate D Final Acceptance, PR #522,
+  `codex/runtime-gap-024-gate-d-consumer-migration` against `develop`.
+- Initially verified hosted head: `2500859701c0d5d38b685b8bd5cbe10aaa78fff8`.
+- Functional correction: `3066741234815fc7b80e1b7698e70d810121cdab`.
+- Missing/invalid `has_finalized_correction` now rejects rather than becoming false.
+- Local 628/628 relevant tests, lint, typecheck, and CI-fallback build passed.
+- Decision: **BLOCKED**. No authenticated UAT run; UAT HTTPS is proxy-denied (403),
+  credentials/actor sessions and current security-advisor evidence are unavailable.
+- Durable acceptance evidence and staged sync payload:
+  `docs/devlog/gap-024-gate-d-final-acceptance.md`.
+- Next authorized action: securely restore isolated `agui-p1-uat` access, verify live
+  reader contract, and complete the recorded matrix on the exact candidate head.
+- Do not merge #522, modify/resume Production, pause/delete either Supabase project,
+  start Gate E, or restart an open-ended review loop.
+
+Historical seeded checkpoint (2026-10-03):
 - HR is the sole active phase.
 - Current `develop` head after owner-approved Gate C planning merge:
   `bd90af64eafe1ca5204c47da05dbc0e10a829679`.

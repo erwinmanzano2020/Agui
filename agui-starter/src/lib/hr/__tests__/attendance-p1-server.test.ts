@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   listCanonicalAttendanceForDate,
+  listCanonicalAttendanceForRange,
 } from "@/lib/hr/attendance-p1-server";
 import type { Database } from "@/lib/db.types";
 import type { HrBranchAccessDecision } from "@/lib/hr/access";
@@ -20,10 +21,98 @@ function row(index: number) {
     status: "closed",
     attribution_state: "ATTRIBUTED",
     active_branch_id: "branch-1",
+    has_finalized_correction: index === 1,
   };
 }
 
 describe("Historical DTR P1 canonical reader adapter", () => {
+  for (const isBranchLimited of [false, true]) {
+    const reader = isBranchLimited ? "branch-scoped" : "house-global";
+
+    it(`preserves true and false correction lineage from the ${reader} reader`, async () => {
+      const supabase = {
+        rpc: async () => ({ data: [row(0), row(1)], error: null }),
+      } as unknown as SupabaseClient<Database>;
+
+      const result = await listCanonicalAttendanceForRange(
+        supabase,
+        "house-1",
+        "2026-09-23",
+        "2026-09-25",
+        { allowed: true, isBranchLimited } as HrBranchAccessDecision,
+      );
+
+      assert.deepEqual(result.map((fact) => fact.has_finalized_correction), [false, true]);
+      assert.deepEqual(result.map((fact) => fact.status), ["closed", "closed"]);
+    });
+
+    const invalidLineages = [
+      ["missing", undefined],
+      ["null", null],
+      ["string true", "true"],
+      ["string false", "false"],
+      ["number one", 1],
+      ["number zero", 0],
+      ["object", {}],
+      ["array", []],
+    ] as const;
+
+    for (const [label, lineage] of invalidLineages) {
+      it(`rejects ${label} correction lineage from the ${reader} reader`, async () => {
+        const invalidRow: Record<string, unknown> = { ...row(1), has_finalized_correction: lineage };
+        if (label === "missing") delete invalidRow.has_finalized_correction;
+        const calls: string[] = [];
+        const supabase = {
+          rpc: async (name: string) => {
+            calls.push(name);
+            return { data: [row(0), invalidRow], error: null };
+          },
+        } as unknown as SupabaseClient<Database>;
+
+        await assert.rejects(
+          listCanonicalAttendanceForRange(
+            supabase,
+            "house-1",
+            "2026-09-23",
+            "2026-09-25",
+            { allowed: true, isBranchLimited } as HrBranchAccessDecision,
+          ),
+          { message: "Invalid canonical attendance correction lineage." },
+        );
+        assert.deepEqual(calls, [isBranchLimited
+          ? "hr_read_canonical_attendance_branch_scoped"
+          : "hr_read_canonical_attendance_house_global"]);
+      });
+    }
+  }
+
+  it("rejects the complete date result when a later page omits correction lineage", async () => {
+    const offsets: number[] = [];
+    const invalidRow: Record<string, unknown> = { ...row(200) };
+    delete invalidRow.has_finalized_correction;
+    const supabase = {
+      rpc: async (_name: string, args: Record<string, unknown>) => {
+        const offset = Number(args.p_offset);
+        offsets.push(offset);
+        return {
+          data: offset === 0 ? Array.from({ length: 200 }, (_, index) => row(index)) : [invalidRow],
+          error: null,
+        };
+      },
+    } as unknown as SupabaseClient<Database>;
+
+    await assert.rejects(
+      listCanonicalAttendanceForDate(
+        supabase,
+        "house-1",
+        "2026-09-25",
+        { allowed: true, isBranchLimited: true } as HrBranchAccessDecision,
+      ),
+      { message: "Invalid canonical attendance correction lineage." },
+    );
+    assert.deepEqual(offsets, [0, 200]);
+  });
+
   it("paginates until the complete Daily DTR fact set is loaded", async () => {
     const offsets: number[] = [];
     const firstPage = Array.from({ length: 200 }, (_, index) => row(index));
@@ -56,6 +145,68 @@ describe("Historical DTR P1 canonical reader adapter", () => {
     assert.equal(result.length, 201);
     assert.deepEqual(offsets, [0, 200]);
     assert.equal(result[200]?.fact_id, "fact-200");
+  });
+
+
+  it("forwards date ranges through the house-global canonical RPC", async () => {
+    const calls: Array<{ name: string; args: Record<string, unknown> }> = [];
+    const supabase = {
+      rpc: async (name: string, args: Record<string, unknown>) => {
+        calls.push({ name, args });
+        return { data: [row(1)], error: null };
+      },
+    } as unknown as SupabaseClient<Database>;
+
+    const access = {
+      allowed: true,
+      isBranchLimited: false,
+      allowedBranchIds: [],
+    } as unknown as HrBranchAccessDecision;
+
+    const result = await listCanonicalAttendanceForRange(
+      supabase,
+      "house-1",
+      "2026-09-23",
+      "2026-09-25",
+      access,
+      "employee-1",
+    );
+
+    assert.equal(result.length, 1);
+    assert.equal(result[0]?.has_finalized_correction, true);
+    assert.equal(calls[0]?.name, "hr_read_canonical_attendance_house_global");
+    assert.deepEqual(calls[0]?.args, {
+      p_house_id: "house-1",
+      p_start_date: "2026-09-23",
+      p_end_date: "2026-09-25",
+      p_employee_id: "employee-1",
+      p_limit: 200,
+      p_offset: 0,
+    });
+  });
+
+  it("selects the branch-scoped canonical RPC for branch-limited access", async () => {
+    const names: string[] = [];
+    const supabase = {
+      rpc: async (name: string) => {
+        names.push(name);
+        return { data: [], error: null };
+      },
+    } as unknown as SupabaseClient<Database>;
+
+    await listCanonicalAttendanceForRange(
+      supabase,
+      "house-1",
+      "2026-09-23",
+      "2026-09-25",
+      {
+        allowed: true,
+        isBranchLimited: true,
+        allowedBranchIds: ["branch-1"],
+      } as HrBranchAccessDecision,
+    );
+
+    assert.deepEqual(names, ["hr_read_canonical_attendance_branch_scoped"]);
   });
 
   it("does not call a canonical reader when HR access is denied", async () => {

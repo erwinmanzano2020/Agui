@@ -44,8 +44,12 @@
   is verified, and post-release invariants remain 96 compatibility segments / 96 linked,
   96 active canonical facts / 96 projection rows, zero active facts missing projection,
   and zero unbridged segments.
-- **Current bounded target: GAP-024 Gate D — PLANNING ACTIVE.** Durable planning artifact:
-  `docs/devlog/gap-024-gate-d-consumer-migration-plan.md`.
+- **Current bounded target: GAP-024 Gate D — FINAL ACCEPTANCE BLOCKED (2026-10-11).**
+  The owner-requested acceptance task completed the strict correction-lineage adapter fix
+  and local checks. Authenticated isolated UAT access and live evidence remain missing.
+  Approved contract: `docs/devlog/gap-024-gate-d-consumer-migration-plan.md`.
+  Exact source/results/limitations: `docs/devlog/gap-024-gate-d-final-acceptance.md`.
+  This does not authorize merge, Production changes, Gate E, or unrelated HR runtime.
 - Gate C is the canonical Daily DTR **facts-only result cutover**. Branch-limited result
   visibility must come from the branch-scoped canonical reader; legitimate owner/manager
   house-wide visibility uses the house-global reader. Read and write authority are

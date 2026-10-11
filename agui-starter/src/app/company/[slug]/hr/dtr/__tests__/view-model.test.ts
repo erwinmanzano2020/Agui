@@ -24,6 +24,7 @@ function fact(overrides: Partial<CanonicalAttendanceRow> = {}): CanonicalAttenda
     status: "open",
     attribution_state: "ATTRIBUTED",
     active_branch_id: "branch-1",
+    has_finalized_correction: false,
     ...overrides,
   };
 }
