@@ -111,28 +111,34 @@ export async function listCanonicalAttendanceForRange(
     if (page.length < pageSize) break;
   }
 
-  return rows.map((row) => ({
-    fact_id: String(row.fact_id),
-    employee_id: String(row.employee_id),
-    work_date: String(row.work_date),
-    time_in: typeof row.time_in === "string" ? row.time_in : null,
-    time_out: typeof row.time_out === "string" ? row.time_out : null,
-    hours_worked:
-      typeof row.hours_worked === "number"
-        ? row.hours_worked
-        : row.hours_worked == null
-          ? null
-          : Number(row.hours_worked),
-    overtime_minutes: Number(row.overtime_minutes ?? 0),
-    status: String(row.status ?? ""),
-    attribution_state:
-      row.attribution_state === "UNATTRIBUTED" || row.attribution_state === "CONFLICT"
-        ? row.attribution_state
-        : "ATTRIBUTED",
-    active_branch_id:
-      typeof row.active_branch_id === "string" ? row.active_branch_id : null,
-    has_finalized_correction: row.has_finalized_correction === true,
-  }));
+  return rows.map((row) => {
+    if (typeof row.has_finalized_correction !== "boolean") {
+      throw new Error("Invalid canonical attendance correction lineage.");
+    }
+
+    return {
+      fact_id: String(row.fact_id),
+      employee_id: String(row.employee_id),
+      work_date: String(row.work_date),
+      time_in: typeof row.time_in === "string" ? row.time_in : null,
+      time_out: typeof row.time_out === "string" ? row.time_out : null,
+      hours_worked:
+        typeof row.hours_worked === "number"
+          ? row.hours_worked
+          : row.hours_worked == null
+            ? null
+            : Number(row.hours_worked),
+      overtime_minutes: Number(row.overtime_minutes ?? 0),
+      status: String(row.status ?? ""),
+      attribution_state:
+        row.attribution_state === "UNATTRIBUTED" || row.attribution_state === "CONFLICT"
+          ? row.attribution_state
+          : "ATTRIBUTED",
+      active_branch_id:
+        typeof row.active_branch_id === "string" ? row.active_branch_id : null,
+      has_finalized_correction: row.has_finalized_correction,
+    };
+  });
 }
 
 export async function listCanonicalAttendanceForDate(

@@ -372,6 +372,7 @@ class SupabaseMock {
           overtime_minutes: 0,
           status: segment.status,
           attribution_state: "ATTRIBUTED",
+          has_finalized_correction: false,
           active_branch_id:
             this.data.employees.find((employee) => employee.id === segment.employee_id)?.branch_id ??
             null,

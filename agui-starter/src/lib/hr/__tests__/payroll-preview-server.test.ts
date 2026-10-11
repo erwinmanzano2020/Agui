@@ -110,6 +110,7 @@ class SupabaseMock {
       windows: HrScheduleWindowRow[];
       policies: HrOvertimePolicyRow[];
       branches: { id: string; house_id: string | null }[];
+      finalizedCorrectionFactIds?: string[];
     },
   ) {}
 
@@ -163,7 +164,7 @@ class SupabaseMock {
           status: segment.status,
           attribution_state: "ATTRIBUTED",
           active_branch_id: employee?.branch_id ?? null,
-          has_finalized_correction: segment.status === "corrected",
+          has_finalized_correction: this.data.finalizedCorrectionFactIds?.includes(segment.id) ?? false,
         };
       });
 
@@ -347,13 +348,14 @@ describe("payroll preview aggregation", () => {
   it("flags finalized correction lineage without changing completion status", async () => {
     const supabase = new SupabaseMock({
       segments: [
-        buildSegment({ id: "seg-corrected", status: "corrected" }),
+        buildSegment({ id: "seg-corrected", status: "closed" }),
       ],
       employees: [baseEmployee],
       assignments: [baseAssignment],
       windows: [baseWindow],
       policies: [basePolicy],
       branches: [{ id: "branch-1", house_id: "house-1" }],
+      finalizedCorrectionFactIds: ["seg-corrected"],
     });
 
     const result = await computePayrollPreviewForHousePeriod(
@@ -363,6 +365,35 @@ describe("payroll preview aggregation", () => {
     );
 
     assert.equal(result.rows[0]?.flags.hasCorrectedSegments, true);
+  });
+
+  it("rejects payroll preview when the canonical reader omits correction lineage", async () => {
+    const supabase = {
+      rpc: async () => ({
+        data: [{
+          fact_id: "fact-1",
+          employee_id: baseEmployee.id,
+          work_date: "2024-10-01",
+          time_in: "2024-10-01T08:00:00+08:00",
+          time_out: "2024-10-01T17:00:00+08:00",
+          status: "closed",
+          active_branch_id: "branch-1",
+        }],
+        error: null,
+      }),
+      from: () => {
+        assert.fail("Invalid attendance must not proceed to payroll metadata enrichment.");
+      },
+    };
+
+    await assert.rejects(
+      computePayrollPreviewForHousePeriod(
+        supabase as never,
+        { houseId: "house-1", startDate: "2024-10-01", endDate: "2024-10-01" },
+        { access: accessAllowed },
+      ),
+      { message: "Invalid canonical attendance correction lineage." },
+    );
   });
 
   it("flags open segments without breaking totals", async () => {

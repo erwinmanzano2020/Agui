@@ -53,6 +53,7 @@ function createMutationSupabaseMock(run: MockRun, options: { openSegmentsForFres
               time_out: null,
               hours_worked: null,
               overtime_minutes: 0,
+              has_finalized_correction: false,
               status: "open",
               attribution_state: "ATTRIBUTED",
               active_branch_id: "branch-1",

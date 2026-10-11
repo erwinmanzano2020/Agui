@@ -202,6 +202,7 @@ class SupabaseMock {
           overtime_minutes: 0,
           status: segment.status,
           attribution_state: "ATTRIBUTED",
+          has_finalized_correction: false,
           active_branch_id: employee?.branch_id ?? null,
         };
       });
