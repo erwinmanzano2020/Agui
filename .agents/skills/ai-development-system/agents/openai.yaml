@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI Development System"
+  short_description: "Bootstrap and resume projects from durable project context"
+

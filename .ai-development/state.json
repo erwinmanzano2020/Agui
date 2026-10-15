@@ -1,0 +1,61 @@
+{
+  "schema_version": 1,
+  "project": {
+    "name": "Agui",
+    "repository": "erwinmanzano2020/Agui",
+    "profile": "agui"
+  },
+  "scope": {
+    "active_phase": "HR only; preserve paused POS checkpoint and governing HR audit gate",
+    "authority": [
+      "AGENTS.md",
+      "Owner-authorized workflow adoption on 2026-10-15"
+    ],
+    "prohibited": [
+      "No business-phase reactivation through tooling adoption",
+      "No production login or financial activation inferred from adoption",
+      "No credential values in committed state"
+    ]
+  },
+  "workspace": {
+    "execution": "work",
+    "source_mode": "connector-materialized",
+    "durability": "Source persisted in GitHub; local edits require reviewed commit before durability is claimed",
+    "limitations": [
+      "This Work workspace is transient",
+      "Work does not directly operate the owner Windows PC",
+      "Full application checkout and dependencies may be unavailable locally"
+    ]
+  },
+  "current": {
+    "milestone": "HR current-state continuation",
+    "outcome": "Resume the authorized HR outcome from governing evidence",
+    "risk": "STANDARD",
+    "stage": "GOVERNANCE_RECONSTRUCTION_REQUIRED",
+    "next_action": "Read HR roadmap/current contracts and verify current project checks before runtime work",
+    "blockers": [
+      "HR runtime authorization must be verified from governing decisions"
+    ]
+  },
+  "checks": {
+    "source_head": "5fe1bce2b1e89c672d7bb1454ac58f6987cd6968",
+    "required": [
+      {
+        "id": "project-and-workflow-verification",
+        "status": "NOT_RUN"
+      }
+    ]
+  },
+  "capabilities": [],
+  "owner_session": {
+    "status": "NOT_PREPARED",
+    "cleanup": "NOT_RUN"
+  },
+  "uat": [],
+  "metrics": {
+    "owner_interruptions": null,
+    "manual_commands": null,
+    "repeated_cases": null,
+    "recovery_minutes": null
+  }
+}

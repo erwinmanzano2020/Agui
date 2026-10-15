@@ -1,0 +1,8 @@
+{
+  "enabled": false,
+  "governance_reference": "No owner runtime adapter reviewed for this project yet.",
+  "runtime": "node",
+  "script": "REQUIRES_REVIEWED_PROJECT_ADAPTER",
+  "check_args": [],
+  "run_args": []
+}
