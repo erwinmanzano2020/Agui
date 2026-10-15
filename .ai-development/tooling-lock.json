@@ -1,10 +1,10 @@
 {
   "shared_repository": "erwinmanzano2020/ai-magic",
-  "source_commit": "f1eaa5b0770e4bc35c52c05b3e523e75ad86d86c",
+  "source_commit": "8d3f02198a934832db40cf5fd1791c2d05365ffc",
   "files": {
     ".agents/skills/ai-development-system/SKILL.md": "63ef23e8eb8b5b234dde233fc3a00d2bdc564e10a0d0a8b14ddfeff6df5bd627",
     ".agents/skills/ai-development-system/references/control-center.md": "add3a243de1cdae733573476e19721d30dbe12045d953ba9ce88f89fc4d56da6",
-    ".agents/skills/ai-development-system/references/work-mode.md": "c47d2ab03c10b7db880cd184635ea7f6dfe42587684892eda03b537f36ed9770",
+    ".agents/skills/ai-development-system/references/work-mode.md": "f9dee3609c2b67f16455d57fe4c5bf58786769e3ae1283932b72afb78ca978a5",
     ".agents/skills/ai-development-system/references/orchestration.md": "27ffb248b193343ad884a88b525c3c521604f5bd3d38d30c3fcf3418b938aea6",
     ".agents/skills/ai-development-system/references/review-convergence.md": "fc2349c37267d7d54571d4cd29a4aa9fa6c2d25b83f630216252427351a8f5cd",
     ".agents/skills/ai-development-system/references/profile-selection.md": "dafadd39b612e934b61e3868add854c7dfe33cdafcd0322a3f8d1d65ba48cf95",
@@ -17,11 +17,11 @@
     ".agents/skills/ai-development-system/assets/ARCHITECTURE.template.md": "4549dde7025ffcd92607f5d2d8fec70690aa21bf40e003c48e3ad113dce80161",
     ".agents/skills/ai-development-system/agents/openai.yaml": "48e0eddb534be091d00ea9c4c378b636cf45f97797e8756a7efe2398928c6f55",
     ".agents/skills/ai-development-system/scripts/bootstrap_project.py": "980a652ace18a30b670d2de4766c9466785b09f29ebd2fda9724897769a077ff",
-    ".agents/skills/ai-development-system/scripts/workflow.mjs": "1e4694555a6a96bef8d8cd8b3352a3a9824f86de95cc3c208b6d669b4749b8de",
+    ".agents/skills/ai-development-system/scripts/workflow.mjs": "baee3eeb30179dda31dc9612125e367149e6de56cdfa1e237fc86c05eccd1d29",
     ".agents/skills/delivery-convergence/SKILL.md": "e462b796ffb36277c38c9efd107d42d8adaad3a44caa34060cfe0e7edf9bbcd7",
-    ".ai-development/tools/workflow.mjs": "1e4694555a6a96bef8d8cd8b3352a3a9824f86de95cc3c208b6d669b4749b8de",
+    ".ai-development/tools/workflow.mjs": "baee3eeb30179dda31dc9612125e367149e6de56cdfa1e237fc86c05eccd1d29",
     "project.mjs": "848d5b9806263c289fdf08d839515b2afb50aa7aff0890a44a039331cd3259e7",
     "project.cmd": "0a389778b6d99ca711081f467c4c0505f42e4e227b5ae98b453c44e4ceb319cb",
-    ".ai-development/checks/workflow-cases.mjs": "8c67e0fbbfd786fe65d43d15d5294ba9d8df26a032b3b6a932254d44071d883f"
+    ".ai-development/checks/workflow-cases.mjs": "fa7bd497cd32bc888771dca32ae91ba6d5c93622b2be62cba0332c6bfd85e5ee"
   }
 }

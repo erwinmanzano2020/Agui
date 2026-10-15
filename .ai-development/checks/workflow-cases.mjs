@@ -4,7 +4,7 @@ import {mkdtempSync,writeFileSync,mkdirSync,readFileSync,symlinkSync,rmSync} fro
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {validate,recovery,ownerPlan,summary,dispatch,writeSummary,main} from '../tools/workflow.mjs';
+import {validate,recovery,ownerPlan,summary,dispatch,writeSummary,main,resolvePowerShell} from '../tools/workflow.mjs';
 
 const head='a'.repeat(40),now=Date.now();
 function fixture(){return{
@@ -46,6 +46,25 @@ test('secret metadata and credentialed links rejected without echoing values',()
   const s=fixture();s.extra=value;assert.throws(()=>validate(s),e=>!e.message.includes('PRIVATE_CANARY')&&/SECRET/.test(e.message));
  }
 });
+test('standard credential aliases, token formats and encoded URL parameters are blocked',()=>{
+ for(const key of ['access_token','refreshToken','id-token','api_key','client_secret','credentials','authorization','serviceRoleKey']){
+  const s=fixture();s.project[key]='PRIVATE_CANARY';assert.throws(()=>validate(s),e=>/SECRET/.test(e.message)&&!e.message.includes('PRIVATE_CANARY'));
+ }
+ for(const value of ['https://example.invalid/?access_token=PRIVATE_CANARY','https://example.invalid/?%61pi_key=PRIVATE_CANARY','https://example.invalid/#refresh_token=PRIVATE_CANARY','https://user:PRIVATE_CANARY@example.invalid/','sk-proj-'+ 'x'.repeat(30),'AKIA'+'X'.repeat(16),'Bearer PRIVATE_CANARY','eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.synthetic']){
+  const s=fixture();s.current.outcome=value;assert.throws(()=>validate(s),/SECRET_VALUE_FORBIDDEN/);
+ }
+ const s=fixture();s.project.unrecognized='opaque';assert.throws(()=>validate(s),/UNKNOWN_STATE_FIELD/);
+});
+for(const status of ['FAIL','PARTIAL','NOT_RUN'])test('automated UAT '+status+' blocks owner readiness even with passing checks',()=>{
+ const s=fixture();s.uat.find(x=>x.mode==='AUTOMATED').status=status;assert.equal(ownerPlan(s,now).ready,false);
+});
+test('PowerShell discovery prefers ProgramFiles then falls back to PATH',()=>{
+ const calls=[],programFiles=resolve(tmpdir(),'synthetic-program-files');
+ const selected=resolvePowerShell('win32',programFiles,executable=>{calls.push(executable);return executable==='pwsh'?{status:0,stdout:'7\n'}:{status:null,stdout:''};});
+ assert.equal(selected,'pwsh');assert.deepEqual(calls,[resolve(programFiles,'PowerShell/7/pwsh.exe'),'pwsh']);
+ const first=resolvePowerShell('win32',programFiles,executable=>({status:0,stdout:'7\n'}));assert.equal(first,resolve(programFiles,'PowerShell/7/pwsh.exe'));
+ assert.equal(resolvePowerShell('win32',programFiles,()=>({status:0,stdout:'5\n'})),null);
+});
 test('render is deterministic and cannot overwrite through an outside symlink',()=>{
  const root=mkdtempSync(join(tmpdir(),'workflow-render-')),outside=mkdtempSync(join(tmpdir(),'workflow-outside-'));
  try{
@@ -61,7 +80,7 @@ test('CLI refuses unknown commands and does not expose malformed state',()=>{
 test('help works before a project has state',()=>{
  assert.ok(main(['--help',tmpdir()]).commands.includes('doctor'));
 });
-for(const failure of ['preflight','worker','source-change','plan-change'])test('dispatcher preserves evidence and stops on '+failure,()=>{
+for(const failure of ['preflight','worker','source-change','plan-change','timeout','stdin'])test('dispatcher preserves evidence and stops on '+failure,()=>{
  const root=mkdtempSync(join(tmpdir(),'workflow-stop-')),outside=mkdtempSync(join(tmpdir(),'workflow-proof-'));
  const git=args=>{const r=spawnSync('git',['-C',root,...args],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);return r.stdout.trim();};
  try{
@@ -70,13 +89,15 @@ for(const failure of ['preflight','worker','source-change','plan-change'])test('
   const worker=`import {writeFileSync,readFileSync} from 'node:fs';
    if(process.argv[2]==='--check'){
     if(${JSON.stringify(failure)}==='preflight')process.exit(7);
+    if(${JSON.stringify(failure)}==='timeout')setInterval(()=>{},1000);
+    if(${JSON.stringify(failure)}==='stdin'&&readFileSync(0).length===0)process.exit(7);
     if(${JSON.stringify(failure)}==='source-change')writeFileSync('changed-source','changed');
     if(${JSON.stringify(failure)}==='plan-change'){const p=JSON.parse(readFileSync(${JSON.stringify(planPath)},'utf8'));p.current.stage='CHANGED';writeFileSync(${JSON.stringify(planPath)},JSON.stringify(p));}
    }else{writeFileSync(${JSON.stringify(marker)},'ran');if(${JSON.stringify(failure)}==='worker')process.exit(9);}`;
-  writeFileSync(join(root,'worker.mjs'),worker);writeFileSync(join(root,'.ai-development/owner-adapter.json'),JSON.stringify({enabled:true,governance_reference:'fixture:only',runtime:'node',script:'worker.mjs',check_args:['--check'],run_args:['--run']}));
+  writeFileSync(join(root,'worker.mjs'),worker);writeFileSync(join(root,'.ai-development/owner-adapter.json'),JSON.stringify({enabled:true,governance_reference:'fixture:only',runtime:'node',script:'worker.mjs',check_args:['--check'],run_args:['--run'],preflight_timeout_ms:failure==='timeout'?200:30000}));
   git(['add','.']);git(['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','fixture']);const source=git(['rev-parse','HEAD']);
   const plan=fixture();plan.owner_session.source_head=source;plan.checks.source_head=source;plan.checks.required[0].head=source;writeFileSync(planPath,JSON.stringify(plan));
-  const codes={preflight:/PREFLIGHT_FAILED/,worker:/STOPPED_PRESERVE_EVIDENCE/,'source-change':/SOURCE_CHANGED/,'plan-change':/WINDOW_NO_LONGER_READY/};
+  const codes={preflight:/PREFLIGHT_FAILED/,worker:/STOPPED_PRESERVE_EVIDENCE/,'source-change':/SOURCE_CHANGED/,'plan-change':/WINDOW_NO_LONGER_READY/,timeout:/PREFLIGHT_FAILED/,stdin:/PREFLIGHT_FAILED/};
   assert.throws(()=>dispatch(root,source,true,planPath),codes[failure]);
   if(failure!=='worker')assert.throws(()=>readFileSync(marker));
   assert.ok(readFileSync(planPath,'utf8').length>0);

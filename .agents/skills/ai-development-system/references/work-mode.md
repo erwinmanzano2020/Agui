@@ -48,7 +48,10 @@ preflight must verify those before its hidden-input/runtime phase as applicable.
 
 Never download or install a runtime silently. Diagnose missing prerequisites
 before asking for private inputs. Resolve PowerShell7 by installed ProgramFiles
-path before PATH. The dispatcher never invokes a shell or captures worker output.
+path before falling back to PATH. The dispatcher never invokes a shell or captures
+worker output. Preflight has stdin disabled, PowerShell noninteractive mode, and
+a 30-second default timeout (reviewed adapter override:100–60000ms). Only the
+runtime invocation inherits private input; timeout does not label cleanup complete.
 
 `run <head> --ready <absolute-plan-path>` is available only with a tracked,
 enabled reviewed owner-adapter.json and worker, exact clean source, prerequisite
@@ -86,7 +89,7 @@ Automate ordinary role, denial, approval/revoke, scope, stale-state, replay and
 network cases with disposable data. Reserve owner steps for native device prompts,
 physical custody and actual usability. `owner-plan` lists only unfinished physical
 cases, their reason, total estimate and remaining time. Require passing bound
-checks, no unresolved blockers and at least five minutes cleanup reserve. Prepare
+checks and automated UAT cases, no unresolved blockers and at least five minutes cleanup reserve. Prepare
 before inviting the owner; poll actual readiness rather than an arbitrary wait.
 Use one compact checklist with expected outcomes/evidence and visible expiry.
 Do not mark a reported screenshot as server truth or turn uncertain errors into

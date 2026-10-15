@@ -11,18 +11,30 @@ const fail=code=>{throw Error(code);};
 const object=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const text=v=>typeof v==='string'&&v.length>0&&v.length<=3000&&!/[\x00-\x1f\x7f]/.test(v);
 const list=v=>Array.isArray(v)&&v.every(text);
+const credentialKey=key=>/^(?:password|passwd|passphrase|token|accesstoken|refreshtoken|idtoken|sessiontoken|apikey|authorization|credentials|secret|clientsecret|servicerolekey|servicekey|privatekey|databaseurl|connectionstring|operatorcode|xvercelprotectionbypass|code)$/.test(key.toLowerCase().replace(/[^a-z0-9]/g,''));
 function noSecrets(value){
  if(Array.isArray(value)){value.forEach(noSecrets);return;}
  if(object(value))for(const [key,v] of Object.entries(value)){
-  if(/^(password|token|secret|service_role_key|private_key|database_url|operator_code)$/i.test(key))fail('SECRET_FIELD_FORBIDDEN');
+  if(credentialKey(key))fail('SECRET_FIELD_FORBIDDEN');
   noSecrets(v);
  }
- if(typeof value==='string'&&(/(?:sb_secret_|gh[pousr]_|github_pat_)[A-Za-z0-9_]{12,}|-----BEGIN .*PRIVATE KEY-----|postgres(?:ql)?:\/\/[^\s]+@/i.test(value)||/[?&](?:token|password|secret|code|x-vercel-protection-bypass)=/i.test(value)))fail('SECRET_VALUE_FORBIDDEN');
+ if(typeof value==='string'){
+  if(/(?:sb_secret_|gh[pousr]_|github_pat_|sk[-_])[A-Za-z0-9_-]{12,}|\b(?:AKIA|ASIA)[A-Z0-9]{16}\b|\bBearer\s+\S{8,}|-----BEGIN .*PRIVATE KEY-----|postgres(?:ql)?:\/\/[^\s]+@|\beyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/i.test(value))fail('SECRET_VALUE_FORBIDDEN');
+  try{
+   const url=new URL(value);
+   if(url.username||url.password||[...url.searchParams.keys(),...new URLSearchParams(url.hash.slice(1)).keys()].some(credentialKey))fail('SECRET_VALUE_FORBIDDEN');
+  }catch(e){if(e.message==='SECRET_VALUE_FORBIDDEN')throw e;}
+ }
 }
 function requireThat(ok,code){if(!ok)fail(code);}
+function keys(value,allowed){requireThat(object(value)&&Object.keys(value).every(k=>allowed.includes(k)),'UNKNOWN_STATE_FIELD');}
 export function validate(state){
  noSecrets(state);
  requireThat(object(state)&&state.schema_version===1,'STATE_VERSION_INVALID');
+ keys(state,['schema_version','project','scope','workspace','current','checks','capabilities','owner_session','uat','metrics']);
+ keys(state.project,['name','repository','profile']);keys(state.scope,['active_phase','authority','prohibited']);keys(state.workspace,['execution','source_mode','durability','limitations']);
+ keys(state.current,['risk','milestone','outcome','stage','next_action','blockers']);keys(state.checks,['source_head','required']);
+ keys(state.owner_session,['status','cleanup','run_id','source_head','starts_at','ends_at','evidence']);keys(state.metrics,['owner_interruptions','manual_commands','repeated_cases','recovery_minutes']);
  requireThat(object(state.project)&&text(state.project.name)&&text(state.project.repository)&&text(state.project.profile),'PROJECT_INVALID');
  requireThat(object(state.scope)&&text(state.scope.active_phase)&&list(state.scope.authority)&&list(state.scope.prohibited),'SCOPE_INVALID');
  requireThat(object(state.workspace)&&['work','owner','ci'].includes(state.workspace.execution)&&text(state.workspace.source_mode)&&text(state.workspace.durability)&&list(state.workspace.limitations),'WORKSPACE_INVALID');
@@ -31,14 +43,16 @@ export function validate(state){
  requireThat(object(state.checks)&&sha.test(state.checks.source_head)&&Array.isArray(state.checks.required),'CHECKS_INVALID');
  requireThat(new Set(state.checks.required.map(x=>x.id)).size===state.checks.required.length,'DUPLICATE_CHECK');
  for(const check of state.checks.required){
+  keys(check,['id','status','head','evidence','reason']);
   requireThat(object(check)&&text(check.id)&&RESULTS.includes(check.status),'CHECK_INVALID');
   if(check.status==='PASS')requireThat(check.head===state.checks.source_head&&text(check.evidence),'CHECK_HEAD_OR_EVIDENCE_INVALID');
   if(check.status==='NOT_REQUIRED')requireThat(text(check.reason),'CHECK_SKIP_REASON_REQUIRED');
  }
  requireThat(Array.isArray(state.capabilities)&&new Set(state.capabilities.map(x=>x.id)).size===state.capabilities.length,'CAPABILITIES_INVALID');
  for(const cap of state.capabilities){
+  keys(cap,['id','title','implemented','released','operationally_enabled','automated','physical','physical_reason','evidence']);
   requireThat(object(cap)&&text(cap.id)&&text(cap.title)&&typeof cap.implemented==='boolean'&&typeof cap.released==='boolean'&&typeof cap.operationally_enabled==='boolean'&&RESULTS.includes(cap.automated)&&RESULTS.includes(cap.physical)&&Array.isArray(cap.evidence),'CAPABILITY_INVALID');
-  for(const e of cap.evidence)requireThat(object(e)&&['automated','physical','release','activation'].includes(e.kind)&&text(e.reference)&&sha.test(e.head),'CAPABILITY_EVIDENCE_INVALID');
+  for(const e of cap.evidence){keys(e,['kind','reference','head']);requireThat(object(e)&&['automated','physical','release','activation'].includes(e.kind)&&text(e.reference)&&sha.test(e.head),'CAPABILITY_EVIDENCE_INVALID');}
   for(const kind of ['automated','physical'])if(cap[kind]==='PASS')requireThat(cap.evidence.some(e=>e.kind===kind),'CAPABILITY_PROOF_REQUIRED');
   if(cap.physical==='NOT_REQUIRED')requireThat(text(cap.physical_reason),'PHYSICAL_SKIP_REASON_REQUIRED');
   if(cap.released)requireThat(cap.implemented&&cap.evidence.some(e=>e.kind==='release'),'RELEASE_PROOF_REQUIRED');
@@ -51,7 +65,7 @@ export function validate(state){
  if(['READY','ACTIVE','EXPIRED'].includes(s.status))requireThat(Number.isSafeInteger(s.starts_at)&&Number.isSafeInteger(s.ends_at)&&s.ends_at>s.starts_at,'SESSION_TIMEBOX_INVALID');
  if(s.status==='COMPLETED')requireThat(s.cleanup==='PASS','SESSION_CLEANUP_REQUIRED');
  requireThat(Array.isArray(state.uat)&&new Set(state.uat.map(x=>x.id)).size===state.uat.length,'UAT_INVALID');
- for(const u of state.uat)requireThat(object(u)&&text(u.id)&&['AUTOMATED','OWNER'].includes(u.mode)&&text(u.reason)&&Number.isFinite(u.minutes)&&u.minutes>=0&&RESULTS.includes(u.status),'UAT_CASE_INVALID');
+ for(const u of state.uat){keys(u,['id','mode','reason','minutes','status']);requireThat(object(u)&&text(u.id)&&['AUTOMATED','OWNER'].includes(u.mode)&&text(u.reason)&&Number.isFinite(u.minutes)&&u.minutes>=0&&RESULTS.includes(u.status),'UAT_CASE_INVALID');}
  const m=state.metrics;
  requireThat(object(m)&&['owner_interruptions','manual_commands','repeated_cases','recovery_minutes'].every(k=>m[k]===null||(Number.isFinite(m[k])&&m[k]>=0)),'METRICS_INVALID');
  return state;
@@ -68,8 +82,9 @@ export function ownerPlan(state,now=Date.now()){
  const minutes=pending.reduce((sum,x)=>sum+x.minutes,0);
  const remaining=Number.isSafeInteger(state.owner_session.ends_at)?Math.max(0,(state.owner_session.ends_at-now)/60000):null;
  const checksReady=state.checks.required.length>0&&state.checks.required.every(x=>['PASS','NOT_REQUIRED'].includes(x.status));
+ const automatedReady=state.uat.filter(x=>x.mode==='AUTOMATED').every(x=>['PASS','NOT_REQUIRED'].includes(x.status));
  return{cases:pending.map(({id,reason,minutes})=>({id,reason,minutes})),estimated_minutes:minutes,remaining_minutes:remaining,
-  ready:pending.length>0&&state.checks.source_head===state.owner_session.source_head&&state.owner_session.status==='READY'&&now>=state.owner_session.starts_at&&remaining!==null&&remaining>=minutes+5&&checksReady&&state.checks.required.some(x=>x.status==='PASS')&&state.current.blockers.length===0};
+  ready:pending.length>0&&automatedReady&&state.checks.source_head===state.owner_session.source_head&&state.owner_session.status==='READY'&&now>=state.owner_session.starts_at&&remaining!==null&&remaining>=minutes+5&&checksReady&&state.checks.required.some(x=>x.status==='PASS')&&state.current.blockers.length===0};
 }
 export function summary(state){
  validate(state);return{project:state.project.name,milestone:state.current.milestone,outcome:state.current.outcome,stage:state.current.stage,next_action:state.current.next_action,blockers:state.current.blockers,workspace:state.workspace,
@@ -82,12 +97,15 @@ function confined(root,path){
 }
 function readJson(path){const raw=readFileSync(path,'utf8');requireThat(raw.length<=256000,'FILE_TOO_LARGE');return JSON.parse(raw);}
 function git(root,args){const r=spawnSync('git',['-C',root,...args],{encoding:'utf8',timeout:10000,shell:false});requireThat(r.status===0,'GIT_CHECK_FAILED');return r.stdout.trim();}
+export function resolvePowerShell(platform=process.platform,programFiles=process.env.ProgramFiles,probe=executable=>spawnSync(executable,['-NoProfile','-NonInteractive','-Command','$PSVersionTable.PSVersion.Major'],{encoding:'utf8',timeout:10000,shell:false,stdio:['ignore','pipe','pipe']})){
+ const candidates=platform==='win32'&&programFiles?[resolve(programFiles,'PowerShell/7/pwsh.exe'),'pwsh']:['pwsh'];
+ for(const executable of candidates){const result=probe(executable);if(result.status===0&&Number(result.stdout.trim())>=7)return executable;}
+ return null;
+}
 export function doctor(root){
  const major=Number(process.versions.node.split('.')[0]);
  const gitResult=spawnSync('git',['--version'],{encoding:'utf8',timeout:10000,shell:false});
- const pwsh=process.platform==='win32'&&process.env.ProgramFiles?resolve(process.env.ProgramFiles,'PowerShell/7/pwsh.exe'):'pwsh';
- const ps=spawnSync(pwsh,['-NoProfile','-Command','$PSVersionTable.PSVersion.Major'],{encoding:'utf8',timeout:10000,shell:false});
- return{node20:major>=20,git:gitResult.status===0,powershell7:ps.status===0&&Number(ps.stdout.trim())>=7,project_state:existsSync(resolve(root,'.ai-development/state.json')),execution_host:process.platform};
+ return{node20:major>=20,git:gitResult.status===0,powershell7:resolvePowerShell()!==null,project_state:existsSync(resolve(root,'.ai-development/state.json')),execution_host:process.platform};
 }
 /** Generic dispatcher is not a recovery or authorization adapter. The pinned
  * project worker must independently revalidate all original proofs and gates. */
@@ -113,12 +131,14 @@ export function dispatch(root,head,ready=false,planPath){
  requireThat(ownerPlan(state).ready,'OWNER_PLAN_NOT_READY');
  requireThat(state.owner_session.source_head===head,'SESSION_SOURCE_MISMATCH');
  const env=doctor(root);requireThat(env.node20&&env.git&&(adapter.runtime!=='pwsh'||env.powershell7),'PREREQUISITES_MISSING');
- const executable=adapter.runtime==='node'?process.execPath:process.platform==='win32'&&process.env.ProgramFiles?resolve(process.env.ProgramFiles,'PowerShell/7/pwsh.exe'):'pwsh';
+ const executable=adapter.runtime==='node'?process.execPath:resolvePowerShell();requireThat(executable!==null,'PREREQUISITES_MISSING');
  const prefix=adapter.runtime==='node'?[worker]:['-NoProfile','-File',worker];
  const bind=args=>args.map(arg=>arg.replaceAll('{head}',head));
- // Check-only may never request secrets or mutate remote state. Inherited IO
- // preserves the project's private hidden-input ceremony; never capture output.
- let r=spawnSync(executable,[...prefix,...bind(adapter.check_args)],{cwd:root,stdio:'inherit',shell:false});requireThat(r.status===0,'ADAPTER_PREFLIGHT_FAILED');
+ const timeout=adapter.preflight_timeout_ms??30000;requireThat(Number.isSafeInteger(timeout)&&timeout>=100&&timeout<=60000,'PREFLIGHT_TIMEOUT_INVALID');
+ const checkPrefix=adapter.runtime==='node'?[worker]:['-NoProfile','-NonInteractive','-File',worker];
+ // Preflight gets no stdin and must terminate. Runtime alone inherits the
+ // project's hidden-input ceremony. Neither phase is captured or logged here.
+ let r=spawnSync(executable,[...checkPrefix,...bind(adapter.check_args)],{cwd:root,stdio:['ignore','inherit','inherit'],shell:false,timeout,killSignal:'SIGKILL'});requireThat(r.status===0,'ADAPTER_PREFLIGHT_FAILED');
  requireThat(git(root,['rev-parse','HEAD'])===head&&git(root,['status','--porcelain','--untracked-files=all'])==='','SOURCE_CHANGED_DURING_PREFLIGHT');
  const refreshed=validate(readJson(plan));requireThat(JSON.stringify(refreshed)===JSON.stringify(state)&&refreshed.owner_session.source_head===head&&ownerPlan(refreshed).ready,'OWNER_WINDOW_NO_LONGER_READY');
  r=spawnSync(executable,[...prefix,...bind(adapter.run_args)],{cwd:root,stdio:'inherit',shell:false});requireThat(r.status===0,'ADAPTER_STOPPED_PRESERVE_EVIDENCE');
