@@ -138,3 +138,14 @@ Use the closest applicable local `AGENTS.md` for sharper guidance in these areas
 - `/docs/hr/AGENTS.md`
 
 Local files refine behavior for their subtree. They do not replace root policy.
+
+## Work workflow adoption — owner-authorized 2026-10-15
+
+Use `.ai-development/WORKFLOW_ENTRY.md` and the installed AI Development System.
+Run `node project.mjs status` for the non-secret current evidence index; verify
+its references against current source/services. Use local implementation and
+relevant checks before publishing a coherent user outcome. Keep readiness as
+implemented/automated/physical/released/operationally-enabled separately.
+Preserve all existing phase, tenancy, identity, financial, review and activation
+gates above. Workflow adoption does not reactivate paused product work or start
+a live owner session. Do not replay retired launchers or weaken proof history.

@@ -1,0 +1,20 @@
+{
+  "system": "AI Magic Development System",
+  "project_name": "Agui",
+  "profile": "agui",
+  "version": 4,
+  "workflow_state": ".ai-development/state.json",
+  "source_repo": "erwinmanzano2020/ai-magic",
+  "source_ref": "8d3f02198a934832db40cf5fd1791c2d05365ffc",
+  "work_mode": {
+    "enabled": true,
+    "entry": "node project.mjs status",
+    "current_entry": ".ai-development/WORKFLOW_ENTRY.md",
+    "owner_adapter": "disabled until separately reviewed project preparation",
+    "governance_preserved": true
+  },
+  "selected_skills": [
+    "ai-development-system",
+    "delivery-convergence"
+  ]
+}
