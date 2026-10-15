@@ -5,7 +5,7 @@
   "version": 4,
   "workflow_state": ".ai-development/state.json",
   "source_repo": "erwinmanzano2020/ai-magic",
-  "source_ref": "8d3f02198a934832db40cf5fd1791c2d05365ffc",
+  "source_ref": "38438b7b8d147ef164ddb173f351878b467540a4",
   "work_mode": {
     "enabled": true,
     "entry": "node project.mjs status",

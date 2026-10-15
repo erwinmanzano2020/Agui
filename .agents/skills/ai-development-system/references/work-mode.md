@@ -56,6 +56,11 @@ runtime invocation inherits private input; timeout does not label cleanup comple
 `run <head> --ready <absolute-plan-path>` is available only with a tracked,
 enabled reviewed owner-adapter.json and worker, exact clean source, prerequisite
 checks and a ready owner plan. No live adapter is enabled at bootstrap. The plan
+must use a project-local pinned dispatcher. Reject assume-unchanged/skip-worktree
+index flags; compare entry point, dispatcher, adapter, state and worker contents
+directly with the pinned Git blobs before and after preflight. Permit only Git's
+LF/CRLF checkout conversion for valid UTF-8 text. Clean status alone is not proof.
+The external session plan
 is outside the checkout because a tracked file cannot contain its own commit SHA.
 It contains no secrets and is an index, not a replacement for sealed journals.
 Adapter argument arrays may use the literal `{head}` placeholder for the pinned source; no shell interpolation is performed. The owner-ready flag means the owner is physically available; it is not a new

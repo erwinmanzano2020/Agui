@@ -1,12 +1,19 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,writeFileSync,mkdirSync,readFileSync,symlinkSync,rmSync} from 'node:fs';
+import {mkdtempSync,writeFileSync,mkdirSync,readFileSync,symlinkSync,rmSync,copyFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join,resolve} from 'node:path';
 import {spawnSync} from 'node:child_process';
-import {validate,recovery,ownerPlan,summary,dispatch,writeSummary,main,resolvePowerShell} from '../tools/workflow.mjs';
+import {fileURLToPath,pathToFileURL} from 'node:url';
+import {validate,recovery,ownerPlan,summary,dispatch,writeSummary,main,resolvePowerShell,verifyPinnedFile} from '../tools/workflow.mjs';
 
 const head='a'.repeat(40),now=Date.now();
+async function projectDispatcher(root){
+ const file=join(root,'.ai-development/tools/workflow.mjs');mkdirSync(join(root,'.ai-development/tools'),{recursive:true});
+ copyFileSync(fileURLToPath(new URL('../tools/workflow.mjs',import.meta.url)),file);
+ writeFileSync(join(root,'project.mjs'),"import './.ai-development/tools/workflow.mjs';\n");
+ return(await import(pathToFileURL(file).href)).dispatch;
+}
 function fixture(){return{
  schema_version:1,project:{name:'Synthetic',repository:'owner/synthetic',profile:'greenfield'},
  scope:{active_phase:'Prototype',authority:['Synthetic tests only'],prohibited:['No live services']},
@@ -80,11 +87,20 @@ test('CLI refuses unknown commands and does not expose malformed state',()=>{
 test('help works before a project has state',()=>{
  assert.ok(main(['--help',tmpdir()]).commands.includes('doctor'));
 });
-for(const failure of ['preflight','worker','source-change','plan-change','timeout','stdin'])test('dispatcher preserves evidence and stops on '+failure,()=>{
+test('pinned file comparison permits only checkout newline conversion, never replacement bytes',()=>{
+ const root=mkdtempSync(join(tmpdir(),'workflow-bytes-'));
+ const git=args=>{const r=spawnSync('git',['-C',root,...args],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);return r.stdout.trim();};
+ try{
+  git(['init','--quiet']);writeFileSync(join(root,'worker.mjs'),'// reviewed\nexport const value=1;\n');git(['add','.']);git(['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','fixture']);const source=git(['rev-parse','HEAD']);
+  verifyPinnedFile(root,source,'worker.mjs');writeFileSync(join(root,'worker.mjs'),'// reviewed\r\nexport const value=1;\r\n');verifyPinnedFile(root,source,'worker.mjs');
+  writeFileSync(join(root,'worker.mjs'),'// reviewed\nexport const value=2;\n');assert.throws(()=>verifyPinnedFile(root,source,'worker.mjs'),/PINNED_EXECUTABLE_CHANGED/);
+ }finally{rmSync(root,{recursive:true,force:true});}
+});
+for(const failure of ['preflight','worker','source-change','plan-change','timeout','stdin'])test('dispatcher preserves evidence and stops on '+failure,async()=>{
  const root=mkdtempSync(join(tmpdir(),'workflow-stop-')),outside=mkdtempSync(join(tmpdir(),'workflow-proof-'));
  const git=args=>{const r=spawnSync('git',['-C',root,...args],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);return r.stdout.trim();};
  try{
-  git(['init','--quiet']);mkdirSync(join(root,'.ai-development'));writeFileSync(join(root,'.ai-development/state.json'),JSON.stringify(fixture()));
+  git(['init','--quiet']);const dispatch=await projectDispatcher(root);writeFileSync(join(root,'.ai-development/state.json'),JSON.stringify(fixture()));
   const marker=join(outside,'ran'),planPath=join(outside,'plan.json');
   const worker=`import {writeFileSync,readFileSync} from 'node:fs';
    if(process.argv[2]==='--check'){
@@ -103,11 +119,11 @@ for(const failure of ['preflight','worker','source-change','plan-change','timeou
   assert.ok(readFileSync(planPath,'utf8').length>0);
  }finally{rmSync(root,{recursive:true,force:true});rmSync(outside,{recursive:true,force:true});}
 });
-test('dispatcher requires clean exact source and a reviewed adapter; external plan is bound to project and source',()=>{
+test('dispatcher requires clean exact source and a reviewed adapter; external plan is bound to project and source',async()=>{
  const root=mkdtempSync(join(tmpdir(),'workflow-dispatch-')),outside=mkdtempSync(join(tmpdir(),'workflow-plan-'));
  const git=args=>{const r=spawnSync('git',['-C',root,...args],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);return r.stdout.trim();};
  try{
-  git(['init','--quiet']);mkdirSync(join(root,'.ai-development'));writeFileSync(join(root,'.ai-development/state.json'),JSON.stringify(fixture()));
+  git(['init','--quiet']);const dispatch=await projectDispatcher(root);writeFileSync(join(root,'.ai-development/state.json'),JSON.stringify(fixture()));
   const marker=join(outside,'ran');writeFileSync(join(root,'worker.mjs'),"import {writeFileSync} from 'node:fs'; if(process.argv[2]==='--run')writeFileSync(process.argv[3],'ran');");
   writeFileSync(join(root,'.ai-development/owner-adapter.json'),JSON.stringify({enabled:true,governance_reference:'fixture:only',runtime:'node',script:'worker.mjs',check_args:['--check'],run_args:['--run',marker]}));
   git(['add','.']);git(['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','fixture']);const source=git(['rev-parse','HEAD']);
@@ -118,5 +134,17 @@ test('dispatcher requires clean exact source and a reviewed adapter; external pl
   plan.project.repository='owner/synthetic';writeFileSync(path,JSON.stringify(plan));assert.throws(()=>dispatch(root,source,true,path),/CHECK_SOURCE_MISMATCH/);
   plan.checks.source_head=source;plan.checks.required[0].head=source;writeFileSync(path,JSON.stringify(plan));assert.equal(dispatch(root,source,true,path).status,'ADAPTER_EXITED_ZERO');assert.equal(readFileSync(marker,'utf8'),'ran');
   writeFileSync(join(root,'untracked'),'unknown');assert.throws(()=>dispatch(root,source,true,path),/CLEAN_PINNED/);
+ }finally{rmSync(root,{recursive:true,force:true});rmSync(outside,{recursive:true,force:true});}
+});
+for(const flag of ['--assume-unchanged','--skip-worktree'])test('hidden executable changes with '+flag+' never reach the worker',async()=>{
+ const root=mkdtempSync(join(tmpdir(),'workflow-hidden-')),outside=mkdtempSync(join(tmpdir(),'workflow-marker-'));
+ const git=args=>{const r=spawnSync('git',['-C',root,...args],{encoding:'utf8'});assert.equal(r.status,0,r.stderr);return r.stdout.trim();};
+ try{
+  git(['init','--quiet']);const dispatch=await projectDispatcher(root);writeFileSync(join(root,'.ai-development/state.json'),JSON.stringify(fixture()));
+  const marker=join(outside,'ran');writeFileSync(join(root,'worker.mjs'),'// reviewed worker\n');writeFileSync(join(root,'.ai-development/owner-adapter.json'),JSON.stringify({enabled:true,governance_reference:'fixture:only',runtime:'node',script:'worker.mjs',check_args:['--check'],run_args:['--run']}));
+  git(['add','.']);git(['-c','user.name=Fixture','-c','user.email=fixture@example.invalid','commit','--quiet','-m','fixture']);const source=git(['rev-parse','HEAD']);
+  const plan=fixture();plan.owner_session.source_head=source;plan.checks.source_head=source;plan.checks.required[0].head=source;const planPath=join(outside,'plan.json');writeFileSync(planPath,JSON.stringify(plan));
+  git(['update-index',flag,'worker.mjs']);writeFileSync(join(root,'worker.mjs'),`import {writeFileSync} from 'node:fs';writeFileSync(${JSON.stringify(marker)},'unsafe');`);
+  assert.equal(git(['status','--porcelain']),'');assert.throws(()=>dispatch(root,source,true,planPath),/INDEX_FLAGS_FORBIDDEN/);assert.throws(()=>readFileSync(marker));
  }finally{rmSync(root,{recursive:true,force:true});rmSync(outside,{recursive:true,force:true});}
 });

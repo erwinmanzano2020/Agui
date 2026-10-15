@@ -97,6 +97,23 @@ function confined(root,path){
 }
 function readJson(path){const raw=readFileSync(path,'utf8');requireThat(raw.length<=256000,'FILE_TOO_LARGE');return JSON.parse(raw);}
 function git(root,args){const r=spawnSync('git',['-C',root,...args],{encoding:'utf8',timeout:10000,shell:false});requireThat(r.status===0,'GIT_CHECK_FAILED');return r.stdout.trim();}
+export function verifyPinnedFile(root,head,path){
+ const file=confined(root,path);
+ requireThat(git(root,['ls-files','--error-unmatch',path])===path,'TRACKED_EXECUTABLE_REQUIRED');
+ const expected=spawnSync('git',['-C',root,'cat-file','blob',head+':'+path],{timeout:10000,shell:false,maxBuffer:16*1024*1024});
+ requireThat(expected.status===0,'PINNED_FILE_UNAVAILABLE');const actual=readFileSync(file);
+ // Git may check text out as CRLF on Windows. Permit newline conversion only;
+ // never ask Git filters, stat caches or index flags to attest executable bytes.
+ const utf8=b=>!b.includes(0)&&Buffer.from(b.toString('utf8')).equals(b);
+ requireThat(actual.equals(expected.stdout)||(utf8(actual)&&utf8(expected.stdout)&&actual.toString('utf8').replaceAll('\r\n','\n')===expected.stdout.toString('utf8').replaceAll('\r\n','\n')),'PINNED_EXECUTABLE_CHANGED');
+}
+function verifyExecutionSource(root,head,workerPath){
+ const entries=git(root,['ls-files','-v','-z']).split('\0').filter(Boolean);
+ requireThat(entries.length>0&&entries.every(entry=>entry.startsWith('H ')),'INDEX_FLAGS_FORBIDDEN');
+ const self=relative(realpathSync(root),realpathSync(fileURLToPath(import.meta.url))).split('\\').join('/');
+ requireThat(self!==''&&!self.startsWith('..')&&!isAbsolute(self),'PROJECT_DISPATCHER_REQUIRED');
+ for(const path of new Set([self,'project.mjs','.ai-development/state.json','.ai-development/owner-adapter.json',...(workerPath?[workerPath]:[])]))verifyPinnedFile(root,head,path);
+}
 export function resolvePowerShell(platform=process.platform,programFiles=process.env.ProgramFiles,probe=executable=>spawnSync(executable,['-NoProfile','-NonInteractive','-Command','$PSVersionTable.PSVersion.Major'],{encoding:'utf8',timeout:10000,shell:false,stdio:['ignore','pipe','pipe']})){
  const candidates=platform==='win32'&&programFiles?[resolve(programFiles,'PowerShell/7/pwsh.exe'),'pwsh']:['pwsh'];
  for(const executable of candidates){const result=probe(executable);if(result.status===0&&Number(result.stdout.trim())>=7)return executable;}
@@ -112,12 +129,14 @@ export function doctor(root){
 export function dispatch(root,head,ready=false,planPath){
  requireThat(ready===true&&sha.test(head),'OWNER_READY_AND_HEAD_REQUIRED');
  requireThat(git(root,['rev-parse','HEAD'])===head&&git(root,['status','--porcelain','--untracked-files=all'])==='','CLEAN_PINNED_SOURCE_REQUIRED');
+ verifyExecutionSource(root,head);
  const adapterRel='.ai-development/owner-adapter.json';
  requireThat(git(root,['ls-files','--error-unmatch',adapterRel])===adapterRel,'TRACKED_ADAPTER_REQUIRED');
  const adapter=readJson(confined(root,adapterRel));noSecrets(adapter);
  requireThat(adapter.enabled===true&&text(adapter.governance_reference)&&['node','pwsh'].includes(adapter.runtime),'REVIEWED_ADAPTER_UNAVAILABLE');
  const worker=confined(root,adapter.script);
  requireThat(git(root,['ls-files','--error-unmatch',adapter.script])===adapter.script,'TRACKED_WORKER_REQUIRED');
+ verifyExecutionSource(root,head,adapter.script);
  requireThat(list(adapter.check_args)&&list(adapter.run_args)&&adapter.check_args.length>0&&adapter.run_args.length>0,'ADAPTER_ARGUMENTS_INVALID');
  // Prepared live plans are external non-secret files: a tracked file cannot
  // contain its own future commit SHA. They are indexes, never authority.
@@ -140,6 +159,7 @@ export function dispatch(root,head,ready=false,planPath){
  // project's hidden-input ceremony. Neither phase is captured or logged here.
  let r=spawnSync(executable,[...checkPrefix,...bind(adapter.check_args)],{cwd:root,stdio:['ignore','inherit','inherit'],shell:false,timeout,killSignal:'SIGKILL'});requireThat(r.status===0,'ADAPTER_PREFLIGHT_FAILED');
  requireThat(git(root,['rev-parse','HEAD'])===head&&git(root,['status','--porcelain','--untracked-files=all'])==='','SOURCE_CHANGED_DURING_PREFLIGHT');
+ verifyExecutionSource(root,head,adapter.script);
  const refreshed=validate(readJson(plan));requireThat(JSON.stringify(refreshed)===JSON.stringify(state)&&refreshed.owner_session.source_head===head&&ownerPlan(refreshed).ready,'OWNER_WINDOW_NO_LONGER_READY');
  r=spawnSync(executable,[...prefix,...bind(adapter.run_args)],{cwd:root,stdio:'inherit',shell:false});requireThat(r.status===0,'ADAPTER_STOPPED_PRESERVE_EVIDENCE');
  return{status:'ADAPTER_EXITED_ZERO',note:'Verify canonical cleanup evidence before recording completion.'};
